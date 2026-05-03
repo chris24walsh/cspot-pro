@@ -12,7 +12,7 @@ import {
   type Song,
   type StoredFile,
 } from "../api";
-import { formatWorshipText, normalizeImportedSongSlides } from "../worshipText";
+import { analyzeImportedSongSlides, analyzeWorshipText, formatWorshipText } from "../worshipText";
 
 type SongPayload = Omit<Song, "id" | "lyrics_status">;
 
@@ -82,6 +82,8 @@ export function SongManager({
   const [fileDisplayName, setFileDisplayName] = useState("");
   const [songDeckFiles, setSongDeckFiles] = useState<File[]>([]);
   const [parsedSongDeck, setParsedSongDeck] = useState<ParsedSlideDeck | null>(null);
+  const [parsedSequence, setParsedSequence] = useState<string | null>(null);
+  const [parseNotes, setParseNotes] = useState<string[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [message, setMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -115,6 +117,9 @@ export function SongManager({
         setSelectedSong(target);
         setForm(formFromSong(target));
         setMode("edit");
+        setParsedSongDeck(null);
+        setParsedSequence(target.sequence);
+        setParseNotes([]);
         setSongFiles(await getFiles({ song_id: target.id }));
       } else {
         startCreate();
@@ -131,6 +136,9 @@ export function SongManager({
     setMode("create");
     setForm(blankSong());
     setSongFiles([]);
+    setParsedSongDeck(null);
+    setParsedSequence(null);
+    setParseNotes([]);
     setMessage(null);
   }
 
@@ -138,6 +146,9 @@ export function SongManager({
     setSelectedSong(song);
     setForm(formFromSong(song));
     setMode("edit");
+    setParsedSongDeck(null);
+    setParsedSequence(song.sequence);
+    setParseNotes([]);
     setMessage(null);
     setSongFiles(await getFiles({ song_id: song.id }));
   }
@@ -215,10 +226,26 @@ export function SongManager({
     }
   }
 
-  function lyricsFromParsedDeck(deck: ParsedSlideDeck) {
-    return normalizeImportedSongSlides(
+  function analyzeDeck(deck: ParsedSlideDeck) {
+    return analyzeImportedSongSlides(
       deck.slides.map((slide) => slide.text),
       deck.filename.replace(/\.[^.]+$/, ""),
+    );
+  }
+
+  function autoParseEditorLyrics() {
+    const analysis = analyzeWorshipText(form.lyrics ?? "", { title: form.title });
+    setForm({
+      ...form,
+      lyrics: analysis.lyrics,
+      sequence: form.sequence || analysis.sequence,
+    });
+    setParsedSequence(analysis.sequence);
+    setParseNotes(analysis.notes);
+    setMessage(
+      analysis.sequence
+        ? `Detected ${analysis.sections.length} section${analysis.sections.length === 1 ? "" : "s"} and updated the song structure.`
+        : "Formatted lyrics, but could not confidently infer a section sequence yet.",
     );
   }
 
@@ -235,16 +262,21 @@ export function SongManager({
 
     try {
       const parsed = await parseSlideDeck(file);
-      const lyrics = lyricsFromParsedDeck(parsed);
+      const analysis = analyzeDeck(parsed);
       setParsedSongDeck(parsed);
+      setParsedSequence(analysis.sequence);
+      setParseNotes(analysis.notes);
       setForm({
         ...form,
         title: form.title || parsed.filename.replace(/\.[^.]+$/, ""),
-        lyrics,
+        lyrics: analysis.lyrics,
+        sequence: form.sequence || analysis.sequence,
       });
       setMessage(`Parsed ${parsed.slide_count} slide${parsed.slide_count === 1 ? "" : "s"} into lyrics.`);
     } catch (error) {
       setParsedSongDeck(null);
+      setParsedSequence(null);
+      setParseNotes([]);
       setMessage(error instanceof Error ? error.message : "Could not parse song deck.");
     }
   }
@@ -266,15 +298,16 @@ export function SongManager({
     for (const file of songDeckFiles) {
       try {
         const parsed = await parseSlideDeck(file);
-        const lyrics = lyricsFromParsedDeck(parsed);
-        if (!lyrics) {
+        const analysis = analyzeDeck(parsed);
+        if (!analysis.lyrics) {
           failures.push(`${file.name}: no lyrics found`);
           continue;
         }
         await createSong({
           ...blankSong(),
           title: parsed.filename.replace(/\.[^.]+$/, ""),
-          lyrics,
+          lyrics: analysis.lyrics,
+          sequence: analysis.sequence,
         });
         imported += 1;
       } catch (error) {
@@ -368,20 +401,38 @@ export function SongManager({
                   onChange={(event) => {
                     setSongDeckFiles(Array.from(event.target.files ?? []));
                     setParsedSongDeck(null);
+                    setParsedSequence(null);
+                    setParseNotes([]);
                   }}
                   type="file"
                 />
               </label>
             </div>
             {parsedSongDeck ? (
-              <div className="deck-preview">
-                {parsedSongDeck.slides.slice(0, 8).map((slide) => (
-                  <article className="slide-tile readonly" key={slide.index}>
-                    <span>{slide.index.toString().padStart(2, "0")}</span>
-                    <strong>{slide.text.split(/\r?\n/)[0] ?? `Slide ${slide.index}`}</strong>
-                  </article>
-                ))}
-              </div>
+              <>
+                <div className="empty-state import-summary">
+                  <strong>{parsedSongDeck.filename}</strong>
+                  <span>{parsedSongDeck.slide_count} slides parsed</span>
+                  <span>{parsedSequence ? `Inferred sequence: ${parsedSequence}` : "No confident sequence inferred yet"}</span>
+                </div>
+                {parseNotes.length ? (
+                  <div className="stack-list compact">
+                    {parseNotes.map((note) => (
+                      <div className="stack-row readonly" key={note}>
+                        <span>{note}</span>
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+                <div className="deck-preview">
+                  {parsedSongDeck.slides.slice(0, 8).map((slide) => (
+                    <article className="slide-tile readonly" key={slide.index}>
+                      <span>{slide.index.toString().padStart(2, "0")}</span>
+                      <strong>{slide.text.split(/\r?\n/)[0] ?? `Slide ${slide.index}`}</strong>
+                    </article>
+                  ))}
+                </div>
+              </>
             ) : null}
             <div className="action-row form-actions">
               <button className="text-button" disabled={!canCreate && !canEdit} onClick={() => void parseFirstSongDeck()} type="button">
@@ -489,6 +540,14 @@ export function SongManager({
               <button
                 className="text-button"
                 disabled={mode === "create" ? !canCreate : !canEdit}
+                onClick={() => autoParseEditorLyrics()}
+                type="button"
+              >
+                Auto Parse Structure
+              </button>
+              <button
+                className="text-button"
+                disabled={mode === "create" ? !canCreate : !canEdit}
                 onClick={() =>
                   setForm({
                     ...form,
@@ -500,6 +559,7 @@ export function SongManager({
                 Format Lyrics
               </button>
             </div>
+            {parsedSequence ? <p className="field-help">Inferred sequence: {parsedSequence}</p> : null}
             <textarea
               disabled={mode === "create" ? !canCreate : !canEdit}
               onChange={(event) => setForm({ ...form, lyrics: event.target.value })}
