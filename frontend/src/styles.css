@@ -1623,6 +1623,16 @@ h3 {
   grid-template-rows: minmax(0, 1fr);
 }
 
+.stage-theme-dark .presentation-stage-image,
+.stage-theme-dark.slideshow-stage-image {
+  background: #2a2d2d;
+}
+
+.stage-theme-light .presentation-stage-image,
+.stage-theme-light.slideshow-stage-image {
+  background: #ece8de;
+}
+
 .stage-title {
   align-items: center;
   color: #f0b35a;
@@ -1778,13 +1788,18 @@ h3 {
 }
 
 .blank-stage {
-  background: #000;
   height: 100%;
   width: 100%;
 }
 
-.stage-blanked {
-  background: #000 !important;
+.stage-blanked .blank-stage {
+  background: transparent;
+}
+
+.stage-blanked .presentation-stage,
+.stage-blanked.slideshow-stage {
+  color: transparent;
+  width: 100%;
 }
 
 .slideshow-stage .rendered-slide-image {
