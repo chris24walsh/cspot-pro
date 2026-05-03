@@ -1,5 +1,18 @@
-export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000";
+function defaultApiBaseUrl() {
+  if (import.meta.env.VITE_API_BASE_URL) {
+    return import.meta.env.VITE_API_BASE_URL;
+  }
+
+  if (typeof window !== "undefined" && window.location.port === "5173") {
+    return "http://localhost:8000";
+  }
+
+  return "/api";
+}
+
+export const API_BASE_URL = defaultApiBaseUrl();
 export const AUTH_REQUIRED_EVENT = "cspot-pro:auth-required";
+const DEFAULT_REQUEST_TIMEOUT_MS = 8000;
 
 export class ApiError extends Error {
   status: number;
@@ -343,8 +356,27 @@ async function parseError(response: Response, suppressAuthEvent = false): Promis
   throw new ApiError(text || `API request failed: ${response.status}`, response.status);
 }
 
+async function fetchWithTimeout(input: string, init?: RequestInit): Promise<Response> {
+  const controller = new AbortController();
+  const timeout = window.setTimeout(() => controller.abort(), DEFAULT_REQUEST_TIMEOUT_MS);
+
+  try {
+    return await fetch(input, {
+      ...init,
+      signal: controller.signal,
+    });
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "AbortError") {
+      throw new ApiError("The server took too long to respond.", 408);
+    }
+    throw error;
+  } finally {
+    window.clearTimeout(timeout);
+  }
+}
+
 async function getJson<T>(path: string, options?: { suppressAuthEvent?: boolean }): Promise<T> {
-  const response = await fetch(`${API_BASE_URL}${path}`, {
+  const response = await fetchWithTimeout(`${API_BASE_URL}${path}`, {
     credentials: "include",
   });
 
@@ -360,7 +392,7 @@ async function sendJson<T>(
   body: unknown,
   options?: { suppressAuthEvent?: boolean },
 ): Promise<T> {
-  const response = await fetch(`${API_BASE_URL}${path}`, {
+  const response = await fetchWithTimeout(`${API_BASE_URL}${path}`, {
     method,
     credentials: "include",
     headers: {
@@ -377,7 +409,7 @@ async function sendJson<T>(
 }
 
 async function deleteRequest(path: string, options?: { suppressAuthEvent?: boolean }): Promise<void> {
-  const response = await fetch(`${API_BASE_URL}${path}`, {
+  const response = await fetchWithTimeout(`${API_BASE_URL}${path}`, {
     method: "DELETE",
     credentials: "include",
   });
@@ -388,7 +420,7 @@ async function deleteRequest(path: string, options?: { suppressAuthEvent?: boole
 }
 
 async function uploadForm<T>(path: string, body: FormData, options?: { suppressAuthEvent?: boolean }): Promise<T> {
-  const response = await fetch(`${API_BASE_URL}${path}`, {
+  const response = await fetchWithTimeout(`${API_BASE_URL}${path}`, {
     method: "POST",
     credentials: "include",
     body,
