@@ -121,6 +121,11 @@ export function UserManager() {
     event.preventDefault();
     setMessage(null);
 
+    if (mode === "create" && form.password.trim().length < 8) {
+      setMessage("New users need a password with at least 8 characters.");
+      return;
+    }
+
     try {
       const payload = payloadFromForm(form);
       const saved =
@@ -231,6 +236,7 @@ export function UserManager() {
               minLength={8}
               onChange={(event) => setForm({ ...form, password: event.target.value })}
               placeholder={mode === "create" ? "Temporary password" : "Leave blank to keep current"}
+              required={mode === "create"}
               type="password"
               value={form.password}
             />

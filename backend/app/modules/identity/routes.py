@@ -197,6 +197,12 @@ def create_user(
     _current_user: User = Depends(require_permission("users:manage")),
     session: Session = Depends(get_session),
 ) -> UserRead:
+    if not payload.password or len(payload.password.strip()) < 8:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="New users need a password with at least 8 characters.",
+        )
+
     try:
         user = User(
             email=payload.email,
