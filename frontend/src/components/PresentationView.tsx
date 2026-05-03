@@ -223,6 +223,16 @@ export function PresentationView() {
   const liveSlide = slides[liveIndex] ?? null;
   const currentPlanItem = (plan?.items ?? []).find((item) => item.id === liveSlide?.planItemId) ?? null;
 
+  function clearHotkeyButtonFocus() {
+    const active = document.activeElement;
+    if (!(active instanceof HTMLButtonElement)) {
+      return;
+    }
+    if (active.closest(".presenter-controls")) {
+      active.blur();
+    }
+  }
+
   async function load(planId?: string, options?: LoadOptions) {
     setMessage(null);
     setLoading(true);
@@ -823,16 +833,19 @@ export function PresentationView() {
       }
       if (event.key === "ArrowRight" || event.key === " ") {
         event.preventDefault();
+        clearHotkeyButtonFocus();
         moveLive(1);
         return;
       }
       if (event.key === "ArrowLeft") {
         event.preventDefault();
+        clearHotkeyButtonFocus();
         moveLive(-1);
         return;
       }
       if (event.key === "ArrowDown") {
         event.preventDefault();
+        clearHotkeyButtonFocus();
         if (currentPlanItem?.item_type === "reading") {
           void navigateBibleReading("verse", 1);
         } else {
@@ -842,6 +855,7 @@ export function PresentationView() {
       }
       if (event.key === "ArrowUp") {
         event.preventDefault();
+        clearHotkeyButtonFocus();
         if (currentPlanItem?.item_type === "reading") {
           void navigateBibleReading("verse", -1);
         } else {
@@ -851,21 +865,25 @@ export function PresentationView() {
       }
       if (event.key === "F5") {
         event.preventDefault();
+        clearHotkeyButtonFocus();
         void startSlideshow();
         return;
       }
       if (event.key === "f" || event.key === "F") {
         event.preventDefault();
+        clearHotkeyButtonFocus();
         setLiveFullscreen((current) => !current);
         return;
       }
       if (event.key === "b" || event.key === "B") {
         event.preventDefault();
+        clearHotkeyButtonFocus();
         setLiveBlanked((current) => !current);
         return;
       }
       if (event.key === "Escape") {
         event.preventDefault();
+        clearHotkeyButtonFocus();
         setLiveBlanked(false);
         setLiveFullscreen(false);
         return;
