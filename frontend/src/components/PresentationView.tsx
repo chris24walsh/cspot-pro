@@ -195,7 +195,7 @@ export function PresentationView() {
   const [renderErrorsByFileId, setRenderErrorsByFileId] = useState<Record<string, string>>({});
   const [bibleVersions, setBibleVersions] = useState<BibleVersion[]>([]);
   const [bibleBooks, setBibleBooks] = useState<BibleBook[]>([]);
-  const [bibleVersion, setBibleVersion] = useState("WEB");
+  const [bibleVersion, setBibleVersion] = useState("KJV");
   const [bibleBook, setBibleBook] = useState("John");
   const [bibleChapter, setBibleChapter] = useState("3");
   const [bibleVerseFrom, setBibleVerseFrom] = useState("16");
@@ -206,6 +206,8 @@ export function PresentationView() {
   const [searchResults, setSearchResults] = useState<BibleSearchHit[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
   const [slideTheme, setSlideTheme] = useState<PresentationTheme>("dark");
+  const [liveBlanked, setLiveBlanked] = useState(false);
+  const [liveFullscreen, setLiveFullscreen] = useState(false);
   const outputWindowRef = useRef<Window | null>(null);
   const channelRef = useRef<BroadcastChannel | null>(null);
   const thumbnailRefs = useRef<Record<string, HTMLButtonElement | null>>({});
@@ -298,6 +300,8 @@ export function PresentationView() {
       index: nextIndex,
       updatedAt: Date.now(),
       theme: slideTheme,
+      blanked: liveBlanked,
+      fullscreen: liveFullscreen,
     };
     localStorage.setItem(PRESENTATION_STORAGE_KEY, JSON.stringify(state));
     channelRef.current?.postMessage(state);
@@ -721,9 +725,12 @@ export function PresentationView() {
         const [versions, books] = await Promise.all([getBibleVersions(), getBibleBooks()]);
         setBibleVersions(versions);
         setBibleBooks(books);
-        setBibleVersion((current) =>
-          versions.some((version) => version.code === current) ? current : versions[0]?.code || "",
-        );
+        setBibleVersion((current) => {
+          if (versions.some((version) => version.code === current)) {
+            return current;
+          }
+          return versions.find((version) => version.code === "KJV")?.code || versions[0]?.code || "";
+        });
         setBibleBook((current) =>
           books.some((book) => book.name === current) ? current : books[0]?.name || "",
         );
@@ -778,7 +785,7 @@ export function PresentationView() {
 
   useEffect(() => {
     publishLiveState(liveIndex);
-  }, [slideTheme]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [liveBlanked, liveFullscreen, slideTheme]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     const activeSlide = slides[liveIndex];
@@ -845,6 +852,23 @@ export function PresentationView() {
       if (event.key === "F5") {
         event.preventDefault();
         void startSlideshow();
+        return;
+      }
+      if (event.key === "f" || event.key === "F") {
+        event.preventDefault();
+        setLiveFullscreen((current) => !current);
+        return;
+      }
+      if (event.key === "b" || event.key === "B") {
+        event.preventDefault();
+        setLiveBlanked((current) => !current);
+        return;
+      }
+      if (event.key === "Escape") {
+        event.preventDefault();
+        setLiveBlanked(false);
+        setLiveFullscreen(false);
+        return;
       }
       if (/^[1-9]$/.test(event.key)) {
         const section = sections[Number(event.key) - 1];
@@ -902,7 +926,7 @@ export function PresentationView() {
               </span>
             </div>
             <div className={`presentation-stage ${liveSlide?.imageUrl ? "presentation-stage-image" : ""}`}>
-              {liveSlide?.imageUrl ? null : (
+              {liveSlide?.imageUrl || liveSlide?.itemType === "song" ? null : (
                 <div className="stage-title">
                   <span>{liveSlide?.title ?? "Ready"}</span>
                 </div>

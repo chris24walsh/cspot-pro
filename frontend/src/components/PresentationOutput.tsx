@@ -87,6 +87,10 @@ export function PresentationOutput() {
   }, [liveState?.planId, load]);
 
   useEffect(() => {
+    setBlanked(Boolean(liveState?.blanked));
+  }, [liveState?.blanked]);
+
+  useEffect(() => {
     async function loadRenderedDecks() {
       const files = (plan?.items ?? []).flatMap((item) => item.files ?? []);
       const uniqueFiles = Array.from(new Map(files.map((file) => [file.file_id, file])).values());
@@ -181,6 +185,23 @@ export function PresentationOutput() {
     };
   }, [blanked]);
 
+  useEffect(() => {
+    async function syncFullscreenMode() {
+      if (liveState?.fullscreen) {
+        if (!document.fullscreenElement) {
+          await enterFullscreen();
+        }
+        return;
+      }
+
+      if (document.fullscreenElement) {
+        await exitFullscreen();
+      }
+    }
+
+    void syncFullscreenMode();
+  }, [liveState?.fullscreen]);
+
   return (
     <main className="slideshow-output" aria-label="Live slideshow output">
       {fullscreenReady ? (
@@ -197,7 +218,7 @@ export function PresentationOutput() {
           liveState?.theme ?? "dark"
         } ${liveSlide ? presentationTypeClass(liveSlide.itemType) : "type-generic"} ${blanked ? "stage-blanked" : ""}`}
       >
-        {blanked ? null : !liveSlide?.imageUrl ? (
+        {blanked ? null : !liveSlide?.imageUrl && liveSlide?.itemType !== "song" ? (
           <div className="stage-title">
             <span>{liveSlide?.title ?? "Ready"}</span>
           </div>

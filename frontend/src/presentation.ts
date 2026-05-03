@@ -10,6 +10,8 @@ export interface PresentationLiveState {
   index: number;
   updatedAt: number;
   theme?: PresentationTheme;
+  blanked?: boolean;
+  fullscreen?: boolean;
 }
 
 export interface PresentationSlide {
