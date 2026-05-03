@@ -209,6 +209,7 @@ export function PresentationView() {
   const [slideTheme, setSlideTheme] = useState<PresentationTheme>("light");
   const [liveBlanked, setLiveBlanked] = useState(false);
   const [liveFullscreen, setLiveFullscreen] = useState(false);
+  const [slideshowOpen, setSlideshowOpen] = useState(false);
   const outputWindowRef = useRef<Window | null>(null);
   const channelRef = useRef<BroadcastChannel | null>(null);
   const thumbnailRefs = useRef<Record<string, HTMLButtonElement | null>>({});
@@ -356,9 +357,22 @@ export function PresentationView() {
     }
   }
 
+  function closeSlideshowWindow() {
+    if (outputWindowRef.current && !outputWindowRef.current.closed) {
+      outputWindowRef.current.close();
+    }
+    outputWindowRef.current = null;
+    setSlideshowOpen(false);
+  }
+
   async function startSlideshow() {
     if (!plan) {
       setMessage("Select a plan before starting the slideshow.");
+      return;
+    }
+
+    if (outputWindowRef.current && !outputWindowRef.current.closed) {
+      closeSlideshowWindow();
       return;
     }
 
@@ -400,6 +414,7 @@ export function PresentationView() {
     }
 
     outputWindowRef.current = outputWindow;
+    setSlideshowOpen(true);
     outputWindow.focus();
   }
 
@@ -805,6 +820,17 @@ export function PresentationView() {
   }, []);
 
   useEffect(() => {
+    const timer = window.setInterval(() => {
+      if (outputWindowRef.current && outputWindowRef.current.closed) {
+        outputWindowRef.current = null;
+        setSlideshowOpen(false);
+      }
+    }, 500);
+
+    return () => window.clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
     publishLiveState(liveIndex);
   }, [liveBlanked, liveFullscreen, slideTheme]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -1005,7 +1031,7 @@ export function PresentationView() {
               </button>
               <button className="primary-button" disabled={loading || !plan} onClick={() => void startSlideshow()} type="button">
                 <MonitorUp size={16} aria-hidden="true" />
-                Start Slideshow
+                {slideshowOpen ? "Close Slideshow" : "Start Slideshow"}
               </button>
             </div>
             {currentPlanItem?.item_type === "reading" ? (
