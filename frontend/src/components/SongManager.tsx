@@ -15,6 +15,15 @@ import {
 import { analyzeImportedSongSlides, analyzeWorshipText, formatWorshipText } from "../worshipText";
 
 type SongPayload = Omit<Song, "id" | "lyrics_status">;
+type ImportPreview = {
+  duplicateSongId: string | null;
+  duplicateSongTitle: string | null;
+  filename: string;
+  notes: string[];
+  parsed: ParsedSlideDeck;
+  sequence: string | null;
+  title: string;
+};
 
 function blankSong(): SongPayload {
   return {
@@ -82,6 +91,7 @@ export function SongManager({
   const [fileDisplayName, setFileDisplayName] = useState("");
   const [songDeckFiles, setSongDeckFiles] = useState<File[]>([]);
   const [parsedSongDeck, setParsedSongDeck] = useState<ParsedSlideDeck | null>(null);
+  const [importPreviews, setImportPreviews] = useState<ImportPreview[]>([]);
   const [parsedSequence, setParsedSequence] = useState<string | null>(null);
   const [parseNotes, setParseNotes] = useState<string[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
@@ -101,6 +111,19 @@ export function SongManager({
     );
   }, [songs, searchTerm]);
 
+  function normalizedSongKey(value: string) {
+    return value.trim().toLowerCase().replace(/[_-]+/g, " ").replace(/\s+/g, " ");
+  }
+
+  function findDuplicateSong(title: string) {
+    const key = normalizedSongKey(title);
+    return songs.find((song) =>
+      [song.title, song.alternate_title]
+        .filter(Boolean)
+        .some((value) => normalizedSongKey(value!) === key),
+    );
+  }
+
   async function load(selectedId?: string | null) {
     setLoading(true);
     setMessage(null);
@@ -118,6 +141,7 @@ export function SongManager({
         setForm(formFromSong(target));
         setMode("edit");
         setParsedSongDeck(null);
+        setImportPreviews([]);
         setParsedSequence(target.sequence);
         setParseNotes([]);
         setSongFiles(await getFiles({ song_id: target.id }));
@@ -137,8 +161,17 @@ export function SongManager({
     setForm(blankSong());
     setSongFiles([]);
     setParsedSongDeck(null);
+    setImportPreviews([]);
     setParsedSequence(null);
     setParseNotes([]);
+    setMessage(null);
+  }
+
+  function startImportDraft() {
+    setSelectedSong(null);
+    setMode("create");
+    setForm(blankSong());
+    setSongFiles([]);
     setMessage(null);
   }
 
@@ -147,6 +180,7 @@ export function SongManager({
     setForm(formFromSong(song));
     setMode("edit");
     setParsedSongDeck(null);
+    setImportPreviews([]);
     setParsedSequence(song.sequence);
     setParseNotes([]);
     setMessage(null);
@@ -233,6 +267,24 @@ export function SongManager({
     );
   }
 
+  function applyAnalysisToForm(parsed: ParsedSlideDeck) {
+    const analysis = analyzeDeck(parsed);
+    const suggestedTitle = analysis.suggestions.title ?? parsed.filename.replace(/\.[^.]+$/, "");
+    setParsedSongDeck(parsed);
+    setParsedSequence(analysis.sequence);
+    setParseNotes(analysis.notes);
+    setForm((current) => ({
+      ...current,
+      title: current.title || suggestedTitle,
+      author: current.author || analysis.suggestions.author,
+      ccli_number: current.ccli_number || analysis.suggestions.ccliNumber,
+      license: current.license === "Unknown" && analysis.suggestions.license ? analysis.suggestions.license : current.license,
+      lyrics: analysis.lyrics,
+      sequence: current.sequence || analysis.sequence,
+    }));
+    return { analysis, suggestedTitle };
+  }
+
   function autoParseEditorLyrics() {
     const analysis = analyzeWorshipText(form.lyrics ?? "", { title: form.title });
     setForm({
@@ -262,22 +314,69 @@ export function SongManager({
 
     try {
       const parsed = await parseSlideDeck(file);
-      const analysis = analyzeDeck(parsed);
-      setParsedSongDeck(parsed);
-      setParsedSequence(analysis.sequence);
-      setParseNotes(analysis.notes);
-      setForm({
-        ...form,
-        title: form.title || parsed.filename.replace(/\.[^.]+$/, ""),
-        lyrics: analysis.lyrics,
-        sequence: form.sequence || analysis.sequence,
-      });
+      applyAnalysisToForm(parsed);
       setMessage(`Parsed ${parsed.slide_count} slide${parsed.slide_count === 1 ? "" : "s"} into lyrics.`);
     } catch (error) {
       setParsedSongDeck(null);
+      setImportPreviews([]);
       setParsedSequence(null);
       setParseNotes([]);
       setMessage(error instanceof Error ? error.message : "Could not parse song deck.");
+    }
+  }
+
+  async function handleSongDeckSelection(files: File[]) {
+    startImportDraft();
+    setSongDeckFiles(files);
+    setParsedSongDeck(null);
+    setImportPreviews([]);
+    setParsedSequence(null);
+    setParseNotes([]);
+
+    if (!files.length) {
+      return;
+    }
+
+    try {
+      const previews: ImportPreview[] = [];
+
+      for (const file of files) {
+        const parsed = await parseSlideDeck(file);
+        const analysis = analyzeDeck(parsed);
+        const title = analysis.suggestions.title ?? parsed.filename.replace(/\.[^.]+$/, "");
+        const duplicate = findDuplicateSong(title);
+        previews.push({
+          duplicateSongId: duplicate?.id ?? null,
+          duplicateSongTitle: duplicate?.title ?? null,
+          filename: parsed.filename,
+          notes: analysis.notes,
+          parsed,
+          sequence: analysis.sequence,
+          title,
+        });
+      }
+
+      setImportPreviews(previews);
+
+      if (previews.length === 1) {
+        applyAnalysisToForm(previews[0].parsed);
+        setMessage(
+          previews[0].duplicateSongTitle
+            ? `Parsed ${previews[0].filename}. It looks like this may already exist as "${previews[0].duplicateSongTitle}".`
+            : `Parsed ${previews[0].filename} and filled the editor for you.`,
+        );
+        return;
+      }
+
+      const duplicateCount = previews.filter((preview) => preview.duplicateSongId).length;
+      setMessage(
+        duplicateCount
+          ? `Prepared ${previews.length} song imports. ${duplicateCount} look like existing songs and will be skipped on bulk import.`
+          : `Prepared ${previews.length} song imports. Review if you want, or bulk import straight away.`,
+      );
+    } catch (error) {
+      setImportPreviews([]);
+      setMessage(error instanceof Error ? error.message : "Could not parse selected song deck files.");
     }
   }
 
@@ -293,7 +392,9 @@ export function SongManager({
 
     setMessage(null);
     let imported = 0;
+    let skipped = 0;
     const failures: string[] = [];
+    const importedKeys = new Set(songs.flatMap((song) => [song.title, song.alternate_title].filter(Boolean).map((value) => normalizedSongKey(value!))));
 
     for (const file of songDeckFiles) {
       try {
@@ -303,12 +404,22 @@ export function SongManager({
           failures.push(`${file.name}: no lyrics found`);
           continue;
         }
+        const title = analysis.suggestions.title ?? parsed.filename.replace(/\.[^.]+$/, "");
+        const titleKey = normalizedSongKey(title);
+        if (importedKeys.has(titleKey) || findDuplicateSong(title)) {
+          skipped += 1;
+          continue;
+        }
         await createSong({
           ...blankSong(),
-          title: parsed.filename.replace(/\.[^.]+$/, ""),
+          title,
+          author: analysis.suggestions.author,
+          ccli_number: analysis.suggestions.ccliNumber,
+          license: analysis.suggestions.license ?? "Unknown",
           lyrics: analysis.lyrics,
           sequence: analysis.sequence,
         });
+        importedKeys.add(titleKey);
         imported += 1;
       } catch (error) {
         failures.push(`${file.name}: ${error instanceof Error ? error.message : "failed"}`);
@@ -319,8 +430,8 @@ export function SongManager({
     onDataChange();
     setMessage(
       failures.length
-        ? `Imported ${imported}. ${failures.length} failed: ${failures.join("; ")}`
-        : `Imported ${imported} song${imported === 1 ? "" : "s"}.`,
+        ? `Imported ${imported}. Skipped ${skipped}. ${failures.length} failed: ${failures.join("; ")}`
+        : `Imported ${imported} song${imported === 1 ? "" : "s"}${skipped ? ` and skipped ${skipped} duplicates` : ""}.`,
     );
   }
 
@@ -399,21 +510,33 @@ export function SongManager({
                   disabled={!canCreate && !canEdit}
                   multiple
                   onChange={(event) => {
-                    setSongDeckFiles(Array.from(event.target.files ?? []));
-                    setParsedSongDeck(null);
-                    setParsedSequence(null);
-                    setParseNotes([]);
+                    void handleSongDeckSelection(Array.from(event.target.files ?? []));
                   }}
                   type="file"
                 />
               </label>
             </div>
+            {importPreviews.length > 1 ? (
+              <div className="stack-list compact">
+                {importPreviews.map((preview) => (
+                  <div className="stack-row readonly" key={preview.filename}>
+                    <strong>{preview.title}</strong>
+                    <span>
+                      {preview.parsed.slide_count} slides
+                      {preview.sequence ? ` · ${preview.sequence}` : ""}
+                      {preview.duplicateSongTitle ? ` · matches ${preview.duplicateSongTitle}` : ""}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            ) : null}
             {parsedSongDeck ? (
               <>
                 <div className="empty-state import-summary">
                   <strong>{parsedSongDeck.filename}</strong>
                   <span>{parsedSongDeck.slide_count} slides parsed</span>
                   <span>{parsedSequence ? `Inferred sequence: ${parsedSequence}` : "No confident sequence inferred yet"}</span>
+                  {findDuplicateSong(form.title)?.title ? <span>Possible duplicate: {findDuplicateSong(form.title)?.title}</span> : null}
                 </div>
                 {parseNotes.length ? (
                   <div className="stack-list compact">

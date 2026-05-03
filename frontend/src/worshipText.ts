@@ -20,8 +20,13 @@ const WEB_CLUTTER_PATTERNS = [
   /^submit corrections?$/i,
   /^azlyrics\.com/i,
   /^copyright\b/i,
+  /^ccli\b/i,
   /^writer\(s\):/i,
   /^publisher\(s\):/i,
+  /^words?\s+(?:and\s+music\s+)?by\b/i,
+  /^music\s+by\b/i,
+  /^used by permission\b/i,
+  /^all rights reserved\b/i,
   /^you might also like$/i,
   /^\d+\s*embed$/i,
   /^\d+\s*\/\s*\d+$/,
@@ -54,11 +59,19 @@ export interface WorshipStructureSection {
   label: string;
 }
 
+export interface WorshipImportSuggestions {
+  author: string | null;
+  ccliNumber: string | null;
+  license: string | null;
+  title: string | null;
+}
+
 export interface WorshipStructureAnalysis {
   lyrics: string;
   notes: string[];
   sections: WorshipStructureSection[];
   sequence: string | null;
+  suggestions: WorshipImportSuggestions;
 }
 
 function isLikelyChordLine(line: string): boolean {
@@ -239,10 +252,79 @@ function inferSectionsFromBlocks(blocks: string[]) {
   };
 }
 
+function titleCaseFromFilename(value: string) {
+  const base = value
+    .replace(/\.[^.]+$/, "")
+    .replace(/[_-]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  if (!base) {
+    return null;
+  }
+
+  return base.replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function extractImportSuggestions(slides: string[], fallbackTitle?: string): WorshipImportSuggestions {
+  let author: string | null = null;
+  let ccliNumber: string | null = null;
+  let license: string | null = null;
+
+  for (const slide of slides) {
+    for (const line of slide.split(/\r?\n/)) {
+      const trimmed = line.trim();
+      if (!trimmed) {
+        continue;
+      }
+
+      if (!ccliNumber) {
+        const ccliMatch = trimmed.match(/ccli(?:\s+song)?(?:\s+(?:no|number))?\s*#?\s*:?\s*(\d{4,})/i);
+        if (ccliMatch) {
+          ccliNumber = ccliMatch[1];
+        }
+      }
+
+      if (!author) {
+        const authorMatch = trimmed.match(/^(?:words?\s+(?:and\s+music\s+)?by|music\s+by|by)\s+(.+)$/i);
+        if (authorMatch?.[1]) {
+          author = authorMatch[1].trim();
+        }
+      }
+
+      if (!license) {
+        if (/public domain/i.test(trimmed)) {
+          license = "Public Domain";
+        } else if (/ccli/i.test(trimmed)) {
+          license = "CCLI";
+        }
+      }
+    }
+  }
+
+  return {
+    author,
+    ccliNumber,
+    license,
+    title: fallbackTitle ? titleCaseFromFilename(fallbackTitle) : null,
+  };
+}
+
 export function analyzeWorshipText(value: string, options: { title?: string } = {}): WorshipStructureAnalysis {
   const formatted = formatWorshipText(value, { removeChordLines: true });
   if (!formatted) {
-    return { lyrics: "", notes: [], sections: [], sequence: null };
+    return {
+      lyrics: "",
+      notes: [],
+      sections: [],
+      sequence: null,
+      suggestions: {
+        author: null,
+        ccliNumber: null,
+        license: null,
+        title: options.title ? titleCaseFromFilename(options.title) : null,
+      },
+    };
   }
 
   const explicitSections = parseExplicitSections(formatted);
@@ -252,6 +334,12 @@ export function analyzeWorshipText(value: string, options: { title?: string } = 
       notes: ["Detected explicit section headings and preserved them for slide formatting."],
       sections: explicitSections,
       sequence: explicitSections.map((section) => section.label).join(" "),
+      suggestions: {
+        author: null,
+        ccliNumber: null,
+        license: null,
+        title: options.title ? titleCaseFromFilename(options.title) : null,
+      },
     };
   }
 
@@ -266,6 +354,12 @@ export function analyzeWorshipText(value: string, options: { title?: string } = 
     notes: inferred.notes,
     sections: inferred.sections,
     sequence: inferred.sections.length ? inferred.sections.map((section) => section.label).join(" ") : null,
+    suggestions: {
+      author: null,
+      ccliNumber: null,
+      license: null,
+      title: options.title ? titleCaseFromFilename(options.title) : null,
+    },
   };
 }
 
@@ -273,6 +367,7 @@ export function analyzeImportedSongSlides(slides: string[], title?: string): Wor
   const cleanedSlides = slides
     .map((slide) => formatWorshipText(slide, { removeChordLines: true }))
     .filter(Boolean);
+  const suggestions = extractImportSuggestions(cleanedSlides, title);
   const lineCounts = new Map<string, number>();
 
   for (const slide of cleanedSlides) {
@@ -312,6 +407,7 @@ export function analyzeImportedSongSlides(slides: string[], title?: string): Wor
       : inferred.notes,
     sections: inferred.sections,
     sequence: inferred.sections.length ? inferred.sections.map((section) => section.label).join(" ") : null,
+    suggestions,
   };
 }
 
