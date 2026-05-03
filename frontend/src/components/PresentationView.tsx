@@ -281,12 +281,14 @@ export function PresentationView() {
   function setLiveSlide(nextIndex: number) {
     const slideCount = slides.length;
     if (!slideCount) {
+      setLiveBlanked(false);
       setLiveIndex(0);
       publishLiveState(0);
       return;
     }
 
     const boundedIndex = Math.min(Math.max(nextIndex, 0), slideCount - 1);
+    setLiveBlanked(false);
     setLiveIndex(boundedIndex);
     publishLiveState(boundedIndex);
   }
@@ -295,11 +297,13 @@ export function PresentationView() {
     setLiveIndex((current) => {
       const slideCount = slides.length;
       if (!slideCount) {
+        setLiveBlanked(false);
         publishLiveState(0);
         return 0;
       }
 
       const nextIndex = Math.min(Math.max(current + delta, 0), slideCount - 1);
+      setLiveBlanked(false);
       publishLiveState(nextIndex);
       return nextIndex;
     });
