@@ -104,7 +104,11 @@ The first scaffold covers the major legacy c-SPOT domains:
 - `imports`: review-first content and lyrics import workflows
 
 See [docs/legacy-feature-map.md](docs/legacy-feature-map.md) for the rebuild
-coverage map.
+coverage map. For durable product and architecture context, also see:
+
+- [docs/project-context.md](docs/project-context.md)
+- [docs/current-architecture.md](docs/current-architecture.md)
+- [AGENTS.md](AGENTS.md)
 
 The first persistent slice is now in place for:
 
