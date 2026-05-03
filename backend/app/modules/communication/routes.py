@@ -3,6 +3,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.core.database import get_session
+from app.modules.identity.auth import CurrentUser, require_permission
 from app.modules.communication.models import Message, MessageParticipant, MessageThread
 from app.modules.communication.schemas import (
     MessageCreate,
@@ -57,7 +58,10 @@ def thread_to_read(session: Session, thread: MessageThread) -> MessageThreadRead
 
 
 @router.get("/threads", response_model=list[MessageThreadRead])
-def list_threads(session: Session = Depends(get_session)) -> list[MessageThreadRead]:
+def list_threads(
+    _current_user: CurrentUser = Depends(require_permission("messages:read")),
+    session: Session = Depends(get_session),
+) -> list[MessageThreadRead]:
     threads = session.scalars(select(MessageThread).order_by(MessageThread.created_at.desc())).all()
     return [thread_to_read(session, thread) for thread in threads]
 
@@ -65,6 +69,7 @@ def list_threads(session: Session = Depends(get_session)) -> list[MessageThreadR
 @router.post("/threads", response_model=MessageThreadDetail, status_code=status.HTTP_201_CREATED)
 def create_thread(
     payload: MessageThreadCreate,
+    _current_user: CurrentUser = Depends(require_permission("messages:write")),
     session: Session = Depends(get_session),
 ) -> MessageThreadDetail:
     thread = MessageThread(subject=payload.subject, creator_id=payload.creator_id)
@@ -84,7 +89,11 @@ def create_thread(
 
 
 @router.get("/threads/{thread_id}", response_model=MessageThreadDetail)
-def get_thread(thread_id: str, session: Session = Depends(get_session)) -> MessageThreadDetail:
+def get_thread(
+    thread_id: str,
+    _current_user: CurrentUser = Depends(require_permission("messages:read")),
+    session: Session = Depends(get_session),
+) -> MessageThreadDetail:
     thread = get_thread_or_404(session, thread_id)
     summary = thread_to_read(session, thread)
     messages = session.scalars(
@@ -101,6 +110,7 @@ def get_thread(thread_id: str, session: Session = Depends(get_session)) -> Messa
 def create_message(
     thread_id: str,
     payload: MessageCreate,
+    _current_user: CurrentUser = Depends(require_permission("messages:write")),
     session: Session = Depends(get_session),
 ) -> MessageRead:
     get_thread_or_404(session, thread_id)
@@ -112,7 +122,11 @@ def create_message(
 
 
 @router.delete("/threads/{thread_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_thread(thread_id: str, session: Session = Depends(get_session)) -> Response:
+def delete_thread(
+    thread_id: str,
+    _current_user: CurrentUser = Depends(require_permission("messages:write")),
+    session: Session = Depends(get_session),
+) -> Response:
     thread = get_thread_or_404(session, thread_id)
     session.delete(thread)
     session.commit()

@@ -11,6 +11,7 @@ from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from app.core.database import get_session
+from app.modules.identity.auth import CurrentUser, require_any_permission, require_permission
 from app.modules.library.bible_data import normalize_book_name
 from app.modules.library.models import (
     BibleBook,
@@ -295,7 +296,10 @@ def _passage_to_read(
 
 
 @router.get("/resources", response_model=list[ResourceRead])
-def list_resources(session: Session = Depends(get_session)) -> list[ResourceRead]:
+def list_resources(
+    _current_user: CurrentUser = Depends(require_permission("library:read")),
+    session: Session = Depends(get_session),
+) -> list[ResourceRead]:
     resources = session.scalars(select(Resource).order_by(Resource.name)).all()
     return [resource_to_read(resource) for resource in resources]
 
@@ -303,6 +307,7 @@ def list_resources(session: Session = Depends(get_session)) -> list[ResourceRead
 @router.post("/resources", response_model=ResourceRead, status_code=status.HTTP_201_CREATED)
 def create_resource(
     payload: ResourceCreate,
+    _current_user: CurrentUser = Depends(require_permission("library:create")),
     session: Session = Depends(get_session),
 ) -> ResourceRead:
     resource = Resource(**payload.model_dump())
@@ -316,6 +321,7 @@ def create_resource(
 def update_resource(
     resource_id: str,
     payload: ResourceUpdate,
+    _current_user: CurrentUser = Depends(require_any_permission("library:edit", "library:create")),
     session: Session = Depends(get_session),
 ) -> ResourceRead:
     resource = get_resource_or_404(session, resource_id)
@@ -328,7 +334,11 @@ def update_resource(
 
 
 @router.delete("/resources/{resource_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_resource(resource_id: str, session: Session = Depends(get_session)) -> Response:
+def delete_resource(
+    resource_id: str,
+    _current_user: CurrentUser = Depends(require_permission("library:create")),
+    session: Session = Depends(get_session),
+) -> Response:
     resource = get_resource_or_404(session, resource_id)
     session.delete(resource)
     session.commit()
@@ -338,6 +348,7 @@ def delete_resource(resource_id: str, session: Session = Depends(get_session)) -
 @router.get("/plans/{plan_id}/resources", response_model=list[PlanResourceRead])
 def list_plan_resources(
     plan_id: str,
+    _current_user: CurrentUser = Depends(require_permission("library:read")),
     session: Session = Depends(get_session),
 ) -> list[PlanResourceRead]:
     get_plan_or_404(session, plan_id)
@@ -355,6 +366,9 @@ def list_plan_resources(
 def assign_plan_resource(
     plan_id: str,
     payload: PlanResourceCreate,
+    _current_user: CurrentUser = Depends(
+        require_any_permission("library:edit", "library:create", "plans:edit", "plans:create")
+    ),
     session: Session = Depends(get_session),
 ) -> PlanResourceRead:
     get_plan_or_404(session, plan_id)
@@ -373,6 +387,9 @@ def assign_plan_resource(
 def update_plan_resource(
     plan_resource_id: str,
     payload: PlanResourceUpdate,
+    _current_user: CurrentUser = Depends(
+        require_any_permission("library:edit", "library:create", "plans:edit", "plans:create")
+    ),
     session: Session = Depends(get_session),
 ) -> PlanResourceRead:
     row = session.get(PlanResource, plan_resource_id)
@@ -389,6 +406,7 @@ def update_plan_resource(
 @router.delete("/plan-resources/{plan_resource_id}", status_code=status.HTTP_204_NO_CONTENT)
 def remove_plan_resource(
     plan_resource_id: str,
+    _current_user: CurrentUser = Depends(require_any_permission("library:create", "plans:create")),
     session: Session = Depends(get_session),
 ) -> Response:
     row = session.get(PlanResource, plan_resource_id)
@@ -400,7 +418,10 @@ def remove_plan_resource(
 
 
 @router.get("/file-categories", response_model=list[FileCategoryRead])
-def list_file_categories(session: Session = Depends(get_session)) -> list[FileCategoryRead]:
+def list_file_categories(
+    _current_user: CurrentUser = Depends(require_permission("library:read")),
+    session: Session = Depends(get_session),
+) -> list[FileCategoryRead]:
     categories = session.scalars(select(FileCategory).order_by(FileCategory.name)).all()
     return [
         FileCategoryRead(id=category.id, name=category.name, description=category.description)
@@ -412,6 +433,7 @@ def list_file_categories(session: Session = Depends(get_session)) -> list[FileCa
 def list_files(
     song_id: str | None = None,
     category_id: str | None = None,
+    _current_user: CurrentUser = Depends(require_permission("library:read")),
     session: Session = Depends(get_session),
 ) -> list[StoredFileRead]:
     statement = select(StoredFile).order_by(StoredFile.created_at.desc(), StoredFile.display_name)
@@ -429,6 +451,7 @@ async def upload_file(
     display_name: str | None = Form(default=None),
     category_id: str | None = Form(default=None),
     song_id: str | None = Form(default=None),
+    _current_user: CurrentUser = Depends(require_permission("library:create")),
     session: Session = Depends(get_session),
 ) -> StoredFileRead:
     UPLOAD_ROOT.mkdir(parents=True, exist_ok=True)
@@ -457,7 +480,11 @@ async def upload_file(
 
 
 @router.get("/files/{file_id}/download")
-def download_file(file_id: str, session: Session = Depends(get_session)) -> FileResponse:
+def download_file(
+    file_id: str,
+    _current_user: CurrentUser = Depends(require_permission("library:read")),
+    session: Session = Depends(get_session),
+) -> FileResponse:
     stored = _stored_file_or_404(session, file_id)
 
     return FileResponse(
@@ -468,7 +495,11 @@ def download_file(file_id: str, session: Session = Depends(get_session)) -> File
 
 
 @router.get("/files/{file_id}/slides", response_model=list[RenderedSlideRead])
-def list_rendered_slides(file_id: str, session: Session = Depends(get_session)) -> list[RenderedSlideRead]:
+def list_rendered_slides(
+    file_id: str,
+    _current_user: CurrentUser = Depends(require_permission("library:read")),
+    session: Session = Depends(get_session),
+) -> list[RenderedSlideRead]:
     stored = _stored_file_or_404(session, file_id)
     try:
         slides = _render_slides(stored)
@@ -504,6 +535,7 @@ def list_rendered_slides(file_id: str, session: Session = Depends(get_session)) 
 def get_rendered_slide(
     file_id: str,
     slide_index: int,
+    _current_user: CurrentUser = Depends(require_permission("library:read")),
     session: Session = Depends(get_session),
 ) -> FileResponse:
     stored = _stored_file_or_404(session, file_id)
@@ -516,6 +548,7 @@ def get_rendered_slide(
 @router.get("/items/{plan_item_id}/files", response_model=list[ItemFileRead])
 def list_item_files(
     plan_item_id: str,
+    _current_user: CurrentUser = Depends(require_permission("library:read")),
     session: Session = Depends(get_session),
 ) -> list[ItemFileRead]:
     get_item_or_404(session, plan_item_id)
@@ -529,6 +562,9 @@ def list_item_files(
 def attach_item_file(
     plan_item_id: str,
     payload: ItemFileCreate,
+    _current_user: CurrentUser = Depends(
+        require_any_permission("library:edit", "library:create", "plans:edit", "plans:create")
+    ),
     session: Session = Depends(get_session),
 ) -> ItemFileRead:
     get_item_or_404(session, plan_item_id)
@@ -545,6 +581,7 @@ def attach_item_file(
 @router.delete("/item-files/{item_file_id}", status_code=status.HTTP_204_NO_CONTENT)
 def remove_item_file(
     item_file_id: str,
+    _current_user: CurrentUser = Depends(require_any_permission("library:create", "plans:create")),
     session: Session = Depends(get_session),
 ) -> Response:
     row = session.get(ItemFile, item_file_id)
@@ -556,7 +593,10 @@ def remove_item_file(
 
 
 @router.get("/bible/versions", response_model=list[BibleVersionRead])
-def list_bible_versions(session: Session = Depends(get_session)) -> list[BibleVersionRead]:
+def list_bible_versions(
+    _current_user: CurrentUser = Depends(require_permission("library:read")),
+    session: Session = Depends(get_session),
+) -> list[BibleVersionRead]:
     versions = session.scalars(select(BibleVersion).order_by(BibleVersion.code)).all()
     return [
         BibleVersionRead(
@@ -571,7 +611,10 @@ def list_bible_versions(session: Session = Depends(get_session)) -> list[BibleVe
 
 
 @router.get("/bible/books", response_model=list[BibleBookRead])
-def list_bible_books(session: Session = Depends(get_session)) -> list[BibleBookRead]:
+def list_bible_books(
+    _current_user: CurrentUser = Depends(require_permission("library:read")),
+    session: Session = Depends(get_session),
+) -> list[BibleBookRead]:
     books = session.scalars(select(BibleBook).order_by(BibleBook.sort_order)).all()
     return [
         BibleBookRead(
@@ -592,6 +635,7 @@ def get_bible_passage(
     chapter: int,
     verse_from: int,
     verse_to: int | None = None,
+    _current_user: CurrentUser = Depends(require_permission("library:read")),
     session: Session = Depends(get_session),
 ) -> BiblePassageRead:
     version = session.scalar(select(BibleVersion).where(BibleVersion.code == version_code))
@@ -635,6 +679,7 @@ def search_bible(
     version_code: str = "KJV",
     search_type: str = "auto",
     limit: int = 20,
+    _current_user: CurrentUser = Depends(require_permission("library:read")),
     session: Session = Depends(get_session),
 ) -> list[BibleSearchHitRead]:
     version = session.scalar(select(BibleVersion).where(BibleVersion.code == version_code))

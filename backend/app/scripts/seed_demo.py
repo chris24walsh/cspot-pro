@@ -11,6 +11,7 @@ from app.modules.identity.models import Role, User, UserRole
 from app.modules.imports.models import ImportProvider
 from app.modules.library.models import BibleBook, BibleVerse, BibleVersion, FileCategory, Resource
 from app.modules.music.models import Song, SongPart
+from app.modules.identity.security import hash_password
 from app.modules.people.models import Instrument, TeamAssignment
 from app.modules.planning.models import Plan, PlanItem, PlanType
 from app.scripts.import_bible import autoload_kjv_if_missing
@@ -29,9 +30,11 @@ def get_or_create(session: Session, model: type, defaults: dict | None = None, *
 
 def seed_roles(session: Session) -> User:
     roles = [
-        ("user", "Read plans and add notes."),
+        ("viewer", "Read-only access across plans, songs, and presentation."),
+        ("user", "Read-only access across plans, songs, and presentation."),
         ("leader", "Edit assigned service plans."),
         ("teacher", "Prepare and update teaching content."),
+        ("creator", "Create and manage plans, songs, and library content."),
         ("author", "Create new service plans."),
         ("editor", "Edit all plans and songs."),
         ("administrator", "Manage users, roles, and configuration."),
@@ -50,7 +53,11 @@ def seed_roles(session: Session) -> User:
         session,
         User,
         email="admin@example.com",
-        defaults={"name": "Demo Admin", "password_hash": None, "email_confirmed": True},
+        defaults={
+            "name": "Demo Admin",
+            "password_hash": hash_password("changeme123"),
+            "email_confirmed": True,
+        },
     )
     admin_role = next(role for role in role_models if role.name == "administrator")
     get_or_create(session, UserRole, user_id=admin.id, role_id=admin_role.id)
