@@ -549,7 +549,7 @@ def get_rendered_slide(
 @router.get("/items/{plan_item_id}/files", response_model=list[ItemFileRead])
 def list_item_files(
     plan_item_id: str,
-    _current_user: CurrentUser = Depends(require_permission("library:read")),
+    _current_user: User = Depends(require_permission("library:read")),
     session: Session = Depends(get_session),
 ) -> list[ItemFileRead]:
     get_item_or_404(session, plan_item_id)
