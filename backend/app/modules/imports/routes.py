@@ -8,6 +8,7 @@ from pydantic import BaseModel, HttpUrl
 from sqlalchemy.orm import Session
 
 from app.core.database import get_session
+from app.modules.identity.models import User
 from app.modules.identity.auth import CurrentUser, require_any_permission, require_permission
 from app.modules.music.models import Song
 
@@ -114,7 +115,7 @@ def _parse_slide_deck(filename: str, content: bytes) -> tuple[str, list[list[str
 @router.post("/slides/parse", response_model=ParsedSlideDeck)
 async def parse_slide_deck(
     upload: UploadFile = File(...),
-    _current_user: CurrentUser = Depends(require_permission("presentation:use")),
+    _current_user: User = Depends(require_permission("presentation:use")),
 ) -> ParsedSlideDeck:
     content = await upload.read()
     filename = upload.filename or "slides"
@@ -150,7 +151,7 @@ async def parse_slide_deck(
 @router.post("/lyrics/preview", response_model=ImportPreview)
 def preview_lyrics_import(
     request: ImportPreviewRequest,
-    _current_user: CurrentUser = Depends(require_permission("songs:read")),
+    _current_user: User = Depends(require_permission("songs:read")),
 ) -> ImportPreview:
     if request.pasted_text:
         return ImportPreview(
@@ -175,7 +176,7 @@ def preview_lyrics_import(
 
 @router.get("/providers", response_model=list[str])
 def list_import_providers(
-    _current_user: CurrentUser = Depends(require_permission("songs:read")),
+    _current_user: User = Depends(require_permission("songs:read")),
 ) -> list[str]:
     return ["manual-paste", "url-review", "public-domain-seed"]
 
@@ -183,7 +184,7 @@ def list_import_providers(
 @router.post("/lyrics/save", response_model=LyricsSaveResult)
 def save_lyrics_import(
     payload: LyricsSaveRequest,
-    _current_user: CurrentUser = Depends(require_any_permission("songs:edit", "songs:create")),
+    _current_user: User = Depends(require_any_permission("songs:edit", "songs:create")),
     session: Session = Depends(get_session),
 ) -> LyricsSaveResult:
     if not payload.lyrics.strip():

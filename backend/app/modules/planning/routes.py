@@ -5,6 +5,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.core.database import get_session
+from app.modules.identity.models import User
 from app.modules.identity.auth import CurrentUser, require_any_permission, require_permission
 from app.modules.library.models import ItemFile, StoredFile
 from app.modules.planning.models import Plan, PlanItem, PlanType
@@ -84,7 +85,7 @@ def get_item_or_404(session: Session, item_id: str) -> PlanItem:
 
 @router.get("/plan-types", response_model=list[PlanTypeRead])
 def list_plan_types(
-    _current_user: CurrentUser = Depends(require_permission("plans:read")),
+    _current_user: User = Depends(require_permission("plans:read")),
     session: Session = Depends(get_session),
 ) -> list[PlanTypeRead]:
     plan_types = session.scalars(select(PlanType).order_by(PlanType.name)).all()
@@ -103,7 +104,7 @@ def list_plan_types(
 
 @router.get("/plans", response_model=list[PlanSummary])
 def list_plans(
-    _current_user: CurrentUser = Depends(require_permission("plans:read")),
+    _current_user: User = Depends(require_permission("plans:read")),
     session: Session = Depends(get_session),
 ) -> list[PlanSummary]:
     plans = session.scalars(
@@ -137,7 +138,7 @@ def list_plans(
 @router.post("/plans", response_model=PlanDetail, status_code=status.HTTP_201_CREATED)
 def create_plan(
     payload: PlanCreate,
-    _current_user: CurrentUser = Depends(require_permission("plans:create")),
+    _current_user: User = Depends(require_permission("plans:create")),
     session: Session = Depends(get_session),
 ) -> PlanDetail:
     if session.get(PlanType, payload.plan_type_id) is None:
@@ -153,7 +154,7 @@ def create_plan(
 @router.get("/plans/{plan_id}", response_model=PlanDetail)
 def get_plan(
     plan_id: str,
-    _current_user: CurrentUser = Depends(require_permission("plans:read")),
+    _current_user: User = Depends(require_permission("plans:read")),
     session: Session = Depends(get_session),
 ) -> PlanDetail:
     plan = get_plan_or_404(session, plan_id)
@@ -170,7 +171,7 @@ def get_plan(
 def update_plan(
     plan_id: str,
     payload: PlanUpdate,
-    _current_user: CurrentUser = Depends(require_any_permission("plans:edit", "plans:create")),
+    _current_user: User = Depends(require_any_permission("plans:edit", "plans:create")),
     session: Session = Depends(get_session),
 ) -> PlanDetail:
     plan = get_plan_or_404(session, plan_id)
@@ -185,7 +186,7 @@ def update_plan(
 @router.delete("/plans/{plan_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_plan(
     plan_id: str,
-    _current_user: CurrentUser = Depends(require_permission("plans:create")),
+    _current_user: User = Depends(require_permission("plans:create")),
     session: Session = Depends(get_session),
 ) -> Response:
     plan = get_plan_or_404(session, plan_id)
@@ -202,7 +203,7 @@ def delete_plan(
 def create_plan_item(
     plan_id: str,
     payload: PlanItemCreate,
-    _current_user: CurrentUser = Depends(require_any_permission("plans:edit", "plans:create")),
+    _current_user: User = Depends(require_any_permission("plans:edit", "plans:create")),
     session: Session = Depends(get_session),
 ) -> PlanItemRead:
     get_plan_or_404(session, plan_id)
@@ -217,7 +218,7 @@ def create_plan_item(
 def update_plan_item(
     item_id: str,
     payload: PlanItemUpdate,
-    _current_user: CurrentUser = Depends(require_any_permission("plans:edit", "plans:create")),
+    _current_user: User = Depends(require_any_permission("plans:edit", "plans:create")),
     session: Session = Depends(get_session),
 ) -> PlanItemRead:
     item = get_item_or_404(session, item_id)
@@ -232,7 +233,7 @@ def update_plan_item(
 @router.delete("/items/{item_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_plan_item(
     item_id: str,
-    _current_user: CurrentUser = Depends(require_permission("plans:create")),
+    _current_user: User = Depends(require_permission("plans:create")),
     session: Session = Depends(get_session),
 ) -> Response:
     item = get_item_or_404(session, item_id)

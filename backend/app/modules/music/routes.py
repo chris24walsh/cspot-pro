@@ -5,6 +5,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.database import get_session
+from app.modules.identity.models import User
 from app.modules.identity.auth import CurrentUser, require_any_permission, require_permission
 from app.modules.music.models import Song, SongPart
 from app.modules.music.schemas import SongCreate, SongPartRead, SongRead, SongUpdate
@@ -41,7 +42,7 @@ def get_song_or_404(session: Session, song_id: str) -> Song:
 @router.get("/songs", response_model=list[SongRead])
 def list_songs(
     session: Session = Depends(get_session),
-    _current_user: CurrentUser = Depends(require_permission("songs:read")),
+    _current_user: User = Depends(require_permission("songs:read")),
     search: str | None = None,
 ) -> list[SongRead]:
     statement = select(Song).where(Song.deleted_at.is_(None)).order_by(Song.title)
@@ -54,7 +55,7 @@ def list_songs(
 @router.post("/songs", response_model=SongRead, status_code=status.HTTP_201_CREATED)
 def create_song(
     payload: SongCreate,
-    _current_user: CurrentUser = Depends(require_permission("songs:create")),
+    _current_user: User = Depends(require_permission("songs:create")),
     session: Session = Depends(get_session),
 ) -> SongRead:
     song = Song(**payload.model_dump())
@@ -67,7 +68,7 @@ def create_song(
 @router.get("/songs/{song_id}", response_model=SongRead)
 def get_song(
     song_id: str,
-    _current_user: CurrentUser = Depends(require_permission("songs:read")),
+    _current_user: User = Depends(require_permission("songs:read")),
     session: Session = Depends(get_session),
 ) -> SongRead:
     return song_to_read(get_song_or_404(session, song_id))
@@ -77,7 +78,7 @@ def get_song(
 def update_song(
     song_id: str,
     payload: SongUpdate,
-    _current_user: CurrentUser = Depends(require_any_permission("songs:edit", "songs:create")),
+    _current_user: User = Depends(require_any_permission("songs:edit", "songs:create")),
     session: Session = Depends(get_session),
 ) -> SongRead:
     song = get_song_or_404(session, song_id)
@@ -92,7 +93,7 @@ def update_song(
 @router.delete("/songs/{song_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_song(
     song_id: str,
-    _current_user: CurrentUser = Depends(require_permission("songs:create")),
+    _current_user: User = Depends(require_permission("songs:create")),
     session: Session = Depends(get_session),
 ) -> Response:
     song = get_song_or_404(session, song_id)
@@ -103,7 +104,7 @@ def delete_song(
 
 @router.get("/song-parts", response_model=list[SongPartRead])
 def list_song_parts(
-    _current_user: CurrentUser = Depends(require_permission("songs:read")),
+    _current_user: User = Depends(require_permission("songs:read")),
     session: Session = Depends(get_session),
 ) -> list[SongPartRead]:
     song_parts = session.scalars(select(SongPart).order_by(SongPart.sort_order, SongPart.name)).all()

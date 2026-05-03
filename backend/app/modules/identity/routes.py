@@ -158,7 +158,7 @@ def get_session_user(
 
 @router.get("/roles", response_model=list[RoleRead])
 def list_roles(
-    _current_user: CurrentUser = Depends(require_permission("users:manage")),
+    _current_user: User = Depends(require_permission("users:manage")),
     session: Session = Depends(get_session),
 ) -> list[RoleRead]:
     roles = session.scalars(select(Role).order_by(Role.name)).all()
@@ -175,7 +175,7 @@ def list_roles(
 
 @router.get("/users", response_model=list[UserRead])
 def list_users(
-    _current_user: CurrentUser = Depends(require_permission("users:manage")),
+    _current_user: User = Depends(require_permission("users:manage")),
     session: Session = Depends(get_session),
 ) -> list[UserRead]:
     users = session.scalars(select(User).order_by(User.name)).all()
@@ -184,7 +184,7 @@ def list_users(
 
 @router.get("/members", response_model=list[MemberRead])
 def list_members(
-    _current_user: CurrentUser = Depends(require_permission("team:read")),
+    _current_user: User = Depends(require_permission("team:read")),
     session: Session = Depends(get_session),
 ) -> list[MemberRead]:
     users = session.scalars(select(User).where(User.active.is_(True)).order_by(User.name)).all()
@@ -194,7 +194,7 @@ def list_members(
 @router.post("/users", response_model=UserRead, status_code=status.HTTP_201_CREATED)
 def create_user(
     payload: UserCreate,
-    _current_user: CurrentUser = Depends(require_permission("users:manage")),
+    _current_user: User = Depends(require_permission("users:manage")),
     session: Session = Depends(get_session),
 ) -> UserRead:
     user = User(
@@ -225,7 +225,7 @@ def create_user(
 @router.get("/users/{user_id}", response_model=UserRead)
 def get_user(
     user_id: str,
-    _current_user: CurrentUser = Depends(require_permission("users:manage")),
+    _current_user: User = Depends(require_permission("users:manage")),
     session: Session = Depends(get_session),
 ) -> UserRead:
     return user_to_read(session, get_user_or_404(session, user_id))
@@ -235,7 +235,7 @@ def get_user(
 def update_user(
     user_id: str,
     payload: UserUpdate,
-    _current_user: CurrentUser = Depends(require_permission("users:manage")),
+    _current_user: User = Depends(require_permission("users:manage")),
     session: Session = Depends(get_session),
 ) -> UserRead:
     user = get_user_or_404(session, user_id)
@@ -268,7 +268,7 @@ def update_user(
 @router.delete("/users/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
 def deactivate_user(
     user_id: str,
-    _current_user: CurrentUser = Depends(require_permission("users:manage")),
+    _current_user: User = Depends(require_permission("users:manage")),
     session: Session = Depends(get_session),
 ) -> Response:
     user = get_user_or_404(session, user_id)

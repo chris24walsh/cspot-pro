@@ -5,8 +5,8 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.database import get_session
-from app.modules.identity.auth import CurrentUser, require_any_permission, require_permission
 from app.modules.identity.models import User
+from app.modules.identity.auth import CurrentUser, require_any_permission, require_permission
 from app.modules.people.models import Instrument, TeamAssignment
 from app.modules.people.schemas import (
     InstrumentRead,
@@ -48,7 +48,7 @@ def get_assignment_or_404(session: Session, assignment_id: str) -> TeamAssignmen
 
 @router.get("/instruments", response_model=list[InstrumentRead])
 def list_instruments(
-    _current_user: CurrentUser = Depends(require_permission("team:read")),
+    _current_user: User = Depends(require_permission("team:read")),
     session: Session = Depends(get_session),
 ) -> list[InstrumentRead]:
     instruments = session.scalars(select(Instrument).order_by(Instrument.sort_order, Instrument.name)).all()
@@ -61,7 +61,7 @@ def list_instruments(
 @router.get("/plans/{plan_id}/team", response_model=list[TeamAssignmentRead])
 def list_team_assignments(
     plan_id: str,
-    _current_user: CurrentUser = Depends(require_permission("team:read")),
+    _current_user: User = Depends(require_permission("team:read")),
     session: Session = Depends(get_session),
 ) -> list[TeamAssignmentRead]:
     get_plan_or_404(session, plan_id)
@@ -82,7 +82,7 @@ def list_team_assignments(
 def create_team_assignment(
     plan_id: str,
     payload: TeamAssignmentCreate,
-    _current_user: CurrentUser = Depends(require_any_permission("team:edit", "plans:edit", "plans:create")),
+    _current_user: User = Depends(require_any_permission("team:edit", "plans:edit", "plans:create")),
     session: Session = Depends(get_session),
 ) -> TeamAssignmentRead:
     get_plan_or_404(session, plan_id)
@@ -100,7 +100,7 @@ def create_team_assignment(
 def update_team_assignment(
     assignment_id: str,
     payload: TeamAssignmentUpdate,
-    _current_user: CurrentUser = Depends(require_any_permission("team:edit", "plans:edit", "plans:create")),
+    _current_user: User = Depends(require_any_permission("team:edit", "plans:edit", "plans:create")),
     session: Session = Depends(get_session),
 ) -> TeamAssignmentRead:
     assignment = get_assignment_or_404(session, assignment_id)
@@ -120,7 +120,7 @@ def update_team_assignment(
 @router.delete("/team/{assignment_id}", status_code=status.HTTP_204_NO_CONTENT)
 def remove_team_assignment(
     assignment_id: str,
-    _current_user: CurrentUser = Depends(require_any_permission("team:edit", "plans:create")),
+    _current_user: User = Depends(require_any_permission("team:edit", "plans:create")),
     session: Session = Depends(get_session),
 ) -> Response:
     assignment = get_assignment_or_404(session, assignment_id)
