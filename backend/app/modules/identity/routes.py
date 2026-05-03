@@ -197,19 +197,18 @@ def create_user(
     _current_user: User = Depends(require_permission("users:manage")),
     session: Session = Depends(get_session),
 ) -> UserRead:
-    user = User(
-        email=payload.email,
-        name=payload.name,
-        start_page=payload.start_page,
-        email_confirmed=payload.email_confirmed,
-        active=payload.active,
-        password_hash=hash_password(payload.password) if payload.password else None,
-    )
-    session.add(user)
-    session.flush()
-    set_user_roles(session, user, payload.role_names)
-
     try:
+        user = User(
+            email=payload.email,
+            name=payload.name,
+            start_page=payload.start_page,
+            email_confirmed=payload.email_confirmed,
+            active=payload.active,
+            password_hash=hash_password(payload.password) if payload.password else None,
+        )
+        session.add(user)
+        session.flush()
+        set_user_roles(session, user, payload.role_names)
         session.commit()
     except IntegrityError as exc:
         session.rollback()
@@ -243,16 +242,16 @@ def update_user(
     role_names = values.pop("role_names", None)
     password = values.pop("password", None)
 
-    for field, value in values.items():
-        setattr(user, field, value)
-
-    if password:
-        user.password_hash = hash_password(password)
-
-    if role_names is not None:
-        set_user_roles(session, user, role_names)
-
     try:
+        for field, value in values.items():
+            setattr(user, field, value)
+
+        if password:
+            user.password_hash = hash_password(password)
+
+        if role_names is not None:
+            set_user_roles(session, user, role_names)
+
         session.commit()
     except IntegrityError as exc:
         session.rollback()
