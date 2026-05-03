@@ -28,8 +28,10 @@ import {
   PRESENTATION_STORAGE_KEY,
   buildPresentationSections,
   buildPresentationSlides,
+  presentationTypeClass,
   type PresentationSlide,
   type PresentationLiveState,
+  type PresentationTheme,
 } from "../presentation";
 import { ScaledSlideImage } from "./ScaledSlideImage";
 
@@ -203,6 +205,7 @@ export function PresentationView() {
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<BibleSearchHit[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
+  const [slideTheme, setSlideTheme] = useState<PresentationTheme>("dark");
   const outputWindowRef = useRef<Window | null>(null);
   const channelRef = useRef<BroadcastChannel | null>(null);
   const thumbnailRefs = useRef<Record<string, HTMLButtonElement | null>>({});
@@ -294,6 +297,7 @@ export function PresentationView() {
       planId: plan.id,
       index: nextIndex,
       updatedAt: Date.now(),
+      theme: slideTheme,
     };
     localStorage.setItem(PRESENTATION_STORAGE_KEY, JSON.stringify(state));
     channelRef.current?.postMessage(state);
@@ -773,6 +777,10 @@ export function PresentationView() {
   }, []);
 
   useEffect(() => {
+    publishLiveState(liveIndex);
+  }, [slideTheme]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
     const activeSlide = slides[liveIndex];
     if (!activeSlide) {
       return;
@@ -882,7 +890,11 @@ export function PresentationView() {
 
       <div className="presenter-console">
         <div className="presenter-stage-column">
-          <div className="stage-shell stage-shell-live presenter-current">
+          <div
+            className={`stage-shell stage-shell-live presenter-current stage-theme-${slideTheme} ${
+              liveSlide ? presentationTypeClass(liveSlide.itemType) : "type-generic"
+            }`}
+          >
             <div className="stage-meta">
               <span>Current · {plan?.title ?? "Presentation"}</span>
               <span>
@@ -933,6 +945,22 @@ export function PresentationView() {
                 Start Slideshow
               </button>
             </div>
+            <div className="action-row theme-toggle-row">
+              <button
+                className={`text-button ${slideTheme === "dark" ? "active-choice" : ""}`}
+                onClick={() => setSlideTheme("dark")}
+                type="button"
+              >
+                Dark Slides
+              </button>
+              <button
+                className={`text-button ${slideTheme === "light" ? "active-choice" : ""}`}
+                onClick={() => setSlideTheme("light")}
+                type="button"
+              >
+                Light Slides
+              </button>
+            </div>
             {currentPlanItem?.item_type === "reading" ? (
               <div className="action-row bible-nav-row">
                 <button className="text-button" onClick={() => void navigateBibleReading("verse", -1)} type="button">
@@ -964,7 +992,7 @@ export function PresentationView() {
                 <div className="section-slide-group" key={section.id}>
                   <div className="section-jump-row">
                     <button
-                      className={`section-jump ${
+                      className={`section-jump ${presentationTypeClass(section.itemType)} ${
                         liveSlide?.sectionId === section.id ? "active" : ""
                       }`}
                       onClick={() => setLiveSlide(sectionStart)}
@@ -988,7 +1016,7 @@ export function PresentationView() {
                       const slideIndex = slides.findIndex((candidate) => candidate.id === slide.id);
                       return (
                         <button
-                          className={`slide-tile preview-tile ${
+                          className={`slide-tile preview-tile ${presentationTypeClass(slide.itemType)} ${
                             slideIndex === liveIndex ? "active" : ""
                           }`}
                           key={slide.id}
@@ -1030,7 +1058,9 @@ export function PresentationView() {
               return (
                 <div key={section.id} className="section-rail-block">
                   <div
-                    className={`section-rail-item ${liveSlide?.sectionId === section.id ? "active" : ""}`}
+                    className={`section-rail-item ${presentationTypeClass(section.itemType)} ${
+                      liveSlide?.sectionId === section.id ? "active" : ""
+                    }`}
                   >
                     <button
                       className="section-rail-jump"

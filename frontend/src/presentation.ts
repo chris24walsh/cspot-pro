@@ -3,11 +3,13 @@ import { splitWorshipSlides } from "./worshipText";
 
 export const PRESENTATION_CHANNEL = "cspot-presentation-live";
 export const PRESENTATION_STORAGE_KEY = "cspot:presentation-live";
+export type PresentationTheme = "dark" | "light";
 
 export interface PresentationLiveState {
   planId: string;
   index: number;
   updatedAt: number;
+  theme?: PresentationTheme;
 }
 
 export interface PresentationSlide {
@@ -27,6 +29,21 @@ export interface PresentationSection {
   title: string;
   itemType: string;
   slides: PresentationSlide[];
+}
+
+export function presentationTypeClass(itemType: string) {
+  switch (itemType) {
+    case "song":
+      return "type-song";
+    case "reading":
+      return "type-reading";
+    case "sermon":
+      return "type-sermon";
+    case "welcome":
+      return "type-welcome";
+    default:
+      return "type-generic";
+  }
 }
 
 export function slideTextForItem(item: PlanItem, songs: Song[]) {

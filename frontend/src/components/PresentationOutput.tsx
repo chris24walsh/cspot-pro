@@ -6,6 +6,7 @@ import {
   PRESENTATION_CHANNEL,
   PRESENTATION_STORAGE_KEY,
   buildPresentationSlides,
+  presentationTypeClass,
   type PresentationLiveState,
 } from "../presentation";
 import { ScaledSlideImage } from "./ScaledSlideImage";
@@ -35,6 +36,7 @@ export function PresentationOutput() {
   const [message, setMessage] = useState<string | null>(null);
   const [fullscreenReady, setFullscreenReady] = useState(true);
   const [renderedSlidesByFileId, setRenderedSlidesByFileId] = useState<Record<string, RenderedSlide[]>>({});
+  const [blanked, setBlanked] = useState(false);
 
   const slides = useMemo(
     () => buildPresentationSlides(plan?.items ?? [], songs, renderedSlidesByFileId),
@@ -63,6 +65,20 @@ export function PresentationOutput() {
       setFullscreenReady(false);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Use the browser fullscreen control for this display.");
+    }
+  }
+
+  async function exitFullscreen() {
+    if (!document.fullscreenElement) {
+      setFullscreenReady(true);
+      return;
+    }
+    try {
+      await document.exitFullscreen();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not exit fullscreen.");
+    } finally {
+      setFullscreenReady(true);
     }
   }
 
@@ -112,6 +128,59 @@ export function PresentationOutput() {
     };
   }, []);
 
+  useEffect(() => {
+    function onFullscreenChange() {
+      setFullscreenReady(!document.fullscreenElement);
+    }
+
+    async function onKeyDown(event: KeyboardEvent) {
+      const target = event.target;
+      const editing =
+        target instanceof HTMLInputElement ||
+        target instanceof HTMLTextAreaElement ||
+        target instanceof HTMLSelectElement ||
+        (target instanceof HTMLElement && target.isContentEditable);
+
+      if (editing) {
+        return;
+      }
+
+      if (event.key === "f" || event.key === "F") {
+        event.preventDefault();
+        if (document.fullscreenElement) {
+          await exitFullscreen();
+        } else {
+          await enterFullscreen();
+        }
+        return;
+      }
+
+      if (event.key === "Escape") {
+        if (blanked) {
+          event.preventDefault();
+          setBlanked(false);
+        }
+        if (document.fullscreenElement) {
+          event.preventDefault();
+          await exitFullscreen();
+        }
+        return;
+      }
+
+      if (event.key === "b" || event.key === "B") {
+        event.preventDefault();
+        setBlanked((current) => !current);
+      }
+    }
+
+    document.addEventListener("fullscreenchange", onFullscreenChange);
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("fullscreenchange", onFullscreenChange);
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [blanked]);
+
   return (
     <main className="slideshow-output" aria-label="Live slideshow output">
       {fullscreenReady ? (
@@ -123,13 +192,19 @@ export function PresentationOutput() {
 
       {message ? <p className="slideshow-message">{message}</p> : null}
 
-      <section className={`slideshow-stage ${liveSlide?.imageUrl ? "slideshow-stage-image" : ""}`}>
-        {liveSlide?.imageUrl ? null : (
+      <section
+        className={`slideshow-stage ${liveSlide?.imageUrl ? "slideshow-stage-image" : ""} stage-theme-${
+          liveState?.theme ?? "dark"
+        } ${liveSlide ? presentationTypeClass(liveSlide.itemType) : "type-generic"} ${blanked ? "stage-blanked" : ""}`}
+      >
+        {blanked ? null : !liveSlide?.imageUrl ? (
           <div className="stage-title">
             <span>{liveSlide?.title ?? "Ready"}</span>
           </div>
-        )}
-        {liveSlide?.imageUrl ? (
+        ) : null}
+        {blanked ? (
+          <div className="blank-stage" aria-label="Blank live output" />
+        ) : liveSlide?.imageUrl ? (
           <ScaledSlideImage alt={liveSlide.title} src={liveSlide.imageUrl} />
         ) : (
           <pre>{liveSlide?.text ?? "Waiting for slideshow"}</pre>
