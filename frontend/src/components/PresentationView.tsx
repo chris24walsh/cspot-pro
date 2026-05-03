@@ -155,7 +155,7 @@ function FittedSlideText({ text, compact = false }: { text: string; compact?: bo
   );
 }
 
-function renderMiniSlide(slide: PresentationSlide | null, fallback: string) {
+function renderMiniSlide(slide: PresentationSlide | null, fallback: string, theme: PresentationTheme) {
   if (!slide) {
     return (
       <div className="mini-slide-empty">
@@ -165,7 +165,7 @@ function renderMiniSlide(slide: PresentationSlide | null, fallback: string) {
   }
 
   return (
-    <div className="mini-slide-surface">
+    <div className={`mini-slide-surface stage-theme-${theme} ${presentationTypeClass(slide.itemType)}`}>
       {slide.imageUrl ? (
         <img alt="" src={slide.imageUrl} />
       ) : (
@@ -1070,7 +1070,7 @@ export function PresentationView() {
                           title={`${slideIndex + 1}. ${slide.title}`}
                         >
                           <span>{(slideIndex + 1).toString().padStart(2, "0")}</span>
-                          {renderMiniSlide(slide, "Empty")}
+                          {renderMiniSlide(slide, "Empty", slideTheme)}
                           <div className="thumbnail-menu">
                             <span>Go</span>
                           </div>

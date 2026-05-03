@@ -1253,9 +1253,24 @@ h3 {
   width: 100%;
 }
 
+.mini-slide-surface.stage-theme-light {
+  background: #faf7ee;
+  color: #18211d;
+}
+
+.mini-slide-surface.stage-theme-dark {
+  background: #202322;
+  color: #fffdf5;
+}
+
 .section-jump.type-reading .mini-slide-surface,
 .slide-tile.type-reading .mini-slide-surface {
   background: #241f3d;
+}
+
+.section-jump.type-reading .mini-slide-surface.stage-theme-light,
+.slide-tile.type-reading .mini-slide-surface.stage-theme-light {
+  background: #f3edff;
 }
 
 .mini-slide-surface pre,
