@@ -12,7 +12,7 @@ import {
   type MessageThreadDetail,
 } from "../api";
 
-export function MessageManager() {
+export function MessageManager({ canWrite }: { canWrite: boolean }) {
   const [threads, setThreads] = useState<MessageThread[]>([]);
   const [thread, setThread] = useState<MessageThreadDetail | null>(null);
   const [users, setUsers] = useState<Member[]>([]);
@@ -43,6 +43,9 @@ export function MessageManager() {
   }
 
   function startCreate() {
+    if (!canWrite) {
+      return;
+    }
     setMode("create");
     setThread(null);
     setSubject("");
@@ -63,6 +66,10 @@ export function MessageManager() {
 
   async function submitThread(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (!canWrite) {
+      setMessage("You can read messages, but only members with write access can send them.");
+      return;
+    }
     setMessage(null);
 
     try {
@@ -82,7 +89,7 @@ export function MessageManager() {
 
   async function submitReply(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!thread) {
+    if (!thread || !canWrite) {
       return;
     }
 
@@ -97,7 +104,7 @@ export function MessageManager() {
   }
 
   async function removeThread() {
-    if (!thread) {
+    if (!thread || !canWrite) {
       return;
     }
 
@@ -124,7 +131,7 @@ export function MessageManager() {
       <aside className="manager-list">
         <div className="section-heading">
           <h2>Messages</h2>
-          <button className="text-button" onClick={startCreate} type="button">
+          <button className="text-button" disabled={!canWrite} onClick={startCreate} type="button">
             New Message
           </button>
         </div>
@@ -153,17 +160,20 @@ export function MessageManager() {
               <p className="eyebrow">Create</p>
               <h2>New Message</h2>
             </div>
-            <button className="primary-button" type="submit">
-              Send
-            </button>
-          </div>
+          <button className="primary-button" disabled={!canWrite} type="submit">
+            Send
+          </button>
+        </div>
 
-          {message ? <p className="form-message">{message}</p> : null}
+        {message ? <p className="form-message">{message}</p> : null}
+        {!canWrite ? (
+          <p className="empty-state">You can read message threads here, but only members with write access can send new messages.</p>
+        ) : null}
 
           <div className="form-grid">
             <label>
               From
-              <select onChange={(event) => setCreatorId(event.target.value)} value={creatorId}>
+              <select disabled={!canWrite} onChange={(event) => setCreatorId(event.target.value)} value={creatorId}>
                 {users.map((user) => (
                   <option key={user.id} value={user.id}>
                     {user.name}
@@ -174,7 +184,7 @@ export function MessageManager() {
 
             <label>
               Subject
-              <input onChange={(event) => setSubject(event.target.value)} required value={subject} />
+              <input disabled={!canWrite} onChange={(event) => setSubject(event.target.value)} required value={subject} />
             </label>
 
             <fieldset className="wide-field role-fieldset">
@@ -183,6 +193,7 @@ export function MessageManager() {
                 {users.map((user) => (
                   <label key={user.id}>
                     <input
+                      disabled={!canWrite}
                       checked={participantIds.includes(user.id)}
                       onChange={() => toggleParticipant(user.id)}
                       type="checkbox"
@@ -195,7 +206,13 @@ export function MessageManager() {
 
             <label className="wide-field">
               Message
-              <textarea onChange={(event) => setBody(event.target.value)} required rows={8} value={body} />
+              <textarea
+                disabled={!canWrite}
+                onChange={(event) => setBody(event.target.value)}
+                required
+                rows={8}
+                value={body}
+              />
             </label>
           </div>
         </form>
@@ -206,7 +223,7 @@ export function MessageManager() {
               <p className="eyebrow">Thread</p>
               <h2>{thread?.subject ?? "Messages"}</h2>
             </div>
-            {thread ? (
+            {thread && canWrite ? (
               <button className="danger-button" onClick={() => void removeThread()} type="button">
                 Delete Thread
               </button>
@@ -226,9 +243,11 @@ export function MessageManager() {
 
           {thread ? (
             <form className="sub-editor reply-form" onSubmit={(event) => void submitReply(event)}>
+              {!canWrite ? <p className="empty-state">Replies are read-only for your role.</p> : null}
               <label>
                 Reply
                 <textarea
+                  disabled={!canWrite}
                   onChange={(event) => setReply(event.target.value)}
                   required
                   rows={4}
@@ -236,7 +255,7 @@ export function MessageManager() {
                 />
               </label>
               <div className="action-row form-actions">
-                <button className="primary-button" type="submit">
+                <button className="primary-button" disabled={!canWrite} type="submit">
                   Send Reply
                 </button>
               </div>

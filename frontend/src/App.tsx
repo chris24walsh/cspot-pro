@@ -69,10 +69,16 @@ function App() {
 
   const permissions = useMemo(() => new Set(sessionUser?.permissions ?? []), [sessionUser]);
   const canManageUsers = permissions.has("users:manage");
+  const canReadPlans = permissions.has("plans:read");
   const canCreatePlans = permissions.has("plans:create");
   const canEditPlans = canCreatePlans || permissions.has("plans:edit");
+  const canReadSongs = permissions.has("songs:read");
   const canCreateSongs = permissions.has("songs:create");
   const canEditSongs = canCreateSongs || permissions.has("songs:edit");
+  const canReadTeam = permissions.has("team:read");
+  const canEditTeam = canEditPlans || permissions.has("team:edit");
+  const canUsePresentation = permissions.has("presentation:use");
+  const canCreateLibrary = permissions.has("library:create");
 
   const loadAuth = useCallback(async () => {
     setAuthLoading(true);
@@ -162,8 +168,28 @@ function App() {
         }
 
         return module;
-      }).filter((module) => (module.id === "admin" ? canManageUsers : true)),
-    [canManageUsers, workspace],
+      }).filter((module) => {
+        if (module.id === "planning") {
+          return canReadPlans;
+        }
+        if (module.id === "music") {
+          return canReadSongs;
+        }
+        if (module.id === "people") {
+          return canReadTeam;
+        }
+        if (module.id === "presentation") {
+          return canUsePresentation;
+        }
+        if (module.id === "imports") {
+          return canReadSongs;
+        }
+        if (module.id === "admin") {
+          return canManageUsers;
+        }
+        return true;
+      }),
+    [canManageUsers, canReadPlans, canReadSongs, canReadTeam, canUsePresentation, workspace],
   );
 
   const activeModule = useMemo(
@@ -171,6 +197,12 @@ function App() {
     [activeModuleId, modules],
   );
   const compactWorkspace = true;
+
+  useEffect(() => {
+    if (!modules.some((module) => module.id === activeModuleId) && modules[0]) {
+      setActiveModuleId(modules[0].id);
+    }
+  }, [activeModuleId, modules]);
 
   if (isPresentationOutput) {
     return <PresentationOutput />;
@@ -255,15 +287,21 @@ function App() {
             onDataChange={() => void loadWorkspace()}
           />
         ) : activeModuleId === "people" ? (
-          <TeamManager />
+          <TeamManager canEdit={canEditTeam} />
         ) : activeModuleId === "presentation" ? (
-          <PresentationView />
+          <PresentationView
+            canAttachDeck={canEditPlans && canCreateLibrary}
+            canEditPlan={canEditPlans}
+          />
         ) : activeModuleId === "imports" ? (
-          <ImportManager onDataChange={() => void loadWorkspace()} />
+          <ImportManager canEdit={canEditSongs} onDataChange={() => void loadWorkspace()} />
         ) : activeModuleId === "admin" ? (
           <UserManager />
         ) : (
-          <PresentationView />
+          <PresentationView
+            canAttachDeck={canEditPlans && canCreateLibrary}
+            canEditPlan={canEditPlans}
+          />
         )}
       </section>
     </main>

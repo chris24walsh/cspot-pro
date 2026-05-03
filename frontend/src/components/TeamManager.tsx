@@ -54,7 +54,7 @@ function payloadFromForm(planId: string, form: TeamFormState): TeamAssignmentPay
   };
 }
 
-export function TeamManager() {
+export function TeamManager({ canEdit }: { canEdit: boolean }) {
   const [plans, setPlans] = useState<PlanSummary[]>([]);
   const [users, setUsers] = useState<Member[]>([]);
   const [instruments, setInstruments] = useState<Instrument[]>([]);
@@ -97,6 +97,9 @@ export function TeamManager() {
   }
 
   function startCreate() {
+    if (!canEdit) {
+      return;
+    }
     setSelectedAssignment(null);
     setMode("create");
     setForm({
@@ -126,6 +129,10 @@ export function TeamManager() {
 
   async function submitAssignment(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (!canEdit) {
+      setMessage("You can view team assignments, but only editors can change them.");
+      return;
+    }
     if (!selectedPlanId) {
       setMessage("Select a plan first.");
       return;
@@ -150,7 +157,7 @@ export function TeamManager() {
   }
 
   async function removeAssignment() {
-    if (!selectedAssignment) {
+    if (!selectedAssignment || !canEdit) {
       return;
     }
 
@@ -179,7 +186,7 @@ export function TeamManager() {
       <aside className="manager-list">
         <div className="section-heading">
           <h2>Plan Team</h2>
-          <button className="text-button" onClick={startCreate} type="button">
+          <button className="text-button" disabled={!canEdit} onClick={startCreate} type="button">
             New Assignment
           </button>
         </div>
@@ -221,22 +228,26 @@ export function TeamManager() {
           </div>
           <div className="action-row">
             {mode === "edit" ? (
-              <button className="danger-button" onClick={() => void removeAssignment()} type="button">
+              <button className="danger-button" disabled={!canEdit} onClick={() => void removeAssignment()} type="button">
                 Remove
               </button>
             ) : null}
-            <button className="primary-button" type="submit">
+            <button className="primary-button" disabled={!canEdit} type="submit">
               Save Assignment
             </button>
           </div>
         </div>
 
         {message ? <p className="form-message">{message}</p> : null}
+        {!canEdit ? (
+          <p className="empty-state">You can review team assignments here, but only plan editors can change them.</p>
+        ) : null}
 
         <div className="form-grid">
           <label>
             User
             <select
+              disabled={!canEdit}
               onChange={(event) => setForm({ ...form, user_id: event.target.value })}
               value={form.user_id}
             >
@@ -252,6 +263,7 @@ export function TeamManager() {
           <label>
             Role
             <input
+              disabled={!canEdit}
               onChange={(event) => setForm({ ...form, role_label: event.target.value })}
               required
               value={form.role_label}
@@ -261,6 +273,7 @@ export function TeamManager() {
           <label>
             Instrument
             <select
+              disabled={!canEdit}
               onChange={(event) => setForm({ ...form, instrument_id: event.target.value })}
               value={form.instrument_id}
             >
@@ -276,6 +289,7 @@ export function TeamManager() {
           <label>
             Status
             <select
+              disabled={!canEdit}
               onChange={(event) => setForm({ ...form, status: event.target.value })}
               value={form.status}
             >
@@ -290,6 +304,7 @@ export function TeamManager() {
           <label className="wide-field">
             Notes
             <textarea
+              disabled={!canEdit}
               onChange={(event) => setForm({ ...form, notes: event.target.value })}
               rows={4}
               value={form.notes}

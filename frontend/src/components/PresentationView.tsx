@@ -175,7 +175,13 @@ function renderMiniSlide(slide: PresentationSlide | null, fallback: string, them
   );
 }
 
-export function PresentationView() {
+export function PresentationView({
+  canAttachDeck,
+  canEditPlan,
+}: {
+  canAttachDeck: boolean;
+  canEditPlan: boolean;
+}) {
   const [plans, setPlans] = useState<PlanSummary[]>([]);
   const [songs, setSongs] = useState<Song[]>([]);
   const [selectedPlanId, setSelectedPlanId] = useState("");
@@ -457,6 +463,10 @@ export function PresentationView() {
   }
 
   function openInsertDialog(afterIndex: number) {
+    if (!canEditPlan) {
+      setMessage("You can present this plan, but only editors can change the running order.");
+      return;
+    }
     setSelectedSongId((current) => current || songs[0]?.id || "");
     setInsertDialog({ afterIndex, mode: "choose" });
   }
@@ -475,6 +485,10 @@ export function PresentationView() {
   async function insertSongById(songId: string, afterIndex: number) {
     if (!plan) {
       setMessage("Select a plan before adding a song.");
+      return;
+    }
+    if (!canEditPlan) {
+      setMessage("Only plan editors can add songs to the running order.");
       return;
     }
 
@@ -499,6 +513,10 @@ export function PresentationView() {
       setMessage("Select a plan before adding Scripture.");
       return;
     }
+    if (!canEditPlan) {
+      setMessage("Only plan editors can add Scripture to the running order.");
+      return;
+    }
     await createPlanItem(plan.id, {
       item_type: "reading",
       sequence: sequenceForInsert(afterIndex),
@@ -511,6 +529,10 @@ export function PresentationView() {
 
   async function navigateBibleReading(mode: "verse" | "chapter", delta: -1 | 1) {
     if (!plan || !currentPlanItem || currentPlanItem.item_type !== "reading") {
+      return;
+    }
+    if (!canEditPlan) {
+      setMessage("Bible passage navigation updates the plan, so it is only available to editors.");
       return;
     }
 
@@ -634,6 +656,10 @@ export function PresentationView() {
       setMessage("Select a plan before attaching a deck.");
       return;
     }
+    if (!canEditPlan || !canAttachDeck) {
+      setMessage("Adding slide decks requires plan editing and library upload access.");
+      return;
+    }
 
     if (!deckFile) {
       setMessage("Choose a sermon or slide deck file first.");
@@ -663,7 +689,7 @@ export function PresentationView() {
   }
 
   async function addSongToPlan() {
-    if (!plan) {
+    if (!plan || !canEditPlan) {
       return;
     }
     try {
@@ -676,7 +702,7 @@ export function PresentationView() {
   }
 
   async function removeSection(sectionId: string) {
-    if (!plan) {
+    if (!plan || !canEditPlan) {
       return;
     }
 
@@ -690,7 +716,7 @@ export function PresentationView() {
   }
 
   async function moveSection(sectionId: string, delta: -1 | 1) {
-    if (!plan) {
+    if (!plan || !canEditPlan) {
       return;
     }
 
@@ -716,6 +742,10 @@ export function PresentationView() {
   async function addBiblePassageSlide() {
     if (!plan) {
       setMessage("Select a plan before adding Scripture.");
+      return;
+    }
+    if (!canEditPlan) {
+      setMessage("Only plan editors can add Scripture slides.");
       return;
     }
 
@@ -883,7 +913,7 @@ export function PresentationView() {
       if (event.key === "ArrowDown") {
         event.preventDefault();
         clearHotkeyButtonFocus();
-        if (currentPlanItem?.item_type === "reading") {
+        if (currentPlanItem?.item_type === "reading" && canEditPlan) {
           void navigateBibleReading("verse", 1);
         } else {
           moveLive(1);
@@ -893,7 +923,7 @@ export function PresentationView() {
       if (event.key === "ArrowUp") {
         event.preventDefault();
         clearHotkeyButtonFocus();
-        if (currentPlanItem?.item_type === "reading") {
+        if (currentPlanItem?.item_type === "reading" && canEditPlan) {
           void navigateBibleReading("verse", -1);
         } else {
           moveLive(-1);
@@ -937,7 +967,7 @@ export function PresentationView() {
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [currentPlanItem, liveIndex, plan, screens, searchOverlayOpen, selectedScreenIndex, slides, sections]);
+  }, [canEditPlan, currentPlanItem, liveIndex, plan, screens, searchOverlayOpen, selectedScreenIndex, slides, sections]);
 
   async function runBibleSearch(mode: "reference" | "keyword") {
     const query = searchQuery.trim();
@@ -966,6 +996,11 @@ export function PresentationView() {
   return (
     <section className="presentation-workspace" aria-label="Presentation preview">
       {message ? <p className="form-message presentation-message">{message}</p> : null}
+      {!canEditPlan ? (
+        <p className="empty-state presentation-readonly-note">
+          Presenter mode is live, but this account is read-only for plan changes.
+        </p>
+      ) : null}
 
       <div className="presenter-console">
         <div className="presenter-stage-column">
@@ -1037,16 +1072,16 @@ export function PresentationView() {
             </div>
             {currentPlanItem?.item_type === "reading" ? (
               <div className="action-row bible-nav-row">
-                <button className="text-button" onClick={() => void navigateBibleReading("verse", -1)} type="button">
+                <button className="text-button" disabled={!canEditPlan} onClick={() => void navigateBibleReading("verse", -1)} type="button">
                   Prev Verse
                 </button>
-                <button className="text-button" onClick={() => void navigateBibleReading("verse", 1)} type="button">
+                <button className="text-button" disabled={!canEditPlan} onClick={() => void navigateBibleReading("verse", 1)} type="button">
                   Next Verse
                 </button>
-                <button className="text-button" onClick={() => void navigateBibleReading("chapter", -1)} type="button">
+                <button className="text-button" disabled={!canEditPlan} onClick={() => void navigateBibleReading("chapter", -1)} type="button">
                   Prev Chapter
                 </button>
-                <button className="text-button" onClick={() => void navigateBibleReading("chapter", 1)} type="button">
+                <button className="text-button" disabled={!canEditPlan} onClick={() => void navigateBibleReading("chapter", 1)} type="button">
                   Next Chapter
                 </button>
               </div>
@@ -1122,6 +1157,7 @@ export function PresentationView() {
             <button
               aria-label="Add section at the start"
               className="section-insert-button"
+              disabled={!canEditPlan}
               onClick={() => openInsertDialog(-1)}
               type="button"
             >
@@ -1149,7 +1185,7 @@ export function PresentationView() {
                       <button
                         aria-label={`Move ${section.title} up`}
                         className="section-icon-button"
-                        disabled={sectionIndex === 0}
+                        disabled={!canEditPlan || sectionIndex === 0}
                         onClick={() => void moveSection(section.id, -1)}
                         type="button"
                       >
@@ -1158,7 +1194,7 @@ export function PresentationView() {
                       <button
                         aria-label={`Move ${section.title} down`}
                         className="section-icon-button"
-                        disabled={sectionIndex === sections.length - 1}
+                        disabled={!canEditPlan || sectionIndex === sections.length - 1}
                         onClick={() => void moveSection(section.id, 1)}
                         type="button"
                       >
@@ -1167,6 +1203,7 @@ export function PresentationView() {
                       <button
                         aria-label={`Remove ${section.title}`}
                         className="section-icon-button section-remove-button"
+                        disabled={!canEditPlan}
                         onClick={() => setPendingRemoveSection({ id: section.id, title: section.title })}
                         type="button"
                       >
@@ -1177,6 +1214,7 @@ export function PresentationView() {
                   <button
                     aria-label={`Add section after ${section.title}`}
                     className="section-insert-button"
+                    disabled={!canEditPlan}
                     onClick={() => openInsertDialog(sectionIndex)}
                     type="button"
                   >
@@ -1285,6 +1323,7 @@ export function PresentationView() {
                     .map((song) => (
                       <button
                         className="search-result-card"
+                        disabled={!canEditPlan}
                         key={song.id}
                         onClick={() => {
                           void insertSongById(song.id, activeSectionInsertIndex())
@@ -1307,6 +1346,7 @@ export function PresentationView() {
                 ? searchResults.map((result) => (
                     <button
                       className="search-result-card"
+                      disabled={!canEditPlan}
                       key={`${result.version}:${result.reference}:${result.verse_from}`}
                       onClick={() => {
                         void insertBibleResult(result, activeSectionInsertIndex())
@@ -1425,6 +1465,7 @@ export function PresentationView() {
                 <label>
                   Deck File
                   <input
+                    disabled={!canAttachDeck}
                     accept=".ppt,.pptx,.odp,.pdf,.key"
                     onChange={(event) => {
                       setDeckFile(event.target.files?.[0] ?? null);
@@ -1434,11 +1475,11 @@ export function PresentationView() {
                 </label>
                 <label>
                   Deck Name
-                  <input onChange={(event) => setDeckTitle(event.target.value)} value={deckTitle} />
+                  <input disabled={!canAttachDeck} onChange={(event) => setDeckTitle(event.target.value)} value={deckTitle} />
                 </label>
                 <label>
                   Type
-                  <select onChange={(event) => setDeckType(event.target.value)} value={deckType}>
+                  <select disabled={!canAttachDeck} onChange={(event) => setDeckType(event.target.value)} value={deckType}>
                     <option value="sermon">Sermon</option>
                     <option value="welcome">Welcome</option>
                     <option value="reading">Reading</option>
@@ -1458,17 +1499,17 @@ export function PresentationView() {
                 Cancel
               </button>
               {insertDialog.mode === "song" ? (
-                <button className="primary-button" disabled={!selectedSongId} onClick={() => void addSongToPlan()} type="button">
+                <button className="primary-button" disabled={!canEditPlan || !selectedSongId} onClick={() => void addSongToPlan()} type="button">
                   Add Song
                 </button>
               ) : null}
               {insertDialog.mode === "bible" ? (
-                <button className="primary-button" onClick={() => void addBiblePassageSlide()} type="button">
+                <button className="primary-button" disabled={!canEditPlan} onClick={() => void addBiblePassageSlide()} type="button">
                   Add Passage
                 </button>
               ) : null}
               {insertDialog.mode === "deck" ? (
-                <button className="primary-button" onClick={() => void attachDeckToPlan()} type="button">
+                <button className="primary-button" disabled={!canAttachDeck} onClick={() => void attachDeckToPlan()} type="button">
                   Add Deck
                 </button>
               ) : null}

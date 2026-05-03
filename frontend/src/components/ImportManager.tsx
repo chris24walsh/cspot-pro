@@ -2,7 +2,13 @@ import { type FormEvent, useEffect, useState } from "react";
 
 import { getSongs, saveLyricsImport, type Song } from "../api";
 
-export function ImportManager({ onDataChange }: { onDataChange: () => void }) {
+export function ImportManager({
+  canEdit,
+  onDataChange,
+}: {
+  canEdit: boolean;
+  onDataChange: () => void;
+}) {
   const [songs, setSongs] = useState<Song[]>([]);
   const [songId, setSongId] = useState("");
   const [title, setTitle] = useState("");
@@ -32,6 +38,10 @@ export function ImportManager({ onDataChange }: { onDataChange: () => void }) {
 
   async function submitImport(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (!canEdit) {
+      setMessage("You can review imports, but only song editors can save them into the library.");
+      return;
+    }
     setMessage(null);
 
     try {
@@ -87,17 +97,20 @@ export function ImportManager({ onDataChange }: { onDataChange: () => void }) {
             <p className="eyebrow">Review</p>
             <h2>Lyrics Import</h2>
           </div>
-          <button className="primary-button" type="submit">
+          <button className="primary-button" disabled={!canEdit} type="submit">
             Save Lyrics
           </button>
         </div>
 
         {message ? <p className="form-message">{message}</p> : null}
+        {!canEdit ? (
+          <p className="empty-state">You can review lyrics here, but only song editors can create or update songs.</p>
+        ) : null}
 
         <div className="form-grid">
           <label>
             Existing Song
-            <select onChange={(event) => selectSong(event.target.value)} value={songId}>
+            <select disabled={!canEdit} onChange={(event) => selectSong(event.target.value)} value={songId}>
               <option value="">Create a new song</option>
               {songs.map((song) => (
                 <option key={song.id} value={song.id}>
@@ -109,22 +122,23 @@ export function ImportManager({ onDataChange }: { onDataChange: () => void }) {
 
           <label>
             Title
-            <input onChange={(event) => setTitle(event.target.value)} required value={title} />
+            <input disabled={!canEdit} onChange={(event) => setTitle(event.target.value)} required value={title} />
           </label>
 
           <label>
             Author
-            <input onChange={(event) => setAuthor(event.target.value)} value={author} />
+            <input disabled={!canEdit} onChange={(event) => setAuthor(event.target.value)} value={author} />
           </label>
 
           <label>
             Source Label
-            <input onChange={(event) => setSourceLabel(event.target.value)} value={sourceLabel} />
+            <input disabled={!canEdit} onChange={(event) => setSourceLabel(event.target.value)} value={sourceLabel} />
           </label>
 
           <label className="wide-field">
             Source URL
             <input
+              disabled={!canEdit}
               onChange={(event) => setSourceUrl(event.target.value)}
               placeholder="https://..."
               value={sourceUrl}
@@ -134,6 +148,7 @@ export function ImportManager({ onDataChange }: { onDataChange: () => void }) {
           <label className="wide-field">
             Lyrics
             <textarea
+              disabled={!canEdit}
               onChange={(event) => setLyrics(event.target.value)}
               required
               rows={14}
