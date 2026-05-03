@@ -12,6 +12,7 @@ migration planning; this project starts clean with a container-first stack.
 - Frontend: React, TypeScript, Vite
 - Database: PostgreSQL
 - Runtime: Docker Compose for local development
+- Auth: cookie-based sessions with backend-enforced RBAC
 - Tests: pytest for backend, browser tests to follow once flows exist
 
 ## Local Development
@@ -66,6 +67,13 @@ This runs `up --build -d` and does not delete volumes.
 
 On startup, the API container runs database migrations, seeds demo data, and then
 starts FastAPI.
+
+The seeded demo admin account is:
+
+- email: `admin@example.com`
+- password: `changeme123`
+
+Change that before public hosting.
 
 For the current frontend wireframe only:
 
@@ -154,6 +162,18 @@ back to the static wireframe data when it is not.
 - Messages: create/delete threads and send replies
 - Imports: paste/review/save lyrics into new or existing songs
 - Admin: create/edit/deactivate users and assign roles
+
+## Access Control
+
+`cspot-pro` now supports:
+
+- first-admin bootstrap for empty installs
+- password login
+- cookie-backed sessions that work with presenter/live-output windows
+- backend-enforced permissions for read, edit, create, and admin actions
+
+Public hosting should still set a strong `AUTH_SECRET_KEY`, run behind HTTPS,
+and turn on secure cookies.
 
 ## Reference Project
 

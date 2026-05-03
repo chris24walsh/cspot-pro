@@ -18,7 +18,7 @@ This is intentionally simple and cheap:
 - no cloud bill
 - no separate managed database
 - no object storage setup
-- no authentication layer yet
+- built-in cookie-based user authentication and RBAC
 
 ## Install Prerequisites
 
@@ -90,7 +90,7 @@ restarts and updates.
 ## Notes
 
 - This setup is fine for internal use on the church machine.
-- If you later expose it publicly, add authentication and a reverse-proxy/TLS
-  layer first.
+- If you later expose it publicly, set a strong `AUTH_SECRET_KEY`, enable
+  HTTPS, and set the session cookie to secure mode.
 - If Windows blocks port 80, free that port or remap the `web` service in
   `docker-compose.church.yml`.

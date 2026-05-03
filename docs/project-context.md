@@ -31,6 +31,8 @@ In rough order:
    major rework.
 5. Preserve the useful behaviour of the original app while improving the
    information density, workflow, and maintainability.
+6. Support real multi-user church operation with authentication and role-based
+   permissions before public hosting.
 
 ## Guiding Product Principles
 
@@ -84,6 +86,15 @@ The preferred interface style is compact and operational:
 
 Important intent, architecture, and workflow decisions should be written down in
 the repo rather than existing only in chat history.
+
+### 6. Public hosting must be permission-aware
+
+The app is expected to become publicly reachable. That means:
+
+- authentication is not optional
+- browser-only trust is not enough
+- the backend must enforce role-based permissions
+- the UI should expose read-only versus edit/create/admin affordances clearly
 
 ## Confirmed UX Preferences
 

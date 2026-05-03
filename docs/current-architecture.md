@@ -43,6 +43,7 @@ Optional supporting flows:
 - rendered slide image generation through LibreOffice + `pdftoppm`
 - local browser-to-browser presenter sync through `BroadcastChannel` and
   `localStorage`
+- cookie-based session authentication between browser and backend
 
 ## Repository Structure
 
@@ -100,6 +101,23 @@ Route -> schema validation -> ORM/session work -> response schema
 - PostgreSQL is the system of record.
 - Alembic handles schema evolution.
 - Demo data seeding currently bootstraps a usable local environment.
+
+### Authentication and authorization
+
+`identity` now owns:
+
+- first-admin bootstrap
+- password hashing
+- cookie-backed login/logout/session lookup
+- role-to-permission resolution
+- backend permission checks on module routes
+
+The app uses an RBAC-style ladder aimed at church operations:
+
+- read-only access
+- edit existing plans/songs/team data
+- create/manage plans and songs
+- full administration including user management
 
 ### Files and slide decks
 
