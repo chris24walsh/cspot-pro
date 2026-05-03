@@ -215,7 +215,7 @@ export function PresentationOutput() {
 
       <section
         className={`slideshow-stage ${liveSlide?.imageUrl ? "slideshow-stage-image" : ""} stage-theme-${
-          liveState?.theme ?? "dark"
+          liveState?.theme ?? "light"
         } ${liveSlide ? presentationTypeClass(liveSlide.itemType) : "type-generic"} ${blanked ? "stage-blanked" : ""}`}
       >
         {blanked ? null : !liveSlide?.imageUrl && liveSlide?.itemType !== "song" ? (

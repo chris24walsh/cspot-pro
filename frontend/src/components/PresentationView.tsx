@@ -69,6 +69,7 @@ type LoadOptions = {
     planItemId: string;
     slideOffset: number;
   };
+  silent?: boolean;
 };
 
 function parseBibleReference(reference: string) {
@@ -205,7 +206,7 @@ export function PresentationView() {
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<BibleSearchHit[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
-  const [slideTheme, setSlideTheme] = useState<PresentationTheme>("dark");
+  const [slideTheme, setSlideTheme] = useState<PresentationTheme>("light");
   const [liveBlanked, setLiveBlanked] = useState(false);
   const [liveFullscreen, setLiveFullscreen] = useState(false);
   const outputWindowRef = useRef<Window | null>(null);
@@ -235,7 +236,9 @@ export function PresentationView() {
 
   async function load(planId?: string, options?: LoadOptions) {
     setMessage(null);
-    setLoading(true);
+    if (!options?.silent) {
+      setLoading(true);
+    }
 
     try {
       const [nextPlans, nextSongs] = await Promise.all([getPlans(), getSongs()]);
@@ -269,7 +272,9 @@ export function PresentationView() {
       setPlan(null);
       setMessage(error instanceof Error ? error.message : "Could not load presentation.");
     } finally {
-      setLoading(false);
+      if (!options?.silent) {
+        setLoading(false);
+      }
     }
   }
 
@@ -597,6 +602,7 @@ export function PresentationView() {
           planItemId: currentPlanItem.id,
           slideOffset: currentSlideOffset,
         },
+        silent: true,
       });
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Could not move to the next Bible passage.");
@@ -939,9 +945,19 @@ export function PresentationView() {
           >
             <div className="stage-meta">
               <span>Current · {plan?.title ?? "Presentation"}</span>
-              <span>
-                {(liveIndex + 1).toString().padStart(2, "0")} / {slides.length.toString().padStart(2, "0")}
-              </span>
+              <div className="stage-meta-actions">
+                <label className="stage-theme-switch" title="Toggle slide theme">
+                  <input
+                    checked={slideTheme === "light"}
+                    onChange={(event) => setSlideTheme(event.target.checked ? "light" : "dark")}
+                    type="checkbox"
+                  />
+                  <span className="stage-theme-slider" aria-hidden="true" />
+                </label>
+                <span>
+                  {(liveIndex + 1).toString().padStart(2, "0")} / {slides.length.toString().padStart(2, "0")}
+                </span>
+              </div>
             </div>
             <div className={`presentation-stage ${liveSlide?.imageUrl ? "presentation-stage-image" : ""}`}>
               {liveSlide?.imageUrl || liveSlide?.itemType === "song" ? null : (
@@ -985,22 +1001,6 @@ export function PresentationView() {
               <button className="primary-button" disabled={loading || !plan} onClick={() => void startSlideshow()} type="button">
                 <MonitorUp size={16} aria-hidden="true" />
                 Start Slideshow
-              </button>
-            </div>
-            <div className="action-row theme-toggle-row">
-              <button
-                className={`text-button ${slideTheme === "dark" ? "active-choice" : ""}`}
-                onClick={() => setSlideTheme("dark")}
-                type="button"
-              >
-                Dark Slides
-              </button>
-              <button
-                className={`text-button ${slideTheme === "light" ? "active-choice" : ""}`}
-                onClick={() => setSlideTheme("light")}
-                type="button"
-              >
-                Light Slides
               </button>
             </div>
             {currentPlanItem?.item_type === "reading" ? (
