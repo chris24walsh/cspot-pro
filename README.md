@@ -81,6 +81,23 @@ Services:
 - Web app: http://localhost:5173
 - Postgres: localhost:5432
 
+## Church Windows Deployment
+
+For the simplest real-world deployment right now, run `cspot-pro` directly on
+the church Windows PC with Docker Desktop.
+
+See:
+
+- [docs/windows-church-deployment.md](docs/windows-church-deployment.md)
+
+Key files:
+
+- `docker-compose.church.yml`
+- `.env.church.example`
+- `scripts/start-church.ps1`
+- `scripts/update-church.ps1`
+- `scripts/stop-church.ps1`
+
 ## Project Layout
 
 ```text

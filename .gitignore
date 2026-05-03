@@ -1,6 +1,7 @@
 .env
 .env.*
 !.env.example
+!.env.church.example
 
 __pycache__/
 **/__pycache__/
