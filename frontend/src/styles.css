@@ -45,8 +45,7 @@ button {
   z-index: 20;
 }
 
-.sidebar:hover,
-.sidebar:focus-within {
+.sidebar:hover {
   box-shadow: 12px 0 28px rgba(23, 45, 39, 0.24);
   overflow: visible;
   width: 232px;
@@ -78,8 +77,7 @@ button {
     transform 120ms ease;
 }
 
-.sidebar:hover .brand span,
-.sidebar:focus-within .brand span {
+.sidebar:hover .brand span {
   opacity: 1;
   transform: translateX(0);
 }
@@ -117,8 +115,7 @@ button {
     transform 120ms ease;
 }
 
-.sidebar:hover .nav-item span,
-.sidebar:focus-within .nav-item span {
+.sidebar:hover .nav-item span {
   opacity: 1;
   transform: translateX(0);
 }
@@ -948,19 +945,25 @@ h3 {
 }
 
 .presenter-controls {
-  align-items: center;
   display: grid;
   gap: 8px;
   grid-template-columns: minmax(0, 1fr);
 }
 
 .presenter-controls .action-row {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   justify-content: stretch;
 }
 
 .bible-nav-row {
   border-top: 1px solid #e3dcc8;
   padding-top: 8px;
+}
+
+.bible-nav-row .text-button:last-child {
+  grid-column: 1 / -1;
 }
 
 .presenter-controls .text-button,
@@ -971,13 +974,12 @@ h3 {
 }
 
 .presenter-plan-picker {
-  align-items: center;
   color: #3b4741;
   display: grid;
   font-size: 12px;
   font-weight: 850;
   gap: 6px;
-  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .presenter-plan-picker select {
@@ -986,9 +988,9 @@ h3 {
   border-radius: 8px;
   color: #17201b;
   font: inherit;
-  min-height: 32px;
+  min-height: 40px;
   min-width: 0;
-  padding: 5px 9px;
+  padding: 7px 10px;
   width: 100%;
 }
 

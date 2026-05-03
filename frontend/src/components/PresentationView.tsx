@@ -969,6 +969,22 @@ export function PresentationView() {
 
       <div className="presenter-console">
         <div className="presenter-stage-column">
+          <label className="presenter-plan-picker">
+            Plan
+            <select
+              disabled={loading || !plans.length}
+              onChange={(event) => void selectPlan(event.target.value)}
+              value={selectedPlanId}
+            >
+              {!plans.length ? <option value="">No plans available</option> : null}
+              {plans.map((planSummary) => (
+                <option key={planSummary.id} value={planSummary.id}>
+                  {planSummary.title}
+                </option>
+              ))}
+            </select>
+          </label>
+
           <div
             className={`stage-shell stage-shell-live presenter-current stage-theme-${slideTheme} ${
               liveSlide ? presentationTypeClass(liveSlide.itemType) : "type-generic"
@@ -1005,21 +1021,6 @@ export function PresentationView() {
           </div>
 
           <div className="presenter-controls">
-            <label className="presenter-plan-picker">
-              Plan
-              <select
-                disabled={loading || !plans.length}
-                onChange={(event) => void selectPlan(event.target.value)}
-                value={selectedPlanId}
-              >
-                {!plans.length ? <option value="">No plans available</option> : null}
-                {plans.map((planSummary) => (
-                  <option key={planSummary.id} value={planSummary.id}>
-                    {planSummary.title}
-                  </option>
-                ))}
-              </select>
-            </label>
             <div className="action-row">
               <button className="text-button" disabled={loading || !plan} onClick={() => moveLive(-1)} type="button">
                 <ChevronLeft size={16} aria-hidden="true" />
