@@ -21,7 +21,7 @@ def health() -> dict[str, str]:
 @api_router.get("/api/v1/app", tags=["system"])
 def app_info() -> dict[str, object]:
     return {
-        "name": "cspot-modern",
+        "name": "cspot-pro",
         "modules": [
             "identity",
             "planning",

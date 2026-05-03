@@ -1,11 +1,11 @@
-# cspot-modern Agent Notes
+# cspot-pro Agent Notes
 
 This file gives future contributors and coding agents a compact operating
 context for the repo.
 
 ## What This Project Is
 
-`cspot-modern` is a clean reimplementation of the legacy `cspot` church service
+`cspot-pro` is a clean reimplementation of the legacy `cspot` church service
 planning tool with a container-first workflow, a modern web stack, and a strong
 focus on presentation usability.
 

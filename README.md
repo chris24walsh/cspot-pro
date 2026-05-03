@@ -1,4 +1,4 @@
-# cspot-modern
+# cspot-pro
 
 Modern reimplementation of c-SPOT, the church service online planning tool.
 

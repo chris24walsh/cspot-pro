@@ -1,7 +1,7 @@
 [project]
-name = "cspot-modern-api"
+name = "cspot-pro-api"
 version = "0.1.0"
-description = "FastAPI backend for cspot-modern"
+description = "FastAPI backend for cspot-pro"
 requires-python = ">=3.12"
 dependencies = [
     "alembic>=1.14.0,<2.0.0",

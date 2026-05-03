@@ -18,7 +18,7 @@ tooling expectations even if most files were deleted.
 
 ## Decision
 
-Create a separate sibling repository named `cspot-modern`.
+Create a separate sibling repository named `cspot-pro`.
 
 Keep the cloned legacy repository at `../cspot` as a read-only reference while
 designing the new product.

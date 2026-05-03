@@ -1,6 +1,6 @@
 # Current Architecture
 
-This document describes the current architecture of `cspot-modern` in a way
+This document describes the current architecture of `cspot-pro` in a way
 that should be readable by both humans and coding agents.
 
 ## High-Level Shape

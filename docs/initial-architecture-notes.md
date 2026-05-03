@@ -2,7 +2,7 @@
 
 ## Product Shape
 
-cspot-modern should preserve the useful parts of c-SPOT while making the system
+cspot-pro should preserve the useful parts of c-SPOT while making the system
 easier to evolve:
 
 - Service and event planning calendar

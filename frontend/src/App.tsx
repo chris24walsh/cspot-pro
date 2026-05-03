@@ -120,7 +120,7 @@ function App() {
       <aside className="sidebar" aria-label="Primary">
         <div className="brand">
           <img alt="" src="/images/xs-cspot.png" />
-          <span>cspot</span>
+          <span>cspot-pro</span>
         </div>
 
         <nav className="nav-list">

@@ -293,7 +293,7 @@ def main() -> None:
             autoload_kjv_if_missing(session)
         except Exception:
             session.rollback()
-        print("Seeded demo cspot-modern data.")
+        print("Seeded demo cspot-pro data.")
 
 
 if __name__ == "__main__":

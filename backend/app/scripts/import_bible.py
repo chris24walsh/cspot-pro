@@ -141,7 +141,7 @@ def autoload_kjv_if_missing(session: Session) -> int:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Import Bible translation text into cspot-modern.")
+    parser = argparse.ArgumentParser(description="Import Bible translation text into cspot-pro.")
     parser.add_argument("--version-code", required=True)
     parser.add_argument("--name", required=True)
     parser.add_argument("--source", required=True)

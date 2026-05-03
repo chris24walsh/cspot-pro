@@ -8,7 +8,7 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     app_env: str = "local"
-    app_name: str = "cspot-modern"
+    app_name: str = "cspot-pro"
     api_cors_origins: str = Field(default="http://localhost:5173")
     database_url: str = "postgresql+psycopg://cspot:cspot@db:5432/cspot"
 

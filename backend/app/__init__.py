@@ -1,1 +1,1 @@
-"""cspot-modern API package."""
+"""cspot-pro API package."""

@@ -1,8 +1,8 @@
 import type { PlanItem, RenderedSlide, Song } from "./api";
 import { splitWorshipSlides } from "./worshipText";
 
-export const PRESENTATION_CHANNEL = "cspot-presentation-live";
-export const PRESENTATION_STORAGE_KEY = "cspot:presentation-live";
+export const PRESENTATION_CHANNEL = "cspot-pro-presentation-live";
+export const PRESENTATION_STORAGE_KEY = "cspot-pro:presentation-live";
 export type PresentationTheme = "dark" | "light";
 
 export interface PresentationLiveState {

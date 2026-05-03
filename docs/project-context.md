@@ -1,12 +1,12 @@
 # Project Context
 
 This document captures the intent that has been communicated while shaping
-`cspot-modern`. It is meant to be useful both for humans joining the project
+`cspot-pro`. It is meant to be useful both for humans joining the project
 and for coding agents that need durable context between sessions.
 
 ## Core Purpose
 
-`cspot-modern` is a complete reimplementation of the legacy `cspot` church
+`cspot-pro` is a complete reimplementation of the legacy `cspot` church
 service planning tool using a stack that is easier to maintain, extend, test,
 and deploy.
 

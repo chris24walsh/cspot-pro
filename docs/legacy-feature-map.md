@@ -1,7 +1,7 @@
 # Legacy Feature Map
 
 This map keeps the rewrite honest. The legacy Laravel project remains the
-behavioural reference, while cspot-modern uses clearer module boundaries.
+behavioural reference, while cspot-pro uses clearer module boundaries.
 
 | Legacy capability | Legacy area | New module | First target |
 | --- | --- | --- | --- |

@@ -407,7 +407,7 @@ export function PresentationView() {
       `height=${targetScreen?.height ?? 720}`,
     ].join(",");
 
-    const outputWindow = window.open(url.toString(), "cspot-live-output", features);
+    const outputWindow = window.open(url.toString(), "cspot-pro-live-output", features);
     if (!outputWindow) {
       setMessage("The browser blocked the live output window. Allow pop-ups for this app and try again.");
       return;
