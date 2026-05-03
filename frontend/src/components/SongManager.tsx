@@ -64,7 +64,15 @@ function normalizeForm(form: SongPayload): SongPayload {
   };
 }
 
-export function SongManager({ onDataChange }: { onDataChange: () => void }) {
+export function SongManager({
+  canCreate,
+  canEdit,
+  onDataChange,
+}: {
+  canCreate: boolean;
+  canEdit: boolean;
+  onDataChange: () => void;
+}) {
   const [songs, setSongs] = useState<Song[]>([]);
   const [selectedSong, setSelectedSong] = useState<Song | null>(null);
   const [mode, setMode] = useState<"edit" | "create">("edit");
@@ -136,6 +144,10 @@ export function SongManager({ onDataChange }: { onDataChange: () => void }) {
 
   async function submitSong(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if ((mode === "create" && !canCreate) || (mode === "edit" && !canEdit)) {
+      setMessage("You do not have permission to save songs.");
+      return;
+    }
     setMessage(null);
 
     try {
@@ -152,6 +164,10 @@ export function SongManager({ onDataChange }: { onDataChange: () => void }) {
 
   async function removeSong() {
     if (!selectedSong) {
+      return;
+    }
+    if (!canCreate) {
+      setMessage("You do not have permission to archive songs.");
       return;
     }
 
@@ -176,6 +192,10 @@ export function SongManager({ onDataChange }: { onDataChange: () => void }) {
   async function uploadSongFile() {
     if (!selectedSong || !fileToUpload) {
       setMessage("Select a song and a slide file first.");
+      return;
+    }
+    if (!canCreate) {
+      setMessage("You do not have permission to attach files.");
       return;
     }
 
@@ -208,6 +228,10 @@ export function SongManager({ onDataChange }: { onDataChange: () => void }) {
       setMessage("Choose a PowerPoint or OpenDocument song file first.");
       return;
     }
+    if (!canCreate && !canEdit) {
+      setMessage("You do not have permission to parse imported song slides.");
+      return;
+    }
 
     try {
       const parsed = await parseSlideDeck(file);
@@ -228,6 +252,10 @@ export function SongManager({ onDataChange }: { onDataChange: () => void }) {
   async function bulkImportSongDecks() {
     if (!songDeckFiles.length) {
       setMessage("Choose one or more PowerPoint/OpenDocument song files first.");
+      return;
+    }
+    if (!canCreate) {
+      setMessage("You do not have permission to bulk import songs.");
       return;
     }
 
@@ -272,7 +300,7 @@ export function SongManager({ onDataChange }: { onDataChange: () => void }) {
       <aside className="manager-list">
         <div className="section-heading">
           <h2>Songs</h2>
-          <button className="text-button" onClick={startCreate} type="button">
+          <button className="text-button" disabled={!canCreate} onClick={startCreate} type="button">
             New Song
           </button>
         </div>
@@ -315,11 +343,11 @@ export function SongManager({ onDataChange }: { onDataChange: () => void }) {
           </div>
           <div className="action-row">
             {mode === "edit" ? (
-              <button className="danger-button" onClick={() => void removeSong()} type="button">
+              <button className="danger-button" disabled={!canCreate} onClick={() => void removeSong()} type="button">
                 Archive Song
               </button>
             ) : null}
-            <button className="primary-button" disabled={loading} type="submit">
+            <button className="primary-button" disabled={loading || (mode === "create" ? !canCreate : !canEdit)} type="submit">
               Save Song
             </button>
           </div>
@@ -335,6 +363,7 @@ export function SongManager({ onDataChange }: { onDataChange: () => void }) {
                 PowerPoint / OpenDocument Files
                 <input
                   accept=".pptx,.odp"
+                  disabled={!canCreate && !canEdit}
                   multiple
                   onChange={(event) => {
                     setSongDeckFiles(Array.from(event.target.files ?? []));
@@ -355,10 +384,10 @@ export function SongManager({ onDataChange }: { onDataChange: () => void }) {
               </div>
             ) : null}
             <div className="action-row form-actions">
-              <button className="text-button" onClick={() => void parseFirstSongDeck()} type="button">
+              <button className="text-button" disabled={!canCreate && !canEdit} onClick={() => void parseFirstSongDeck()} type="button">
                 Parse Into Editor
               </button>
-              <button className="primary-button" onClick={() => void bulkImportSongDecks()} type="button">
+              <button className="primary-button" disabled={!canCreate} onClick={() => void bulkImportSongDecks()} type="button">
                 Bulk Import Songs
               </button>
             </div>
@@ -369,6 +398,7 @@ export function SongManager({ onDataChange }: { onDataChange: () => void }) {
           <label>
             Title
             <input
+              disabled={mode === "create" ? !canCreate : !canEdit}
               onChange={(event) => setForm({ ...form, title: event.target.value })}
               required
               value={form.title}
@@ -378,6 +408,7 @@ export function SongManager({ onDataChange }: { onDataChange: () => void }) {
           <label>
             Alternate Title
             <input
+              disabled={mode === "create" ? !canCreate : !canEdit}
               onChange={(event) => setForm({ ...form, alternate_title: event.target.value })}
               value={form.alternate_title ?? ""}
             />
@@ -386,6 +417,7 @@ export function SongManager({ onDataChange }: { onDataChange: () => void }) {
           <label>
             Author
             <input
+              disabled={mode === "create" ? !canCreate : !canEdit}
               onChange={(event) => setForm({ ...form, author: event.target.value })}
               value={form.author ?? ""}
             />
@@ -394,6 +426,7 @@ export function SongManager({ onDataChange }: { onDataChange: () => void }) {
           <label>
             License
             <select
+              disabled={mode === "create" ? !canCreate : !canEdit}
               onChange={(event) => setForm({ ...form, license: event.target.value })}
               value={form.license ?? "Unknown"}
             >
@@ -407,6 +440,7 @@ export function SongManager({ onDataChange }: { onDataChange: () => void }) {
           <label>
             CCLI Number
             <input
+              disabled={mode === "create" ? !canCreate : !canEdit}
               onChange={(event) => setForm({ ...form, ccli_number: event.target.value })}
               value={form.ccli_number ?? ""}
             />
@@ -415,6 +449,7 @@ export function SongManager({ onDataChange }: { onDataChange: () => void }) {
           <label>
             Sequence
             <input
+              disabled={mode === "create" ? !canCreate : !canEdit}
               onChange={(event) => setForm({ ...form, sequence: event.target.value })}
               placeholder="V1 C V2 C B C"
               value={form.sequence ?? ""}
@@ -424,6 +459,7 @@ export function SongManager({ onDataChange }: { onDataChange: () => void }) {
           <label>
             YouTube ID
             <input
+              disabled={mode === "create" ? !canCreate : !canEdit}
               onChange={(event) => setForm({ ...form, youtube_id: event.target.value })}
               value={form.youtube_id ?? ""}
             />
@@ -432,6 +468,7 @@ export function SongManager({ onDataChange }: { onDataChange: () => void }) {
           <label>
             External Link
             <input
+              disabled={mode === "create" ? !canCreate : !canEdit}
               onChange={(event) => setForm({ ...form, external_link: event.target.value })}
               value={form.external_link ?? ""}
             />
@@ -440,6 +477,7 @@ export function SongManager({ onDataChange }: { onDataChange: () => void }) {
           <label className="wide-field">
             Book Reference
             <input
+              disabled={mode === "create" ? !canCreate : !canEdit}
               onChange={(event) => setForm({ ...form, book_reference: event.target.value })}
               value={form.book_reference ?? ""}
             />
@@ -450,6 +488,7 @@ export function SongManager({ onDataChange }: { onDataChange: () => void }) {
             <div className="field-action-row">
               <button
                 className="text-button"
+                disabled={mode === "create" ? !canCreate : !canEdit}
                 onClick={() =>
                   setForm({
                     ...form,
@@ -462,6 +501,7 @@ export function SongManager({ onDataChange }: { onDataChange: () => void }) {
               </button>
             </div>
             <textarea
+              disabled={mode === "create" ? !canCreate : !canEdit}
               onChange={(event) => setForm({ ...form, lyrics: event.target.value })}
               rows={8}
               value={form.lyrics ?? ""}
@@ -471,6 +511,7 @@ export function SongManager({ onDataChange }: { onDataChange: () => void }) {
           <label className="wide-field">
             Chords
             <textarea
+              disabled={mode === "create" ? !canCreate : !canEdit}
               onChange={(event) => setForm({ ...form, chords: event.target.value })}
               rows={6}
               value={form.chords ?? ""}
@@ -487,6 +528,7 @@ export function SongManager({ onDataChange }: { onDataChange: () => void }) {
                   <label>
                     Display Name
                     <input
+                      disabled={!canCreate}
                       onChange={(event) => setFileDisplayName(event.target.value)}
                       placeholder={fileToUpload?.name ?? "Optional"}
                       value={fileDisplayName}
@@ -496,6 +538,7 @@ export function SongManager({ onDataChange }: { onDataChange: () => void }) {
                   <label>
                     File
                     <input
+                      disabled={!canCreate}
                       accept=".ppt,.pptx,.pdf,.key,.txt,.png,.jpg,.jpeg"
                       onChange={(event) => setFileToUpload(event.target.files?.[0] ?? null)}
                       type="file"
@@ -503,7 +546,7 @@ export function SongManager({ onDataChange }: { onDataChange: () => void }) {
                   </label>
                 </div>
                 <div className="action-row form-actions">
-                  <button className="primary-button" onClick={() => void uploadSongFile()} type="button">
+                  <button className="primary-button" disabled={!canCreate} onClick={() => void uploadSongFile()} type="button">
                     Attach File
                   </button>
                 </div>

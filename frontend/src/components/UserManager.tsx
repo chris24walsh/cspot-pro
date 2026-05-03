@@ -18,6 +18,7 @@ interface UserFormState {
   email_confirmed: boolean;
   active: boolean;
   role_names: string[];
+  password: string;
 }
 
 function formFromUser(user: User): UserFormState {
@@ -28,6 +29,7 @@ function formFromUser(user: User): UserFormState {
     email_confirmed: user.email_confirmed,
     active: user.active,
     role_names: user.roles,
+    password: "",
   };
 }
 
@@ -39,6 +41,7 @@ function payloadFromForm(form: UserFormState): UserPayload {
     email_confirmed: form.email_confirmed,
     active: form.active,
     role_names: form.role_names.length ? form.role_names : ["user"],
+    password: form.password || null,
   };
 }
 
@@ -54,6 +57,7 @@ export function UserManager() {
     email_confirmed: false,
     active: true,
     role_names: ["user"],
+    password: "",
   });
   const [message, setMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -92,6 +96,7 @@ export function UserManager() {
       email_confirmed: false,
       active: true,
       role_names: ["user"],
+      password: "",
     });
   }
 
@@ -217,6 +222,17 @@ export function UserManager() {
               required
               type="email"
               value={form.email}
+            />
+          </label>
+
+          <label>
+            {mode === "create" ? "Password" : "Reset Password"}
+            <input
+              minLength={8}
+              onChange={(event) => setForm({ ...form, password: event.target.value })}
+              placeholder={mode === "create" ? "Temporary password" : "Leave blank to keep current"}
+              type="password"
+              value={form.password}
             />
           </label>
 

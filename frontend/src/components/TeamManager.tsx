@@ -4,15 +4,15 @@ import {
   createTeamAssignment,
   deleteTeamAssignment,
   getInstruments,
+  getMembers,
   getPlans,
   getTeamAssignments,
-  getUsers,
   updateTeamAssignment,
   type Instrument,
+  type Member,
   type PlanSummary,
   type TeamAssignment,
   type TeamAssignmentPayload,
-  type User,
 } from "../api";
 
 interface TeamFormState {
@@ -56,7 +56,7 @@ function payloadFromForm(planId: string, form: TeamFormState): TeamAssignmentPay
 
 export function TeamManager() {
   const [plans, setPlans] = useState<PlanSummary[]>([]);
-  const [users, setUsers] = useState<User[]>([]);
+  const [users, setUsers] = useState<Member[]>([]);
   const [instruments, setInstruments] = useState<Instrument[]>([]);
   const [selectedPlanId, setSelectedPlanId] = useState("");
   const [assignments, setAssignments] = useState<TeamAssignment[]>([]);
@@ -71,7 +71,7 @@ export function TeamManager() {
     try {
       const [nextPlans, nextUsers, nextInstruments] = await Promise.all([
         getPlans(),
-        getUsers(),
+        getMembers(),
         getInstruments(),
       ]);
       const activeUsers = nextUsers.filter((user) => user.active);

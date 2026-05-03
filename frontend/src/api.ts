@@ -1,4 +1,15 @@
 export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000";
+export const AUTH_REQUIRED_EVENT = "cspot-pro:auth-required";
+
+export class ApiError extends Error {
+  status: number;
+
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+  }
+}
 
 export interface PlanSummary {
   id: string;
@@ -263,6 +274,21 @@ export interface User {
   roles: string[];
 }
 
+export interface Member {
+  id: string;
+  email: string;
+  name: string;
+  active: boolean;
+}
+
+export interface SessionUser extends User {
+  permissions: string[];
+}
+
+export interface BootstrapStatus {
+  available: boolean;
+}
+
 export interface PlanPayload {
   plan_type_id: string;
   service_date: string;
@@ -290,32 +316,53 @@ export interface UserPayload {
   email_confirmed: boolean;
   active: boolean;
   role_names: string[];
+  password?: string | null;
 }
 
-async function getJson<T>(path: string): Promise<T> {
-  const response = await fetch(`${API_BASE_URL}${path}`);
+async function parseError(response: Response, suppressAuthEvent = false): Promise<never> {
+  const text = await response.text();
 
-  if (!response.ok) {
-    const text = await response.text();
-    try {
-      const parsed = JSON.parse(text) as { detail?: unknown };
-      if (typeof parsed.detail === "string") {
-        throw new Error(parsed.detail);
-      }
-    } catch (error) {
-      if (error instanceof Error && error.message !== "Unexpected end of JSON input") {
-        throw error;
-      }
-    }
-    throw new Error(text || `API request failed: ${response.status}`);
+  if (response.status === 401 && !suppressAuthEvent) {
+    window.dispatchEvent(new Event(AUTH_REQUIRED_EVENT));
   }
 
+  try {
+    const parsed = JSON.parse(text) as { detail?: unknown };
+    if (typeof parsed.detail === "string") {
+      throw new ApiError(parsed.detail, response.status);
+    }
+  } catch (error) {
+    if (error instanceof ApiError) {
+      throw error;
+    }
+    if (error instanceof Error && error.message !== "Unexpected end of JSON input") {
+      throw error;
+    }
+  }
+
+  throw new ApiError(text || `API request failed: ${response.status}`, response.status);
+}
+
+async function getJson<T>(path: string, options?: { suppressAuthEvent?: boolean }): Promise<T> {
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    credentials: "include",
+  });
+
+  if (!response.ok) {
+    return parseError(response, options?.suppressAuthEvent);
+  }
   return response.json() as Promise<T>;
 }
 
-async function sendJson<T>(path: string, method: "POST" | "PATCH", body: unknown): Promise<T> {
+async function sendJson<T>(
+  path: string,
+  method: "POST" | "PATCH",
+  body: unknown,
+  options?: { suppressAuthEvent?: boolean },
+): Promise<T> {
   const response = await fetch(`${API_BASE_URL}${path}`, {
     method,
+    credentials: "include",
     headers: {
       "Content-Type": "application/json",
     },
@@ -323,36 +370,63 @@ async function sendJson<T>(path: string, method: "POST" | "PATCH", body: unknown
   });
 
   if (!response.ok) {
-    const text = await response.text();
-    throw new Error(text || `API request failed: ${response.status}`);
+    return parseError(response, options?.suppressAuthEvent);
   }
 
   return response.json() as Promise<T>;
 }
 
-async function deleteRequest(path: string): Promise<void> {
+async function deleteRequest(path: string, options?: { suppressAuthEvent?: boolean }): Promise<void> {
   const response = await fetch(`${API_BASE_URL}${path}`, {
     method: "DELETE",
+    credentials: "include",
   });
 
   if (!response.ok) {
-    const text = await response.text();
-    throw new Error(text || `API request failed: ${response.status}`);
+    return parseError(response, options?.suppressAuthEvent);
   }
 }
 
-async function uploadForm<T>(path: string, body: FormData): Promise<T> {
+async function uploadForm<T>(path: string, body: FormData, options?: { suppressAuthEvent?: boolean }): Promise<T> {
   const response = await fetch(`${API_BASE_URL}${path}`, {
     method: "POST",
+    credentials: "include",
     body,
   });
 
   if (!response.ok) {
-    const text = await response.text();
-    throw new Error(text || `API request failed: ${response.status}`);
+    return parseError(response, options?.suppressAuthEvent);
   }
 
   return response.json() as Promise<T>;
+}
+
+export async function getBootstrapStatus(): Promise<BootstrapStatus> {
+  return getJson<BootstrapStatus>("/api/v1/identity/auth/bootstrap-status");
+}
+
+export async function bootstrapAdmin(payload: {
+  email: string;
+  name: string;
+  password: string;
+}): Promise<SessionUser> {
+  return sendJson<SessionUser>("/api/v1/identity/auth/bootstrap", "POST", payload, {
+    suppressAuthEvent: true,
+  });
+}
+
+export async function login(payload: { email: string; password: string }): Promise<SessionUser> {
+  return sendJson<SessionUser>("/api/v1/identity/auth/login", "POST", payload, {
+    suppressAuthEvent: true,
+  });
+}
+
+export async function logout(): Promise<void> {
+  return deleteRequest("/api/v1/identity/auth/logout", { suppressAuthEvent: true });
+}
+
+export async function getSessionUser(): Promise<SessionUser> {
+  return getJson<SessionUser>("/api/v1/identity/auth/me", { suppressAuthEvent: true });
 }
 
 export async function getPlanTypes(): Promise<PlanType[]> {
@@ -419,6 +493,10 @@ export async function getRoles(): Promise<Role[]> {
 
 export async function getUsers(): Promise<User[]> {
   return getJson<User[]>("/api/v1/identity/users");
+}
+
+export async function getMembers(): Promise<Member[]> {
+  return getJson<Member[]>("/api/v1/identity/members");
 }
 
 export async function createUser(payload: UserPayload): Promise<User> {

@@ -4,18 +4,18 @@ import {
   createMessage,
   createMessageThread,
   deleteMessageThread,
+  getMembers,
   getMessageThread,
   getMessageThreads,
-  getUsers,
+  type Member,
   type MessageThread,
   type MessageThreadDetail,
-  type User,
 } from "../api";
 
 export function MessageManager() {
   const [threads, setThreads] = useState<MessageThread[]>([]);
   const [thread, setThread] = useState<MessageThreadDetail | null>(null);
-  const [users, setUsers] = useState<User[]>([]);
+  const [users, setUsers] = useState<Member[]>([]);
   const [mode, setMode] = useState<"read" | "create">("read");
   const [subject, setSubject] = useState("");
   const [body, setBody] = useState("");
@@ -28,7 +28,7 @@ export function MessageManager() {
     setMessage(null);
 
     try {
-      const [nextThreads, nextUsers] = await Promise.all([getMessageThreads(), getUsers()]);
+      const [nextThreads, nextUsers] = await Promise.all([getMessageThreads(), getMembers()]);
       setThreads(nextThreads);
       setUsers(nextUsers.filter((user) => user.active));
       const targetId =

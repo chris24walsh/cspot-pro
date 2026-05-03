@@ -39,6 +39,8 @@ interface ItemFormState {
 }
 
 interface PlanManagerProps {
+  canCreate: boolean;
+  canEdit: boolean;
   onDataChange: () => void;
 }
 
@@ -119,7 +121,7 @@ function blankItemForm(plan: PlanDetail | null): ItemFormState {
   };
 }
 
-export function PlanManager({ onDataChange }: PlanManagerProps) {
+export function PlanManager({ canCreate, canEdit, onDataChange }: PlanManagerProps) {
   const [plans, setPlans] = useState<PlanSummary[]>([]);
   const [planTypes, setPlanTypes] = useState<PlanType[]>([]);
   const [songs, setSongs] = useState<Song[]>([]);
@@ -222,6 +224,10 @@ export function PlanManager({ onDataChange }: PlanManagerProps) {
 
   async function submitPlan(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if ((mode === "create" && !canCreate) || (mode === "edit" && !canEdit)) {
+      setMessage("You do not have permission to save plans.");
+      return;
+    }
     setMessage(null);
 
     try {
@@ -239,6 +245,10 @@ export function PlanManager({ onDataChange }: PlanManagerProps) {
 
   async function archivePlan() {
     if (!selectedPlan) {
+      return;
+    }
+    if (!canCreate) {
+      setMessage("You do not have permission to archive plans.");
       return;
     }
 
@@ -270,6 +280,10 @@ export function PlanManager({ onDataChange }: PlanManagerProps) {
 
   async function moveItem(item: PlanItem, delta: -1 | 1) {
     if (!selectedPlan) {
+      return;
+    }
+    if (!canEdit) {
+      setMessage("You do not have permission to reorder plan items.");
       return;
     }
 
@@ -315,6 +329,10 @@ export function PlanManager({ onDataChange }: PlanManagerProps) {
       setMessage("Save or select a plan before adding items.");
       return;
     }
+    if (!canEdit) {
+      setMessage("You do not have permission to save plan items.");
+      return;
+    }
 
     setMessage(null);
 
@@ -339,6 +357,10 @@ export function PlanManager({ onDataChange }: PlanManagerProps) {
 
   async function removeItem() {
     if (!selectedPlan || !selectedItem) {
+      return;
+    }
+    if (!canCreate) {
+      setMessage("You do not have permission to remove plan items.");
       return;
     }
 
@@ -372,7 +394,7 @@ export function PlanManager({ onDataChange }: PlanManagerProps) {
       <aside className="manager-list">
         <div className="section-heading">
           <h2>Plans</h2>
-          <button className="text-button" onClick={() => startCreate()} type="button">
+          <button className="text-button" disabled={!canCreate} onClick={() => startCreate()} type="button">
             New Plan
           </button>
         </div>
@@ -408,13 +430,13 @@ export function PlanManager({ onDataChange }: PlanManagerProps) {
           </div>
           <div className="action-row">
             {mode === "edit" ? (
-              <button className="danger-button" onClick={() => void archivePlan()} type="button">
+              <button className="danger-button" disabled={!canCreate} onClick={() => void archivePlan()} type="button">
                 Archive Plan
               </button>
             ) : null}
             <button
               className="primary-button"
-              disabled={loading || !form.plan_type_id}
+              disabled={loading || !form.plan_type_id || (mode === "create" ? !canCreate : !canEdit)}
               form="plan-detail-form"
               type="submit"
             >
@@ -448,6 +470,7 @@ export function PlanManager({ onDataChange }: PlanManagerProps) {
               <label>
                 Title
                 <input
+                  disabled={mode === "create" ? !canCreate : !canEdit}
                   onChange={(event) => setForm({ ...form, title: event.target.value })}
                   required
                   value={form.title}
@@ -457,6 +480,7 @@ export function PlanManager({ onDataChange }: PlanManagerProps) {
               <label>
                 Subtitle
                 <input
+                  disabled={mode === "create" ? !canCreate : !canEdit}
                   onChange={(event) => setForm({ ...form, subtitle: event.target.value })}
                   value={form.subtitle}
                 />
@@ -465,6 +489,7 @@ export function PlanManager({ onDataChange }: PlanManagerProps) {
               <label>
                 Type
                 <select
+                  disabled={mode === "create" ? !canCreate : !canEdit}
                   onChange={(event) => setForm({ ...form, plan_type_id: event.target.value })}
                   required
                   value={form.plan_type_id}
@@ -480,6 +505,7 @@ export function PlanManager({ onDataChange }: PlanManagerProps) {
               <label>
                 Date and Time
                 <input
+                  disabled={mode === "create" ? !canCreate : !canEdit}
                   onChange={(event) => setForm({ ...form, service_date: event.target.value })}
                   required
                   type="datetime-local"
@@ -490,6 +516,7 @@ export function PlanManager({ onDataChange }: PlanManagerProps) {
               <label>
                 Status
                 <select
+                  disabled={mode === "create" ? !canCreate : !canEdit}
                   onChange={(event) => setForm({ ...form, status: event.target.value })}
                   value={form.status}
                 >
@@ -502,6 +529,7 @@ export function PlanManager({ onDataChange }: PlanManagerProps) {
               <label className="wide-field">
                 Notes
                 <textarea
+                  disabled={mode === "create" ? !canCreate : !canEdit}
                   onChange={(event) => setForm({ ...form, info: event.target.value })}
                   rows={5}
                   value={form.info}
@@ -515,7 +543,7 @@ export function PlanManager({ onDataChange }: PlanManagerProps) {
               <h2>Running Order</h2>
               <button
                 className="text-button"
-                disabled={!selectedPlan}
+                disabled={!selectedPlan || !canEdit}
                 onClick={startCreateItem}
                 type="button"
               >
@@ -538,11 +566,15 @@ export function PlanManager({ onDataChange }: PlanManagerProps) {
                       </span>
                     </button>
                     <div className="row-menu">
-                      <button disabled={itemIndex === 0} onClick={() => void moveItem(item, -1)} type="button">
+                      <button
+                        disabled={!canEdit || itemIndex === 0}
+                        onClick={() => void moveItem(item, -1)}
+                        type="button"
+                      >
                         ↑
                       </button>
                       <button
-                        disabled={itemIndex === (selectedPlan?.items.length ?? 0) - 1}
+                        disabled={!canEdit || itemIndex === (selectedPlan?.items.length ?? 0) - 1}
                         onClick={() => void moveItem(item, 1)}
                         type="button"
                       >
@@ -558,11 +590,11 @@ export function PlanManager({ onDataChange }: PlanManagerProps) {
               <h2>{itemMode === "create" ? "New Item" : "Edit Item"}</h2>
               <div className="action-row">
                 {itemMode === "edit" ? (
-                  <button className="danger-button" onClick={() => void removeItem()} type="button">
+                  <button className="danger-button" disabled={!canCreate} onClick={() => void removeItem()} type="button">
                     Remove
                   </button>
                 ) : null}
-                <button className="primary-button" disabled={!selectedPlan} type="submit">
+                <button className="primary-button" disabled={!selectedPlan || !canEdit} type="submit">
                   Save Item
                 </button>
               </div>
@@ -572,6 +604,7 @@ export function PlanManager({ onDataChange }: PlanManagerProps) {
               <label>
                 Title
                 <input
+                  disabled={!canEdit}
                   onChange={(event) => setItemForm({ ...itemForm, title: event.target.value })}
                   required
                   value={itemForm.title}
@@ -580,7 +613,7 @@ export function PlanManager({ onDataChange }: PlanManagerProps) {
 
               <label>
                 Song
-                <select onChange={(event) => selectSong(event.target.value)} value={itemForm.song_id}>
+                <select disabled={!canEdit} onChange={(event) => selectSong(event.target.value)} value={itemForm.song_id}>
                   <option value="">No linked song</option>
                   {songs.map((song) => (
                     <option key={song.id} value={song.id}>
@@ -593,6 +626,7 @@ export function PlanManager({ onDataChange }: PlanManagerProps) {
               <label>
                 Type
                 <select
+                  disabled={!canEdit}
                   onChange={(event) => setItemForm({ ...itemForm, item_type: event.target.value })}
                   value={itemForm.item_type}
                 >
@@ -609,6 +643,7 @@ export function PlanManager({ onDataChange }: PlanManagerProps) {
               <label>
                 Sequence
                 <input
+                  disabled={!canEdit}
                   min="0"
                   onChange={(event) => setItemForm({ ...itemForm, sequence: event.target.value })}
                   required
@@ -621,6 +656,7 @@ export function PlanManager({ onDataChange }: PlanManagerProps) {
               <label>
                 Key
                 <input
+                  disabled={!canEdit}
                   onChange={(event) =>
                     setItemForm({ ...itemForm, key_signature: event.target.value })
                   }
@@ -631,6 +667,7 @@ export function PlanManager({ onDataChange }: PlanManagerProps) {
               <label>
                 Comment
                 <textarea
+                  disabled={!canEdit}
                   onChange={(event) => setItemForm({ ...itemForm, comment: event.target.value })}
                   rows={3}
                   value={itemForm.comment}

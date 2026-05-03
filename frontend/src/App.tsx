@@ -9,7 +9,20 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-import { getPlan, getPlans, getSongs, type PlanDetail, type PlanSummary, type Song } from "./api";
+import {
+  AUTH_REQUIRED_EVENT,
+  getBootstrapStatus,
+  getPlan,
+  getPlans,
+  getSessionUser,
+  getSongs,
+  logout,
+  type PlanDetail,
+  type PlanSummary,
+  type SessionUser,
+  type Song,
+} from "./api";
+import { AuthScreen } from "./components/AuthScreen";
 import { ImportManager } from "./components/ImportManager";
 import { PlanManager } from "./components/PlanManager";
 import { PresentationOutput } from "./components/PresentationOutput";
@@ -44,6 +57,9 @@ interface ApiWorkspace {
 function App() {
   const isPresentationOutput = new URLSearchParams(window.location.search).get("presentation") === "output";
   const [activeModuleId, setActiveModuleId] = useState<ModuleId>("presentation");
+  const [sessionUser, setSessionUser] = useState<SessionUser | null>(null);
+  const [bootstrapAvailable, setBootstrapAvailable] = useState(false);
+  const [authLoading, setAuthLoading] = useState(true);
   const [workspace, setWorkspace] = useState<ApiWorkspace>({
     live: false,
     plans: [],
@@ -51,7 +67,39 @@ function App() {
     songs: [],
   });
 
+  const permissions = useMemo(() => new Set(sessionUser?.permissions ?? []), [sessionUser]);
+  const canManageUsers = permissions.has("users:manage");
+  const canCreatePlans = permissions.has("plans:create");
+  const canEditPlans = canCreatePlans || permissions.has("plans:edit");
+  const canCreateSongs = permissions.has("songs:create");
+  const canEditSongs = canCreateSongs || permissions.has("songs:edit");
+
+  const loadAuth = useCallback(async () => {
+    setAuthLoading(true);
+
+    try {
+      const user = await getSessionUser();
+      setSessionUser(user);
+      setBootstrapAvailable(false);
+    } catch {
+      setSessionUser(null);
+      try {
+        const bootstrap = await getBootstrapStatus();
+        setBootstrapAvailable(bootstrap.available);
+      } catch {
+        setBootstrapAvailable(false);
+      }
+    } finally {
+      setAuthLoading(false);
+    }
+  }, []);
+
   const loadWorkspace = useCallback(async () => {
+    if (!sessionUser) {
+      setWorkspace({ live: false, plans: [], selectedPlan: null, songs: [] });
+      return;
+    }
+
     try {
       const [plans, songs] = await Promise.all([getPlans(), getSongs()]);
       const selectedPlan = plans[0] ? await getPlan(plans[0].id) : null;
@@ -59,11 +107,24 @@ function App() {
     } catch {
       setWorkspace({ live: false, plans: [], selectedPlan: null, songs: [] });
     }
-  }, []);
+  }, [sessionUser]);
+
+  useEffect(() => {
+    void loadAuth();
+  }, [loadAuth]);
 
   useEffect(() => {
     void loadWorkspace();
   }, [loadWorkspace]);
+
+  useEffect(() => {
+    function handleAuthRequired() {
+      void loadAuth();
+    }
+
+    window.addEventListener(AUTH_REQUIRED_EVENT, handleAuthRequired);
+    return () => window.removeEventListener(AUTH_REQUIRED_EVENT, handleAuthRequired);
+  }, [loadAuth]);
 
   const modules = useMemo(
     () =>
@@ -101,8 +162,8 @@ function App() {
         }
 
         return module;
-      }),
-    [workspace],
+      }).filter((module) => (module.id === "admin" ? canManageUsers : true)),
+    [canManageUsers, workspace],
   );
 
   const activeModule = useMemo(
@@ -113,6 +174,24 @@ function App() {
 
   if (isPresentationOutput) {
     return <PresentationOutput />;
+  }
+
+  if (authLoading) {
+    return <main className="auth-shell"><section className="auth-card"><p>Loading cspot-pro...</p></section></main>;
+  }
+
+  if (!sessionUser) {
+    return <AuthScreen bootstrapAvailable={bootstrapAvailable} onAuthenticated={setSessionUser} />;
+  }
+
+  async function signOut() {
+    try {
+      await logout();
+    } finally {
+      setSessionUser(null);
+      setWorkspace({ live: false, plans: [], selectedPlan: null, songs: [] });
+      void loadAuth();
+    }
   }
 
   return (
@@ -152,6 +231,10 @@ function App() {
               <img alt="" src="/images/churchLogo.png" />
               <span>Church Service Planning</span>
             </div>
+            <button className="user-pill" onClick={() => void signOut()} type="button">
+              <strong>{sessionUser.name}</strong>
+              <span>Sign out</span>
+            </button>
             <div className={`status-pill ${statusTone[activeModule.status]}`}>
               <CheckCircle2 size={16} aria-hidden="true" />
               {activeModule.status}
@@ -160,9 +243,17 @@ function App() {
         </header>
 
         {activeModuleId === "planning" ? (
-          <PlanManager onDataChange={() => void loadWorkspace()} />
+          <PlanManager
+            canCreate={canCreatePlans}
+            canEdit={canEditPlans}
+            onDataChange={() => void loadWorkspace()}
+          />
         ) : activeModuleId === "music" ? (
-          <SongManager onDataChange={() => void loadWorkspace()} />
+          <SongManager
+            canCreate={canCreateSongs}
+            canEdit={canEditSongs}
+            onDataChange={() => void loadWorkspace()}
+          />
         ) : activeModuleId === "people" ? (
           <TeamManager />
         ) : activeModuleId === "presentation" ? (
