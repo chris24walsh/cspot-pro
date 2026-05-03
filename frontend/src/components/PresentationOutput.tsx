@@ -84,7 +84,7 @@ export function PresentationOutput() {
 
   useEffect(() => {
     void load(liveState);
-  }, [liveState?.planId, load]);
+  }, [liveState?.planId, liveState?.updatedAt, load]);
 
   useEffect(() => {
     setBlanked(Boolean(liveState?.blanked));

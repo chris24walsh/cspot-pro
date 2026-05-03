@@ -604,6 +604,7 @@ export function PresentationView() {
         },
         silent: true,
       });
+      publishLiveState(liveIndex);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Could not move to the next Bible passage.");
     }
