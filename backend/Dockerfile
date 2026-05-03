@@ -7,7 +7,10 @@ WORKDIR /app
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
+        fonts-crosextra-caladea \
+        fonts-crosextra-carlito \
         fonts-dejavu \
+        fonts-liberation \
         libreoffice \
         libreoffice-impress \
         poppler-utils \

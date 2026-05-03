@@ -44,6 +44,7 @@ from app.modules.planning.routes import get_item_or_404, get_plan_or_404
 router = APIRouter()
 UPLOAD_ROOT = Path("/app/storage/uploads")
 RENDER_ROOT = Path("/app/storage/rendered")
+RENDER_PIPELINE_VERSION = "libreoffice-pdf-png-v2"
 
 
 def resource_to_read(resource: Resource) -> ResourceRead:
@@ -116,6 +117,31 @@ def _rendered_slide_paths(file_id: str) -> list[Path]:
     return sorted(output_dir.glob("slide-*.png"), key=lambda path: int(path.stem.replace("slide-", "")))
 
 
+def _render_manifest_path(file_id: str) -> Path:
+    return _rendered_dir(file_id) / "manifest.txt"
+
+
+def _render_manifest_value(stored: StoredFile) -> str:
+    suffix = Path(stored.storage_path).suffix.lower()
+    return "|".join([RENDER_PIPELINE_VERSION, stored.checksum or "", suffix])
+
+
+def _render_cache_is_current(stored: StoredFile) -> bool:
+    slides = _rendered_slide_paths(stored.id)
+    if not slides:
+        return False
+
+    manifest_path = _render_manifest_path(stored.id)
+    if not manifest_path.exists():
+        return False
+
+    return manifest_path.read_text(encoding="utf-8").strip() == _render_manifest_value(stored)
+
+
+def _write_render_manifest(stored: StoredFile) -> None:
+    _render_manifest_path(stored.id).write_text(_render_manifest_value(stored), encoding="utf-8")
+
+
 def _required_tool(name: str) -> str:
     path = shutil.which(name)
     if path is None:
@@ -137,21 +163,23 @@ def _office_command() -> str:
 
 
 def _render_slides(stored: StoredFile) -> list[Path]:
-    existing = _rendered_slide_paths(stored.id)
-    if existing:
-        return existing
-
     source_path = Path(stored.storage_path)
     if not source_path.exists():
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Stored file is missing")
 
     output_dir = _rendered_dir(stored.id)
+    if _render_cache_is_current(stored):
+        return _rendered_slide_paths(stored.id)
+
+    if output_dir.exists():
+        shutil.rmtree(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
     suffix = source_path.suffix.lower()
 
     if suffix in {".png", ".jpg", ".jpeg"}:
         target = output_dir / "slide-1.png"
         shutil.copyfile(source_path, target)
+        _write_render_manifest(stored)
         return [target]
 
     with tempfile.TemporaryDirectory() as temp_dir_name:
@@ -167,9 +195,12 @@ def _render_slides(stored: StoredFile) -> list[Path]:
                     "--headless",
                     "--nologo",
                     "--nofirststartwizard",
+                    "--invisible",
+                    "--nodefault",
+                    "--nolockcheck",
                     f"-env:UserInstallation=file://{office_profile}",
                     "--convert-to",
-                    "pdf",
+                    "pdf:impress_pdf_Export",
                     "--outdir",
                     str(temp_dir),
                     str(source_path),
@@ -199,6 +230,8 @@ def _render_slides(stored: StoredFile) -> list[Path]:
     slides = sorted(output_dir.glob("slide-*.png"))
     if not slides:
         slides = sorted(output_dir.glob("slide-*.png")) or sorted(output_dir.glob("slide*.png"))
+
+    _write_render_manifest(stored)
 
     # pdftoppm names files as slide-1.png when the prefix is "slide".
     return _rendered_slide_paths(stored.id) or sorted(output_dir.glob("slide*.png"))
