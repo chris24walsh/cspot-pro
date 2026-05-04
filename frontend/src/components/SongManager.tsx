@@ -229,6 +229,7 @@ export function SongManager({
   const [draggedAnnotationId, setDraggedAnnotationId] = useState<string | null>(null);
   const [hoveredAnchor, setHoveredAnchor] = useState<{ lineIndex: number; slotIndex: number } | null>(null);
   const [hoveredChordId, setHoveredChordId] = useState<string | null>(null);
+  const [activeSongTab, setActiveSongTab] = useState<"details" | "lyrics" | "chords">("details");
   const [searchTerm, setSearchTerm] = useState("");
   const [message, setMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -1015,7 +1016,32 @@ export function SongManager({
           </div>
         </details>
 
-        <div className="form-grid">
+        <div className="tab-row" role="tablist" aria-label="Song editor sections">
+          <button
+            className={`tab-button ${activeSongTab === "details" ? "active" : ""}`}
+            onClick={() => setActiveSongTab("details")}
+            type="button"
+          >
+            Details
+          </button>
+          <button
+            className={`tab-button ${activeSongTab === "lyrics" ? "active" : ""}`}
+            onClick={() => setActiveSongTab("lyrics")}
+            type="button"
+          >
+            Lyrics
+          </button>
+          <button
+            className={`tab-button ${activeSongTab === "chords" ? "active" : ""}`}
+            onClick={() => setActiveSongTab("chords")}
+            type="button"
+          >
+            Chords
+          </button>
+        </div>
+
+        {activeSongTab === "details" ? (
+          <div className="form-grid">
           <label>
             Title
             <input
@@ -1103,7 +1129,11 @@ export function SongManager({
               value={form.book_reference ?? ""}
             />
           </label>
+          </div>
+        ) : null}
 
+        {activeSongTab === "lyrics" ? (
+          <div className="form-grid single-column">
           <label className="wide-field">
             Lyrics
             <div className="field-action-row">
@@ -1137,7 +1167,11 @@ export function SongManager({
               value={form.lyrics ?? ""}
             />
           </label>
+          </div>
+        ) : null}
 
+        {activeSongTab === "chords" ? (
+          <div className="form-grid single-column">
           <label className="wide-field">
             Chords
             <div className="musician-tools">
@@ -1392,7 +1426,8 @@ export function SongManager({
               {legacyChords ? <p className="field-help">Legacy chord text will be preserved when this song is saved.</p> : null}
             </div>
           </label>
-        </div>
+          </div>
+        ) : null}
 
         {mode === "edit" ? (
           <>
