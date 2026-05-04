@@ -589,7 +589,7 @@ h3 {
   justify-content: start;
   min-width: max-content;
   padding-left: 1.5ch;
-  row-gap: 2px;
+  row-gap: 0;
 }
 
 .musician-slot {
@@ -673,16 +673,21 @@ h3 {
 }
 
 .musician-char {
+  align-items: end;
   background: transparent;
   border: 0;
   color: #17201b;
   cursor: pointer;
+  display: inline-flex;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
   font-size: 18px;
   font-weight: 500;
   grid-row: 2;
+  justify-content: center;
+  margin-top: -8px;
+  min-height: 30px;
   min-width: 1ch;
-  padding: 0;
+  padding: 8px 0 0;
   white-space: pre;
 }
 
