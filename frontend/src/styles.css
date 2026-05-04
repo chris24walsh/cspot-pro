@@ -453,6 +453,15 @@ h3 {
   margin: 0;
 }
 
+.compact-field {
+  color: #3b4741;
+  display: grid;
+  font-size: 12px;
+  font-weight: 800;
+  gap: 4px;
+  min-width: 84px;
+}
+
 .form-grid input,
 .form-grid select,
 .form-grid textarea,
@@ -472,6 +481,111 @@ h3 {
 
 .form-grid textarea {
   resize: vertical;
+}
+
+.segmented-control {
+  display: inline-flex;
+  gap: 4px;
+}
+
+.segmented-control button {
+  background: #fffdf7;
+  border: 1px solid #cfc7b4;
+  border-radius: 8px;
+  color: #234a40;
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 800;
+  min-height: 34px;
+  padding: 6px 10px;
+}
+
+.segmented-control button.is-active {
+  background: #eaf5ef;
+  border-color: #8ebba9;
+}
+
+.musician-tools {
+  border: 1px solid #ded8c7;
+  border-radius: 8px;
+  display: grid;
+  gap: 12px;
+  padding: 12px;
+}
+
+.musician-toolbar {
+  align-items: end;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: space-between;
+}
+
+.musician-annotator {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.transpose-controls {
+  align-items: center;
+  display: inline-flex;
+  gap: 6px;
+}
+
+.transpose-controls button {
+  background: #fffdf7;
+  border: 1px solid #cfc7b4;
+  border-radius: 8px;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 800;
+  min-height: 34px;
+  min-width: 34px;
+}
+
+.transpose-controls span {
+  color: #234a40;
+  font-size: 13px;
+  font-weight: 800;
+  min-width: 28px;
+  text-align: center;
+}
+
+.musician-preview {
+  background: #fcfbf5;
+  border: 1px solid #e3dcc8;
+  border-radius: 8px;
+  display: grid;
+  gap: 14px;
+  padding: 12px;
+}
+
+.musician-line {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.musician-word {
+  align-items: center;
+  display: inline-flex;
+  flex-direction: column;
+  min-width: 24px;
+}
+
+.musician-chord {
+  color: #234a40;
+  font-size: 12px;
+  font-weight: 800;
+  min-height: 16px;
+}
+
+.musician-lyric {
+  color: #17201b;
+  font-size: 15px;
+  font-weight: 600;
 }
 
 .filter-label {

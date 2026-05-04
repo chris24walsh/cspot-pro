@@ -12,6 +12,21 @@ import {
   type Song,
   type StoredFile,
 } from "../api";
+import {
+  annotationLabel,
+  createEmptyChordChart,
+  displayChord,
+  lyricLines,
+  parseChordChart,
+  removeChordAnnotation,
+  serializeChordChart,
+  type ChordAnnotation,
+  type ChordChartDocument,
+  type ChordDetailMode,
+  type ChordDisplayMode,
+  upsertChordAnnotation,
+  wordsForLine,
+} from "../chordSheet";
 import { analyzeImportedSongSlides, analyzeWorshipText, formatWorshipText } from "../worshipText";
 
 type SongPayload = Omit<Song, "id" | "lyrics_status">;
@@ -94,6 +109,15 @@ export function SongManager({
   const [importPreviews, setImportPreviews] = useState<ImportPreview[]>([]);
   const [parsedSequence, setParsedSequence] = useState<string | null>(null);
   const [parseNotes, setParseNotes] = useState<string[]>([]);
+  const [chordChart, setChordChart] = useState<ChordChartDocument>(createEmptyChordChart());
+  const [legacyChords, setLegacyChords] = useState<string | null>(null);
+  const [selectedLineIndex, setSelectedLineIndex] = useState(0);
+  const [selectedWordIndex, setSelectedWordIndex] = useState(0);
+  const [editingAnnotationId, setEditingAnnotationId] = useState<string | null>(null);
+  const [chordInput, setChordInput] = useState("");
+  const [displayMode, setDisplayMode] = useState<ChordDisplayMode>("absolute");
+  const [detailMode, setDetailMode] = useState<ChordDetailMode>("advanced");
+  const [transposeAmount, setTransposeAmount] = useState(0);
   const [searchTerm, setSearchTerm] = useState("");
   const [message, setMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -110,6 +134,17 @@ export function SongManager({
         .some((value) => value!.toLowerCase().includes(query)),
     );
   }, [songs, searchTerm]);
+
+  const lines = useMemo(() => lyricLines(form.lyrics), [form.lyrics]);
+  const currentWords = useMemo(() => wordsForLine(lines[selectedLineIndex] ?? ""), [lines, selectedLineIndex]);
+
+  function hydrateChordState(raw: string | null) {
+    const parsed = parseChordChart(raw);
+    setChordChart(parsed.document);
+    setLegacyChords(parsed.legacyText);
+    setEditingAnnotationId(null);
+    setChordInput("");
+  }
 
   function normalizedSongKey(value: string) {
     return value.trim().toLowerCase().replace(/[_-]+/g, " ").replace(/\s+/g, " ");
@@ -144,6 +179,7 @@ export function SongManager({
         setImportPreviews([]);
         setParsedSequence(target.sequence);
         setParseNotes([]);
+        hydrateChordState(target.chords);
         setSongFiles(await getFiles({ song_id: target.id }));
       } else {
         startCreate();
@@ -164,6 +200,7 @@ export function SongManager({
     setImportPreviews([]);
     setParsedSequence(null);
     setParseNotes([]);
+    hydrateChordState(null);
     setMessage(null);
   }
 
@@ -172,6 +209,7 @@ export function SongManager({
     setMode("create");
     setForm(blankSong());
     setSongFiles([]);
+    hydrateChordState(null);
     setMessage(null);
   }
 
@@ -183,6 +221,7 @@ export function SongManager({
     setImportPreviews([]);
     setParsedSequence(song.sequence);
     setParseNotes([]);
+    hydrateChordState(song.chords);
     setMessage(null);
     setSongFiles(await getFiles({ song_id: song.id }));
   }
@@ -196,7 +235,10 @@ export function SongManager({
     setMessage(null);
 
     try {
-      const payload = normalizeForm(form);
+      const payload = normalizeForm({
+        ...form,
+        chords: serializeChordChart(chordChart, legacyChords),
+      });
       const saved =
         mode === "create" ? await createSong(payload) : await updateSong(selectedSong!.id, payload);
       await load(saved.id);
@@ -205,6 +247,87 @@ export function SongManager({
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Could not save song.");
     }
+  }
+
+  function editAnnotation(annotation: ChordAnnotation) {
+    setSelectedLineIndex(annotation.lineIndex);
+    setSelectedWordIndex(annotation.wordIndex);
+    setEditingAnnotationId(annotation.id);
+    setChordInput(annotation.chord);
+  }
+
+  function saveAnnotation() {
+    if (!chordInput.trim()) {
+      setMessage("Enter a chord symbol first.");
+      return;
+    }
+
+    setChordChart((current) =>
+      upsertChordAnnotation(current, {
+        chord: chordInput.trim(),
+        id: editingAnnotationId,
+        lineIndex: selectedLineIndex,
+        wordIndex: selectedWordIndex,
+      }),
+    );
+    setLegacyChords(null);
+    setEditingAnnotationId(null);
+    setChordInput("");
+    setMessage("Chord annotation updated.");
+  }
+
+  function printChordChart() {
+    const printWindow = window.open("", "_blank", "noopener,noreferrer,width=900,height=700");
+    if (!printWindow) {
+      setMessage("The browser blocked the print window.");
+      return;
+    }
+
+    const chartHtml = lines
+      .map((line, lineIndex) => {
+        const words = wordsForLine(line);
+        const annotations = chordChart.annotations.filter((annotation) => annotation.lineIndex === lineIndex);
+        const cells = words
+          .map((word, wordIndex) => {
+            const annotation = annotations.find((candidate) => candidate.wordIndex === wordIndex);
+            const chord = annotation
+              ? displayChord(annotation.chord, {
+                  capo: chordChart.capo,
+                  detailMode,
+                  displayMode,
+                  transpose: transposeAmount,
+                })
+              : "&nbsp;";
+            return `<span class="word"><span class="chord">${chord}</span><span class="lyric">${word}</span></span>`;
+          })
+          .join("");
+        return `<div class="line">${cells}</div>`;
+      })
+      .join("");
+
+    printWindow.document.write(`<!doctype html>
+<html>
+  <head>
+    <title>${form.title} Chart</title>
+    <style>
+      body { font-family: Arial, sans-serif; padding: 24px; color: #111; }
+      h1 { margin: 0 0 8px; font-size: 28px; }
+      .meta { margin-bottom: 24px; color: #555; }
+      .line { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 16px; }
+      .word { display: flex; flex-direction: column; align-items: center; min-width: 24px; }
+      .chord { font-weight: 700; color: #134e4a; font-size: 14px; min-height: 18px; }
+      .lyric { font-size: 18px; }
+    </style>
+  </head>
+  <body>
+    <h1>${form.title}</h1>
+    <div class="meta">View: ${displayMode === "absolute" ? "Absolute chords" : `Capo shapes (capo ${chordChart.capo})`} · Detail: ${detailMode} · Transpose: ${transposeAmount > 0 ? `+${transposeAmount}` : transposeAmount}</div>
+    ${chartHtml}
+  </body>
+</html>`);
+    printWindow.document.close();
+    printWindow.focus();
+    printWindow.print();
   }
 
   async function removeSong() {
@@ -438,6 +561,31 @@ export function SongManager({
   useEffect(() => {
     void load();
   }, []);
+
+  useEffect(() => {
+    if (!lines.length) {
+      setSelectedLineIndex(0);
+      setSelectedWordIndex(0);
+      return;
+    }
+
+    setChordChart((current) => ({
+      ...current,
+      annotations: current.annotations.filter((annotation) => {
+        const line = lines[annotation.lineIndex];
+        return line != null && annotation.wordIndex < wordsForLine(line).length;
+      }),
+    }));
+    setSelectedLineIndex((current) => Math.min(current, lines.length - 1));
+  }, [lines]);
+
+  useEffect(() => {
+    setSelectedWordIndex((current) => Math.min(current, Math.max(0, currentWords.length - 1)));
+  }, [currentWords.length]);
+
+  const lineAnnotations = chordChart.annotations
+    .slice()
+    .sort((left, right) => left.lineIndex - right.lineIndex || left.wordIndex - right.wordIndex);
 
   return (
     <section className="manager-grid" aria-label="Song management">
@@ -693,12 +841,197 @@ export function SongManager({
 
           <label className="wide-field">
             Chords
-            <textarea
-              disabled={mode === "create" ? !canCreate : !canEdit}
-              onChange={(event) => setForm({ ...form, chords: event.target.value })}
-              rows={6}
-              value={form.chords ?? ""}
-            />
+            <div className="musician-tools">
+              <div className="musician-toolbar">
+                <div className="segmented-control">
+                  <button
+                    className={displayMode === "absolute" ? "is-active" : ""}
+                    disabled={mode === "create" ? !canCreate : !canEdit}
+                    onClick={() => setDisplayMode("absolute")}
+                    type="button"
+                  >
+                    Absolute
+                  </button>
+                  <button
+                    className={displayMode === "capo" ? "is-active" : ""}
+                    disabled={mode === "create" ? !canCreate : !canEdit}
+                    onClick={() => setDisplayMode("capo")}
+                    type="button"
+                  >
+                    Capo Shapes
+                  </button>
+                </div>
+                <div className="segmented-control">
+                  <button
+                    className={detailMode === "simple" ? "is-active" : ""}
+                    disabled={mode === "create" ? !canCreate : !canEdit}
+                    onClick={() => setDetailMode("simple")}
+                    type="button"
+                  >
+                    Simple
+                  </button>
+                  <button
+                    className={detailMode === "advanced" ? "is-active" : ""}
+                    disabled={mode === "create" ? !canCreate : !canEdit}
+                    onClick={() => setDetailMode("advanced")}
+                    type="button"
+                  >
+                    Advanced
+                  </button>
+                </div>
+                <label className="compact-field">
+                  Capo
+                  <input
+                    disabled={mode === "create" ? !canCreate : !canEdit}
+                    min={0}
+                    onChange={(event) =>
+                      setChordChart((current) => ({
+                        ...current,
+                        capo: Math.max(0, Number(event.target.value || 0)),
+                      }))
+                    }
+                    type="number"
+                    value={chordChart.capo}
+                  />
+                </label>
+                <div className="transpose-controls">
+                  <button disabled={mode === "create" ? !canCreate : !canEdit} onClick={() => setTransposeAmount((value) => value - 1)} type="button">
+                    -
+                  </button>
+                  <span>{transposeAmount > 0 ? `+${transposeAmount}` : transposeAmount}</span>
+                  <button disabled={mode === "create" ? !canCreate : !canEdit} onClick={() => setTransposeAmount((value) => value + 1)} type="button">
+                    +
+                  </button>
+                </div>
+                <button className="text-button" onClick={printChordChart} type="button">
+                  Print Chart
+                </button>
+              </div>
+
+              <div className="musician-annotator">
+                <label>
+                  Lyric Line
+                  <select
+                    disabled={!lines.length || (mode === "create" ? !canCreate : !canEdit)}
+                    onChange={(event) => {
+                      setSelectedLineIndex(Number(event.target.value));
+                      setSelectedWordIndex(0);
+                    }}
+                    value={selectedLineIndex}
+                  >
+                    {lines.map((line, index) => (
+                      <option key={`${index}-${line.slice(0, 12)}`} value={index}>
+                        {index + 1}. {line.slice(0, 60)}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  Word Anchor
+                  <select
+                    disabled={!currentWords.length || (mode === "create" ? !canCreate : !canEdit)}
+                    onChange={(event) => setSelectedWordIndex(Number(event.target.value))}
+                    value={selectedWordIndex}
+                  >
+                    {currentWords.map((word, index) => (
+                      <option key={`${index}-${word}`} value={index}>
+                        {index + 1}. {word}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  Chord
+                  <input
+                    disabled={mode === "create" ? !canCreate : !canEdit}
+                    onChange={(event) => setChordInput(event.target.value)}
+                    placeholder={detailMode === "advanced" ? "e.g. Bbmaj7/D" : "e.g. Bbm"}
+                    value={chordInput}
+                  />
+                </label>
+                <button className="primary-button" disabled={mode === "create" ? !canCreate : !canEdit} onClick={saveAnnotation} type="button">
+                  {editingAnnotationId ? "Update Chord" : "Add Chord"}
+                </button>
+              </div>
+
+              {lines.length ? (
+                <div className="musician-preview">
+                  {lines.map((line, lineIndex) => {
+                    const words = wordsForLine(line);
+                    const annotations = lineAnnotations.filter((annotation) => annotation.lineIndex === lineIndex);
+                    return (
+                      <div className="musician-line" key={`${lineIndex}-${line}`}>
+                        {words.map((word, wordIndex) => {
+                          const annotation = annotations.find((candidate) => candidate.wordIndex === wordIndex);
+                          return (
+                            <span className="musician-word" key={`${lineIndex}-${wordIndex}-${word}`}>
+                              <span className="musician-chord">
+                                {annotation
+                                  ? displayChord(annotation.chord, {
+                                      capo: chordChart.capo,
+                                      detailMode,
+                                      displayMode,
+                                      transpose: transposeAmount,
+                                    })
+                                  : "\u00a0"}
+                              </span>
+                              <span className="musician-lyric">{word}</span>
+                            </span>
+                          );
+                        })}
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <p className="field-help">Add lyrics first, then place chord annotations over individual words without changing the lyric text.</p>
+              )}
+
+              {lineAnnotations.length ? (
+                <div className="stack-list compact">
+                  {lineAnnotations.map((annotation) => (
+                    <div className="stack-row" key={annotation.id}>
+                      <strong>
+                        {displayChord(annotation.chord, {
+                          capo: chordChart.capo,
+                          detailMode,
+                          displayMode,
+                          transpose: transposeAmount,
+                        })}
+                      </strong>
+                      <span>
+                        Line {annotation.lineIndex + 1} · {annotationLabel(annotation, form.lyrics)}
+                      </span>
+                      <div className="action-row">
+                        <button className="text-button" disabled={mode === "create" ? !canCreate : !canEdit} onClick={() => editAnnotation(annotation)} type="button">
+                          Edit
+                        </button>
+                        <button
+                          className="text-button"
+                          disabled={mode === "create" ? !canCreate : !canEdit}
+                          onClick={() => setChordChart((current) => removeChordAnnotation(current, annotation.id))}
+                          type="button"
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+
+              <details className="dropdown-panel">
+                <summary>Raw Chord Data</summary>
+                <div className="dropdown-panel-body">
+                  <textarea
+                    disabled={mode === "create" ? !canCreate : !canEdit}
+                    onChange={(event) => setLegacyChords(event.target.value || null)}
+                    rows={6}
+                    value={legacyChords ?? ""}
+                  />
+                </div>
+              </details>
+            </div>
           </label>
         </div>
 
