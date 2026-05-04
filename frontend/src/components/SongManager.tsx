@@ -947,75 +947,6 @@ export function SongManager({
 
         {message ? <p className="form-message">{message}</p> : null}
 
-        <details className="dropdown-panel">
-          <summary>Import Song Slides</summary>
-          <div className="dropdown-panel-body">
-            <div className="form-grid">
-              <label className="wide-field">
-                PowerPoint / OpenDocument Files
-                <input
-                  accept=".pptx,.odp"
-                  disabled={!canCreate && !canEdit}
-                  multiple
-                  onChange={(event) => {
-                    void handleSongDeckSelection(Array.from(event.target.files ?? []));
-                  }}
-                  type="file"
-                />
-              </label>
-            </div>
-            {importPreviews.length > 1 ? (
-              <div className="stack-list compact">
-                {importPreviews.map((preview) => (
-                  <div className="stack-row readonly" key={preview.filename}>
-                    <strong>{preview.title}</strong>
-                    <span>
-                      {preview.parsed.slide_count} slides
-                      {preview.sequence ? ` · ${preview.sequence}` : ""}
-                      {preview.duplicateSongTitle ? ` · matches ${preview.duplicateSongTitle}` : ""}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            ) : null}
-            {parsedSongDeck ? (
-              <>
-                <div className="empty-state import-summary">
-                  <strong>{parsedSongDeck.filename}</strong>
-                  <span>{parsedSongDeck.slide_count} slides parsed</span>
-                  <span>{parsedSequence ? `Inferred sequence: ${parsedSequence}` : "No confident sequence inferred yet"}</span>
-                  {findDuplicateSong(form.title)?.title ? <span>Possible duplicate: {findDuplicateSong(form.title)?.title}</span> : null}
-                </div>
-                {parseNotes.length ? (
-                  <div className="stack-list compact">
-                    {parseNotes.map((note) => (
-                      <div className="stack-row readonly" key={note}>
-                        <span>{note}</span>
-                      </div>
-                    ))}
-                  </div>
-                ) : null}
-                <div className="deck-preview">
-                  {parsedSongDeck.slides.slice(0, 8).map((slide) => (
-                    <article className="slide-tile readonly" key={slide.index}>
-                      <span>{slide.index.toString().padStart(2, "0")}</span>
-                      <strong>{slide.text.split(/\r?\n/)[0] ?? `Slide ${slide.index}`}</strong>
-                    </article>
-                  ))}
-                </div>
-              </>
-            ) : null}
-            <div className="action-row form-actions">
-              <button className="text-button" disabled={!canCreate && !canEdit} onClick={() => void parseFirstSongDeck()} type="button">
-                Parse Into Editor
-              </button>
-              <button className="primary-button" disabled={!canCreate} onClick={() => void bulkImportSongDecks()} type="button">
-                Bulk Import Songs
-              </button>
-            </div>
-          </div>
-        </details>
-
         <div className="tab-row" role="tablist" aria-label="Song editor sections">
           <button
             className={`tab-button ${activeSongTab === "details" ? "active" : ""}`}
@@ -1129,11 +1060,123 @@ export function SongManager({
               value={form.book_reference ?? ""}
             />
           </label>
+
+          {mode === "edit" ? (
+            <details className="dropdown-panel wide-field">
+              <summary>Attached Files</summary>
+              <div className="dropdown-panel-body">
+                <div className="form-grid">
+                  <label>
+                    Display Name
+                    <input
+                      disabled={!canCreate}
+                      onChange={(event) => setFileDisplayName(event.target.value)}
+                      placeholder={fileToUpload?.name ?? "Optional"}
+                      value={fileDisplayName}
+                    />
+                  </label>
+
+                  <label>
+                    File
+                    <input
+                      disabled={!canCreate}
+                      accept=".ppt,.pptx,.pdf,.key,.txt,.png,.jpg,.jpeg"
+                      onChange={(event) => setFileToUpload(event.target.files?.[0] ?? null)}
+                      type="file"
+                    />
+                  </label>
+                </div>
+                <div className="action-row form-actions">
+                  <button className="primary-button" disabled={!canCreate} onClick={() => void uploadSongFile()} type="button">
+                    Attach File
+                  </button>
+                </div>
+                {songFiles.length ? (
+                  <div className="stack-list compact">
+                    {songFiles.map((file) => (
+                      <div className="stack-row readonly" key={file.id}>
+                        <strong>{file.display_name}</strong>
+                        <span>{file.content_type ?? "file"}</span>
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
+            </details>
+          ) : null}
           </div>
         ) : null}
 
         {activeSongTab === "lyrics" ? (
           <div className="form-grid single-column">
+          <details className="dropdown-panel">
+            <summary>Import Lyrics</summary>
+            <div className="dropdown-panel-body">
+              <div className="form-grid">
+                <label className="wide-field">
+                  PowerPoint / OpenDocument Files
+                  <input
+                    accept=".pptx,.odp"
+                    disabled={!canCreate && !canEdit}
+                    multiple
+                    onChange={(event) => {
+                      void handleSongDeckSelection(Array.from(event.target.files ?? []));
+                    }}
+                    type="file"
+                  />
+                </label>
+              </div>
+              {importPreviews.length > 1 ? (
+                <div className="stack-list compact">
+                  {importPreviews.map((preview) => (
+                    <div className="stack-row readonly" key={preview.filename}>
+                      <strong>{preview.title}</strong>
+                      <span>
+                        {preview.parsed.slide_count} slides
+                        {preview.sequence ? ` · ${preview.sequence}` : ""}
+                        {preview.duplicateSongTitle ? ` · matches ${preview.duplicateSongTitle}` : ""}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+              {parsedSongDeck ? (
+                <>
+                  <div className="empty-state import-summary">
+                    <strong>{parsedSongDeck.filename}</strong>
+                    <span>{parsedSongDeck.slide_count} slides parsed</span>
+                    <span>{parsedSequence ? `Inferred sequence: ${parsedSequence}` : "No confident sequence inferred yet"}</span>
+                    {findDuplicateSong(form.title)?.title ? <span>Possible duplicate: {findDuplicateSong(form.title)?.title}</span> : null}
+                  </div>
+                  {parseNotes.length ? (
+                    <div className="stack-list compact">
+                      {parseNotes.map((note) => (
+                        <div className="stack-row readonly" key={note}>
+                          <span>{note}</span>
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
+                  <div className="deck-preview">
+                    {parsedSongDeck.slides.slice(0, 8).map((slide) => (
+                      <article className="slide-tile readonly" key={slide.index}>
+                        <span>{slide.index.toString().padStart(2, "0")}</span>
+                        <strong>{slide.text.split(/\r?\n/)[0] ?? `Slide ${slide.index}`}</strong>
+                      </article>
+                    ))}
+                  </div>
+                </>
+              ) : null}
+              <div className="action-row form-actions">
+                <button className="text-button" disabled={!canCreate && !canEdit} onClick={() => void parseFirstSongDeck()} type="button">
+                  Parse Into Editor
+                </button>
+                <button className="primary-button" disabled={!canCreate} onClick={() => void bulkImportSongDecks()} type="button">
+                  Bulk Import Songs
+                </button>
+              </div>
+            </div>
+          </details>
           <label className="wide-field">
             Lyrics
             <div className="field-action-row">
@@ -1175,9 +1218,11 @@ export function SongManager({
           <label className="wide-field">
             Chords
             <div className="musician-tools">
+              <div className="musician-chord-summary">
+                <GuitarChordDiagram chord={activeDisplayedChord} />
+              </div>
               <div className="musician-workbench">
                 <aside className="musician-side-panel">
-                  <GuitarChordDiagram chord={activeDisplayedChord} />
                   <div className="musician-toolbar">
                 <div className="segmented-control">
                   <button
@@ -1427,51 +1472,6 @@ export function SongManager({
             </div>
           </label>
           </div>
-        ) : null}
-
-        {mode === "edit" ? (
-          <>
-            <details className="dropdown-panel">
-              <summary>Slide Files</summary>
-              <div className="dropdown-panel-body">
-                <div className="form-grid">
-                  <label>
-                    Display Name
-                    <input
-                      disabled={!canCreate}
-                      onChange={(event) => setFileDisplayName(event.target.value)}
-                      placeholder={fileToUpload?.name ?? "Optional"}
-                      value={fileDisplayName}
-                    />
-                  </label>
-
-                  <label>
-                    File
-                    <input
-                      disabled={!canCreate}
-                      accept=".ppt,.pptx,.pdf,.key,.txt,.png,.jpg,.jpeg"
-                      onChange={(event) => setFileToUpload(event.target.files?.[0] ?? null)}
-                      type="file"
-                    />
-                  </label>
-                </div>
-                <div className="action-row form-actions">
-                  <button className="primary-button" disabled={!canCreate} onClick={() => void uploadSongFile()} type="button">
-                    Attach File
-                  </button>
-                </div>
-              </div>
-            </details>
-
-            <div className="stack-list compact">
-              {songFiles.map((file) => (
-                <div className="stack-row readonly" key={file.id}>
-                  <strong>{file.display_name}</strong>
-                  <span>{file.content_type ?? "file"}</span>
-                </div>
-              ))}
-            </div>
-          </>
         ) : null}
       </form>
     </section>

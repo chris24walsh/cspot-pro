@@ -540,6 +540,10 @@ h3 {
   grid-template-columns: minmax(190px, 230px) minmax(0, 1fr);
 }
 
+.musician-chord-summary {
+  max-width: 230px;
+}
+
 .musician-side-panel {
   align-content: start;
   display: grid;
