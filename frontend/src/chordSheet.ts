@@ -1,5 +1,7 @@
 export type ChordDisplayMode = "absolute" | "capo";
 export type ChordDetailMode = "advanced" | "simple";
+export const LEADING_CHORD_ANCHORS = 3;
+export const TRAILING_CHORD_ANCHORS = 5;
 
 export interface ChordAnnotation {
   id: string;
@@ -261,8 +263,9 @@ export function displayChord(
 export function annotationLabel(annotation: ChordAnnotation, lyrics: string | null) {
   const lines = lyricLines(lyrics);
   const line = lines[annotation.lineIndex] ?? "";
-  const clippedIndex = Math.max(0, Math.min(annotation.anchorIndex, line.length));
-  if (clippedIndex <= 0) {
+  const relativeIndex = annotation.anchorIndex - LEADING_CHORD_ANCHORS;
+  const clippedIndex = Math.max(-LEADING_CHORD_ANCHORS, Math.min(relativeIndex, line.length + TRAILING_CHORD_ANCHORS));
+  if (clippedIndex < 0) {
     return "line start";
   }
   if (clippedIndex >= line.length) {
