@@ -254,7 +254,8 @@ export function SongManager({
   const [draggedAnnotationId, setDraggedAnnotationId] = useState<string | null>(null);
   const [hoveredAnchor, setHoveredAnchor] = useState<{ lineIndex: number; slotIndex: number } | null>(null);
   const [hoveredChordId, setHoveredChordId] = useState<string | null>(null);
-  const [activeSongTab, setActiveSongTab] = useState<"details" | "lyrics" | "chords">("details");
+  const [activeSongTab, setActiveSongTab] = useState<"details" | "lyrics" | "chords">("lyrics");
+  const [importLyricsOpen, setImportLyricsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [message, setMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -319,6 +320,7 @@ export function SongManager({
         setParsedSequence(target.sequence);
         setParseNotes([]);
         hydrateChordState(target.chords);
+        setActiveSongTab("lyrics");
         setSongFiles(await getFiles({ song_id: target.id }));
       } else {
         startCreate();
@@ -340,6 +342,7 @@ export function SongManager({
     setParsedSequence(null);
     setParseNotes([]);
     hydrateChordState(null);
+    setActiveSongTab("lyrics");
     setMessage(null);
   }
 
@@ -349,6 +352,7 @@ export function SongManager({
     setForm(blankSong());
     setSongFiles([]);
     hydrateChordState(null);
+    setActiveSongTab("lyrics");
     setMessage(null);
   }
 
@@ -361,6 +365,7 @@ export function SongManager({
     setParsedSequence(song.sequence);
     setParseNotes([]);
     hydrateChordState(song.chords);
+    setActiveSongTab("lyrics");
     setMessage(null);
     setSongFiles(await getFiles({ song_id: song.id }));
   }
@@ -974,18 +979,18 @@ export function SongManager({
 
         <div className="tab-row" role="tablist" aria-label="Song editor sections">
           <button
-            className={`tab-button ${activeSongTab === "details" ? "active" : ""}`}
-            onClick={() => setActiveSongTab("details")}
-            type="button"
-          >
-            Details
-          </button>
-          <button
             className={`tab-button ${activeSongTab === "lyrics" ? "active" : ""}`}
             onClick={() => setActiveSongTab("lyrics")}
             type="button"
           >
             Lyrics
+          </button>
+          <button
+            className={`tab-button ${activeSongTab === "details" ? "active" : ""}`}
+            onClick={() => setActiveSongTab("details")}
+            type="button"
+          >
+            Details
           </button>
           <button
             className={`tab-button ${activeSongTab === "chords" ? "active" : ""}`}
@@ -1145,77 +1150,12 @@ export function SongManager({
 
         {activeSongTab === "lyrics" ? (
           <div className="form-grid single-column">
-          <details className="dropdown-panel">
-            <summary>Import Lyrics</summary>
-            <div className="dropdown-panel-body">
-              <div className="form-grid">
-                <label className="wide-field">
-                  PowerPoint / OpenDocument Files
-                  <input
-                    accept=".pptx,.odp"
-                    disabled={!canCreate && !canEdit}
-                    multiple
-                    onChange={(event) => {
-                      void handleSongDeckSelection(Array.from(event.target.files ?? []));
-                    }}
-                    type="file"
-                  />
-                </label>
-              </div>
-              {importPreviews.length > 1 ? (
-                <div className="stack-list compact">
-                  {importPreviews.map((preview) => (
-                    <div className="stack-row readonly" key={preview.filename}>
-                      <strong>{preview.title}</strong>
-                      <span>
-                        {preview.parsed.slide_count} slides
-                        {preview.sequence ? ` · ${preview.sequence}` : ""}
-                        {preview.duplicateSongTitle ? ` · matches ${preview.duplicateSongTitle}` : ""}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              ) : null}
-              {parsedSongDeck ? (
-                <>
-                  <div className="empty-state import-summary">
-                    <strong>{parsedSongDeck.filename}</strong>
-                    <span>{parsedSongDeck.slide_count} slides parsed</span>
-                    <span>{parsedSequence ? `Inferred sequence: ${parsedSequence}` : "No confident sequence inferred yet"}</span>
-                    {findDuplicateSong(form.title)?.title ? <span>Possible duplicate: {findDuplicateSong(form.title)?.title}</span> : null}
-                  </div>
-                  {parseNotes.length ? (
-                    <div className="stack-list compact">
-                      {parseNotes.map((note) => (
-                        <div className="stack-row readonly" key={note}>
-                          <span>{note}</span>
-                        </div>
-                      ))}
-                    </div>
-                  ) : null}
-                  <div className="deck-preview">
-                    {parsedSongDeck.slides.slice(0, 8).map((slide) => (
-                      <article className="slide-tile readonly" key={slide.index}>
-                        <span>{slide.index.toString().padStart(2, "0")}</span>
-                        <strong>{slide.text.split(/\r?\n/)[0] ?? `Slide ${slide.index}`}</strong>
-                      </article>
-                    ))}
-                  </div>
-                </>
-              ) : null}
-              <div className="action-row form-actions">
-                <button className="text-button" disabled={!canCreate && !canEdit} onClick={() => void parseFirstSongDeck()} type="button">
-                  Parse Into Editor
-                </button>
-                <button className="primary-button" disabled={!canCreate} onClick={() => void bulkImportSongDecks()} type="button">
-                  Bulk Import Songs
-                </button>
-              </div>
-            </div>
-          </details>
           <label className="wide-field">
             Lyrics
             <div className="field-action-row">
+              <button className="text-button" disabled={!canCreate && !canEdit} onClick={() => setImportLyricsOpen(true)} type="button">
+                Import Lyrics
+              </button>
               <button
                 className="text-button"
                 disabled={mode === "create" ? !canCreate : !canEdit}
@@ -1246,6 +1186,89 @@ export function SongManager({
               value={form.lyrics ?? ""}
             />
           </label>
+          {importLyricsOpen ? (
+            <div className="app-dialog-backdrop" role="presentation" onMouseDown={() => setImportLyricsOpen(false)}>
+              <section
+                aria-labelledby="import-lyrics-title"
+                className="app-dialog app-dialog-wide import-lyrics-dialog"
+                onMouseDown={(event) => event.stopPropagation()}
+                role="dialog"
+              >
+                <div className="section-heading">
+                  <div>
+                    <p className="eyebrow">Import</p>
+                    <h2 id="import-lyrics-title">Import Lyrics</h2>
+                  </div>
+                  <button className="text-button" onClick={() => setImportLyricsOpen(false)} type="button">
+                    Close
+                  </button>
+                </div>
+                <div className="form-grid">
+                  <label className="wide-field">
+                    PowerPoint / OpenDocument Files
+                    <input
+                      accept=".pptx,.odp"
+                      disabled={!canCreate && !canEdit}
+                      multiple
+                      onChange={(event) => {
+                        void handleSongDeckSelection(Array.from(event.target.files ?? []));
+                      }}
+                      type="file"
+                    />
+                  </label>
+                </div>
+                {importPreviews.length > 1 ? (
+                  <div className="stack-list compact">
+                    {importPreviews.map((preview) => (
+                      <div className="stack-row readonly" key={preview.filename}>
+                        <strong>{preview.title}</strong>
+                        <span>
+                          {preview.parsed.slide_count} slides
+                          {preview.sequence ? ` · ${preview.sequence}` : ""}
+                          {preview.duplicateSongTitle ? ` · matches ${preview.duplicateSongTitle}` : ""}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+                {parsedSongDeck ? (
+                  <>
+                    <div className="empty-state import-summary">
+                      <strong>{parsedSongDeck.filename}</strong>
+                      <span>{parsedSongDeck.slide_count} slides parsed</span>
+                      <span>{parsedSequence ? `Inferred sequence: ${parsedSequence}` : "No confident sequence inferred yet"}</span>
+                      {findDuplicateSong(form.title)?.title ? <span>Possible duplicate: {findDuplicateSong(form.title)?.title}</span> : null}
+                    </div>
+                    {parseNotes.length ? (
+                      <div className="stack-list compact">
+                        {parseNotes.map((note) => (
+                          <div className="stack-row readonly" key={note}>
+                            <span>{note}</span>
+                          </div>
+                        ))}
+                      </div>
+                    ) : null}
+                    <div className="deck-preview">
+                      {parsedSongDeck.slides.slice(0, 8).map((slide) => (
+                        <article className="slide-tile readonly" key={slide.index}>
+                          <span>{slide.index.toString().padStart(2, "0")}</span>
+                          <strong>{slide.text.split(/\r?\n/)[0] ?? `Slide ${slide.index}`}</strong>
+                        </article>
+                      ))}
+                    </div>
+                  </>
+                ) : null}
+                <div className="action-row form-actions">
+                  <button className="text-button" disabled={!canCreate && !canEdit} onClick={() => void parseFirstSongDeck()} type="button">
+                    Parse Into Editor
+                  </button>
+                  <button className="primary-button" disabled={!canCreate} onClick={() => void bulkImportSongDecks()} type="button">
+                    Bulk Import Songs
+                  </button>
+                </div>
+              </section>
+            </div>
+          ) : null}
           </div>
         ) : null}
 
