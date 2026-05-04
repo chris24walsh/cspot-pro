@@ -368,43 +368,13 @@ export function analyzeImportedSongSlides(slides: string[], title?: string): Wor
     .map((slide) => formatWorshipText(slide, { removeChordLines: true }))
     .filter(Boolean);
   const suggestions = extractImportSuggestions(cleanedSlides, title);
-  const lineCounts = new Map<string, number>();
-
-  for (const slide of cleanedSlides) {
-    for (const line of slide.split(/\r?\n/)) {
-      const normalized = line.trim().toLowerCase();
-      if (normalized) {
-        lineCounts.set(normalized, (lineCounts.get(normalized) ?? 0) + 1);
-      }
-    }
-  }
-
-  const repeatedLines = new Set(
-    [...lineCounts.entries()]
-      .filter(([line, count]) => count > 1 && line !== title?.trim().toLowerCase())
-      .map(([line]) => line),
-  );
-
-  const normalizedSlides = cleanedSlides
-    .map((slide) =>
-      slide
-        .split(/\r?\n/)
-        .filter((line) => {
-          const normalized = line.trim().toLowerCase();
-          return normalized && !repeatedLines.has(normalized);
-        })
-        .join("\n")
-        .trim(),
-    )
-    .filter(Boolean);
+  const normalizedSlides = cleanedSlides.filter(Boolean);
 
   const inferred = inferSectionsFromBlocks(normalizedSlides);
 
   return {
     lyrics: normalizedSlides.join("\n\n"),
-    notes: repeatedLines.size
-      ? ["Repeated slide lines were collapsed before inferring song structure.", ...inferred.notes]
-      : inferred.notes,
+    notes: inferred.notes,
     sections: inferred.sections,
     sequence: inferred.sections.length ? inferred.sections.map((section) => section.label).join(" ") : null,
     suggestions,
