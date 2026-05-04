@@ -628,12 +628,12 @@ h3 {
   border: 1px solid #cfc7b4;
   border-radius: 6px;
   display: inline-flex;
-  gap: 3px;
+  gap: 0;
   grid-row: 1;
   justify-self: start;
   padding: 1px 2px;
   position: relative;
-  transform: translateX(-50%);
+  transform: translateX(calc(-50% + 0.5ch));
   width: max-content;
   z-index: 1;
 }
@@ -666,6 +666,10 @@ h3 {
   min-height: 16px;
   min-width: 14px;
   padding: 0;
+  position: absolute;
+  left: calc(100% + 2px);
+  top: 50%;
+  transform: translateY(-50%);
 }
 
 .musician-char {
