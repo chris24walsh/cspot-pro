@@ -559,25 +559,17 @@ h3 {
   border-radius: 8px;
   display: grid;
   gap: 14px;
+  overflow: auto;
   padding: 12px;
 }
 
-.musician-line {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-}
-
-.musician-lyric {
-  color: #17201b;
-  font-size: 15px;
-  font-weight: 600;
-}
-
-.musician-token {
-  align-items: flex-start;
-  display: inline-flex;
-  gap: 6px;
+.musician-line-grid {
+  align-items: end;
+  display: grid;
+  gap: 0;
+  justify-content: start;
+  min-width: max-content;
+  row-gap: 2px;
 }
 
 .musician-slot {
@@ -620,7 +612,10 @@ h3 {
   border-radius: 8px;
   display: inline-flex;
   gap: 6px;
+  grid-row: 1;
   padding: 4px;
+  position: relative;
+  z-index: 1;
 }
 
 .musician-slot-editor input {
@@ -633,6 +628,20 @@ h3 {
   min-height: 30px;
   min-width: 92px;
   padding: 4px 8px;
+}
+
+.musician-char {
+  color: #17201b;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  font-size: 18px;
+  font-weight: 500;
+  grid-row: 2;
+  min-width: 1ch;
+  white-space: pre;
+}
+
+.musician-char.is-space {
+  opacity: 0.7;
 }
 
 .filter-label {

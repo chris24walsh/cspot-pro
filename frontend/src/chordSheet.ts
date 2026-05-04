@@ -4,7 +4,7 @@ export type ChordDetailMode = "advanced" | "simple";
 export interface ChordAnnotation {
   id: string;
   lineIndex: number;
-  wordIndex: number;
+  anchorIndex: number;
   chord: string;
 }
 
@@ -113,9 +113,24 @@ export function parseChordChart(raw: string | null): ParsedChordChart {
           capo: Math.max(0, Math.trunc(parsed.capo ?? 0)),
           annotations: parsed.annotations
             .map((annotation) => ({
-              id: annotation.id || makeId(annotation.lineIndex ?? 0, annotation.wordIndex ?? 0, annotation.chord ?? "chord"),
+              id:
+                annotation.id ||
+                makeId(
+                  annotation.lineIndex ?? 0,
+                  (annotation as Partial<ChordAnnotation> & { wordIndex?: number }).anchorIndex ??
+                    (annotation as Partial<ChordAnnotation> & { wordIndex?: number }).wordIndex ??
+                    0,
+                  annotation.chord ?? "chord",
+                ),
               lineIndex: Math.max(0, Math.trunc(annotation.lineIndex ?? 0)),
-              wordIndex: Math.max(0, Math.trunc(annotation.wordIndex ?? 0)),
+              anchorIndex: Math.max(
+                0,
+                Math.trunc(
+                  (annotation as Partial<ChordAnnotation> & { wordIndex?: number }).anchorIndex ??
+                    (annotation as Partial<ChordAnnotation> & { wordIndex?: number }).wordIndex ??
+                    0,
+                ),
+              ),
               chord: String(annotation.chord ?? "").trim(),
             }))
             .filter((annotation) => annotation.chord),
@@ -140,20 +155,21 @@ function parseChordProToAnnotations(raw: string): ChordChartDocument {
   const lines = raw.split(/\r?\n/);
 
   lines.forEach((line, lineIndex) => {
-    const wordRegex = /\[([^\]]+)\]([^\s[]*)/g;
-    let wordIndex = 0;
-    for (const match of line.matchAll(wordRegex)) {
+    const tokenRegex = /\[([^\]]+)\]([^\[]*)/g;
+    let anchorIndex = 0;
+    for (const match of line.matchAll(tokenRegex)) {
       const chord = match[1]?.trim();
       if (!chord) {
         continue;
       }
+      const followingText = match[2] ?? "";
       annotations.push({
-        id: makeId(lineIndex, wordIndex, chord),
+        id: makeId(lineIndex, anchorIndex, chord),
         lineIndex,
-        wordIndex,
+        anchorIndex,
         chord,
       });
-      wordIndex += 1;
+      anchorIndex += followingText.length;
     }
   });
 
@@ -178,7 +194,7 @@ export function serializeChordChart(document: ChordChartDocument, legacyText: st
       version: 1,
       capo: document.capo,
       annotations: [...document.annotations].sort(
-        (left, right) => left.lineIndex - right.lineIndex || left.wordIndex - right.wordIndex || left.chord.localeCompare(right.chord),
+        (left, right) => left.lineIndex - right.lineIndex || left.anchorIndex - right.anchorIndex || left.chord.localeCompare(right.chord),
       ),
     },
     null,
@@ -188,12 +204,12 @@ export function serializeChordChart(document: ChordChartDocument, legacyText: st
 
 export function upsertChordAnnotation(
   document: ChordChartDocument,
-  input: { chord: string; id?: string | null; lineIndex: number; wordIndex: number },
+  input: { chord: string; id?: string | null; lineIndex: number; anchorIndex: number },
 ) {
   const next: ChordAnnotation = {
-    id: input.id || makeId(input.lineIndex, input.wordIndex, input.chord),
+    id: input.id || makeId(input.lineIndex, input.anchorIndex, input.chord),
     lineIndex: input.lineIndex,
-    wordIndex: input.wordIndex,
+    anchorIndex: input.anchorIndex,
     chord: input.chord.trim(),
   };
 
@@ -245,12 +261,12 @@ export function displayChord(
 export function annotationLabel(annotation: ChordAnnotation, lyrics: string | null) {
   const lines = lyricLines(lyrics);
   const line = lines[annotation.lineIndex] ?? "";
-  const words = wordsForLine(line);
-  if (annotation.wordIndex <= 0) {
+  const clippedIndex = Math.max(0, Math.min(annotation.anchorIndex, line.length));
+  if (clippedIndex <= 0) {
     return "line start";
   }
-  if (annotation.wordIndex >= words.length) {
+  if (clippedIndex >= line.length) {
     return "line end";
   }
-  return `before ${words[annotation.wordIndex] ?? `word ${annotation.wordIndex + 1}`}`;
+  return `char ${clippedIndex + 1}`;
 }

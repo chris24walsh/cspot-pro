@@ -112,7 +112,7 @@ export function SongManager({
   const [chordChart, setChordChart] = useState<ChordChartDocument>(createEmptyChordChart());
   const [legacyChords, setLegacyChords] = useState<string | null>(null);
   const [selectedLineIndex, setSelectedLineIndex] = useState(0);
-  const [selectedWordIndex, setSelectedWordIndex] = useState(0);
+  const [selectedAnchorIndex, setSelectedAnchorIndex] = useState(0);
   const [editingAnnotationId, setEditingAnnotationId] = useState<string | null>(null);
   const [chordInput, setChordInput] = useState("");
   const [displayMode, setDisplayMode] = useState<ChordDisplayMode>("absolute");
@@ -249,14 +249,14 @@ export function SongManager({
 
   function editAnnotation(annotation: ChordAnnotation) {
     setSelectedLineIndex(annotation.lineIndex);
-    setSelectedWordIndex(annotation.wordIndex);
+    setSelectedAnchorIndex(annotation.anchorIndex);
     setEditingAnnotationId(annotation.id);
     setChordInput(annotation.chord);
   }
 
-  function startInlineChordEdit(lineIndex: number, wordIndex: number, annotation?: ChordAnnotation) {
+  function startInlineChordEdit(lineIndex: number, anchorIndex: number, annotation?: ChordAnnotation) {
     setSelectedLineIndex(lineIndex);
-    setSelectedWordIndex(wordIndex);
+    setSelectedAnchorIndex(anchorIndex);
     setEditingAnnotationId(annotation?.id ?? null);
     setChordInput(annotation?.chord ?? "");
   }
@@ -277,7 +277,7 @@ export function SongManager({
         chord: chordInput.trim(),
         id: editingAnnotationId,
         lineIndex: selectedLineIndex,
-        wordIndex: selectedWordIndex,
+        anchorIndex: selectedAnchorIndex,
       }),
     );
     setLegacyChords(null);
@@ -294,10 +294,9 @@ export function SongManager({
 
     const chartHtml = lines
       .map((line, lineIndex) => {
-        const words = wordsForLine(line);
         const annotations = chordChart.annotations.filter((annotation) => annotation.lineIndex === lineIndex);
-        const slots = Array.from({ length: words.length + 1 }, (_, slotIndex) => {
-          const annotation = annotations.find((candidate) => candidate.wordIndex === slotIndex);
+        const slots = Array.from({ length: line.length + 1 }, (_, slotIndex) => {
+          const annotation = annotations.find((candidate) => candidate.anchorIndex === slotIndex);
           const chord = annotation
             ? displayChord(annotation.chord, {
                 capo: chordChart.capo,
@@ -306,7 +305,7 @@ export function SongManager({
                 transpose: transposeAmount,
               })
             : "&nbsp;";
-          const lyric = slotIndex < words.length ? words[slotIndex] : "&nbsp;";
+          const lyric = slotIndex < line.length ? line[slotIndex].replace(/ /g, "&nbsp;") : "&nbsp;";
           return `<span class="word"><span class="chord">${chord}</span><span class="lyric">${lyric}</span></span>`;
         }).join("");
         return `<div class="line">${slots}</div>`;
@@ -573,7 +572,7 @@ export function SongManager({
   useEffect(() => {
     if (!lines.length) {
       setSelectedLineIndex(0);
-      setSelectedWordIndex(0);
+      setSelectedAnchorIndex(0);
       return;
     }
 
@@ -581,7 +580,7 @@ export function SongManager({
       ...current,
       annotations: current.annotations.filter((annotation) => {
         const line = lines[annotation.lineIndex];
-        return line != null && annotation.wordIndex <= wordsForLine(line).length;
+        return line != null && annotation.anchorIndex <= line.length;
       }),
     }));
     setSelectedLineIndex((current) => Math.min(current, lines.length - 1));
@@ -589,7 +588,7 @@ export function SongManager({
 
   const lineAnnotations = chordChart.annotations
     .slice()
-    .sort((left, right) => left.lineIndex - right.lineIndex || left.wordIndex - right.wordIndex);
+    .sort((left, right) => left.lineIndex - right.lineIndex || left.anchorIndex - right.anchorIndex);
 
   return (
     <section className="manager-grid" aria-label="Song management">
@@ -915,13 +914,12 @@ export function SongManager({
               {lines.length ? (
                 <div className="musician-preview">
                   {lines.map((line, lineIndex) => {
-                    const words = wordsForLine(line);
                     const annotations = lineAnnotations.filter((annotation) => annotation.lineIndex === lineIndex);
                     const renderSlot = (slotIndex: number) => {
-                      const annotation = annotations.find((candidate) => candidate.wordIndex === slotIndex);
+                      const annotation = annotations.find((candidate) => candidate.anchorIndex === slotIndex);
                       const isEditing =
                         selectedLineIndex === lineIndex &&
-                        selectedWordIndex === slotIndex &&
+                        selectedAnchorIndex === slotIndex &&
                         (editingAnnotationId === null ? !annotation : annotation != null && editingAnnotationId === annotation.id);
 
                       if (isEditing) {
@@ -964,6 +962,7 @@ export function SongManager({
                           disabled={mode === "create" ? !canCreate : !canEdit}
                           key={`slot-${lineIndex}-${slotIndex}`}
                           onClick={() => startInlineChordEdit(lineIndex, slotIndex, annotation)}
+                          style={{ gridColumn: slotIndex + 1, gridRow: 1 }}
                           type="button"
                         >
                           <span className="musician-slot-chord">
@@ -981,16 +980,21 @@ export function SongManager({
                     };
 
                     return (
-                      <div className="musician-line" key={`${lineIndex}-${line}`}>
-                        {renderSlot(0)}
-                        {words.map((word, wordIndex) => {
-                          return (
-                            <span className="musician-token" key={`${lineIndex}-${wordIndex}-${word}`}>
-                              <span className="musician-lyric">{word}</span>
-                              {renderSlot(wordIndex + 1)}
-                            </span>
-                          );
-                        })}
+                      <div
+                        className="musician-line-grid"
+                        key={`${lineIndex}-${line}`}
+                        style={{ gridTemplateColumns: `repeat(${line.length + 1}, minmax(1ch, 1ch))` }}
+                      >
+                        {Array.from({ length: line.length + 1 }, (_, slotIndex) => renderSlot(slotIndex))}
+                        {Array.from({ length: line.length }, (_, charIndex) => (
+                          <span
+                            className={`musician-char ${line[charIndex] === " " ? "is-space" : ""}`}
+                            key={`${lineIndex}-char-${charIndex}`}
+                            style={{ gridColumn: charIndex + 1, gridRow: 2 }}
+                          >
+                            {line[charIndex] === " " ? "\u00a0" : line[charIndex]}
+                          </span>
+                        ))}
                       </div>
                     );
                   })}
