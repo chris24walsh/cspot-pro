@@ -462,6 +462,18 @@ h3 {
   min-width: 84px;
 }
 
+.compact-field input,
+.compact-field select {
+  background: #fffdf7;
+  border: 1px solid #cfc7b4;
+  border-radius: 8px;
+  color: #17201b;
+  font: inherit;
+  font-size: 13px;
+  min-height: 34px;
+  padding: 5px 8px;
+}
+
 .form-grid input,
 .form-grid select,
 .form-grid textarea,
@@ -504,6 +516,13 @@ h3 {
 .segmented-control button.is-active {
   background: #eaf5ef;
   border-color: #8ebba9;
+}
+
+.compact-toggle button {
+  border-radius: 999px;
+  font-size: 11px;
+  min-height: 26px;
+  padding: 3px 8px;
 }
 
 .musician-tools {
@@ -607,12 +626,14 @@ h3 {
   align-items: center;
   background: #fffefa;
   border: 1px solid #cfc7b4;
-  border-radius: 8px;
+  border-radius: 6px;
   display: inline-flex;
-  gap: 6px;
+  gap: 3px;
   grid-row: 1;
-  padding: 2px 4px;
+  justify-self: start;
+  padding: 1px 2px;
   position: relative;
+  transform: translateX(calc(-50% + 0.5ch));
   width: max-content;
   z-index: 1;
 }
@@ -625,9 +646,9 @@ h3 {
   font: inherit;
   font-size: 12px;
   line-height: 1;
-  min-height: 24px;
-  min-width: 3ch;
-  padding: 2px 4px;
+  min-height: 20px;
+  min-width: 2ch;
+  padding: 1px 2px;
   text-align: center;
 }
 
@@ -642,8 +663,8 @@ h3 {
   font-size: 12px;
   font-weight: 800;
   justify-content: center;
-  min-height: 20px;
-  min-width: 20px;
+  min-height: 16px;
+  min-width: 14px;
   padding: 0;
 }
 

@@ -144,6 +144,8 @@ export function SongManager({
   }, [songs, searchTerm]);
 
   const lines = useMemo(() => lyricLines(form.lyrics), [form.lyrics]);
+  const editableKey = chordChart.keyAnchor === "absolute" ? chordChart.absoluteKey : chordChart.capoKey;
+  const derivedKey = chordChart.keyAnchor === "absolute" ? chordChart.capoKey : chordChart.absoluteKey;
   function hydrateChordState(raw: string | null) {
     const parsed = parseChordChart(raw);
     setChordChart(parsed.document);
@@ -273,12 +275,14 @@ export function SongManager({
   function updateAbsoluteKey(nextValue: string) {
     const nextAbsoluteKey = normalizeKeySignature(nextValue);
     setChordChart((current) => {
+      const currentLinkedAbsoluteKey =
+        current.absoluteKey && current.capoKey && deriveAbsoluteKey(current.capoKey, current.capo) === current.absoluteKey;
       const nextChart: ChordChartDocument = {
         ...current,
         absoluteKey: nextAbsoluteKey,
       };
 
-      if (nextAbsoluteKey && current.absoluteKey && nextAbsoluteKey !== current.absoluteKey) {
+      if (nextAbsoluteKey && current.absoluteKey && currentLinkedAbsoluteKey && nextAbsoluteKey !== current.absoluteKey) {
         nextChart.annotations = transposeChordAnnotations(
           current.annotations,
           semitoneDistance(current.absoluteKey, nextAbsoluteKey),
@@ -306,6 +310,8 @@ export function SongManager({
   function updateCapo(nextCapoValue: number) {
     const nextCapo = Math.max(0, Math.trunc(nextCapoValue));
     setChordChart((current) => {
+      const currentLinkedAbsoluteKey =
+        current.absoluteKey && current.capoKey && deriveAbsoluteKey(current.capoKey, current.capo) === current.absoluteKey;
       const nextChart: ChordChartDocument = {
         ...current,
         capo: nextCapo,
@@ -313,7 +319,7 @@ export function SongManager({
 
       if (current.keyAnchor === "capo" && current.capoKey) {
         const nextAbsoluteKey = deriveAbsoluteKey(current.capoKey, nextCapo);
-        if (current.absoluteKey && current.absoluteKey !== nextAbsoluteKey) {
+        if (current.absoluteKey && currentLinkedAbsoluteKey && current.absoluteKey !== nextAbsoluteKey) {
           nextChart.annotations = transposeChordAnnotations(
             current.annotations,
             semitoneDistance(current.absoluteKey, nextAbsoluteKey),
@@ -333,6 +339,8 @@ export function SongManager({
   function updateCapoKey(nextValue: string) {
     const nextCapoKey = normalizeKeySignature(nextValue);
     setChordChart((current) => {
+      const currentLinkedAbsoluteKey =
+        current.absoluteKey && current.capoKey && deriveAbsoluteKey(current.capoKey, current.capo) === current.absoluteKey;
       const nextChart: ChordChartDocument = {
         ...current,
         capoKey: nextCapoKey,
@@ -344,7 +352,7 @@ export function SongManager({
 
       if (current.keyAnchor === "capo") {
         const nextAbsoluteKey = deriveAbsoluteKey(nextCapoKey, current.capo);
-        if (current.absoluteKey && current.absoluteKey !== nextAbsoluteKey) {
+        if (current.absoluteKey && currentLinkedAbsoluteKey && current.absoluteKey !== nextAbsoluteKey) {
           nextChart.annotations = transposeChordAnnotations(
             current.annotations,
             semitoneDistance(current.absoluteKey, nextAbsoluteKey),
@@ -378,6 +386,14 @@ export function SongManager({
 
       return nextChart;
     });
+  }
+
+  function updateEditableKey(nextValue: string) {
+    if (chordChart.keyAnchor === "absolute") {
+      updateAbsoluteKey(nextValue);
+      return;
+    }
+    updateCapoKey(nextValue);
   }
 
   function startInlineChordEdit(lineIndex: number, anchorIndex: number, annotation?: ChordAnnotation) {
@@ -1027,7 +1043,7 @@ export function SongManager({
                     Capo Shapes
                   </button>
                 </div>
-                <div className="segmented-control">
+                <div className="segmented-control compact-toggle">
                   <button
                     className={detailMode === "simple" ? "is-active" : ""}
                     disabled={mode === "create" ? !canCreate : !canEdit}
@@ -1045,14 +1061,14 @@ export function SongManager({
                     Advanced
                   </button>
                 </div>
-                <div className="segmented-control">
+                <div className="segmented-control compact-toggle">
                   <button
                     className={chordChart.keyAnchor === "absolute" ? "is-active" : ""}
                     disabled={mode === "create" ? !canCreate : !canEdit}
                     onClick={() => updateKeyAnchor("absolute")}
                     type="button"
                   >
-                    Lock Concert
+                    Concert
                   </button>
                   <button
                     className={chordChart.keyAnchor === "capo" ? "is-active" : ""}
@@ -1060,38 +1076,28 @@ export function SongManager({
                     onClick={() => updateKeyAnchor("capo")}
                     type="button"
                   >
-                    Lock Capo
+                    Capo
                   </button>
                 </div>
                 <label className="compact-field">
-                  Concert Key
+                  Key
                   <select
                     disabled={mode === "create" ? !canCreate : !canEdit}
-                    onChange={(event) => updateAbsoluteKey(event.target.value)}
-                    value={chordChart.absoluteKey ?? ""}
+                    onChange={(event) => updateEditableKey(event.target.value)}
+                    value={editableKey ?? ""}
                   >
                     <option value="">Unset</option>
                     {MUSICAL_KEYS.map((keyOption) => (
-                      <option key={`absolute-${keyOption}`} value={keyOption}>
+                      <option key={`editable-${keyOption}`} value={keyOption}>
                         {keyOption}
                       </option>
                     ))}
                   </select>
-                </label>
-                <label className="compact-field">
-                  Capo Key
-                  <select
-                    disabled={mode === "create" ? !canCreate : !canEdit}
-                    onChange={(event) => updateCapoKey(event.target.value)}
-                    value={chordChart.capoKey ?? ""}
-                  >
-                    <option value="">Unset</option>
-                    {MUSICAL_KEYS.map((keyOption) => (
-                      <option key={`capo-${keyOption}`} value={keyOption}>
-                        {keyOption}
-                      </option>
-                    ))}
-                  </select>
+                  {derivedKey ? (
+                    <span className="field-help">
+                      {chordChart.keyAnchor === "absolute" ? "Capo" : "Concert"} {derivedKey}
+                    </span>
+                  ) : null}
                 </label>
                 <label className="compact-field">
                   Capo
@@ -1126,7 +1132,7 @@ export function SongManager({
                             className="musician-slot-editor"
                             key={`editor-${lineIndex}-${slotIndex}`}
                             onMouseLeave={cancelEmptyInlineChordEdit}
-                            style={{ gridColumn: `${slotIndex + 1} / span 10`, gridRow: 1 }}
+                            style={{ gridColumn: slotIndex + 1, gridRow: 1 }}
                           >
                             <input
                               autoFocus
