@@ -35,7 +35,13 @@ import {
   type KeyAnchorMode,
   upsertChordAnnotation,
 } from "../chordSheet";
-import { analyzeImportedSongSlides, analyzeWorshipText, formatWorshipText } from "../worshipText";
+import {
+  SECTION_LABEL_OPTIONS,
+  analyzeImportedSongSlides,
+  analyzeWorshipText,
+  buildLyricsFromSections,
+  type WorshipStructureAnalysis,
+} from "../worshipText";
 
 type SongPayload = Omit<Song, "id" | "lyrics_status">;
 type ImportPreview = {
@@ -44,6 +50,7 @@ type ImportPreview = {
   filename: string;
   notes: string[];
   parsed: ParsedSlideDeck;
+  analysis: WorshipStructureAnalysis;
   sequence: string | null;
   title: string;
 };
@@ -112,7 +119,7 @@ function normalizeForm(form: SongPayload): SongPayload {
     title: form.title,
     alternate_title: form.alternate_title || null,
     author: form.author || null,
-    lyrics: form.lyrics ? formatWorshipText(form.lyrics, { removeChordLines: true }) : null,
+    lyrics: form.lyrics ? analyzeWorshipText(form.lyrics, { title: form.title }).lyrics : null,
     chords: form.chords || null,
     ccli_number: form.ccli_number || null,
     book_reference: form.book_reference || null,
@@ -146,6 +153,12 @@ function extractYouTubeId(value: string | null): string | null {
 
   const match = trimmed.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?.*v=|shorts\/|embed\/))([A-Za-z0-9_-]{11})/);
   return match?.[1] ?? trimmed;
+}
+
+function searchUrl(base: string, query: string) {
+  const url = new URL(base);
+  url.searchParams.set("q", query);
+  return url.toString();
 }
 
 function diagramChordKey(chord: string) {
@@ -240,6 +253,7 @@ export function SongManager({
   const [songDeckFiles, setSongDeckFiles] = useState<File[]>([]);
   const [parsedSongDeck, setParsedSongDeck] = useState<ParsedSlideDeck | null>(null);
   const [importPreviews, setImportPreviews] = useState<ImportPreview[]>([]);
+  const [selectedImportIndex, setSelectedImportIndex] = useState(0);
   const [parsedSequence, setParsedSequence] = useState<string | null>(null);
   const [parseNotes, setParseNotes] = useState<string[]>([]);
   const [chordChart, setChordChart] = useState<ChordChartDocument>(createEmptyChordChart());
@@ -274,6 +288,8 @@ export function SongManager({
   }, [songs, searchTerm]);
 
   const lines = useMemo(() => lyricLines(form.lyrics), [form.lyrics]);
+  const lyricAnalysis = useMemo(() => analyzeWorshipText(form.lyrics ?? "", { title: form.title }), [form.lyrics, form.title]);
+  const selectedImportPreview = importPreviews[selectedImportIndex] ?? null;
   const editableKey = chordChart.keyAnchor === "absolute" ? chordChart.absoluteKey : chordChart.capoKey;
   const derivedKey = chordChart.keyAnchor === "absolute" ? chordChart.capoKey : chordChart.absoluteKey;
   function hydrateChordState(raw: string | null) {
@@ -317,6 +333,7 @@ export function SongManager({
         setMode("edit");
         setParsedSongDeck(null);
         setImportPreviews([]);
+        setSelectedImportIndex(0);
         setParsedSequence(target.sequence);
         setParseNotes([]);
         hydrateChordState(target.chords);
@@ -338,6 +355,7 @@ export function SongManager({
     setSongFiles([]);
     setParsedSongDeck(null);
     setImportPreviews([]);
+    setSelectedImportIndex(0);
     setParsedSequence(null);
     setParseNotes([]);
     hydrateChordState(null);
@@ -359,6 +377,7 @@ export function SongManager({
     setMode("edit");
     setParsedSongDeck(null);
     setImportPreviews([]);
+    setSelectedImportIndex(0);
     setParsedSequence(song.sequence);
     setParseNotes([]);
     hydrateChordState(song.chords);
@@ -706,8 +725,46 @@ export function SongManager({
     );
   }
 
-  function applyAnalysisToForm(parsed: ParsedSlideDeck) {
-    const analysis = analyzeDeck(parsed);
+  function cleanAndDetectLyrics() {
+    const analysis = analyzeWorshipText(form.lyrics ?? "", { title: form.title });
+    const lyrics = buildLyricsFromSections(analysis.sections) || analysis.lyrics;
+    setForm({
+      ...form,
+      lyrics,
+      sequence: analysis.sequence ?? form.sequence,
+    });
+    setParsedSequence(analysis.sequence);
+    setParseNotes(analysis.notes);
+    setMessage(
+      analysis.sequence
+        ? `Detected ${analysis.sections.length} section${analysis.sections.length === 1 ? "" : "s"} and labelled the lyric chunks.`
+        : "Formatted lyrics, but could not confidently infer a section sequence yet.",
+    );
+  }
+
+  function updateLyricSectionLabel(sectionIndex: number, label: string) {
+    const sections = lyricAnalysis.sections.map((section, index) => (index === sectionIndex ? { ...section, label } : section));
+    const sequence = sections.map((section) => section.label).filter(Boolean).join(" ") || null;
+
+    setForm({
+      ...form,
+      lyrics: buildLyricsFromSections(sections),
+      sequence,
+    });
+    setParsedSequence(sequence);
+  }
+
+  function applySelectedImportPreview() {
+    if (!selectedImportPreview) {
+      setMessage("Choose a PowerPoint or OpenDocument song file first.");
+      return;
+    }
+    if (!canCreate && !canEdit) {
+      setMessage("You do not have permission to apply imported song lyrics.");
+      return;
+    }
+
+    const { analysis, parsed } = selectedImportPreview;
     const suggestedTitle = analysis.suggestions.title ?? parsed.filename.replace(/\.[^.]+$/, "");
     setParsedSongDeck(parsed);
     setParsedSequence(analysis.sequence);
@@ -718,57 +775,18 @@ export function SongManager({
       author: current.author || analysis.suggestions.author,
       ccli_number: current.ccli_number || analysis.suggestions.ccliNumber,
       license: current.license === "Unknown" && analysis.suggestions.license ? analysis.suggestions.license : current.license,
-      lyrics: analysis.lyrics,
-      sequence: current.sequence || analysis.sequence,
+      lyrics: buildLyricsFromSections(analysis.sections) || analysis.lyrics,
+      sequence: analysis.sequence ?? current.sequence,
     }));
-    return { analysis, suggestedTitle };
-  }
-
-  function autoParseEditorLyrics() {
-    const analysis = analyzeWorshipText(form.lyrics ?? "", { title: form.title });
-    setForm({
-      ...form,
-      lyrics: analysis.lyrics,
-      sequence: form.sequence || analysis.sequence,
-    });
-    setParsedSequence(analysis.sequence);
-    setParseNotes(analysis.notes);
-    setMessage(
-      analysis.sequence
-        ? `Detected ${analysis.sections.length} section${analysis.sections.length === 1 ? "" : "s"} and updated the song structure.`
-        : "Formatted lyrics, but could not confidently infer a section sequence yet.",
-    );
-  }
-
-  async function parseFirstSongDeck() {
-    const [file] = songDeckFiles;
-    if (!file) {
-      setMessage("Choose a PowerPoint or OpenDocument song file first.");
-      return;
-    }
-    if (!canCreate && !canEdit) {
-      setMessage("You do not have permission to parse imported song slides.");
-      return;
-    }
-
-    try {
-      const parsed = await parseSlideDeck(file);
-      applyAnalysisToForm(parsed);
-      setMessage(`Parsed ${parsed.slide_count} slide${parsed.slide_count === 1 ? "" : "s"} into lyrics.`);
-    } catch (error) {
-      setParsedSongDeck(null);
-      setImportPreviews([]);
-      setParsedSequence(null);
-      setParseNotes([]);
-      setMessage(error instanceof Error ? error.message : "Could not parse song deck.");
-    }
+    setImportLyricsOpen(false);
+    setMessage(`Applied ${parsed.filename} to the lyric editor.`);
   }
 
   async function handleSongDeckSelection(files: File[]) {
-    startImportDraft();
     setSongDeckFiles(files);
     setParsedSongDeck(null);
     setImportPreviews([]);
+    setSelectedImportIndex(0);
     setParsedSequence(null);
     setParseNotes([]);
 
@@ -785,6 +803,7 @@ export function SongManager({
         const title = analysis.suggestions.title ?? parsed.filename.replace(/\.[^.]+$/, "");
         const duplicate = findDuplicateSong(title);
         previews.push({
+          analysis,
           duplicateSongId: duplicate?.id ?? null,
           duplicateSongTitle: duplicate?.title ?? null,
           filename: parsed.filename,
@@ -797,21 +816,19 @@ export function SongManager({
 
       setImportPreviews(previews);
 
-      if (previews.length === 1) {
-        applyAnalysisToForm(previews[0].parsed);
-        setMessage(
-          previews[0].duplicateSongTitle
-            ? `Parsed ${previews[0].filename}. It looks like this may already exist as "${previews[0].duplicateSongTitle}".`
-            : `Parsed ${previews[0].filename} and filled the editor for you.`,
-        );
-        return;
+      if (previews[0]) {
+        setParsedSongDeck(previews[0].parsed);
+        setParsedSequence(previews[0].sequence);
+        setParseNotes(previews[0].notes);
       }
 
       const duplicateCount = previews.filter((preview) => preview.duplicateSongId).length;
       setMessage(
-        duplicateCount
-          ? `Prepared ${previews.length} song imports. ${duplicateCount} look like existing songs and will be skipped on bulk import.`
-          : `Prepared ${previews.length} song imports. Review if you want, or bulk import straight away.`,
+        previews.length === 1
+          ? `Parsed ${previews[0].filename}. Review the detected structure before applying it.`
+          : duplicateCount
+            ? `Prepared ${previews.length} song imports. ${duplicateCount} look like existing songs and will be skipped on bulk import.`
+            : `Prepared ${previews.length} song imports. Review one, or bulk import straight away.`,
       );
     } catch (error) {
       setImportPreviews([]);
@@ -855,7 +872,7 @@ export function SongManager({
           author: analysis.suggestions.author,
           ccli_number: analysis.suggestions.ccliNumber,
           license: analysis.suggestions.license ?? "Unknown",
-          lyrics: analysis.lyrics,
+          lyrics: buildLyricsFromSections(analysis.sections) || analysis.lyrics,
           sequence: analysis.sequence,
         });
         importedKeys.add(titleKey);
@@ -1155,26 +1172,37 @@ export function SongManager({
               <button
                 className="text-button"
                 disabled={mode === "create" ? !canCreate : !canEdit}
-                onClick={() => autoParseEditorLyrics()}
+                onClick={() => cleanAndDetectLyrics()}
                 type="button"
               >
-                Auto Parse Structure
-              </button>
-              <button
-                className="text-button"
-                disabled={mode === "create" ? !canCreate : !canEdit}
-                onClick={() =>
-                  setForm({
-                    ...form,
-                    lyrics: form.lyrics ? formatWorshipText(form.lyrics, { removeChordLines: true }) : "",
-                  })
-                }
-                type="button"
-              >
-                Format Lyrics
+                Clean & Detect
               </button>
             </div>
             {parsedSequence ? <p className="field-help">Inferred sequence: {parsedSequence}</p> : null}
+            {lyricAnalysis.sections.length ? (
+              <div className="lyric-section-map">
+                {lyricAnalysis.sections.map((section, index) => (
+                  <article className="lyric-section-card" key={`${section.key}-${index}`}>
+                    <label>
+                      Section
+                      <select
+                        disabled={mode === "create" ? !canCreate : !canEdit}
+                        onChange={(event) => updateLyricSectionLabel(index, event.target.value)}
+                        value={section.label}
+                      >
+                        {SECTION_LABEL_OPTIONS.includes(section.label) ? null : <option value={section.label}>{section.label}</option>}
+                        {SECTION_LABEL_OPTIONS.map((label) => (
+                          <option key={label} value={label}>
+                            {label}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <p>{section.content.split(/\r?\n/).slice(0, 2).join(" / ")}</p>
+                  </article>
+                ))}
+              </div>
+            ) : null}
             <textarea
               disabled={mode === "create" ? !canCreate : !canEdit}
               onChange={(event) => setForm({ ...form, lyrics: event.target.value })}
@@ -1215,25 +1243,39 @@ export function SongManager({
                 </div>
                 {importPreviews.length > 1 ? (
                   <div className="stack-list compact">
-                    {importPreviews.map((preview) => (
-                      <div className="stack-row readonly" key={preview.filename}>
+                    {importPreviews.map((preview, index) => (
+                      <button
+                        className={`stack-row ${index === selectedImportIndex ? "selected" : ""}`}
+                        key={preview.filename}
+                        onClick={() => {
+                          setSelectedImportIndex(index);
+                          setParsedSongDeck(preview.parsed);
+                          setParsedSequence(preview.sequence);
+                          setParseNotes(preview.notes);
+                        }}
+                        type="button"
+                      >
                         <strong>{preview.title}</strong>
                         <span>
                           {preview.parsed.slide_count} slides
                           {preview.sequence ? ` · ${preview.sequence}` : ""}
                           {preview.duplicateSongTitle ? ` · matches ${preview.duplicateSongTitle}` : ""}
                         </span>
-                      </div>
+                      </button>
                     ))}
                   </div>
                 ) : null}
-                {parsedSongDeck ? (
+                {selectedImportPreview ? (
                   <>
                     <div className="empty-state import-summary">
-                      <strong>{parsedSongDeck.filename}</strong>
-                      <span>{parsedSongDeck.slide_count} slides parsed</span>
-                      <span>{parsedSequence ? `Inferred sequence: ${parsedSequence}` : "No confident sequence inferred yet"}</span>
+                      <strong>{selectedImportPreview.title}</strong>
+                      <span>{selectedImportPreview.parsed.slide_count} slides parsed from {selectedImportPreview.filename}</span>
+                      <span>{selectedImportPreview.sequence ? `Detected sequence: ${selectedImportPreview.sequence}` : "No confident sequence detected yet"}</span>
+                      {selectedImportPreview.analysis.suggestions.author ? <span>Author: {selectedImportPreview.analysis.suggestions.author}</span> : null}
+                      {selectedImportPreview.analysis.suggestions.ccliNumber ? <span>CCLI: {selectedImportPreview.analysis.suggestions.ccliNumber}</span> : null}
+                      {selectedImportPreview.analysis.suggestions.license ? <span>License: {selectedImportPreview.analysis.suggestions.license}</span> : null}
                       {findDuplicateSong(form.title)?.title ? <span>Possible duplicate: {findDuplicateSong(form.title)?.title}</span> : null}
+                      {selectedImportPreview.duplicateSongTitle ? <span>Possible duplicate: {selectedImportPreview.duplicateSongTitle}</span> : null}
                     </div>
                     {parseNotes.length ? (
                       <div className="stack-list compact">
@@ -1244,8 +1286,44 @@ export function SongManager({
                         ))}
                       </div>
                     ) : null}
+                    {selectedImportPreview.analysis.sections.length ? (
+                      <div className="lyric-section-map import-section-map">
+                        {selectedImportPreview.analysis.sections.map((section, index) => (
+                          <article className="lyric-section-card" key={`${section.key}-${index}`}>
+                            <strong>{section.label}</strong>
+                            <p>{section.content.split(/\r?\n/).slice(0, 2).join(" / ")}</p>
+                          </article>
+                        ))}
+                      </div>
+                    ) : null}
+                    <div className="action-row import-lookup-actions">
+                      <a
+                        className="text-button button-link"
+                        href={searchUrl("https://www.youtube.com/results", `${selectedImportPreview.title} worship song`)}
+                        rel="noreferrer"
+                        target="_blank"
+                      >
+                        Search YouTube
+                      </a>
+                      <a
+                        className="text-button button-link"
+                        href={searchUrl("https://www.google.com/search", `${selectedImportPreview.title} song CCLI`)}
+                        rel="noreferrer"
+                        target="_blank"
+                      >
+                        Search Metadata
+                      </a>
+                      <a
+                        className="text-button button-link"
+                        href={searchUrl("https://www.google.com/search", `${selectedImportPreview.title} backing track`)}
+                        rel="noreferrer"
+                        target="_blank"
+                      >
+                        Search Backing Track
+                      </a>
+                    </div>
                     <div className="deck-preview">
-                      {parsedSongDeck.slides.slice(0, 8).map((slide) => (
+                      {selectedImportPreview.parsed.slides.slice(0, 8).map((slide) => (
                         <article className="slide-tile readonly" key={slide.index}>
                           <span>{slide.index.toString().padStart(2, "0")}</span>
                           <strong>{slide.text.split(/\r?\n/)[0] ?? `Slide ${slide.index}`}</strong>
@@ -1255,8 +1333,8 @@ export function SongManager({
                   </>
                 ) : null}
                 <div className="action-row form-actions">
-                  <button className="text-button" disabled={!canCreate && !canEdit} onClick={() => void parseFirstSongDeck()} type="button">
-                    Parse Into Editor
+                  <button className="text-button" disabled={!canCreate && !canEdit} onClick={() => applySelectedImportPreview()} type="button">
+                    Apply to Editor
                   </button>
                   <button className="primary-button" disabled={!canCreate} onClick={() => void bulkImportSongDecks()} type="button">
                     Bulk Import Songs

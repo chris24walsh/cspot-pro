@@ -453,6 +453,41 @@ h3 {
   margin: 0;
 }
 
+.lyric-section-map {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  margin: 8px 0;
+}
+
+.lyric-section-card {
+  background: #f9f6eb;
+  border: 1px solid #e3dcc8;
+  border-radius: 8px;
+  display: grid;
+  gap: 6px;
+  padding: 8px;
+}
+
+.lyric-section-card label {
+  gap: 4px;
+}
+
+.lyric-section-card strong {
+  color: #234a40;
+  font-size: 13px;
+  font-weight: 850;
+}
+
+.lyric-section-card p {
+  color: #3b4741;
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.35;
+  margin: 0;
+}
+
 .compact-field {
   color: #3b4741;
   display: grid;
@@ -891,6 +926,14 @@ h3 {
   background: transparent;
   border: 1px solid #cfc7b4;
   color: #234a40;
+}
+
+.button-link {
+  align-items: center;
+  display: inline-flex;
+  min-height: 36px;
+  padding: 7px 11px;
+  text-decoration: none;
 }
 
 .form-message {
