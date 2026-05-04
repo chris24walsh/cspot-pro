@@ -13,7 +13,6 @@ import {
   type StoredFile,
 } from "../api";
 import {
-  annotationLabel,
   createEmptyChordChart,
   deriveAbsoluteKey,
   deriveCapoKey,
@@ -256,6 +255,13 @@ export function SongManager({
     }
   }
 
+  function normalizeChordInput(value: string) {
+    return value
+      .replace(/[^A-Ga-g#bB/0-9A-Za-z()+.\-\s]/g, "")
+      .toUpperCase()
+      .replace(/([A-G])B/g, "$1b");
+  }
+
   function editableChordValue(annotation: ChordAnnotation) {
     return displayChord(annotation.chord, {
       capo: chordChart.capo,
@@ -374,13 +380,6 @@ export function SongManager({
     });
   }
 
-  function editAnnotation(annotation: ChordAnnotation) {
-    setSelectedLineIndex(annotation.lineIndex);
-    setSelectedAnchorIndex(annotation.anchorIndex);
-    setEditingAnnotationId(annotation.id);
-    setChordInput(editableChordValue(annotation));
-  }
-
   function startInlineChordEdit(lineIndex: number, anchorIndex: number, annotation?: ChordAnnotation) {
     setSelectedLineIndex(lineIndex);
     setSelectedAnchorIndex(anchorIndex);
@@ -391,6 +390,12 @@ export function SongManager({
   function cancelInlineChordEdit() {
     setEditingAnnotationId(null);
     setChordInput("");
+  }
+
+  function cancelEmptyInlineChordEdit() {
+    if (!chordInput.trim()) {
+      cancelInlineChordEdit();
+    }
   }
 
   function saveAnnotation() {
@@ -1117,12 +1122,12 @@ export function SongManager({
 
                       if (isEditing) {
                         return (
-                          <span className="musician-slot-editor" key={`editor-${lineIndex}-${slotIndex}`}>
+                          <span className="musician-slot-editor" key={`editor-${lineIndex}-${slotIndex}`} onMouseLeave={cancelEmptyInlineChordEdit}>
                             <input
                               autoFocus
                               disabled={mode === "create" ? !canCreate : !canEdit}
                               onBlur={() => saveOrCloseInlineEditor()}
-                              onChange={(event) => setChordInput(event.target.value)}
+                              onChange={(event) => setChordInput(normalizeChordInput(event.target.value))}
                               onKeyDown={(event) => {
                                 if (event.key === "Enter") {
                                   event.preventDefault();
@@ -1133,7 +1138,8 @@ export function SongManager({
                                   cancelInlineChordEdit();
                                 }
                               }}
-                              placeholder={detailMode === "advanced" ? "Bbmaj7/D" : "Bbm"}
+                              placeholder={detailMode === "advanced" ? "BbMAJ7/D" : "Bbm"}
+                              style={{ width: `${Math.max(1, chordInput.length || 1)}ch` }}
                               value={chordInput}
                             />
                             {annotation ? (
@@ -1204,13 +1210,20 @@ export function SongManager({
                       >
                         {Array.from({ length: totalSlots }, (_, slotIndex) => renderSlot(slotIndex))}
                         {Array.from({ length: line.length }, (_, charIndex) => (
-                          <span
+                          <button
                             className={`musician-char ${line[charIndex] === " " ? "is-space" : ""}`}
+                            disabled={mode === "create" ? !canCreate : !canEdit}
                             key={`${lineIndex}-char-${charIndex}`}
+                            onClick={() => {
+                              const slotIndex = LEADING_CHORD_ANCHORS + charIndex;
+                              const annotation = annotations.find((candidate) => candidate.anchorIndex === slotIndex);
+                              startInlineChordEdit(lineIndex, slotIndex, annotation);
+                            }}
                             style={{ gridColumn: LEADING_CHORD_ANCHORS + charIndex + 1, gridRow: 2 }}
+                            type="button"
                           >
                             {line[charIndex] === " " ? "\u00a0" : line[charIndex]}
-                          </span>
+                          </button>
                         ))}
                       </div>
                     );
@@ -1220,49 +1233,7 @@ export function SongManager({
                 <p className="field-help">Add lyrics first, then place chord annotations over individual words without changing the lyric text.</p>
               )}
 
-              {lineAnnotations.length ? (
-                <div className="stack-list compact">
-                  {lineAnnotations.map((annotation) => (
-                    <div className="stack-row" key={annotation.id}>
-                      <strong>
-                        {displayChord(annotation.chord, {
-                          capo: chordChart.capo,
-                          detailMode,
-                          displayMode,
-                        })}
-                      </strong>
-                      <span>
-                        Line {annotation.lineIndex + 1} · {annotationLabel(annotation, form.lyrics)}
-                      </span>
-                      <div className="action-row">
-                        <button className="text-button" disabled={mode === "create" ? !canCreate : !canEdit} onClick={() => editAnnotation(annotation)} type="button">
-                          Edit
-                        </button>
-                        <button
-                          className="text-button"
-                          disabled={mode === "create" ? !canCreate : !canEdit}
-                          onClick={() => setChordChart((current) => removeChordAnnotation(current, annotation.id))}
-                          type="button"
-                        >
-                          Remove
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : null}
-
-              <details className="dropdown-panel">
-                <summary>Raw Chord Data</summary>
-                <div className="dropdown-panel-body">
-                  <textarea
-                    disabled={mode === "create" ? !canCreate : !canEdit}
-                    onChange={(event) => setLegacyChords(event.target.value || null)}
-                    rows={6}
-                    value={legacyChords ?? ""}
-                  />
-                </div>
-              </details>
+              {legacyChords ? <p className="field-help">Legacy chord text will be preserved when this song is saved.</p> : null}
             </div>
           </label>
         </div>

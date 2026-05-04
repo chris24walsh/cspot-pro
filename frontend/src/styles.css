@@ -624,8 +624,9 @@ h3 {
   font: inherit;
   font-size: 12px;
   min-height: 24px;
-  min-width: 76px;
-  padding: 2px 6px;
+  min-width: 1ch;
+  padding: 2px 4px;
+  text-align: center;
 }
 
 .musician-delete-button {
@@ -645,13 +646,24 @@ h3 {
 }
 
 .musician-char {
+  background: transparent;
+  border: 0;
   color: #17201b;
+  cursor: pointer;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
   font-size: 18px;
   font-weight: 500;
   grid-row: 2;
   min-width: 1ch;
+  padding: 0;
   white-space: pre;
+}
+
+.musician-char:hover,
+.musician-char:focus-visible {
+  background: rgba(35, 74, 64, 0.08);
+  border-radius: 3px;
+  outline: none;
 }
 
 .musician-char.is-space {
