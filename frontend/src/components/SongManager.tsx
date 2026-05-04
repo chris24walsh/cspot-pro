@@ -136,8 +136,6 @@ export function SongManager({
   }, [songs, searchTerm]);
 
   const lines = useMemo(() => lyricLines(form.lyrics), [form.lyrics]);
-  const currentWords = useMemo(() => wordsForLine(lines[selectedLineIndex] ?? ""), [lines, selectedLineIndex]);
-
   function hydrateChordState(raw: string | null) {
     const parsed = parseChordChart(raw);
     setChordChart(parsed.document);
@@ -256,6 +254,18 @@ export function SongManager({
     setChordInput(annotation.chord);
   }
 
+  function startInlineChordEdit(lineIndex: number, wordIndex: number, annotation?: ChordAnnotation) {
+    setSelectedLineIndex(lineIndex);
+    setSelectedWordIndex(wordIndex);
+    setEditingAnnotationId(annotation?.id ?? null);
+    setChordInput(annotation?.chord ?? "");
+  }
+
+  function cancelInlineChordEdit() {
+    setEditingAnnotationId(null);
+    setChordInput("");
+  }
+
   function saveAnnotation() {
     if (!chordInput.trim()) {
       setMessage("Enter a chord symbol first.");
@@ -271,8 +281,7 @@ export function SongManager({
       }),
     );
     setLegacyChords(null);
-    setEditingAnnotationId(null);
-    setChordInput("");
+    cancelInlineChordEdit();
     setMessage("Chord annotation updated.");
   }
 
@@ -287,21 +296,20 @@ export function SongManager({
       .map((line, lineIndex) => {
         const words = wordsForLine(line);
         const annotations = chordChart.annotations.filter((annotation) => annotation.lineIndex === lineIndex);
-        const cells = words
-          .map((word, wordIndex) => {
-            const annotation = annotations.find((candidate) => candidate.wordIndex === wordIndex);
-            const chord = annotation
-              ? displayChord(annotation.chord, {
-                  capo: chordChart.capo,
-                  detailMode,
-                  displayMode,
-                  transpose: transposeAmount,
-                })
-              : "&nbsp;";
-            return `<span class="word"><span class="chord">${chord}</span><span class="lyric">${word}</span></span>`;
-          })
-          .join("");
-        return `<div class="line">${cells}</div>`;
+        const slots = Array.from({ length: words.length + 1 }, (_, slotIndex) => {
+          const annotation = annotations.find((candidate) => candidate.wordIndex === slotIndex);
+          const chord = annotation
+            ? displayChord(annotation.chord, {
+                capo: chordChart.capo,
+                detailMode,
+                displayMode,
+                transpose: transposeAmount,
+              })
+            : "&nbsp;";
+          const lyric = slotIndex < words.length ? words[slotIndex] : "&nbsp;";
+          return `<span class="word"><span class="chord">${chord}</span><span class="lyric">${lyric}</span></span>`;
+        }).join("");
+        return `<div class="line">${slots}</div>`;
       })
       .join("");
 
@@ -573,15 +581,11 @@ export function SongManager({
       ...current,
       annotations: current.annotations.filter((annotation) => {
         const line = lines[annotation.lineIndex];
-        return line != null && annotation.wordIndex < wordsForLine(line).length;
+        return line != null && annotation.wordIndex <= wordsForLine(line).length;
       }),
     }));
     setSelectedLineIndex((current) => Math.min(current, lines.length - 1));
   }, [lines]);
-
-  useEffect(() => {
-    setSelectedWordIndex((current) => Math.min(current, Math.max(0, currentWords.length - 1)));
-  }, [currentWords.length]);
 
   const lineAnnotations = chordChart.annotations
     .slice()
@@ -908,74 +912,82 @@ export function SongManager({
                 </button>
               </div>
 
-              <div className="musician-annotator">
-                <label>
-                  Lyric Line
-                  <select
-                    disabled={!lines.length || (mode === "create" ? !canCreate : !canEdit)}
-                    onChange={(event) => {
-                      setSelectedLineIndex(Number(event.target.value));
-                      setSelectedWordIndex(0);
-                    }}
-                    value={selectedLineIndex}
-                  >
-                    {lines.map((line, index) => (
-                      <option key={`${index}-${line.slice(0, 12)}`} value={index}>
-                        {index + 1}. {line.slice(0, 60)}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label>
-                  Word Anchor
-                  <select
-                    disabled={!currentWords.length || (mode === "create" ? !canCreate : !canEdit)}
-                    onChange={(event) => setSelectedWordIndex(Number(event.target.value))}
-                    value={selectedWordIndex}
-                  >
-                    {currentWords.map((word, index) => (
-                      <option key={`${index}-${word}`} value={index}>
-                        {index + 1}. {word}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label>
-                  Chord
-                  <input
-                    disabled={mode === "create" ? !canCreate : !canEdit}
-                    onChange={(event) => setChordInput(event.target.value)}
-                    placeholder={detailMode === "advanced" ? "e.g. Bbmaj7/D" : "e.g. Bbm"}
-                    value={chordInput}
-                  />
-                </label>
-                <button className="primary-button" disabled={mode === "create" ? !canCreate : !canEdit} onClick={saveAnnotation} type="button">
-                  {editingAnnotationId ? "Update Chord" : "Add Chord"}
-                </button>
-              </div>
-
               {lines.length ? (
                 <div className="musician-preview">
                   {lines.map((line, lineIndex) => {
                     const words = wordsForLine(line);
                     const annotations = lineAnnotations.filter((annotation) => annotation.lineIndex === lineIndex);
+                    const renderSlot = (slotIndex: number) => {
+                      const annotation = annotations.find((candidate) => candidate.wordIndex === slotIndex);
+                      const isEditing =
+                        selectedLineIndex === lineIndex &&
+                        selectedWordIndex === slotIndex &&
+                        (editingAnnotationId === null ? !annotation : annotation != null && editingAnnotationId === annotation.id);
+
+                      if (isEditing) {
+                        return (
+                          <span className="musician-slot-editor" key={`editor-${lineIndex}-${slotIndex}`}>
+                            <input
+                              autoFocus
+                              disabled={mode === "create" ? !canCreate : !canEdit}
+                              onChange={(event) => setChordInput(event.target.value)}
+                              placeholder={detailMode === "advanced" ? "Bbmaj7/D" : "Bbm"}
+                              value={chordInput}
+                            />
+                            <button className="text-button" disabled={mode === "create" ? !canCreate : !canEdit} onClick={saveAnnotation} type="button">
+                              Save
+                            </button>
+                            <button className="text-button" onClick={cancelInlineChordEdit} type="button">
+                              Cancel
+                            </button>
+                            {annotation ? (
+                              <button
+                                className="text-button"
+                                disabled={mode === "create" ? !canCreate : !canEdit}
+                                onClick={() => {
+                                  const annotationId = annotation.id;
+                                  setChordChart((current) => removeChordAnnotation(current, annotationId));
+                                  cancelInlineChordEdit();
+                                }}
+                                type="button"
+                              >
+                                Remove
+                              </button>
+                            ) : null}
+                          </span>
+                        );
+                      }
+
+                      return (
+                        <button
+                          className={`musician-slot ${annotation ? "has-chord" : ""}`}
+                          disabled={mode === "create" ? !canCreate : !canEdit}
+                          key={`slot-${lineIndex}-${slotIndex}`}
+                          onClick={() => startInlineChordEdit(lineIndex, slotIndex, annotation)}
+                          type="button"
+                        >
+                          <span className="musician-slot-chord">
+                            {annotation
+                              ? displayChord(annotation.chord, {
+                                  capo: chordChart.capo,
+                                  detailMode,
+                                  displayMode,
+                                  transpose: transposeAmount,
+                                })
+                              : "+"}
+                          </span>
+                        </button>
+                      );
+                    };
+
                     return (
                       <div className="musician-line" key={`${lineIndex}-${line}`}>
+                        {renderSlot(0)}
                         {words.map((word, wordIndex) => {
-                          const annotation = annotations.find((candidate) => candidate.wordIndex === wordIndex);
                           return (
-                            <span className="musician-word" key={`${lineIndex}-${wordIndex}-${word}`}>
-                              <span className="musician-chord">
-                                {annotation
-                                  ? displayChord(annotation.chord, {
-                                      capo: chordChart.capo,
-                                      detailMode,
-                                      displayMode,
-                                      transpose: transposeAmount,
-                                    })
-                                  : "\u00a0"}
-                              </span>
+                            <span className="musician-token" key={`${lineIndex}-${wordIndex}-${word}`}>
                               <span className="musician-lyric">{word}</span>
+                              {renderSlot(wordIndex + 1)}
                             </span>
                           );
                         })}

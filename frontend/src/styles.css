@@ -568,24 +568,71 @@ h3 {
   gap: 12px;
 }
 
-.musician-word {
-  align-items: center;
-  display: inline-flex;
-  flex-direction: column;
-  min-width: 24px;
-}
-
-.musician-chord {
-  color: #234a40;
-  font-size: 12px;
-  font-weight: 800;
-  min-height: 16px;
-}
-
 .musician-lyric {
   color: #17201b;
   font-size: 15px;
   font-weight: 600;
+}
+
+.musician-token {
+  align-items: flex-start;
+  display: inline-flex;
+  gap: 6px;
+}
+
+.musician-slot {
+  align-items: center;
+  background: transparent;
+  border: 1px dashed #d2cfbf;
+  border-radius: 6px;
+  color: #7d887f;
+  cursor: pointer;
+  display: inline-flex;
+  justify-content: center;
+  min-height: 26px;
+  min-width: 34px;
+  padding: 2px 6px;
+}
+
+.musician-slot:hover,
+.musician-slot:focus-visible {
+  border-color: #8ebba9;
+  color: #234a40;
+  outline: none;
+}
+
+.musician-slot.has-chord {
+  background: #edf7f1;
+  border-style: solid;
+  color: #234a40;
+}
+
+.musician-slot-chord {
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.1;
+}
+
+.musician-slot-editor {
+  align-items: center;
+  background: #fffefa;
+  border: 1px solid #cfc7b4;
+  border-radius: 8px;
+  display: inline-flex;
+  gap: 6px;
+  padding: 4px;
+}
+
+.musician-slot-editor input {
+  background: #fffdf7;
+  border: 1px solid #cfc7b4;
+  border-radius: 6px;
+  color: #17201b;
+  font: inherit;
+  font-size: 14px;
+  min-height: 30px;
+  min-width: 92px;
+  padding: 4px 8px;
 }
 
 .filter-label {

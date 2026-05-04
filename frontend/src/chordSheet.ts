@@ -246,5 +246,11 @@ export function annotationLabel(annotation: ChordAnnotation, lyrics: string | nu
   const lines = lyricLines(lyrics);
   const line = lines[annotation.lineIndex] ?? "";
   const words = wordsForLine(line);
-  return words[annotation.wordIndex] ?? `Line ${annotation.lineIndex + 1}`;
+  if (annotation.wordIndex <= 0) {
+    return "line start";
+  }
+  if (annotation.wordIndex >= words.length) {
+    return "line end";
+  }
+  return `before ${words[annotation.wordIndex] ?? `word ${annotation.wordIndex + 1}`}`;
 }
