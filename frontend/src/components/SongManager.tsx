@@ -1122,7 +1122,12 @@ export function SongManager({
 
                       if (isEditing) {
                         return (
-                          <span className="musician-slot-editor" key={`editor-${lineIndex}-${slotIndex}`} onMouseLeave={cancelEmptyInlineChordEdit}>
+                          <span
+                            className="musician-slot-editor"
+                            key={`editor-${lineIndex}-${slotIndex}`}
+                            onMouseLeave={cancelEmptyInlineChordEdit}
+                            style={{ gridColumn: `${slotIndex + 1} / span 10`, gridRow: 1 }}
+                          >
                             <input
                               autoFocus
                               disabled={mode === "create" ? !canCreate : !canEdit}
@@ -1139,7 +1144,7 @@ export function SongManager({
                                 }
                               }}
                               placeholder={detailMode === "advanced" ? "BbMAJ7/D" : "Bbm"}
-                              style={{ width: `${Math.max(2.5, (chordInput.length || 1) + 1)}ch` }}
+                              size={Math.max(1, chordInput.length || 1)}
                               value={chordInput}
                             />
                             {annotation ? (
