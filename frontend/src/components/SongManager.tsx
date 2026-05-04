@@ -1139,7 +1139,7 @@ export function SongManager({
                                 }
                               }}
                               placeholder={detailMode === "advanced" ? "BbMAJ7/D" : "Bbm"}
-                              style={{ width: `${Math.max(1, chordInput.length || 1)}ch` }}
+                              style={{ width: `${Math.max(2.5, (chordInput.length || 1) + 1)}ch` }}
                               value={chordInput}
                             />
                             {annotation ? (
