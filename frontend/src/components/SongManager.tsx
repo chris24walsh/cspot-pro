@@ -123,6 +123,31 @@ function normalizeForm(form: SongPayload): SongPayload {
   };
 }
 
+function extractYouTubeId(value: string | null): string | null {
+  const trimmed = value?.trim() ?? "";
+  if (!trimmed) {
+    return null;
+  }
+
+  try {
+    const parsed = new URL(trimmed);
+    const watchId = parsed.searchParams.get("v");
+    if (watchId) {
+      return watchId;
+    }
+
+    const pathMatch = parsed.pathname.match(/(?:\/shorts\/|\/embed\/|\/)([A-Za-z0-9_-]{11})/);
+    if (pathMatch?.[1]) {
+      return pathMatch[1];
+    }
+  } catch {
+    // Fall through to pattern matching so pasted fragments still work.
+  }
+
+  const match = trimmed.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?.*v=|shorts\/|embed\/))([A-Za-z0-9_-]{11})/);
+  return match?.[1] ?? trimmed;
+}
+
 function diagramChordKey(chord: string) {
   const main = chord.trim().split("/")[0] ?? "";
   const match = main.match(/^([A-G](?:#|b)?)(m|maj7|maj|min|dim|sus\d?|add\d?|[0-9]*)?/);
@@ -1034,24 +1059,6 @@ export function SongManager({
             />
           </label>
 
-          <label>
-            YouTube ID
-            <input
-              disabled={mode === "create" ? !canCreate : !canEdit}
-              onChange={(event) => setForm({ ...form, youtube_id: event.target.value })}
-              value={form.youtube_id ?? ""}
-            />
-          </label>
-
-          <label>
-            External Link
-            <input
-              disabled={mode === "create" ? !canCreate : !canEdit}
-              onChange={(event) => setForm({ ...form, external_link: event.target.value })}
-              value={form.external_link ?? ""}
-            />
-          </label>
-
           <label className="wide-field">
             Book Reference
             <input
@@ -1061,49 +1068,78 @@ export function SongManager({
             />
           </label>
 
-          {mode === "edit" ? (
-            <details className="dropdown-panel wide-field">
-              <summary>Attached Files</summary>
-              <div className="dropdown-panel-body">
-                <div className="form-grid">
-                  <label>
-                    Display Name
-                    <input
-                      disabled={!canCreate}
-                      onChange={(event) => setFileDisplayName(event.target.value)}
-                      placeholder={fileToUpload?.name ?? "Optional"}
-                      value={fileDisplayName}
-                    />
-                  </label>
+          <details className="dropdown-panel wide-field" open>
+            <summary>Media & Attachments</summary>
+            <div className="dropdown-panel-body">
+              <div className="form-grid">
+                <label>
+                  YouTube Link / ID
+                  <input
+                    disabled={mode === "create" ? !canCreate : !canEdit}
+                    onBlur={(event) => setForm({ ...form, youtube_id: extractYouTubeId(event.target.value) })}
+                    onChange={(event) => setForm({ ...form, youtube_id: event.target.value })}
+                    placeholder="Paste a YouTube link or video ID"
+                    value={form.youtube_id ?? ""}
+                  />
+                </label>
 
-                  <label>
-                    File
-                    <input
-                      disabled={!canCreate}
-                      accept=".ppt,.pptx,.pdf,.key,.txt,.png,.jpg,.jpeg"
-                      onChange={(event) => setFileToUpload(event.target.files?.[0] ?? null)}
-                      type="file"
-                    />
-                  </label>
-                </div>
-                <div className="action-row form-actions">
-                  <button className="primary-button" disabled={!canCreate} onClick={() => void uploadSongFile()} type="button">
-                    Attach File
-                  </button>
-                </div>
-                {songFiles.length ? (
-                  <div className="stack-list compact">
-                    {songFiles.map((file) => (
-                      <div className="stack-row readonly" key={file.id}>
-                        <strong>{file.display_name}</strong>
-                        <span>{file.content_type ?? "file"}</span>
-                      </div>
-                    ))}
-                  </div>
-                ) : null}
+                <label>
+                  External Link
+                  <input
+                    disabled={mode === "create" ? !canCreate : !canEdit}
+                    onChange={(event) => setForm({ ...form, external_link: event.target.value })}
+                    placeholder="SongSelect, tutorial, reference page"
+                    type="url"
+                    value={form.external_link ?? ""}
+                  />
+                </label>
               </div>
-            </details>
-          ) : null}
+
+              {mode === "edit" ? (
+                <>
+                  <p className="field-help">Attach backing tracks, source slide decks, chord charts, images, or other media for this song.</p>
+                  <div className="form-grid">
+                    <label>
+                      Display Name
+                      <input
+                        disabled={!canCreate}
+                        onChange={(event) => setFileDisplayName(event.target.value)}
+                        placeholder={fileToUpload?.name ?? "Backing track, chart, source deck"}
+                        value={fileDisplayName}
+                      />
+                    </label>
+
+                    <label>
+                      File
+                      <input
+                        disabled={!canCreate}
+                        accept=".ppt,.pptx,.pdf,.key,.txt,.png,.jpg,.jpeg,.mp3,.wav,.m4a,.aac,.ogg,.flac,.mp4,.mov"
+                        onChange={(event) => setFileToUpload(event.target.files?.[0] ?? null)}
+                        type="file"
+                      />
+                    </label>
+                  </div>
+                  <div className="action-row form-actions">
+                    <button className="primary-button" disabled={!canCreate} onClick={() => void uploadSongFile()} type="button">
+                      Attach Media
+                    </button>
+                  </div>
+                  {songFiles.length ? (
+                    <div className="stack-list compact">
+                      {songFiles.map((file) => (
+                        <div className="stack-row readonly" key={file.id}>
+                          <strong>{file.display_name}</strong>
+                          <span>{file.content_type ?? "file"}</span>
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
+                </>
+              ) : (
+                <p className="field-help">Save the song before attaching backing tracks or source files.</p>
+              )}
+            </div>
+          </details>
           </div>
         ) : null}
 
