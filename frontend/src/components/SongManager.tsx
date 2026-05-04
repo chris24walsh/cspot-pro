@@ -251,18 +251,27 @@ export function SongManager({
     }
   }
 
+  function editableChordValue(annotation: ChordAnnotation) {
+    return displayChord(annotation.chord, {
+      capo: chordChart.capo,
+      detailMode: "advanced",
+      displayMode,
+      transpose: transposeAmount,
+    });
+  }
+
   function editAnnotation(annotation: ChordAnnotation) {
     setSelectedLineIndex(annotation.lineIndex);
     setSelectedAnchorIndex(annotation.anchorIndex);
     setEditingAnnotationId(annotation.id);
-    setChordInput(annotation.chord);
+    setChordInput(editableChordValue(annotation));
   }
 
   function startInlineChordEdit(lineIndex: number, anchorIndex: number, annotation?: ChordAnnotation) {
     setSelectedLineIndex(lineIndex);
     setSelectedAnchorIndex(anchorIndex);
     setEditingAnnotationId(annotation?.id ?? null);
-    setChordInput(annotation?.chord ?? "");
+    setChordInput(annotation ? editableChordValue(annotation) : "");
   }
 
   function cancelInlineChordEdit() {
