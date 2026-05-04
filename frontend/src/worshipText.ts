@@ -15,20 +15,6 @@ const SECTION_ALIASES = new Map<string, string>([
   ["intro", "Intro"],
 ]);
 
-export const SECTION_LABEL_OPTIONS = [
-  "Intro",
-  "Verse 1",
-  "Verse 2",
-  "Verse 3",
-  "Verse 4",
-  "Pre-Chorus",
-  "Chorus",
-  "Bridge",
-  "Tag",
-  "Ending",
-  "Outro",
-];
-
 const WEB_CLUTTER_PATTERNS = [
   /^lyrics?\s*$/i,
   /^submit corrections?$/i,
@@ -161,7 +147,7 @@ export function splitWorshipSlides(value: string) {
 
 export function buildLyricsFromSections(sections: WorshipStructureSection[]) {
   return sections
-    .map((section) => [section.label, section.content].filter(Boolean).join("\n").trim())
+    .map((section) => [section.label ? `[${section.label}]` : "", section.content].filter(Boolean).join("\n").trim())
     .filter(Boolean)
     .join("\n\n");
 }

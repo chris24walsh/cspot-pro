@@ -36,7 +36,6 @@ import {
   upsertChordAnnotation,
 } from "../chordSheet";
 import {
-  SECTION_LABEL_OPTIONS,
   analyzeImportedSongSlides,
   analyzeWorshipText,
   buildLyricsFromSections,
@@ -288,7 +287,6 @@ export function SongManager({
   }, [songs, searchTerm]);
 
   const lines = useMemo(() => lyricLines(form.lyrics), [form.lyrics]);
-  const lyricAnalysis = useMemo(() => analyzeWorshipText(form.lyrics ?? "", { title: form.title }), [form.lyrics, form.title]);
   const selectedImportPreview = importPreviews[selectedImportIndex] ?? null;
   const editableKey = chordChart.keyAnchor === "absolute" ? chordChart.absoluteKey : chordChart.capoKey;
   const derivedKey = chordChart.keyAnchor === "absolute" ? chordChart.capoKey : chordChart.absoluteKey;
@@ -742,27 +740,6 @@ export function SongManager({
     );
   }
 
-  function updateLyricSectionLabel(sectionIndex: number, label: string) {
-    const sections = lyricAnalysis.sections.map((section, index) => (index === sectionIndex ? { ...section, label } : section));
-    const sequence = sections.map((section) => section.label).filter(Boolean).join(" ") || null;
-
-    setForm({
-      ...form,
-      lyrics: buildLyricsFromSections(sections),
-      sequence,
-    });
-    setParsedSequence(sequence);
-  }
-
-  function updateLyricSectionContent(sectionIndex: number, content: string) {
-    const sections = lyricAnalysis.sections.map((section, index) => (index === sectionIndex ? { ...section, content } : section));
-
-    setForm({
-      ...form,
-      lyrics: buildLyricsFromSections(sections),
-    });
-  }
-
   function applySelectedImportPreview() {
     if (!selectedImportPreview) {
       setMessage("Choose a PowerPoint or OpenDocument song file first.");
@@ -1188,43 +1165,12 @@ export function SongManager({
               </button>
             </div>
             {parsedSequence ? <p className="field-help">Inferred sequence: {parsedSequence}</p> : null}
-            {lyricAnalysis.sections.length ? (
-              <div className="lyric-chunk-editor">
-                {lyricAnalysis.sections.map((section, index) => (
-                  <article className="lyric-chunk" key={`${section.key}-${index}`}>
-                    <div className="lyric-chunk-toolbar">
-                      <select
-                        aria-label={`Section label for lyric chunk ${index + 1}`}
-                        disabled={mode === "create" ? !canCreate : !canEdit}
-                        onChange={(event) => updateLyricSectionLabel(index, event.target.value)}
-                        value={section.label}
-                      >
-                        {SECTION_LABEL_OPTIONS.includes(section.label) ? null : <option value={section.label}>{section.label}</option>}
-                        {SECTION_LABEL_OPTIONS.map((label) => (
-                          <option key={label} value={label}>
-                            {label}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                    <textarea
-                      aria-label={`${section.label} lyrics`}
-                      disabled={mode === "create" ? !canCreate : !canEdit}
-                      onChange={(event) => updateLyricSectionContent(index, event.target.value)}
-                      rows={Math.max(3, section.content.split(/\r?\n/).length)}
-                      value={section.content}
-                    />
-                  </article>
-                ))}
-              </div>
-            ) : (
-              <textarea
-                disabled={mode === "create" ? !canCreate : !canEdit}
-                onChange={(event) => setForm({ ...form, lyrics: event.target.value })}
-                rows={8}
-                value={form.lyrics ?? ""}
-              />
-            )}
+            <textarea
+              disabled={mode === "create" ? !canCreate : !canEdit}
+              onChange={(event) => setForm({ ...form, lyrics: event.target.value })}
+              rows={12}
+              value={form.lyrics ?? ""}
+            />
           </label>
           {importLyricsOpen ? (
             <div className="app-dialog-backdrop" role="presentation" onMouseDown={() => setImportLyricsOpen(false)}>
@@ -1303,14 +1249,7 @@ export function SongManager({
                       </div>
                     ) : null}
                     {selectedImportPreview.analysis.sections.length ? (
-                      <div className="import-lyric-preview">
-                        {selectedImportPreview.analysis.sections.map((section, index) => (
-                          <article className="import-lyric-chunk" key={`${section.key}-${index}`}>
-                            <strong>{section.label}</strong>
-                            <p>{section.content}</p>
-                          </article>
-                        ))}
-                      </div>
+                      <pre className="import-lyric-preview">{buildLyricsFromSections(selectedImportPreview.analysis.sections)}</pre>
                     ) : null}
                     <div className="action-row import-lookup-actions">
                       <a
