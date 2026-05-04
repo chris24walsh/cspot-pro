@@ -320,7 +320,6 @@ export function SongManager({
         setParsedSequence(target.sequence);
         setParseNotes([]);
         hydrateChordState(target.chords);
-        setActiveSongTab("lyrics");
         setSongFiles(await getFiles({ song_id: target.id }));
       } else {
         startCreate();
@@ -342,7 +341,6 @@ export function SongManager({
     setParsedSequence(null);
     setParseNotes([]);
     hydrateChordState(null);
-    setActiveSongTab("lyrics");
     setMessage(null);
   }
 
@@ -352,7 +350,6 @@ export function SongManager({
     setForm(blankSong());
     setSongFiles([]);
     hydrateChordState(null);
-    setActiveSongTab("lyrics");
     setMessage(null);
   }
 
@@ -365,7 +362,6 @@ export function SongManager({
     setParsedSequence(song.sequence);
     setParseNotes([]);
     hydrateChordState(song.chords);
-    setActiveSongTab("lyrics");
     setMessage(null);
     setSongFiles(await getFiles({ song_id: song.id }));
   }
