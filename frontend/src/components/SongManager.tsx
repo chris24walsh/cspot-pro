@@ -118,6 +118,7 @@ export function SongManager({
   const [displayMode, setDisplayMode] = useState<ChordDisplayMode>("absolute");
   const [detailMode, setDetailMode] = useState<ChordDetailMode>("advanced");
   const [transposeAmount, setTransposeAmount] = useState(0);
+  const [draggedAnnotationId, setDraggedAnnotationId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [message, setMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -283,6 +284,31 @@ export function SongManager({
     setLegacyChords(null);
     cancelInlineChordEdit();
     setMessage("Chord annotation updated.");
+  }
+
+  function saveOrCloseInlineEditor() {
+    if (chordInput.trim()) {
+      saveAnnotation();
+      return;
+    }
+    cancelInlineChordEdit();
+  }
+
+  function moveAnnotation(annotationId: string, lineIndex: number, anchorIndex: number) {
+    const annotation = chordChart.annotations.find((candidate) => candidate.id === annotationId);
+    if (!annotation) {
+      return;
+    }
+
+    setChordChart((current) =>
+      upsertChordAnnotation(current, {
+        id: annotation.id,
+        chord: annotation.chord,
+        lineIndex,
+        anchorIndex,
+      }),
+    );
+    setLegacyChords(null);
   }
 
   function printChordChart() {
@@ -928,20 +954,26 @@ export function SongManager({
                             <input
                               autoFocus
                               disabled={mode === "create" ? !canCreate : !canEdit}
+                              onBlur={() => saveOrCloseInlineEditor()}
                               onChange={(event) => setChordInput(event.target.value)}
+                              onKeyDown={(event) => {
+                                if (event.key === "Enter") {
+                                  event.preventDefault();
+                                  saveOrCloseInlineEditor();
+                                }
+                                if (event.key === "Escape") {
+                                  event.preventDefault();
+                                  cancelInlineChordEdit();
+                                }
+                              }}
                               placeholder={detailMode === "advanced" ? "Bbmaj7/D" : "Bbm"}
                               value={chordInput}
                             />
-                            <button className="text-button" disabled={mode === "create" ? !canCreate : !canEdit} onClick={saveAnnotation} type="button">
-                              Save
-                            </button>
-                            <button className="text-button" onClick={cancelInlineChordEdit} type="button">
-                              Cancel
-                            </button>
                             {annotation ? (
                               <button
-                                className="text-button"
+                                className="musician-delete-button"
                                 disabled={mode === "create" ? !canCreate : !canEdit}
+                                onMouseDown={(event) => event.preventDefault()}
                                 onClick={() => {
                                   const annotationId = annotation.id;
                                   setChordChart((current) => removeChordAnnotation(current, annotationId));
@@ -949,7 +981,7 @@ export function SongManager({
                                 }}
                                 type="button"
                               >
-                                Remove
+                                x
                               </button>
                             ) : null}
                           </span>
@@ -960,6 +992,25 @@ export function SongManager({
                         <button
                           className={`musician-slot ${annotation ? "has-chord" : ""}`}
                           disabled={mode === "create" ? !canCreate : !canEdit}
+                          draggable={Boolean(annotation) && (mode === "create" ? canCreate : canEdit)}
+                          onDragEnd={() => setDraggedAnnotationId(null)}
+                          onDragOver={(event) => {
+                            if (draggedAnnotationId) {
+                              event.preventDefault();
+                            }
+                          }}
+                          onDragStart={() => {
+                            if (annotation) {
+                              setDraggedAnnotationId(annotation.id);
+                            }
+                          }}
+                          onDrop={(event) => {
+                            event.preventDefault();
+                            if (draggedAnnotationId) {
+                              moveAnnotation(draggedAnnotationId, lineIndex, slotIndex);
+                              setDraggedAnnotationId(null);
+                            }
+                          }}
                           key={`slot-${lineIndex}-${slotIndex}`}
                           onClick={() => startInlineChordEdit(lineIndex, slotIndex, annotation)}
                           style={{ gridColumn: slotIndex + 1, gridRow: 1 }}
@@ -973,7 +1024,7 @@ export function SongManager({
                                   displayMode,
                                   transpose: transposeAmount,
                                 })
-                              : "+"}
+                              : "·"}
                           </span>
                         </button>
                       );

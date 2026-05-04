@@ -569,33 +569,31 @@ h3 {
   gap: 0;
   justify-content: start;
   min-width: max-content;
+  padding-left: 1.5ch;
   row-gap: 2px;
 }
 
 .musician-slot {
   align-items: center;
   background: transparent;
-  border: 1px dashed #d2cfbf;
+  border: 0;
   border-radius: 6px;
   color: #7d887f;
   cursor: pointer;
   display: inline-flex;
   justify-content: center;
-  min-height: 26px;
-  min-width: 34px;
-  padding: 2px 6px;
+  min-height: 22px;
+  min-width: 1ch;
+  padding: 0;
 }
 
 .musician-slot:hover,
 .musician-slot:focus-visible {
-  border-color: #8ebba9;
   color: #234a40;
   outline: none;
 }
 
 .musician-slot.has-chord {
-  background: #edf7f1;
-  border-style: solid;
   color: #234a40;
 }
 
@@ -613,7 +611,7 @@ h3 {
   display: inline-flex;
   gap: 6px;
   grid-row: 1;
-  padding: 4px;
+  padding: 2px 4px;
   position: relative;
   z-index: 1;
 }
@@ -624,10 +622,26 @@ h3 {
   border-radius: 6px;
   color: #17201b;
   font: inherit;
-  font-size: 14px;
-  min-height: 30px;
-  min-width: 92px;
-  padding: 4px 8px;
+  font-size: 12px;
+  min-height: 24px;
+  min-width: 76px;
+  padding: 2px 6px;
+}
+
+.musician-delete-button {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  color: #8b3b2a;
+  cursor: pointer;
+  display: inline-flex;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 800;
+  justify-content: center;
+  min-height: 20px;
+  min-width: 20px;
+  padding: 0;
 }
 
 .musician-char {
