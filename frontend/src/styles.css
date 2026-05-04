@@ -453,39 +453,67 @@ h3 {
   margin: 0;
 }
 
-.lyric-section-map {
+.lyric-chunk-editor,
+.import-lyric-preview {
   display: grid;
-  gap: 8px;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  margin: 8px 0;
+  gap: 12px;
+  margin-top: 8px;
 }
 
-.lyric-section-card {
-  background: #f9f6eb;
-  border: 1px solid #e3dcc8;
-  border-radius: 8px;
+.lyric-chunk,
+.import-lyric-chunk {
   display: grid;
-  gap: 6px;
-  padding: 8px;
-}
-
-.lyric-section-card label {
   gap: 4px;
 }
 
-.lyric-section-card strong {
-  color: #234a40;
-  font-size: 13px;
-  font-weight: 850;
+.lyric-chunk-toolbar {
+  align-items: center;
+  display: flex;
 }
 
-.lyric-section-card p {
-  color: #3b4741;
-  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+.lyric-chunk-toolbar select {
+  appearance: none;
+  background: #eaf5ef;
+  border: 1px solid #8ebba9;
+  border-radius: 999px;
+  color: #234a40;
+  cursor: pointer;
   font-size: 12px;
-  font-weight: 700;
-  line-height: 1.35;
+  font-weight: 850;
+  min-height: 28px;
+  padding: 4px 26px 4px 10px;
+  width: auto;
+}
+
+.lyric-chunk textarea {
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  line-height: 1.4;
+  min-height: 86px;
+}
+
+.import-lyric-chunk strong {
+  align-self: start;
+  background: #eaf5ef;
+  border: 1px solid #8ebba9;
+  border-radius: 999px;
+  color: #234a40;
+  display: inline-flex;
+  font-size: 12px;
+  font-weight: 850;
+  padding: 4px 10px;
+}
+
+.import-lyric-chunk p {
+  background: #fffdf7;
+  border: 1px solid #e3dcc8;
+  border-radius: 8px;
+  color: #17201b;
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  font-size: 13px;
+  line-height: 1.45;
   margin: 0;
+  padding: 8px 10px;
+  white-space: pre-wrap;
 }
 
 .compact-field {

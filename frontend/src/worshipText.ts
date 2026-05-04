@@ -225,6 +225,9 @@ function inferSectionsFromBlocks(blocks: string[]) {
   const notes: string[] = [];
   let verseNumber = 1;
   let usedBridge = false;
+  let usedInferredChorus = Boolean(chorusKey);
+  const wordCounts = blocks.map((block) => block.split(/\s+/).filter(Boolean).length);
+  const averageWordCount = wordCounts.reduce((total, count) => total + count, 0) / Math.max(1, wordCounts.length);
 
   for (const [index, block] of blocks.entries()) {
     const key = blockKey(block);
@@ -240,6 +243,17 @@ function inferSectionsFromBlocks(blocks: string[]) {
     const count = counts.get(key) ?? 1;
     const isNearEnd = index >= Math.max(2, Math.floor(blocks.length * 0.66));
     const isFinal = index === blocks.length - 1;
+    const lineCount = block.split(/\r?\n/).filter((line) => line.trim()).length;
+    const wordCount = wordCounts[index] ?? 0;
+    const isShorterThanAverage = wordCount > 0 && wordCount <= averageWordCount * 0.72;
+    const isCompactChunk = lineCount <= 4 || isShorterThanAverage;
+
+    if (!usedInferredChorus && index > 0 && !isFinal && isCompactChunk && blocks.length >= 3) {
+      labels.set(key, "Chorus");
+      usedInferredChorus = true;
+      notes.push("A shorter repeated-style lyric chunk was labelled as Chorus; check this before presenting.");
+      continue;
+    }
 
     if (!usedBridge && isNearEnd && count === 1 && blocks.length >= 4 && !isFinal) {
       labels.set(key, "Bridge");
