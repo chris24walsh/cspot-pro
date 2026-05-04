@@ -633,6 +633,7 @@ h3 {
   justify-self: start;
   padding: 1px 2px;
   position: relative;
+  transform: translateX(-50%);
   width: max-content;
   z-index: 1;
 }
