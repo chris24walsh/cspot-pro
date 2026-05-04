@@ -122,6 +122,7 @@ export function SongManager({
   const [selectedLineIndex, setSelectedLineIndex] = useState(0);
   const [selectedAnchorIndex, setSelectedAnchorIndex] = useState(0);
   const [editingAnnotationId, setEditingAnnotationId] = useState<string | null>(null);
+  const [inlineChordEditorOpen, setInlineChordEditorOpen] = useState(false);
   const [chordInput, setChordInput] = useState("");
   const [displayMode, setDisplayMode] = useState<ChordDisplayMode>("absolute");
   const [detailMode, setDetailMode] = useState<ChordDetailMode>("advanced");
@@ -152,6 +153,7 @@ export function SongManager({
     setChordChart(parsed.document);
     setLegacyChords(parsed.legacyText);
     setEditingAnnotationId(null);
+    setInlineChordEditorOpen(false);
     setChordInput("");
   }
 
@@ -401,11 +403,14 @@ export function SongManager({
     setSelectedLineIndex(lineIndex);
     setSelectedAnchorIndex(anchorIndex);
     setEditingAnnotationId(annotation?.id ?? null);
+    setInlineChordEditorOpen(true);
     setChordInput(annotation ? editableChordValue(annotation) : "");
   }
 
   function cancelInlineChordEdit() {
     setEditingAnnotationId(null);
+    setInlineChordEditorOpen(false);
+    setHoveredAnchor(null);
     setChordInput("");
   }
 
@@ -1123,6 +1128,7 @@ export function SongManager({
                     const renderSlot = (slotIndex: number) => {
                       const annotation = annotations.find((candidate) => candidate.anchorIndex === slotIndex);
                       const isEditing =
+                        inlineChordEditorOpen &&
                         selectedLineIndex === lineIndex &&
                         selectedAnchorIndex === slotIndex &&
                         (editingAnnotationId === null ? !annotation : annotation != null && editingAnnotationId === annotation.id);
