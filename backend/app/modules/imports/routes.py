@@ -64,6 +64,27 @@ def _slide_title(lines: list[str], fallback: str) -> str:
     return lines[0] if lines else fallback
 
 
+def _tag_name(tag: str) -> str:
+    return tag.rsplit("}", 1)[-1]
+
+
+def _parse_pptx_slide_lines(root: ElementTree.Element) -> list[str]:
+    lines: list[str] = []
+
+    for node in root.iter():
+        if _tag_name(node.tag) != "p":
+            continue
+
+        text = "".join(child.text or "" for child in node.iter() if _tag_name(child.tag) == "t").strip()
+        if text:
+            lines.append(text)
+
+    if lines:
+        return _clean_lines(lines)
+
+    return _clean_lines([node.text or "" for node in root.iter() if _tag_name(node.tag) == "t"])
+
+
 def _parse_pptx(content: bytes) -> list[list[str]]:
     with ZipFile(BytesIO(content)) as archive:
         slide_names = sorted(
@@ -78,7 +99,7 @@ def _parse_pptx(content: bytes) -> list[list[str]]:
         slides: list[list[str]] = []
         for slide_name in slide_names:
             root = ElementTree.fromstring(archive.read(slide_name))
-            slides.append(_clean_lines([node.text or "" for node in root.iter() if node.tag.endswith("}t")]))
+            slides.append(_parse_pptx_slide_lines(root))
         return slides
 
 
