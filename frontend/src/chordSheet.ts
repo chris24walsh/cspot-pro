@@ -1,7 +1,9 @@
 export type ChordDisplayMode = "absolute" | "capo";
 export type ChordDetailMode = "advanced" | "simple";
+export type KeyAnchorMode = "absolute" | "capo";
 export const LEADING_CHORD_ANCHORS = 3;
 export const TRAILING_CHORD_ANCHORS = 5;
+export const MUSICAL_KEYS = ["C", "Db", "D", "Eb", "E", "F", "F#", "G", "Ab", "A", "Bb", "B"] as const;
 
 export interface ChordAnnotation {
   id: string;
@@ -11,8 +13,11 @@ export interface ChordAnnotation {
 }
 
 export interface ChordChartDocument {
-  version: 1;
+  version: 2;
   capo: number;
+  absoluteKey: string | null;
+  capoKey: string | null;
+  keyAnchor: KeyAnchorMode;
   annotations: ChordAnnotation[];
 }
 
@@ -23,9 +28,10 @@ export interface ParsedChordChart {
 
 const SHARP_NOTES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
 const FLAT_NOTES = ["C", "Db", "D", "Eb", "E", "F", "Gb", "G", "Ab", "A", "Bb", "B"];
-const NOTE_INDEX = new Map(
-  [...SHARP_NOTES, ...FLAT_NOTES].map((note, index, source) => [note, source === SHARP_NOTES ? index : FLAT_NOTES.indexOf(note)]),
-);
+const NOTE_INDEX = new Map<string, number>([
+  ...SHARP_NOTES.map((note, index) => [note, index] as const),
+  ...FLAT_NOTES.map((note, index) => [note, index] as const),
+]);
 
 function slug(value: string) {
   return value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
@@ -95,10 +101,56 @@ export function lyricLines(lyrics: string | null) {
 
 export function createEmptyChordChart(): ChordChartDocument {
   return {
-    version: 1,
+    version: 2,
     capo: 0,
+    absoluteKey: null,
+    capoKey: null,
+    keyAnchor: "capo",
     annotations: [],
   };
+}
+
+export function normalizeKeySignature(key: string | null | undefined) {
+  if (!key) {
+    return null;
+  }
+  const normalized = normalizeNote(key);
+  return NOTE_INDEX.has(normalized) ? normalized : null;
+}
+
+export function semitoneDistance(fromKey: string, toKey: string) {
+  const from = NOTE_INDEX.get(normalizeNote(fromKey));
+  const to = NOTE_INDEX.get(normalizeNote(toKey));
+  if (from == null || to == null) {
+    return 0;
+  }
+  return (to - from + 120) % 12;
+}
+
+export function deriveCapoKey(absoluteKey: string, capo: number) {
+  return transposeNote(absoluteKey, -capo, absoluteKey.includes("b"));
+}
+
+export function deriveAbsoluteKey(capoKey: string, capo: number) {
+  return transposeNote(capoKey, capo, capoKey.includes("b"));
+}
+
+export function transposeChordAnnotations(
+  annotations: ChordAnnotation[],
+  semitones: number,
+  options: { preferFlats?: boolean } = {},
+) {
+  if (semitones === 0) {
+    return annotations;
+  }
+
+  return annotations.map((annotation) => ({
+    ...annotation,
+    chord: transposeChordSymbol(annotation.chord, semitones, {
+      detailMode: "advanced",
+      preferFlats: options.preferFlats,
+    }),
+  }));
 }
 
 export function parseChordChart(raw: string | null): ParsedChordChart {
@@ -107,12 +159,16 @@ export function parseChordChart(raw: string | null): ParsedChordChart {
   }
 
   try {
-    const parsed = JSON.parse(raw) as Partial<ChordChartDocument>;
-    if (parsed && parsed.version === 1 && Array.isArray(parsed.annotations)) {
+    const parsed = JSON.parse(raw) as Partial<ChordChartDocument> & { version?: number };
+    const parsedVersion = Number(parsed?.version ?? 0);
+    if (parsed && (parsedVersion === 1 || parsedVersion === 2) && Array.isArray(parsed.annotations)) {
       return {
         document: {
-          version: 1,
+          version: 2,
           capo: Math.max(0, Math.trunc(parsed.capo ?? 0)),
+          absoluteKey: normalizeKeySignature(parsed.absoluteKey),
+          capoKey: normalizeKeySignature(parsed.capoKey),
+          keyAnchor: parsed.keyAnchor === "absolute" ? "absolute" : "capo",
           annotations: parsed.annotations
             .map((annotation) => ({
               id:
@@ -176,14 +232,24 @@ function parseChordProToAnnotations(raw: string): ChordChartDocument {
   });
 
   return {
-    version: 1,
+    version: 2,
     capo: 0,
+    absoluteKey: null,
+    capoKey: null,
+    keyAnchor: "capo",
     annotations,
   };
 }
 
 export function serializeChordChart(document: ChordChartDocument, legacyText: string | null = null) {
-  if (!document.annotations.length && document.capo === 0 && !legacyText) {
+  if (
+    !document.annotations.length &&
+    document.capo === 0 &&
+    !document.absoluteKey &&
+    !document.capoKey &&
+    document.keyAnchor === "capo" &&
+    !legacyText
+  ) {
     return null;
   }
 
@@ -193,8 +259,11 @@ export function serializeChordChart(document: ChordChartDocument, legacyText: st
 
   return JSON.stringify(
     {
-      version: 1,
+      version: 2,
       capo: document.capo,
+      absoluteKey: document.absoluteKey,
+      capoKey: document.capoKey,
+      keyAnchor: document.keyAnchor,
       annotations: [...document.annotations].sort(
         (left, right) => left.lineIndex - right.lineIndex || left.anchorIndex - right.anchorIndex || left.chord.localeCompare(right.chord),
       ),
@@ -241,11 +310,10 @@ export function displayChord(
     capo: number;
     detailMode: ChordDetailMode;
     displayMode: ChordDisplayMode;
-    transpose: number;
     preferFlats?: boolean;
   },
 ) {
-  const absolute = transposeChordSymbol(chord, options.transpose, {
+  const absolute = transposeChordSymbol(chord, 0, {
     detailMode: options.detailMode,
     preferFlats: options.preferFlats,
   });
@@ -254,7 +322,7 @@ export function displayChord(
     return absolute;
   }
 
-  return transposeChordSymbol(chord, options.transpose - options.capo, {
+  return transposeChordSymbol(chord, -options.capo, {
     detailMode: options.detailMode,
     preferFlats: options.preferFlats,
   });

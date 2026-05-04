@@ -15,20 +15,26 @@ import {
 import {
   annotationLabel,
   createEmptyChordChart,
+  deriveAbsoluteKey,
+  deriveCapoKey,
   displayChord,
+  MUSICAL_KEYS,
   LEADING_CHORD_ANCHORS,
   lyricLines,
+  normalizeKeySignature,
   parseChordChart,
   removeChordAnnotation,
+  semitoneDistance,
   serializeChordChart,
   transposeChordSymbol,
+  transposeChordAnnotations,
   TRAILING_CHORD_ANCHORS,
   type ChordAnnotation,
   type ChordChartDocument,
   type ChordDetailMode,
   type ChordDisplayMode,
+  type KeyAnchorMode,
   upsertChordAnnotation,
-  wordsForLine,
 } from "../chordSheet";
 import { analyzeImportedSongSlides, analyzeWorshipText, formatWorshipText } from "../worshipText";
 
@@ -120,7 +126,6 @@ export function SongManager({
   const [chordInput, setChordInput] = useState("");
   const [displayMode, setDisplayMode] = useState<ChordDisplayMode>("absolute");
   const [detailMode, setDetailMode] = useState<ChordDetailMode>("advanced");
-  const [transposeAmount, setTransposeAmount] = useState(0);
   const [draggedAnnotationId, setDraggedAnnotationId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [message, setMessage] = useState<string | null>(null);
@@ -256,7 +261,116 @@ export function SongManager({
       capo: chordChart.capo,
       detailMode: "advanced",
       displayMode,
-      transpose: transposeAmount,
+    });
+  }
+
+  function updateAbsoluteKey(nextValue: string) {
+    const nextAbsoluteKey = normalizeKeySignature(nextValue);
+    setChordChart((current) => {
+      const nextChart: ChordChartDocument = {
+        ...current,
+        absoluteKey: nextAbsoluteKey,
+      };
+
+      if (nextAbsoluteKey && current.absoluteKey && nextAbsoluteKey !== current.absoluteKey) {
+        nextChart.annotations = transposeChordAnnotations(
+          current.annotations,
+          semitoneDistance(current.absoluteKey, nextAbsoluteKey),
+          { preferFlats: nextAbsoluteKey.includes("b") },
+        );
+      }
+
+      if (nextAbsoluteKey) {
+        if (current.capoKey) {
+          if (current.keyAnchor === "capo") {
+            nextChart.capo = semitoneDistance(current.capoKey, nextAbsoluteKey);
+          } else {
+            nextChart.capoKey = deriveCapoKey(nextAbsoluteKey, current.capo);
+          }
+        } else if (current.capo > 0) {
+          nextChart.capoKey = deriveCapoKey(nextAbsoluteKey, current.capo);
+        }
+      }
+
+      return nextChart;
+    });
+    setLegacyChords(null);
+  }
+
+  function updateCapo(nextCapoValue: number) {
+    const nextCapo = Math.max(0, Math.trunc(nextCapoValue));
+    setChordChart((current) => {
+      const nextChart: ChordChartDocument = {
+        ...current,
+        capo: nextCapo,
+      };
+
+      if (current.keyAnchor === "capo" && current.capoKey) {
+        const nextAbsoluteKey = deriveAbsoluteKey(current.capoKey, nextCapo);
+        if (current.absoluteKey && current.absoluteKey !== nextAbsoluteKey) {
+          nextChart.annotations = transposeChordAnnotations(
+            current.annotations,
+            semitoneDistance(current.absoluteKey, nextAbsoluteKey),
+            { preferFlats: nextAbsoluteKey.includes("b") },
+          );
+        }
+        nextChart.absoluteKey = nextAbsoluteKey;
+      } else if (current.absoluteKey) {
+        nextChart.capoKey = deriveCapoKey(current.absoluteKey, nextCapo);
+      }
+
+      return nextChart;
+    });
+    setLegacyChords(null);
+  }
+
+  function updateCapoKey(nextValue: string) {
+    const nextCapoKey = normalizeKeySignature(nextValue);
+    setChordChart((current) => {
+      const nextChart: ChordChartDocument = {
+        ...current,
+        capoKey: nextCapoKey,
+      };
+
+      if (!nextCapoKey) {
+        return nextChart;
+      }
+
+      if (current.keyAnchor === "capo") {
+        const nextAbsoluteKey = deriveAbsoluteKey(nextCapoKey, current.capo);
+        if (current.absoluteKey && current.absoluteKey !== nextAbsoluteKey) {
+          nextChart.annotations = transposeChordAnnotations(
+            current.annotations,
+            semitoneDistance(current.absoluteKey, nextAbsoluteKey),
+            { preferFlats: nextAbsoluteKey.includes("b") },
+          );
+        }
+        nextChart.absoluteKey = nextAbsoluteKey;
+      } else if (current.absoluteKey) {
+        nextChart.capo = semitoneDistance(nextCapoKey, current.absoluteKey);
+      }
+
+      return nextChart;
+    });
+    setLegacyChords(null);
+  }
+
+  function updateKeyAnchor(nextAnchor: KeyAnchorMode) {
+    setChordChart((current) => {
+      const nextChart: ChordChartDocument = {
+        ...current,
+        keyAnchor: nextAnchor,
+      };
+
+      if (nextAnchor === "absolute" && current.absoluteKey && !current.capoKey) {
+        nextChart.capoKey = deriveCapoKey(current.absoluteKey, current.capo);
+      }
+
+      if (nextAnchor === "capo" && current.capoKey && !current.absoluteKey) {
+        nextChart.absoluteKey = deriveAbsoluteKey(current.capoKey, current.capo);
+      }
+
+      return nextChart;
     });
   }
 
@@ -285,14 +399,9 @@ export function SongManager({
       return;
     }
 
-    const storedChord =
-      displayMode === "capo"
-        ? transposeChordSymbol(chordInput.trim(), chordChart.capo - transposeAmount, {
-            detailMode: "advanced",
-          })
-        : transposeChordSymbol(chordInput.trim(), -transposeAmount, {
-            detailMode: "advanced",
-          });
+    const storedChord = transposeChordSymbol(chordInput.trim(), displayMode === "capo" ? chordChart.capo : 0, {
+      detailMode: "advanced",
+    });
 
     setChordChart((current) =>
       upsertChordAnnotation(current, {
@@ -350,7 +459,6 @@ export function SongManager({
                 capo: chordChart.capo,
                 detailMode,
                 displayMode,
-                transpose: transposeAmount,
               })
             : "&nbsp;";
           const lyricIndex = slotIndex - LEADING_CHORD_ANCHORS;
@@ -378,7 +486,7 @@ export function SongManager({
   </head>
   <body>
     <h1>${form.title}</h1>
-    <div class="meta">View: ${displayMode === "absolute" ? "Absolute chords" : `Capo shapes (capo ${chordChart.capo})`} · Detail: ${detailMode} · Transpose: ${transposeAmount > 0 ? `+${transposeAmount}` : transposeAmount}</div>
+    <div class="meta">View: ${displayMode === "absolute" ? "Absolute chords" : `Capo shapes (capo ${chordChart.capo})`} · Detail: ${detailMode} · Concert key: ${chordChart.absoluteKey ?? "unset"} · Capo key: ${chordChart.capoKey ?? "unset"} · Locked: ${chordChart.keyAnchor}</div>
     ${chartHtml}
   </body>
 </html>`);
@@ -932,30 +1040,64 @@ export function SongManager({
                     Advanced
                   </button>
                 </div>
+                <div className="segmented-control">
+                  <button
+                    className={chordChart.keyAnchor === "absolute" ? "is-active" : ""}
+                    disabled={mode === "create" ? !canCreate : !canEdit}
+                    onClick={() => updateKeyAnchor("absolute")}
+                    type="button"
+                  >
+                    Lock Concert
+                  </button>
+                  <button
+                    className={chordChart.keyAnchor === "capo" ? "is-active" : ""}
+                    disabled={mode === "create" ? !canCreate : !canEdit}
+                    onClick={() => updateKeyAnchor("capo")}
+                    type="button"
+                  >
+                    Lock Capo
+                  </button>
+                </div>
+                <label className="compact-field">
+                  Concert Key
+                  <select
+                    disabled={mode === "create" ? !canCreate : !canEdit}
+                    onChange={(event) => updateAbsoluteKey(event.target.value)}
+                    value={chordChart.absoluteKey ?? ""}
+                  >
+                    <option value="">Unset</option>
+                    {MUSICAL_KEYS.map((keyOption) => (
+                      <option key={`absolute-${keyOption}`} value={keyOption}>
+                        {keyOption}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="compact-field">
+                  Capo Key
+                  <select
+                    disabled={mode === "create" ? !canCreate : !canEdit}
+                    onChange={(event) => updateCapoKey(event.target.value)}
+                    value={chordChart.capoKey ?? ""}
+                  >
+                    <option value="">Unset</option>
+                    {MUSICAL_KEYS.map((keyOption) => (
+                      <option key={`capo-${keyOption}`} value={keyOption}>
+                        {keyOption}
+                      </option>
+                    ))}
+                  </select>
+                </label>
                 <label className="compact-field">
                   Capo
                   <input
                     disabled={mode === "create" ? !canCreate : !canEdit}
                     min={0}
-                    onChange={(event) =>
-                      setChordChart((current) => ({
-                        ...current,
-                        capo: Math.max(0, Number(event.target.value || 0)),
-                      }))
-                    }
+                    onChange={(event) => updateCapo(Number(event.target.value || 0))}
                     type="number"
                     value={chordChart.capo}
                   />
                 </label>
-                <div className="transpose-controls">
-                  <button disabled={mode === "create" ? !canCreate : !canEdit} onClick={() => setTransposeAmount((value) => value - 1)} type="button">
-                    -
-                  </button>
-                  <span>{transposeAmount > 0 ? `+${transposeAmount}` : transposeAmount}</span>
-                  <button disabled={mode === "create" ? !canCreate : !canEdit} onClick={() => setTransposeAmount((value) => value + 1)} type="button">
-                    +
-                  </button>
-                </div>
                 <button className="text-button" onClick={printChordChart} type="button">
                   Print Chart
                 </button>
@@ -1047,7 +1189,6 @@ export function SongManager({
                                   capo: chordChart.capo,
                                   detailMode,
                                   displayMode,
-                                  transpose: transposeAmount,
                                 })
                               : "·"}
                           </span>
@@ -1088,7 +1229,6 @@ export function SongManager({
                           capo: chordChart.capo,
                           detailMode,
                           displayMode,
-                          transpose: transposeAmount,
                         })}
                       </strong>
                       <span>
