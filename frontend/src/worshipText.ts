@@ -266,6 +266,10 @@ function titleCaseFromFilename(value: string) {
   return base.replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
+function normalizedTextKey(value: string) {
+  return value.trim().toLowerCase().replace(/[^\p{L}\p{N}\s]/gu, "").replace(/\s+/g, " ");
+}
+
 function extractImportSuggestions(slides: string[], fallbackTitle?: string): WorshipImportSuggestions {
   let author: string | null = null;
   let ccliNumber: string | null = null;
@@ -308,6 +312,35 @@ function extractImportSuggestions(slides: string[], fallbackTitle?: string): Wor
     license,
     title: fallbackTitle ? titleCaseFromFilename(fallbackTitle) : null,
   };
+}
+
+function stripLeadingTitleSlide(slides: string[], title: string | null) {
+  if (slides.length < 2 || !title) {
+    return { notes: [] as string[], slides };
+  }
+
+  const [firstSlide, ...remainingSlides] = slides;
+  const firstLines = firstSlide
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  if (firstLines.length === 0 || firstLines.length > 2) {
+    return { notes: [] as string[], slides };
+  }
+
+  const firstSlideText = normalizedTextKey(firstLines.join(" "));
+  const titleText = normalizedTextKey(title);
+  const nextSlideLineCount = remainingSlides[0]?.split(/\r?\n/).filter((line) => line.trim()).length ?? 0;
+
+  if (firstSlideText && firstSlideText === titleText && nextSlideLineCount >= 2) {
+    return {
+      notes: ["Ignored the opening title slide and used it as the song title only."],
+      slides: remainingSlides,
+    };
+  }
+
+  return { notes: [] as string[], slides };
 }
 
 export function analyzeWorshipText(value: string, options: { title?: string } = {}): WorshipStructureAnalysis {
@@ -368,13 +401,14 @@ export function analyzeImportedSongSlides(slides: string[], title?: string): Wor
     .map((slide) => formatWorshipText(slide, { removeChordLines: true }))
     .filter(Boolean);
   const suggestions = extractImportSuggestions(cleanedSlides, title);
-  const normalizedSlides = cleanedSlides.filter(Boolean);
+  const titleSlideResult = stripLeadingTitleSlide(cleanedSlides, suggestions.title);
+  const normalizedSlides = titleSlideResult.slides.filter(Boolean);
 
   const inferred = inferSectionsFromBlocks(normalizedSlides);
 
   return {
     lyrics: normalizedSlides.join("\n\n"),
-    notes: inferred.notes,
+    notes: [...titleSlideResult.notes, ...inferred.notes],
     sections: inferred.sections,
     sequence: inferred.sections.length ? inferred.sections.map((section) => section.label).join(" ") : null,
     suggestions,
