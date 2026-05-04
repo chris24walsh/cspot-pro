@@ -414,12 +414,6 @@ export function SongManager({
     setChordInput("");
   }
 
-  function cancelEmptyInlineChordEdit() {
-    if (!chordInput.trim()) {
-      cancelInlineChordEdit();
-    }
-  }
-
   function saveAnnotation() {
     if (!chordInput.trim()) {
       setMessage("Enter a chord symbol first.");
@@ -1138,7 +1132,6 @@ export function SongManager({
                           <span
                             className="musician-slot-editor"
                             key={`editor-${lineIndex}-${slotIndex}`}
-                            onMouseLeave={cancelEmptyInlineChordEdit}
                             style={{ gridColumn: slotIndex + 1, gridRow: 1 }}
                           >
                             <input
