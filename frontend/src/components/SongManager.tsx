@@ -126,6 +126,7 @@ export function SongManager({
   const [displayMode, setDisplayMode] = useState<ChordDisplayMode>("absolute");
   const [detailMode, setDetailMode] = useState<ChordDetailMode>("advanced");
   const [draggedAnnotationId, setDraggedAnnotationId] = useState<string | null>(null);
+  const [hoveredAnchor, setHoveredAnchor] = useState<{ lineIndex: number; slotIndex: number } | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [message, setMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -1196,7 +1197,11 @@ export function SongManager({
                             }
                           }}
                           key={`slot-${lineIndex}-${slotIndex}`}
+                          onBlur={() => setHoveredAnchor(null)}
                           onClick={() => startInlineChordEdit(lineIndex, slotIndex, annotation)}
+                          onFocus={() => setHoveredAnchor({ lineIndex, slotIndex })}
+                          onMouseEnter={() => setHoveredAnchor({ lineIndex, slotIndex })}
+                          onMouseLeave={() => setHoveredAnchor(null)}
                           style={{ gridColumn: slotIndex + 1, gridRow: 1 }}
                           type="button"
                         >
@@ -1222,7 +1227,12 @@ export function SongManager({
                         {Array.from({ length: totalSlots }, (_, slotIndex) => renderSlot(slotIndex))}
                         {Array.from({ length: line.length }, (_, charIndex) => (
                           <button
-                            className={`musician-char ${line[charIndex] === " " ? "is-space" : ""}`}
+                            className={`musician-char ${line[charIndex] === " " ? "is-space" : ""} ${
+                              hoveredAnchor?.lineIndex === lineIndex &&
+                              hoveredAnchor.slotIndex === LEADING_CHORD_ANCHORS + charIndex
+                                ? "is-anchor-hovered"
+                                : ""
+                            }`}
                             disabled={mode === "create" ? !canCreate : !canEdit}
                             key={`${lineIndex}-char-${charIndex}`}
                             onClick={() => {
