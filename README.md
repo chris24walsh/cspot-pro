@@ -106,6 +106,20 @@ Key files:
 - `scripts/update-church.ps1`
 - `scripts/stop-church.ps1`
 
+## Home Tailscale Deployment
+
+For the best first shared-host setup, run `cspot-pro` on an always-on home
+machine and publish it privately with Tailscale Serve.
+
+See:
+
+- [docs/tailscale-home-deployment.md](docs/tailscale-home-deployment.md)
+
+Key files:
+
+- `docker-compose.tailscale.yml`
+- `.env.tailscale.example`
+
 ## Project Layout
 
 ```text
