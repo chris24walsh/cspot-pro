@@ -130,7 +130,7 @@ export function TeamManager({ canEdit }: { canEdit: boolean }) {
   async function submitAssignment(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!canEdit) {
-      setMessage("You can view team assignments, but only editors can change them.");
+      setMessage("You can view team assignments, but only service leaders and worship leaders can change them.");
       return;
     }
     if (!selectedPlanId) {
@@ -240,7 +240,7 @@ export function TeamManager({ canEdit }: { canEdit: boolean }) {
 
         {message ? <p className="form-message">{message}</p> : null}
         {!canEdit ? (
-          <p className="empty-state">You can review team assignments here, but only plan editors can change them.</p>
+          <p className="empty-state">You can review team assignments here, but only service leaders and worship leaders can change them.</p>
         ) : null}
 
         <div className="form-grid">

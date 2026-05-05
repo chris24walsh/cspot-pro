@@ -40,9 +40,16 @@ function payloadFromForm(form: UserFormState): UserPayload {
     start_page: form.start_page || null,
     email_confirmed: form.email_confirmed,
     active: form.active,
-    role_names: form.role_names.length ? form.role_names : ["user"],
+    role_names: form.role_names.length ? form.role_names : ["viewer"],
     password: form.password || null,
   };
+}
+
+function formatRoleName(roleName: string) {
+  return roleName
+    .split("_")
+    .map((segment) => segment.charAt(0).toUpperCase() + segment.slice(1))
+    .join(" ");
 }
 
 export function UserManager() {
@@ -56,7 +63,7 @@ export function UserManager() {
     start_page: "",
     email_confirmed: false,
     active: true,
-    role_names: ["user"],
+    role_names: ["viewer"],
     password: "",
   });
   const [message, setMessage] = useState<string | null>(null);
@@ -95,7 +102,7 @@ export function UserManager() {
       start_page: "",
       email_confirmed: false,
       active: true,
-      role_names: ["user"],
+      role_names: ["viewer"],
       password: "",
     });
   }
@@ -280,7 +287,8 @@ export function UserManager() {
                     onChange={() => toggleRole(role.name)}
                     type="checkbox"
                   />
-                  {role.name}
+                  <span>{formatRoleName(role.name)}</span>
+                  {role.description ? <small>{role.description}</small> : null}
                 </label>
               ))}
             </div>

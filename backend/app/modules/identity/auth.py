@@ -11,14 +11,14 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.core.database import get_session
 from app.modules.identity.models import Role, User, UserRole
-from app.modules.identity.permissions import permissions_for_roles
+from app.modules.identity.permissions import canonical_role_names, permissions_for_roles
 from app.modules.identity.security import build_session_token, decode_session_token
 
 SESSION_COOKIE_NAME = "cspot_pro_session"
 
 
 def list_role_names(session: Session, user_id: str) -> list[str]:
-    return list(
+    raw_names = list(
         session.scalars(
             select(Role.name)
             .join(UserRole, UserRole.role_id == Role.id)
@@ -26,6 +26,7 @@ def list_role_names(session: Session, user_id: str) -> list[str]:
             .order_by(Role.name)
         )
     )
+    return canonical_role_names(raw_names)
 
 
 def list_permissions(session: Session, user_id: str) -> list[str]:

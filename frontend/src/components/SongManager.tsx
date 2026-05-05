@@ -1149,8 +1149,8 @@ export function SongManager({
 
         {activeSongTab === "lyrics" ? (
           <div className="form-grid single-column">
-          <label className="wide-field">
-            Lyrics
+          <div className="field-block wide-field">
+            <label htmlFor="song-lyrics">Lyrics</label>
             <div className="field-action-row">
               <button className="text-button" disabled={!canCreate && !canEdit} onClick={() => setImportLyricsOpen(true)} type="button">
                 Import Lyrics
@@ -1166,12 +1166,13 @@ export function SongManager({
             </div>
             {parsedSequence ? <p className="field-help">Inferred sequence: {parsedSequence}</p> : null}
             <textarea
+              id="song-lyrics"
               disabled={mode === "create" ? !canCreate : !canEdit}
               onChange={(event) => setForm({ ...form, lyrics: event.target.value })}
               rows={12}
               value={form.lyrics ?? ""}
             />
-          </label>
+          </div>
           {importLyricsOpen ? (
             <div className="app-dialog-backdrop" role="presentation" onMouseDown={() => setImportLyricsOpen(false)}>
               <section

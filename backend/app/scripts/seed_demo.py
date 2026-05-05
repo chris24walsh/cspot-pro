@@ -9,6 +9,7 @@ from app.modules.library.bible_data import BIBLE_BOOKS
 from app.modules.communication.models import Message, MessageParticipant, MessageThread
 from app.modules.identity.models import Role, User, UserRole
 from app.modules.imports.models import ImportProvider
+from app.modules.identity.permissions import ROLE_DEFINITIONS
 from app.modules.library.models import BibleBook, BibleVerse, BibleVersion, FileCategory, Resource
 from app.modules.music.models import Song, SongPart
 from app.modules.identity.security import hash_password
@@ -29,24 +30,14 @@ def get_or_create(session: Session, model: type, defaults: dict | None = None, *
 
 
 def seed_roles(session: Session) -> User:
-    roles = [
-        ("viewer", "Read-only access across plans, songs, and presentation."),
-        ("user", "Read-only access across plans, songs, and presentation."),
-        ("leader", "Edit assigned service plans."),
-        ("teacher", "Prepare and update teaching content."),
-        ("creator", "Create and manage plans, songs, and library content."),
-        ("author", "Create new service plans."),
-        ("editor", "Edit all plans and songs."),
-        ("administrator", "Manage users, roles, and configuration."),
-    ]
     role_models = [
         get_or_create(
             session,
             Role,
             name=name,
-            defaults={"description": description, "system_role": True},
+            defaults={"description": str(definition["description"]), "system_role": True},
         )
-        for name, description in roles
+        for name, definition in ROLE_DEFINITIONS.items()
     ]
 
     admin = get_or_create(

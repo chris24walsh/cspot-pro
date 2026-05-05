@@ -17,7 +17,7 @@ class UserBase(BaseModel):
 
 
 class UserCreate(UserBase):
-    role_names: list[str] = ["user"]
+    role_names: list[str] = ["viewer"]
     password: str | None = None
 
 

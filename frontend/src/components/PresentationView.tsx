@@ -464,7 +464,7 @@ export function PresentationView({
 
   function openInsertDialog(afterIndex: number) {
     if (!canEditPlan) {
-      setMessage("You can present this plan, but only editors can change the running order.");
+      setMessage("You can present this plan, but only service leaders and worship leaders can change the running order.");
       return;
     }
     setSelectedSongId((current) => current || songs[0]?.id || "");
@@ -488,7 +488,7 @@ export function PresentationView({
       return;
     }
     if (!canEditPlan) {
-      setMessage("Only plan editors can add songs to the running order.");
+      setMessage("Only service leaders and worship leaders can add songs to the running order.");
       return;
     }
 
@@ -514,7 +514,7 @@ export function PresentationView({
       return;
     }
     if (!canEditPlan) {
-      setMessage("Only plan editors can add Scripture to the running order.");
+      setMessage("Only service leaders and worship leaders can add Scripture to the running order.");
       return;
     }
     await createPlanItem(plan.id, {
@@ -532,7 +532,7 @@ export function PresentationView({
       return;
     }
     if (!canEditPlan) {
-      setMessage("Bible passage navigation updates the plan, so it is only available to editors.");
+      setMessage("Bible passage navigation updates the plan, so it is only available to service leaders and worship leaders.");
       return;
     }
 
@@ -745,7 +745,7 @@ export function PresentationView({
       return;
     }
     if (!canEditPlan) {
-      setMessage("Only plan editors can add Scripture slides.");
+      setMessage("Only service leaders and worship leaders can add Scripture slides.");
       return;
     }
 

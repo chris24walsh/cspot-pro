@@ -432,6 +432,7 @@ h3 {
 }
 
 .form-grid label,
+.field-block,
 .role-fieldset {
   color: #3b4741;
   display: grid;
@@ -865,6 +866,31 @@ h3 {
   display: grid;
   gap: 10px;
   grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.role-grid label {
+  align-items: flex-start;
+  background: #fffdf7;
+  border: 1px solid #e3dcc8;
+  border-radius: 8px;
+  display: grid;
+  gap: 4px 8px;
+  grid-template-columns: auto 1fr;
+  padding: 10px;
+}
+
+.role-grid label span {
+  color: #17201b;
+  font-size: 14px;
+  font-weight: 850;
+}
+
+.role-grid label small {
+  color: #65716a;
+  font-size: 12px;
+  font-weight: 700;
+  grid-column: 2;
+  line-height: 1.35;
 }
 
 .action-row {

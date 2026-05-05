@@ -14,6 +14,7 @@ from app.modules.identity.auth import (
     set_session_cookie,
 )
 from app.modules.identity.models import Role, User, UserRole
+from app.modules.identity.permissions import ROLE_DEFINITIONS, canonical_role_names
 from app.modules.identity.schemas import (
     BootstrapAdminRequest,
     BootstrapStatusRead,
@@ -28,6 +29,23 @@ from app.modules.identity.schemas import (
 from app.modules.identity.security import hash_password, verify_password
 
 router = APIRouter()
+
+
+def ensure_system_roles(session: Session) -> None:
+    existing_roles = {
+        role.name: role
+        for role in session.scalars(select(Role).where(Role.name.in_(tuple(ROLE_DEFINITIONS.keys())))).all()
+    }
+
+    for role_name, definition in ROLE_DEFINITIONS.items():
+        role = existing_roles.get(role_name)
+        description = str(definition["description"])
+        if role is None:
+            session.add(Role(name=role_name, description=description, system_role=True))
+            continue
+
+        role.description = description
+        role.system_role = True
 
 
 def user_to_read(session: Session, user: User) -> UserRead:
@@ -50,9 +68,12 @@ def get_user_or_404(session: Session, user_id: str) -> User:
 
 
 def set_user_roles(session: Session, user: User, role_names: list[str]) -> None:
-    roles = session.scalars(select(Role).where(Role.name.in_(role_names))).all()
+    normalized_role_names = canonical_role_names(role_names)
+    ensure_system_roles(session)
+    session.flush()
+    roles = session.scalars(select(Role).where(Role.name.in_(normalized_role_names))).all()
     found_names = {role.name for role in roles}
-    missing = sorted(set(role_names) - found_names)
+    missing = sorted(set(normalized_role_names) - found_names)
 
     if missing:
         raise HTTPException(
@@ -92,15 +113,8 @@ def bootstrap_admin(
     if has_bootstrap_admin(session):
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Bootstrap is no longer available.")
 
-    admin_role = session.scalar(select(Role).where(Role.name == "administrator"))
-    if admin_role is None:
-        admin_role = Role(
-            name="administrator",
-            description="Manage users, roles, and all content.",
-            system_role=True,
-        )
-        session.add(admin_role)
-        session.flush()
+    ensure_system_roles(session)
+    session.flush()
 
     user = session.scalar(select(User).where(User.email == payload.email))
     if user is None:
@@ -161,15 +175,20 @@ def list_roles(
     _current_user: User = Depends(require_permission("users:manage")),
     session: Session = Depends(get_session),
 ) -> list[RoleRead]:
-    roles = session.scalars(select(Role).order_by(Role.name)).all()
+    ensure_system_roles(session)
+    session.flush()
+    role_names = tuple(ROLE_DEFINITIONS.keys())
+    roles = session.scalars(select(Role).where(Role.name.in_(role_names))).all()
+    role_lookup = {role.name: role for role in roles}
     return [
         RoleRead(
-            id=role.id,
-            name=role.name,
-            description=role.description,
-            system_role=role.system_role,
+            id=role_lookup[role_name].id,
+            name=role_lookup[role_name].name,
+            description=role_lookup[role_name].description,
+            system_role=role_lookup[role_name].system_role,
         )
-        for role in roles
+        for role_name in ROLE_DEFINITIONS
+        if role_name in role_lookup
     ]
 
 
