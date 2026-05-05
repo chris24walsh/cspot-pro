@@ -9,6 +9,8 @@ export interface PresentationLiveState {
   planId: string;
   index: number;
   updatedAt: number;
+  planItemId?: string | null;
+  slideOffset?: number;
   theme?: PresentationTheme;
   blanked?: boolean;
   fullscreen?: boolean;
@@ -31,6 +33,29 @@ export interface PresentationSection {
   title: string;
   itemType: string;
   slides: PresentationSlide[];
+}
+
+export function resolveLiveIndex(slides: PresentationSlide[], liveState: PresentationLiveState | null) {
+  if (!slides.length) {
+    return 0;
+  }
+  if (!liveState) {
+    return 0;
+  }
+
+  if (liveState.planItemId) {
+    const matchingSlides = slides.filter((slide) => slide.planItemId === liveState.planItemId);
+    if (matchingSlides.length) {
+      const offset = Math.min(Math.max(liveState.slideOffset ?? 0, 0), matchingSlides.length - 1);
+      const targetSlide = matchingSlides[offset];
+      const targetIndex = slides.findIndex((slide) => slide.id === targetSlide?.id);
+      if (targetIndex >= 0) {
+        return targetIndex;
+      }
+    }
+  }
+
+  return Math.min(Math.max(liveState.index, 0), slides.length - 1);
 }
 
 export function presentationTypeClass(itemType: string) {

@@ -1,12 +1,22 @@
 import { Maximize2 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { getFileSlides, getPlan, getSongs, type PlanDetail, type RenderedSlide, type Song } from "../api";
+import {
+  getFileSlides,
+  getPlan,
+  getPresentationLiveState,
+  getSongs,
+  updatePresentationLiveState,
+  type PlanDetail,
+  type RenderedSlide,
+  type Song,
+} from "../api";
 import {
   PRESENTATION_CHANNEL,
   PRESENTATION_STORAGE_KEY,
   buildPresentationSlides,
   presentationTypeClass,
+  resolveLiveIndex,
   type PresentationLiveState,
 } from "../presentation";
 import { ScaledSlideImage } from "./ScaledSlideImage";
@@ -37,12 +47,68 @@ export function PresentationOutput() {
   const [fullscreenReady, setFullscreenReady] = useState(true);
   const [renderedSlidesByFileId, setRenderedSlidesByFileId] = useState<Record<string, RenderedSlide[]>>({});
   const [blanked, setBlanked] = useState(false);
+  const lastLiveStateRef = useRef(0);
 
   const slides = useMemo(
     () => buildPresentationSlides(plan?.items ?? [], songs, renderedSlidesByFileId),
     [plan, songs, renderedSlidesByFileId],
   );
-  const liveSlide = slides[liveState?.index ?? 0] ?? null;
+  const resolvedIndex = resolveLiveIndex(slides, liveState);
+  const liveSlide = slides[resolvedIndex] ?? null;
+
+  function applyLiveState(state: PresentationLiveState) {
+    lastLiveStateRef.current = state.updatedAt;
+    localStorage.setItem(PRESENTATION_STORAGE_KEY, JSON.stringify(state));
+    setLiveState((current) => ({ ...current, ...state }));
+  }
+
+  const publishLiveState = useCallback(
+    async (overrides: Partial<PresentationLiveState> = {}) => {
+      if (!liveState?.planId) {
+        return;
+      }
+
+      const nextState: PresentationLiveState = {
+        ...liveState,
+        ...overrides,
+        index: overrides.index ?? resolvedIndex,
+        updatedAt: Date.now(),
+        planItemId: overrides.planItemId ?? liveSlide?.planItemId ?? liveState.planItemId ?? null,
+        slideOffset:
+          overrides.slideOffset ??
+          (liveSlide
+            ? Math.max(
+                slides
+                  .filter((candidate) => candidate.planItemId === liveSlide.planItemId)
+                  .findIndex((candidate) => candidate.id === liveSlide.id),
+                0,
+              )
+            : liveState.slideOffset ?? 0),
+        theme: overrides.theme ?? liveState.theme ?? "light",
+        blanked: overrides.blanked ?? blanked,
+        fullscreen: overrides.fullscreen ?? Boolean(document.fullscreenElement),
+      };
+
+      applyLiveState(nextState);
+
+      try {
+        const remoteState = await updatePresentationLiveState(nextState.planId, {
+          plan_id: nextState.planId,
+          index: nextState.index,
+          plan_item_id: nextState.planItemId ?? null,
+          slide_offset: nextState.slideOffset ?? 0,
+          updated_at: nextState.updatedAt,
+          theme: nextState.theme ?? "light",
+          blanked: Boolean(nextState.blanked),
+          fullscreen: Boolean(nextState.fullscreen),
+        });
+        lastLiveStateRef.current = remoteState.updated_at;
+      } catch {
+        // Keep local control responsive even if sync fails briefly.
+      }
+    },
+    [blanked, liveSlide, liveState, resolvedIndex, slides],
+  );
 
   const load = useCallback(async (state: PresentationLiveState | null) => {
     if (!state?.planId) {
@@ -91,6 +157,37 @@ export function PresentationOutput() {
   }, [liveState?.blanked]);
 
   useEffect(() => {
+    if (!liveState?.planId) {
+      return;
+    }
+
+    const timer = window.setInterval(() => {
+      void (async () => {
+        try {
+          const remoteState = await getPresentationLiveState(liveState.planId);
+          if (remoteState.updated_at <= lastLiveStateRef.current) {
+            return;
+          }
+          applyLiveState({
+            planId: remoteState.plan_id,
+            index: remoteState.index,
+            updatedAt: remoteState.updated_at,
+            planItemId: remoteState.plan_item_id,
+            slideOffset: remoteState.slide_offset,
+            theme: remoteState.theme,
+            blanked: remoteState.blanked,
+            fullscreen: remoteState.fullscreen,
+          });
+        } catch {
+          // Keep showing the last known slide if remote polling drops briefly.
+        }
+      })();
+    }, 1200);
+
+    return () => window.clearInterval(timer);
+  }, [liveState?.planId]);
+
+  useEffect(() => {
     async function loadRenderedDecks() {
       const files = (plan?.items ?? []).flatMap((item) => item.files ?? []);
       const uniqueFiles = Array.from(new Map(files.map((file) => [file.file_id, file])).values());
@@ -116,12 +213,15 @@ export function PresentationOutput() {
     const channel = new BroadcastChannel(PRESENTATION_CHANNEL);
 
     channel.onmessage = (event: MessageEvent<PresentationLiveState>) => {
-      setLiveState(event.data);
+      applyLiveState(event.data);
     };
 
     function onStorage(event: StorageEvent) {
       if (event.key === PRESENTATION_STORAGE_KEY) {
-        setLiveState(readLiveState());
+        const state = readLiveState();
+        if (state) {
+          applyLiveState(state);
+        }
       }
     }
 
@@ -153,8 +253,10 @@ export function PresentationOutput() {
         event.preventDefault();
         if (document.fullscreenElement) {
           await exitFullscreen();
+          void publishLiveState({ fullscreen: false });
         } else {
           await enterFullscreen();
+          void publishLiveState({ fullscreen: true });
         }
         return;
       }
@@ -163,17 +265,21 @@ export function PresentationOutput() {
         if (blanked) {
           event.preventDefault();
           setBlanked(false);
+          void publishLiveState({ blanked: false });
         }
         if (document.fullscreenElement) {
           event.preventDefault();
           await exitFullscreen();
+          void publishLiveState({ fullscreen: false });
         }
         return;
       }
 
       if (event.key === "b" || event.key === "B") {
         event.preventDefault();
-        setBlanked((current) => !current);
+        const nextBlanked = !blanked;
+        setBlanked(nextBlanked);
+        void publishLiveState({ blanked: nextBlanked });
       }
     }
 
@@ -183,7 +289,17 @@ export function PresentationOutput() {
       document.removeEventListener("fullscreenchange", onFullscreenChange);
       window.removeEventListener("keydown", onKeyDown);
     };
-  }, [blanked]);
+  }, [blanked, publishLiveState]);
+
+  useEffect(() => {
+    if (!liveState) {
+      return;
+    }
+
+    if (resolvedIndex !== liveState.index) {
+      setLiveState((current) => (current ? { ...current, index: resolvedIndex } : current));
+    }
+  }, [resolvedIndex, slides, liveState]);
 
   useEffect(() => {
     async function syncFullscreenMode() {

@@ -1,26 +1,138 @@
+import json
+
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
+from sqlalchemy import select
+from sqlalchemy.orm import Session
 
-from app.modules.identity.models import User
+from app.core.database import get_session
 from app.modules.identity.auth import CurrentUser, require_permission
+from app.modules.identity.models import User
+from app.modules.presentation.models import PresentationPosition, PresentationSession
 
 router = APIRouter()
 
 
-class PresentationStatus(BaseModel):
+class PresentationLiveStateRead(BaseModel):
     plan_id: str
+    session_id: str | None = None
+    presenter_id: str | None = None
     status: str
-    current_item: str
-    slide_index: int
+    index: int = 0
+    plan_item_id: str | None = None
+    slide_offset: int = 0
+    updated_at: int = 0
+    theme: str = "light"
+    blanked: bool = False
+    fullscreen: bool = False
 
 
-@router.get("/status", response_model=PresentationStatus)
+class PresentationLiveStateWrite(BaseModel):
+    plan_id: str
+    index: int = 0
+    plan_item_id: str | None = None
+    slide_offset: int = 0
+    updated_at: int
+    theme: str = "light"
+    blanked: bool = False
+    fullscreen: bool = False
+
+
+def _serialize_live_state(
+    presentation_session: PresentationSession | None,
+    position: PresentationPosition | None,
+    plan_id: str,
+) -> PresentationLiveStateRead:
+    payload: dict[str, object] = {}
+    if position and position.payload_json:
+        try:
+            parsed = json.loads(position.payload_json)
+            if isinstance(parsed, dict):
+                payload = parsed
+        except json.JSONDecodeError:
+            payload = {}
+
+    return PresentationLiveStateRead(
+        plan_id=plan_id,
+        session_id=presentation_session.id if presentation_session else None,
+        presenter_id=presentation_session.presenter_id if presentation_session else None,
+        status=presentation_session.status if presentation_session else "ready",
+        index=int(payload.get("index", position.slide_index if position else 0)),
+        plan_item_id=payload.get("plan_item_id", position.plan_item_id if position else None),
+        slide_offset=int(payload.get("slide_offset", 0)),
+        updated_at=int(payload.get("updated_at", 0)),
+        theme=str(payload.get("theme", "light")),
+        blanked=bool(payload.get("blanked", False)),
+        fullscreen=bool(payload.get("fullscreen", False)),
+    )
+
+
+def _latest_session(session: Session, plan_id: str) -> PresentationSession | None:
+    return session.scalar(
+        select(PresentationSession)
+        .where(PresentationSession.plan_id == plan_id)
+        .order_by(PresentationSession.updated_at.desc())
+    )
+
+
+def _latest_position(session: Session, session_id: str) -> PresentationPosition | None:
+    return session.scalar(
+        select(PresentationPosition)
+        .where(PresentationPosition.session_id == session_id)
+        .order_by(PresentationPosition.updated_at.desc())
+    )
+
+
+@router.get("/live/{plan_id}", response_model=PresentationLiveStateRead)
+def get_presentation_live_state(
+    plan_id: str,
+    _current_user: User = Depends(require_permission("presentation:use")),
+    session: Session = Depends(get_session),
+) -> PresentationLiveStateRead:
+    presentation_session = _latest_session(session, plan_id)
+    position = _latest_position(session, presentation_session.id) if presentation_session else None
+    return _serialize_live_state(presentation_session, position, plan_id)
+
+
+@router.patch("/live/{plan_id}", response_model=PresentationLiveStateRead)
+def update_presentation_live_state(
+    plan_id: str,
+    payload: PresentationLiveStateWrite,
+    current_user: CurrentUser,
+    session: Session = Depends(get_session),
+) -> PresentationLiveStateRead:
+    presentation_session = _latest_session(session, plan_id)
+    if presentation_session is None:
+        presentation_session = PresentationSession(
+            plan_id=plan_id,
+            presenter_id=current_user.id,
+            status="live",
+        )
+        session.add(presentation_session)
+        session.flush()
+    else:
+        presentation_session.presenter_id = current_user.id
+        presentation_session.status = "live"
+
+    position = _latest_position(session, presentation_session.id)
+    if position is None:
+        position = PresentationPosition(session_id=presentation_session.id)
+        session.add(position)
+
+    position.plan_item_id = payload.plan_item_id
+    position.slide_index = payload.index
+    position.payload_json = json.dumps(payload.model_dump())
+    session.commit()
+    session.refresh(presentation_session)
+    session.refresh(position)
+    return _serialize_live_state(presentation_session, position, plan_id)
+
+
+@router.get("/status", response_model=PresentationLiveStateRead)
 def get_presentation_status(
     _current_user: User = Depends(require_permission("presentation:use")),
-) -> PresentationStatus:
-    return PresentationStatus(
+) -> PresentationLiveStateRead:
+    return PresentationLiveStateRead(
         plan_id="demo-sunday-service",
         status="ready",
-        current_item="Worship set",
-        slide_index=0,
     )

@@ -12,12 +12,15 @@ import {
   getBibleVersions,
   getPlan,
   getPlans,
+  getPresentationLiveState,
   getSongs,
   uploadStoredFile,
+  updatePresentationLiveState,
   updatePlanItem,
   type BibleBook,
   type BibleSearchHit,
   type BibleVersion,
+  type PresentationLiveSyncState,
   type RenderedSlide,
   type PlanDetail,
   type PlanSummary,
@@ -29,6 +32,7 @@ import {
   buildPresentationSections,
   buildPresentationSlides,
   presentationTypeClass,
+  resolveLiveIndex,
   type PresentationSlide,
   type PresentationLiveState,
   type PresentationTheme,
@@ -219,6 +223,9 @@ export function PresentationView({
   const outputWindowRef = useRef<Window | null>(null);
   const channelRef = useRef<BroadcastChannel | null>(null);
   const thumbnailRefs = useRef<Record<string, HTMLButtonElement | null>>({});
+  const currentLiveStateRef = useRef<PresentationLiveState | null>(null);
+  const lastLiveStateRef = useRef<number>(0);
+  const suppressPublishRef = useRef(false);
 
   const sections = useMemo(
     () => buildPresentationSections(plan?.items ?? [], songs, renderedSlidesByFileId),
@@ -241,6 +248,40 @@ export function PresentationView({
     }
   }
 
+  function buildLiveState(nextIndex: number, overrides: Partial<PresentationLiveState> = {}): PresentationLiveState | null {
+    if (!plan) {
+      return null;
+    }
+
+    const slide = slides[Math.min(Math.max(nextIndex, 0), Math.max(slides.length - 1, 0))] ?? null;
+    const slideOffset = slide
+      ? slides.filter((candidate) => candidate.planItemId === slide.planItemId).findIndex((candidate) => candidate.id === slide.id)
+      : 0;
+
+    return {
+      planId: plan.id,
+      index: nextIndex,
+      updatedAt: overrides.updatedAt ?? Date.now(),
+      planItemId: overrides.planItemId ?? slide?.planItemId ?? null,
+      slideOffset: overrides.slideOffset ?? Math.max(slideOffset, 0),
+      theme: overrides.theme ?? slideTheme,
+      blanked: overrides.blanked ?? liveBlanked,
+      fullscreen: overrides.fullscreen ?? liveFullscreen,
+    };
+  }
+
+  function applyRemoteLiveState(state: PresentationLiveState) {
+    currentLiveStateRef.current = state;
+    suppressPublishRef.current = true;
+    lastLiveStateRef.current = state.updatedAt;
+    setSlideTheme(state.theme ?? "light");
+    setLiveBlanked(Boolean(state.blanked));
+    setLiveFullscreen(Boolean(state.fullscreen));
+    setLiveIndex(resolveLiveIndex(slides, state));
+    localStorage.setItem(PRESENTATION_STORAGE_KEY, JSON.stringify(state));
+    channelRef.current?.postMessage(state);
+  }
+
   async function load(planId?: string, options?: LoadOptions) {
     setMessage(null);
     if (!options?.silent) {
@@ -253,12 +294,27 @@ export function PresentationView({
       const targetPlanId = nextPlans.some((candidate) => candidate.id === requestedPlanId)
         ? requestedPlanId
         : nextPlans[0]?.id ?? "";
-      const targetPlan = targetPlanId ? await getPlan(targetPlanId) : null;
+      const [targetPlan, liveState] = await Promise.all([
+        targetPlanId ? getPlan(targetPlanId) : Promise.resolve(null),
+        targetPlanId ? getPresentationLiveState(targetPlanId) : Promise.resolve(null),
+      ]);
       setPlans(nextPlans);
       setSongs(nextSongs);
       setSelectedPlanId(targetPlanId);
       setPlan(targetPlan);
       const nextSlides = buildPresentationSlides(targetPlan?.items ?? [], nextSongs, renderedSlidesByFileId);
+      const preservedState = liveState
+        ? {
+            planId: liveState.plan_id,
+            index: liveState.index,
+            updatedAt: liveState.updated_at,
+            planItemId: liveState.plan_item_id,
+            slideOffset: liveState.slide_offset,
+            theme: liveState.theme,
+            blanked: liveState.blanked,
+            fullscreen: liveState.fullscreen,
+          }
+        : null;
       const preservedIndex = options?.preserveLocation
         ? (() => {
             const matchingSlides = nextSlides.filter(
@@ -273,7 +329,18 @@ export function PresentationView({
             );
             return nextSlides.findIndex((slide) => slide.id === matchingSlides[slideInSection]?.id);
           })()
-        : -1;
+        : preservedState
+          ? resolveLiveIndex(nextSlides, preservedState)
+          : -1;
+      if (preservedState) {
+        currentLiveStateRef.current = preservedState;
+        suppressPublishRef.current = true;
+        lastLiveStateRef.current = preservedState.updatedAt;
+        setSlideTheme(preservedState.theme ?? "light");
+        setLiveBlanked(Boolean(preservedState.blanked));
+        setLiveFullscreen(Boolean(preservedState.fullscreen));
+        localStorage.setItem(PRESENTATION_STORAGE_KEY, JSON.stringify(preservedState));
+      }
       setLiveIndex(preservedIndex >= 0 ? preservedIndex : 0);
     } catch (error) {
       setPlan(null);
@@ -290,14 +357,14 @@ export function PresentationView({
     if (!slideCount) {
       setLiveBlanked(false);
       setLiveIndex(0);
-      publishLiveState(0);
+      void publishLiveState(0, { blanked: false });
       return;
     }
 
     const boundedIndex = Math.min(Math.max(nextIndex, 0), slideCount - 1);
     setLiveBlanked(false);
     setLiveIndex(boundedIndex);
-    publishLiveState(boundedIndex);
+    void publishLiveState(boundedIndex, { blanked: false });
   }
 
   function moveLive(delta: number) {
@@ -305,32 +372,43 @@ export function PresentationView({
       const slideCount = slides.length;
       if (!slideCount) {
         setLiveBlanked(false);
-        publishLiveState(0);
+        void publishLiveState(0, { blanked: false });
         return 0;
       }
 
       const nextIndex = Math.min(Math.max(current + delta, 0), slideCount - 1);
       setLiveBlanked(false);
-      publishLiveState(nextIndex);
+      void publishLiveState(nextIndex, { blanked: false });
       return nextIndex;
     });
   }
 
-  function publishLiveState(nextIndex: number) {
-    if (!plan) {
+  async function publishLiveState(nextIndex: number, overrides: Partial<PresentationLiveState> = {}) {
+    const state = buildLiveState(nextIndex, overrides);
+    if (!state) {
       return;
     }
 
-    const state: PresentationLiveState = {
-      planId: plan.id,
-      index: nextIndex,
-      updatedAt: Date.now(),
-      theme: slideTheme,
-      blanked: liveBlanked,
-      fullscreen: liveFullscreen,
-    };
+    currentLiveStateRef.current = state;
+    lastLiveStateRef.current = state.updatedAt;
     localStorage.setItem(PRESENTATION_STORAGE_KEY, JSON.stringify(state));
     channelRef.current?.postMessage(state);
+
+    try {
+      const synced = await updatePresentationLiveState(state.planId, {
+        plan_id: state.planId,
+        index: state.index,
+        plan_item_id: state.planItemId ?? null,
+        slide_offset: state.slideOffset ?? 0,
+        updated_at: state.updatedAt,
+        theme: state.theme ?? "light",
+        blanked: Boolean(state.blanked),
+        fullscreen: Boolean(state.fullscreen),
+      });
+      lastLiveStateRef.current = synced.updated_at;
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not sync presentation state.");
+    }
   }
 
   async function detectDisplays() {
@@ -382,7 +460,7 @@ export function PresentationView({
       return;
     }
 
-    publishLiveState(liveIndex);
+    void publishLiveState(liveIndex);
     const detectedScreens = screens.length ? screens : await detectDisplays();
     const detectedPreferredIndex = detectedScreens.findIndex((screen) => !screen.current);
     const targetIndex = screens.length
@@ -645,7 +723,7 @@ export function PresentationView({
         },
         silent: true,
       });
-      publishLiveState(liveIndex);
+      void publishLiveState(liveIndex);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Could not move to the next Bible passage.");
     }
@@ -850,6 +928,46 @@ export function PresentationView({
   }, []);
 
   useEffect(() => {
+    if (!selectedPlanId) {
+      return;
+    }
+
+    const timer = window.setInterval(() => {
+      void (async () => {
+        try {
+          const remoteState = await getPresentationLiveState(selectedPlanId);
+          if (remoteState.updated_at <= lastLiveStateRef.current) {
+            return;
+          }
+
+          applyRemoteLiveState({
+            planId: remoteState.plan_id,
+            index: remoteState.index,
+            updatedAt: remoteState.updated_at,
+            planItemId: remoteState.plan_item_id,
+            slideOffset: remoteState.slide_offset,
+            theme: remoteState.theme,
+            blanked: remoteState.blanked,
+            fullscreen: remoteState.fullscreen,
+          });
+        } catch {
+          // Keep local presentation usable even if sync polling fails briefly.
+        }
+      })();
+    }, 1200);
+
+    return () => window.clearInterval(timer);
+  }, [selectedPlanId, slides]);
+
+  useEffect(() => {
+    if (!currentLiveStateRef.current || currentLiveStateRef.current.planId !== selectedPlanId) {
+      return;
+    }
+
+    setLiveIndex(resolveLiveIndex(slides, currentLiveStateRef.current));
+  }, [selectedPlanId, slides]);
+
+  useEffect(() => {
     const timer = window.setInterval(() => {
       if (outputWindowRef.current && outputWindowRef.current.closed) {
         outputWindowRef.current = null;
@@ -861,7 +979,11 @@ export function PresentationView({
   }, []);
 
   useEffect(() => {
-    publishLiveState(liveIndex);
+    if (suppressPublishRef.current) {
+      suppressPublishRef.current = false;
+      return;
+    }
+    void publishLiveState(liveIndex);
   }, [liveBlanked, liveFullscreen, slideTheme]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {

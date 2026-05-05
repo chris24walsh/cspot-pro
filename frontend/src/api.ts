@@ -180,6 +180,20 @@ export interface RenderedSlide {
   image_url: string;
 }
 
+export interface PresentationLiveSyncState {
+  plan_id: string;
+  session_id: string | null;
+  presenter_id: string | null;
+  status: string;
+  index: number;
+  plan_item_id: string | null;
+  slide_offset: number;
+  updated_at: number;
+  theme: "dark" | "light";
+  blanked: boolean;
+  fullscreen: boolean;
+}
+
 export interface BibleVersion {
   id: string;
   code: string;
@@ -471,6 +485,26 @@ export async function getPlans(): Promise<PlanSummary[]> {
 
 export async function getPlan(planId: string): Promise<PlanDetail> {
   return getJson<PlanDetail>(`/api/v1/planning/plans/${planId}`);
+}
+
+export async function getPresentationLiveState(planId: string): Promise<PresentationLiveSyncState> {
+  return getJson<PresentationLiveSyncState>(`/api/v1/presentation/live/${planId}`);
+}
+
+export async function updatePresentationLiveState(
+  planId: string,
+  payload: {
+    plan_id: string;
+    index: number;
+    plan_item_id: string | null;
+    slide_offset: number;
+    updated_at: number;
+    theme: "dark" | "light";
+    blanked: boolean;
+    fullscreen: boolean;
+  },
+): Promise<PresentationLiveSyncState> {
+  return sendJson<PresentationLiveSyncState>(`/api/v1/presentation/live/${planId}`, "PATCH", payload);
 }
 
 export async function createPlan(payload: PlanPayload): Promise<PlanDetail> {
