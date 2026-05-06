@@ -31,6 +31,7 @@ import { SongManager } from "./components/SongManager";
 import { TeamManager } from "./components/TeamManager";
 import { UserManager } from "./components/UserManager";
 import { featureModules, type FeatureModule, type ModuleId } from "./data/featureMap";
+import { appAssetUrl } from "./paths";
 
 const iconMap = {
   planning: CalendarDays,
@@ -230,7 +231,7 @@ function App() {
     <main className="shell">
       <aside className="sidebar" aria-label="Primary">
         <div className="brand">
-          <img alt="" src="/images/xs-cspot.png" />
+          <img alt="" src={appAssetUrl("images/xs-cspot.png")} />
           <span>cspot-pro</span>
         </div>
 
@@ -260,7 +261,7 @@ function App() {
           </div>
           <div className="topbar-actions">
             <div className="church-mark">
-              <img alt="" src="/images/churchLogo.png" />
+              <img alt="" src={appAssetUrl("images/churchLogo.png")} />
               <span>Church Service Planning</span>
             </div>
             <button className="user-pill" onClick={() => void signOut()} type="button">

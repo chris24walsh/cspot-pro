@@ -1,6 +1,7 @@
 import { type FormEvent, useEffect, useState } from "react";
 
 import { getSongs, saveLyricsImport, type Song } from "../api";
+import { appAssetUrl } from "../paths";
 
 export function ImportManager({
   canEdit,
@@ -73,7 +74,7 @@ export function ImportManager({
           <h2>Import Queue</h2>
         </div>
         <div className="legacy-preview">
-          <img alt="" src="/images/PlanOverviewNew-Small.png" />
+          <img alt="" src={appAssetUrl("images/PlanOverviewNew-Small.png")} />
           <p>Paste lyrics, review, then save into the song library.</p>
         </div>
         <div className="stack-list">

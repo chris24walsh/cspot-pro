@@ -19,6 +19,25 @@ This is a good fit when:
 Only the `web` port is exposed on the VM. `api` and `db` stay private on the
 Docker network.
 
+## Root Host vs Subpath
+
+`cspot-pro` can now be deployed either:
+
+- at the site root, such as `https://cspot.yourdomain.com/`
+- or under a path, such as `https://apps.yourdomain.com/cspot/`
+
+If you are using NPM **Custom Locations** under an existing shared hostname,
+build the frontend with:
+
+```yaml
+args:
+  VITE_API_BASE_URL: /api
+  VITE_APP_BASE_PATH: /cspot/
+```
+
+That tells the frontend and bundled nginx config to serve the app under
+`/cspot/`.
+
 ## 1. Prepare Environment
 
 From the repo root:
@@ -70,6 +89,15 @@ The app will now be listening on:
 http://YOUR-VM-IP:8080
 ```
 
+If you are deploying under `/cspot/`, make sure the `web` service build args
+include:
+
+```yaml
+args:
+  VITE_API_BASE_URL: /api
+  VITE_APP_BASE_PATH: /cspot/
+```
+
 ## 3. Configure Nginx Proxy Manager
 
 Create a new Proxy Host:
@@ -91,6 +119,22 @@ SSL tab:
 - Enable **HTTP/2 Support**
 
 No custom locations should be required.
+
+### If You Are Using a Shared Hostname
+
+If your Funnel/NPM setup already uses a shared hostname such as
+`apps.bee-gopher.ts.net`, then:
+
+1. Keep the main proxy host pointed at Home Assistant (or whatever owns `/`)
+2. Open the **Custom Locations** tab
+3. Add:
+   - **Location**: `/cspot`
+   - **Scheme**: `http`
+   - **Forward Hostname / IP**: your Docker VM IP
+   - **Forward Port**: `8080`
+
+The `cspot-pro` frontend must be built with `VITE_APP_BASE_PATH: /cspot/` for
+this to work correctly.
 
 ## 4. First Login
 

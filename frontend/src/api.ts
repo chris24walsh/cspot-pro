@@ -1,3 +1,5 @@
+import { appApiBasePath } from "./paths";
+
 function defaultApiBaseUrl() {
   if (import.meta.env.VITE_API_BASE_URL) {
     return import.meta.env.VITE_API_BASE_URL;
@@ -7,7 +9,7 @@ function defaultApiBaseUrl() {
     return "http://localhost:8000";
   }
 
-  return "/api";
+  return appApiBasePath();
 }
 
 export const API_BASE_URL = defaultApiBaseUrl();

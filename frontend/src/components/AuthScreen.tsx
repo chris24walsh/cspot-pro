@@ -1,6 +1,7 @@
 import { type FormEvent, useState } from "react";
 
 import { bootstrapAdmin, login, type SessionUser } from "../api";
+import { appAssetUrl } from "../paths";
 
 interface AuthScreenProps {
   bootstrapAvailable: boolean;
@@ -37,7 +38,7 @@ export function AuthScreen({ bootstrapAvailable, onAuthenticated }: AuthScreenPr
     <main className="auth-shell">
       <section className="auth-card">
         <div className="brand auth-brand">
-          <img alt="" src="/images/xs-cspot.png" />
+          <img alt="" src={appAssetUrl("images/xs-cspot.png")} />
           <span>cspot-pro</span>
         </div>
 

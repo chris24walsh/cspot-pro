@@ -18,6 +18,7 @@ services:
       dockerfile: frontend/Dockerfile.prod
       args:
         VITE_API_BASE_URL: /api
+        VITE_APP_BASE_PATH: /
     env_file:
       - .env.tailscale
     depends_on:
