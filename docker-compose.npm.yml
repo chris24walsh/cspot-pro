@@ -1,0 +1,45 @@
+services:
+  api:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile.prod
+    env_file:
+      - .env.npm
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+    volumes:
+      - cspot_pro_storage:/app/storage
+
+  web:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile.prod
+      args:
+        VITE_API_BASE_URL: /api
+    env_file:
+      - .env.npm
+    depends_on:
+      - api
+    ports:
+      - "8080:80"
+    restart: unless-stopped
+
+  db:
+    image: postgres:16-alpine
+    env_file:
+      - .env.npm
+    restart: unless-stopped
+    volumes:
+      - cspot_pro_postgres:/var/lib/postgresql/data
+      - ./docker/init-db.sql:/docker-entrypoint-initdb.d/001-init-db.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cspot -d cspot"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  cspot_pro_postgres:
+  cspot_pro_storage:

@@ -120,6 +120,20 @@ Key files:
 - `docker-compose.tailscale.yml`
 - `.env.tailscale.example`
 
+## Nginx Proxy Manager Deployment
+
+If you already run a Docker VM and expose apps through Nginx Proxy Manager,
+`cspot-pro` can also be deployed that way behind your normal domain/subdomain.
+
+See:
+
+- [docs/nginx-proxy-manager-deployment.md](docs/nginx-proxy-manager-deployment.md)
+
+Key files:
+
+- `docker-compose.npm.yml`
+- `.env.npm.example`
+
 ## Project Layout
 
 ```text
