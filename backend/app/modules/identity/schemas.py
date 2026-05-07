@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from pydantic import BaseModel
 
 
@@ -34,6 +36,8 @@ class UserUpdate(BaseModel):
 class UserRead(UserBase):
     id: str
     roles: list[str]
+    password_set: bool
+    invite_pending: bool
 
 
 class MemberRead(BaseModel):
@@ -59,4 +63,37 @@ class BootstrapStatusRead(BaseModel):
 class BootstrapAdminRequest(BaseModel):
     email: str
     name: str
+    password: str
+
+
+class UserInviteRequest(UserBase):
+    role_names: list[str] = ["viewer"]
+
+
+class UserInviteRead(BaseModel):
+    user: UserRead
+    invitation_url: str
+    email_sent: bool
+    expires_at: datetime
+
+
+class PasswordResetRequest(BaseModel):
+    email: str
+
+
+class PasswordResetAdminRead(BaseModel):
+    reset_url: str
+    email_sent: bool
+    expires_at: datetime
+
+
+class AuthActionTokenRead(BaseModel):
+    purpose: str
+    email: str
+    name: str
+    expires_at: datetime
+
+
+class AuthActionCompleteRequest(BaseModel):
+    token: str
     password: str

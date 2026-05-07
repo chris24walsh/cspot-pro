@@ -309,6 +309,8 @@ export interface User {
   email_confirmed: boolean;
   active: boolean;
   roles: string[];
+  password_set: boolean;
+  invite_pending: boolean;
 }
 
 export interface Member {
@@ -354,6 +356,35 @@ export interface UserPayload {
   active: boolean;
   role_names: string[];
   password?: string | null;
+}
+
+export interface UserInvitePayload {
+  email: string;
+  name: string;
+  start_page: string | null;
+  email_confirmed: boolean;
+  active: boolean;
+  role_names: string[];
+}
+
+export interface UserInviteResponse {
+  user: User;
+  invitation_url: string;
+  email_sent: boolean;
+  expires_at: string;
+}
+
+export interface PasswordResetAdminResponse {
+  reset_url: string;
+  email_sent: boolean;
+  expires_at: string;
+}
+
+export interface AuthActionToken {
+  purpose: string;
+  email: string;
+  name: string;
+  expires_at: string;
 }
 
 async function parseError(response: Response, suppressAuthEvent = false): Promise<never> {
@@ -477,6 +508,28 @@ export async function login(payload: { email: string; password: string }): Promi
   });
 }
 
+export async function getAuthActionToken(token: string): Promise<AuthActionToken> {
+  const encoded = window.encodeURIComponent(token);
+  return getJson<AuthActionToken>(`/api/v1/identity/auth/action-token?token=${encoded}`, {
+    suppressAuthEvent: true,
+  });
+}
+
+export async function completeAuthAction(payload: {
+  token: string;
+  password: string;
+}): Promise<SessionUser> {
+  return sendJson<SessionUser>("/api/v1/identity/auth/action-token/complete", "POST", payload, {
+    suppressAuthEvent: true,
+  });
+}
+
+export async function requestPasswordReset(payload: { email: string }): Promise<{ detail: string }> {
+  return sendJson<{ detail: string }>("/api/v1/identity/auth/password-reset/request", "POST", payload, {
+    suppressAuthEvent: true,
+  });
+}
+
 export async function logout(): Promise<void> {
   return deleteRequest("/api/v1/identity/auth/logout", { suppressAuthEvent: true });
 }
@@ -579,12 +632,24 @@ export async function createUser(payload: UserPayload): Promise<User> {
   return sendJson<User>("/api/v1/identity/users", "POST", payload);
 }
 
+export async function inviteUser(payload: UserInvitePayload): Promise<UserInviteResponse> {
+  return sendJson<UserInviteResponse>("/api/v1/identity/users/invite", "POST", payload);
+}
+
 export async function updateUser(userId: string, payload: Partial<UserPayload>): Promise<User> {
   return sendJson<User>(`/api/v1/identity/users/${userId}`, "PATCH", payload);
 }
 
 export async function deactivateUser(userId: string): Promise<void> {
   return deleteRequest(`/api/v1/identity/users/${userId}`);
+}
+
+export async function resendInvite(userId: string): Promise<UserInviteResponse> {
+  return sendJson<UserInviteResponse>(`/api/v1/identity/users/${userId}/invite`, "POST", {});
+}
+
+export async function sendPasswordReset(userId: string): Promise<PasswordResetAdminResponse> {
+  return sendJson<PasswordResetAdminResponse>(`/api/v1/identity/users/${userId}/password-reset`, "POST", {});
 }
 
 export async function getInstruments(): Promise<Instrument[]> {

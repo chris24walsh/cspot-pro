@@ -1,14 +1,18 @@
 import { type FormEvent, useEffect, useState } from "react";
 
 import {
-  createUser,
   deactivateUser,
   getRoles,
   getUsers,
+  inviteUser,
+  resendInvite,
+  sendPasswordReset,
   updateUser,
+  type PasswordResetAdminResponse,
   type Role,
   type User,
-  type UserPayload,
+  type UserInvitePayload,
+  type UserInviteResponse,
 } from "../api";
 
 interface UserFormState {
@@ -18,7 +22,6 @@ interface UserFormState {
   email_confirmed: boolean;
   active: boolean;
   role_names: string[];
-  password: string;
 }
 
 function formFromUser(user: User): UserFormState {
@@ -29,11 +32,10 @@ function formFromUser(user: User): UserFormState {
     email_confirmed: user.email_confirmed,
     active: user.active,
     role_names: user.roles,
-    password: "",
   };
 }
 
-function payloadFromForm(form: UserFormState): UserPayload {
+function payloadFromForm(form: UserFormState): UserInvitePayload {
   return {
     name: form.name,
     email: form.email,
@@ -41,7 +43,6 @@ function payloadFromForm(form: UserFormState): UserPayload {
     email_confirmed: form.email_confirmed,
     active: form.active,
     role_names: form.role_names.length ? form.role_names : ["viewer"],
-    password: form.password || null,
   };
 }
 
@@ -50,6 +51,16 @@ function formatRoleName(roleName: string) {
     .split("_")
     .map((segment) => segment.charAt(0).toUpperCase() + segment.slice(1))
     .join(" ");
+}
+
+function formatUserStatus(user: User) {
+  if (!user.active) {
+    return "inactive";
+  }
+  if (user.invite_pending) {
+    return "invited";
+  }
+  return "active";
 }
 
 export function UserManager() {
@@ -64,9 +75,9 @@ export function UserManager() {
     email_confirmed: false,
     active: true,
     role_names: ["viewer"],
-    password: "",
   });
   const [message, setMessage] = useState<string | null>(null);
+  const [actionLink, setActionLink] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   async function load(selectedId?: string) {
@@ -96,6 +107,7 @@ export function UserManager() {
   function startCreate() {
     setSelectedUser(null);
     setMode("create");
+    setActionLink(null);
     setForm({
       name: "",
       email: "",
@@ -103,7 +115,6 @@ export function UserManager() {
       email_confirmed: false,
       active: true,
       role_names: ["viewer"],
-      password: "",
     });
   }
 
@@ -111,6 +122,7 @@ export function UserManager() {
     setSelectedUser(user);
     setForm(formFromUser(user));
     setMode("edit");
+    setActionLink(null);
     setMessage(null);
   }
 
@@ -124,24 +136,78 @@ export function UserManager() {
     });
   }
 
-  async function submitUser(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setMessage(null);
-
-    if (mode === "create" && form.password.trim().length < 8) {
-      setMessage("New users need a password with at least 8 characters.");
+  async function copyLink() {
+    if (!actionLink) {
       return;
     }
 
     try {
-      const payload = payloadFromForm(form);
-      const saved =
-        mode === "create" ? await createUser(payload) : await updateUser(selectedUser!.id, payload);
+      await navigator.clipboard.writeText(actionLink);
+      setMessage("Link copied.");
+    } catch {
+      setMessage("Could not copy the link automatically. You can still select and copy it.");
+    }
+  }
 
+  function updateActionLink(result: UserInviteResponse | PasswordResetAdminResponse) {
+    const url = "invitation_url" in result ? result.invitation_url : result.reset_url;
+    setActionLink(url);
+    setMessage(result.email_sent ? "Email sent." : "Email is not configured, so we generated a copyable link instead.");
+  }
+
+  async function submitUser(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setMessage(null);
+    setActionLink(null);
+
+    try {
+      const payload = payloadFromForm(form);
+      if (mode === "create") {
+        const result = await inviteUser(payload);
+        await load(result.user.id);
+        updateActionLink(result);
+        return;
+      }
+
+      const saved = await updateUser(selectedUser!.id, payload);
       await load(saved.id);
-      setMessage(mode === "create" ? "User created." : "User updated.");
+      setMessage("User updated.");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Could not save user.");
+    }
+  }
+
+  async function issueInvite() {
+    if (!selectedUser) {
+      return;
+    }
+
+    setMessage(null);
+    setActionLink(null);
+
+    try {
+      const result = await resendInvite(selectedUser.id);
+      await load(result.user.id);
+      updateActionLink(result);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not resend invite.");
+    }
+  }
+
+  async function issuePasswordReset() {
+    if (!selectedUser) {
+      return;
+    }
+
+    setMessage(null);
+    setActionLink(null);
+
+    try {
+      const result = await sendPasswordReset(selectedUser.id);
+      await load(selectedUser.id);
+      updateActionLink(result);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not create a reset link.");
     }
   }
 
@@ -156,6 +222,7 @@ export function UserManager() {
     }
 
     setMessage(null);
+    setActionLink(null);
 
     try {
       await deactivateUser(selectedUser.id);
@@ -190,7 +257,7 @@ export function UserManager() {
             >
               <strong>{user.name}</strong>
               <span>
-                {user.email} · {user.active ? "active" : "inactive"}
+                {user.email} · {formatUserStatus(user)}
               </span>
             </button>
           ))}
@@ -200,22 +267,45 @@ export function UserManager() {
       <form className="editor-panel" onSubmit={(event) => void submitUser(event)}>
         <div className="section-heading">
           <div>
-            <p className="eyebrow">{mode === "create" ? "Create" : "Edit"}</p>
+            <p className="eyebrow">{mode === "create" ? "Invite" : "Edit"}</p>
             <h2>{mode === "create" ? "New User" : selectedUser?.name ?? "User"}</h2>
           </div>
           <div className="action-row">
             {mode === "edit" && selectedUser?.active ? (
-              <button className="danger-button" onClick={() => void removeUser()} type="button">
-                Deactivate
-              </button>
+              <>
+                {selectedUser.invite_pending ? (
+                  <button className="text-button" onClick={() => void issueInvite()} type="button">
+                    Resend Invite
+                  </button>
+                ) : (
+                  <button className="text-button" onClick={() => void issuePasswordReset()} type="button">
+                    Send Reset Link
+                  </button>
+                )}
+                <button className="danger-button" onClick={() => void removeUser()} type="button">
+                  Deactivate
+                </button>
+              </>
             ) : null}
             <button className="primary-button" disabled={loading} type="submit">
-              Save User
+              {mode === "create" ? "Invite User" : "Save User"}
             </button>
           </div>
         </div>
 
         {message ? <p className="form-message">{message}</p> : null}
+
+        {actionLink ? (
+          <div className="field-action-row">
+            <label className="wide-field">
+              Invite or reset link
+              <input readOnly value={actionLink} />
+            </label>
+            <button className="text-button" onClick={() => void copyLink()} type="button">
+              Copy Link
+            </button>
+          </div>
+        ) : null}
 
         <div className="form-grid">
           <label>
@@ -234,18 +324,6 @@ export function UserManager() {
               required
               type="email"
               value={form.email}
-            />
-          </label>
-
-          <label>
-            {mode === "create" ? "Password" : "Reset Password"}
-            <input
-              minLength={8}
-              onChange={(event) => setForm({ ...form, password: event.target.value })}
-              placeholder={mode === "create" ? "Temporary password" : "Leave blank to keep current"}
-              required={mode === "create"}
-              type="password"
-              value={form.password}
             />
           </label>
 

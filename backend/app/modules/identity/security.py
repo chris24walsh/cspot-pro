@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from base64 import urlsafe_b64decode, urlsafe_b64encode
 from datetime import UTC, datetime, timedelta
+from hashlib import sha256
 from hashlib import scrypt
 import hmac
 import secrets
@@ -15,6 +16,8 @@ SCRYPT_R = 8
 SCRYPT_P = 1
 SCRYPT_DKLEN = 64
 JWT_ALGORITHM = "HS256"
+PASSWORD_MIN_LENGTH = 12
+PASSWORD_MAX_LENGTH = 128
 
 
 def _encode_bytes(value: bytes) -> str:
@@ -60,6 +63,22 @@ def verify_password(password: str, password_hash: str | None) -> bool:
         dklen=len(_decode_bytes(digest_value)),
     )
     return hmac.compare_digest(derived, _decode_bytes(digest_value))
+
+
+def validate_password_strength(password: str) -> None:
+    normalized = password.strip()
+    if len(normalized) < PASSWORD_MIN_LENGTH:
+        raise ValueError(f"Password must be at least {PASSWORD_MIN_LENGTH} characters long.")
+    if len(password) > PASSWORD_MAX_LENGTH:
+        raise ValueError(f"Password must be no longer than {PASSWORD_MAX_LENGTH} characters.")
+
+
+def generate_auth_token() -> str:
+    return secrets.token_urlsafe(32)
+
+
+def hash_auth_token(token: str) -> str:
+    return sha256(token.encode("utf-8")).hexdigest()
 
 
 def build_session_token(*, user_id: str) -> str:

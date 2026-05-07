@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from sqlalchemy import Boolean, ForeignKey, String
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -37,3 +39,15 @@ class SocialLogin(IdMixin, TimestampMixin, Base):
     user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
     provider: Mapped[str] = mapped_column(String(80), index=True)
     provider_user_id: Mapped[str] = mapped_column(String(255), index=True)
+
+
+class AuthToken(IdMixin, TimestampMixin, Base):
+    __tablename__ = "auth_tokens"
+
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    created_by_user_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"), index=True)
+    purpose: Mapped[str] = mapped_column(String(40), index=True)
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    sent_to_email: Mapped[str] = mapped_column(String(320), index=True)
+    expires_at: Mapped[datetime] = mapped_column(index=True)
+    used_at: Mapped[datetime | None]

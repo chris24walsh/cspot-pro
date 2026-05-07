@@ -65,15 +65,12 @@ sudo ./scripts/start-app.sh
 
 This runs `up --build -d` and does not delete volumes.
 
-On startup, the API container runs database migrations, seeds demo data, and then
+On startup, the API container runs database migrations, seeds reference data, and then
 starts FastAPI.
 
-The seeded demo admin account is:
-
-- email: `admin@example.com`
-- password: `changeme123`
-
-Change that before public hosting.
+Fresh installs now use first-admin bootstrap instead of a shared demo password.
+Open the web app, create the first administrator account, and then invite the
+rest of the team from the Admin screen.
 
 For the current frontend wireframe only:
 
@@ -197,11 +194,15 @@ back to the static wireframe data when it is not.
 
 - first-admin bootstrap for empty installs
 - password login
+- invite-based account setup with one-time links
+- forgot-password email reset links
 - cookie-backed sessions that work with presenter/live-output windows
 - backend-enforced permissions for read, edit, create, and admin actions
 
 Public hosting should still set a strong `AUTH_SECRET_KEY`, run behind HTTPS,
-and turn on secure cookies.
+turn on secure cookies, and configure `PUBLIC_APP_URL` so invite/reset links
+point back to the correct host. SMTP is optional but recommended; Mailtrap is a
+nice low-friction choice during rollout.
 
 ## Reference Project
 
