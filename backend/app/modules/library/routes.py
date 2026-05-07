@@ -47,6 +47,9 @@ router = APIRouter()
 UPLOAD_ROOT = Path("/app/storage/uploads")
 RENDER_ROOT = Path("/app/storage/rendered")
 RENDER_PIPELINE_VERSION = "libreoffice-pdf-png-v2"
+LIBREOFFICE_RENDER_TIMEOUT_SECONDS = 300
+PDF_TO_PNG_RENDER_TIMEOUT_SECONDS = 300
+PDF_TO_PNG_DPI = 120
 
 
 def resource_to_read(resource: Resource) -> ResourceRead:
@@ -210,7 +213,7 @@ def _render_slides(stored: StoredFile) -> list[Path]:
                 check=True,
                 capture_output=True,
                 text=True,
-                timeout=120,
+                timeout=LIBREOFFICE_RENDER_TIMEOUT_SECONDS,
             )
             converted = list(temp_dir.glob("*.pdf"))
             if not converted:
@@ -222,11 +225,11 @@ def _render_slides(stored: StoredFile) -> list[Path]:
 
         prefix = output_dir / "slide"
         subprocess.run(
-            [_required_tool("pdftoppm"), "-png", "-r", "144", str(pdf_path), str(prefix)],
+            [_required_tool("pdftoppm"), "-png", "-r", str(PDF_TO_PNG_DPI), str(pdf_path), str(prefix)],
             check=True,
             capture_output=True,
             text=True,
-            timeout=120,
+            timeout=PDF_TO_PNG_RENDER_TIMEOUT_SECONDS,
         )
 
     slides = sorted(output_dir.glob("slide-*.png"))

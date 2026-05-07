@@ -15,6 +15,7 @@ function defaultApiBaseUrl() {
 export const API_BASE_URL = defaultApiBaseUrl();
 export const AUTH_REQUIRED_EVENT = "cspot-pro:auth-required";
 const DEFAULT_REQUEST_TIMEOUT_MS = 8000;
+const DECK_RENDER_TIMEOUT_MS = 180000;
 
 function buildApiUrl(path: string) {
   const base = API_BASE_URL.endsWith("/") ? API_BASE_URL.slice(0, -1) : API_BASE_URL;
@@ -411,9 +412,12 @@ async function parseError(response: Response, suppressAuthEvent = false): Promis
   throw new ApiError(text || `API request failed: ${response.status}`, response.status);
 }
 
-async function fetchWithTimeout(input: string, init?: RequestInit): Promise<Response> {
+async function fetchWithTimeout(
+  input: string,
+  init?: RequestInit & { timeoutMs?: number },
+): Promise<Response> {
   const controller = new AbortController();
-  const timeout = window.setTimeout(() => controller.abort(), DEFAULT_REQUEST_TIMEOUT_MS);
+  const timeout = window.setTimeout(() => controller.abort(), init?.timeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS);
 
   try {
     return await fetch(input, {
@@ -430,9 +434,13 @@ async function fetchWithTimeout(input: string, init?: RequestInit): Promise<Resp
   }
 }
 
-async function getJson<T>(path: string, options?: { suppressAuthEvent?: boolean }): Promise<T> {
+async function getJson<T>(
+  path: string,
+  options?: { suppressAuthEvent?: boolean; timeoutMs?: number },
+): Promise<T> {
   const response = await fetchWithTimeout(buildApiUrl(path), {
     credentials: "include",
+    timeoutMs: options?.timeoutMs,
   });
 
   if (!response.ok) {
@@ -764,7 +772,9 @@ export async function getItemFiles(planItemId: string): Promise<ItemFile[]> {
 }
 
 export async function getFileSlides(fileId: string): Promise<RenderedSlide[]> {
-  const slides = await getJson<RenderedSlide[]>(`/api/v1/library/files/${fileId}/slides`);
+  const slides = await getJson<RenderedSlide[]>(`/api/v1/library/files/${fileId}/slides`, {
+    timeoutMs: DECK_RENDER_TIMEOUT_MS,
+  });
   return slides.map((slide) => ({
     ...slide,
     image_url: slide.image_url.startsWith("http") ? slide.image_url : buildApiUrl(slide.image_url),
