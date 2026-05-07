@@ -1,4 +1,4 @@
-import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp, MonitorUp, Search, Trash2 } from "lucide-react";
+import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp, MonitorUp, Plus, Search, Trash2 } from "lucide-react";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import {
@@ -1349,7 +1349,7 @@ export function PresentationView({
               onClick={() => openSearchOverlay(-1)}
               type="button"
             >
-              <Search size={14} aria-hidden="true" />
+              <Plus size={14} aria-hidden="true" />
             </button>
             {sections.map((section, sectionIndex) => {
               const sectionStart = slides.findIndex((slide) => slide.sectionId === section.id);
@@ -1406,7 +1406,7 @@ export function PresentationView({
                     onClick={() => openSearchOverlay(sectionIndex)}
                     type="button"
                   >
-                    <Search size={14} aria-hidden="true" />
+                    <Plus size={14} aria-hidden="true" />
                   </button>
                 </div>
               );
