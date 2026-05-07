@@ -250,6 +250,7 @@ export function PresentationView({
   const currentLiveStateRef = useRef<PresentationLiveState | null>(null);
   const lastLiveStateRef = useRef<number>(0);
   const suppressPublishRef = useRef(false);
+  const activeDeckLoadsRef = useRef<Set<string>>(new Set());
 
   const sections = useMemo(
     () => buildPresentationSections(plan?.items ?? [], songs, renderedSlidesByFileId),
@@ -967,7 +968,7 @@ export function PresentationView({
       (file) =>
         !renderedSlidesByFileId[file.file_id] &&
         !renderErrorsByFileId[file.file_id] &&
-        !renderingFileIds.includes(file.file_id),
+        !activeDeckLoadsRef.current.has(file.file_id),
     );
 
     if (!pendingFiles.length) {
@@ -981,17 +982,14 @@ export function PresentationView({
     });
     const nextBatch = prioritizedFiles.slice(0, activeFileIds.size ? 2 : 1);
     const nextBatchIds = nextBatch.map((file) => file.file_id);
-    let cancelled = false;
 
+    nextBatchIds.forEach((fileId) => activeDeckLoadsRef.current.add(fileId));
     setRenderingFileIds((previous) => [...new Set([...previous, ...nextBatchIds])]);
 
     void Promise.all(
       nextBatch.map(async (file) => {
         try {
           const renderedSlides = await getFileSlides(file.file_id);
-          if (cancelled) {
-            return;
-          }
           if (!renderedSlides.length) {
             window.setTimeout(() => setDeckRenderRetryToken((current) => current + 1), 1500);
             return;
@@ -1006,9 +1004,6 @@ export function PresentationView({
             return next;
           });
         } catch (error) {
-          if (cancelled) {
-            return;
-          }
           if (error instanceof ApiError && (error.status === 503 || error.status === 504)) {
             window.setTimeout(() => setDeckRenderRetryToken((current) => current + 1), 1500);
             return;
@@ -1022,17 +1017,12 @@ export function PresentationView({
             [file.file_id]: error instanceof Error ? error.message : "Could not render this slide deck.",
           }));
         } finally {
-          if (!cancelled) {
-            setRenderingFileIds((previous) => previous.filter((fileId) => fileId !== file.file_id));
-          }
+          activeDeckLoadsRef.current.delete(file.file_id);
+          setRenderingFileIds((previous) => previous.filter((fileId) => fileId !== file.file_id));
         }
       }),
     );
-
-    return () => {
-      cancelled = true;
-    };
-  }, [currentPlanItem, deckRenderRetryToken, plan, renderErrorsByFileId, renderedSlidesByFileId, renderingFileIds]);
+  }, [currentPlanItem, deckRenderRetryToken, plan, renderErrorsByFileId, renderedSlidesByFileId]);
 
   useEffect(() => {
     if (!message) {
