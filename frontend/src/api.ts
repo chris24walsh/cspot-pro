@@ -306,6 +306,13 @@ export interface ParsedSlideDeck {
   notes: string[];
 }
 
+export interface CustomProviderSearchResult {
+  provider: string;
+  status: string;
+  output_text: string | null;
+  notes: string[];
+}
+
 export interface User {
   id: string;
   email: string;
@@ -916,4 +923,10 @@ export async function parseSlideDeck(file: File): Promise<ParsedSlideDeck> {
   const body = new FormData();
   body.set("upload", file);
   return uploadForm<ParsedSlideDeck>("/api/v1/imports/slides/parse", body);
+}
+
+export async function runCustomProviderSearch(searchTerm: string): Promise<CustomProviderSearchResult> {
+  return sendJson<CustomProviderSearchResult>("/api/v1/imports/custom-provider/search", "POST", {
+    search_term: searchTerm,
+  });
 }

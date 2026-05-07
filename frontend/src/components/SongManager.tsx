@@ -6,8 +6,10 @@ import {
   getFiles,
   getSongs,
   parseSlideDeck,
+  runCustomProviderSearch,
   updateSong,
   uploadStoredFile,
+  type CustomProviderSearchResult,
   type ParsedSlideDeck,
   type Song,
   type StoredFile,
@@ -252,6 +254,9 @@ export function SongManager({
   const [songDeckFiles, setSongDeckFiles] = useState<File[]>([]);
   const [parsedSongDeck, setParsedSongDeck] = useState<ParsedSlideDeck | null>(null);
   const [importPreviews, setImportPreviews] = useState<ImportPreview[]>([]);
+  const [customProviderTerm, setCustomProviderTerm] = useState("");
+  const [customProviderLoading, setCustomProviderLoading] = useState(false);
+  const [customProviderResult, setCustomProviderResult] = useState<CustomProviderSearchResult | null>(null);
   const [selectedImportIndex, setSelectedImportIndex] = useState(0);
   const [parsedSequence, setParsedSequence] = useState<string | null>(null);
   const [parseNotes, setParseNotes] = useState<string[]>([]);
@@ -343,6 +348,31 @@ export function SongManager({
       setMessage(error instanceof Error ? error.message : "Could not load songs.");
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function runCustomLookup() {
+    const query = customProviderTerm.trim();
+    if (!query) {
+      setCustomProviderResult({
+        provider: "custom-provider-stub",
+        status: "missing-query",
+        output_text: null,
+        notes: ["Enter a search term first."],
+      });
+      return;
+    }
+
+    setCustomProviderLoading(true);
+    try {
+      const result = await runCustomProviderSearch(query);
+      setCustomProviderResult(result);
+      setMessage(null);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not run custom provider.");
+      setCustomProviderResult(null);
+    } finally {
+      setCustomProviderLoading(false);
     }
   }
 
@@ -1278,6 +1308,52 @@ export function SongManager({
                         Search Backing Track
                       </a>
                     </div>
+                    <section className="subsection-panel">
+                      <div className="section-heading">
+                        <div>
+                          <p className="eyebrow">Custom</p>
+                          <h3>Run Your Own Provider</h3>
+                        </div>
+                        <button
+                          className="text-button"
+                          disabled={customProviderLoading}
+                          onClick={() => void runCustomLookup()}
+                          type="button"
+                        >
+                          {customProviderLoading ? "Running..." : "Run"}
+                        </button>
+                      </div>
+                      <div className="form-grid single-column">
+                        <label className="wide-field">
+                          Search Term
+                          <input
+                            onChange={(event) => setCustomProviderTerm(event.target.value)}
+                            placeholder="Song title, artist, or any query your backend expects"
+                            value={customProviderTerm}
+                          />
+                        </label>
+                      </div>
+                      {customProviderResult ? (
+                        <>
+                          <div className="empty-state import-summary">
+                            <strong>{customProviderResult.provider}</strong>
+                            <span>Status: {customProviderResult.status}</span>
+                          </div>
+                          {customProviderResult.output_text ? (
+                            <pre className="import-lyric-preview">{customProviderResult.output_text}</pre>
+                          ) : null}
+                          {customProviderResult.notes.length ? (
+                            <div className="stack-list compact">
+                              {customProviderResult.notes.map((note) => (
+                                <div className="stack-row readonly" key={note}>
+                                  <span>{note}</span>
+                                </div>
+                              ))}
+                            </div>
+                          ) : null}
+                        </>
+                      ) : null}
+                    </section>
                     <div className="deck-preview">
                       {selectedImportPreview.parsed.slides.slice(0, 8).map((slide) => (
                         <article className="slide-tile readonly" key={slide.index}>

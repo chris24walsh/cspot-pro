@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 from app.core.database import get_session
 from app.modules.identity.models import User
 from app.modules.identity.auth import CurrentUser, require_any_permission, require_permission
+from app.modules.imports.custom_provider_stub import run_custom_lyrics_provider
 from app.modules.music.models import Song
 
 router = APIRouter()
@@ -53,6 +54,17 @@ class ParsedSlideDeck(BaseModel):
     format: str
     slide_count: int
     slides: list[ParsedSlide]
+    notes: list[str]
+
+
+class CustomProviderSearchRequest(BaseModel):
+    search_term: str
+
+
+class CustomProviderSearchResult(BaseModel):
+    provider: str
+    status: str
+    output_text: str | None = None
     notes: list[str]
 
 
@@ -199,7 +211,21 @@ def preview_lyrics_import(
 def list_import_providers(
     _current_user: User = Depends(require_permission("songs:read")),
 ) -> list[str]:
-    return ["manual-paste", "url-review", "public-domain-seed"]
+    return ["manual-paste", "url-review", "public-domain-seed", "custom-provider-stub"]
+
+
+@router.post("/custom-provider/search", response_model=CustomProviderSearchResult)
+def run_custom_provider_search(
+    payload: CustomProviderSearchRequest,
+    _current_user: User = Depends(require_permission("songs:read")),
+) -> CustomProviderSearchResult:
+    result = run_custom_lyrics_provider(payload.search_term)
+    return CustomProviderSearchResult(
+        provider=result.provider,
+        status=result.status,
+        output_text=result.output_text,
+        notes=result.notes,
+    )
 
 
 @router.post("/lyrics/save", response_model=LyricsSaveResult)
