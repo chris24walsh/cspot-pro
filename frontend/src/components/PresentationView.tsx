@@ -1,5 +1,5 @@
 import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp, MonitorUp, Plus, Search, Trash2 } from "lucide-react";
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import {
   createPlanItem,
@@ -104,57 +104,26 @@ async function tryFetchBiblePassage(
   }
 }
 
-function FittedSlideText({ text, compact = false }: { text: string; compact?: boolean }) {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const textRef = useRef<HTMLPreElement>(null);
-  const [fontSize, setFontSize] = useState(compact ? 9 : 28);
+function slideTextSizeClass(text: string, compact = false) {
+  const normalized = text.trim();
+  const length = normalized.length;
+  const lines = normalized ? normalized.split(/\n+/).length : 1;
+  const density = Math.max(lines, Math.ceil(length / (compact ? 28 : 42)));
+  if (compact) {
+    if (density > 11) return "slide-text-compact-xs";
+    if (density > 7) return "slide-text-compact-sm";
+    return "slide-text-compact-md";
+  }
+  if (density > 18) return "slide-text-xs";
+  if (density > 13) return "slide-text-sm";
+  if (density > 8) return "slide-text-md";
+  return "slide-text-lg";
+}
 
-  useLayoutEffect(() => {
-    const textElement = textRef.current;
-    const container = containerRef.current;
-    if (!textElement || !container) {
-      return;
-    }
-
-    function fit() {
-      if (!textElement || !container) {
-        return;
-      }
-
-      let low = compact ? 5 : 12;
-      let high = compact ? 16 : 52;
-
-      for (let step = 0; step < 10; step += 1) {
-        const mid = (low + high) / 2;
-        textElement.style.fontSize = `${mid}px`;
-
-        if (
-          textElement.scrollHeight <= container.clientHeight &&
-          textElement.scrollWidth <= container.clientWidth
-        ) {
-          low = mid;
-        } else {
-          high = mid;
-        }
-      }
-
-      setFontSize(Math.floor(low));
-    }
-
-    const frame = window.requestAnimationFrame(fit);
-    const observer = new ResizeObserver(fit);
-    observer.observe(container);
-    return () => {
-      window.cancelAnimationFrame(frame);
-      observer.disconnect();
-    };
-  }, [compact, text]);
-
+function SlideTextBlock({ text, compact = false }: { text: string; compact?: boolean }) {
   return (
-    <div className="fit-slide-box" ref={containerRef}>
-      <pre className="fit-slide-text" ref={textRef} style={{ fontSize }}>
-        {text}
-      </pre>
+    <div className="fit-slide-box">
+      <pre className={`fit-slide-text ${slideTextSizeClass(text, compact)}`}>{text}</pre>
     </div>
   );
 }
@@ -173,7 +142,7 @@ function renderMiniSlide(slide: PresentationSlide | null, fallback: string, them
       {slide.imageUrl ? (
         <img alt="" src={slide.imageUrl} />
       ) : (
-        <FittedSlideText compact text={slide.text} />
+        <SlideTextBlock compact text={slide.text} />
       )}
     </div>
   );
@@ -892,31 +861,92 @@ export function PresentationView({
   }, []);
 
   useEffect(() => {
-    async function loadRenderedDecks() {
-      const files = (plan?.items ?? []).flatMap((item) => item.files ?? []);
-      const uniqueFiles = Array.from(new Map(files.map((file) => [file.file_id, file])).values());
-      const nextSlides: Record<string, RenderedSlide[]> = {};
-      const nextErrors: Record<string, string> = {};
-      setRenderingFileIds(uniqueFiles.map((file) => file.file_id));
+    const files = (plan?.items ?? []).flatMap((item) => item.files ?? []);
+    const activeFileIds = new Set(currentPlanItem?.files?.map((file) => file.file_id) ?? []);
+    const uniqueFiles = Array.from(new Map(files.map((file) => [file.file_id, file])).values());
+    const availableFileIds = new Set(uniqueFiles.map((file) => file.file_id));
 
-      await Promise.all(
-        uniqueFiles.map(async (file) => {
-          try {
-            nextSlides[file.file_id] = await getFileSlides(file.file_id);
-          } catch (error) {
-            nextSlides[file.file_id] = [];
-            nextErrors[file.file_id] = error instanceof Error ? error.message : "Could not render this slide deck.";
-          }
-        }),
-      );
+    setRenderedSlidesByFileId((previous) => {
+      const nextEntries = Object.entries(previous).filter(([fileId]) => availableFileIds.has(fileId));
+      if (nextEntries.length === Object.keys(previous).length) {
+        return previous;
+      }
+      return Object.fromEntries(nextEntries);
+    });
+    setRenderErrorsByFileId((previous) => {
+      const nextEntries = Object.entries(previous).filter(([fileId]) => availableFileIds.has(fileId));
+      if (nextEntries.length === Object.keys(previous).length) {
+        return previous;
+      }
+      return Object.fromEntries(nextEntries);
+    });
+    setRenderingFileIds((previous) => {
+      const next = previous.filter((fileId) => availableFileIds.has(fileId));
+      return next.length === previous.length ? previous : next;
+    });
 
-      setRenderedSlidesByFileId(nextSlides);
-      setRenderErrorsByFileId(nextErrors);
-      setRenderingFileIds([]);
+    const pendingFiles = uniqueFiles.filter(
+      (file) =>
+        !renderedSlidesByFileId[file.file_id] &&
+        !renderErrorsByFileId[file.file_id] &&
+        !renderingFileIds.includes(file.file_id),
+    );
+
+    if (!pendingFiles.length) {
+      return;
     }
 
-    void loadRenderedDecks();
-  }, [plan]);
+    const prioritizedFiles = pendingFiles.sort((left, right) => {
+      const leftActive = activeFileIds.has(left.file_id) ? 1 : 0;
+      const rightActive = activeFileIds.has(right.file_id) ? 1 : 0;
+      return rightActive - leftActive;
+    });
+    const nextBatch = prioritizedFiles.slice(0, activeFileIds.size ? 2 : 1);
+    const nextBatchIds = nextBatch.map((file) => file.file_id);
+    let cancelled = false;
+
+    setRenderingFileIds((previous) => [...new Set([...previous, ...nextBatchIds])]);
+
+    void Promise.all(
+      nextBatch.map(async (file) => {
+        try {
+          const renderedSlides = await getFileSlides(file.file_id);
+          if (cancelled) {
+            return;
+          }
+          setRenderedSlidesByFileId((previous) => ({
+            ...previous,
+            [file.file_id]: renderedSlides,
+          }));
+          setRenderErrorsByFileId((previous) => {
+            const next = { ...previous };
+            delete next[file.file_id];
+            return next;
+          });
+        } catch (error) {
+          if (cancelled) {
+            return;
+          }
+          setRenderedSlidesByFileId((previous) => ({
+            ...previous,
+            [file.file_id]: [],
+          }));
+          setRenderErrorsByFileId((previous) => ({
+            ...previous,
+            [file.file_id]: error instanceof Error ? error.message : "Could not render this slide deck.",
+          }));
+        } finally {
+          if (!cancelled) {
+            setRenderingFileIds((previous) => previous.filter((fileId) => fileId !== file.file_id));
+          }
+        }
+      }),
+    );
+
+    return () => {
+      cancelled = true;
+    };
+  }, [currentPlanItem, plan, renderErrorsByFileId, renderedSlidesByFileId, renderingFileIds]);
 
   useEffect(() => {
     if (!message) {
@@ -1242,7 +1272,7 @@ export function PresentationView({
               {liveSlide?.imageUrl ? (
                 <ScaledSlideImage alt={liveSlide.title} src={liveSlide.imageUrl} />
               ) : (
-                <FittedSlideText text={liveSlide?.text ?? "No live slide selected"} />
+                <SlideTextBlock text={liveSlide?.text ?? "No live slide selected"} />
               )}
             </div>
           </div>
@@ -1293,6 +1323,10 @@ export function PresentationView({
               const sectionRenderError = sectionItem?.files
                 ?.map((file) => renderErrorsByFileId[file.file_id])
                 .find(Boolean);
+              const showSlideTiles =
+                section.itemType !== "sermon" ||
+                section.slides.length <= 4 ||
+                liveSlide?.sectionId === section.id;
               return (
                 <div className="section-slide-group" key={section.id}>
                   <div className="section-jump-row">
@@ -1316,31 +1350,38 @@ export function PresentationView({
                     </button>
                   </div>
                   {sectionRenderError ? <p className="render-error-message">{sectionRenderError}</p> : null}
-                  <div className="section-slide-list">
-                    {section.slides.map((slide) => {
-                      const slideIndex = slides.findIndex((candidate) => candidate.id === slide.id);
-                      return (
-                        <button
-                          className={`slide-tile preview-tile ${presentationTypeClass(slide.itemType)} ${
-                            slideIndex === liveIndex ? "active" : ""
-                          }`}
-                          key={slide.id}
-                          onClick={() => setLiveSlide(slideIndex)}
-                          ref={(element) => {
-                            thumbnailRefs.current[slide.id] = element;
-                          }}
-                          type="button"
-                          title={`${slideIndex + 1}. ${slide.title}`}
-                        >
-                          <span>{(slideIndex + 1).toString().padStart(2, "0")}</span>
-                          {renderMiniSlide(slide, "Empty", slideTheme)}
-                          <div className="thumbnail-menu">
-                            <span>Go</span>
-                          </div>
-                        </button>
-                      );
-                    })}
-                  </div>
+                  {showSlideTiles ? (
+                    <div className="section-slide-list">
+                      {section.slides.map((slide) => {
+                        const slideIndex = slides.findIndex((candidate) => candidate.id === slide.id);
+                        return (
+                          <button
+                            className={`slide-tile preview-tile ${presentationTypeClass(slide.itemType)} ${
+                              slideIndex === liveIndex ? "active" : ""
+                            }`}
+                            key={slide.id}
+                            onClick={() => setLiveSlide(slideIndex)}
+                            ref={(element) => {
+                              thumbnailRefs.current[slide.id] = element;
+                            }}
+                            type="button"
+                            title={`${slideIndex + 1}. ${slide.title}`}
+                          >
+                            <span>{(slideIndex + 1).toString().padStart(2, "0")}</span>
+                            {renderMiniSlide(slide, "Empty", slideTheme)}
+                            <div className="thumbnail-menu">
+                              <span>Go</span>
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <button className="deck-slide-summary" onClick={() => setLiveSlide(sectionStart)} type="button">
+                      <strong>{section.slides.length} deck slides</strong>
+                      <span>Open this section to browse slide thumbnails</span>
+                    </button>
+                  )}
                 </div>
               );
             })}
