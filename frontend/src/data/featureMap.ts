@@ -30,8 +30,8 @@ export interface FeatureModule {
 export const featureModules: FeatureModule[] = [
   {
     id: "presentation",
-    label: "Present",
-    kicker: "Slides and sync",
+    label: "Service",
+    kicker: "Order, slides and sync",
     status: "Scaffolded",
     metrics: [
       { label: "Mode", value: "Ready" },

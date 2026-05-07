@@ -1,4 +1,4 @@
-import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp, MonitorUp, Plus, Trash2 } from "lucide-react";
+import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp, MonitorUp, Search, Trash2 } from "lucide-react";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import {
@@ -66,8 +66,7 @@ interface WindowWithScreenDetails extends Window {
   }>;
 }
 
-type InsertDialogMode = "choose" | "song" | "deck" | "bible";
-type SearchOverlayMode = "reference" | "keyword" | "songs";
+type SearchOverlayMode = "songs" | "bible" | "deck";
 type LoadOptions = {
   preserveLocation?: {
     planItemId: string;
@@ -198,8 +197,6 @@ export function PresentationView({
   const [deckTitle, setDeckTitle] = useState("Sermon");
   const [deckType, setDeckType] = useState("sermon");
   const [deckFile, setDeckFile] = useState<File | null>(null);
-  const [selectedSongId, setSelectedSongId] = useState("");
-  const [insertDialog, setInsertDialog] = useState<{ afterIndex: number; mode: InsertDialogMode } | null>(null);
   const [pendingRemoveSection, setPendingRemoveSection] = useState<{ id: string; title: string } | null>(null);
   const [renderedSlidesByFileId, setRenderedSlidesByFileId] = useState<Record<string, RenderedSlide[]>>({});
   const [renderingFileIds, setRenderingFileIds] = useState<string[]>([]);
@@ -212,9 +209,10 @@ export function PresentationView({
   const [bibleVerseFrom, setBibleVerseFrom] = useState("16");
   const [bibleVerseTo, setBibleVerseTo] = useState("");
   const [searchOverlayOpen, setSearchOverlayOpen] = useState(false);
-  const [searchMode, setSearchMode] = useState<SearchOverlayMode>("reference");
+  const [searchMode, setSearchMode] = useState<SearchOverlayMode>("songs");
+  const [searchInsertIndex, setSearchInsertIndex] = useState<number | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
-  const [searchResults, setSearchResults] = useState<BibleSearchHit[]>([]);
+  const [bibleSearchResults, setBibleSearchResults] = useState<BibleSearchHit[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
   const [slideTheme, setSlideTheme] = useState<PresentationTheme>("light");
   const [liveBlanked, setLiveBlanked] = useState(false);
@@ -237,6 +235,17 @@ export function PresentationView({
   );
   const liveSlide = slides[liveIndex] ?? null;
   const currentPlanItem = (plan?.items ?? []).find((item) => item.id === liveSlide?.planItemId) ?? null;
+  const songSearchResults = useMemo(
+    () =>
+      songs
+        .filter((song) =>
+          !searchQuery.trim()
+            ? true
+            : `${song.title} ${song.author ?? ""}`.toLowerCase().includes(searchQuery.trim().toLowerCase()),
+        )
+        .slice(0, 20),
+    [searchQuery, songs],
+  );
 
   function clearHotkeyButtonFocus() {
     const active = document.activeElement;
@@ -540,24 +549,22 @@ export function PresentationView({
     return sections.findIndex((section) => section.id === liveSlide.sectionId);
   }
 
-  function openInsertDialog(afterIndex: number) {
+  function openSearchOverlay(afterIndex = activeSectionInsertIndex(), mode: SearchOverlayMode = "songs") {
     if (!canEditPlan) {
       setMessage("You can present this plan, but only service leaders and worship leaders can change the running order.");
       return;
     }
-    setSelectedSongId((current) => current || songs[0]?.id || "");
-    setInsertDialog({ afterIndex, mode: "choose" });
-  }
-
-  function closeInsertDialog() {
-    setInsertDialog(null);
+    setSearchInsertIndex(afterIndex);
+    setSearchMode(mode);
+    setSearchOverlayOpen(true);
   }
 
   function closeSearchOverlay() {
     setSearchOverlayOpen(false);
     setSearchLoading(false);
-    setSearchResults([]);
+    setBibleSearchResults([]);
     setSearchQuery("");
+    setSearchInsertIndex(null);
   }
 
   async function insertSongById(songId: string, afterIndex: number) {
@@ -751,7 +758,7 @@ export function PresentationView({
       });
       const item = await createPlanItem(plan.id, {
         item_type: deckType,
-        sequence: sequenceForInsert(insertDialog?.afterIndex ?? sections.length - 1),
+        sequence: sequenceForInsert(searchInsertIndex ?? sections.length - 1),
         title: deckTitle || deckFile.name,
         comment: `Attached slide deck: ${stored.display_name}`,
         key_signature: null,
@@ -759,23 +766,10 @@ export function PresentationView({
       });
       await attachItemFile(item.id, { file_id: stored.id, sort_order: 0 });
       setDeckFile(null);
-      closeInsertDialog();
+      closeSearchOverlay();
       await load(plan.id);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Could not attach slide deck.");
-    }
-  }
-
-  async function addSongToPlan() {
-    if (!plan || !canEditPlan) {
-      return;
-    }
-    try {
-      await insertSongById(selectedSongId, insertDialog?.afterIndex ?? sections.length - 1);
-      closeInsertDialog();
-      await load(plan.id);
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Could not add song.");
     }
   }
 
@@ -845,10 +839,10 @@ export function PresentationView({
           verse_from: Number(bibleVerseFrom),
           verse_to: bibleVerseTo ? Number(bibleVerseTo) : Number(bibleVerseFrom),
         },
-        insertDialog?.afterIndex ?? sections.length - 1,
+        searchInsertIndex ?? sections.length - 1,
       );
       await load(plan.id);
-      closeInsertDialog();
+      closeSearchOverlay();
     } catch (error) {
       const messageText = error instanceof Error ? error.message : "Could not add Scripture slide.";
       setMessage(
@@ -950,6 +944,13 @@ export function PresentationView({
             blanked: remoteState.blanked,
             fullscreen: remoteState.fullscreen,
           });
+          await load(selectedPlanId, {
+            preserveLocation: {
+              planItemId: remoteState.plan_item_id ?? "",
+              slideOffset: remoteState.slide_offset,
+            },
+            silent: true,
+          });
         } catch {
           // Keep local presentation usable even if sync polling fails briefly.
         }
@@ -1014,7 +1015,7 @@ export function PresentationView({
       }
       if ((event.key === "s" || event.key === "S") && !editing) {
         event.preventDefault();
-        setSearchOverlayOpen(true);
+        openSearchOverlay();
         return;
       }
       if (editing || searchOverlayOpen) {
@@ -1091,29 +1092,64 @@ export function PresentationView({
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [canEditPlan, currentPlanItem, liveIndex, plan, screens, searchOverlayOpen, selectedScreenIndex, slides, sections]);
 
-  async function runBibleSearch(mode: "reference" | "keyword") {
+  async function runBibleSearch() {
     const query = searchQuery.trim();
     if (!query) {
-      setSearchResults([]);
+      setBibleSearchResults([]);
       return;
     }
     setSearchLoading(true);
     try {
-      const results = await searchBible({
-        q: query,
-        version_code: bibleVersion || "KJV",
-        search_type: mode,
-        limit: mode === "keyword" ? 20 : 5,
+      const [referenceMatches, keywordMatches] = await Promise.all([
+        searchBible({
+          q: query,
+          version_code: bibleVersion || "KJV",
+          search_type: "reference",
+          limit: 8,
+        }).catch(() => []),
+        searchBible({
+          q: query,
+          version_code: bibleVersion || "KJV",
+          search_type: "keyword",
+          limit: 20,
+        }).catch(() => []),
+      ]);
+
+      const merged = [...referenceMatches, ...keywordMatches].filter((result, index, all) => {
+        const key = `${result.version}:${result.reference}:${result.verse_from}:${result.verse_to}`;
+        return all.findIndex((candidate) => (
+          `${candidate.version}:${candidate.reference}:${candidate.verse_from}:${candidate.verse_to}` === key
+        )) === index;
       });
-      setSearchResults(results);
+
+      setBibleSearchResults(merged);
       setMessage(null);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Could not search Bible.");
-      setSearchResults([]);
+      setBibleSearchResults([]);
     } finally {
       setSearchLoading(false);
     }
   }
+
+  useEffect(() => {
+    if (!searchOverlayOpen || searchMode !== "bible") {
+      return;
+    }
+
+    const query = searchQuery.trim();
+    if (!query) {
+      setBibleSearchResults([]);
+      setSearchLoading(false);
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      void runBibleSearch();
+    }, 180);
+
+    return () => window.clearTimeout(timer);
+  }, [bibleVersion, searchMode, searchOverlayOpen, searchQuery]);
 
   return (
     <section className="presentation-workspace" aria-label="Presentation preview">
@@ -1186,6 +1222,10 @@ export function PresentationView({
               <button className="text-button" disabled={loading || !plan} onClick={() => moveLive(1)} type="button">
                 Next
                 <ChevronRight size={16} aria-hidden="true" />
+              </button>
+              <button className="text-button" disabled={!plan || !canEditPlan} onClick={() => openSearchOverlay()} type="button">
+                <Search size={16} aria-hidden="true" />
+                Search
               </button>
               <button className="primary-button" disabled={loading || !plan} onClick={() => void startSlideshow()} type="button">
                 <MonitorUp size={16} aria-hidden="true" />
@@ -1277,13 +1317,13 @@ export function PresentationView({
           <div className="section-rail-title">Sections</div>
           <div className="section-rail-list">
             <button
-              aria-label="Add section at the start"
+              aria-label="Search or add at the start"
               className="section-insert-button"
               disabled={!canEditPlan}
-              onClick={() => openInsertDialog(-1)}
+              onClick={() => openSearchOverlay(-1)}
               type="button"
             >
-              <Plus size={14} aria-hidden="true" />
+              <Search size={14} aria-hidden="true" />
             </button>
             {sections.map((section, sectionIndex) => {
               const sectionStart = slides.findIndex((slide) => slide.sectionId === section.id);
@@ -1334,13 +1374,13 @@ export function PresentationView({
                     </div>
                   </div>
                   <button
-                    aria-label={`Add section after ${section.title}`}
+                    aria-label={`Search or add after ${section.title}`}
                     className="section-insert-button"
                     disabled={!canEditPlan}
-                    onClick={() => openInsertDialog(sectionIndex)}
+                    onClick={() => openSearchOverlay(sectionIndex)}
                     type="button"
                   >
-                    <Plus size={14} aria-hidden="true" />
+                    <Search size={14} aria-hidden="true" />
                   </button>
                 </div>
               );
@@ -1353,45 +1393,42 @@ export function PresentationView({
         <div className="app-dialog-backdrop" role="presentation">
           <div aria-labelledby="search-overlay-title" aria-modal="true" className="app-dialog app-dialog-wide" role="dialog">
             <div>
-              <h2 id="search-overlay-title">Search</h2>
-              <p>Reference, keyword, or song search. Press `Esc` to close.</p>
+              <h2 id="search-overlay-title">Search And Add</h2>
+              <p>Find songs, Bible passages, or upload a slide deck. Press `Esc` to close.</p>
             </div>
 
             <div className="insert-choice-grid search-mode-grid">
               <button
-                className={`text-button ${searchMode === "reference" ? "active-choice" : ""}`}
-                onClick={() => {
-                  setSearchMode("reference");
-                  setSearchResults([]);
-                }}
-                type="button"
-              >
-                Reference
-              </button>
-              <button
-                className={`text-button ${searchMode === "keyword" ? "active-choice" : ""}`}
-                onClick={() => {
-                  setSearchMode("keyword");
-                  setSearchResults([]);
-                }}
-                type="button"
-              >
-                Keyword
-              </button>
-              <button
                 className={`text-button ${searchMode === "songs" ? "active-choice" : ""}`}
                 onClick={() => {
                   setSearchMode("songs");
-                  setSearchResults([]);
                 }}
                 type="button"
               >
                 Songs
               </button>
+              <button
+                className={`text-button ${searchMode === "bible" ? "active-choice" : ""}`}
+                onClick={() => {
+                  setSearchMode("bible");
+                }}
+                type="button"
+              >
+                Bible
+              </button>
+              <button
+                className={`text-button ${searchMode === "deck" ? "active-choice" : ""}`}
+                onClick={() => {
+                  setSearchMode("deck");
+                }}
+                type="button"
+              >
+                Slide Deck
+              </button>
             </div>
 
             <div className="dialog-form-grid">
-              {searchMode !== "songs" ? (
+              {searchMode === "bible" ? (
                 <label>
                   Version
                   <select onChange={(event) => setBibleVersion(event.target.value)} value={bibleVersion}>
@@ -1403,186 +1440,19 @@ export function PresentationView({
                   </select>
                 </label>
               ) : null}
-              <label>
-                Search
-                <input
-                  onChange={(event) => setSearchQuery(event.target.value)}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter" && searchMode !== "songs") {
-                      event.preventDefault();
-                      void runBibleSearch(searchMode);
-                    }
-                  }}
-                  placeholder={
-                    searchMode === "reference" ? "John 3 16" : searchMode === "keyword" ? "shepherd" : "Amazing Grace"
-                  }
-                  value={searchQuery}
-                />
-              </label>
-            </div>
-
-            {searchMode !== "songs" ? (
-              <div className="app-dialog-actions">
-                <button className="text-button" onClick={closeSearchOverlay} type="button">
-                  Close
-                </button>
-                <button className="primary-button" onClick={() => void runBibleSearch(searchMode)} type="button">
+              {searchMode !== "deck" ? (
+                <label>
                   Search
-                </button>
-              </div>
-            ) : null}
-
-            <div className="search-results-list">
-              {searchLoading ? <p className="search-empty">Searching…</p> : null}
-              {!searchLoading && searchMode === "songs"
-                ? songs
-                    .filter((song) =>
-                      !searchQuery.trim()
-                        ? true
-                        : `${song.title} ${song.author ?? ""}`.toLowerCase().includes(searchQuery.trim().toLowerCase()),
-                    )
-                    .slice(0, 20)
-                    .map((song) => (
-                      <button
-                        className="search-result-card"
-                        disabled={!canEditPlan}
-                        key={song.id}
-                        onClick={() => {
-                          void insertSongById(song.id, activeSectionInsertIndex())
-                            .then(async () => {
-                              await load(plan?.id);
-                              closeSearchOverlay();
-                            })
-                            .catch((error: unknown) => {
-                              setMessage(error instanceof Error ? error.message : "Could not add song.");
-                            });
-                        }}
-                        type="button"
-                      >
-                        <strong>{song.title}</strong>
-                        <span>{song.author ?? "Song"}</span>
-                      </button>
-                    ))
-                : null}
-              {!searchLoading && searchMode !== "songs"
-                ? searchResults.map((result) => (
-                    <button
-                      className="search-result-card"
-                      disabled={!canEditPlan}
-                      key={`${result.version}:${result.reference}:${result.verse_from}`}
-                      onClick={() => {
-                        void insertBibleResult(result, activeSectionInsertIndex())
-                          .then(async () => {
-                            await load(plan?.id);
-                            closeSearchOverlay();
-                          })
-                          .catch((error: unknown) => {
-                            setMessage(error instanceof Error ? error.message : "Could not add Scripture.");
-                          });
-                      }}
-                      type="button"
-                    >
-                      <strong>{result.reference}</strong>
-                      <span>{result.text}</span>
-                    </button>
-                  ))
-                : null}
-              {!searchLoading &&
-              ((searchMode === "songs" &&
-                songs.filter((song) =>
-                  !searchQuery.trim()
-                    ? true
-                    : `${song.title} ${song.author ?? ""}`.toLowerCase().includes(searchQuery.trim().toLowerCase()),
-                ).length === 0) ||
-                (searchMode !== "songs" && searchQuery.trim() && searchResults.length === 0)) ? (
-                <p className="search-empty">No matches yet.</p>
+                  <input
+                    onChange={(event) => setSearchQuery(event.target.value)}
+                    placeholder={searchMode === "bible" ? "John 3 16 or shepherd" : "Amazing Grace"}
+                    value={searchQuery}
+                  />
+                </label>
               ) : null}
             </div>
-          </div>
-        </div>
-      ) : null}
 
-      {insertDialog ? (
-        <div className="app-dialog-backdrop" role="presentation">
-          <div
-            aria-labelledby="insert-section-title"
-            aria-modal="true"
-            className="app-dialog app-dialog-wide"
-            role="dialog"
-          >
-            <div>
-              <h2 id="insert-section-title">Add To Service</h2>
-              <p>Choose what to insert at this point in the order.</p>
-            </div>
-
-            {insertDialog.mode === "choose" ? (
-              <div className="insert-choice-grid">
-                <button className="text-button" onClick={() => setInsertDialog({ ...insertDialog, mode: "song" })} type="button">
-                  Song
-                </button>
-                <button className="text-button" onClick={() => setInsertDialog({ ...insertDialog, mode: "bible" })} type="button">
-                  Bible Passage
-                </button>
-                <button className="text-button" onClick={() => setInsertDialog({ ...insertDialog, mode: "deck" })} type="button">
-                  Slide Deck
-                </button>
-              </div>
-            ) : null}
-
-            {insertDialog.mode === "song" ? (
-              <div className="dialog-form-grid">
-                <label>
-                  Song
-                  <select onChange={(event) => setSelectedSongId(event.target.value)} value={selectedSongId}>
-                    {!songs.length ? <option value="">No songs available</option> : null}
-                    {songs.map((song) => (
-                      <option key={song.id} value={song.id}>
-                        {song.title}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              </div>
-            ) : null}
-
-            {insertDialog.mode === "bible" ? (
-              <div className="scripture-grid dialog-scripture-grid">
-                <label>
-                  Version
-                  <select onChange={(event) => setBibleVersion(event.target.value)} value={bibleVersion}>
-                    {bibleVersions.map((version) => (
-                      <option key={version.id} value={version.code}>
-                        {version.code}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label>
-                  Book
-                  <select onChange={(event) => setBibleBook(event.target.value)} value={bibleBook}>
-                    {bibleBooks.map((book) => (
-                      <option key={book.id} value={book.name}>
-                        {book.name}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label>
-                  Ch
-                  <input onChange={(event) => setBibleChapter(event.target.value)} type="number" value={bibleChapter} />
-                </label>
-                <label>
-                  From
-                  <input onChange={(event) => setBibleVerseFrom(event.target.value)} type="number" value={bibleVerseFrom} />
-                </label>
-                <label>
-                  To
-                  <input onChange={(event) => setBibleVerseTo(event.target.value)} type="number" value={bibleVerseTo} />
-                </label>
-              </div>
-            ) : null}
-
-            {insertDialog.mode === "deck" ? (
+            {searchMode === "deck" ? (
               <div className="dialog-form-grid">
                 <label>
                   Deck File
@@ -1612,28 +1482,69 @@ export function PresentationView({
             ) : null}
 
             <div className="app-dialog-actions">
-              {insertDialog.mode !== "choose" ? (
-                <button className="text-button" onClick={() => setInsertDialog({ ...insertDialog, mode: "choose" })} type="button">
-                  Back
-                </button>
-              ) : null}
-              <button className="text-button" onClick={closeInsertDialog} type="button">
-                Cancel
+              <button className="text-button" onClick={closeSearchOverlay} type="button">
+                Close
               </button>
-              {insertDialog.mode === "song" ? (
-                <button className="primary-button" disabled={!canEditPlan || !selectedSongId} onClick={() => void addSongToPlan()} type="button">
-                  Add Song
-                </button>
-              ) : null}
-              {insertDialog.mode === "bible" ? (
-                <button className="primary-button" disabled={!canEditPlan} onClick={() => void addBiblePassageSlide()} type="button">
-                  Add Passage
-                </button>
-              ) : null}
-              {insertDialog.mode === "deck" ? (
-                <button className="primary-button" disabled={!canAttachDeck} onClick={() => void attachDeckToPlan()} type="button">
+              {searchMode === "deck" ? (
+                <button className="primary-button" disabled={!canAttachDeck || !deckFile} onClick={() => void attachDeckToPlan()} type="button">
                   Add Deck
                 </button>
+              ) : null}
+            </div>
+
+            <div className="search-results-list">
+              {searchLoading ? <p className="search-empty">Searching…</p> : null}
+              {!searchLoading && searchMode === "songs"
+                ? songSearchResults.map((song) => (
+                      <button
+                        className="search-result-card"
+                        disabled={!canEditPlan}
+                        key={song.id}
+                        onClick={() => {
+                          void insertSongById(song.id, activeSectionInsertIndex())
+                            .then(async () => {
+                              await load(plan?.id);
+                              closeSearchOverlay();
+                            })
+                            .catch((error: unknown) => {
+                              setMessage(error instanceof Error ? error.message : "Could not add song.");
+                            });
+                        }}
+                        type="button"
+                      >
+                        <strong>{song.title}</strong>
+                        <span>{song.author ?? "Song"}</span>
+                      </button>
+                    ))
+                : null}
+              {!searchLoading && searchMode === "bible"
+                ? bibleSearchResults.map((result) => (
+                    <button
+                      className="search-result-card"
+                      disabled={!canEditPlan}
+                      key={`${result.version}:${result.reference}:${result.verse_from}`}
+                      onClick={() => {
+                        void insertBibleResult(result, activeSectionInsertIndex())
+                          .then(async () => {
+                            await load(plan?.id);
+                            closeSearchOverlay();
+                          })
+                          .catch((error: unknown) => {
+                            setMessage(error instanceof Error ? error.message : "Could not add Scripture.");
+                          });
+                      }}
+                      type="button"
+                    >
+                      <strong>{result.reference}</strong>
+                      <span>{result.text}</span>
+                    </button>
+                  ))
+                : null}
+              {!searchLoading &&
+              ((searchMode === "songs" &&
+                songSearchResults.length === 0) ||
+                (searchMode === "bible" && searchQuery.trim() && bibleSearchResults.length === 0)) ? (
+                <p className="search-empty">No matches yet.</p>
               ) : null}
             </div>
           </div>
