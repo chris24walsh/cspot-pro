@@ -1,4 +1,4 @@
-import { type FormEvent, useState } from "react";
+import { type FormEvent, useEffect, useState } from "react";
 
 import { bootstrapAdmin, login, type SessionUser } from "../api";
 import { appAssetUrl } from "../paths";
@@ -15,6 +15,10 @@ export function AuthScreen({ bootstrapAvailable, onAuthenticated }: AuthScreenPr
   const [password, setPassword] = useState("");
   const [message, setMessage] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    setMode(bootstrapAvailable ? "bootstrap" : "login");
+  }, [bootstrapAvailable]);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
