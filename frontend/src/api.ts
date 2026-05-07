@@ -395,17 +395,24 @@ async function parseError(response: Response, suppressAuthEvent = false): Promis
     window.dispatchEvent(new Event(AUTH_REQUIRED_EVENT));
   }
 
-  try {
-    const parsed = JSON.parse(text) as { detail?: unknown };
-    if (typeof parsed.detail === "string") {
-      throw new ApiError(parsed.detail, response.status);
-    }
-  } catch (error) {
-    if (error instanceof ApiError) {
-      throw error;
-    }
-    if (error instanceof Error && error.message !== "Unexpected end of JSON input") {
-      throw error;
+  if (response.status === 413) {
+    throw new ApiError("The uploaded file is too large for the server or proxy to accept.", response.status);
+  }
+
+  if (response.status === 502 || response.status === 503 || response.status === 504) {
+    throw new ApiError("The server or proxy could not complete that request right now.", response.status);
+  }
+
+  if (text) {
+    try {
+      const parsed = JSON.parse(text) as { detail?: unknown };
+      if (typeof parsed.detail === "string") {
+        throw new ApiError(parsed.detail, response.status);
+      }
+    } catch (error) {
+      if (error instanceof ApiError) {
+        throw error;
+      }
     }
   }
 
