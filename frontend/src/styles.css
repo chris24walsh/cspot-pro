@@ -1344,6 +1344,13 @@ h3 {
   min-height: 0;
 }
 
+.presenter-plan-toolbar {
+  align-items: end;
+  display: grid;
+  gap: 8px;
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
 .presenter-controls {
   display: grid;
   gap: 8px;
@@ -2442,6 +2449,15 @@ h3 {
   display: flex;
   justify-content: space-between;
   margin-bottom: 16px;
+}
+
+.inline-toggle {
+  align-items: center;
+  color: #3b4741;
+  display: inline-flex;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 800;
 }
 
 .icon-button {

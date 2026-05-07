@@ -1,6 +1,5 @@
 import {
   CalendarDays,
-  CheckCircle2,
   Clapperboard,
   ListMusic,
   Settings,
@@ -23,12 +22,9 @@ import {
   type Song,
 } from "./api";
 import { AuthScreen } from "./components/AuthScreen";
-import { ImportManager } from "./components/ImportManager";
-import { PlanManager } from "./components/PlanManager";
 import { PresentationOutput } from "./components/PresentationOutput";
 import { PresentationView } from "./components/PresentationView";
 import { SongManager } from "./components/SongManager";
-import { TeamManager } from "./components/TeamManager";
 import { UserManager } from "./components/UserManager";
 import { featureModules, type FeatureModule, type ModuleId } from "./data/featureMap";
 import { appAssetUrl } from "./paths";
@@ -41,12 +37,6 @@ const iconMap = {
   imports: UploadCloud,
   admin: Settings,
 } satisfies Record<ModuleId, typeof CalendarDays>;
-
-const statusTone: Record<FeatureModule["status"], string> = {
-  Demo: "status-demo",
-  Scaffolded: "status-scaffolded",
-  Next: "status-next",
-};
 
 interface ApiWorkspace {
   live: boolean;
@@ -76,8 +66,6 @@ function App() {
   const canReadSongs = permissions.has("songs:read");
   const canCreateSongs = permissions.has("songs:create");
   const canEditSongs = canCreateSongs || permissions.has("songs:edit");
-  const canReadTeam = permissions.has("team:read");
-  const canEditTeam = canEditPlans || permissions.has("team:edit");
   const canUsePresentation = permissions.has("presentation:use");
   const canCreateLibrary = permissions.has("library:create");
 
@@ -170,27 +158,24 @@ function App() {
 
         return module;
       }).filter((module) => {
+        if (module.id === "people" || module.id === "imports") {
+          return false;
+        }
         if (module.id === "planning") {
           return canReadPlans;
         }
         if (module.id === "music") {
           return canReadSongs;
         }
-        if (module.id === "people") {
-          return canReadTeam;
-        }
         if (module.id === "presentation") {
           return canUsePresentation;
-        }
-        if (module.id === "imports") {
-          return canReadSongs;
         }
         if (module.id === "admin") {
           return canManageUsers;
         }
         return true;
       }),
-    [canManageUsers, canReadPlans, canReadSongs, canReadTeam, canUsePresentation, workspace],
+    [canManageUsers, canReadPlans, canReadSongs, canUsePresentation, workspace],
   );
 
   const activeModule = useMemo(
@@ -268,39 +253,27 @@ function App() {
               <strong>{sessionUser.name}</strong>
               <span>Sign out</span>
             </button>
-            <div className={`status-pill ${statusTone[activeModule.status]}`}>
-              <CheckCircle2 size={16} aria-hidden="true" />
-              {activeModule.status}
-            </div>
           </div>
         </header>
 
-        {activeModuleId === "planning" ? (
-          <PlanManager
-            canCreate={canCreatePlans}
-            canEdit={canEditPlans}
-            onDataChange={() => void loadWorkspace()}
-          />
-        ) : activeModuleId === "music" ? (
+        {activeModuleId === "music" ? (
           <SongManager
             canCreate={canCreateSongs}
             canEdit={canEditSongs}
             onDataChange={() => void loadWorkspace()}
           />
-        ) : activeModuleId === "people" ? (
-          <TeamManager canEdit={canEditTeam} />
         ) : activeModuleId === "presentation" ? (
           <PresentationView
             canAttachDeck={canEditPlans && canCreateLibrary}
+            canCreatePlan={canCreatePlans}
             canEditPlan={canEditPlans}
           />
-        ) : activeModuleId === "imports" ? (
-          <ImportManager canEdit={canEditSongs} onDataChange={() => void loadWorkspace()} />
         ) : activeModuleId === "admin" ? (
           <UserManager />
         ) : (
           <PresentationView
             canAttachDeck={canEditPlans && canCreateLibrary}
+            canCreatePlan={canCreatePlans}
             canEditPlan={canEditPlans}
           />
         )}

@@ -79,6 +79,9 @@ export function UserManager() {
   const [message, setMessage] = useState<string | null>(null);
   const [actionLink, setActionLink] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [showInactive, setShowInactive] = useState(false);
+
+  const filteredUsers = showInactive ? users : users.filter((user) => user.active);
 
   async function load(selectedId?: string) {
     setLoading(true);
@@ -190,7 +193,12 @@ export function UserManager() {
       await load(result.user.id);
       updateActionLink(result);
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Could not resend invite.");
+      const messageText = error instanceof Error ? error.message : "Could not resend invite.";
+      setMessage(
+        messageText.includes("PUBLIC_APP_URL")
+          ? "Set PUBLIC_APP_URL in the backend env to your public app address, then rebuild before sending invite or reset links."
+          : messageText,
+      );
     }
   }
 
@@ -207,7 +215,12 @@ export function UserManager() {
       await load(selectedUser.id);
       updateActionLink(result);
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Could not create a reset link.");
+      const messageText = error instanceof Error ? error.message : "Could not create a reset link.";
+      setMessage(
+        messageText.includes("PUBLIC_APP_URL")
+          ? "Set PUBLIC_APP_URL in the backend env to your public app address, then rebuild before sending invite or reset links."
+          : messageText,
+      );
     }
   }
 
@@ -242,13 +255,23 @@ export function UserManager() {
       <aside className="manager-list">
         <div className="section-heading">
           <h2>Users</h2>
-          <button className="text-button" onClick={startCreate} type="button">
-            New User
-          </button>
+          <div className="action-row">
+            <label className="inline-toggle">
+              <input
+                checked={showInactive}
+                onChange={(event) => setShowInactive(event.target.checked)}
+                type="checkbox"
+              />
+              <span>Show inactive</span>
+            </label>
+            <button className="text-button" onClick={startCreate} type="button">
+              New User
+            </button>
+          </div>
         </div>
 
         <div className="stack-list">
-          {users.map((user) => (
+          {filteredUsers.map((user) => (
             <button
               className={`stack-row ${user.id === selectedUser?.id ? "selected" : ""}`}
               key={user.id}

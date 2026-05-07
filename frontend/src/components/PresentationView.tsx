@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 import {
   ApiError,
+  createPlan,
   createPlanItem,
   attachItemFile,
   deletePlanItem,
@@ -13,6 +14,7 @@ import {
   getBibleVersions,
   getPlan,
   getPlans,
+  getPlanTypes,
   getPresentationLiveState,
   getSongs,
   uploadStoredFile,
@@ -25,6 +27,7 @@ import {
   type RenderedSlide,
   type PlanDetail,
   type PlanSummary,
+  type PlanType,
   type Song,
 } from "../api";
 import {
@@ -204,12 +207,15 @@ function describeDeckStatus(
 
 export function PresentationView({
   canAttachDeck,
+  canCreatePlan,
   canEditPlan,
 }: {
   canAttachDeck: boolean;
+  canCreatePlan: boolean;
   canEditPlan: boolean;
 }) {
   const [plans, setPlans] = useState<PlanSummary[]>([]);
+  const [planTypes, setPlanTypes] = useState<PlanType[]>([]);
   const [songs, setSongs] = useState<Song[]>([]);
   const [selectedPlanId, setSelectedPlanId] = useState("");
   const [plan, setPlan] = useState<PlanDetail | null>(null);
@@ -344,11 +350,13 @@ export function PresentationView({
 
     try {
       let nextPlans = plans;
+      let nextPlanTypes = planTypes;
       let nextSongs = songs;
-      if (options?.refreshCatalogs || !plans.length || !songs.length) {
-        [nextPlans, nextSongs] = await Promise.all([getPlans(), getSongs()]);
+      if (options?.refreshCatalogs || !plans.length || !songs.length || !planTypes.length) {
+        [nextPlans, nextSongs, nextPlanTypes] = await Promise.all([getPlans(), getSongs(), getPlanTypes()]);
         setPlans(nextPlans);
         setSongs(nextSongs);
+        setPlanTypes(nextPlanTypes);
       }
       const requestedPlanId = planId || selectedPlanId;
       const targetPlanId = nextPlans.some((candidate) => candidate.id === requestedPlanId)
@@ -567,6 +575,43 @@ export function PresentationView({
 
   async function selectPlan(planId: string) {
     await load(planId);
+  }
+
+  function nextSundayIso() {
+    const date = new Date();
+    date.setDate(date.getDate() + ((7 - date.getDay()) % 7 || 7));
+    date.setHours(10, 30, 0, 0);
+    return date.toISOString();
+  }
+
+  async function createNextService() {
+    if (!canCreatePlan) {
+      setMessage("Only service leaders and administrators can create services.");
+      return;
+    }
+
+    const primaryPlanType = planTypes[0];
+    if (!primaryPlanType) {
+      setMessage("No service types are configured yet.");
+      return;
+    }
+
+    try {
+      const created = await createPlan({
+        plan_type_id: primaryPlanType.id,
+        service_date: nextSundayIso(),
+        title: "Sunday Service",
+        subtitle: null,
+        leader_id: null,
+        teacher_id: null,
+        status: "draft",
+        info: null,
+      });
+      await load(created.id, { refreshCatalogs: true });
+      setMessage("New service created.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not create a new service.");
+    }
   }
 
   function orderedPlanItems() {
@@ -1316,21 +1361,28 @@ export function PresentationView({
 
       <div className="presenter-console">
         <div className="presenter-stage-column">
-          <label className="presenter-plan-picker">
-            Plan
-            <select
-              disabled={loading || !plans.length}
-              onChange={(event) => void selectPlan(event.target.value)}
-              value={selectedPlanId}
-            >
-              {!plans.length ? <option value="">No plans available</option> : null}
-              {plans.map((planSummary) => (
-                <option key={planSummary.id} value={planSummary.id}>
-                  {planSummary.title}
-                </option>
-              ))}
-            </select>
-          </label>
+          <div className="presenter-plan-toolbar">
+            <label className="presenter-plan-picker">
+              Plan
+              <select
+                disabled={loading || !plans.length}
+                onChange={(event) => void selectPlan(event.target.value)}
+                value={selectedPlanId}
+              >
+                {!plans.length ? <option value="">No plans available</option> : null}
+                {plans.map((planSummary) => (
+                  <option key={planSummary.id} value={planSummary.id}>
+                    {planSummary.title}
+                  </option>
+                ))}
+              </select>
+            </label>
+            {canCreatePlan ? (
+              <button className="text-button" onClick={() => void createNextService()} type="button">
+                New Service
+              </button>
+            ) : null}
+          </div>
 
           <div
             className={`stage-shell stage-shell-live presenter-current stage-theme-${slideTheme} ${
@@ -1377,16 +1429,18 @@ export function PresentationView({
                 Next
                 <ChevronRight size={16} aria-hidden="true" />
               </button>
-              <button className="text-button" disabled={!plan || !canEditPlan} onClick={() => openSearchOverlay()} type="button">
-                <Search size={16} aria-hidden="true" />
-                Search
-              </button>
+              {canEditPlan ? (
+                <button className="text-button" disabled={!plan} onClick={() => openSearchOverlay()} type="button">
+                  <Search size={16} aria-hidden="true" />
+                  Search
+                </button>
+              ) : null}
               <button className="primary-button" disabled={loading || !plan} onClick={() => void startSlideshow()} type="button">
                 <MonitorUp size={16} aria-hidden="true" />
                 {slideshowOpen ? "Close Slideshow" : "Start Slideshow"}
               </button>
             </div>
-            {currentPlanItem?.item_type === "reading" ? (
+            {currentPlanItem?.item_type === "reading" && canEditPlan ? (
               <div className="action-row bible-nav-row">
                 <button className="text-button" disabled={!canEditPlan} onClick={() => void navigateBibleReading("verse", -1)} type="button">
                   Prev Verse
@@ -1494,15 +1548,16 @@ export function PresentationView({
         <aside className="section-rail" aria-label="Sections">
           <div className="section-rail-title">Sections</div>
           <div className="section-rail-list">
-            <button
-              aria-label="Search or add at the start"
-              className="section-insert-button"
-              disabled={!canEditPlan}
-              onClick={() => openSearchOverlay(-1)}
-              type="button"
-            >
-              <Plus size={14} aria-hidden="true" />
-            </button>
+            {canEditPlan ? (
+              <button
+                aria-label="Search or add at the start"
+                className="section-insert-button"
+                onClick={() => openSearchOverlay(-1)}
+                type="button"
+              >
+                <Plus size={14} aria-hidden="true" />
+              </button>
+            ) : null}
             {sections.map((section, sectionIndex) => {
               const sectionStart = slides.findIndex((slide) => slide.sectionId === section.id);
               return (
@@ -1521,45 +1576,47 @@ export function PresentationView({
                       <span>{(sectionIndex + 1).toString().padStart(2, "0")}</span>
                       <strong>{section.title}</strong>
                     </button>
-                    <div className="section-actions">
-                      <button
-                        aria-label={`Move ${section.title} up`}
-                        className="section-icon-button"
-                        disabled={!canEditPlan || sectionIndex === 0}
-                        onClick={() => void moveSection(section.id, -1)}
-                        type="button"
-                      >
-                        <ChevronUp size={14} aria-hidden="true" />
-                      </button>
-                      <button
-                        aria-label={`Move ${section.title} down`}
-                        className="section-icon-button"
-                        disabled={!canEditPlan || sectionIndex === sections.length - 1}
-                        onClick={() => void moveSection(section.id, 1)}
-                        type="button"
-                      >
-                        <ChevronDown size={14} aria-hidden="true" />
-                      </button>
-                      <button
-                        aria-label={`Remove ${section.title}`}
-                        className="section-icon-button section-remove-button"
-                        disabled={!canEditPlan}
-                        onClick={() => setPendingRemoveSection({ id: section.id, title: section.title })}
-                        type="button"
-                      >
-                        <Trash2 size={14} aria-hidden="true" />
-                      </button>
-                    </div>
+                    {canEditPlan ? (
+                      <div className="section-actions">
+                        <button
+                          aria-label={`Move ${section.title} up`}
+                          className="section-icon-button"
+                          disabled={sectionIndex === 0}
+                          onClick={() => void moveSection(section.id, -1)}
+                          type="button"
+                        >
+                          <ChevronUp size={14} aria-hidden="true" />
+                        </button>
+                        <button
+                          aria-label={`Move ${section.title} down`}
+                          className="section-icon-button"
+                          disabled={sectionIndex === sections.length - 1}
+                          onClick={() => void moveSection(section.id, 1)}
+                          type="button"
+                        >
+                          <ChevronDown size={14} aria-hidden="true" />
+                        </button>
+                        <button
+                          aria-label={`Remove ${section.title}`}
+                          className="section-icon-button section-remove-button"
+                          onClick={() => setPendingRemoveSection({ id: section.id, title: section.title })}
+                          type="button"
+                        >
+                          <Trash2 size={14} aria-hidden="true" />
+                        </button>
+                      </div>
+                    ) : null}
                   </div>
-                  <button
-                    aria-label={`Search or add after ${section.title}`}
-                    className="section-insert-button"
-                    disabled={!canEditPlan}
-                    onClick={() => openSearchOverlay(sectionIndex)}
-                    type="button"
-                  >
-                    <Plus size={14} aria-hidden="true" />
-                  </button>
+                  {canEditPlan ? (
+                    <button
+                      aria-label={`Search or add after ${section.title}`}
+                      className="section-insert-button"
+                      onClick={() => openSearchOverlay(sectionIndex)}
+                      type="button"
+                    >
+                      <Plus size={14} aria-hidden="true" />
+                    </button>
+                  ) : null}
                 </div>
               );
             })}
