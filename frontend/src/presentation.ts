@@ -3,6 +3,7 @@ import { splitWorshipSlides } from "./worshipText";
 
 export const PRESENTATION_CHANNEL = "cspot-pro-presentation-live";
 export const PRESENTATION_STORAGE_KEY = "cspot-pro:presentation-live";
+export const PRESENTATION_OUTPUT_STATUS_KEY = "cspot-pro:presentation-output-status";
 export type PresentationTheme = "dark" | "light";
 
 export interface PresentationLiveState {

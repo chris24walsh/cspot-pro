@@ -13,6 +13,7 @@ import {
 } from "../api";
 import {
   PRESENTATION_CHANNEL,
+  PRESENTATION_OUTPUT_STATUS_KEY,
   PRESENTATION_STORAGE_KEY,
   buildPresentationSlides,
   presentationTypeClass,
@@ -55,6 +56,16 @@ export function PresentationOutput() {
   );
   const resolvedIndex = resolveLiveIndex(slides, liveState);
   const liveSlide = slides[resolvedIndex] ?? null;
+
+  const writeOutputHeartbeat = useCallback(() => {
+    if (!liveState?.planId) {
+      return;
+    }
+    localStorage.setItem(
+      PRESENTATION_OUTPUT_STATUS_KEY,
+      JSON.stringify({ planId: liveState.planId, heartbeatAt: Date.now() }),
+    );
+  }, [liveState?.planId]);
 
   function applyLiveState(state: PresentationLiveState) {
     lastLiveStateRef.current = state.updatedAt;
@@ -151,6 +162,22 @@ export function PresentationOutput() {
   useEffect(() => {
     void load(liveState);
   }, [liveState?.planId, liveState?.updatedAt, load]);
+
+  useEffect(() => {
+    writeOutputHeartbeat();
+    const timer = window.setInterval(writeOutputHeartbeat, 1500);
+
+    function clearHeartbeat() {
+      localStorage.removeItem(PRESENTATION_OUTPUT_STATUS_KEY);
+    }
+
+    window.addEventListener("beforeunload", clearHeartbeat);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener("beforeunload", clearHeartbeat);
+      clearHeartbeat();
+    };
+  }, [writeOutputHeartbeat]);
 
   useEffect(() => {
     setBlanked(Boolean(liveState?.blanked));

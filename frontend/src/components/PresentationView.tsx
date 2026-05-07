@@ -28,6 +28,7 @@ import {
 } from "../api";
 import {
   PRESENTATION_CHANNEL,
+  PRESENTATION_OUTPUT_STATUS_KEY,
   PRESENTATION_STORAGE_KEY,
   buildPresentationSections,
   buildPresentationSlides,
@@ -188,6 +189,7 @@ export function PresentationView({
   const [liveBlanked, setLiveBlanked] = useState(false);
   const [liveFullscreen, setLiveFullscreen] = useState(false);
   const [slideshowOpen, setSlideshowOpen] = useState(false);
+  const [deckRenderRetryToken, setDeckRenderRetryToken] = useState(0);
   const searchInputRef = useRef<HTMLInputElement | null>(null);
   const outputWindowRef = useRef<Window | null>(null);
   const channelRef = useRef<BroadcastChannel | null>(null);
@@ -225,6 +227,24 @@ export function PresentationView({
     }
     if (active.closest(".presenter-controls")) {
       active.blur();
+    }
+  }
+
+  function syncSlideshowStatusFromStorage() {
+    try {
+      const value = localStorage.getItem(PRESENTATION_OUTPUT_STATUS_KEY);
+      if (!value) {
+        setSlideshowOpen(false);
+        return;
+      }
+      const status = JSON.parse(value) as { planId?: string; heartbeatAt?: number };
+      const isFresh =
+        status.planId === selectedPlanId &&
+        typeof status.heartbeatAt === "number" &&
+        Date.now() - status.heartbeatAt < 5000;
+      setSlideshowOpen(isFresh);
+    } catch {
+      setSlideshowOpen(false);
     }
   }
 
@@ -430,6 +450,7 @@ export function PresentationView({
       outputWindowRef.current.close();
     }
     outputWindowRef.current = null;
+    localStorage.removeItem(PRESENTATION_OUTPUT_STATUS_KEY);
     setSlideshowOpen(false);
   }
 
@@ -482,6 +503,10 @@ export function PresentationView({
     }
 
     outputWindowRef.current = outputWindow;
+    localStorage.setItem(
+      PRESENTATION_OUTPUT_STATUS_KEY,
+      JSON.stringify({ planId: plan.id, heartbeatAt: Date.now() }),
+    );
     setSlideshowOpen(true);
     outputWindow.focus();
   }
@@ -914,6 +939,10 @@ export function PresentationView({
           if (cancelled) {
             return;
           }
+          if (!renderedSlides.length) {
+            window.setTimeout(() => setDeckRenderRetryToken((current) => current + 1), 1500);
+            return;
+          }
           setRenderedSlidesByFileId((previous) => ({
             ...previous,
             [file.file_id]: renderedSlides,
@@ -946,7 +975,7 @@ export function PresentationView({
     return () => {
       cancelled = true;
     };
-  }, [currentPlanItem, plan, renderErrorsByFileId, renderedSlidesByFileId, renderingFileIds]);
+  }, [currentPlanItem, deckRenderRetryToken, plan, renderErrorsByFileId, renderedSlidesByFileId, renderingFileIds]);
 
   useEffect(() => {
     if (!message) {
@@ -1033,15 +1062,29 @@ export function PresentationView({
   }, [selectedPlanId, slides]);
 
   useEffect(() => {
+    syncSlideshowStatusFromStorage();
+
     const timer = window.setInterval(() => {
+      syncSlideshowStatusFromStorage();
       if (outputWindowRef.current && outputWindowRef.current.closed) {
         outputWindowRef.current = null;
+        localStorage.removeItem(PRESENTATION_OUTPUT_STATUS_KEY);
         setSlideshowOpen(false);
       }
     }, 500);
 
-    return () => window.clearInterval(timer);
-  }, []);
+    function onStorage(event: StorageEvent) {
+      if (event.key === PRESENTATION_OUTPUT_STATUS_KEY) {
+        syncSlideshowStatusFromStorage();
+      }
+    }
+
+    window.addEventListener("storage", onStorage);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener("storage", onStorage);
+    };
+  }, [selectedPlanId]);
 
   useEffect(() => {
     if (suppressPublishRef.current) {
