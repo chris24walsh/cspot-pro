@@ -17,6 +17,9 @@ class Settings(BaseSettings):
     session_cookie_secure: bool = False
     auth_invite_hours: int = 72
     auth_reset_hours: int = 2
+    google_oauth_client_id: str | None = None
+    google_oauth_client_secret: str | None = None
+    google_drive_project_number: str | None = None
     smtp_host: str | None = None
     smtp_port: int = 587
     smtp_username: str | None = None
@@ -29,6 +32,21 @@ class Settings(BaseSettings):
     @cached_property
     def cors_origins(self) -> list[str]:
         return [origin.strip() for origin in self.api_cors_origins.split(",") if origin.strip()]
+
+    @cached_property
+    def google_drive_redirect_uri(self) -> str | None:
+        if not self.public_app_url:
+            return None
+        return f"{self.public_app_url.rstrip('/')}/api/v1/integrations/google-drive/callback"
+
+    @cached_property
+    def google_drive_configured(self) -> bool:
+        return bool(
+            self.google_oauth_client_id
+            and self.google_oauth_client_secret
+            and self.public_app_url
+            and self.google_drive_redirect_uri
+        )
 
 
 settings = Settings()

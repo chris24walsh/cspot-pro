@@ -6,6 +6,7 @@ import {
   createPlan,
   createPlanItem,
   attachItemFile,
+  getGoogleDriveStatus,
   deletePlanItem,
   getFileSlides,
   getBibleBooks,
@@ -17,6 +18,8 @@ import {
   getPlanTypes,
   getPresentationLiveState,
   getSongs,
+  importGoogleDriveDeck,
+  searchGoogleDriveFiles,
   uploadStoredFile,
   updatePresentationLiveState,
   updatePlanItem,
@@ -25,6 +28,8 @@ import {
   type BibleVersion,
   type PresentationLiveSyncState,
   type RenderedSlide,
+  type GoogleDriveFile,
+  type GoogleDriveStatus,
   type PlanDetail,
   type PlanSummary,
   type PlanType,
@@ -244,6 +249,9 @@ export function PresentationView({
   const [searchQuery, setSearchQuery] = useState("");
   const [bibleSearchResults, setBibleSearchResults] = useState<BibleSearchHit[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
+  const [googleDriveStatus, setGoogleDriveStatus] = useState<GoogleDriveStatus | null>(null);
+  const [googleDriveFiles, setGoogleDriveFiles] = useState<GoogleDriveFile[]>([]);
+  const [googleDriveLoading, setGoogleDriveLoading] = useState(false);
   const [slideTheme, setSlideTheme] = useState<PresentationTheme>("light");
   const [liveBlanked, setLiveBlanked] = useState(false);
   const [liveFullscreen, setLiveFullscreen] = useState(false);
@@ -662,6 +670,8 @@ export function PresentationView({
     setSearchOverlayOpen(false);
     setSearchLoading(false);
     setBibleSearchResults([]);
+    setGoogleDriveFiles([]);
+    setGoogleDriveLoading(false);
     setSearchQuery("");
     setSearchInsertIndex(null);
     setDeckFile(null);
@@ -876,6 +886,38 @@ export function PresentationView({
     }
   }
 
+  async function attachImportedDriveDeck(file: GoogleDriveFile) {
+    if (!plan) {
+      setMessage("Select a plan before attaching a deck.");
+      return;
+    }
+    if (!canEditPlan || !canAttachDeck) {
+      setMessage("Adding slide decks requires plan editing and library upload access.");
+      return;
+    }
+
+    try {
+      const resolvedDeckTitle = deckTitle.trim() || file.name.replace(/\.[^.]+$/, "") || "Sermon";
+      const imported = await importGoogleDriveDeck({
+        file_id: file.id,
+        display_name: resolvedDeckTitle,
+      });
+      const item = await createPlanItem(plan.id, {
+        item_type: "sermon",
+        sequence: sequenceForInsert(searchInsertIndex ?? sections.length - 1),
+        title: resolvedDeckTitle,
+        comment: `Imported from Google Drive: ${file.name}`,
+        key_signature: null,
+        song_id: null,
+      });
+      await attachItemFile(item.id, { file_id: imported.file.id, sort_order: 0 });
+      closeSearchOverlay();
+      await load(plan.id);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not import this Google Drive deck.");
+    }
+  }
+
   async function removeSection(sectionId: string) {
     if (!plan || !canEditPlan) {
       return;
@@ -1083,7 +1125,7 @@ export function PresentationView({
   }, []);
 
   useEffect(() => {
-    if (!searchOverlayOpen || searchMode === "deck") {
+    if (!searchOverlayOpen) {
       return;
     }
     const frame = window.requestAnimationFrame(() => {
@@ -1349,6 +1391,39 @@ export function PresentationView({
 
     return () => window.clearTimeout(timer);
   }, [bibleVersion, searchMode, searchOverlayOpen, searchQuery]);
+
+  useEffect(() => {
+    if (!searchOverlayOpen || searchMode !== "deck") {
+      return;
+    }
+
+    void getGoogleDriveStatus()
+      .then((status) => setGoogleDriveStatus(status))
+      .catch(() => setGoogleDriveStatus(null));
+  }, [searchMode, searchOverlayOpen]);
+
+  useEffect(() => {
+    if (!searchOverlayOpen || searchMode !== "deck" || !googleDriveStatus?.connected) {
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      setGoogleDriveLoading(true);
+      void searchGoogleDriveFiles(searchQuery.trim())
+        .then((files) => {
+          setGoogleDriveFiles(files);
+        })
+        .catch((error: unknown) => {
+          setMessage(error instanceof Error ? error.message : "Could not search Google Drive.");
+          setGoogleDriveFiles([]);
+        })
+        .finally(() => {
+          setGoogleDriveLoading(false);
+        });
+    }, 180);
+
+    return () => window.clearTimeout(timer);
+  }, [googleDriveStatus?.connected, searchMode, searchOverlayOpen, searchQuery]);
 
   return (
     <section className="presentation-workspace" aria-label="Presentation preview">
@@ -1689,31 +1764,54 @@ export function PresentationView({
             </div>
 
             {searchMode === "deck" ? (
-              <div className="dialog-form-grid">
-                <label>
-                  Deck File
-                  <input
-                    disabled={!canAttachDeck}
-                    accept=".ppt,.pptx,.odp,.pdf,.key"
-                    onChange={(event) => {
-                      setDeckFile(event.target.files?.[0] ?? null);
-                    }}
-                    type="file"
-                  />
-                </label>
-                <label>
-                  Deck Name
-                  <input
-                    disabled={!canAttachDeck}
-                    onChange={(event) => {
-                      setDeckTitle(event.target.value);
-                      setDeckTitleTouched(true);
-                    }}
-                    placeholder="Sermon"
-                    value={deckTitle}
-                  />
-                </label>
-              </div>
+              <>
+                <div className="dialog-form-grid">
+                  <label>
+                    Deck File
+                    <input
+                      disabled={!canAttachDeck}
+                      accept=".ppt,.pptx,.odp,.pdf,.key"
+                      onChange={(event) => {
+                        setDeckFile(event.target.files?.[0] ?? null);
+                      }}
+                      type="file"
+                    />
+                  </label>
+                  <label>
+                    Deck Name
+                    <input
+                      disabled={!canAttachDeck}
+                      onChange={(event) => {
+                        setDeckTitle(event.target.value);
+                        setDeckTitleTouched(true);
+                      }}
+                      placeholder="Sermon"
+                      value={deckTitle}
+                    />
+                  </label>
+                </div>
+
+                <div className="search-deck-divider">
+                  <span>or import from Google Drive</span>
+                </div>
+
+                <div className="dialog-form-grid">
+                  <label className="wide-field">
+                    Drive Search
+                    <input
+                      disabled={!googleDriveStatus?.connected}
+                      onChange={(event) => setSearchQuery(event.target.value)}
+                      placeholder={
+                        googleDriveStatus?.connected
+                          ? "Search sermons, slides, or PDF decks"
+                          : "Connect Google Drive in Admin first"
+                      }
+                      ref={searchInputRef}
+                      value={searchQuery}
+                    />
+                  </label>
+                </div>
+              </>
             ) : null}
 
             <div className="app-dialog-actions">
@@ -1729,6 +1827,7 @@ export function PresentationView({
 
             <div className="search-results-list">
               {searchLoading ? <p className="search-empty">Searching…</p> : null}
+              {searchMode === "deck" && googleDriveLoading ? <p className="search-empty">Searching Google Drive…</p> : null}
               {!searchLoading && searchMode === "songs"
                 ? songSearchResults.map((song) => (
                       <button
@@ -1775,10 +1874,31 @@ export function PresentationView({
                     </button>
                   ))
                 : null}
+              {!googleDriveLoading && searchMode === "deck" && googleDriveStatus?.connected
+                ? googleDriveFiles.map((file) => (
+                    <button
+                      className="search-result-card"
+                      disabled={!canEditPlan || !canAttachDeck}
+                      key={file.id}
+                      onClick={() => {
+                        void attachImportedDriveDeck(file);
+                      }}
+                      type="button"
+                    >
+                      <strong>{file.name}</strong>
+                      <span>{file.source_kind === "google_slides" ? "Google Slides" : file.mime_type}</span>
+                    </button>
+                  ))
+                : null}
               {!searchLoading &&
               ((searchMode === "songs" &&
                 songSearchResults.length === 0) ||
-                (searchMode === "bible" && searchQuery.trim() && bibleSearchResults.length === 0)) ? (
+                (searchMode === "bible" && searchQuery.trim() && bibleSearchResults.length === 0) ||
+                (searchMode === "deck" &&
+                  googleDriveStatus?.connected &&
+                  searchQuery.trim() &&
+                  googleDriveFiles.length === 0 &&
+                  !googleDriveLoading)) ? (
                 <p className="search-empty">No matches yet.</p>
               ) : null}
             </div>

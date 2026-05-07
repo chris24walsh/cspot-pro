@@ -447,6 +447,19 @@ h3 {
   justify-content: flex-end;
 }
 
+.subsection-panel {
+  background: #fffdf7;
+  border: 1px solid #e3dcc8;
+  border-radius: 12px;
+  margin-top: 16px;
+  padding: 16px;
+}
+
+.muted-copy {
+  color: #65716a;
+  margin: 0;
+}
+
 .field-help {
   color: #65716a;
   font-size: 12px;
@@ -830,6 +843,22 @@ h3 {
 
 .wide-field {
   grid-column: 1 / -1;
+}
+
+.search-deck-divider {
+  align-items: center;
+  color: #65716a;
+  display: flex;
+  gap: 10px;
+  margin: 4px 0;
+}
+
+.search-deck-divider::before,
+.search-deck-divider::after {
+  background: #e3dcc8;
+  content: "";
+  flex: 1;
+  height: 1px;
 }
 
 .toggle-row {

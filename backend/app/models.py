@@ -3,6 +3,7 @@
 from app.modules.communication.models import Message, MessageParticipant, MessageThread
 from app.modules.identity.models import Role, SocialLogin, User, UserRole
 from app.modules.imports.models import ImportProvider, ImportRun
+from app.modules.integrations.models import OAuthConnection
 from app.modules.library.models import (
     BibleBook,
     BibleVerse,
@@ -44,6 +45,7 @@ __all__ = [
     "MessageParticipant",
     "MessageThread",
     "OnSongSection",
+    "OAuthConnection",
     "Plan",
     "PlanCache",
     "PlanItem",

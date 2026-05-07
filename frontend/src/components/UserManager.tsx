@@ -1,9 +1,13 @@
 import { type FormEvent, useEffect, useState } from "react";
 
 import {
+  buildAbsoluteApiUrl,
   deactivateUser,
+  disconnectGoogleDrive,
+  getGoogleDriveStatus,
   getRoles,
   getUsers,
+  type GoogleDriveStatus,
   inviteUser,
   resendInvite,
   sendPasswordReset,
@@ -80,6 +84,7 @@ export function UserManager() {
   const [actionLink, setActionLink] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [showInactive, setShowInactive] = useState(false);
+  const [driveStatus, setDriveStatus] = useState<GoogleDriveStatus | null>(null);
 
   const filteredUsers = showInactive ? users : users.filter((user) => user.active);
 
@@ -88,9 +93,14 @@ export function UserManager() {
     setMessage(null);
 
     try {
-      const [nextRoles, nextUsers] = await Promise.all([getRoles(), getUsers()]);
+      const [nextRoles, nextUsers, nextDriveStatus] = await Promise.all([
+        getRoles(),
+        getUsers(),
+        getGoogleDriveStatus(),
+      ]);
       setRoles(nextRoles);
       setUsers(nextUsers);
+      setDriveStatus(nextDriveStatus);
 
       const target = nextUsers.find((user) => user.id === selectedId) ?? nextUsers[0] ?? null;
       if (target) {
@@ -250,6 +260,45 @@ export function UserManager() {
     void load();
   }, []);
 
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const result = params.get("googleDrive");
+    if (!result) {
+      return;
+    }
+
+    if (result === "connected") {
+      setMessage("Google Drive connected.");
+    } else if (result.startsWith("error:")) {
+      setMessage(`Google Drive connection failed: ${decodeURIComponent(result.slice(6))}`);
+    }
+
+    params.delete("googleDrive");
+    const nextQuery = params.toString();
+    window.history.replaceState({}, "", `${window.location.pathname}${nextQuery ? `?${nextQuery}` : ""}`);
+    void load(selectedUser?.id);
+  }, [selectedUser?.id]);
+
+  async function disconnectDrive() {
+    const confirmed = window.confirm("Disconnect the shared Google Drive account?");
+    if (!confirmed) {
+      return;
+    }
+
+    setMessage(null);
+    try {
+      await disconnectGoogleDrive();
+      await load(selectedUser?.id);
+      setMessage("Google Drive disconnected.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not disconnect Google Drive.");
+    }
+  }
+
+  function connectDrive() {
+    window.location.href = buildAbsoluteApiUrl("/api/v1/integrations/google-drive/connect");
+  }
+
   return (
     <section className="manager-grid" aria-label="User management">
       <aside className="manager-list">
@@ -395,6 +444,37 @@ export function UserManager() {
             </div>
           </fieldset>
         </div>
+
+        <section className="subsection-panel">
+          <div className="section-heading">
+            <div>
+              <p className="eyebrow">Integrations</p>
+              <h3>Google Drive</h3>
+            </div>
+            <div className="action-row">
+              {driveStatus?.connected ? (
+                <button className="danger-button" onClick={() => void disconnectDrive()} type="button">
+                  Disconnect
+                </button>
+              ) : null}
+              <button
+                className="text-button"
+                disabled={!driveStatus?.configured}
+                onClick={connectDrive}
+                type="button"
+              >
+                {driveStatus?.connected ? "Reconnect" : "Connect Google Drive"}
+              </button>
+            </div>
+          </div>
+          <p className="muted-copy">
+            {driveStatus?.configured
+              ? driveStatus.connected
+                ? `Connected as ${driveStatus.account_name || driveStatus.account_email || "Google Drive account"}.`
+                : "Connect the shared church Google Drive account so decks can be imported straight into the service flow."
+              : "Set GOOGLE_OAUTH_CLIENT_ID, GOOGLE_OAUTH_CLIENT_SECRET, and PUBLIC_APP_URL in the backend env, then rebuild before connecting Google Drive."}
+          </p>
+        </section>
       </form>
     </section>
   );

@@ -25,6 +25,10 @@ function buildApiUrl(path: string) {
   return `${base}${path}`;
 }
 
+export function buildAbsoluteApiUrl(path: string) {
+  return buildApiUrl(path);
+}
+
 export class ApiError extends Error {
   status: number;
 
@@ -381,6 +385,29 @@ export interface PasswordResetAdminResponse {
   expires_at: string;
 }
 
+export interface GoogleDriveStatus {
+  configured: boolean;
+  connected: boolean;
+  account_email: string | null;
+  account_name: string | null;
+  scope: string | null;
+  connected_at: string | null;
+}
+
+export interface GoogleDriveFile {
+  id: string;
+  name: string;
+  mime_type: string;
+  modified_time: string | null;
+  web_view_link: string | null;
+  source_kind: string;
+}
+
+export interface GoogleDriveImportResponse {
+  file: StoredFile;
+  source: GoogleDriveFile;
+}
+
 export interface AuthActionToken {
   purpose: string;
   email: string;
@@ -665,6 +692,25 @@ export async function resendInvite(userId: string): Promise<UserInviteResponse> 
 
 export async function sendPasswordReset(userId: string): Promise<PasswordResetAdminResponse> {
   return sendJson<PasswordResetAdminResponse>(`/api/v1/identity/users/${userId}/password-reset`, "POST", {});
+}
+
+export async function getGoogleDriveStatus(): Promise<GoogleDriveStatus> {
+  return getJson<GoogleDriveStatus>("/api/v1/integrations/google-drive/status");
+}
+
+export async function disconnectGoogleDrive(): Promise<void> {
+  return deleteRequest("/api/v1/integrations/google-drive/connection");
+}
+
+export async function searchGoogleDriveFiles(query: string): Promise<GoogleDriveFile[]> {
+  return getJson<GoogleDriveFile[]>(`/api/v1/integrations/google-drive/files?q=${encodeURIComponent(query)}`);
+}
+
+export async function importGoogleDriveDeck(payload: {
+  file_id: string;
+  display_name?: string | null;
+}): Promise<GoogleDriveImportResponse> {
+  return sendJson<GoogleDriveImportResponse>("/api/v1/integrations/google-drive/import", "POST", payload);
 }
 
 export async function getInstruments(): Promise<Instrument[]> {

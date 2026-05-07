@@ -51,6 +51,7 @@ Edit `.env.npm` and set:
 - `POSTGRES_PASSWORD`
 - `AUTH_SECRET_KEY`
 - `API_CORS_ORIGINS`
+- `PUBLIC_APP_URL`
 
 Example:
 
@@ -66,6 +67,22 @@ DATABASE_URL=postgresql+psycopg://cspot:replace-with-a-long-random-password@db:5
 
 AUTH_SECRET_KEY=replace-with-a-long-random-secret
 SESSION_COOKIE_SECURE=true
+```
+
+If you want to import sermon decks directly from a shared Google Drive account,
+also set:
+
+```env
+GOOGLE_OAUTH_CLIENT_ID=your-google-oauth-client-id
+GOOGLE_OAUTH_CLIENT_SECRET=your-google-oauth-client-secret
+GOOGLE_DRIVE_PROJECT_NUMBER=your-google-cloud-project-number
+```
+
+Use the same public host as an authorized redirect origin in Google Cloud. The
+backend callback URL will be:
+
+```text
+https://cspot.yourdomain.com/api/v1/integrations/google-drive/callback
 ```
 
 ## 2. Start the App
