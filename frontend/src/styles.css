@@ -1333,7 +1333,7 @@ h3 {
 .presenter-console {
   display: grid;
   gap: 10px;
-  grid-template-columns: minmax(360px, 0.82fr) minmax(430px, 1fr) 190px;
+  grid-template-columns: minmax(360px, 0.95fr) minmax(300px, 0.62fr) 168px;
   min-height: 0;
 }
 
@@ -1847,7 +1847,7 @@ h3 {
   color: #17201b;
   cursor: pointer;
   display: grid;
-  gap: 4px;
+  gap: 8px;
   padding: 12px;
   text-align: left;
 }
@@ -1859,6 +1859,11 @@ h3 {
 
 .deck-slide-summary strong {
   font-size: 14px;
+}
+
+.deck-slide-summary .mini-slide-surface,
+.deck-slide-summary .mini-slide-empty {
+  min-height: 82px;
 }
 
 .deck-slide-summary span {
@@ -1912,10 +1917,10 @@ h3 {
   align-content: start;
   display: grid;
   flex: 1 1 auto;
-  gap: 8px;
+  gap: 6px;
   min-height: 0;
   overflow: auto;
-  padding-right: 4px;
+  padding-right: 2px;
 }
 
 .slide-tile.active {
@@ -2550,9 +2555,25 @@ h3 {
     padding: 20px;
   }
 
-  .presentation-screens,
-  .presenter-console {
+  .presentation-screens {
     grid-template-columns: 1fr;
+  }
+
+  .presenter-console {
+    align-items: start;
+    grid-template-columns: minmax(0, 1fr) minmax(132px, 0.42fr);
+  }
+
+  .presenter-stage-column {
+    grid-column: 1 / -1;
+  }
+
+  .presenter-sidebar {
+    min-width: 0;
+  }
+
+  .section-rail {
+    min-width: 0;
   }
 
   .lane-grid {
@@ -2567,6 +2588,10 @@ h3 {
 @media (min-width: 1280px) {
   .item-editor-grid {
     grid-template-columns: minmax(260px, 0.8fr) minmax(420px, 1.2fr);
+  }
+
+  .presenter-console {
+    grid-template-columns: minmax(420px, 1fr) minmax(260px, 0.48fr) 152px;
   }
 }
 

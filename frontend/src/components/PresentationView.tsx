@@ -2,6 +2,7 @@ import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp, MonitorUp, Plus, Sea
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import {
+  ApiError,
   createPlanItem,
   attachItemFile,
   deletePlanItem,
@@ -956,6 +957,10 @@ export function PresentationView({
           if (cancelled) {
             return;
           }
+          if (error instanceof ApiError && (error.status === 503 || error.status === 504)) {
+            window.setTimeout(() => setDeckRenderRetryToken((current) => current + 1), 1500);
+            return;
+          }
           setRenderedSlidesByFileId((previous) => ({
             ...previous,
             [file.file_id]: [],
@@ -1421,6 +1426,7 @@ export function PresentationView({
                     </div>
                   ) : (
                     <button className="deck-slide-summary" onClick={() => setLiveSlide(sectionStart)} type="button">
+                      {renderMiniSlide(section.slides[0] ?? null, "Rendering deck", slideTheme)}
                       <strong>{section.slides.length} deck slides</strong>
                       <span>Open this section to browse slide thumbnails</span>
                     </button>
