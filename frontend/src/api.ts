@@ -767,7 +767,7 @@ export async function getFileSlides(fileId: string): Promise<RenderedSlide[]> {
   const slides = await getJson<RenderedSlide[]>(`/api/v1/library/files/${fileId}/slides`);
   return slides.map((slide) => ({
     ...slide,
-    image_url: slide.image_url.startsWith("http") ? slide.image_url : `${API_BASE_URL}${slide.image_url}`,
+    image_url: slide.image_url.startsWith("http") ? slide.image_url : buildApiUrl(slide.image_url),
   }));
 }
 
