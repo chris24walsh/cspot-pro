@@ -16,6 +16,14 @@ export const API_BASE_URL = defaultApiBaseUrl();
 export const AUTH_REQUIRED_EVENT = "cspot-pro:auth-required";
 const DEFAULT_REQUEST_TIMEOUT_MS = 8000;
 
+function buildApiUrl(path: string) {
+  const base = API_BASE_URL.endsWith("/") ? API_BASE_URL.slice(0, -1) : API_BASE_URL;
+  if (base.endsWith("/api") && path.startsWith("/api/")) {
+    return `${base}${path.slice(4)}`;
+  }
+  return `${base}${path}`;
+}
+
 export class ApiError extends Error {
   status: number;
 
@@ -392,7 +400,7 @@ async function fetchWithTimeout(input: string, init?: RequestInit): Promise<Resp
 }
 
 async function getJson<T>(path: string, options?: { suppressAuthEvent?: boolean }): Promise<T> {
-  const response = await fetchWithTimeout(`${API_BASE_URL}${path}`, {
+  const response = await fetchWithTimeout(buildApiUrl(path), {
     credentials: "include",
   });
 
@@ -408,7 +416,7 @@ async function sendJson<T>(
   body: unknown,
   options?: { suppressAuthEvent?: boolean },
 ): Promise<T> {
-  const response = await fetchWithTimeout(`${API_BASE_URL}${path}`, {
+  const response = await fetchWithTimeout(buildApiUrl(path), {
     method,
     credentials: "include",
     headers: {
@@ -425,7 +433,7 @@ async function sendJson<T>(
 }
 
 async function deleteRequest(path: string, options?: { suppressAuthEvent?: boolean }): Promise<void> {
-  const response = await fetchWithTimeout(`${API_BASE_URL}${path}`, {
+  const response = await fetchWithTimeout(buildApiUrl(path), {
     method: "DELETE",
     credentials: "include",
   });
@@ -436,7 +444,7 @@ async function deleteRequest(path: string, options?: { suppressAuthEvent?: boole
 }
 
 async function uploadForm<T>(path: string, body: FormData, options?: { suppressAuthEvent?: boolean }): Promise<T> {
-  const response = await fetchWithTimeout(`${API_BASE_URL}${path}`, {
+  const response = await fetchWithTimeout(buildApiUrl(path), {
     method: "POST",
     credentials: "include",
     body,
