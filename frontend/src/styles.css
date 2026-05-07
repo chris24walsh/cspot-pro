@@ -1017,8 +1017,10 @@ h3 {
 }
 
 .dialog-form-grid {
+  align-items: start;
   display: grid;
   gap: 10px;
+  min-height: 72px;
 }
 
 .dialog-form-grid label,
@@ -1053,6 +1055,7 @@ h3 {
   display: grid;
   gap: 8px;
   max-height: 42vh;
+  min-height: 240px;
   overflow: auto;
 }
 

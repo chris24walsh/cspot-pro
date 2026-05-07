@@ -194,8 +194,8 @@ export function PresentationView({
   const [message, setMessage] = useState<string | null>(null);
   const [screens, setScreens] = useState<PresentationScreen[]>([]);
   const [selectedScreenIndex, setSelectedScreenIndex] = useState(0);
-  const [deckTitle, setDeckTitle] = useState("Sermon");
-  const [deckType, setDeckType] = useState("sermon");
+  const [deckTitle, setDeckTitle] = useState("");
+  const [deckTitleTouched, setDeckTitleTouched] = useState(false);
   const [deckFile, setDeckFile] = useState<File | null>(null);
   const [pendingRemoveSection, setPendingRemoveSection] = useState<{ id: string; title: string } | null>(null);
   const [renderedSlidesByFileId, setRenderedSlidesByFileId] = useState<Record<string, RenderedSlide[]>>({});
@@ -218,6 +218,7 @@ export function PresentationView({
   const [liveBlanked, setLiveBlanked] = useState(false);
   const [liveFullscreen, setLiveFullscreen] = useState(false);
   const [slideshowOpen, setSlideshowOpen] = useState(false);
+  const searchInputRef = useRef<HTMLInputElement | null>(null);
   const outputWindowRef = useRef<Window | null>(null);
   const channelRef = useRef<BroadcastChannel | null>(null);
   const thumbnailRefs = useRef<Record<string, HTMLButtonElement | null>>({});
@@ -565,6 +566,9 @@ export function PresentationView({
     setBibleSearchResults([]);
     setSearchQuery("");
     setSearchInsertIndex(null);
+    setDeckFile(null);
+    setDeckTitle("");
+    setDeckTitleTouched(false);
   }
 
   async function insertSongById(songId: string, afterIndex: number) {
@@ -752,14 +756,15 @@ export function PresentationView({
     }
 
     try {
+      const resolvedDeckTitle = deckTitle.trim() || "Sermon";
       const stored = await uploadStoredFile({
         file: deckFile,
-        display_name: deckTitle || deckFile.name,
+        display_name: resolvedDeckTitle,
       });
       const item = await createPlanItem(plan.id, {
-        item_type: deckType,
+        item_type: "sermon",
         sequence: sequenceForInsert(searchInsertIndex ?? sections.length - 1),
-        title: deckTitle || deckFile.name,
+        title: resolvedDeckTitle,
         comment: `Attached slide deck: ${stored.display_name}`,
         key_signature: null,
         song_id: null,
@@ -920,6 +925,27 @@ export function PresentationView({
     channelRef.current = new BroadcastChannel(PRESENTATION_CHANNEL);
     return () => channelRef.current?.close();
   }, []);
+
+  useEffect(() => {
+    if (!searchOverlayOpen || searchMode === "deck") {
+      return;
+    }
+    const frame = window.requestAnimationFrame(() => {
+      searchInputRef.current?.focus();
+      searchInputRef.current?.select();
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [searchMode, searchOverlayOpen]);
+
+  useEffect(() => {
+    if (!deckFile || deckTitleTouched) {
+      return;
+    }
+
+    const trimmedName = deckFile.name.replace(/\.[^.]+$/, "");
+    const nextTitle = trimmedName.length > 42 ? `${trimmedName.slice(0, 39).trimEnd()}...` : trimmedName;
+    setDeckTitle(nextTitle);
+  }, [deckFile, deckTitleTouched]);
 
   useEffect(() => {
     if (!selectedPlanId) {
@@ -1445,6 +1471,7 @@ export function PresentationView({
                   Search
                   <input
                     onChange={(event) => setSearchQuery(event.target.value)}
+                    ref={searchInputRef}
                     placeholder={searchMode === "bible" ? "John 3 16 or shepherd" : "Amazing Grace"}
                     value={searchQuery}
                   />
@@ -1467,16 +1494,15 @@ export function PresentationView({
                 </label>
                 <label>
                   Deck Name
-                  <input disabled={!canAttachDeck} onChange={(event) => setDeckTitle(event.target.value)} value={deckTitle} />
-                </label>
-                <label>
-                  Type
-                  <select disabled={!canAttachDeck} onChange={(event) => setDeckType(event.target.value)} value={deckType}>
-                    <option value="sermon">Sermon</option>
-                    <option value="welcome">Welcome</option>
-                    <option value="reading">Reading</option>
-                    <option value="custom">Custom</option>
-                  </select>
+                  <input
+                    disabled={!canAttachDeck}
+                    onChange={(event) => {
+                      setDeckTitle(event.target.value);
+                      setDeckTitleTouched(true);
+                    }}
+                    placeholder="Sermon"
+                    value={deckTitle}
+                  />
                 </label>
               </div>
             ) : null}
@@ -1501,7 +1527,7 @@ export function PresentationView({
                         disabled={!canEditPlan}
                         key={song.id}
                         onClick={() => {
-                          void insertSongById(song.id, activeSectionInsertIndex())
+                          void insertSongById(song.id, searchInsertIndex ?? activeSectionInsertIndex())
                             .then(async () => {
                               await load(plan?.id);
                               closeSearchOverlay();
@@ -1524,7 +1550,7 @@ export function PresentationView({
                       disabled={!canEditPlan}
                       key={`${result.version}:${result.reference}:${result.verse_from}`}
                       onClick={() => {
-                        void insertBibleResult(result, activeSectionInsertIndex())
+                        void insertBibleResult(result, searchInsertIndex ?? activeSectionInsertIndex())
                           .then(async () => {
                             await load(plan?.id);
                             closeSearchOverlay();
