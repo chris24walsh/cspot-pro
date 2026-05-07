@@ -7,7 +7,7 @@ from uuid import uuid4
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Response, UploadFile, status
 from fastapi.responses import FileResponse
-from sqlalchemy import or_, select
+from sqlalchemy import case, or_, select
 from sqlalchemy.orm import Session
 
 from app.core.database import get_session
@@ -723,17 +723,32 @@ def search_bible(
     if search_type == "reference":
         return []
 
+    exact_match = query.lower()
+    prefix_match = f"{query}%"
+    contains_match = f"%{query}%"
+    rank = case(
+        (BibleBook.name.ilike(exact_match), 0),
+        (BibleBook.abbreviation.ilike(exact_match), 0),
+        (BibleBook.name.ilike(prefix_match), 1),
+        (BibleBook.abbreviation.ilike(prefix_match), 1),
+        (BibleBook.name.ilike(contains_match), 2),
+        (BibleBook.abbreviation.ilike(contains_match), 2),
+        (BibleVerse.text.ilike(contains_match), 3),
+        else_=4,
+    )
+
     verses = session.scalars(
         select(BibleVerse, BibleBook)
         .join(BibleBook, BibleBook.id == BibleVerse.book_id)
         .where(
             BibleVerse.version_id == version.id,
             or_(
-                BibleVerse.text.ilike(f"%{query}%"),
-                BibleBook.name.ilike(f"%{query}%"),
+                BibleVerse.text.ilike(contains_match),
+                BibleBook.name.ilike(contains_match),
+                BibleBook.abbreviation.ilike(contains_match),
             ),
         )
-        .order_by(BibleBook.sort_order, BibleVerse.chapter, BibleVerse.verse)
+        .order_by(rank, BibleBook.sort_order, BibleVerse.chapter, BibleVerse.verse)
         .limit(max(1, min(limit, 50)))
     ).all()
 
