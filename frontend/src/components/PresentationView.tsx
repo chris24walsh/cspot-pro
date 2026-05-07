@@ -150,6 +150,58 @@ function renderMiniSlide(slide: PresentationSlide | null, fallback: string, them
   );
 }
 
+function describeDeckStatus(
+  fileIds: string[],
+  renderedSlidesByFileId: Record<string, RenderedSlide[]>,
+  renderingFileIds: string[],
+  renderErrorsByFileId: Record<string, string>,
+) {
+  const renderedCounts = fileIds
+    .map((fileId) => renderedSlidesByFileId[fileId]?.length ?? 0)
+    .filter((count) => count > 0);
+  const isRendering = fileIds.some((fileId) => renderingFileIds.includes(fileId));
+  const hasError = fileIds.some((fileId) => Boolean(renderErrorsByFileId[fileId]));
+  const totalSlides = renderedCounts.reduce((sum, count) => sum + count, 0);
+
+  if (hasError) {
+    return {
+      tone: "error" as const,
+      label: "Render failed",
+      detail: "This deck hit a conversion problem. Try re-uploading or using PDF.",
+    };
+  }
+
+  if (totalSlides > 0 && isRendering) {
+    return {
+      tone: "rendering" as const,
+      label: "Rendering",
+      detail: `${totalSlides} slides ready so far`,
+    };
+  }
+
+  if (totalSlides > 0) {
+    return {
+      tone: "ready" as const,
+      label: "Cached",
+      detail: `${totalSlides} slides ready`,
+    };
+  }
+
+  if (isRendering) {
+    return {
+      tone: "rendering" as const,
+      label: "Rendering",
+      detail: "Converting deck to slide previews...",
+    };
+  }
+
+  return {
+    tone: "pending" as const,
+    label: "Pending",
+    detail: "Waiting to load deck previews...",
+  };
+}
+
 export function PresentationView({
   canAttachDeck,
   canEditPlan,
@@ -1368,6 +1420,13 @@ export function PresentationView({
             {sections.map((section) => {
               const sectionStart = slides.findIndex((slide) => slide.sectionId === section.id);
               const sectionItem = (plan?.items ?? []).find((item) => item.id === section.id);
+              const sectionFileIds = sectionItem?.files?.map((file) => file.file_id) ?? [];
+              const deckStatus = describeDeckStatus(
+                sectionFileIds,
+                renderedSlidesByFileId,
+                renderingFileIds,
+                renderErrorsByFileId,
+              );
               const sectionRenderError = sectionItem?.files
                 ?.map((file) => renderErrorsByFileId[file.file_id])
                 .find(Boolean);
@@ -1425,10 +1484,15 @@ export function PresentationView({
                       })}
                     </div>
                   ) : (
-                    <button className="deck-slide-summary" onClick={() => setLiveSlide(sectionStart)} type="button">
+                    <button
+                      className={`deck-slide-summary status-${deckStatus.tone}`}
+                      onClick={() => setLiveSlide(sectionStart)}
+                      type="button"
+                    >
                       {renderMiniSlide(section.slides[0] ?? null, "Rendering deck", slideTheme)}
                       <strong>{section.slides.length} deck slides</strong>
-                      <span>Open this section to browse slide thumbnails</span>
+                      <span>{deckStatus.label}</span>
+                      <small>{deckStatus.detail}</small>
                     </button>
                   )}
                 </div>
