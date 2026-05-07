@@ -72,6 +72,7 @@ type LoadOptions = {
     planItemId: string;
     slideOffset: number;
   };
+  refreshCatalogs?: boolean;
   silent?: boolean;
 };
 
@@ -299,7 +300,13 @@ export function PresentationView({
     }
 
     try {
-      const [nextPlans, nextSongs] = await Promise.all([getPlans(), getSongs()]);
+      let nextPlans = plans;
+      let nextSongs = songs;
+      if (options?.refreshCatalogs || !plans.length || !songs.length) {
+        [nextPlans, nextSongs] = await Promise.all([getPlans(), getSongs()]);
+        setPlans(nextPlans);
+        setSongs(nextSongs);
+      }
       const requestedPlanId = planId || selectedPlanId;
       const targetPlanId = nextPlans.some((candidate) => candidate.id === requestedPlanId)
         ? requestedPlanId
@@ -308,8 +315,6 @@ export function PresentationView({
         targetPlanId ? getPlan(targetPlanId) : Promise.resolve(null),
         targetPlanId ? getPresentationLiveState(targetPlanId) : Promise.resolve(null),
       ]);
-      setPlans(nextPlans);
-      setSongs(nextSongs);
       setSelectedPlanId(targetPlanId);
       setPlan(targetPlan);
       const nextSlides = buildPresentationSlides(targetPlan?.items ?? [], nextSongs, renderedSlidesByFileId);
@@ -859,7 +864,7 @@ export function PresentationView({
   }
 
   useEffect(() => {
-    void load();
+    void load(undefined, { refreshCatalogs: true });
   }, []);
 
   useEffect(() => {
@@ -955,6 +960,7 @@ export function PresentationView({
     const timer = window.setInterval(() => {
       void (async () => {
         try {
+          const previousPlanItemId = currentLiveStateRef.current?.planItemId ?? null;
           const remoteState = await getPresentationLiveState(selectedPlanId);
           if (remoteState.updated_at <= lastLiveStateRef.current) {
             return;
@@ -970,13 +976,15 @@ export function PresentationView({
             blanked: remoteState.blanked,
             fullscreen: remoteState.fullscreen,
           });
-          await load(selectedPlanId, {
-            preserveLocation: {
-              planItemId: remoteState.plan_item_id ?? "",
-              slideOffset: remoteState.slide_offset,
-            },
-            silent: true,
-          });
+          if (remoteState.plan_item_id && remoteState.plan_item_id === previousPlanItemId) {
+            await load(selectedPlanId, {
+              preserveLocation: {
+                planItemId: remoteState.plan_item_id,
+                slideOffset: remoteState.slide_offset,
+              },
+              silent: true,
+            });
+          }
         } catch {
           // Keep local presentation usable even if sync polling fails briefly.
         }
