@@ -7,6 +7,9 @@ import requests
 from bs4 import BeautifulSoup
 
 
+GENIUS_PROVIDER = "genius"
+
+
 @dataclass
 class CustomLyricsProviderMatch:
     id: str
@@ -32,25 +35,44 @@ class CustomLyricsProviderSelectionResult:
     notes: list[str]
 
 
-GENIUS_PROVIDER = "genius"
-
-
 def _headers() -> dict[str, str]:
     return {
         "User-Agent": (
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-            "(KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36"
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) "
+            "Chrome/135.0.0.0 Safari/537.36"
         ),
-        "Accept-Language": "en-US,en;q=0.9",
     }
 
 
-def _clean_lyrics(text: str) -> str:
-    cleaned = re.sub(r"\n{3,}", "\n\n", text)
-    cleaned = re.sub(r"^\s*You might also like\s*$", "", cleaned, flags=re.MULTILINE | re.IGNORECASE)
-    cleaned = re.sub(r"^\s*Embed\s*$", "", cleaned, flags=re.MULTILINE | re.IGNORECASE)
-    cleaned = re.sub(r"\d+Embed$", "", cleaned).strip()
-    return cleaned.strip()
+def clean_lyrics(text: str, song_title: str = "") -> str:
+    if not text:
+        return text
+
+    lines = text.split("\n")
+    cleaned: list[str] = []
+
+    for line in lines:
+        line = line.strip()
+
+        if any(
+            word in line.lower()
+            for word in ["contributor", "contributors", "embed", "lyrics provided by"]
+        ):
+            if len(line) < 80:
+                continue
+
+        if song_title and song_title.lower() in line.lower() and len(cleaned) < 3:
+            continue
+
+        if line:
+            cleaned.append(line)
+
+    text = "\n".join(cleaned)
+    text = re.sub(r"^\d+\s+contributors?\s*$", "", text, flags=re.IGNORECASE | re.MULTILINE)
+    text = re.sub(r"\[.+?Embed\]", "", text, flags=re.IGNORECASE)
+    text = re.sub(r"\n{3,}", "\n\n", text)
+    return text.strip()
 
 
 def run_custom_lyrics_provider_search(search_term: str) -> CustomLyricsProviderSearchResult:
@@ -60,128 +82,112 @@ def run_custom_lyrics_provider_search(search_term: str) -> CustomLyricsProviderS
             status="missing-query",
             provider=GENIUS_PROVIDER,
             matches=[],
-            notes=["Enter a song title or search term."],
+            notes=["Enter a song title."],
         )
 
-    notes = [f'Searching Genius for "{cleaned}"']
+    notes = [f'Searching for: "{cleaned}"']
 
     try:
         search_url = f"https://genius.com/api/search?q={requests.utils.quote(cleaned)}"
         response = requests.get(search_url, headers=_headers(), timeout=12)
-        response.raise_for_status()
 
-        data = response.json()
-        hits = data.get("response", {}).get("hits", [])[:10]
+        if response.status_code != 200:
+            return CustomLyricsProviderSearchResult(
+                status="error",
+                provider=GENIUS_PROVIDER,
+                matches=[],
+                notes=notes + [f"Search failed with status {response.status_code}."],
+            )
 
-        if not hits:
+        hits = response.json().get("response", {}).get("hits", [])[:8]
+        matches = [
+            CustomLyricsProviderMatch(
+                id=hit["result"].get("url", ""),
+                title=hit["result"].get("title", "Untitled"),
+                subtitle=hit["result"].get("artist_names"),
+                summary=hit["result"].get("full_title"),
+            )
+            for hit in hits
+            if hit.get("result", {}).get("url")
+        ]
+
+        if not matches:
             return CustomLyricsProviderSearchResult(
                 status="not-found",
                 provider=GENIUS_PROVIDER,
                 matches=[],
-                notes=notes + ["No matching songs found."],
-            )
-
-        matches: list[CustomLyricsProviderMatch] = []
-        for hit in hits:
-            result = hit.get("result", {})
-            url = result.get("url")
-            title = result.get("title")
-            artist = result.get("artist_names")
-            if not isinstance(url, str) or not isinstance(title, str):
-                continue
-
-            matches.append(
-                CustomLyricsProviderMatch(
-                    id=url,
-                    title=title,
-                    subtitle=artist if isinstance(artist, str) else None,
-                    summary="Lyrics available" if result.get("lyrics_state") == "complete" else None,
-                )
+                notes=notes + ["No matches found."],
             )
 
         return CustomLyricsProviderSearchResult(
-            status="multiple-matches" if len(matches) > 1 else "single-match",
+            status="ready",
             provider=GENIUS_PROVIDER,
             matches=matches,
-            notes=notes + [f"Found {len(matches)} possible matches."],
-        )
-    except requests.exceptions.RequestException as error:
-        return CustomLyricsProviderSearchResult(
-            status="error",
-            provider=GENIUS_PROVIDER,
-            matches=[],
-            notes=[f"Network error: {str(error)[:120]}"],
+            notes=notes + [f"Found {len(matches)} match(es)."],
         )
     except Exception as error:
         return CustomLyricsProviderSearchResult(
             status="error",
             provider=GENIUS_PROVIDER,
             matches=[],
-            notes=[f"Unexpected error: {str(error)[:120]}"],
+            notes=notes + [f"Error: {str(error)[:100]}"],
         )
 
 
 def fetch_custom_lyrics_provider_match(match_id: str) -> CustomLyricsProviderSelectionResult:
-    target = match_id.strip()
-    if not target:
+    cleaned = match_id.strip()
+    if not cleaned:
         return CustomLyricsProviderSelectionResult(
             status="missing-match",
             provider=GENIUS_PROVIDER,
             title=None,
             output_text=None,
-            notes=["Select a match first."],
+            notes=["Choose a match first."],
         )
+
+    notes = [f"Fetching: {cleaned}"]
 
     try:
-        response = requests.get(target, headers=_headers(), timeout=15)
-        response.raise_for_status()
-        soup = BeautifulSoup(response.text, "html.parser")
-
-        title_tag = soup.find("h1")
-        title = title_tag.get_text(" ", strip=True) if title_tag else "Imported lyrics"
-
-        lyric_blocks = soup.select('[data-lyrics-container="true"]')
-        if lyric_blocks:
-            lyrics = "\n".join(block.get_text("\n", strip=True) for block in lyric_blocks)
-            lyrics = _clean_lyrics(lyrics)
-            if lyrics:
-                return CustomLyricsProviderSelectionResult(
-                    status="ready",
-                    provider=GENIUS_PROVIDER,
-                    title=title,
-                    output_text=lyrics,
-                    notes=[f"Fetched lyrics for {title}."],
-                )
-
-        fallback_blocks = [
-            div.get_text("\n", strip=True)
-            for div in soup.find_all("div")
-            if "Lyrics" not in " ".join(div.get("class", [])) and len(div.get_text(" ", strip=True)) > 200
-        ]
-        if fallback_blocks:
-            lyrics = _clean_lyrics(max(fallback_blocks, key=len))
+        lyrics_response = requests.get(cleaned, headers=_headers(), timeout=12)
+        if lyrics_response.status_code != 200:
             return CustomLyricsProviderSelectionResult(
-                status="ready",
+                status="error",
                 provider=GENIUS_PROVIDER,
-                title=title,
-                output_text=lyrics,
-                notes=["Fetched lyrics using a fallback extractor. Double-check the output."],
+                title=None,
+                output_text=None,
+                notes=notes + [f"Could not load lyrics page ({lyrics_response.status_code})."],
             )
 
+        soup = BeautifulSoup(lyrics_response.text, "html.parser")
+        title = None
+
+        og_title = soup.find("meta", property="og:title")
+        if og_title and og_title.get("content"):
+            title = og_title["content"].split(" Lyrics", 1)[0].strip()
+
+        containers = soup.find_all("div", {"data-lyrics-container": "true"})
+        if not containers:
+            containers = soup.find_all("div", class_=re.compile(r"Lyrics__Container"))
+
+        raw_blocks = [container.get_text(separator="\n") for container in containers]
+        raw_lyrics = "\n".join(block for block in raw_blocks if block.strip()).strip()
+
+        if not raw_lyrics:
+            return CustomLyricsProviderSelectionResult(
+                status="not-found",
+                provider=GENIUS_PROVIDER,
+                title=title,
+                output_text=None,
+                notes=notes + ["Could not find lyrics on the page."],
+            )
+
+        cleaned_lyrics = clean_lyrics(raw_lyrics, title or "")
         return CustomLyricsProviderSelectionResult(
-            status="not-found",
+            status="ready",
             provider=GENIUS_PROVIDER,
             title=title,
-            output_text=None,
-            notes=["Could not extract lyrics from the selected match."],
-        )
-    except requests.exceptions.RequestException as error:
-        return CustomLyricsProviderSelectionResult(
-            status="error",
-            provider=GENIUS_PROVIDER,
-            title=None,
-            output_text=None,
-            notes=[f"Network error: {str(error)[:120]}"],
+            output_text=cleaned_lyrics,
+            notes=notes + ["Lyrics cleaned and returned."],
         )
     except Exception as error:
         return CustomLyricsProviderSelectionResult(
@@ -189,5 +195,5 @@ def fetch_custom_lyrics_provider_match(match_id: str) -> CustomLyricsProviderSel
             provider=GENIUS_PROVIDER,
             title=None,
             output_text=None,
-            notes=[f"Unexpected error: {str(error)[:120]}"],
+            notes=notes + [f"Error: {str(error)[:100]}"],
         )

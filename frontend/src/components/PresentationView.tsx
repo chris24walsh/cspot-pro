@@ -1,8 +1,9 @@
-import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp, MonitorUp, Plus, Search, Trash2 } from "lucide-react";
+import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp, MonitorUp, Plus, Search, Trash2, WandSparkles } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import {
   ApiError,
+  createSong,
   createPlan,
   createPlanItem,
   attachItemFile,
@@ -19,13 +20,18 @@ import {
   getPresentationLiveState,
   getSongs,
   importGoogleDriveDeck,
+  runCustomProviderSearch,
   searchGoogleDriveFiles,
+  selectCustomProviderMatch,
   uploadStoredFile,
   updatePresentationLiveState,
   updatePlanItem,
   type BibleBook,
   type BibleSearchHit,
   type BibleVersion,
+  type CustomProviderMatch,
+  type CustomProviderSearchResult,
+  type CustomProviderSelectResult,
   type PresentationLiveSyncState,
   type RenderedSlide,
   type GoogleDriveFile,
@@ -48,6 +54,7 @@ import {
   type PresentationTheme,
 } from "../presentation";
 import { ScaledSlideImage } from "./ScaledSlideImage";
+import { analyzeWorshipText, buildLyricsFromSections } from "../worshipText";
 
 interface PresentationScreen {
   label: string;
@@ -214,10 +221,12 @@ export function PresentationView({
   canAttachDeck,
   canCreatePlan,
   canEditPlan,
+  canCreateSong,
 }: {
   canAttachDeck: boolean;
   canCreatePlan: boolean;
   canEditPlan: boolean;
+  canCreateSong: boolean;
 }) {
   const [plans, setPlans] = useState<PlanSummary[]>([]);
   const [planTypes, setPlanTypes] = useState<PlanType[]>([]);
@@ -249,6 +258,11 @@ export function PresentationView({
   const [searchQuery, setSearchQuery] = useState("");
   const [bibleSearchResults, setBibleSearchResults] = useState<BibleSearchHit[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
+  const [customProviderLoading, setCustomProviderLoading] = useState(false);
+  const [customProviderResult, setCustomProviderResult] = useState<CustomProviderSearchResult | null>(null);
+  const [selectedCustomProviderMatchId, setSelectedCustomProviderMatchId] = useState<string | null>(null);
+  const [customProviderSelection, setCustomProviderSelection] = useState<CustomProviderSelectResult | null>(null);
+  const [customProviderSelectionLoading, setCustomProviderSelectionLoading] = useState(false);
   const [googleDriveStatus, setGoogleDriveStatus] = useState<GoogleDriveStatus | null>(null);
   const [googleDriveFiles, setGoogleDriveFiles] = useState<GoogleDriveFile[]>([]);
   const [googleDriveLoading, setGoogleDriveLoading] = useState(false);
@@ -287,6 +301,21 @@ export function PresentationView({
         .slice(0, 20),
     [searchQuery, songs],
   );
+  const selectedCustomProviderMatch =
+    customProviderResult?.matches.find((match) => match.id === selectedCustomProviderMatchId) ?? null;
+
+  function normalizedSongKey(value: string) {
+    return value.trim().toLowerCase().replace(/[_-]+/g, " ").replace(/\s+/g, " ");
+  }
+
+  function findDuplicateSong(title: string) {
+    const key = normalizedSongKey(title);
+    return songs.find((song) =>
+      [song.title, song.alternate_title]
+        .filter(Boolean)
+        .some((value) => normalizedSongKey(value!) === key),
+    );
+  }
 
   function clearHotkeyButtonFocus() {
     const active = document.activeElement;
@@ -670,6 +699,11 @@ export function PresentationView({
     setSearchOverlayOpen(false);
     setSearchLoading(false);
     setBibleSearchResults([]);
+    setCustomProviderLoading(false);
+    setCustomProviderResult(null);
+    setSelectedCustomProviderMatchId(null);
+    setCustomProviderSelection(null);
+    setCustomProviderSelectionLoading(false);
     setGoogleDriveFiles([]);
     setGoogleDriveLoading(false);
     setSearchQuery("");
@@ -703,6 +737,100 @@ export function PresentationView({
       key_signature: null,
       song_id: song.id,
     });
+  }
+
+  async function runCustomSongImportSearch() {
+    const query = searchQuery.trim();
+    if (!query) {
+      setCustomProviderResult(null);
+      return;
+    }
+
+    setCustomProviderLoading(true);
+    setSelectedCustomProviderMatchId(null);
+    setCustomProviderSelection(null);
+
+    try {
+      const result = await runCustomProviderSearch(query);
+      setCustomProviderResult(result);
+      setMessage(null);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not search your custom provider.");
+      setCustomProviderResult(null);
+    } finally {
+      setCustomProviderLoading(false);
+    }
+  }
+
+  async function loadCustomProviderMatch(match: CustomProviderMatch) {
+    setSelectedCustomProviderMatchId(match.id);
+    setCustomProviderSelectionLoading(true);
+
+    try {
+      const selection = await selectCustomProviderMatch(match.id);
+      setCustomProviderSelection(selection);
+      setMessage(null);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not load imported lyrics.");
+      setCustomProviderSelection(null);
+    } finally {
+      setCustomProviderSelectionLoading(false);
+    }
+  }
+
+  async function importSelectedCustomProviderSong() {
+    if (!plan) {
+      setMessage("Select a plan before importing a song.");
+      return;
+    }
+    if (!canEditPlan) {
+      setMessage("Only service leaders and worship leaders can add songs to the running order.");
+      return;
+    }
+    if (!selectedCustomProviderMatch || !customProviderSelection?.output_text) {
+      setMessage("Choose a matched song with lyrics first.");
+      return;
+    }
+
+    const resolvedTitle = customProviderSelection.title?.trim() || selectedCustomProviderMatch.title.trim();
+    const duplicate = findDuplicateSong(resolvedTitle);
+    if (!duplicate && !canCreateSong) {
+      setMessage("Importing a new song into the library needs song-create permission.");
+      return;
+    }
+
+    try {
+      let songId = duplicate?.id ?? null;
+
+      if (!songId) {
+        const analysis = analyzeWorshipText(customProviderSelection.output_text, { title: resolvedTitle });
+        const importedSong = await createSong({
+          title: resolvedTitle,
+          alternate_title: null,
+          author: selectedCustomProviderMatch.subtitle?.trim() || null,
+          lyrics: buildLyricsFromSections(analysis.sections) || analysis.lyrics,
+          chords: null,
+          ccli_number: null,
+          book_reference: null,
+          license: "Unknown",
+          sequence: analysis.sequence,
+          youtube_id: null,
+          external_link: null,
+        });
+        songId = importedSong.id;
+      }
+
+      await insertSongById(songId, searchInsertIndex ?? activeSectionInsertIndex());
+      await load(plan.id, { refreshCatalogs: true });
+      closeSearchOverlay();
+      setMessage(
+        duplicate
+          ? `Added existing song "${duplicate.title}" to this service.`
+          : `Imported "${resolvedTitle}" and added it to this service.`,
+      );
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not import this song into the service.");
+    }
   }
 
   async function insertBibleResult(result: BibleSearchHit, afterIndex: number) {
@@ -1851,6 +1979,82 @@ export function PresentationView({
                       </button>
                     ))
                 : null}
+              {searchMode === "songs" &&
+              searchQuery.trim() &&
+              (songSearchResults.length === 0 || customProviderResult !== null || customProviderSelection !== null) ? (
+                <div className="custom-provider-panel">
+                  <div className="custom-provider-header">
+                    <div>
+                      <strong>Not seeing the right song?</strong>
+                      <span>Search your custom provider and import straight into this service.</span>
+                    </div>
+                    <button
+                      className="text-button"
+                      disabled={customProviderLoading}
+                      onClick={() => void runCustomSongImportSearch()}
+                      type="button"
+                    >
+                      <WandSparkles size={16} aria-hidden="true" />
+                      {customProviderLoading ? "Searching…" : "Import from Provider"}
+                    </button>
+                  </div>
+
+                  {customProviderResult?.notes?.length ? (
+                    <div className="custom-provider-notes">
+                      {customProviderResult.notes.map((note) => (
+                        <span key={note}>{note}</span>
+                      ))}
+                    </div>
+                  ) : null}
+
+                  {customProviderResult?.matches?.length ? (
+                    <div className="custom-provider-matches">
+                      {customProviderResult.matches.map((match) => (
+                        <button
+                          className={`search-result-card ${selectedCustomProviderMatchId === match.id ? "active-import-match" : ""}`}
+                          key={match.id}
+                          onClick={() => void loadCustomProviderMatch(match)}
+                          type="button"
+                        >
+                          <strong>{match.title}</strong>
+                          <span>{match.subtitle ?? match.summary ?? "Provider match"}</span>
+                        </button>
+                      ))}
+                    </div>
+                  ) : null}
+
+                  {customProviderSelectionLoading ? <p className="search-empty">Loading imported lyrics…</p> : null}
+
+                  {customProviderSelection ? (
+                    <div className="custom-provider-preview">
+                      <div className="custom-provider-preview-header">
+                        <div>
+                          <strong>{customProviderSelection.title ?? selectedCustomProviderMatch?.title ?? "Imported song"}</strong>
+                          <span>{selectedCustomProviderMatch?.subtitle ?? "Lyrics ready to import"}</span>
+                        </div>
+                        <button
+                          className="primary-button"
+                          disabled={!customProviderSelection.output_text || !canEditPlan || (!findDuplicateSong(customProviderSelection.title?.trim() || selectedCustomProviderMatch?.title || "") && !canCreateSong)}
+                          onClick={() => void importSelectedCustomProviderSong()}
+                          type="button"
+                        >
+                          Import Song
+                        </button>
+                      </div>
+                      {customProviderSelection.notes.length ? (
+                        <div className="custom-provider-notes">
+                          {customProviderSelection.notes.map((note) => (
+                            <span key={note}>{note}</span>
+                          ))}
+                        </div>
+                      ) : null}
+                      {customProviderSelection.output_text ? (
+                        <pre className="import-lyric-preview compact-preview">{customProviderSelection.output_text}</pre>
+                      ) : null}
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
               {!searchLoading && searchMode === "bible"
                 ? bibleSearchResults.map((result) => (
                     <button
@@ -1892,7 +2096,8 @@ export function PresentationView({
                 : null}
               {!searchLoading &&
               ((searchMode === "songs" &&
-                songSearchResults.length === 0) ||
+                songSearchResults.length === 0 &&
+                !customProviderResult?.matches?.length) ||
                 (searchMode === "bible" && searchQuery.trim() && bibleSearchResults.length === 0) ||
                 (searchMode === "deck" &&
                   googleDriveStatus?.connected &&

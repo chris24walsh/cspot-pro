@@ -1123,6 +1123,79 @@ h3 {
   padding: 6px 2px;
 }
 
+.custom-provider-panel {
+  background: #f8f6ee;
+  border: 1px solid #ded8c7;
+  border-radius: 10px;
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+}
+
+.custom-provider-header,
+.custom-provider-preview-header {
+  align-items: start;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+}
+
+.custom-provider-header strong,
+.custom-provider-preview-header strong {
+  display: block;
+  font-size: 15px;
+  margin-bottom: 4px;
+}
+
+.custom-provider-header span,
+.custom-provider-preview-header span {
+  color: #65716a;
+  display: block;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.custom-provider-matches {
+  display: grid;
+  gap: 8px;
+}
+
+.active-import-match {
+  background: #eef8f3;
+  border-color: #8ebba9;
+}
+
+.custom-provider-notes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.custom-provider-notes span {
+  background: #fff8e8;
+  border: 1px solid #e3bd75;
+  border-radius: 999px;
+  color: #65460f;
+  font-size: 11px;
+  font-weight: 800;
+  padding: 3px 7px;
+}
+
+.custom-provider-preview {
+  background: #fffefa;
+  border: 1px solid #ded8c7;
+  border-radius: 10px;
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+}
+
+.compact-preview {
+  max-height: 220px;
+  overflow: auto;
+}
+
 .form-actions {
   margin-top: 14px;
 }
@@ -2580,39 +2653,56 @@ h3 {
 @media (max-width: 860px) {
   .shell {
     grid-template-columns: 1fr;
-    height: auto;
-    min-height: 100vh;
-    overflow: auto;
+    grid-template-rows: auto minmax(0, 1fr);
+    height: 100vh;
+    min-height: 0;
+    overflow: hidden;
   }
 
   .sidebar {
-    gap: 16px;
-    padding: 16px;
-    width: auto;
+    align-items: center;
+    flex-direction: row;
+    gap: 8px;
+    overflow-x: auto;
+    padding: 8px 10px;
+    width: 100%;
   }
 
   .sidebar:hover,
   .sidebar:focus-within {
     box-shadow: none;
-    width: auto;
+    overflow-x: auto;
+    width: 100%;
   }
 
-  .brand span,
-  .nav-item span {
-    opacity: 1;
-    transform: none;
+  .brand {
+    gap: 0;
+    min-height: 34px;
+    padding: 0 4px;
+  }
+
+  .brand span {
+    display: none;
   }
 
   .nav-list {
-    grid-template-columns: repeat(9, minmax(0, 1fr));
+    display: flex;
+    gap: 6px;
+    min-width: max-content;
   }
 
   .nav-item {
-    justify-content: center;
+    gap: 8px;
+    justify-content: flex-start;
+    min-height: 36px;
+    padding: 8px 10px;
   }
 
   .nav-item span {
-    display: none;
+    display: inline;
+    opacity: 1;
+    transform: none;
+    font-size: 13px;
   }
 
   .module-hero,
@@ -2628,7 +2718,9 @@ h3 {
 
   .presenter-console {
     align-items: start;
-    grid-template-columns: minmax(0, 1fr) minmax(132px, 0.42fr);
+    grid-template-columns: minmax(0, 1fr) 132px;
+    grid-template-rows: auto minmax(0, 1fr);
+    height: 100%;
   }
 
   .presenter-stage-column {
@@ -2648,7 +2740,35 @@ h3 {
   }
 
   .topbar {
-    padding: 20px;
+    padding: 8px 10px;
+  }
+
+  .topbar-compact {
+    min-height: 44px;
+    padding: 6px 10px;
+  }
+
+  .topbar-compact h1 {
+    font-size: 18px;
+  }
+
+  .presentation-workspace {
+    padding: 6px;
+  }
+
+  .slide-grid,
+  .section-rail-list {
+    overscroll-behavior: contain;
+  }
+
+  .stage-meta {
+    font-size: 12px;
+    padding: 6px 8px;
+  }
+
+  .custom-provider-header,
+  .custom-provider-preview-header {
+    flex-direction: column;
   }
 }
 
@@ -2668,13 +2788,13 @@ h3 {
   }
 
   .topbar {
-    align-items: flex-start;
-    gap: 16px;
-    flex-direction: column;
+    align-items: center;
+    flex-direction: row;
+    gap: 10px;
   }
 
   .topbar-actions {
-    justify-content: flex-start;
+    justify-content: flex-end;
   }
 
   .metric-strip {
@@ -2694,8 +2814,36 @@ h3 {
     display: grid;
   }
 
+  .presenter-console {
+    grid-template-columns: minmax(0, 1fr) 114px;
+  }
+
+  .presenter-controls .action-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .bible-nav-row .text-button:last-child {
+    grid-column: auto;
+  }
+
   .presentation-stage {
-    padding: 28px;
+    padding: 20px;
+  }
+
+  .section-rail-title {
+    padding: 6px 8px;
+  }
+
+  .section-rail-list {
+    padding: 6px;
+  }
+
+  .slide-grid {
+    gap: 4px;
+  }
+
+  .preview-tile {
+    padding: 4px;
   }
 }
 .auth-shell {

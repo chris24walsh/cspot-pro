@@ -267,6 +267,7 @@ function App() {
             canAttachDeck={canEditPlans && canCreateLibrary}
             canCreatePlan={canCreatePlans}
             canEditPlan={canEditPlans}
+            canCreateSong={canCreateSongs}
           />
         ) : activeModuleId === "admin" ? (
           <UserManager />
@@ -275,6 +276,7 @@ function App() {
             canAttachDeck={canEditPlans && canCreateLibrary}
             canCreatePlan={canCreatePlans}
             canEditPlan={canEditPlans}
+            canCreateSong={canCreateSongs}
           />
         )}
       </section>
