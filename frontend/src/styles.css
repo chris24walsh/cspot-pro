@@ -173,23 +173,32 @@ button {
   align-items: center;
   display: flex;
   flex-wrap: wrap;
-  gap: 12px;
+  gap: 8px;
   justify-content: flex-end;
 }
 
-.church-mark {
+.topbar-stat {
   align-items: center;
-  color: #3b4741;
-  display: flex;
-  font-size: 13px;
-  font-weight: 800;
-  gap: 8px;
+  background: #f6f2e6;
+  border: 1px solid #ddd3bd;
+  border-radius: 999px;
+  color: #30443d;
+  display: inline-flex;
+  gap: 6px;
+  min-height: 28px;
+  padding: 4px 10px;
 }
 
-.church-mark img {
-  display: block;
-  max-height: 28px;
-  max-width: 110px;
+.topbar-stat span {
+  color: #66736b;
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.topbar-stat strong {
+  font-size: 12px;
+  font-weight: 900;
 }
 
 .title-lockup {
@@ -2912,17 +2921,18 @@ h3 {
 }
 
 .user-pill {
-  display: grid;
-  gap: 0.1rem;
-  padding: 0.7rem 0.95rem;
+  align-items: center;
+  display: inline-flex;
+  gap: 6px;
+  padding: 0.45rem 0.8rem;
   border: 1px solid rgba(40, 58, 51, 0.16);
-  border-radius: 0.9rem;
+  border-radius: 999px;
   background: rgba(255, 252, 245, 0.95);
   color: #224f4a;
   text-align: left;
 }
 
 .user-pill span {
-  font-size: 0.8rem;
+  font-size: 0.72rem;
   color: #62736d;
 }

@@ -89,6 +89,38 @@ function isWebClutter(line: string): boolean {
   return WEB_CLUTTER_PATTERNS.some((pattern) => pattern.test(line.trim()));
 }
 
+function collapseRepeatedLines(block: string) {
+  const lines = block
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  if (!lines.length) {
+    return "";
+  }
+
+  const collapsed: string[] = [];
+
+  for (const line of lines) {
+    const previous = collapsed[collapsed.length - 1];
+    const repeatedMatch = previous?.match(/^(.*) x(\d+)$/);
+
+    if (previous === line) {
+      collapsed[collapsed.length - 1] = `${line} x2`;
+      continue;
+    }
+
+    if (repeatedMatch && repeatedMatch[1] === line) {
+      collapsed[collapsed.length - 1] = `${line} x${Number(repeatedMatch[2]) + 1}`;
+      continue;
+    }
+
+    collapsed.push(line);
+  }
+
+  return collapsed.join("\n");
+}
+
 export function formatWorshipText(value: string, options: { removeChordLines?: boolean } = {}) {
   const normalized = value
     .replace(/\r\n?/g, "\n")
@@ -124,7 +156,23 @@ export function formatWorshipText(value: string, options: { removeChordLines?: b
     previousBlank = false;
   }
 
-  return output.join("\n").replace(/\n{3,}/g, "\n\n").trim();
+  return output
+    .join("\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .split(/\n{2,}/)
+    .map((block) => {
+      const trimmed = block.trim();
+      if (!trimmed) {
+        return "";
+      }
+      if (isWorshipSectionHeading(trimmed)) {
+        return trimmed;
+      }
+      return collapseRepeatedLines(trimmed);
+    })
+    .filter(Boolean)
+    .join("\n\n")
+    .trim();
 }
 
 export function splitWorshipSlides(value: string) {

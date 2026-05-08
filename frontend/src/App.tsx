@@ -45,6 +45,11 @@ interface ApiWorkspace {
   songs: Song[];
 }
 
+interface HeaderStat {
+  label: string;
+  value: string;
+}
+
 function App() {
   const isPresentationOutput = new URLSearchParams(window.location.search).get("presentation") === "output";
   const [activeModuleId, setActiveModuleId] = useState<ModuleId>("presentation");
@@ -60,7 +65,6 @@ function App() {
 
   const permissions = useMemo(() => new Set(sessionUser?.permissions ?? []), [sessionUser]);
   const canManageUsers = permissions.has("users:manage");
-  const canReadPlans = permissions.has("plans:read");
   const canCreatePlans = permissions.has("plans:create");
   const canEditPlans = canCreatePlans || permissions.has("plans:edit");
   const canReadSongs = permissions.has("songs:read");
@@ -158,11 +162,8 @@ function App() {
 
         return module;
       }).filter((module) => {
-        if (module.id === "people" || module.id === "imports") {
+        if (module.id === "planning" || module.id === "people" || module.id === "imports") {
           return false;
-        }
-        if (module.id === "planning") {
-          return canReadPlans;
         }
         if (module.id === "music") {
           return canReadSongs;
@@ -175,13 +176,41 @@ function App() {
         }
         return true;
       }),
-    [canManageUsers, canReadPlans, canReadSongs, canUsePresentation, workspace],
+    [canManageUsers, canReadSongs, canUsePresentation, workspace],
   );
 
   const activeModule = useMemo(
     () => modules.find((module) => module.id === activeModuleId) ?? modules[0],
     [activeModuleId, modules],
   );
+  const headerStats = useMemo<HeaderStat[]>(() => {
+    if (!activeModule) {
+      return [];
+    }
+
+    if (activeModule.id === "presentation") {
+      return [
+        { label: "Plan", value: workspace.selectedPlan?.title ?? "None" },
+        { label: "Items", value: String(workspace.selectedPlan?.items.length ?? 0) },
+      ];
+    }
+
+    if (activeModule.id === "music") {
+      return [
+        { label: "Songs", value: String(workspace.songs.length) },
+        {
+          label: "Ready",
+          value: String(workspace.songs.filter((song) => song.lyrics_status === "available").length),
+        },
+      ];
+    }
+
+    if (activeModule.id === "admin") {
+      return [{ label: "Scope", value: "Users & access" }];
+    }
+
+    return [];
+  }, [activeModule, workspace]);
   const compactWorkspace = true;
 
   useEffect(() => {
@@ -245,10 +274,12 @@ function App() {
             <h1>{activeModule.label}</h1>
           </div>
           <div className="topbar-actions">
-            <div className="church-mark">
-              <img alt="" src={appAssetUrl("images/churchLogo.png")} />
-              <span>Church Service Planning</span>
-            </div>
+            {headerStats.map((stat) => (
+              <div className="topbar-stat" key={stat.label}>
+                <span>{stat.label}</span>
+                <strong>{stat.value}</strong>
+              </div>
+            ))}
             <button className="user-pill" onClick={() => void signOut()} type="button">
               <strong>{sessionUser.name}</strong>
               <span>Sign out</span>
