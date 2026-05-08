@@ -59,6 +59,13 @@ type ImportPreview = {
   title: string;
 };
 
+type CleanDetectUndoState = {
+  lyrics: string | null;
+  sequence: string | null;
+  parsedSequence: string | null;
+  parseNotes: string[];
+};
+
 type GuitarChordShape = {
   baseFret?: number;
   frets: Array<number | "x">;
@@ -266,6 +273,7 @@ export function SongManager({
   const [selectedImportIndex, setSelectedImportIndex] = useState(0);
   const [parsedSequence, setParsedSequence] = useState<string | null>(null);
   const [parseNotes, setParseNotes] = useState<string[]>([]);
+  const [cleanDetectUndoState, setCleanDetectUndoState] = useState<CleanDetectUndoState | null>(null);
   const [chordChart, setChordChart] = useState<ChordChartDocument>(createEmptyChordChart());
   const [legacyChords, setLegacyChords] = useState<string | null>(null);
   const [selectedLineIndex, setSelectedLineIndex] = useState(0);
@@ -299,6 +307,8 @@ export function SongManager({
 
   const lines = useMemo(() => lyricLines(form.lyrics), [form.lyrics]);
   const selectedImportPreview = importPreviews[selectedImportIndex] ?? null;
+  const selectedCustomProviderMatch =
+    customProviderResult?.matches.find((match) => match.id === selectedCustomProviderMatchId) ?? null;
   const editableKey = chordChart.keyAnchor === "absolute" ? chordChart.absoluteKey : chordChart.capoKey;
   const derivedKey = chordChart.keyAnchor === "absolute" ? chordChart.capoKey : chordChart.absoluteKey;
   function hydrateChordState(raw: string | null) {
@@ -345,6 +355,7 @@ export function SongManager({
         setSelectedImportIndex(0);
         setParsedSequence(target.sequence);
         setParseNotes([]);
+        setCleanDetectUndoState(null);
         hydrateChordState(target.chords);
         setSongFiles(await getFiles({ song_id: target.id }));
       } else {
@@ -422,6 +433,7 @@ export function SongManager({
     setSelectedImportIndex(0);
     setParsedSequence(null);
     setParseNotes([]);
+    setCleanDetectUndoState(null);
     hydrateChordState(null);
     setMessage(null);
   }
@@ -444,6 +456,7 @@ export function SongManager({
     setSelectedImportIndex(0);
     setParsedSequence(song.sequence);
     setParseNotes([]);
+    setCleanDetectUndoState(null);
     hydrateChordState(song.chords);
     setMessage(null);
     setSongFiles(await getFiles({ song_id: song.id }));
@@ -790,6 +803,12 @@ export function SongManager({
   }
 
   function cleanAndDetectLyrics() {
+    setCleanDetectUndoState({
+      lyrics: form.lyrics,
+      sequence: form.sequence,
+      parsedSequence,
+      parseNotes,
+    });
     const analysis = analyzeWorshipText(form.lyrics ?? "", { title: form.title });
     const lyrics = buildLyricsFromSections(analysis.sections) || analysis.lyrics;
     setForm({
@@ -804,6 +823,22 @@ export function SongManager({
         ? `Detected ${analysis.sections.length} section${analysis.sections.length === 1 ? "" : "s"} and labelled the lyric chunks.`
         : "Formatted lyrics, but could not confidently infer a section sequence yet.",
     );
+  }
+
+  function undoCleanAndDetect() {
+    if (!cleanDetectUndoState) {
+      return;
+    }
+
+    setForm((current) => ({
+      ...current,
+      lyrics: cleanDetectUndoState.lyrics,
+      sequence: cleanDetectUndoState.sequence,
+    }));
+    setParsedSequence(cleanDetectUndoState.parsedSequence);
+    setParseNotes(cleanDetectUndoState.parseNotes);
+    setCleanDetectUndoState(null);
+    setMessage("Reverted the last Clean & Detect change.");
   }
 
   function applySelectedImportPreview() {
@@ -846,7 +881,12 @@ export function SongManager({
 
     setForm((current) => ({
       ...current,
-      title: current.title || customProviderSelection.title || current.title,
+      title:
+        current.title ||
+        selectedCustomProviderMatch?.title ||
+        customProviderSelection.title ||
+        current.title,
+      author: current.author || selectedCustomProviderMatch?.subtitle || current.author,
       lyrics: customProviderSelection.output_text ?? current.lyrics,
     }));
     closeImportLyricsDialog();
@@ -1248,6 +1288,16 @@ export function SongManager({
               >
                 Clean & Detect
               </button>
+              {cleanDetectUndoState ? (
+                <button
+                  className="text-button"
+                  disabled={mode === "create" ? !canCreate : !canEdit}
+                  onClick={() => undoCleanAndDetect()}
+                  type="button"
+                >
+                  Undo
+                </button>
+              ) : null}
             </div>
             {parsedSequence ? <p className="field-help">Inferred sequence: {parsedSequence}</p> : null}
             <textarea
