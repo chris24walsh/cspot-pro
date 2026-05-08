@@ -54,6 +54,7 @@ import {
   type PresentationLiveState,
   type PresentationTheme,
 } from "../presentation";
+import { AutoFitSlideText } from "./AutoFitSlideText";
 import { ScaledSlideImage } from "./ScaledSlideImage";
 import { analyzeWorshipText, buildLyricsFromSections } from "../worshipText";
 
@@ -122,28 +123,8 @@ async function tryFetchBiblePassage(
   }
 }
 
-function slideTextSizeClass(text: string, compact = false) {
-  const normalized = text.trim();
-  const length = normalized.length;
-  const lines = normalized ? normalized.split(/\n+/).length : 1;
-  const density = Math.max(lines, Math.ceil(length / (compact ? 28 : 42)));
-  if (compact) {
-    if (density > 11) return "slide-text-compact-xs";
-    if (density > 7) return "slide-text-compact-sm";
-    return "slide-text-compact-md";
-  }
-  if (density > 18) return "slide-text-xs";
-  if (density > 13) return "slide-text-sm";
-  if (density > 8) return "slide-text-md";
-  return "slide-text-lg";
-}
-
 function SlideTextBlock({ text, compact = false }: { text: string; compact?: boolean }) {
-  return (
-    <div className="fit-slide-box">
-      <pre className={`fit-slide-text ${slideTextSizeClass(text, compact)}`}>{text}</pre>
-    </div>
-  );
+  return <AutoFitSlideText compact={compact} text={text} />;
 }
 
 function renderMiniSlide(slide: PresentationSlide | null, fallback: string, theme: PresentationTheme) {

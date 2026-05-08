@@ -20,6 +20,7 @@ import {
   resolveLiveIndex,
   type PresentationLiveState,
 } from "../presentation";
+import { AutoFitSlideText } from "./AutoFitSlideText";
 import { ScaledSlideImage } from "./ScaledSlideImage";
 
 function readLiveState(): PresentationLiveState | null {
@@ -371,7 +372,7 @@ export function PresentationOutput() {
         ) : liveSlide?.imageUrl ? (
           <ScaledSlideImage alt={liveSlide.title} src={liveSlide.imageUrl} />
         ) : (
-          <pre>{liveSlide?.text ?? "Waiting for slideshow"}</pre>
+          <AutoFitSlideText text={liveSlide?.text ?? "Waiting for slideshow"} />
         )}
       </section>
     </main>
