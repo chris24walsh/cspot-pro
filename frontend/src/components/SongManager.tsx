@@ -376,6 +376,12 @@ export function SongManager({
     }
   }
 
+  function closeImportLyricsDialog() {
+    setImportLyricsOpen(false);
+    setCustomProviderResult(null);
+    setCustomProviderLoading(false);
+  }
+
   function startCreate() {
     setSelectedSong(null);
     setMode("create");
@@ -794,8 +800,26 @@ export function SongManager({
       lyrics: buildLyricsFromSections(analysis.sections) || analysis.lyrics,
       sequence: analysis.sequence ?? current.sequence,
     }));
-    setImportLyricsOpen(false);
+    closeImportLyricsDialog();
     setMessage(`Applied ${parsed.filename} to the lyric editor.`);
+  }
+
+  function applyCustomProviderOutput() {
+    if (!customProviderResult?.output_text?.trim()) {
+      setMessage("Run your custom provider first, then apply its output.");
+      return;
+    }
+    if (!canCreate && !canEdit) {
+      setMessage("You do not have permission to apply imported lyrics.");
+      return;
+    }
+
+    setForm((current) => ({
+      ...current,
+      lyrics: customProviderResult.output_text ?? current.lyrics,
+    }));
+    closeImportLyricsDialog();
+    setMessage("Applied custom provider output to the lyric editor.");
   }
 
   async function handleSongDeckSelection(files: File[]) {
@@ -1204,7 +1228,7 @@ export function SongManager({
             />
           </div>
           {importLyricsOpen ? (
-            <div className="app-dialog-backdrop" role="presentation" onMouseDown={() => setImportLyricsOpen(false)}>
+            <div className="app-dialog-backdrop" role="presentation" onMouseDown={closeImportLyricsDialog}>
               <section
                 aria-labelledby="import-lyrics-title"
                 className="app-dialog app-dialog-wide import-lyrics-dialog"
@@ -1216,7 +1240,7 @@ export function SongManager({
                     <p className="eyebrow">Import</p>
                     <h2 id="import-lyrics-title">Import Lyrics</h2>
                   </div>
-                  <button className="text-button" onClick={() => setImportLyricsOpen(false)} type="button">
+                  <button className="text-button" onClick={closeImportLyricsDialog} type="button">
                     Close
                   </button>
                 </div>
@@ -1234,6 +1258,57 @@ export function SongManager({
                     />
                   </label>
                 </div>
+                <section className="subsection-panel">
+                  <div className="section-heading">
+                    <div>
+                      <p className="eyebrow">Custom</p>
+                      <h3>Run Your Own Provider</h3>
+                    </div>
+                    <button
+                      className="text-button"
+                      disabled={customProviderLoading}
+                      onClick={() => void runCustomLookup()}
+                      type="button"
+                    >
+                      {customProviderLoading ? "Running..." : "Run"}
+                    </button>
+                  </div>
+                  <div className="form-grid single-column">
+                    <label className="wide-field">
+                      Search Term
+                      <input
+                        onChange={(event) => setCustomProviderTerm(event.target.value)}
+                        placeholder="Song title, artist, or any query your backend expects"
+                        value={customProviderTerm}
+                      />
+                    </label>
+                  </div>
+                  {customProviderResult ? (
+                    <>
+                      <div className="empty-state import-summary">
+                        <strong>{customProviderResult.provider}</strong>
+                        <span>Status: {customProviderResult.status}</span>
+                      </div>
+                      {customProviderResult.output_text ? (
+                        <pre className="import-lyric-preview">{customProviderResult.output_text}</pre>
+                      ) : null}
+                      {customProviderResult.notes.length ? (
+                        <div className="stack-list compact">
+                          {customProviderResult.notes.map((note) => (
+                            <div className="stack-row readonly" key={note}>
+                              <span>{note}</span>
+                            </div>
+                          ))}
+                        </div>
+                      ) : null}
+                      <div className="action-row">
+                        <button className="text-button" onClick={() => applyCustomProviderOutput()} type="button">
+                          Apply Output to Editor
+                        </button>
+                      </div>
+                    </>
+                  ) : null}
+                </section>
                 {importPreviews.length > 1 ? (
                   <div className="stack-list compact">
                     {importPreviews.map((preview, index) => (
@@ -1308,52 +1383,6 @@ export function SongManager({
                         Search Backing Track
                       </a>
                     </div>
-                    <section className="subsection-panel">
-                      <div className="section-heading">
-                        <div>
-                          <p className="eyebrow">Custom</p>
-                          <h3>Run Your Own Provider</h3>
-                        </div>
-                        <button
-                          className="text-button"
-                          disabled={customProviderLoading}
-                          onClick={() => void runCustomLookup()}
-                          type="button"
-                        >
-                          {customProviderLoading ? "Running..." : "Run"}
-                        </button>
-                      </div>
-                      <div className="form-grid single-column">
-                        <label className="wide-field">
-                          Search Term
-                          <input
-                            onChange={(event) => setCustomProviderTerm(event.target.value)}
-                            placeholder="Song title, artist, or any query your backend expects"
-                            value={customProviderTerm}
-                          />
-                        </label>
-                      </div>
-                      {customProviderResult ? (
-                        <>
-                          <div className="empty-state import-summary">
-                            <strong>{customProviderResult.provider}</strong>
-                            <span>Status: {customProviderResult.status}</span>
-                          </div>
-                          {customProviderResult.output_text ? (
-                            <pre className="import-lyric-preview">{customProviderResult.output_text}</pre>
-                          ) : null}
-                          {customProviderResult.notes.length ? (
-                            <div className="stack-list compact">
-                              {customProviderResult.notes.map((note) => (
-                                <div className="stack-row readonly" key={note}>
-                                  <span>{note}</span>
-                                </div>
-                              ))}
-                            </div>
-                          ) : null}
-                        </>
-                      ) : null}
-                    </section>
                     <div className="deck-preview">
                       {selectedImportPreview.parsed.slides.slice(0, 8).map((slide) => (
                         <article className="slide-tile readonly" key={slide.index}>
