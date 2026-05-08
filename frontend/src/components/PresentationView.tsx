@@ -272,6 +272,7 @@ export function PresentationView({
   const [liveBlanked, setLiveBlanked] = useState(false);
   const [liveFullscreen, setLiveFullscreen] = useState(false);
   const [slideshowOpen, setSlideshowOpen] = useState(false);
+  const [mobileBibleNavOpen, setMobileBibleNavOpen] = useState(false);
   const [deckRenderRetryToken, setDeckRenderRetryToken] = useState(0);
   const searchInputRef = useRef<HTMLInputElement | null>(null);
   const outputWindowRef = useRef<Window | null>(null);
@@ -650,6 +651,7 @@ export function PresentationView({
   }
 
   async function selectPlan(planId: string) {
+    setMobileBibleNavOpen(false);
     await load(planId);
   }
 
@@ -1050,6 +1052,14 @@ export function PresentationView({
       closeSearchOverlay();
       await load(plan.id);
     } catch (error) {
+      if (error instanceof ApiError && error.status === 413) {
+        setMessage(
+          googleDriveStatus?.connected
+            ? "This upload was blocked before it reached cspot. Use Google Drive import for this deck, or try a smaller PDF."
+            : "This upload was blocked before it reached cspot. If this keeps happening on the hosted site, import from Google Drive or try a smaller PDF.",
+        );
+        return;
+      }
       setMessage(error instanceof Error ? error.message : "Could not attach slide deck.");
     }
   }
@@ -1380,6 +1390,12 @@ export function PresentationView({
   }, [selectedPlanId, slides]);
 
   useEffect(() => {
+    if (currentPlanItem?.item_type !== "reading") {
+      setMobileBibleNavOpen(false);
+    }
+  }, [currentPlanItem?.item_type]);
+
+  useEffect(() => {
     if (!currentLiveStateRef.current || currentLiveStateRef.current.planId !== selectedPlanId) {
       return;
     }
@@ -1703,7 +1719,7 @@ export function PresentationView({
           </div>
 
           <div className="presenter-controls">
-            <div className="action-row">
+            <div className="action-row presenter-transport-row">
               <button className="text-button" disabled={loading || !plan} onClick={() => moveLive(-1)} type="button">
                 <ChevronLeft size={16} aria-hidden="true" />
                 Previous
@@ -1712,10 +1728,21 @@ export function PresentationView({
                 Next
                 <ChevronRight size={16} aria-hidden="true" />
               </button>
+            </div>
+            <div className="action-row presenter-utility-row">
               {canEditPlan ? (
                 <button className="text-button" disabled={!plan} onClick={() => openSearchOverlay()} type="button">
                   <Search size={16} aria-hidden="true" />
                   Search
+                </button>
+              ) : null}
+              {currentPlanItem?.item_type === "reading" && canEditPlan ? (
+                <button
+                  className="text-button bible-nav-toggle"
+                  onClick={() => setMobileBibleNavOpen((current) => !current)}
+                  type="button"
+                >
+                  {mobileBibleNavOpen ? "Hide Bible Controls" : "Bible Controls"}
                 </button>
               ) : null}
               <button className="primary-button" disabled={loading || !plan} onClick={() => void startSlideshow()} type="button">
@@ -1724,7 +1751,7 @@ export function PresentationView({
               </button>
             </div>
             {currentPlanItem?.item_type === "reading" && canEditPlan ? (
-              <div className="action-row bible-nav-row">
+              <div className={`action-row bible-nav-row ${mobileBibleNavOpen ? "is-open" : ""}`}>
                 <button className="text-button" disabled={!canEditPlan} onClick={() => void navigateBibleReading("verse", -1)} type="button">
                   Prev Verse
                 </button>
@@ -1786,11 +1813,12 @@ export function PresentationView({
                     {canEditSectionSong ? (
                       <button
                         aria-label={`Edit song ${section.title}`}
-                        className="section-icon-button"
+                        className="section-icon-button section-edit-button"
                         onClick={() => openSongEditor(sectionItem.song_id!)}
                         type="button"
                       >
                         <Pencil size={14} aria-hidden="true" />
+                        <span>Edit</span>
                       </button>
                     ) : null}
                   </div>
@@ -1887,11 +1915,12 @@ export function PresentationView({
                         {canEditSectionSong ? (
                           <button
                             aria-label={`Edit song ${section.title}`}
-                            className="section-icon-button"
+                            className="section-icon-button section-edit-button"
                             onClick={() => openSongEditor(sectionItem.song_id!)}
                             type="button"
                           >
                             <Pencil size={14} aria-hidden="true" />
+                            <span>Edit</span>
                           </button>
                         ) : null}
                         <button

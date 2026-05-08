@@ -962,6 +962,20 @@ h3 {
   color: #fffdf5;
 }
 
+.primary-button,
+.danger-button,
+.text-button,
+.section-jump,
+.slide-tile,
+.section-icon-button {
+  transition:
+    background 140ms ease,
+    border-color 140ms ease,
+    box-shadow 140ms ease,
+    color 140ms ease,
+    transform 140ms ease;
+}
+
 .primary-button:disabled {
   cursor: not-allowed;
   opacity: 0.55;
@@ -977,6 +991,26 @@ h3 {
   background: transparent;
   border: 1px solid #cfc7b4;
   color: #234a40;
+}
+
+.primary-button:hover:not(:disabled),
+.primary-button:focus-visible:not(:disabled) {
+  background: #2b5a4d;
+  border-color: #21473c;
+  box-shadow: 0 4px 14px rgba(35, 74, 64, 0.16);
+}
+
+.text-button:hover:not(:disabled),
+.text-button:focus-visible:not(:disabled) {
+  background: #f4efe2;
+  border-color: #bfb59c;
+  box-shadow: 0 3px 10px rgba(23, 32, 27, 0.08);
+}
+
+.danger-button:hover:not(:disabled),
+.danger-button:focus-visible:not(:disabled) {
+  background: #f2d7d1;
+  border-color: #cb8578;
 }
 
 .button-link {
@@ -1487,6 +1521,10 @@ h3 {
   justify-content: stretch;
 }
 
+.bible-nav-toggle {
+  display: none;
+}
+
 .bible-nav-row {
   border-top: 1px solid #e3dcc8;
   padding-top: 8px;
@@ -1913,6 +1951,17 @@ h3 {
   justify-content: center;
   min-width: 28px;
   min-height: 28px;
+}
+
+.section-edit-button {
+  gap: 4px;
+  min-width: auto;
+  padding: 0 8px;
+}
+
+.section-edit-button span {
+  font-size: 11px;
+  font-weight: 800;
 }
 
 .section-icon-button:disabled {
@@ -2836,7 +2885,9 @@ h3 {
     padding: 6px;
   }
 
-  .presenter-controls .action-row {
+  .presenter-controls .action-row,
+  .presenter-transport-row,
+  .presenter-utility-row {
     gap: 5px;
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -2859,14 +2910,29 @@ h3 {
     width: 15px;
   }
 
+  .presenter-utility-row .primary-button {
+    grid-column: 1 / -1;
+  }
+
+  .bible-nav-toggle {
+    display: inline-flex;
+  }
+
   .bible-nav-row .text-button:last-child {
     grid-column: auto;
   }
 
   .bible-nav-row {
     border-top: 1px solid #ece4d0;
+    display: none;
     margin-top: 1px;
     padding-top: 5px;
+  }
+
+  .bible-nav-row.is-open {
+    display: grid;
+    gap: 5px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .presentation-stage {
@@ -2896,6 +2962,10 @@ h3 {
 
   .preview-tile {
     padding: 4px;
+  }
+
+  .section-edit-button span {
+    display: none;
   }
 }
 .auth-shell {
