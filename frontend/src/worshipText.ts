@@ -183,14 +183,59 @@ export function splitWorshipSlides(value: string) {
 
   return formatted
     .split(/\n{2,}/)
-    .map((slide) =>
-      slide
-        .split(/\r?\n/)
-        .filter((line, index) => index > 0 || !isWorshipSectionHeading(line))
-        .join("\n")
-        .trim(),
+    .flatMap((slide) =>
+      splitOversizedSlideBlock(
+        slide
+          .split(/\r?\n/)
+          .filter((line, index) => index > 0 || !isWorshipSectionHeading(line))
+          .join("\n")
+          .trim(),
+      ),
     )
     .filter(Boolean);
+}
+
+function splitOversizedSlideBlock(block: string) {
+  const lines = block
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  if (!lines.length) {
+    return [];
+  }
+
+  const chunks: string[] = [];
+  let current: string[] = [];
+  let currentChars = 0;
+
+  function flush() {
+    if (!current.length) {
+      return;
+    }
+    chunks.push(current.join("\n"));
+    current = [];
+    currentChars = 0;
+  }
+
+  for (const line of lines) {
+    const projectedLineCount = current.length + 1;
+    const projectedChars = currentChars + line.length;
+    const wouldOverflow =
+      projectedLineCount > 6 ||
+      projectedChars > 220 ||
+      (projectedLineCount > 4 && projectedChars > 170);
+
+    if (current.length && wouldOverflow) {
+      flush();
+    }
+
+    current.push(line);
+    currentChars += line.length;
+  }
+
+  flush();
+  return chunks;
 }
 
 export function buildLyricsFromSections(sections: WorshipStructureSection[]) {
