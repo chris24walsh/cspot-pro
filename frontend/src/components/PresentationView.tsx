@@ -1,4 +1,4 @@
-import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp, MonitorUp, Plus, Search, Trash2, WandSparkles } from "lucide-react";
+import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp, MonitorUp, Pencil, Plus, Search, Trash2, WandSparkles } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import {
@@ -26,6 +26,7 @@ import {
   uploadStoredFile,
   updatePresentationLiveState,
   updatePlanItem,
+  updateSong,
   type BibleBook,
   type BibleSearchHit,
   type BibleVersion,
@@ -222,11 +223,13 @@ export function PresentationView({
   canCreatePlan,
   canEditPlan,
   canCreateSong,
+  canEditSong,
 }: {
   canAttachDeck: boolean;
   canCreatePlan: boolean;
   canEditPlan: boolean;
   canCreateSong: boolean;
+  canEditSong: boolean;
 }) {
   const [plans, setPlans] = useState<PlanSummary[]>([]);
   const [planTypes, setPlanTypes] = useState<PlanType[]>([]);
@@ -263,6 +266,11 @@ export function PresentationView({
   const [selectedCustomProviderMatchId, setSelectedCustomProviderMatchId] = useState<string | null>(null);
   const [customProviderSelection, setCustomProviderSelection] = useState<CustomProviderSelectResult | null>(null);
   const [customProviderSelectionLoading, setCustomProviderSelectionLoading] = useState(false);
+  const [editingSongId, setEditingSongId] = useState<string | null>(null);
+  const [editingSongTitle, setEditingSongTitle] = useState("");
+  const [editingSongAuthor, setEditingSongAuthor] = useState("");
+  const [editingSongLyrics, setEditingSongLyrics] = useState("");
+  const [editingSongSaving, setEditingSongSaving] = useState(false);
   const [googleDriveStatus, setGoogleDriveStatus] = useState<GoogleDriveStatus | null>(null);
   const [googleDriveFiles, setGoogleDriveFiles] = useState<GoogleDriveFile[]>([]);
   const [googleDriveLoading, setGoogleDriveLoading] = useState(false);
@@ -315,6 +323,31 @@ export function PresentationView({
         .filter(Boolean)
         .some((value) => normalizedSongKey(value!) === key),
     );
+  }
+
+  function openSongEditor(songId: string) {
+    const song = songs.find((candidate) => candidate.id === songId);
+    if (!song) {
+      setMessage("Could not find that song in the library.");
+      return;
+    }
+    setEditingSongId(song.id);
+    setEditingSongTitle(song.title);
+    setEditingSongAuthor(song.author ?? "");
+    setEditingSongLyrics(song.lyrics ?? "");
+  }
+
+  function closeSongEditor() {
+    setEditingSongId(null);
+    setEditingSongTitle("");
+    setEditingSongAuthor("");
+    setEditingSongLyrics("");
+    setEditingSongSaving(false);
+  }
+
+  function cleanEditingSongLyrics() {
+    const analysis = analyzeWorshipText(editingSongLyrics, { title: editingSongTitle });
+    setEditingSongLyrics(buildLyricsFromSections(analysis.sections) || analysis.lyrics);
   }
 
   function clearHotkeyButtonFocus() {
@@ -713,7 +746,7 @@ export function PresentationView({
     setDeckTitleTouched(false);
   }
 
-  async function insertSongById(songId: string, afterIndex: number) {
+  async function insertSongById(songId: string, afterIndex: number, fallbackTitle?: string) {
     if (!plan) {
       setMessage("Select a plan before adding a song.");
       return;
@@ -724,7 +757,7 @@ export function PresentationView({
     }
 
     const song = songs.find((candidate) => candidate.id === songId);
-    if (!song) {
+    if (!song && !fallbackTitle) {
       setMessage("Choose a song first.");
       return;
     }
@@ -732,10 +765,10 @@ export function PresentationView({
     await createPlanItem(plan.id, {
       item_type: "song",
       sequence: sequenceForInsert(afterIndex),
-      title: song.title,
+      title: song?.title ?? fallbackTitle ?? "Song",
       comment: null,
       key_signature: null,
-      song_id: song.id,
+      song_id: songId,
     });
   }
 
@@ -818,9 +851,10 @@ export function PresentationView({
           external_link: null,
         });
         songId = importedSong.id;
+        setSongs((current) => [...current, importedSong]);
       }
 
-      await insertSongById(songId, searchInsertIndex ?? activeSectionInsertIndex());
+      await insertSongById(songId, searchInsertIndex ?? activeSectionInsertIndex(), resolvedTitle);
       await load(plan.id, { refreshCatalogs: true });
       closeSearchOverlay();
       setMessage(
@@ -1011,6 +1045,31 @@ export function PresentationView({
       await load(plan.id);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Could not attach slide deck.");
+    }
+  }
+
+  async function saveEditedSong() {
+    if (!editingSongId) {
+      return;
+    }
+
+    setEditingSongSaving(true);
+    try {
+      const analysis = analyzeWorshipText(editingSongLyrics, { title: editingSongTitle });
+      const updated = await updateSong(editingSongId, {
+        title: editingSongTitle.trim(),
+        author: editingSongAuthor.trim() || null,
+        lyrics: buildLyricsFromSections(analysis.sections) || analysis.lyrics,
+        sequence: analysis.sequence,
+      });
+      setSongs((current) => current.map((song) => (song.id === updated.id ? updated : song)));
+      await load(plan?.id, { refreshCatalogs: true, silent: true });
+      closeSongEditor();
+      setMessage(`Saved "${updated.title}".`);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not save song changes.");
+    } finally {
+      setEditingSongSaving(false);
     }
   }
 
@@ -1668,6 +1727,7 @@ export function PresentationView({
               const sectionStart = slides.findIndex((slide) => slide.sectionId === section.id);
               const sectionItem = (plan?.items ?? []).find((item) => item.id === section.id);
               const sectionFileIds = sectionItem?.files?.map((file) => file.file_id) ?? [];
+              const canEditSectionSong = canEditSong && sectionItem?.song_id;
               const deckStatus = describeDeckStatus(
                 sectionFileIds,
                 renderedSlidesByFileId,
@@ -1702,6 +1762,16 @@ export function PresentationView({
                       ) : null}
                       {sectionRenderError ? <em className="error-badge">Render failed</em> : null}
                     </button>
+                    {canEditSectionSong ? (
+                      <button
+                        aria-label={`Edit song ${section.title}`}
+                        className="section-icon-button"
+                        onClick={() => openSongEditor(sectionItem.song_id!)}
+                        type="button"
+                      >
+                        <Pencil size={14} aria-hidden="true" />
+                      </button>
+                    ) : null}
                   </div>
                   {sectionRenderError ? <p className="render-error-message">{sectionRenderError}</p> : null}
                   {showSlideTiles ? (
@@ -1763,6 +1833,8 @@ export function PresentationView({
             ) : null}
             {sections.map((section, sectionIndex) => {
               const sectionStart = slides.findIndex((slide) => slide.sectionId === section.id);
+              const sectionItem = (plan?.items ?? []).find((item) => item.id === section.id);
+              const canEditSectionSong = canEditSong && sectionItem?.song_id;
               return (
                 <div key={section.id} className="section-rail-block">
                   <div
@@ -1781,6 +1853,16 @@ export function PresentationView({
                     </button>
                     {canEditPlan ? (
                       <div className="section-actions">
+                        {canEditSectionSong ? (
+                          <button
+                            aria-label={`Edit song ${section.title}`}
+                            className="section-icon-button"
+                            onClick={() => openSongEditor(sectionItem.song_id!)}
+                            type="button"
+                          >
+                            <Pencil size={14} aria-hidden="true" />
+                          </button>
+                        ) : null}
                         <button
                           aria-label={`Move ${section.title} up`}
                           className="section-icon-button"
@@ -2137,6 +2219,57 @@ export function PresentationView({
                 type="button"
               >
                 Remove
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {editingSongId ? (
+        <div className="app-dialog-backdrop" role="presentation">
+          <div aria-labelledby="edit-song-title" aria-modal="true" className="app-dialog app-dialog-wide" role="dialog">
+            <div className="section-heading">
+              <div>
+                <h2 id="edit-song-title">Edit Song</h2>
+                <p>Tidy the title, author, and lyrics here without leaving the service.</p>
+              </div>
+            </div>
+
+            <div className="dialog-form-grid">
+              <label>
+                Title
+                <input onChange={(event) => setEditingSongTitle(event.target.value)} value={editingSongTitle} />
+              </label>
+              <label>
+                Author
+                <input onChange={(event) => setEditingSongAuthor(event.target.value)} value={editingSongAuthor} />
+              </label>
+            </div>
+
+            <label className="wide-field">
+              Lyrics
+              <textarea
+                className="lyrics-editor"
+                onChange={(event) => setEditingSongLyrics(event.target.value)}
+                rows={18}
+                value={editingSongLyrics}
+              />
+            </label>
+
+            <div className="app-dialog-actions">
+              <button className="text-button" onClick={closeSongEditor} type="button">
+                Close
+              </button>
+              <button className="text-button" onClick={cleanEditingSongLyrics} type="button">
+                Clean & Detect
+              </button>
+              <button
+                className="primary-button"
+                disabled={editingSongSaving || !editingSongTitle.trim() || !editingSongLyrics.trim()}
+                onClick={() => void saveEditedSong()}
+                type="button"
+              >
+                {editingSongSaving ? "Saving…" : "Save Song"}
               </button>
             </div>
           </div>

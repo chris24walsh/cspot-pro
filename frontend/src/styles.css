@@ -1196,6 +1196,11 @@ h3 {
   overflow: auto;
 }
 
+.lyrics-editor {
+  min-height: 340px;
+  resize: vertical;
+}
+
 .form-actions {
   margin-top: 14px;
 }
@@ -1855,7 +1860,9 @@ h3 {
 }
 
 .section-jump-row {
-  display: block;
+  display: grid;
+  gap: 6px;
+  grid-template-columns: minmax(0, 1fr) auto;
 }
 
 .section-jump {
@@ -1868,6 +1875,7 @@ h3 {
 
 .section-actions {
   display: flex;
+  flex-wrap: wrap;
   gap: 4px;
   justify-content: space-between;
 }
