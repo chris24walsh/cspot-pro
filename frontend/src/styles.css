@@ -2828,19 +2828,45 @@ h3 {
     gap: 8px;
   }
 
+  .presenter-controls {
+    background: #fffefa;
+    border: 1px solid #e3dcc8;
+    border-radius: 10px;
+    gap: 5px;
+    padding: 6px;
+  }
+
   .presenter-controls .action-row {
+    gap: 5px;
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .presenter-controls .text-button,
   .presenter-controls .primary-button {
-    font-size: 14px;
-    min-height: 42px;
-    padding: 8px 8px;
+    border-radius: 10px;
+    font-size: 13px;
+    min-height: 40px;
+    padding: 7px 8px;
+  }
+
+  .presenter-controls .text-button {
+    background: #fffdf7;
+  }
+
+  .presenter-controls .text-button svg,
+  .presenter-controls .primary-button svg {
+    height: 15px;
+    width: 15px;
   }
 
   .bible-nav-row .text-button:last-child {
     grid-column: auto;
+  }
+
+  .bible-nav-row {
+    border-top: 1px solid #ece4d0;
+    margin-top: 1px;
+    padding-top: 5px;
   }
 
   .presentation-stage {
