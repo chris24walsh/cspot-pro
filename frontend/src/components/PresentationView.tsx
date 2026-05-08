@@ -239,7 +239,6 @@ export function PresentationView({
   const [deckTitle, setDeckTitle] = useState("");
   const [deckTitleTouched, setDeckTitleTouched] = useState(false);
   const [deckFile, setDeckFile] = useState<File | null>(null);
-  const [pendingRemoveSection, setPendingRemoveSection] = useState<{ id: string; title: string } | null>(null);
   const [renderedSlidesByFileId, setRenderedSlidesByFileId] = useState<Record<string, RenderedSlide[]>>({});
   const [renderingFileIds, setRenderingFileIds] = useState<string[]>([]);
   const [renderErrorsByFileId, setRenderErrorsByFileId] = useState<Record<string, string>>({});
@@ -1119,7 +1118,6 @@ export function PresentationView({
 
     try {
       await deletePlanItem(sectionId);
-      setPendingRemoveSection(null);
       await load(plan.id);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Could not remove section.");
@@ -1448,11 +1446,6 @@ export function PresentationView({
         closeSongEditor();
         return;
       }
-      if (event.key === "Escape" && pendingRemoveSection) {
-        event.preventDefault();
-        setPendingRemoveSection(null);
-        return;
-      }
       if (event.key === "Escape" && searchOverlayOpen) {
         event.preventDefault();
         closeSearchOverlay();
@@ -1540,7 +1533,6 @@ export function PresentationView({
     currentPlanItem,
     editingSongId,
     liveIndex,
-    pendingRemoveSection,
     plan,
     screens,
     searchOverlayOpen,
@@ -1923,7 +1915,7 @@ export function PresentationView({
                         <button
                           aria-label={`Remove ${section.title}`}
                           className="section-icon-button section-remove-button"
-                          onClick={() => setPendingRemoveSection({ id: section.id, title: section.title })}
+                          onClick={() => void removeSection(section.id)}
                           type="button"
                         >
                           <Trash2 size={14} aria-hidden="true" />
@@ -2227,38 +2219,6 @@ export function PresentationView({
                   !googleDriveLoading)) ? (
                 <p className="search-empty">No matches yet.</p>
               ) : null}
-            </div>
-          </div>
-        </div>
-      ) : null}
-
-      {pendingRemoveSection ? (
-        <div className="app-dialog-backdrop" role="presentation">
-          <div
-            aria-labelledby="remove-section-title"
-            aria-modal="true"
-            className="app-dialog"
-            role="dialog"
-          >
-            <div>
-              <h2 id="remove-section-title">Remove Section</h2>
-              <p>Remove "{pendingRemoveSection.title}" from this plan?</p>
-            </div>
-            <div className="app-dialog-actions">
-              <button
-                className="text-button"
-                onClick={() => setPendingRemoveSection(null)}
-                type="button"
-              >
-                Cancel
-              </button>
-              <button
-                className="danger-button"
-                onClick={() => void removeSection(pendingRemoveSection.id)}
-                type="button"
-              >
-                Remove
-              </button>
             </div>
           </div>
         </div>

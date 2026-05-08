@@ -1,5 +1,6 @@
 from hashlib import sha256
 from pathlib import Path
+import re
 import shutil
 import subprocess
 import tempfile
@@ -275,6 +276,13 @@ def _parse_reference_query(raw: str) -> tuple[str, int, int, int | None] | None:
     return book_name, chapter, verse_from, verse_to
 
 
+def _clean_bible_verse_text(text: str) -> str:
+    cleaned = re.sub(r"\{[^{}]*\}", "", text)
+    cleaned = re.sub(r"\s+", " ", cleaned)
+    cleaned = re.sub(r"\s+([,.;:?!])", r"\1", cleaned)
+    return cleaned.strip()
+
+
 def _passage_to_read(
     *,
     version_code: str,
@@ -287,7 +295,7 @@ def _passage_to_read(
     reference = f"{book_name} {chapter}:{verse_from}"
     if verse_to != verse_from:
         reference = f"{reference}-{verse_to}"
-    text = "\n".join(f"{verse.verse}. {verse.text}" for verse in verses)
+    text = "\n".join(f"{verse.verse}. {_clean_bible_verse_text(verse.text)}" for verse in verses)
     return BibleSearchHitRead(
         version=version_code,
         reference=reference,
@@ -673,7 +681,7 @@ def get_bible_passage(
     if last_verse != verse_from:
         reference = f"{reference}-{last_verse}"
 
-    text = "\n".join(f"{verse.verse}. {verse.text}" for verse in verses)
+    text = "\n".join(f"{verse.verse}. {_clean_bible_verse_text(verse.text)}" for verse in verses)
     return BiblePassageRead(version=version.code, reference=reference, text=text)
 
 
@@ -764,7 +772,7 @@ def search_bible(
             BibleSearchHitRead(
                 version=version.code,
                 reference=f"{book.name} {verse.chapter}:{verse.verse}",
-                text=verse.text,
+                text=_clean_bible_verse_text(verse.text),
                 book=book.name,
                 chapter=verse.chapter,
                 verse_from=verse.verse,
