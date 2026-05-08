@@ -2651,9 +2651,9 @@ h3 {
   .shell {
     grid-template-columns: 1fr;
     grid-template-rows: auto minmax(0, 1fr);
-    height: 100vh;
-    min-height: 0;
-    overflow: hidden;
+    height: auto;
+    min-height: 100vh;
+    overflow: visible;
   }
 
   .sidebar {
@@ -2716,8 +2716,8 @@ h3 {
   .presenter-console {
     align-items: start;
     grid-template-columns: minmax(0, 1fr) 132px;
-    grid-template-rows: auto minmax(0, 1fr);
-    height: 100%;
+    grid-template-rows: auto auto;
+    height: auto;
   }
 
   .presenter-stage-column {
@@ -2725,10 +2725,12 @@ h3 {
   }
 
   .presenter-sidebar {
+    max-height: 42vh;
     min-width: 0;
   }
 
   .section-rail {
+    max-height: 42vh;
     min-width: 0;
   }
 
@@ -2750,11 +2752,13 @@ h3 {
   }
 
   .presentation-workspace {
+    overflow: visible;
     padding: 6px;
   }
 
   .slide-grid,
   .section-rail-list {
+    max-height: 100%;
     overscroll-behavior: contain;
   }
 
@@ -2812,7 +2816,9 @@ h3 {
   }
 
   .presenter-console {
-    grid-template-columns: minmax(0, 1fr) 114px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-rows: auto auto;
+    gap: 8px;
   }
 
   .presenter-controls .action-row {
@@ -2827,6 +2833,11 @@ h3 {
     padding: 20px;
   }
 
+  .presenter-sidebar,
+  .section-rail {
+    max-height: 38vh;
+  }
+
   .section-rail-title {
     padding: 6px 8px;
   }
@@ -2837,6 +2848,10 @@ h3 {
 
   .slide-grid {
     gap: 4px;
+  }
+
+  .section-slide-list {
+    grid-template-columns: 1fr;
   }
 
   .preview-tile {
