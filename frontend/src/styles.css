@@ -942,11 +942,18 @@ h3 {
 .primary-button,
 .danger-button,
 .text-button {
+  align-items: center;
   border-radius: 8px;
   cursor: pointer;
+  display: inline-flex;
   font-weight: 800;
+  gap: 6px;
+  justify-content: center;
+  line-height: 1.1;
   min-height: 34px;
   padding: 6px 10px;
+  text-align: center;
+  white-space: nowrap;
 }
 
 .primary-button {
@@ -1469,13 +1476,13 @@ h3 {
 
 .presenter-controls {
   display: grid;
-  gap: 8px;
+  gap: 6px;
   grid-template-columns: minmax(0, 1fr);
 }
 
 .presenter-controls .action-row {
   display: grid;
-  gap: 8px;
+  gap: 6px;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   justify-content: stretch;
 }
@@ -1491,9 +1498,9 @@ h3 {
 
 .presenter-controls .text-button,
 .presenter-controls .primary-button {
-  flex: 1 1 auto;
-  min-height: 32px;
-  padding: 5px 8px;
+  min-height: 40px;
+  padding: 8px 10px;
+  width: 100%;
 }
 
 .presenter-plan-picker {
@@ -2823,6 +2830,13 @@ h3 {
 
   .presenter-controls .action-row {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .presenter-controls .text-button,
+  .presenter-controls .primary-button {
+    font-size: 14px;
+    min-height: 42px;
+    padding: 8px 8px;
   }
 
   .bible-nav-row .text-button:last-child {
