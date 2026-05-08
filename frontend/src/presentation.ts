@@ -81,10 +81,23 @@ export function suggestSlideGroupFontCap(texts: string[], compact = false) {
     return compact ? 13 : 72;
   }
 
-  return meaningfulTexts.reduce(
-    (cap, text) => Math.min(cap, suggestTextFontCap(text, compact)),
-    compact ? 13 : 72,
-  );
+  const frequency = new Map<number, number>();
+  for (const text of meaningfulTexts) {
+    const cap = suggestTextFontCap(text, compact);
+    frequency.set(cap, (frequency.get(cap) ?? 0) + 1);
+  }
+
+  let bestCap = compact ? 13 : 72;
+  let bestCount = -1;
+
+  for (const [cap, count] of frequency.entries()) {
+    if (count > bestCount || (count === bestCount && cap < bestCap)) {
+      bestCap = cap;
+      bestCount = count;
+    }
+  }
+
+  return bestCap;
 }
 
 export function resolveLiveIndex(slides: PresentationSlide[], liveState: PresentationLiveState | null) {

@@ -58,14 +58,10 @@ export function PresentationOutput() {
   );
   const resolvedIndex = resolveLiveIndex(slides, liveState);
   const liveSlide = slides[resolvedIndex] ?? null;
-  const liveSongSectionFontCap =
-    liveSlide?.itemType === "song"
-      ? suggestSlideGroupFontCap(
-          slides
-            .filter((slide) => slide.itemType === "song" && slide.sectionId === liveSlide.sectionId)
-            .map((slide) => slide.text),
-        )
-      : undefined;
+  const liveTextFontCap = useMemo(
+    () => suggestSlideGroupFontCap(slides.filter((slide) => !slide.imageUrl && slide.text.trim()).map((slide) => slide.text)),
+    [slides],
+  );
 
   const writeOutputHeartbeat = useCallback(() => {
     if (!liveState?.planId) {
@@ -381,7 +377,7 @@ export function PresentationOutput() {
         ) : liveSlide?.imageUrl ? (
           <ScaledSlideImage alt={liveSlide.title} src={liveSlide.imageUrl} />
         ) : (
-          <AutoFitSlideText maxFontSize={liveSongSectionFontCap} text={liveSlide?.text ?? "Waiting for slideshow"} />
+          <AutoFitSlideText maxFontSize={liveTextFontCap} text={liveSlide?.text ?? "Waiting for slideshow"} />
         )}
       </section>
     </main>

@@ -293,23 +293,17 @@ export function PresentationView({
   );
   const liveSlide = slides[liveIndex] ?? null;
   const currentPlanItem = (plan?.items ?? []).find((item) => item.id === liveSlide?.planItemId) ?? null;
-  const songSectionFontCaps = useMemo(
-    () =>
-      Object.fromEntries(
-        sections
-          .filter((section) => section.itemType === "song")
-          .map((section) => [section.id, suggestSlideGroupFontCap(section.slides.map((slide) => slide.text))]),
-      ) as Record<string, number>,
-    [sections],
+  const planTextSlides = useMemo(
+    () => slides.filter((slide) => !slide.imageUrl && slide.text.trim()),
+    [slides],
   );
-  const compactSongSectionFontCaps = useMemo(
-    () =>
-      Object.fromEntries(
-        sections
-          .filter((section) => section.itemType === "song")
-          .map((section) => [section.id, suggestSlideGroupFontCap(section.slides.map((slide) => slide.text), true)]),
-      ) as Record<string, number>,
-    [sections],
+  const planTextFontCap = useMemo(
+    () => suggestSlideGroupFontCap(planTextSlides.map((slide) => slide.text)),
+    [planTextSlides],
+  );
+  const compactPlanTextFontCap = useMemo(
+    () => suggestSlideGroupFontCap(planTextSlides.map((slide) => slide.text), true),
+    [planTextSlides],
   );
   const songSearchResults = useMemo(
     () =>
@@ -1711,10 +1705,7 @@ export function PresentationView({
               {liveSlide?.imageUrl ? (
                 <ScaledSlideImage alt={liveSlide.title} src={liveSlide.imageUrl} />
               ) : (
-                <SlideTextBlock
-                  maxFontSize={liveSlide?.itemType === "song" ? songSectionFontCaps[liveSlide.sectionId] : undefined}
-                  text={liveSlide?.text ?? "No live slide selected"}
-                />
+                <SlideTextBlock maxFontSize={planTextFontCap} text={liveSlide?.text ?? "No live slide selected"} />
               )}
             </div>
           </div>
@@ -1834,7 +1825,7 @@ export function PresentationView({
                               slide,
                               "Empty",
                               slideTheme,
-                              slide.itemType === "song" ? compactSongSectionFontCaps[slide.sectionId] : undefined,
+                              compactPlanTextFontCap,
                             )}
                             <div className="thumbnail-menu">
                               <span>Go</span>
@@ -1853,7 +1844,7 @@ export function PresentationView({
                         section.slides[0] ?? null,
                         "Rendering deck",
                         slideTheme,
-                        section.itemType === "song" ? compactSongSectionFontCaps[section.id] : undefined,
+                        compactPlanTextFontCap,
                       )}
                       <strong>{section.slides.length} deck slides</strong>
                       <span>{deckStatus.label}</span>

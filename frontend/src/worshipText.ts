@@ -183,61 +183,14 @@ export function splitWorshipSlides(value: string) {
 
   return formatted
     .split(/\n{2,}/)
-    .flatMap((slide) =>
-      splitOversizedSlideBlock(
-        slide
-          .split(/\r?\n/)
-          .filter((line, index) => index > 0 || !isWorshipSectionHeading(line))
-          .join("\n")
-          .trim(),
-      ),
+    .map((slide) =>
+      slide
+        .split(/\r?\n/)
+        .filter((line, index) => index > 0 || !isWorshipSectionHeading(line))
+        .join("\n")
+        .trim(),
     )
     .filter(Boolean);
-}
-
-function splitOversizedSlideBlock(block: string) {
-  const lines = block
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter(Boolean);
-
-  if (!lines.length) {
-    return [];
-  }
-
-  const chunks: string[] = [];
-  let current: string[] = [];
-  let currentChars = 0;
-
-  function flush() {
-    if (!current.length) {
-      return;
-    }
-    chunks.push(current.join("\n"));
-    current = [];
-    currentChars = 0;
-  }
-
-  for (const line of lines) {
-    const projectedLineCount = current.length + 1;
-    const projectedChars = currentChars + line.length;
-    const projectedLongestLine = Math.max(...[...current, line].map((candidate) => candidate.length));
-    const wouldOverflow =
-      projectedLineCount > 5 ||
-      projectedChars > 180 ||
-      projectedLongestLine > 34 ||
-      (projectedLineCount > 4 && projectedChars > 145);
-
-    if (current.length && wouldOverflow) {
-      flush();
-    }
-
-    current.push(line);
-    currentChars += line.length;
-  }
-
-  flush();
-  return chunks;
 }
 
 export function buildLyricsFromSections(sections: WorshipStructureSection[]) {
