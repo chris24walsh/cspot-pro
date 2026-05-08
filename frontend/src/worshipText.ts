@@ -6,9 +6,9 @@ const SECTION_ALIASES = new Map<string, string>([
   ["refrain", "Chorus"],
   ["bridge", "Bridge"],
   ["b", "Bridge"],
-  ["pre chorus", "Pre-Chorus"],
-  ["pre-chorus", "Pre-Chorus"],
-  ["prechorus", "Pre-Chorus"],
+  ["pre chorus", "PreChorus"],
+  ["pre-chorus", "PreChorus"],
+  ["prechorus", "PreChorus"],
   ["tag", "Tag"],
   ["ending", "Ending"],
   ["outro", "Outro"],
@@ -46,7 +46,7 @@ function normalizeSectionHeading(line: string): string | null {
     return null;
   }
 
-  return match[2] ? `${label} ${match[2]}` : label;
+  return match[2] ? `${label}${match[2]}` : label;
 }
 
 export function isWorshipSectionHeading(line: string): boolean {
@@ -115,7 +115,7 @@ export function formatWorshipText(value: string, options: { removeChordLines?: b
       if (!previousBlank && output.length) {
         output.push("");
       }
-      output.push(heading);
+      output.push(`[${heading}]`);
       previousBlank = false;
       continue;
     }

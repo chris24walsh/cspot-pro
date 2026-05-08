@@ -45,15 +45,21 @@ def _headers() -> dict[str, str]:
     }
 
 
+def _normalize_title_fragment(value: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "", value.lower())
+
+
 def clean_lyrics(text: str, song_title: str = "") -> str:
     if not text:
         return text
 
     lines = text.split("\n")
     cleaned: list[str] = []
+    normalized_title = _normalize_title_fragment(song_title) if song_title else ""
 
-    for line in lines:
+    for index, line in enumerate(lines):
         line = line.strip()
+        normalized_line = _normalize_title_fragment(line)
 
         if any(
             word in line.lower()
@@ -62,8 +68,13 @@ def clean_lyrics(text: str, song_title: str = "") -> str:
             if len(line) < 80:
                 continue
 
-        if song_title and song_title.lower() in line.lower() and len(cleaned) < 3:
-            continue
+        if normalized_title and index < 6:
+            if normalized_line == normalized_title:
+                continue
+            if normalized_line in {f"{normalized_title}lyrics", f"lyrics{normalized_title}"}:
+                continue
+            if normalized_line.startswith(normalized_title) and len(normalized_line) <= len(normalized_title) + 12:
+                continue
 
         if line:
             cleaned.append(line)
