@@ -36,6 +36,57 @@ export interface PresentationSection {
   slides: PresentationSlide[];
 }
 
+function suggestTextFontCap(text: string, compact = false) {
+  const lines = text
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+  const totalChars = lines.join(" ").length;
+  const longestLine = lines.reduce((longest, line) => Math.max(longest, line.length), 0);
+
+  if (compact) {
+    if (lines.length >= 6 || totalChars > 180 || longestLine > 34) {
+      return 9;
+    }
+    if (lines.length >= 5 || totalChars > 145 || longestLine > 30) {
+      return 10;
+    }
+    if (lines.length >= 4 || totalChars > 115 || longestLine > 25) {
+      return 11;
+    }
+    if (lines.length >= 3 || totalChars > 85 || longestLine > 20) {
+      return 12;
+    }
+    return 13;
+  }
+
+  if (lines.length >= 7 || totalChars > 260 || longestLine > 46) {
+    return 48;
+  }
+  if (lines.length >= 6 || totalChars > 220 || longestLine > 40) {
+    return 54;
+  }
+  if (lines.length >= 5 || totalChars > 180 || longestLine > 34) {
+    return 60;
+  }
+  if (lines.length >= 4 || totalChars > 135 || longestLine > 28) {
+    return 66;
+  }
+  return 72;
+}
+
+export function suggestSlideGroupFontCap(texts: string[], compact = false) {
+  const meaningfulTexts = texts.map((text) => text.trim()).filter(Boolean);
+  if (!meaningfulTexts.length) {
+    return compact ? 13 : 72;
+  }
+
+  return meaningfulTexts.reduce(
+    (cap, text) => Math.min(cap, suggestTextFontCap(text, compact)),
+    compact ? 13 : 72,
+  );
+}
+
 export function resolveLiveIndex(slides: PresentationSlide[], liveState: PresentationLiveState | null) {
   if (!slides.length) {
     return 0;

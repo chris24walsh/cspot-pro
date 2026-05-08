@@ -4,12 +4,18 @@ type AutoFitSlideTextProps = {
   text: string;
   compact?: boolean;
   className?: string;
+  maxFontSize?: number;
 };
 
-export function AutoFitSlideText({ text, compact = false, className = "" }: AutoFitSlideTextProps) {
+export function AutoFitSlideText({
+  text,
+  compact = false,
+  className = "",
+  maxFontSize,
+}: AutoFitSlideTextProps) {
   const frameRef = useRef<HTMLDivElement>(null);
   const textRef = useRef<HTMLPreElement>(null);
-  const [fontSize, setFontSize] = useState<number>(compact ? 12 : 72);
+  const [fontSize, setFontSize] = useState<number>(maxFontSize ?? (compact ? 12 : 72));
 
   useLayoutEffect(() => {
     const frame = frameRef.current;
@@ -18,8 +24,8 @@ export function AutoFitSlideText({ text, compact = false, className = "" }: Auto
       return;
     }
 
-    const min = compact ? 8 : 22;
-    const max = compact ? 14 : 76;
+    const min = compact ? 7 : 18;
+    const max = maxFontSize ?? (compact ? 14 : 76);
 
     function fits(candidate: number) {
       const activeFrame = frameRef.current;
@@ -53,8 +59,9 @@ export function AutoFitSlideText({ text, compact = false, className = "" }: Auto
         }
       }
 
-      activePre.style.fontSize = `${best}px`;
-      setFontSize(best);
+      const settled = Math.max(min, best - (compact ? 0 : 1));
+      activePre.style.fontSize = `${settled}px`;
+      setFontSize(settled);
     }
 
     const resizeObserver = new ResizeObserver(updateSize);
@@ -64,10 +71,10 @@ export function AutoFitSlideText({ text, compact = false, className = "" }: Auto
     return () => {
       resizeObserver.disconnect();
     };
-  }, [compact, text]);
+  }, [compact, maxFontSize, text]);
 
   return (
-    <div className="fit-slide-box" ref={frameRef}>
+    <div className={`fit-slide-box ${compact ? "fit-slide-box-compact" : "fit-slide-box-live"}`} ref={frameRef}>
       <pre
         className={`fit-slide-text ${compact ? "fit-slide-text-compact" : "fit-slide-text-live"} ${className}`.trim()}
         ref={textRef}

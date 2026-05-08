@@ -221,10 +221,12 @@ function splitOversizedSlideBlock(block: string) {
   for (const line of lines) {
     const projectedLineCount = current.length + 1;
     const projectedChars = currentChars + line.length;
+    const projectedLongestLine = Math.max(...[...current, line].map((candidate) => candidate.length));
     const wouldOverflow =
-      projectedLineCount > 6 ||
-      projectedChars > 220 ||
-      (projectedLineCount > 4 && projectedChars > 170);
+      projectedLineCount > 5 ||
+      projectedChars > 180 ||
+      projectedLongestLine > 34 ||
+      (projectedLineCount > 4 && projectedChars > 145);
 
     if (current.length && wouldOverflow) {
       flush();

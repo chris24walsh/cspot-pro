@@ -18,6 +18,7 @@ import {
   buildPresentationSlides,
   presentationTypeClass,
   resolveLiveIndex,
+  suggestSlideGroupFontCap,
   type PresentationLiveState,
 } from "../presentation";
 import { AutoFitSlideText } from "./AutoFitSlideText";
@@ -57,6 +58,14 @@ export function PresentationOutput() {
   );
   const resolvedIndex = resolveLiveIndex(slides, liveState);
   const liveSlide = slides[resolvedIndex] ?? null;
+  const liveSongSectionFontCap =
+    liveSlide?.itemType === "song"
+      ? suggestSlideGroupFontCap(
+          slides
+            .filter((slide) => slide.itemType === "song" && slide.sectionId === liveSlide.sectionId)
+            .map((slide) => slide.text),
+        )
+      : undefined;
 
   const writeOutputHeartbeat = useCallback(() => {
     if (!liveState?.planId) {
@@ -372,7 +381,7 @@ export function PresentationOutput() {
         ) : liveSlide?.imageUrl ? (
           <ScaledSlideImage alt={liveSlide.title} src={liveSlide.imageUrl} />
         ) : (
-          <AutoFitSlideText text={liveSlide?.text ?? "Waiting for slideshow"} />
+          <AutoFitSlideText maxFontSize={liveSongSectionFontCap} text={liveSlide?.text ?? "Waiting for slideshow"} />
         )}
       </section>
     </main>

@@ -50,6 +50,7 @@ import {
   buildPresentationSlides,
   presentationTypeClass,
   resolveLiveIndex,
+  suggestSlideGroupFontCap,
   type PresentationSlide,
   type PresentationLiveState,
   type PresentationTheme,
@@ -123,11 +124,24 @@ async function tryFetchBiblePassage(
   }
 }
 
-function SlideTextBlock({ text, compact = false }: { text: string; compact?: boolean }) {
-  return <AutoFitSlideText compact={compact} text={text} />;
+function SlideTextBlock({
+  text,
+  compact = false,
+  maxFontSize,
+}: {
+  text: string;
+  compact?: boolean;
+  maxFontSize?: number;
+}) {
+  return <AutoFitSlideText compact={compact} maxFontSize={maxFontSize} text={text} />;
 }
 
-function renderMiniSlide(slide: PresentationSlide | null, fallback: string, theme: PresentationTheme) {
+function renderMiniSlide(
+  slide: PresentationSlide | null,
+  fallback: string,
+  theme: PresentationTheme,
+  maxFontSize?: number,
+) {
   if (!slide) {
     return (
       <div className="mini-slide-empty">
@@ -141,7 +155,7 @@ function renderMiniSlide(slide: PresentationSlide | null, fallback: string, them
       {slide.imageUrl ? (
         <img alt="" src={slide.imageUrl} />
       ) : (
-        <SlideTextBlock compact text={slide.text} />
+        <SlideTextBlock compact maxFontSize={maxFontSize} text={slide.text} />
       )}
     </div>
   );
@@ -279,6 +293,24 @@ export function PresentationView({
   );
   const liveSlide = slides[liveIndex] ?? null;
   const currentPlanItem = (plan?.items ?? []).find((item) => item.id === liveSlide?.planItemId) ?? null;
+  const songSectionFontCaps = useMemo(
+    () =>
+      Object.fromEntries(
+        sections
+          .filter((section) => section.itemType === "song")
+          .map((section) => [section.id, suggestSlideGroupFontCap(section.slides.map((slide) => slide.text))]),
+      ) as Record<string, number>,
+    [sections],
+  );
+  const compactSongSectionFontCaps = useMemo(
+    () =>
+      Object.fromEntries(
+        sections
+          .filter((section) => section.itemType === "song")
+          .map((section) => [section.id, suggestSlideGroupFontCap(section.slides.map((slide) => slide.text), true)]),
+      ) as Record<string, number>,
+    [sections],
+  );
   const songSearchResults = useMemo(
     () =>
       songs
@@ -1417,6 +1449,16 @@ export function PresentationView({
         target instanceof HTMLSelectElement ||
         (target instanceof HTMLElement && target.isContentEditable);
 
+      if (event.key === "Escape" && editingSongId) {
+        event.preventDefault();
+        closeSongEditor();
+        return;
+      }
+      if (event.key === "Escape" && pendingRemoveSection) {
+        event.preventDefault();
+        setPendingRemoveSection(null);
+        return;
+      }
       if (event.key === "Escape" && searchOverlayOpen) {
         event.preventDefault();
         closeSearchOverlay();
@@ -1499,7 +1541,19 @@ export function PresentationView({
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [canEditPlan, currentPlanItem, liveIndex, plan, screens, searchOverlayOpen, selectedScreenIndex, slides, sections]);
+  }, [
+    canEditPlan,
+    currentPlanItem,
+    editingSongId,
+    liveIndex,
+    pendingRemoveSection,
+    plan,
+    screens,
+    searchOverlayOpen,
+    selectedScreenIndex,
+    slides,
+    sections,
+  ]);
 
   async function runBibleSearch() {
     const query = searchQuery.trim();
@@ -1657,7 +1711,10 @@ export function PresentationView({
               {liveSlide?.imageUrl ? (
                 <ScaledSlideImage alt={liveSlide.title} src={liveSlide.imageUrl} />
               ) : (
-                <SlideTextBlock text={liveSlide?.text ?? "No live slide selected"} />
+                <SlideTextBlock
+                  maxFontSize={liveSlide?.itemType === "song" ? songSectionFontCaps[liveSlide.sectionId] : undefined}
+                  text={liveSlide?.text ?? "No live slide selected"}
+                />
               )}
             </div>
           </div>
@@ -1773,7 +1830,12 @@ export function PresentationView({
                             title={`${slideIndex + 1}. ${slide.title}`}
                           >
                             <span>{(slideIndex + 1).toString().padStart(2, "0")}</span>
-                            {renderMiniSlide(slide, "Empty", slideTheme)}
+                            {renderMiniSlide(
+                              slide,
+                              "Empty",
+                              slideTheme,
+                              slide.itemType === "song" ? compactSongSectionFontCaps[slide.sectionId] : undefined,
+                            )}
                             <div className="thumbnail-menu">
                               <span>Go</span>
                             </div>
@@ -1787,7 +1849,12 @@ export function PresentationView({
                       onClick={() => setLiveSlide(sectionStart)}
                       type="button"
                     >
-                      {renderMiniSlide(section.slides[0] ?? null, "Rendering deck", slideTheme)}
+                      {renderMiniSlide(
+                        section.slides[0] ?? null,
+                        "Rendering deck",
+                        slideTheme,
+                        section.itemType === "song" ? compactSongSectionFontCaps[section.id] : undefined,
+                      )}
                       <strong>{section.slides.length} deck slides</strong>
                       <span>{deckStatus.label}</span>
                       <small>{deckStatus.detail}</small>
@@ -1895,7 +1962,7 @@ export function PresentationView({
           <div aria-labelledby="search-overlay-title" aria-modal="true" className="app-dialog app-dialog-wide" role="dialog">
             <div>
               <h2 id="search-overlay-title">Search And Add</h2>
-              <p>Find songs, Bible passages, or upload a slide deck. Press `Esc` to close.</p>
+              <p>Find songs, Bible passages, or upload a slide deck.</p>
             </div>
 
             <div className="insert-choice-grid search-mode-grid">
