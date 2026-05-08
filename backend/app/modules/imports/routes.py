@@ -10,7 +10,10 @@ from sqlalchemy.orm import Session
 from app.core.database import get_session
 from app.modules.identity.models import User
 from app.modules.identity.auth import CurrentUser, require_any_permission, require_permission
-from app.modules.imports.custom_provider_stub import run_custom_lyrics_provider
+from app.modules.imports.custom_provider_stub import (
+    fetch_custom_lyrics_provider_match,
+    run_custom_lyrics_provider_search,
+)
 from app.modules.music.models import Song
 
 router = APIRouter()
@@ -61,9 +64,28 @@ class CustomProviderSearchRequest(BaseModel):
     search_term: str
 
 
+class CustomProviderMatchRead(BaseModel):
+    id: str
+    title: str
+    subtitle: str | None = None
+    summary: str | None = None
+
+
 class CustomProviderSearchResult(BaseModel):
     provider: str
     status: str
+    matches: list[CustomProviderMatchRead]
+    notes: list[str]
+
+
+class CustomProviderSelectRequest(BaseModel):
+    match_id: str
+
+
+class CustomProviderSelectResult(BaseModel):
+    provider: str
+    status: str
+    title: str | None = None
     output_text: str | None = None
     notes: list[str]
 
@@ -219,10 +241,33 @@ def run_custom_provider_search(
     payload: CustomProviderSearchRequest,
     _current_user: User = Depends(require_permission("songs:read")),
 ) -> CustomProviderSearchResult:
-    result = run_custom_lyrics_provider(payload.search_term)
+    result = run_custom_lyrics_provider_search(payload.search_term)
     return CustomProviderSearchResult(
         provider=result.provider,
         status=result.status,
+        matches=[
+            CustomProviderMatchRead(
+                id=match.id,
+                title=match.title,
+                subtitle=match.subtitle,
+                summary=match.summary,
+            )
+            for match in result.matches
+        ],
+        notes=result.notes,
+    )
+
+
+@router.post("/custom-provider/select", response_model=CustomProviderSelectResult)
+def select_custom_provider_match(
+    payload: CustomProviderSelectRequest,
+    _current_user: User = Depends(require_permission("songs:read")),
+) -> CustomProviderSelectResult:
+    result = fetch_custom_lyrics_provider_match(payload.match_id)
+    return CustomProviderSelectResult(
+        provider=result.provider,
+        status=result.status,
+        title=result.title,
         output_text=result.output_text,
         notes=result.notes,
     )

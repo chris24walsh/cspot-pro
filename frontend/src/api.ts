@@ -309,6 +309,21 @@ export interface ParsedSlideDeck {
 export interface CustomProviderSearchResult {
   provider: string;
   status: string;
+  matches: CustomProviderMatch[];
+  notes: string[];
+}
+
+export interface CustomProviderMatch {
+  id: string;
+  title: string;
+  subtitle: string | null;
+  summary: string | null;
+}
+
+export interface CustomProviderSelectResult {
+  provider: string;
+  status: string;
+  title: string | null;
   output_text: string | null;
   notes: string[];
 }
@@ -928,5 +943,11 @@ export async function parseSlideDeck(file: File): Promise<ParsedSlideDeck> {
 export async function runCustomProviderSearch(searchTerm: string): Promise<CustomProviderSearchResult> {
   return sendJson<CustomProviderSearchResult>("/api/v1/imports/custom-provider/search", "POST", {
     search_term: searchTerm,
+  });
+}
+
+export async function selectCustomProviderMatch(matchId: string): Promise<CustomProviderSelectResult> {
+  return sendJson<CustomProviderSelectResult>("/api/v1/imports/custom-provider/select", "POST", {
+    match_id: matchId,
   });
 }

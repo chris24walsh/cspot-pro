@@ -7,9 +7,12 @@ import {
   getSongs,
   parseSlideDeck,
   runCustomProviderSearch,
+  selectCustomProviderMatch,
+  type CustomProviderMatch,
   updateSong,
   uploadStoredFile,
   type CustomProviderSearchResult,
+  type CustomProviderSelectResult,
   type ParsedSlideDeck,
   type Song,
   type StoredFile,
@@ -257,6 +260,9 @@ export function SongManager({
   const [customProviderTerm, setCustomProviderTerm] = useState("");
   const [customProviderLoading, setCustomProviderLoading] = useState(false);
   const [customProviderResult, setCustomProviderResult] = useState<CustomProviderSearchResult | null>(null);
+  const [selectedCustomProviderMatchId, setSelectedCustomProviderMatchId] = useState<string | null>(null);
+  const [customProviderSelection, setCustomProviderSelection] = useState<CustomProviderSelectResult | null>(null);
+  const [customProviderSelectionLoading, setCustomProviderSelectionLoading] = useState(false);
   const [selectedImportIndex, setSelectedImportIndex] = useState(0);
   const [parsedSequence, setParsedSequence] = useState<string | null>(null);
   const [parseNotes, setParseNotes] = useState<string[]>([]);
@@ -357,9 +363,11 @@ export function SongManager({
       setCustomProviderResult({
         provider: "custom-provider-stub",
         status: "missing-query",
-        output_text: null,
+        matches: [],
         notes: ["Enter a search term first."],
       });
+      setCustomProviderSelection(null);
+      setSelectedCustomProviderMatchId(null);
       return;
     }
 
@@ -367,12 +375,31 @@ export function SongManager({
     try {
       const result = await runCustomProviderSearch(query);
       setCustomProviderResult(result);
+      setSelectedCustomProviderMatchId(result.matches[0]?.id ?? null);
+      setCustomProviderSelection(null);
       setMessage(null);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Could not run custom provider.");
       setCustomProviderResult(null);
+      setCustomProviderSelection(null);
+      setSelectedCustomProviderMatchId(null);
     } finally {
       setCustomProviderLoading(false);
+    }
+  }
+
+  async function loadCustomProviderMatch(matchId: string) {
+    setSelectedCustomProviderMatchId(matchId);
+    setCustomProviderSelectionLoading(true);
+    try {
+      const result = await selectCustomProviderMatch(matchId);
+      setCustomProviderSelection(result);
+      setMessage(null);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not load the selected match.");
+      setCustomProviderSelection(null);
+    } finally {
+      setCustomProviderSelectionLoading(false);
     }
   }
 
@@ -380,6 +407,9 @@ export function SongManager({
     setImportLyricsOpen(false);
     setCustomProviderResult(null);
     setCustomProviderLoading(false);
+    setSelectedCustomProviderMatchId(null);
+    setCustomProviderSelection(null);
+    setCustomProviderSelectionLoading(false);
   }
 
   function startCreate() {
@@ -805,8 +835,8 @@ export function SongManager({
   }
 
   function applyCustomProviderOutput() {
-    if (!customProviderResult?.output_text?.trim()) {
-      setMessage("Run your custom provider first, then apply its output.");
+    if (!customProviderSelection?.output_text?.trim()) {
+      setMessage("Select a match and load its lyrics first.");
       return;
     }
     if (!canCreate && !canEdit) {
@@ -816,7 +846,8 @@ export function SongManager({
 
     setForm((current) => ({
       ...current,
-      lyrics: customProviderResult.output_text ?? current.lyrics,
+      title: current.title || customProviderSelection.title || current.title,
+      lyrics: customProviderSelection.output_text ?? current.lyrics,
     }));
     closeImportLyricsDialog();
     setMessage("Applied custom provider output to the lyric editor.");
@@ -1288,9 +1319,38 @@ export function SongManager({
                       <div className="empty-state import-summary">
                         <strong>{customProviderResult.provider}</strong>
                         <span>Status: {customProviderResult.status}</span>
+                        {customProviderResult.matches.length ? (
+                          <span>{customProviderResult.matches.length} match{customProviderResult.matches.length === 1 ? "" : "es"} found</span>
+                        ) : null}
                       </div>
-                      {customProviderResult.output_text ? (
-                        <pre className="import-lyric-preview">{customProviderResult.output_text}</pre>
+                      {customProviderResult.matches.length ? (
+                        <div className="stack-list compact">
+                          {customProviderResult.matches.map((match) => (
+                            <button
+                              className={`stack-row ${selectedCustomProviderMatchId === match.id ? "selected" : ""}`}
+                              key={match.id}
+                              onClick={() => void loadCustomProviderMatch(match.id)}
+                              type="button"
+                            >
+                              <strong>{match.title}</strong>
+                              <span>
+                                {match.subtitle ?? "Unknown artist"}
+                                {match.summary ? ` · ${match.summary}` : ""}
+                              </span>
+                            </button>
+                          ))}
+                        </div>
+                      ) : null}
+                      {customProviderSelectionLoading ? <p className="search-empty">Loading lyrics for selected match…</p> : null}
+                      {customProviderSelection?.output_text ? (
+                        <pre className="import-lyric-preview">{customProviderSelection.output_text}</pre>
+                      ) : null}
+                      {customProviderSelection ? (
+                        <div className="action-row">
+                          <button className="text-button" onClick={() => applyCustomProviderOutput()} type="button">
+                            Apply Output to Editor
+                          </button>
+                        </div>
                       ) : null}
                       {customProviderResult.notes.length ? (
                         <div className="stack-list compact">
@@ -1301,11 +1361,15 @@ export function SongManager({
                           ))}
                         </div>
                       ) : null}
-                      <div className="action-row">
-                        <button className="text-button" onClick={() => applyCustomProviderOutput()} type="button">
-                          Apply Output to Editor
-                        </button>
-                      </div>
+                      {customProviderSelection?.notes.length ? (
+                        <div className="stack-list compact">
+                          {customProviderSelection.notes.map((note) => (
+                            <div className="stack-row readonly" key={note}>
+                              <span>{note}</span>
+                            </div>
+                          ))}
+                        </div>
+                      ) : null}
                     </>
                   ) : null}
                 </section>
