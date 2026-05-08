@@ -825,7 +825,7 @@ export function PresentationView({
       return;
     }
 
-    const resolvedTitle = customProviderSelection.title?.trim() || selectedCustomProviderMatch.title.trim();
+    const resolvedTitle = selectedCustomProviderMatch.title.trim() || customProviderSelection.title?.trim() || "";
     const duplicate = findDuplicateSong(resolvedTitle);
     if (!duplicate && !canCreateSong) {
       setMessage("Importing a new song into the library needs song-create permission.");

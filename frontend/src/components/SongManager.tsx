@@ -883,8 +883,8 @@ export function SongManager({
       ...current,
       title:
         current.title ||
-        selectedCustomProviderMatch?.title ||
-        customProviderSelection.title ||
+        selectedCustomProviderMatch?.title?.trim() ||
+        customProviderSelection.title?.trim() ||
         current.title,
       author: current.author || selectedCustomProviderMatch?.subtitle || current.author,
       lyrics: customProviderSelection.output_text ?? current.lyrics,

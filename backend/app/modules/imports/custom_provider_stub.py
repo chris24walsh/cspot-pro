@@ -49,6 +49,33 @@ def _normalize_title_fragment(value: str) -> str:
     return re.sub(r"[^a-z0-9]+", "", value.lower())
 
 
+def _extract_page_title(soup: BeautifulSoup) -> str | None:
+    title_candidates: list[str] = []
+
+    heading = soup.find("h1")
+    if heading:
+        heading_text = heading.get_text(" ", strip=True)
+        if heading_text:
+            title_candidates.append(heading_text)
+
+    og_title = soup.find("meta", property="og:title")
+    if og_title and og_title.get("content"):
+        content = og_title["content"].split("|", 1)[0].strip()
+        content = content.split(" Lyrics", 1)[0].strip()
+        title_candidates.append(content)
+
+    for candidate in title_candidates:
+        cleaned = candidate.strip()
+        if " – " in cleaned:
+            cleaned = cleaned.split(" – ", 1)[1].strip()
+        elif " - " in cleaned:
+            cleaned = cleaned.split(" - ", 1)[1].strip()
+        if cleaned:
+            return cleaned
+
+    return None
+
+
 def clean_lyrics(text: str, song_title: str = "") -> str:
     if not text:
         return text
@@ -170,11 +197,7 @@ def fetch_custom_lyrics_provider_match(match_id: str) -> CustomLyricsProviderSel
             )
 
         soup = BeautifulSoup(lyrics_response.text, "html.parser")
-        title = None
-
-        og_title = soup.find("meta", property="og:title")
-        if og_title and og_title.get("content"):
-            title = og_title["content"].split(" Lyrics", 1)[0].strip()
+        title = _extract_page_title(soup)
 
         containers = soup.find_all("div", {"data-lyrics-container": "true"})
         if not containers:

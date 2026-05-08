@@ -335,33 +335,33 @@ function extractImportSuggestions(slides: string[], fallbackTitle?: string): Wor
   };
 }
 
-function stripLeadingTitleSlide(slides: string[], title: string | null) {
-  if (slides.length < 2 || !title) {
-    return { notes: [] as string[], slides };
+function stripLeadingTitleBlock(blocks: string[], title: string | null) {
+  if (blocks.length < 2 || !title) {
+    return { notes: [] as string[], blocks };
   }
 
-  const [firstSlide, ...remainingSlides] = slides;
-  const firstLines = firstSlide
+  const [firstBlock, ...remainingBlocks] = blocks;
+  const firstLines = firstBlock
     .split(/\r?\n/)
     .map((line) => line.trim())
     .filter(Boolean);
 
   if (firstLines.length === 0 || firstLines.length > 2) {
-    return { notes: [] as string[], slides };
+    return { notes: [] as string[], blocks };
   }
 
   const firstSlideText = normalizedTextKey(firstLines.join(" "));
   const titleText = normalizedTextKey(title);
-  const nextSlideLineCount = remainingSlides[0]?.split(/\r?\n/).filter((line) => line.trim()).length ?? 0;
+  const nextSlideLineCount = remainingBlocks[0]?.split(/\r?\n/).filter((line) => line.trim()).length ?? 0;
 
   if (firstSlideText && firstSlideText === titleText && nextSlideLineCount >= 2) {
     return {
       notes: ["Ignored the opening title slide and used it as the song title only."],
-      slides: remainingSlides,
+      blocks: remainingBlocks,
     };
   }
 
-  return { notes: [] as string[], slides };
+  return { notes: [] as string[], blocks };
 }
 
 export function analyzeWorshipText(value: string, options: { title?: string } = {}): WorshipStructureAnalysis {
@@ -381,11 +381,20 @@ export function analyzeWorshipText(value: string, options: { title?: string } = 
     };
   }
 
-  const explicitSections = parseExplicitSections(formatted);
+  const titleBlockResult = stripLeadingTitleBlock(
+    formatted
+      .split(/\n{2,}/)
+      .map((block) => block.trim())
+      .filter(Boolean),
+    options.title ? titleCaseFromFilename(options.title) : null,
+  );
+  const normalizedFormatted = titleBlockResult.blocks.join("\n\n");
+
+  const explicitSections = parseExplicitSections(normalizedFormatted);
   if (explicitSections.length) {
     return {
-      lyrics: formatted,
-      notes: ["Detected explicit section headings and preserved them for slide formatting."],
+      lyrics: normalizedFormatted,
+      notes: [...titleBlockResult.notes, "Detected explicit section headings and preserved them for slide formatting."],
       sections: explicitSections,
       sequence: explicitSections.map((section) => section.label).join(" "),
       suggestions: {
@@ -397,15 +406,12 @@ export function analyzeWorshipText(value: string, options: { title?: string } = 
     };
   }
 
-  const blocks = formatted
-    .split(/\n{2,}/)
-    .map((block) => block.trim())
-    .filter(Boolean);
+  const blocks = titleBlockResult.blocks;
   const inferred = inferSectionsFromBlocks(blocks);
 
   return {
     lyrics: blocks.join("\n\n"),
-    notes: inferred.notes,
+    notes: [...titleBlockResult.notes, ...inferred.notes],
     sections: inferred.sections,
     sequence: inferred.sections.length ? inferred.sections.map((section) => section.label).join(" ") : null,
     suggestions: {
@@ -422,8 +428,8 @@ export function analyzeImportedSongSlides(slides: string[], title?: string): Wor
     .map((slide) => formatWorshipText(slide, { removeChordLines: true }))
     .filter(Boolean);
   const suggestions = extractImportSuggestions(cleanedSlides, title);
-  const titleSlideResult = stripLeadingTitleSlide(cleanedSlides, suggestions.title);
-  const normalizedSlides = titleSlideResult.slides.filter(Boolean);
+  const titleSlideResult = stripLeadingTitleBlock(cleanedSlides, suggestions.title);
+  const normalizedSlides = titleSlideResult.blocks.filter(Boolean);
 
   const inferred = inferSectionsFromBlocks(normalizedSlides);
 
