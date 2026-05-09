@@ -40,7 +40,7 @@ export function ImportManager({
   async function submitImport(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!canEdit) {
-      setMessage("You can review imports, but only worship leaders can save them into the library.");
+      setMessage("You can review imports, but only worship team members and worship leaders can save them into the song library.");
       return;
     }
     setMessage(null);
@@ -105,7 +105,7 @@ export function ImportManager({
 
         {message ? <p className="form-message">{message}</p> : null}
         {!canEdit ? (
-          <p className="empty-state">You can review lyrics here, but only worship leaders can create or update songs.</p>
+          <p className="empty-state">You can review lyrics here, but only worship team members and worship leaders can create or update songs.</p>
         ) : null}
 
         <div className="form-grid">

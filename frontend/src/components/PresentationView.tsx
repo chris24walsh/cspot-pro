@@ -733,7 +733,7 @@ export function PresentationView({
 
   async function createServiceForDate(dateInput = serviceDraftDate || nextSundayDateInput(), title = serviceDraftTitle) {
     if (!canCreatePlan) {
-      setMessage("Only service leaders and administrators can create services.");
+      setMessage("Only service leaders, worship leaders, and administrators can create services.");
       return;
     }
 
@@ -768,7 +768,7 @@ export function PresentationView({
       return;
     }
     if (!canCreatePlan) {
-      setMessage("Only service leaders and administrators can archive services.");
+      setMessage("Only service leaders, worship leaders, and administrators can archive services.");
       return;
     }
 
@@ -823,7 +823,7 @@ export function PresentationView({
 
   function openSearchOverlay(afterIndex = activeSectionInsertIndex(), mode: SearchOverlayMode = "songs") {
     if (!canEditPlan) {
-      setMessage("You can present this plan, but only service leaders and worship leaders can change the running order.");
+      setMessage("You can present this plan, but only worship team members, worship leaders, and service leaders can change the running order.");
       return;
     }
     setSearchInsertIndex(afterIndex);
@@ -855,7 +855,7 @@ export function PresentationView({
       return;
     }
     if (!canEditPlan) {
-      setMessage("Only service leaders and worship leaders can add songs to the running order.");
+      setMessage("Only worship team members, worship leaders, and service leaders can add songs to the running order.");
       return;
     }
 
@@ -920,7 +920,7 @@ export function PresentationView({
       return;
     }
     if (!canEditPlan) {
-      setMessage("Only service leaders and worship leaders can add songs to the running order.");
+      setMessage("Only worship team members, worship leaders, and service leaders can add songs to the running order.");
       return;
     }
     if (!selectedCustomProviderMatch || !customProviderSelection?.output_text) {
@@ -976,7 +976,7 @@ export function PresentationView({
       return;
     }
     if (!canEditPlan) {
-      setMessage("Only service leaders and worship leaders can add Scripture to the running order.");
+      setMessage("Only worship team members, worship leaders, and service leaders can add Scripture to the running order.");
       return;
     }
     await createPlanItem(plan.id, {
@@ -994,7 +994,7 @@ export function PresentationView({
       return;
     }
     if (!canEditPlan) {
-      setMessage("Bible passage navigation updates the plan, so it is only available to service leaders and worship leaders.");
+      setMessage("Bible passage navigation updates the plan, so it is only available to worship team members, worship leaders, and service leaders.");
       return;
     }
 
@@ -1259,7 +1259,7 @@ export function PresentationView({
       return;
     }
     if (!canEditPlan) {
-      setMessage("Only service leaders and worship leaders can add Scripture slides.");
+      setMessage("Only worship team members, worship leaders, and service leaders can add Scripture slides.");
       return;
     }
 

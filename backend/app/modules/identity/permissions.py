@@ -8,14 +8,19 @@ class RoleDefinition(TypedDict):
     description: str
     permissions: set[PermissionName]
 
-READ_PERMISSIONS: set[PermissionName] = {
+VIEWER_PERMISSIONS: set[PermissionName] = {
     "plans:read",
     "songs:read",
-    "team:read",
     "library:read",
     "messages:read",
+}
+
+PARTICIPANT_PERMISSIONS: set[PermissionName] = VIEWER_PERMISSIONS | {
+    "team:read",
     "presentation:use",
 }
+
+READ_PERMISSIONS: set[PermissionName] = PARTICIPANT_PERMISSIONS
 
 EDIT_PERMISSIONS: set[PermissionName] = {
     "plans:edit",
@@ -37,20 +42,24 @@ ALL_PERMISSIONS: set[PermissionName] = READ_PERMISSIONS | EDIT_PERMISSIONS | CRE
 
 ROLE_DEFINITIONS: dict[str, RoleDefinition] = {
     "viewer": {
-        "description": "Read-only access across plans, songs, library, team, and presentation.",
-        "permissions": READ_PERMISSIONS,
+        "description": "Read-only library and song access. Best for people who should not control service slides.",
+        "permissions": VIEWER_PERMISSIONS,
     },
     "musician": {
-        "description": "Use plans, songs, library, and presentation tools for rehearsal and service participation.",
-        "permissions": READ_PERMISSIONS,
+        "description": "Use service, song, chord, team, and presentation tools for rehearsal and participation.",
+        "permissions": PARTICIPANT_PERMISSIONS,
+    },
+    "worship_team": {
+        "description": "Maintain songs and add songs to existing services without owning the whole service plan.",
+        "permissions": PARTICIPANT_PERMISSIONS | {"plans:edit", "songs:edit", "songs:create"},
     },
     "service_leader": {
         "description": "Lead a service, update plan flow, coordinate team members, and communicate with the team.",
-        "permissions": READ_PERMISSIONS | {"plans:edit", "plans:create", "team:edit", "messages:write"},
+        "permissions": PARTICIPANT_PERMISSIONS | {"plans:edit", "plans:create", "team:edit", "messages:write"},
     },
     "worship_leader": {
         "description": "Lead worship, maintain songs and library content, and shape service plans with the team.",
-        "permissions": READ_PERMISSIONS | EDIT_PERMISSIONS | {"plans:create", "songs:create", "library:create"},
+        "permissions": PARTICIPANT_PERMISSIONS | EDIT_PERMISSIONS | {"plans:create", "songs:create", "library:create"},
     },
     "administrator": {
         "description": "Manage users, roles, and all planning, music, library, and presentation content.",
@@ -62,8 +71,8 @@ LEGACY_ROLE_ALIASES: dict[str, str] = {
     "user": "viewer",
     "leader": "service_leader",
     "teacher": "service_leader",
-    "author": "service_leader",
-    "editor": "worship_leader",
+    "author": "worship_team",
+    "editor": "worship_team",
     "creator": "worship_leader",
 }
 
