@@ -199,7 +199,9 @@ button {
 }
 
 .topbar-service-button {
+  background: #fffdf7;
   max-width: min(520px, 100%);
+  min-height: 40px;
 }
 
 .topbar-service-button span {
@@ -214,13 +216,13 @@ button {
 }
 
 .service-picker-dialog {
-  max-width: min(820px, 100%);
+  max-width: min(1040px, 100%);
 }
 
 .service-picker-grid {
   display: grid;
   gap: 14px;
-  grid-template-columns: minmax(0, 1fr) minmax(240px, 0.72fr);
+  grid-template-columns: minmax(310px, 1fr) minmax(230px, 0.72fr) minmax(240px, 0.72fr);
   min-height: 0;
 }
 
@@ -238,6 +240,91 @@ button {
   max-height: min(50vh, 420px);
   overflow: auto;
   padding-right: 2px;
+}
+
+.service-calendar-heading {
+  align-items: center;
+  display: grid;
+  gap: 8px;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+}
+
+.service-calendar-heading strong {
+  color: #17201b;
+  font-size: 18px;
+  font-weight: 900;
+  text-align: center;
+}
+
+.service-calendar-grid {
+  display: grid;
+  gap: 5px;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+}
+
+.service-calendar-weekday {
+  color: #66736b;
+  font-size: 11px;
+  font-weight: 900;
+  padding: 2px 0;
+  text-align: center;
+  text-transform: uppercase;
+}
+
+.service-calendar-day {
+  align-content: start;
+  background: #fffefa;
+  border: 1px solid #e3dcc8;
+  border-radius: 8px;
+  color: #17201b;
+  cursor: pointer;
+  display: grid;
+  gap: 3px;
+  min-height: 58px;
+  min-width: 0;
+  padding: 6px;
+  text-align: left;
+}
+
+.service-calendar-day span {
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.service-calendar-day small {
+  color: #234a40;
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 1.08;
+  overflow: hidden;
+}
+
+.service-calendar-day:hover:not(:disabled),
+.service-calendar-day:focus-visible:not(:disabled) {
+  background: #eaf5ef;
+  border-color: #8ebba9;
+  outline: none;
+}
+
+.service-calendar-day.has-service {
+  background: #edf7f1;
+  border-color: #9cc8af;
+}
+
+.service-calendar-day.is-selected {
+  box-shadow: 0 0 0 2px #234a40 inset;
+}
+
+.service-calendar-day.is-today span {
+  color: #7a5c19;
+}
+
+.service-calendar-day.is-muted {
+  opacity: 0.48;
+}
+
+.service-calendar-day:disabled {
+  cursor: not-allowed;
 }
 
 .service-picker-danger {

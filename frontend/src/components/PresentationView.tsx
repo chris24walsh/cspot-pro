@@ -103,6 +103,19 @@ const SERVICE_DATE_FORMATTER = new Intl.DateTimeFormat(undefined, {
   month: "short",
   weekday: "short",
 });
+const SERVICE_LONG_DATE_FORMATTER = new Intl.DateTimeFormat(undefined, {
+  day: "numeric",
+  month: "long",
+  year: "numeric",
+});
+const SERVICE_MONTH_FORMATTER = new Intl.DateTimeFormat(undefined, {
+  month: "long",
+  year: "numeric",
+});
+
+function dateInputFromDate(value: Date) {
+  return `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, "0")}-${String(value.getDate()).padStart(2, "0")}`;
+}
 
 function dateInputFromIso(value: string | null | undefined) {
   if (!value) {
@@ -136,6 +149,26 @@ function serviceTitleForDate(value: string) {
   return Number.isNaN(date.getTime())
     ? "Service"
     : date.toLocaleDateString(undefined, { day: "numeric", month: "long", weekday: "long" });
+}
+
+function monthInputFromDate(value: Date) {
+  return `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function monthDateFromInput(value: string) {
+  const [year, month] = value.split("-").map(Number);
+  return new Date(year || new Date().getFullYear(), (month || 1) - 1, 1);
+}
+
+function calendarDaysForMonth(monthInput: string) {
+  const monthStart = monthDateFromInput(monthInput);
+  const firstVisible = new Date(monthStart);
+  firstVisible.setDate(firstVisible.getDate() - firstVisible.getDay());
+  return Array.from({ length: 42 }, (_, index) => {
+    const date = new Date(firstVisible);
+    date.setDate(firstVisible.getDate() + index);
+    return date;
+  });
 }
 
 function isTransientApiError(error: unknown) {
@@ -310,6 +343,7 @@ export function PresentationView({
   const [servicePickerOpen, setServicePickerOpen] = useState(false);
   const [serviceDraftDate, setServiceDraftDate] = useState("");
   const [serviceDraftTitle, setServiceDraftTitle] = useState("");
+  const [serviceCalendarMonth, setServiceCalendarMonth] = useState(monthInputFromDate(new Date()));
   const [customProviderSelection, setCustomProviderSelection] = useState<CustomProviderSelectResult | null>(null);
   const [customProviderSelectionLoading, setCustomProviderSelectionLoading] = useState(false);
   const [editingSongId, setEditingSongId] = useState<string | null>(null);
@@ -348,6 +382,16 @@ export function PresentationView({
       }),
     [plans],
   );
+  const plansByDate = useMemo(
+    () =>
+      new Map(
+        plans
+          .map((planSummary) => [dateInputFromIso(planSummary.service_date), planSummary] as const)
+          .filter(([date]) => Boolean(date)),
+      ),
+    [plans],
+  );
+  const calendarDays = useMemo(() => calendarDaysForMonth(serviceCalendarMonth), [serviceCalendarMonth]);
   const slides = useMemo(
     () => buildPresentationSlides(plan?.items ?? [], songs, renderedSlidesByFileId),
     [plan, songs, renderedSlidesByFileId],
@@ -722,7 +766,8 @@ export function PresentationView({
   function openServicePicker() {
     const draftDate = dateInputFromIso(plan?.service_date) || nextSundayDateInput();
     setServiceDraftDate(draftDate);
-    setServiceDraftTitle(serviceTitleForDate(draftDate));
+    setServiceDraftTitle(suggestedServiceTitle(draftDate));
+    setServiceCalendarMonth(draftDate.slice(0, 7) || monthInputFromDate(new Date()));
     setServicePickerOpen(true);
   }
 
@@ -733,20 +778,63 @@ export function PresentationView({
     return dateInputFromIso(date.toISOString());
   }
 
+  function serviceTypeForDate(dateInput: string) {
+    const date = new Date(serviceIsoFromDateInput(dateInput));
+    const day = Number.isNaN(date.getTime()) ? 0 : date.getDay();
+    const normalizedType = (value: string) => value.toLowerCase();
+    if (day === 0) {
+      return planTypes.find((type) => normalizedType(type.name).includes("sunday")) ?? planTypes[0] ?? null;
+    }
+    if (day === 4) {
+      return (
+        planTypes.find((type) => normalizedType(type.name).includes("prayer")) ??
+        planTypes.find((type) => normalizedType(type.name).includes("midweek")) ??
+        planTypes[0] ??
+        null
+      );
+    }
+    return (
+      planTypes.find((type) => normalizedType(type.name).includes("midweek")) ??
+      planTypes.find((type) => normalizedType(type.name).includes("event")) ??
+      planTypes[0] ??
+      null
+    );
+  }
+
+  function suggestedServiceTitle(dateInput: string) {
+    const type = serviceTypeForDate(dateInput);
+    const date = new Date(serviceIsoFromDateInput(dateInput));
+    const formattedDate = Number.isNaN(date.getTime()) ? serviceTitleForDate(dateInput) : SERVICE_LONG_DATE_FORMATTER.format(date);
+    return `${type?.name ?? "Service"} ${formattedDate}`;
+  }
+
+  async function chooseServiceDate(dateInput: string) {
+    const existing = plansByDate.get(dateInput);
+    if (existing) {
+      await selectPlan(existing.id);
+      return;
+    }
+    setServiceDraftDate(dateInput);
+    setServiceDraftTitle(suggestedServiceTitle(dateInput));
+    if (canCreatePlan) {
+      await createServiceForDate(dateInput, suggestedServiceTitle(dateInput));
+    }
+  }
+
   async function createServiceForDate(dateInput = serviceDraftDate || nextSundayDateInput(), title = serviceDraftTitle) {
     if (!canCreatePlan) {
       setMessage("Only service leaders, worship leaders, and administrators can create services.");
       return;
     }
 
-    const primaryPlanType = planTypes[0];
+    const primaryPlanType = serviceTypeForDate(dateInput);
     if (!primaryPlanType) {
       setMessage("No service types are configured yet.");
       return;
     }
 
     try {
-      const serviceTitle = title.trim() || serviceTitleForDate(dateInput);
+      const serviceTitle = title.trim() || suggestedServiceTitle(dateInput);
       const created = await createPlan({
         plan_type_id: primaryPlanType.id,
         service_date: serviceIsoFromDateInput(dateInput),
@@ -1132,6 +1220,10 @@ export function PresentationView({
 
     try {
       const resolvedDeckTitle = deckTitle.trim() || "Sermon";
+      if (plan.items.some((item) => item.item_type === "sermon" && item.title.trim().toLowerCase() === resolvedDeckTitle.toLowerCase())) {
+        setMessage(`"${resolvedDeckTitle}" is already in this service.`);
+        return;
+      }
       const stored = await uploadStoredFile({
         file: deckFile,
         display_name: resolvedDeckTitle,
@@ -1198,6 +1290,17 @@ export function PresentationView({
 
     try {
       const resolvedDeckTitle = deckTitle.trim() || file.name.replace(/\.[^.]+$/, "") || "Sermon";
+      if (
+        plan.items.some(
+          (item) =>
+            item.item_type === "sermon" &&
+            (item.title.trim().toLowerCase() === resolvedDeckTitle.toLowerCase() ||
+              item.comment?.trim().toLowerCase() === `imported from google drive: ${file.name}`.toLowerCase()),
+        )
+      ) {
+        setMessage(`"${resolvedDeckTitle}" is already in this service.`);
+        return;
+      }
       const imported = await importGoogleDriveDeck({
         file_id: file.id,
         display_name: resolvedDeckTitle,
@@ -1219,7 +1322,7 @@ export function PresentationView({
   }
 
   async function removeSection(sectionId: string) {
-    if (!plan || !canDeletePlan) {
+    if (!plan || !canEditPlan) {
       return;
     }
 
@@ -1795,7 +1898,62 @@ export function PresentationView({
 
             <div className="service-picker-grid">
               <section className="service-picker-panel">
-                <h3>Open</h3>
+                <div className="service-calendar-heading">
+                  <button
+                    aria-label="Previous month"
+                    className="text-button"
+                    onClick={() => {
+                      const month = monthDateFromInput(serviceCalendarMonth);
+                      month.setMonth(month.getMonth() - 1);
+                      setServiceCalendarMonth(monthInputFromDate(month));
+                    }}
+                    type="button"
+                  >
+                    <ChevronLeft size={16} aria-hidden="true" />
+                  </button>
+                  <strong>{SERVICE_MONTH_FORMATTER.format(monthDateFromInput(serviceCalendarMonth))}</strong>
+                  <button
+                    aria-label="Next month"
+                    className="text-button"
+                    onClick={() => {
+                      const month = monthDateFromInput(serviceCalendarMonth);
+                      month.setMonth(month.getMonth() + 1);
+                      setServiceCalendarMonth(monthInputFromDate(month));
+                    }}
+                    type="button"
+                  >
+                    <ChevronRight size={16} aria-hidden="true" />
+                  </button>
+                </div>
+                <div className="service-calendar-grid" aria-label="Service calendar">
+                  {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day) => (
+                    <span className="service-calendar-weekday" key={day}>{day}</span>
+                  ))}
+                  {calendarDays.map((day) => {
+                    const dateInput = dateInputFromDate(day);
+                    const existing = plansByDate.get(dateInput);
+                    const inMonth = dateInput.startsWith(serviceCalendarMonth);
+                    const isSelected = dateInput === dateInputFromIso(plan?.service_date);
+                    const isToday = dateInput === dateInputFromDate(new Date());
+                    return (
+                      <button
+                        className={`service-calendar-day ${inMonth ? "" : "is-muted"} ${existing ? "has-service" : ""} ${isSelected ? "is-selected" : ""} ${isToday ? "is-today" : ""}`}
+                        disabled={!existing && !canCreatePlan}
+                        key={dateInput}
+                        onClick={() => void chooseServiceDate(dateInput)}
+                        title={existing ? `Open ${existing.title}` : `Create ${suggestedServiceTitle(dateInput)}`}
+                        type="button"
+                      >
+                        <span>{day.getDate()}</span>
+                        {existing ? <small>{existing.title}</small> : null}
+                      </button>
+                    );
+                  })}
+                </div>
+              </section>
+
+              <section className="service-picker-panel">
+                <h3>Existing Services</h3>
                 <div className="stack-list compact service-date-list">
                   {sortedPlans.map((planSummary) => (
                     <button
@@ -1815,7 +1973,7 @@ export function PresentationView({
               </section>
 
               <section className="service-picker-panel">
-                <h3>Create</h3>
+                <h3>Selected Date</h3>
                 <div className="form-grid single-column">
                   <label>
                     Date
@@ -1823,7 +1981,8 @@ export function PresentationView({
                       onChange={(event) => {
                         const nextDate = event.target.value;
                         setServiceDraftDate(nextDate);
-                        setServiceDraftTitle(serviceTitleForDate(nextDate));
+                        setServiceDraftTitle(suggestedServiceTitle(nextDate));
+                        setServiceCalendarMonth(nextDate.slice(0, 7) || serviceCalendarMonth);
                       }}
                       type="date"
                       value={serviceDraftDate}
@@ -1833,7 +1992,7 @@ export function PresentationView({
                     Title
                     <input
                       onChange={(event) => setServiceDraftTitle(event.target.value)}
-                      placeholder={serviceTitleForDate(serviceDraftDate)}
+                      placeholder={suggestedServiceTitle(serviceDraftDate)}
                       value={serviceDraftTitle}
                     />
                   </label>
@@ -2123,16 +2282,14 @@ export function PresentationView({
                         >
                           <ChevronDown size={14} aria-hidden="true" />
                         </button>
-                        {canDeletePlan ? (
-                          <button
-                            aria-label={`Remove ${section.title}`}
-                            className="section-icon-button section-remove-button"
-                            onClick={() => void removeSection(section.id)}
-                            type="button"
-                          >
-                            <Trash2 size={14} aria-hidden="true" />
-                          </button>
-                        ) : null}
+                        <button
+                          aria-label={`Remove ${section.title}`}
+                          className="section-icon-button section-remove-button"
+                          onClick={() => void removeSection(section.id)}
+                          type="button"
+                        >
+                          <Trash2 size={14} aria-hidden="true" />
+                        </button>
                       </div>
                     ) : null}
                   </div>
