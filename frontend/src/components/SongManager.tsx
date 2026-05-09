@@ -246,10 +246,12 @@ function GuitarChordDiagram({ chord }: { chord: string | null }) {
 }
 
 export function SongManager({
+  canArchive,
   canCreate,
   canEdit,
   onDataChange,
 }: {
+  canArchive: boolean;
   canCreate: boolean;
   canEdit: boolean;
   onDataChange: () => void;
@@ -746,7 +748,7 @@ export function SongManager({
     if (!selectedSong) {
       return;
     }
-    if (!canCreate) {
+    if (!canArchive) {
       setMessage("You do not have permission to archive songs.");
       return;
     }
@@ -1090,7 +1092,7 @@ export function SongManager({
             </div>
             <div className="action-row">
               {mode === "edit" ? (
-                <button className="danger-button" disabled={!canCreate} onClick={() => void removeSong()} type="button">
+                <button className="danger-button" disabled={!canArchive} onClick={() => void removeSong()} type="button">
                   Archive Song
                 </button>
               ) : null}

@@ -120,7 +120,7 @@ def update_team_assignment(
 @router.delete("/team/{assignment_id}", status_code=status.HTTP_204_NO_CONTENT)
 def remove_team_assignment(
     assignment_id: str,
-    _current_user: User = Depends(require_any_permission("team:edit", "plans:create")),
+    _current_user: User = Depends(require_any_permission("team:delete", "plans:delete")),
     session: Session = Depends(get_session),
 ) -> Response:
     assignment = get_assignment_or_404(session, assignment_id)

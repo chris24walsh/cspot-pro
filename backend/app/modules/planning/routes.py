@@ -186,7 +186,7 @@ def update_plan(
 @router.delete("/plans/{plan_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_plan(
     plan_id: str,
-    _current_user: User = Depends(require_permission("plans:create")),
+    _current_user: User = Depends(require_permission("plans:delete")),
     session: Session = Depends(get_session),
 ) -> Response:
     plan = get_plan_or_404(session, plan_id)
@@ -233,7 +233,7 @@ def update_plan_item(
 @router.delete("/items/{item_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_plan_item(
     item_id: str,
-    _current_user: User = Depends(require_permission("plans:create")),
+    _current_user: User = Depends(require_permission("plans:delete")),
     session: Session = Depends(get_session),
 ) -> Response:
     item = get_item_or_404(session, item_id)

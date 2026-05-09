@@ -71,9 +71,11 @@ function App() {
   const permissions = useMemo(() => new Set(sessionUser?.permissions ?? []), [sessionUser]);
   const canManageUsers = permissions.has("users:manage");
   const canCreatePlans = permissions.has("plans:create");
+  const canDeletePlans = permissions.has("plans:delete");
   const canEditPlans = canCreatePlans || permissions.has("plans:edit");
   const canReadSongs = permissions.has("songs:read");
   const canCreateSongs = permissions.has("songs:create");
+  const canDeleteSongs = permissions.has("songs:delete");
   const canEditSongs = canCreateSongs || permissions.has("songs:edit");
   const canUsePresentation = permissions.has("presentation:use");
   const canCreateLibrary = permissions.has("library:create");
@@ -307,6 +309,7 @@ function App() {
 
         {activeModuleId === "music" ? (
           <SongManager
+            canArchive={canDeleteSongs}
             canCreate={canCreateSongs}
             canEdit={canEditSongs}
             onDataChange={() => void loadWorkspace()}
@@ -315,6 +318,7 @@ function App() {
           <PresentationView
             canAttachDeck={canEditPlans && canCreateLibrary}
             canCreatePlan={canCreatePlans}
+            canDeletePlan={canDeletePlans}
             canEditPlan={canEditPlans}
             canCreateSong={canCreateSongs}
             canEditSong={canEditSongs}
@@ -325,6 +329,7 @@ function App() {
           <PresentationView
             canAttachDeck={canEditPlans && canCreateLibrary}
             canCreatePlan={canCreatePlans}
+            canDeletePlan={canDeletePlans}
             canEditPlan={canEditPlans}
             canCreateSong={canCreateSongs}
             canEditSong={canEditSongs}

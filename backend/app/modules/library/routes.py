@@ -348,7 +348,7 @@ def update_resource(
 @router.delete("/resources/{resource_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_resource(
     resource_id: str,
-    _current_user: User = Depends(require_permission("library:create")),
+    _current_user: User = Depends(require_permission("library:delete")),
     session: Session = Depends(get_session),
 ) -> Response:
     resource = get_resource_or_404(session, resource_id)
@@ -418,7 +418,7 @@ def update_plan_resource(
 @router.delete("/plan-resources/{plan_resource_id}", status_code=status.HTTP_204_NO_CONTENT)
 def remove_plan_resource(
     plan_resource_id: str,
-    _current_user: User = Depends(require_any_permission("library:create", "plans:create")),
+    _current_user: User = Depends(require_any_permission("library:delete", "plans:delete")),
     session: Session = Depends(get_session),
 ) -> Response:
     row = session.get(PlanResource, plan_resource_id)
@@ -593,7 +593,7 @@ def attach_item_file(
 @router.delete("/item-files/{item_file_id}", status_code=status.HTTP_204_NO_CONTENT)
 def remove_item_file(
     item_file_id: str,
-    _current_user: User = Depends(require_any_permission("library:create", "plans:create")),
+    _current_user: User = Depends(require_any_permission("library:delete", "plans:delete")),
     session: Session = Depends(get_session),
 ) -> Response:
     row = session.get(ItemFile, item_file_id)

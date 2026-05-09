@@ -36,30 +36,40 @@ CREATE_PERMISSIONS: set[PermissionName] = {
     "library:create",
 }
 
+DELETE_PERMISSIONS: set[PermissionName] = {
+    "plans:delete",
+    "songs:delete",
+    "library:delete",
+    "team:delete",
+    "messages:delete",
+}
+
 ALL_PERMISSIONS: set[PermissionName] = READ_PERMISSIONS | EDIT_PERMISSIONS | CREATE_PERMISSIONS | {
     "users:manage",
-}
+} | DELETE_PERMISSIONS
 
 ROLE_DEFINITIONS: dict[str, RoleDefinition] = {
     "viewer": {
-        "description": "Read-only library and song access. Best for people who should not control service slides.",
+        "description": "Read-only library and song access. Cannot control slides or make changes.",
         "permissions": VIEWER_PERMISSIONS,
     },
     "musician": {
-        "description": "Use service, song, chord, team, and presentation tools for rehearsal and participation.",
+        "description": "Use service, song, chord, team, and presentation tools. Cannot edit or delete content.",
         "permissions": PARTICIPANT_PERMISSIONS,
     },
     "worship_team": {
-        "description": "Maintain songs and add songs to existing services without owning the whole service plan.",
+        "description": "Add/edit songs and existing service items. Cannot archive/delete songs, services, users, or integrations.",
         "permissions": PARTICIPANT_PERMISSIONS | {"plans:edit", "songs:edit", "songs:create"},
     },
     "service_leader": {
-        "description": "Lead a service, update plan flow, coordinate team members, and communicate with the team.",
-        "permissions": PARTICIPANT_PERMISSIONS | {"plans:edit", "plans:create", "team:edit", "messages:write"},
+        "description": "Own service plans and team assignments. Cannot archive/delete songs, users, or integrations.",
+        "permissions": PARTICIPANT_PERMISSIONS | {"plans:edit", "plans:create", "plans:delete", "team:edit", "team:delete", "messages:write"},
     },
     "worship_leader": {
-        "description": "Lead worship, maintain songs and library content, and shape service plans with the team.",
-        "permissions": PARTICIPANT_PERMISSIONS | EDIT_PERMISSIONS | {"plans:create", "songs:create", "library:create"},
+        "description": "Own worship songs, files, and service flow. Cannot manage users or disconnect integrations.",
+        "permissions": PARTICIPANT_PERMISSIONS
+        | EDIT_PERMISSIONS
+        | {"plans:create", "plans:delete", "songs:create", "songs:delete", "library:create", "library:delete"},
     },
     "administrator": {
         "description": "Manage users, roles, and all planning, music, library, and presentation content.",

@@ -93,7 +93,7 @@ def update_song(
 @router.delete("/songs/{song_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_song(
     song_id: str,
-    _current_user: User = Depends(require_permission("songs:create")),
+    _current_user: User = Depends(require_permission("songs:delete")),
     session: Session = Depends(get_session),
 ) -> Response:
     song = get_song_or_404(session, song_id)

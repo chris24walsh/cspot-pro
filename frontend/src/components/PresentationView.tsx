@@ -262,12 +262,14 @@ function describeDeckStatus(
 export function PresentationView({
   canAttachDeck,
   canCreatePlan,
+  canDeletePlan,
   canEditPlan,
   canCreateSong,
   canEditSong,
 }: {
   canAttachDeck: boolean;
   canCreatePlan: boolean;
+  canDeletePlan: boolean;
   canEditPlan: boolean;
   canCreateSong: boolean;
   canEditSong: boolean;
@@ -767,7 +769,7 @@ export function PresentationView({
     if (!plan) {
       return;
     }
-    if (!canCreatePlan) {
+    if (!canDeletePlan) {
       setMessage("Only service leaders, worship leaders, and administrators can archive services.");
       return;
     }
@@ -1217,7 +1219,7 @@ export function PresentationView({
   }
 
   async function removeSection(sectionId: string) {
-    if (!plan || !canEditPlan) {
+    if (!plan || !canDeletePlan) {
       return;
     }
 
@@ -1841,7 +1843,7 @@ export function PresentationView({
                     Create Service
                   </button>
                 </div>
-                {plan && canCreatePlan ? (
+                {plan && canDeletePlan ? (
                   <div className="service-picker-danger">
                     <p className="muted-copy">Archive the current service if it was created by mistake.</p>
                     <button className="danger-button" onClick={() => void archiveCurrentPlan()} type="button">
@@ -2090,7 +2092,7 @@ export function PresentationView({
                       <span>{(sectionIndex + 1).toString().padStart(2, "0")}</span>
                       <strong>{section.title}</strong>
                     </button>
-                    {canEditPlan ? (
+                    {canEditPlan || canDeletePlan ? (
                       <div className="section-actions">
                         {canEditSectionSong ? (
                           <button
@@ -2121,14 +2123,16 @@ export function PresentationView({
                         >
                           <ChevronDown size={14} aria-hidden="true" />
                         </button>
-                        <button
-                          aria-label={`Remove ${section.title}`}
-                          className="section-icon-button section-remove-button"
-                          onClick={() => void removeSection(section.id)}
-                          type="button"
-                        >
-                          <Trash2 size={14} aria-hidden="true" />
-                        </button>
+                        {canDeletePlan ? (
+                          <button
+                            aria-label={`Remove ${section.title}`}
+                            className="section-icon-button section-remove-button"
+                            onClick={() => void removeSection(section.id)}
+                            type="button"
+                          >
+                            <Trash2 size={14} aria-hidden="true" />
+                          </button>
+                        ) : null}
                       </div>
                     ) : null}
                   </div>

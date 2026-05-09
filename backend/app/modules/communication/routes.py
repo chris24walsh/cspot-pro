@@ -125,7 +125,7 @@ def create_message(
 @router.delete("/threads/{thread_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_thread(
     thread_id: str,
-    _current_user: User = Depends(require_permission("messages:write")),
+    _current_user: User = Depends(require_permission("messages:delete")),
     session: Session = Depends(get_session),
 ) -> Response:
     thread = get_thread_or_404(session, thread_id)
