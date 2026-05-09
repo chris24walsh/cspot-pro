@@ -198,37 +198,54 @@ button {
   min-width: 0;
 }
 
-.topbar-plan-picker {
-  align-items: center;
-  display: inline-flex;
-  gap: 8px;
-  max-width: 100%;
-  min-width: 0;
+.topbar-service-button {
+  max-width: min(520px, 100%);
 }
 
-.topbar-plan-picker span {
-  color: #66736b;
-  font-size: 11px;
-  font-weight: 800;
-  text-transform: uppercase;
-}
-
-.topbar-plan-picker select {
-  background: #fffdf7;
-  border: 1px solid #cfc7b4;
-  border-radius: 999px;
-  color: #17201b;
-  font: inherit;
-  font-size: 13px;
-  font-weight: 800;
-  min-height: 30px;
-  min-width: 180px;
-  padding: 4px 12px;
+.topbar-service-button span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .topbar-action-button {
   min-height: 30px;
   padding: 4px 10px;
+}
+
+.service-picker-dialog {
+  max-width: min(820px, 100%);
+}
+
+.service-picker-grid {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: minmax(0, 1fr) minmax(240px, 0.72fr);
+  min-height: 0;
+}
+
+.service-picker-panel {
+  background: #fffdf7;
+  border: 1px solid #e3dcc8;
+  border-radius: 8px;
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+  padding: 12px;
+}
+
+.service-date-list {
+  max-height: min(50vh, 420px);
+  overflow: auto;
+  padding-right: 2px;
+}
+
+.service-picker-danger {
+  border-top: 1px solid #e3dcc8;
+  display: grid;
+  gap: 8px;
+  margin-top: 4px;
+  padding-top: 12px;
 }
 
 .topbar-stat {
@@ -1139,6 +1156,15 @@ h3 {
 
 .edit-song-dialog {
   max-width: min(860px, 100%);
+}
+
+.edit-song-dialog .wide-field {
+  color: #3b4741;
+  display: grid;
+  font-size: 12px;
+  font-weight: 850;
+  gap: 5px;
+  min-width: 0;
 }
 
 .import-lyrics-dialog {
@@ -2895,12 +2921,8 @@ h3 {
     justify-content: flex-start;
   }
 
-  .topbar-plan-picker {
-    flex: 1 1 auto;
-  }
-
-  .topbar-plan-picker select {
-    min-width: 0;
+  .topbar-service-button {
+    max-width: 100%;
     width: 100%;
   }
 
@@ -2923,6 +2945,10 @@ h3 {
   .custom-provider-header,
   .custom-provider-preview-header {
     flex-direction: column;
+  }
+
+  .service-picker-grid {
+    grid-template-columns: 1fr;
   }
 
   .song-manager-grid {

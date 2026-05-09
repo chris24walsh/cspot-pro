@@ -314,7 +314,7 @@ export function UserManager() {
     setMessage(null);
     try {
       const result = await sendTestEmail({ email });
-      setMessage(`Test email sent to ${result.recipient}. Check Mailtrap.`);
+      setMessage(`Test email sent to ${result.recipient}. Check your SMTP provider.`);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Could not send test email.");
     }
@@ -470,14 +470,14 @@ export function UserManager() {
           <div className="section-heading">
             <div>
               <p className="eyebrow">Email</p>
-              <h3>SMTP / Mailtrap</h3>
+              <h3>SMTP Email</h3>
             </div>
             <button className="text-button" onClick={() => void runEmailTest()} type="button">
               Send Test Email
             </button>
           </div>
           <p className="muted-copy">
-            Use your Mailtrap SMTP credentials in the backend env, then send a test message here before using invites or reset links.
+            Use your SMTP provider credentials in the backend env, then send a test message here before using invites or reset links.
           </p>
           <div className="form-grid">
             <label className="wide-field">

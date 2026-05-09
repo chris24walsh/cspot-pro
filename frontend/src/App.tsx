@@ -189,10 +189,7 @@ function App() {
     }
 
     if (activeModule.id === "presentation") {
-      return [
-        { label: "Plan", value: workspace.selectedPlan?.title ?? "None" },
-        { label: "Items", value: String(workspace.selectedPlan?.items.length ?? 0) },
-      ];
+      return [];
     }
 
     if (activeModule.id === "music") {

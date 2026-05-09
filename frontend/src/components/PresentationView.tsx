@@ -1,4 +1,4 @@
-import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp, MonitorUp, Pencil, Plus, Search, Trash2, WandSparkles } from "lucide-react";
+import { CalendarDays, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, MonitorUp, Pencil, Plus, Search, Trash2, WandSparkles } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
@@ -97,6 +97,46 @@ type LoadOptions = {
   refreshCatalogs?: boolean;
   silent?: boolean;
 };
+
+const SERVICE_DATE_FORMATTER = new Intl.DateTimeFormat(undefined, {
+  day: "numeric",
+  month: "short",
+  weekday: "short",
+});
+
+function dateInputFromIso(value: string | null | undefined) {
+  if (!value) {
+    return "";
+  }
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return "";
+  }
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+}
+
+function serviceIsoFromDateInput(value: string) {
+  const [year, month, day] = value.split("-").map(Number);
+  return new Date(year, (month || 1) - 1, day || 1, 10, 30, 0, 0).toISOString();
+}
+
+function formatServiceDate(value: string | null | undefined) {
+  if (!value) {
+    return "No date";
+  }
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? "No date" : SERVICE_DATE_FORMATTER.format(date);
+}
+
+function serviceTitleForDate(value: string) {
+  if (!value) {
+    return "Service";
+  }
+  const date = new Date(serviceIsoFromDateInput(value));
+  return Number.isNaN(date.getTime())
+    ? "Service"
+    : date.toLocaleDateString(undefined, { day: "numeric", month: "long", weekday: "long" });
+}
 
 function parseBibleReference(reference: string) {
   const match = reference.trim().match(/^(.*)\s+(\d+):(\d+)(?:-(\d+))?$/);
@@ -261,6 +301,9 @@ export function PresentationView({
   const [customProviderResult, setCustomProviderResult] = useState<CustomProviderSearchResult | null>(null);
   const [selectedCustomProviderMatchId, setSelectedCustomProviderMatchId] = useState<string | null>(null);
   const [topbarSlot, setTopbarSlot] = useState<HTMLElement | null>(null);
+  const [servicePickerOpen, setServicePickerOpen] = useState(false);
+  const [serviceDraftDate, setServiceDraftDate] = useState("");
+  const [serviceDraftTitle, setServiceDraftTitle] = useState("");
   const [customProviderSelection, setCustomProviderSelection] = useState<CustomProviderSelectResult | null>(null);
   const [customProviderSelectionLoading, setCustomProviderSelectionLoading] = useState(false);
   const [editingSongId, setEditingSongId] = useState<string | null>(null);
@@ -289,6 +332,15 @@ export function PresentationView({
   const sections = useMemo(
     () => buildPresentationSections(plan?.items ?? [], songs, renderedSlidesByFileId),
     [plan, songs, renderedSlidesByFileId],
+  );
+  const sortedPlans = useMemo(
+    () =>
+      [...plans].sort((a, b) => {
+        const aTime = new Date(a.service_date).getTime();
+        const bTime = new Date(b.service_date).getTime();
+        return (Number.isNaN(bTime) ? 0 : bTime) - (Number.isNaN(aTime) ? 0 : aTime);
+      }),
+    [plans],
   );
   const slides = useMemo(
     () => buildPresentationSlides(plan?.items ?? [], songs, renderedSlidesByFileId),
@@ -655,17 +707,25 @@ export function PresentationView({
 
   async function selectPlan(planId: string) {
     setMobileBibleNavOpen(false);
+    setServicePickerOpen(false);
     await load(planId);
   }
 
-  function nextSundayIso() {
+  function openServicePicker() {
+    const draftDate = dateInputFromIso(plan?.service_date) || nextSundayDateInput();
+    setServiceDraftDate(draftDate);
+    setServiceDraftTitle(serviceTitleForDate(draftDate));
+    setServicePickerOpen(true);
+  }
+
+  function nextSundayDateInput() {
     const date = new Date();
     date.setDate(date.getDate() + ((7 - date.getDay()) % 7 || 7));
     date.setHours(10, 30, 0, 0);
-    return date.toISOString();
+    return dateInputFromIso(date.toISOString());
   }
 
-  async function createNextService() {
+  async function createServiceForDate(dateInput = serviceDraftDate || nextSundayDateInput(), title = serviceDraftTitle) {
     if (!canCreatePlan) {
       setMessage("Only service leaders and administrators can create services.");
       return;
@@ -678,10 +738,11 @@ export function PresentationView({
     }
 
     try {
+      const serviceTitle = title.trim() || serviceTitleForDate(dateInput);
       const created = await createPlan({
         plan_type_id: primaryPlanType.id,
-        service_date: nextSundayIso(),
-        title: "Sunday Service",
+        service_date: serviceIsoFromDateInput(dateInput),
+        title: serviceTitle,
         subtitle: null,
         leader_id: null,
         teacher_id: null,
@@ -689,6 +750,7 @@ export function PresentationView({
         info: null,
       });
       await load(created.id, { refreshCatalogs: true });
+      setServicePickerOpen(false);
       setMessage("New service created.");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Could not create a new service.");
@@ -712,6 +774,7 @@ export function PresentationView({
     try {
       await deletePlan(plan.id);
       await load(undefined, { refreshCatalogs: true });
+      setServicePickerOpen(false);
       setMessage("Service archived.");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Could not archive this service.");
@@ -1497,12 +1560,17 @@ export function PresentationView({
         closeSearchOverlay();
         return;
       }
+      if (event.key === "Escape" && servicePickerOpen) {
+        event.preventDefault();
+        setServicePickerOpen(false);
+        return;
+      }
       if ((event.key === "s" || event.key === "S") && !editing) {
         event.preventDefault();
         openSearchOverlay();
         return;
       }
-      if (editing || searchOverlayOpen) {
+      if (editing || searchOverlayOpen || servicePickerOpen) {
         return;
       }
       if (event.key === "ArrowRight" || event.key === " ") {
@@ -1583,6 +1651,7 @@ export function PresentationView({
     screens,
     searchOverlayOpen,
     selectedScreenIndex,
+    servicePickerOpen,
     slides,
     sections,
   ]);
@@ -1684,31 +1753,101 @@ export function PresentationView({
       {topbarSlot
         ? createPortal(
             <div className="presentation-topbar-tools">
-              <label className="topbar-plan-picker">
-                <span>Plan</span>
-                <select disabled={loading || !plans.length} onChange={(event) => void selectPlan(event.target.value)} value={selectedPlanId}>
-                  {!plans.length ? <option value="">No plans available</option> : null}
-                  {plans.map((planSummary) => (
-                    <option key={planSummary.id} value={planSummary.id}>
-                      {planSummary.title}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              {canCreatePlan ? (
-                <button className="text-button topbar-action-button" onClick={() => void createNextService()} type="button">
-                  New Service
-                </button>
-              ) : null}
-              {canCreatePlan && plan ? (
-                <button className="text-button topbar-action-button" onClick={() => void archiveCurrentPlan()} type="button">
-                  Archive
-                </button>
-              ) : null}
+              <button
+                className="text-button topbar-service-button"
+                disabled={loading}
+                onClick={openServicePicker}
+                title="Choose or create a service"
+                type="button"
+              >
+                <CalendarDays size={16} aria-hidden="true" />
+                <span>{plan ? `${formatServiceDate(plan.service_date)} · ${plan.title}` : "Choose service"}</span>
+              </button>
             </div>,
             topbarSlot,
           )
         : null}
+      {servicePickerOpen ? (
+        <div className="app-dialog-backdrop" role="presentation" onMouseDown={() => setServicePickerOpen(false)}>
+          <section
+            aria-labelledby="service-picker-title"
+            className="app-dialog app-dialog-wide service-picker-dialog"
+            onMouseDown={(event) => event.stopPropagation()}
+            role="dialog"
+          >
+            <div className="section-heading">
+              <div>
+                <p className="eyebrow">Calendar</p>
+                <h2 id="service-picker-title">Services</h2>
+              </div>
+              <button className="text-button" onClick={() => setServicePickerOpen(false)} type="button">
+                Close
+              </button>
+            </div>
+
+            <div className="service-picker-grid">
+              <section className="service-picker-panel">
+                <h3>Open</h3>
+                <div className="stack-list compact service-date-list">
+                  {sortedPlans.map((planSummary) => (
+                    <button
+                      className={`stack-row ${planSummary.id === selectedPlanId ? "selected" : ""}`}
+                      key={planSummary.id}
+                      onClick={() => void selectPlan(planSummary.id)}
+                      type="button"
+                    >
+                      <strong>{formatServiceDate(planSummary.service_date)}</strong>
+                      <span>
+                        {planSummary.title} · {planSummary.item_count} item{planSummary.item_count === 1 ? "" : "s"}
+                      </span>
+                    </button>
+                  ))}
+                  {!plans.length ? <p className="search-empty">No services yet.</p> : null}
+                </div>
+              </section>
+
+              <section className="service-picker-panel">
+                <h3>Create</h3>
+                <div className="form-grid single-column">
+                  <label>
+                    Date
+                    <input
+                      onChange={(event) => {
+                        const nextDate = event.target.value;
+                        setServiceDraftDate(nextDate);
+                        setServiceDraftTitle(serviceTitleForDate(nextDate));
+                      }}
+                      type="date"
+                      value={serviceDraftDate}
+                    />
+                  </label>
+                  <label>
+                    Title
+                    <input
+                      onChange={(event) => setServiceDraftTitle(event.target.value)}
+                      placeholder={serviceTitleForDate(serviceDraftDate)}
+                      value={serviceDraftTitle}
+                    />
+                  </label>
+                </div>
+                <div className="action-row">
+                  <button className="primary-button" disabled={!canCreatePlan || !serviceDraftDate} onClick={() => void createServiceForDate()} type="button">
+                    Create Service
+                  </button>
+                </div>
+                {plan && canCreatePlan ? (
+                  <div className="service-picker-danger">
+                    <p className="muted-copy">Archive the current service if it was created by mistake.</p>
+                    <button className="danger-button" onClick={() => void archiveCurrentPlan()} type="button">
+                      Archive Current
+                    </button>
+                  </div>
+                ) : null}
+              </section>
+            </div>
+          </section>
+        </div>
+      ) : null}
       {message ? <p className="form-message presentation-message">{message}</p> : null}
       {!canEditPlan ? (
         <p className="empty-state presentation-readonly-note">

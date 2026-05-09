@@ -6,7 +6,7 @@ export type ModuleId =
   | "imports"
   | "admin";
 
-export type FeatureStatus = "Demo" | "Scaffolded" | "Next";
+export type FeatureStatus = "Ready" | "Partial" | "Planned";
 
 export interface ModuleMetric {
   label: string;
@@ -32,7 +32,7 @@ export const featureModules: FeatureModule[] = [
     id: "presentation",
     label: "Service",
     kicker: "Order, slides and sync",
-    status: "Scaffolded",
+    status: "Ready",
     metrics: [
       { label: "Mode", value: "Ready" },
       { label: "Slide", value: "0" },
@@ -57,7 +57,7 @@ export const featureModules: FeatureModule[] = [
     id: "planning",
     label: "Plans",
     kicker: "Calendar and service order",
-    status: "Scaffolded",
+    status: "Partial",
     metrics: [
       { label: "Types", value: "4" },
       { label: "Notes", value: "2" },
@@ -82,7 +82,7 @@ export const featureModules: FeatureModule[] = [
     id: "music",
     label: "Songs",
     kicker: "Lyrics, chords, files",
-    status: "Scaffolded",
+    status: "Ready",
     metrics: [
       { label: "Parts", value: "6" },
       { label: "Imports", value: "1" },
@@ -107,7 +107,7 @@ export const featureModules: FeatureModule[] = [
     id: "people",
     label: "Team",
     kicker: "Roles and availability",
-    status: "Scaffolded",
+    status: "Planned",
     metrics: [
       { label: "Roles", value: "5" },
       { label: "Instruments", value: "6" },
@@ -132,7 +132,7 @@ export const featureModules: FeatureModule[] = [
     id: "imports",
     label: "Imports",
     kicker: "Review-first lyrics",
-    status: "Demo",
+    status: "Partial",
     metrics: [
       { label: "Providers", value: "3" },
       { label: "Review", value: "On" },
@@ -157,7 +157,7 @@ export const featureModules: FeatureModule[] = [
     id: "admin",
     label: "Admin",
     kicker: "Reference data",
-    status: "Next",
+    status: "Ready",
     metrics: [
       { label: "Users", value: "Next" },
       { label: "Settings", value: "Next" },

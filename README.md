@@ -179,14 +179,9 @@ back to the static wireframe data when it is not.
 
 ## Working Screens
 
-- Plans: create/edit/archive plans, add/edit/remove running-order items, link songs
-- Songs: create/edit/archive songs, edit lyrics/chords
-- Team: assign/remove people to plans, set role, instrument, and status
-- Library: create/edit/remove resources, attach/remove resources on plans, look up Scripture
-- Present: dark projector-style plan preview with previous/next controls
-- Messages: create/delete threads and send replies
-- Imports: paste/review/save lyrics into new or existing songs
-- Admin: create/edit/deactivate users and assign roles
+- Service: choose/create/archive services, build the running order, add songs, Bible passages, and slide decks, and control the live output
+- Songs: create/edit/archive songs, import and clean lyrics, edit details/chords, and prepare song slides
+- Admin: invite users, send password resets, deactivate/reactivate accounts, assign roles, and test SMTP email
 
 ## Access Control
 
@@ -201,8 +196,8 @@ back to the static wireframe data when it is not.
 
 Public hosting should still set a strong `AUTH_SECRET_KEY`, run behind HTTPS,
 turn on secure cookies, and configure `PUBLIC_APP_URL` so invite/reset links
-point back to the correct host. SMTP is optional but recommended; Mailtrap is a
-nice low-friction choice during rollout.
+point back to the correct host. SMTP is optional but recommended; Brevo,
+Mailtrap, or any normal SMTP relay can be used.
 
 ## Reference Project
 

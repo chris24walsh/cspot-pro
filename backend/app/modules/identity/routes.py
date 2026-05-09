@@ -194,7 +194,7 @@ def send_smtp_test_email(*, recipient: str, requested_by: User) -> bool:
     body = (
         "Hello,\n\n"
         f"This is a test email from {settings.app_name}.\n\n"
-        "If you received this in Mailtrap, SMTP is configured correctly.\n\n"
+        "If you received this message, SMTP is configured correctly.\n\n"
         f"Requested by: {requested_by.name} <{requested_by.email}>"
     )
     return send_email(to_email=recipient, subject=subject, text_body=body)
