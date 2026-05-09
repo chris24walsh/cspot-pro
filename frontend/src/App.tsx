@@ -216,6 +216,17 @@ function App() {
     }
   }, [activeModuleId, modules]);
 
+  useEffect(() => {
+    if (!sessionUser || !canManageUsers || !modules.some((module) => module.id === "admin")) {
+      return;
+    }
+
+    const params = new URLSearchParams(window.location.search);
+    if (params.has("googleDrive")) {
+      setActiveModuleId("admin");
+    }
+  }, [canManageUsers, modules, sessionUser]);
+
   if (isPresentationOutput) {
     return <PresentationOutput />;
   }
