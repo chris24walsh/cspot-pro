@@ -138,15 +138,16 @@ button {
 .topbar {
   align-items: center;
   border-bottom: 1px solid #ddd9ca;
-  display: flex;
-  justify-content: space-between;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: auto minmax(0, 1fr) auto;
   min-height: 72px;
   padding: 14px 24px;
 }
 
 .topbar-compact {
   min-height: 40px;
-  padding: 4px 18px;
+  padding: 4px 14px;
 }
 
 .topbar-compact .eyebrow,
@@ -175,6 +176,59 @@ button {
   flex-wrap: wrap;
   gap: 8px;
   justify-content: flex-end;
+}
+
+.topbar-context-slot {
+  align-items: center;
+  display: flex;
+  justify-content: center;
+  min-width: 0;
+}
+
+.topbar-context-slot:empty {
+  display: none;
+}
+
+.presentation-topbar-tools {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+  min-width: 0;
+}
+
+.topbar-plan-picker {
+  align-items: center;
+  display: inline-flex;
+  gap: 8px;
+  max-width: 100%;
+  min-width: 0;
+}
+
+.topbar-plan-picker span {
+  color: #66736b;
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.topbar-plan-picker select {
+  background: #fffdf7;
+  border: 1px solid #cfc7b4;
+  border-radius: 999px;
+  color: #17201b;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 800;
+  min-height: 30px;
+  min-width: 180px;
+  padding: 4px 12px;
+}
+
+.topbar-action-button {
+  min-height: 30px;
+  padding: 4px 10px;
 }
 
 .topbar-stat {
@@ -351,6 +405,29 @@ h3 {
 .manager-list,
 .editor-panel {
   max-height: calc(100vh - 78px);
+}
+
+.song-editor-panel {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  overflow: hidden;
+}
+
+.song-editor-top {
+  background: #fffefa;
+  border-bottom: 1px solid #e7dfcb;
+  display: grid;
+  gap: 10px;
+  padding-bottom: 10px;
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+
+.song-editor-scroll {
+  min-height: 0;
+  overflow: auto;
+  padding-right: 2px;
 }
 
 .stack-list {
@@ -1508,13 +1585,6 @@ h3 {
   min-height: 0;
 }
 
-.presenter-plan-toolbar {
-  align-items: end;
-  display: grid;
-  gap: 8px;
-  grid-template-columns: minmax(0, 1fr) auto;
-}
-
 .presenter-controls {
   display: grid;
   gap: 6px;
@@ -1558,27 +1628,6 @@ h3 {
 
 .presenter-utility-row .primary-button {
   min-width: 180px;
-}
-
-.presenter-plan-picker {
-  color: #3b4741;
-  display: grid;
-  font-size: 12px;
-  font-weight: 850;
-  gap: 6px;
-  grid-template-columns: minmax(0, 1fr);
-}
-
-.presenter-plan-picker select {
-  background: #fffdf7;
-  border: 1px solid #cfc7b4;
-  border-radius: 8px;
-  color: #17201b;
-  font: inherit;
-  min-height: 40px;
-  min-width: 0;
-  padding: 7px 10px;
-  width: 100%;
 }
 
 .presentation-message {
@@ -2797,16 +2846,21 @@ h3 {
 
   .presenter-stage-column {
     grid-column: 1 / -1;
+    position: sticky;
+    top: 6px;
+    z-index: 6;
   }
 
   .presenter-sidebar {
-    max-height: 42vh;
+    max-height: 34vh;
     min-width: 0;
+    overflow: auto;
   }
 
   .section-rail {
-    max-height: 42vh;
+    max-height: 34vh;
     min-width: 0;
+    overflow: auto;
   }
 
   .lane-grid {
@@ -2814,16 +2868,40 @@ h3 {
   }
 
   .topbar {
-    padding: 8px 10px;
+    grid-template-columns: minmax(0, 1fr);
+    justify-items: stretch;
+    padding: 6px 8px;
   }
 
   .topbar-compact {
-    min-height: 44px;
-    padding: 6px 10px;
+    min-height: auto;
+    padding: 6px 8px;
   }
 
   .topbar-compact h1 {
-    font-size: 18px;
+    font-size: 16px;
+  }
+
+  .title-lockup {
+    display: none;
+  }
+
+  .topbar-context-slot,
+  .topbar-actions {
+    justify-content: space-between;
+  }
+
+  .presentation-topbar-tools {
+    justify-content: flex-start;
+  }
+
+  .topbar-plan-picker {
+    flex: 1 1 auto;
+  }
+
+  .topbar-plan-picker select {
+    min-width: 0;
+    width: 100%;
   }
 
   .presentation-workspace {
@@ -2846,6 +2924,15 @@ h3 {
   .custom-provider-preview-header {
     flex-direction: column;
   }
+
+  .song-manager-grid {
+    gap: 10px;
+    padding: 10px;
+  }
+
+  .song-editor-panel {
+    max-height: calc(100svh - 144px);
+  }
 }
 
 @media (min-width: 1280px) {
@@ -2865,7 +2952,6 @@ h3 {
 
   .topbar {
     align-items: center;
-    flex-direction: row;
     gap: 10px;
   }
 
@@ -2896,6 +2982,15 @@ h3 {
     gap: 8px;
   }
 
+  .presentation-topbar-tools {
+    gap: 6px;
+  }
+
+  .topbar-action-button {
+    min-height: 28px;
+    padding: 4px 8px;
+  }
+
   .presenter-controls {
     background: #fffefa;
     border: 1px solid #e3dcc8;
@@ -2915,8 +3010,8 @@ h3 {
   .presenter-controls .primary-button {
     border-radius: 10px;
     font-size: 13px;
-    min-height: 40px;
-    padding: 7px 8px;
+    min-height: 36px;
+    padding: 6px 8px;
   }
 
   .presenter-controls .text-button {
@@ -2935,6 +3030,9 @@ h3 {
 
   .bible-nav-toggle {
     display: inline-flex;
+    font-size: 12px;
+    min-height: 28px;
+    padding: 4px 8px;
   }
 
   .bible-nav-row .text-button:last-child {
@@ -2960,7 +3058,7 @@ h3 {
 
   .presenter-sidebar,
   .section-rail {
-    max-height: 38vh;
+    max-height: 30vh;
   }
 
   .section-rail-title {
@@ -2985,6 +3083,24 @@ h3 {
 
   .section-edit-button span {
     display: none;
+  }
+
+  .song-editor-panel {
+    max-height: calc(100svh - 132px);
+  }
+
+  .song-editor-top {
+    gap: 8px;
+    padding-bottom: 8px;
+  }
+
+  .song-editor-scroll {
+    padding-bottom: 8px;
+  }
+
+  .field-action-row {
+    flex-wrap: wrap;
+    justify-content: flex-start;
   }
 }
 .auth-shell {

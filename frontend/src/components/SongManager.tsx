@@ -1042,7 +1042,7 @@ export function SongManager({
         : null;
 
   return (
-    <section className="manager-grid" aria-label="Song management">
+    <section className="manager-grid song-manager-grid" aria-label="Song management">
       <aside className="manager-list">
         <div className="section-heading">
           <h2>Songs</h2>
@@ -1081,50 +1081,52 @@ export function SongManager({
         </div>
       </aside>
 
-      <form className="editor-panel" onSubmit={(event) => void submitSong(event)}>
-        <div className="section-heading">
-          <div>
-            <p className="eyebrow">{mode === "create" ? "Create" : "Edit"}</p>
-            <h2>{mode === "create" ? "New Song" : selectedSong?.title ?? "Song"}</h2>
-          </div>
-          <div className="action-row">
-            {mode === "edit" ? (
-              <button className="danger-button" disabled={!canCreate} onClick={() => void removeSong()} type="button">
-                Archive Song
+      <form className="editor-panel song-editor-panel" onSubmit={(event) => void submitSong(event)}>
+        <div className="song-editor-top">
+          <div className="section-heading">
+            <div>
+              <p className="eyebrow">{mode === "create" ? "Create" : "Edit"}</p>
+              <h2>{mode === "create" ? "New Song" : selectedSong?.title ?? "Song"}</h2>
+            </div>
+            <div className="action-row">
+              {mode === "edit" ? (
+                <button className="danger-button" disabled={!canCreate} onClick={() => void removeSong()} type="button">
+                  Archive Song
+                </button>
+              ) : null}
+              <button className="primary-button" disabled={loading || (mode === "create" ? !canCreate : !canEdit)} type="submit">
+                Save Song
               </button>
-            ) : null}
-            <button className="primary-button" disabled={loading || (mode === "create" ? !canCreate : !canEdit)} type="submit">
-              Save Song
+            </div>
+          </div>
+
+          {message ? <p className="form-message">{message}</p> : null}
+
+          <div className="tab-row" role="tablist" aria-label="Song editor sections">
+            <button
+              className={`tab-button ${activeSongTab === "lyrics" ? "active" : ""}`}
+              onClick={() => setActiveSongTab("lyrics")}
+              type="button"
+            >
+              Lyrics
+            </button>
+            <button
+              className={`tab-button ${activeSongTab === "details" ? "active" : ""}`}
+              onClick={() => setActiveSongTab("details")}
+              type="button"
+            >
+              Details
+            </button>
+            <button
+              className={`tab-button ${activeSongTab === "chords" ? "active" : ""}`}
+              onClick={() => setActiveSongTab("chords")}
+              type="button"
+            >
+              Chords
             </button>
           </div>
         </div>
-
-        {message ? <p className="form-message">{message}</p> : null}
-
-        <div className="tab-row" role="tablist" aria-label="Song editor sections">
-          <button
-            className={`tab-button ${activeSongTab === "lyrics" ? "active" : ""}`}
-            onClick={() => setActiveSongTab("lyrics")}
-            type="button"
-          >
-            Lyrics
-          </button>
-          <button
-            className={`tab-button ${activeSongTab === "details" ? "active" : ""}`}
-            onClick={() => setActiveSongTab("details")}
-            type="button"
-          >
-            Details
-          </button>
-          <button
-            className={`tab-button ${activeSongTab === "chords" ? "active" : ""}`}
-            onClick={() => setActiveSongTab("chords")}
-            type="button"
-          >
-            Chords
-          </button>
-        </div>
-
+        <div className="song-editor-scroll">
         {activeSongTab === "details" ? (
           <div className="form-grid">
           <label>
@@ -1781,6 +1783,7 @@ export function SongManager({
           </label>
           </div>
         ) : null}
+        </div>
       </form>
     </section>
   );

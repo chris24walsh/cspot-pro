@@ -1,5 +1,6 @@
 import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp, MonitorUp, Pencil, Plus, Search, Trash2, WandSparkles } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 
 import {
   ApiError,
@@ -7,6 +8,7 @@ import {
   createPlan,
   createPlanItem,
   attachItemFile,
+  deletePlan,
   getGoogleDriveStatus,
   deletePlanItem,
   getFileSlides,
@@ -258,6 +260,7 @@ export function PresentationView({
   const [customProviderLoading, setCustomProviderLoading] = useState(false);
   const [customProviderResult, setCustomProviderResult] = useState<CustomProviderSearchResult | null>(null);
   const [selectedCustomProviderMatchId, setSelectedCustomProviderMatchId] = useState<string | null>(null);
+  const [topbarSlot, setTopbarSlot] = useState<HTMLElement | null>(null);
   const [customProviderSelection, setCustomProviderSelection] = useState<CustomProviderSelectResult | null>(null);
   const [customProviderSelectionLoading, setCustomProviderSelectionLoading] = useState(false);
   const [editingSongId, setEditingSongId] = useState<string | null>(null);
@@ -689,6 +692,29 @@ export function PresentationView({
       setMessage("New service created.");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Could not create a new service.");
+    }
+  }
+
+  async function archiveCurrentPlan() {
+    if (!plan) {
+      return;
+    }
+    if (!canCreatePlan) {
+      setMessage("Only service leaders and administrators can archive services.");
+      return;
+    }
+
+    const confirmed = window.confirm(`Archive service "${plan.title}"?`);
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      await deletePlan(plan.id);
+      await load(undefined, { refreshCatalogs: true });
+      setMessage("Service archived.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not archive this service.");
     }
   }
 
@@ -1205,6 +1231,10 @@ export function PresentationView({
   }, []);
 
   useEffect(() => {
+    setTopbarSlot(document.getElementById("workspace-topbar-slot"));
+  }, []);
+
+  useEffect(() => {
     async function loadBibleOptions() {
       try {
         const [versions, books] = await Promise.all([getBibleVersions(), getBibleBooks()]);
@@ -1651,6 +1681,34 @@ export function PresentationView({
 
   return (
     <section className="presentation-workspace" aria-label="Presentation preview">
+      {topbarSlot
+        ? createPortal(
+            <div className="presentation-topbar-tools">
+              <label className="topbar-plan-picker">
+                <span>Plan</span>
+                <select disabled={loading || !plans.length} onChange={(event) => void selectPlan(event.target.value)} value={selectedPlanId}>
+                  {!plans.length ? <option value="">No plans available</option> : null}
+                  {plans.map((planSummary) => (
+                    <option key={planSummary.id} value={planSummary.id}>
+                      {planSummary.title}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              {canCreatePlan ? (
+                <button className="text-button topbar-action-button" onClick={() => void createNextService()} type="button">
+                  New Service
+                </button>
+              ) : null}
+              {canCreatePlan && plan ? (
+                <button className="text-button topbar-action-button" onClick={() => void archiveCurrentPlan()} type="button">
+                  Archive
+                </button>
+              ) : null}
+            </div>,
+            topbarSlot,
+          )
+        : null}
       {message ? <p className="form-message presentation-message">{message}</p> : null}
       {!canEditPlan ? (
         <p className="empty-state presentation-readonly-note">
@@ -1660,29 +1718,6 @@ export function PresentationView({
 
       <div className="presenter-console">
         <div className="presenter-stage-column">
-          <div className="presenter-plan-toolbar">
-            <label className="presenter-plan-picker">
-              Plan
-              <select
-                disabled={loading || !plans.length}
-                onChange={(event) => void selectPlan(event.target.value)}
-                value={selectedPlanId}
-              >
-                {!plans.length ? <option value="">No plans available</option> : null}
-                {plans.map((planSummary) => (
-                  <option key={planSummary.id} value={planSummary.id}>
-                    {planSummary.title}
-                  </option>
-                ))}
-              </select>
-            </label>
-            {canCreatePlan ? (
-              <button className="text-button" onClick={() => void createNextService()} type="button">
-                New Service
-              </button>
-            ) : null}
-          </div>
-
           <div
             className={`stage-shell stage-shell-live presenter-current stage-theme-${slideTheme} ${
               liveSlide ? presentationTypeClass(liveSlide.itemType) : "type-generic"
@@ -1742,7 +1777,7 @@ export function PresentationView({
                   onClick={() => setMobileBibleNavOpen((current) => !current)}
                   type="button"
                 >
-                  {mobileBibleNavOpen ? "Hide Bible Controls" : "Bible Controls"}
+                  {mobileBibleNavOpen ? "Hide Bible" : "Bible"}
                 </button>
               ) : null}
               <button className="primary-button" disabled={loading || !plan} onClick={() => void startSlideshow()} type="button">

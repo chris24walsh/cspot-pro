@@ -273,6 +273,7 @@ function App() {
             <p className="eyebrow">{activeModule.kicker}</p>
             <h1>{activeModule.label}</h1>
           </div>
+          <div className="topbar-context-slot" id="workspace-topbar-slot" />
           <div className="topbar-actions">
             {headerStats.map((stat) => (
               <div className="topbar-stat" key={stat.label}>
