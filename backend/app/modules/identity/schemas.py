@@ -87,6 +87,15 @@ class PasswordResetAdminRead(BaseModel):
     expires_at: datetime
 
 
+class EmailTestRequest(BaseModel):
+    email: str
+
+
+class EmailTestRead(BaseModel):
+    sent: bool
+    recipient: str
+
+
 class AuthActionTokenRead(BaseModel):
     purpose: str
     email: str

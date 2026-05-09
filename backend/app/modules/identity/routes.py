@@ -24,6 +24,8 @@ from app.modules.identity.schemas import (
     AuthActionTokenRead,
     BootstrapAdminRequest,
     BootstrapStatusRead,
+    EmailTestRead,
+    EmailTestRequest,
     LoginRequest,
     MemberRead,
     PasswordResetAdminRead,
@@ -185,6 +187,17 @@ def send_auth_email(*, user: User, purpose: str, action_url: str) -> bool:
         )
 
     return send_email(to_email=user.email, subject=subject, text_body=body)
+
+
+def send_smtp_test_email(*, recipient: str, requested_by: User) -> bool:
+    subject = f"{settings.app_name} email test"
+    body = (
+        "Hello,\n\n"
+        f"This is a test email from {settings.app_name}.\n\n"
+        "If you received this in Mailtrap, SMTP is configured correctly.\n\n"
+        f"Requested by: {requested_by.name} <{requested_by.email}>"
+    )
+    return send_email(to_email=recipient, subject=subject, text_body=body)
 
 
 def get_valid_auth_token_or_404(session: Session, raw_token: str) -> AuthToken:
@@ -352,6 +365,28 @@ def list_roles(
         for role_name in ROLE_DEFINITIONS
         if role_name in role_lookup
     ]
+
+
+@router.post("/email/test", response_model=EmailTestRead)
+def send_test_email(
+    payload: EmailTestRequest,
+    current_user: CurrentUser = Depends(require_permission("users:manage")),
+) -> EmailTestRead:
+    if not smtp_enabled():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="SMTP is not configured yet. Set SMTP_HOST, SMTP_PORT, SMTP_USERNAME, SMTP_PASSWORD, and SMTP_FROM_EMAIL.",
+        )
+
+    try:
+        sent = send_smtp_test_email(recipient=payload.email, requested_by=current_user)
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"SMTP test failed: {exc}",
+        ) from exc
+
+    return EmailTestRead(sent=sent, recipient=payload.email)
 
 
 @router.get("/users", response_model=list[UserRead])

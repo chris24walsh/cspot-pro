@@ -7,6 +7,7 @@ import {
   getGoogleDriveStatus,
   getRoles,
   getUsers,
+  sendTestEmail,
   type GoogleDriveStatus,
   inviteUser,
   resendInvite,
@@ -85,6 +86,7 @@ export function UserManager() {
   const [loading, setLoading] = useState(true);
   const [showInactive, setShowInactive] = useState(false);
   const [driveStatus, setDriveStatus] = useState<GoogleDriveStatus | null>(null);
+  const [testEmailAddress, setTestEmailAddress] = useState("");
 
   const filteredUsers = showInactive ? users : users.filter((user) => user.active);
 
@@ -106,6 +108,7 @@ export function UserManager() {
       if (target) {
         setSelectedUser(target);
         setForm(formFromUser(target));
+        setTestEmailAddress(target.email);
         setMode("edit");
       } else {
         startCreate();
@@ -129,11 +132,13 @@ export function UserManager() {
       active: true,
       role_names: ["viewer"],
     });
+    setTestEmailAddress("");
   }
 
   function selectUser(user: User) {
     setSelectedUser(user);
     setForm(formFromUser(user));
+    setTestEmailAddress(user.email);
     setMode("edit");
     setActionLink(null);
     setMessage(null);
@@ -299,6 +304,22 @@ export function UserManager() {
     window.location.href = buildAbsoluteApiUrl("/api/v1/integrations/google-drive/connect");
   }
 
+  async function runEmailTest() {
+    const email = testEmailAddress.trim();
+    if (!email) {
+      setMessage("Enter a test recipient email first.");
+      return;
+    }
+
+    setMessage(null);
+    try {
+      const result = await sendTestEmail({ email });
+      setMessage(`Test email sent to ${result.recipient}. Check Mailtrap.`);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not send test email.");
+    }
+  }
+
   return (
     <section className="manager-grid" aria-label="User management">
       <aside className="manager-list">
@@ -444,6 +465,32 @@ export function UserManager() {
             </div>
           </fieldset>
         </div>
+
+        <section className="subsection-panel">
+          <div className="section-heading">
+            <div>
+              <p className="eyebrow">Email</p>
+              <h3>SMTP / Mailtrap</h3>
+            </div>
+            <button className="text-button" onClick={() => void runEmailTest()} type="button">
+              Send Test Email
+            </button>
+          </div>
+          <p className="muted-copy">
+            Use your Mailtrap SMTP credentials in the backend env, then send a test message here before using invites or reset links.
+          </p>
+          <div className="form-grid">
+            <label className="wide-field">
+              Test recipient
+              <input
+                onChange={(event) => setTestEmailAddress(event.target.value)}
+                placeholder="you@example.com"
+                type="email"
+                value={testEmailAddress}
+              />
+            </label>
+          </div>
+        </section>
 
         <section className="subsection-panel">
           <div className="section-heading">

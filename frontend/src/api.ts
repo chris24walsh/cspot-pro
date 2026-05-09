@@ -407,6 +407,11 @@ export interface PasswordResetAdminResponse {
   expires_at: string;
 }
 
+export interface EmailTestResponse {
+  sent: boolean;
+  recipient: string;
+}
+
 export interface GoogleDriveStatus {
   configured: boolean;
   connected: boolean;
@@ -714,6 +719,10 @@ export async function resendInvite(userId: string): Promise<UserInviteResponse> 
 
 export async function sendPasswordReset(userId: string): Promise<PasswordResetAdminResponse> {
   return sendJson<PasswordResetAdminResponse>(`/api/v1/identity/users/${userId}/password-reset`, "POST", {});
+}
+
+export async function sendTestEmail(payload: { email: string }): Promise<EmailTestResponse> {
+  return sendJson<EmailTestResponse>("/api/v1/identity/email/test", "POST", payload);
 }
 
 export async function getGoogleDriveStatus(): Promise<GoogleDriveStatus> {
