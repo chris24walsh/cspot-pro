@@ -10,6 +10,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import {
   AUTH_REQUIRED_EVENT,
+  ApiError,
   getBootstrapStatus,
   getPlan,
   getPlans,
@@ -48,6 +49,10 @@ interface ApiWorkspace {
 interface HeaderStat {
   label: string;
   value: string;
+}
+
+function isTransientApiError(error: unknown) {
+  return error instanceof ApiError && [408, 502, 503, 504].includes(error.status);
 }
 
 function App() {
@@ -103,8 +108,12 @@ function App() {
       const [plans, songs] = await Promise.all([getPlans(), getSongs()]);
       const selectedPlan = plans[0] ? await getPlan(plans[0].id) : null;
       setWorkspace({ live: true, plans, selectedPlan, songs });
-    } catch {
-      setWorkspace({ live: false, plans: [], selectedPlan: null, songs: [] });
+    } catch (error) {
+      setWorkspace((current) =>
+        isTransientApiError(error) && current.live
+          ? current
+          : { live: false, plans: [], selectedPlan: null, songs: [] },
+      );
     }
   }, [sessionUser]);
 

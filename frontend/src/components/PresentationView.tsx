@@ -138,6 +138,10 @@ function serviceTitleForDate(value: string) {
     : date.toLocaleDateString(undefined, { day: "numeric", month: "long", weekday: "long" });
 }
 
+function isTransientApiError(error: unknown) {
+  return error instanceof ApiError && [408, 502, 503, 504].includes(error.status);
+}
+
 function parseBibleReference(reference: string) {
   const match = reference.trim().match(/^(.*)\s+(\d+):(\d+)(?:-(\d+))?$/);
   if (!match) {
@@ -541,7 +545,9 @@ export function PresentationView({
       }
       setLiveIndex(preservedIndex >= 0 ? preservedIndex : 0);
     } catch (error) {
-      setPlan(null);
+      if (!isTransientApiError(error) || !plan) {
+        setPlan(null);
+      }
       setMessage(error instanceof Error ? error.message : "Could not load presentation.");
     } finally {
       if (!options?.silent) {
@@ -1386,8 +1392,8 @@ export function PresentationView({
             return next;
           });
         } catch (error) {
-          if (error instanceof ApiError && (error.status === 503 || error.status === 504)) {
-            window.setTimeout(() => setDeckRenderRetryToken((current) => current + 1), 1500);
+          if (isTransientApiError(error)) {
+            window.setTimeout(() => setDeckRenderRetryToken((current) => current + 1), 2500);
             return;
           }
           setRenderedSlidesByFileId((previous) => ({

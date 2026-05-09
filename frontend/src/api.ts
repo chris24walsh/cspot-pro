@@ -15,6 +15,7 @@ function defaultApiBaseUrl() {
 export const API_BASE_URL = defaultApiBaseUrl();
 export const AUTH_REQUIRED_EVENT = "cspot-pro:auth-required";
 const DEFAULT_REQUEST_TIMEOUT_MS = 8000;
+const DECK_IMPORT_TIMEOUT_MS = 180000;
 const DECK_RENDER_TIMEOUT_MS = 180000;
 
 function buildApiUrl(path: string) {
@@ -514,7 +515,7 @@ async function sendJson<T>(
   path: string,
   method: "POST" | "PATCH",
   body: unknown,
-  options?: { suppressAuthEvent?: boolean },
+  options?: { suppressAuthEvent?: boolean; timeoutMs?: number },
 ): Promise<T> {
   const response = await fetchWithTimeout(buildApiUrl(path), {
     method,
@@ -523,6 +524,7 @@ async function sendJson<T>(
       "Content-Type": "application/json",
     },
     body: JSON.stringify(body),
+    timeoutMs: options?.timeoutMs,
   });
 
   if (!response.ok) {
@@ -741,7 +743,9 @@ export async function importGoogleDriveDeck(payload: {
   file_id: string;
   display_name?: string | null;
 }): Promise<GoogleDriveImportResponse> {
-  return sendJson<GoogleDriveImportResponse>("/api/v1/integrations/google-drive/import", "POST", payload);
+  return sendJson<GoogleDriveImportResponse>("/api/v1/integrations/google-drive/import", "POST", payload, {
+    timeoutMs: DECK_IMPORT_TIMEOUT_MS,
+  });
 }
 
 export async function getInstruments(): Promise<Instrument[]> {
