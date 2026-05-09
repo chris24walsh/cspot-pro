@@ -658,22 +658,23 @@ h3 {
 }
 
 .musician-tools {
+  background: #fffdf8;
   border: 1px solid #ded8c7;
   border-radius: 8px;
   display: grid;
-  gap: 12px;
-  padding: 12px;
+  gap: 14px;
+  padding: 14px;
 }
 
-.musician-workbench {
+.musician-tools-header {
   align-items: start;
   display: grid;
-  gap: 12px;
-  grid-template-columns: minmax(190px, 230px) minmax(0, 1fr);
+  gap: 14px;
+  grid-template-columns: minmax(130px, 170px) minmax(0, 1fr);
 }
 
 .musician-chord-summary {
-  max-width: 230px;
+  max-width: 170px;
 }
 
 .musician-side-panel {
@@ -684,9 +685,39 @@ h3 {
 }
 
 .musician-toolbar {
-  align-items: end;
+  align-items: start;
   display: grid;
+  gap: 10px;
+  justify-items: end;
+  min-width: 0;
+}
+
+.musician-control-row {
+  align-items: end;
+  display: flex;
+  flex-wrap: wrap;
   gap: 8px;
+  justify-content: flex-end;
+  min-width: 0;
+}
+
+.musician-key-row {
+  background: #f7f3e8;
+  border: 1px solid #e3dcc8;
+  border-radius: 8px;
+  padding: 8px;
+}
+
+.musician-key-field {
+  min-width: 120px;
+}
+
+.musician-capo-field {
+  width: 86px;
+}
+
+.musician-print-button {
+  min-height: 36px;
 }
 
 .musician-chart-panel {
@@ -725,13 +756,15 @@ h3 {
 }
 
 .musician-preview {
-  background: #fcfbf5;
+  background:
+    linear-gradient(180deg, rgba(239, 247, 241, 0.72), rgba(252, 251, 245, 0) 180px),
+    #fcfbf5;
   border: 1px solid #e3dcc8;
   border-radius: 8px;
   display: grid;
-  gap: 14px;
+  gap: 18px;
   overflow: auto;
-  padding: 12px;
+  padding: 18px 20px 26px;
 }
 
 .chord-diagram-card {
@@ -742,8 +775,8 @@ h3 {
   color: #17201b;
   display: grid;
   justify-items: center;
-  min-height: 170px;
-  padding: 10px;
+  min-height: 142px;
+  padding: 8px;
 }
 
 .chord-diagram-card.empty {
@@ -754,7 +787,7 @@ h3 {
 
 .chord-diagram-card strong {
   color: #134e4a;
-  font-size: 22px;
+  font-size: 18px;
   font-weight: 900;
   line-height: 1;
 }
@@ -766,8 +799,8 @@ h3 {
 }
 
 .chord-diagram {
-  height: 128px;
-  width: 118px;
+  height: 108px;
+  width: 100px;
 }
 
 .chord-string,
@@ -810,7 +843,7 @@ h3 {
   gap: 0;
   justify-content: start;
   min-width: max-content;
-  padding-left: 1.5ch;
+  padding-left: 2.25ch;
   row-gap: 0;
 }
 
@@ -823,7 +856,7 @@ h3 {
   cursor: pointer;
   display: inline-flex;
   justify-content: center;
-  min-height: 22px;
+  min-height: 24px;
   min-width: 1ch;
   padding: 0;
 }
@@ -839,7 +872,7 @@ h3 {
 }
 
 .musician-slot-chord {
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 800;
   line-height: 1.1;
 }
@@ -902,7 +935,7 @@ h3 {
   cursor: pointer;
   display: inline-flex;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
-  font-size: 18px;
+  font-size: 20px;
   font-weight: 500;
   grid-row: 2;
   justify-content: center;
@@ -926,12 +959,18 @@ h3 {
 }
 
 @media (max-width: 900px) {
-  .musician-workbench {
+  .musician-tools-header {
     grid-template-columns: 1fr;
   }
 
-  .musician-side-panel {
-    grid-template-columns: minmax(150px, 180px) minmax(0, 1fr);
+  .musician-chord-summary {
+    max-width: 180px;
+  }
+
+  .musician-toolbar,
+  .musician-control-row {
+    justify-content: flex-start;
+    justify-items: start;
   }
 }
 

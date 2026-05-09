@@ -1524,264 +1524,263 @@ export function SongManager({
         ) : null}
 
         {activeSongTab === "chords" ? (
-          <div className="form-grid single-column">
-          <label className="wide-field">
-            Chords
-            <div className="musician-tools">
+          <section className="musician-tools" aria-label="Chord editor">
+            <div className="musician-tools-header">
               <div className="musician-chord-summary">
                 <GuitarChordDiagram chord={activeDisplayedChord} />
               </div>
-              <div className="musician-workbench">
-                <aside className="musician-side-panel">
-                  <div className="musician-toolbar">
-                <div className="segmented-control">
-                  <button
-                    className={displayMode === "absolute" ? "is-active" : ""}
-                    disabled={mode === "create" ? !canCreate : !canEdit}
-                    onClick={() => setDisplayMode("absolute")}
-                    type="button"
-                  >
-                    Absolute
-                  </button>
-                  <button
-                    className={displayMode === "capo" ? "is-active" : ""}
-                    disabled={mode === "create" ? !canCreate : !canEdit}
-                    onClick={() => setDisplayMode("capo")}
-                    type="button"
-                  >
-                    Capo Shapes
-                  </button>
-                </div>
-                <div className="segmented-control compact-toggle">
-                  <button
-                    className={detailMode === "simple" ? "is-active" : ""}
-                    disabled={mode === "create" ? !canCreate : !canEdit}
-                    onClick={() => setDetailMode("simple")}
-                    type="button"
-                  >
-                    Simple
-                  </button>
-                  <button
-                    className={detailMode === "advanced" ? "is-active" : ""}
-                    disabled={mode === "create" ? !canCreate : !canEdit}
-                    onClick={() => setDetailMode("advanced")}
-                    type="button"
-                  >
-                    Advanced
-                  </button>
-                </div>
-                <div className="segmented-control compact-toggle">
-                  <button
-                    className={chordChart.keyAnchor === "absolute" ? "is-active" : ""}
-                    disabled={mode === "create" ? !canCreate : !canEdit}
-                    onClick={() => updateKeyAnchor("absolute")}
-                    type="button"
-                  >
-                    Concert
-                  </button>
-                  <button
-                    className={chordChart.keyAnchor === "capo" ? "is-active" : ""}
-                    disabled={mode === "create" ? !canCreate : !canEdit}
-                    onClick={() => updateKeyAnchor("capo")}
-                    type="button"
-                  >
-                    Capo
-                  </button>
-                </div>
-                <label className="compact-field">
-                  Key
-                  <select
-                    disabled={mode === "create" ? !canCreate : !canEdit}
-                    onChange={(event) => updateEditableKey(event.target.value)}
-                    value={editableKey ?? ""}
-                  >
-                    <option value="">Unset</option>
-                    {MUSICAL_KEYS.map((keyOption) => (
-                      <option key={`editable-${keyOption}`} value={keyOption}>
-                        {keyOption}
-                      </option>
-                    ))}
-                  </select>
-                  {derivedKey ? (
-                    <span className="field-help">
-                      {chordChart.keyAnchor === "absolute" ? "Capo" : "Concert"} {derivedKey}
-                    </span>
-                  ) : null}
-                </label>
-                <label className="compact-field">
-                  Capo
-                  <input
-                    disabled={mode === "create" ? !canCreate : !canEdit}
-                    min={0}
-                    onChange={(event) => updateCapo(Number(event.target.value || 0))}
-                    type="number"
-                    value={chordChart.capo}
-                  />
-                </label>
-                <button className="text-button" onClick={printChordChart} type="button">
-                  Print Chart
-                </button>
+
+              <div className="musician-toolbar">
+                <div className="musician-control-row">
+                  <div className="segmented-control">
+                    <button
+                      className={displayMode === "absolute" ? "is-active" : ""}
+                      disabled={mode === "create" ? !canCreate : !canEdit}
+                      onClick={() => setDisplayMode("absolute")}
+                      type="button"
+                    >
+                      Absolute
+                    </button>
+                    <button
+                      className={displayMode === "capo" ? "is-active" : ""}
+                      disabled={mode === "create" ? !canCreate : !canEdit}
+                      onClick={() => setDisplayMode("capo")}
+                      type="button"
+                    >
+                      Capo Shapes
+                    </button>
                   </div>
-                </aside>
+                  <div className="segmented-control compact-toggle">
+                    <button
+                      className={detailMode === "simple" ? "is-active" : ""}
+                      disabled={mode === "create" ? !canCreate : !canEdit}
+                      onClick={() => setDetailMode("simple")}
+                      type="button"
+                    >
+                      Simple
+                    </button>
+                    <button
+                      className={detailMode === "advanced" ? "is-active" : ""}
+                      disabled={mode === "create" ? !canCreate : !canEdit}
+                      onClick={() => setDetailMode("advanced")}
+                      type="button"
+                    >
+                      Advanced
+                    </button>
+                  </div>
+                </div>
 
-                <div className="musician-chart-panel">
-                  {lines.length ? (
-                    <div className="musician-preview">
-                      {lines.map((line, lineIndex) => {
-                        const annotations = lineAnnotations.filter((annotation) => annotation.lineIndex === lineIndex);
-                        const totalSlots = line.length + LEADING_CHORD_ANCHORS + TRAILING_CHORD_ANCHORS;
-                        const renderSlot = (slotIndex: number) => {
-                          const annotation = annotations.find((candidate) => candidate.anchorIndex === slotIndex);
-                          const isEditing =
-                            inlineChordEditorOpen &&
-                            selectedLineIndex === lineIndex &&
-                            selectedAnchorIndex === slotIndex &&
-                            (editingAnnotationId === null ? !annotation : annotation != null && editingAnnotationId === annotation.id);
-
-                          if (isEditing) {
-                            return (
-                              <span
-                                className="musician-slot-editor"
-                                key={`editor-${lineIndex}-${slotIndex}`}
-                                style={{ gridColumn: slotIndex + 1, gridRow: 1 }}
-                              >
-                                <input
-                                  autoFocus
-                                  disabled={mode === "create" ? !canCreate : !canEdit}
-                                  onBlur={() => saveOrCloseInlineEditor()}
-                                  onChange={(event) => setChordInput(normalizeChordInput(event.target.value))}
-                                  onKeyDown={(event) => {
-                                    if (event.key === "Enter") {
-                                      event.preventDefault();
-                                      saveOrCloseInlineEditor();
-                                    }
-                                    if (event.key === "Escape") {
-                                      event.preventDefault();
-                                      cancelInlineChordEdit();
-                                    }
-                                  }}
-                                  placeholder={detailMode === "advanced" ? "BbMAJ7/D" : "Bbm"}
-                                  size={Math.max(1, chordInput.length || 1)}
-                                  value={chordInput}
-                                />
-                                {annotation ? (
-                                  <button
-                                    className="musician-delete-button"
-                                    disabled={mode === "create" ? !canCreate : !canEdit}
-                                    onMouseDown={(event) => event.preventDefault()}
-                                    onClick={() => {
-                                      const annotationId = annotation.id;
-                                      setChordChart((current) => removeChordAnnotation(current, annotationId));
-                                      cancelInlineChordEdit();
-                                    }}
-                                    type="button"
-                                  >
-                                    x
-                                  </button>
-                                ) : null}
-                              </span>
-                            );
-                          }
-
-                          return (
-                            <button
-                              className={`musician-slot ${annotation ? "has-chord" : ""}`}
-                              disabled={mode === "create" ? !canCreate : !canEdit}
-                              draggable={Boolean(annotation) && (mode === "create" ? canCreate : canEdit)}
-                              onDragEnd={() => setDraggedAnnotationId(null)}
-                              onDragOver={(event) => {
-                                if (draggedAnnotationId) {
-                                  event.preventDefault();
-                                }
-                              }}
-                              onDragStart={() => {
-                                if (annotation) {
-                                  setDraggedAnnotationId(annotation.id);
-                                }
-                              }}
-                              onDrop={(event) => {
-                                event.preventDefault();
-                                if (draggedAnnotationId) {
-                                  moveAnnotation(draggedAnnotationId, lineIndex, slotIndex);
-                                  setDraggedAnnotationId(null);
-                                }
-                              }}
-                              key={`slot-${lineIndex}-${slotIndex}`}
-                              onBlur={() => {
-                                setHoveredAnchor(null);
-                                setHoveredChordId(null);
-                              }}
-                              onClick={() => startInlineChordEdit(lineIndex, slotIndex, annotation)}
-                              onFocus={() => {
-                                setHoveredAnchor({ lineIndex, slotIndex });
-                                setHoveredChordId(annotation?.id ?? null);
-                              }}
-                              onMouseEnter={() => {
-                                setHoveredAnchor({ lineIndex, slotIndex });
-                                setHoveredChordId(annotation?.id ?? null);
-                              }}
-                              onMouseLeave={() => {
-                                setHoveredAnchor(null);
-                                setHoveredChordId(null);
-                              }}
-                              style={{ gridColumn: slotIndex + 1, gridRow: 1 }}
-                              type="button"
-                            >
-                              <span className="musician-slot-chord">
-                                {annotation
-                                  ? displayChord(annotation.chord, {
-                                      capo: chordChart.capo,
-                                      detailMode,
-                                      displayMode,
-                                    })
-                                  : "·"}
-                              </span>
-                            </button>
-                          );
-                        };
-
-                        return (
-                          <div
-                            className="musician-line-grid"
-                            key={`${lineIndex}-${line}`}
-                            style={{ gridTemplateColumns: `repeat(${totalSlots}, minmax(1ch, 1ch))` }}
-                          >
-                            {Array.from({ length: totalSlots }, (_, slotIndex) => renderSlot(slotIndex))}
-                            {Array.from({ length: line.length }, (_, charIndex) => (
-                              <button
-                                className={`musician-char ${line[charIndex] === " " ? "is-space" : ""} ${
-                                  hoveredAnchor?.lineIndex === lineIndex &&
-                                  hoveredAnchor.slotIndex === LEADING_CHORD_ANCHORS + charIndex
-                                    ? "is-anchor-hovered"
-                                    : ""
-                                }`}
-                                disabled={mode === "create" ? !canCreate : !canEdit}
-                                key={`${lineIndex}-char-${charIndex}`}
-                                onClick={() => {
-                                  const slotIndex = LEADING_CHORD_ANCHORS + charIndex;
-                                  const annotation = annotations.find((candidate) => candidate.anchorIndex === slotIndex);
-                                  startInlineChordEdit(lineIndex, slotIndex, annotation);
-                                }}
-                                style={{ gridColumn: LEADING_CHORD_ANCHORS + charIndex + 1, gridRow: 2 }}
-                                type="button"
-                              >
-                                {line[charIndex] === " " ? "\u00a0" : line[charIndex]}
-                              </button>
-                            ))}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  ) : (
-                    <p className="field-help">Add lyrics first, then place chord annotations over individual words without changing the lyric text.</p>
-                  )}
+                <div className="musician-control-row musician-key-row">
+                  <div className="segmented-control compact-toggle">
+                    <button
+                      className={chordChart.keyAnchor === "absolute" ? "is-active" : ""}
+                      disabled={mode === "create" ? !canCreate : !canEdit}
+                      onClick={() => updateKeyAnchor("absolute")}
+                      type="button"
+                    >
+                      Concert
+                    </button>
+                    <button
+                      className={chordChart.keyAnchor === "capo" ? "is-active" : ""}
+                      disabled={mode === "create" ? !canCreate : !canEdit}
+                      onClick={() => updateKeyAnchor("capo")}
+                      type="button"
+                    >
+                      Capo
+                    </button>
+                  </div>
+                  <label className="compact-field musician-key-field">
+                    Key
+                    <select
+                      disabled={mode === "create" ? !canCreate : !canEdit}
+                      onChange={(event) => updateEditableKey(event.target.value)}
+                      value={editableKey ?? ""}
+                    >
+                      <option value="">Unset</option>
+                      {MUSICAL_KEYS.map((keyOption) => (
+                        <option key={`editable-${keyOption}`} value={keyOption}>
+                          {keyOption}
+                        </option>
+                      ))}
+                    </select>
+                    {derivedKey ? (
+                      <span className="field-help">
+                        {chordChart.keyAnchor === "absolute" ? "Capo" : "Concert"} {derivedKey}
+                      </span>
+                    ) : null}
+                  </label>
+                  <label className="compact-field musician-capo-field">
+                    Capo
+                    <input
+                      disabled={mode === "create" ? !canCreate : !canEdit}
+                      min={0}
+                      onChange={(event) => updateCapo(Number(event.target.value || 0))}
+                      type="number"
+                      value={chordChart.capo}
+                    />
+                  </label>
+                  <button className="text-button musician-print-button" onClick={printChordChart} type="button">
+                    Print Chart
+                  </button>
                 </div>
               </div>
-
-              {legacyChords ? <p className="field-help">Legacy chord text will be preserved when this song is saved.</p> : null}
             </div>
-          </label>
-          </div>
+
+            <div className="musician-chart-panel">
+              {lines.length ? (
+                <div className="musician-preview">
+                  {lines.map((line, lineIndex) => {
+                    const annotations = lineAnnotations.filter((annotation) => annotation.lineIndex === lineIndex);
+                    const totalSlots = line.length + LEADING_CHORD_ANCHORS + TRAILING_CHORD_ANCHORS;
+                    const renderSlot = (slotIndex: number) => {
+                      const annotation = annotations.find((candidate) => candidate.anchorIndex === slotIndex);
+                      const isEditing =
+                        inlineChordEditorOpen &&
+                        selectedLineIndex === lineIndex &&
+                        selectedAnchorIndex === slotIndex &&
+                        (editingAnnotationId === null ? !annotation : annotation != null && editingAnnotationId === annotation.id);
+
+                      if (isEditing) {
+                        return (
+                          <span
+                            className="musician-slot-editor"
+                            key={`editor-${lineIndex}-${slotIndex}`}
+                            style={{ gridColumn: slotIndex + 1, gridRow: 1 }}
+                          >
+                            <input
+                              autoFocus
+                              disabled={mode === "create" ? !canCreate : !canEdit}
+                              onBlur={() => saveOrCloseInlineEditor()}
+                              onChange={(event) => setChordInput(normalizeChordInput(event.target.value))}
+                              onKeyDown={(event) => {
+                                if (event.key === "Enter") {
+                                  event.preventDefault();
+                                  saveOrCloseInlineEditor();
+                                }
+                                if (event.key === "Escape") {
+                                  event.preventDefault();
+                                  cancelInlineChordEdit();
+                                }
+                              }}
+                              placeholder={detailMode === "advanced" ? "BbMAJ7/D" : "Bbm"}
+                              size={Math.max(1, chordInput.length || 1)}
+                              value={chordInput}
+                            />
+                            {annotation ? (
+                              <button
+                                className="musician-delete-button"
+                                disabled={mode === "create" ? !canCreate : !canEdit}
+                                onMouseDown={(event) => event.preventDefault()}
+                                onClick={() => {
+                                  const annotationId = annotation.id;
+                                  setChordChart((current) => removeChordAnnotation(current, annotationId));
+                                  cancelInlineChordEdit();
+                                }}
+                                type="button"
+                              >
+                                x
+                              </button>
+                            ) : null}
+                          </span>
+                        );
+                      }
+
+                      return (
+                        <button
+                          className={`musician-slot ${annotation ? "has-chord" : ""}`}
+                          disabled={mode === "create" ? !canCreate : !canEdit}
+                          draggable={Boolean(annotation) && (mode === "create" ? canCreate : canEdit)}
+                          onDragEnd={() => setDraggedAnnotationId(null)}
+                          onDragOver={(event) => {
+                            if (draggedAnnotationId) {
+                              event.preventDefault();
+                            }
+                          }}
+                          onDragStart={() => {
+                            if (annotation) {
+                              setDraggedAnnotationId(annotation.id);
+                            }
+                          }}
+                          onDrop={(event) => {
+                            event.preventDefault();
+                            if (draggedAnnotationId) {
+                              moveAnnotation(draggedAnnotationId, lineIndex, slotIndex);
+                              setDraggedAnnotationId(null);
+                            }
+                          }}
+                          key={`slot-${lineIndex}-${slotIndex}`}
+                          onBlur={() => {
+                            setHoveredAnchor(null);
+                            setHoveredChordId(null);
+                          }}
+                          onClick={() => startInlineChordEdit(lineIndex, slotIndex, annotation)}
+                          onFocus={() => {
+                            setHoveredAnchor({ lineIndex, slotIndex });
+                            setHoveredChordId(annotation?.id ?? null);
+                          }}
+                          onMouseEnter={() => {
+                            setHoveredAnchor({ lineIndex, slotIndex });
+                            setHoveredChordId(annotation?.id ?? null);
+                          }}
+                          onMouseLeave={() => {
+                            setHoveredAnchor(null);
+                            setHoveredChordId(null);
+                          }}
+                          style={{ gridColumn: slotIndex + 1, gridRow: 1 }}
+                          type="button"
+                        >
+                          <span className="musician-slot-chord">
+                            {annotation
+                              ? displayChord(annotation.chord, {
+                                  capo: chordChart.capo,
+                                  detailMode,
+                                  displayMode,
+                                })
+                              : "·"}
+                          </span>
+                        </button>
+                      );
+                    };
+
+                    return (
+                      <div
+                        className="musician-line-grid"
+                        key={`${lineIndex}-${line}`}
+                        style={{ gridTemplateColumns: `repeat(${totalSlots}, minmax(1ch, 1ch))` }}
+                      >
+                        {Array.from({ length: totalSlots }, (_, slotIndex) => renderSlot(slotIndex))}
+                        {Array.from({ length: line.length }, (_, charIndex) => (
+                          <button
+                            className={`musician-char ${line[charIndex] === " " ? "is-space" : ""} ${
+                              hoveredAnchor?.lineIndex === lineIndex &&
+                              hoveredAnchor.slotIndex === LEADING_CHORD_ANCHORS + charIndex
+                                ? "is-anchor-hovered"
+                                : ""
+                            }`}
+                            disabled={mode === "create" ? !canCreate : !canEdit}
+                            key={`${lineIndex}-char-${charIndex}`}
+                            onClick={() => {
+                              const slotIndex = LEADING_CHORD_ANCHORS + charIndex;
+                              const annotation = annotations.find((candidate) => candidate.anchorIndex === slotIndex);
+                              startInlineChordEdit(lineIndex, slotIndex, annotation);
+                            }}
+                            style={{ gridColumn: LEADING_CHORD_ANCHORS + charIndex + 1, gridRow: 2 }}
+                            type="button"
+                          >
+                            {line[charIndex] === " " ? "\u00a0" : line[charIndex]}
+                          </button>
+                        ))}
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <p className="field-help">Add lyrics first, then place chord annotations over individual words without changing the lyric text.</p>
+              )}
+            </div>
+
+            {legacyChords ? <p className="field-help">Legacy chord text will be preserved when this song is saved.</p> : null}
+          </section>
         ) : null}
         </div>
       </form>
