@@ -370,7 +370,7 @@ def list_roles(
 @router.post("/email/test", response_model=EmailTestRead)
 def send_test_email(
     payload: EmailTestRequest,
-    current_user: CurrentUser = Depends(require_permission("users:manage")),
+    current_user: User = Depends(require_permission("users:manage")),
 ) -> EmailTestRead:
     if not smtp_enabled():
         raise HTTPException(
