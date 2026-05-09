@@ -30,7 +30,12 @@ GOOGLE_USERINFO_URL = "https://www.googleapis.com/oauth2/v3/userinfo"
 GOOGLE_DRIVE_FILES_URL = "https://www.googleapis.com/drive/v3/files"
 GOOGLE_DRIVE_EXPORT_URL = "https://www.googleapis.com/drive/v3/files/{file_id}/export"
 GOOGLE_DRIVE_DOWNLOAD_URL = "https://www.googleapis.com/drive/v3/files/{file_id}"
-GOOGLE_DRIVE_SCOPES = ["https://www.googleapis.com/auth/drive.readonly"]
+GOOGLE_DRIVE_SCOPES = [
+    "openid",
+    "email",
+    "profile",
+    "https://www.googleapis.com/auth/drive.readonly",
+]
 GOOGLE_DRIVE_EXPORT_MIME_TYPE = "application/pdf"
 GOOGLE_SLIDES_MIME_TYPE = "application/vnd.google-apps.presentation"
 GOOGLE_DECK_MIME_TYPES = {
