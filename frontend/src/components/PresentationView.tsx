@@ -2255,7 +2255,12 @@ export function PresentationView({
 
       {editingSongId ? (
         <div className="app-dialog-backdrop" role="presentation">
-          <div aria-labelledby="edit-song-title" aria-modal="true" className="app-dialog app-dialog-wide" role="dialog">
+        <div
+          aria-labelledby="edit-song-title"
+          aria-modal="true"
+          className="app-dialog app-dialog-wide edit-song-dialog"
+          role="dialog"
+        >
             <div className="section-heading">
               <div>
                 <h2 id="edit-song-title">Edit Song</h2>
