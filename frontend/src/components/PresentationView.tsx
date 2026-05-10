@@ -152,6 +152,34 @@ function serviceTitleForDate(value: string) {
     : date.toLocaleDateString(undefined, { day: "numeric", month: "long", weekday: "long" });
 }
 
+function serviceLongDateForInput(value: string) {
+  const date = new Date(serviceIsoFromDateInput(value));
+  return Number.isNaN(date.getTime()) ? serviceTitleForDate(value) : SERVICE_LONG_DATE_FORMATTER.format(date);
+}
+
+function replaceServiceTitleDate(title: string, nextDateInput: string, previousDateInput?: string) {
+  const nextDateText = serviceLongDateForInput(nextDateInput);
+  const previousDateText = previousDateInput ? serviceLongDateForInput(previousDateInput) : "";
+  if (previousDateText && title.includes(previousDateText)) {
+    return title.replace(previousDateText, nextDateText);
+  }
+
+  const numericDatePattern = /\b\d{1,2}\s*\/\s*\d{1,2}\s*\/\s*\d{2,4}\b/;
+  if (numericDatePattern.test(title)) {
+    const [year, month, day] = nextDateInput.split("-");
+    const compactYear = year?.slice(-2) ?? "";
+    return title.replace(numericDatePattern, `${Number(month)} / ${Number(day)} / ${compactYear}`);
+  }
+
+  const writtenDatePattern =
+    /\b(?:Sunday|Monday|Tuesday|Wednesday|Thursday|Friday|Saturday),?\s+(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2},?\s+\d{4}\b/i;
+  if (writtenDatePattern.test(title)) {
+    return title.replace(writtenDatePattern, nextDateText);
+  }
+
+  return title;
+}
+
 function monthInputFromDate(value: Date) {
   return `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, "0")}`;
 }
@@ -832,25 +860,38 @@ export function PresentationView({
 
   function suggestedServiceTitle(dateInput: string) {
     const type = serviceTypeForDate(dateInput);
-    const date = new Date(serviceIsoFromDateInput(dateInput));
-    const formattedDate = Number.isNaN(date.getTime()) ? serviceTitleForDate(dateInput) : SERVICE_LONG_DATE_FORMATTER.format(date);
-    return `${type?.name ?? "Service"} ${formattedDate}`;
+    return `${type?.name ?? "Service"} ${serviceLongDateForInput(dateInput)}`;
+  }
+
+  function updateServiceDraftDate(nextDate: string) {
+    setServiceDraftDate((previousDate) => {
+      setServiceDraftTitle((currentTitle) => {
+        if (!serviceDraftPlanId && !currentTitle.trim()) {
+          return suggestedServiceTitle(nextDate);
+        }
+        return replaceServiceTitleDate(currentTitle, nextDate, previousDate);
+      });
+      return nextDate;
+    });
+    setServiceCalendarMonth(nextDate.slice(0, 7) || serviceCalendarMonth);
   }
 
   async function chooseServiceDate(dateInput: string) {
     const existing = plansByDate.get(dateInput);
-    setServiceDraftDate(dateInput);
-    setServiceCalendarMonth(dateInput.slice(0, 7) || serviceCalendarMonth);
     if (existing) {
+      setServiceDraftDate(dateInput);
+      setServiceCalendarMonth(dateInput.slice(0, 7) || serviceCalendarMonth);
       setServiceDraftPlanId(existing.id);
       setServiceDraftTitle(existing.title);
       return;
     }
     if (serviceDraftPlanId) {
-      setServiceDraftTitle((current) => current || suggestedServiceTitle(dateInput));
+      updateServiceDraftDate(dateInput);
       return;
     }
     setServiceDraftPlanId(null);
+    setServiceDraftDate(dateInput);
+    setServiceCalendarMonth(dateInput.slice(0, 7) || serviceCalendarMonth);
     setServiceDraftTitle(suggestedServiceTitle(dateInput));
   }
 
@@ -2072,12 +2113,7 @@ export function PresentationView({
                     Date
                     <input
                       onChange={(event) => {
-                        const nextDate = event.target.value;
-                        setServiceDraftDate(nextDate);
-                        if (!serviceDraftPlanId && !serviceDraftTitle.trim()) {
-                          setServiceDraftTitle(suggestedServiceTitle(nextDate));
-                        }
-                        setServiceCalendarMonth(nextDate.slice(0, 7) || serviceCalendarMonth);
+                        updateServiceDraftDate(event.target.value);
                       }}
                       type="date"
                       value={serviceDraftDate}
