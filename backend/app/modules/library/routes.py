@@ -4,6 +4,7 @@ import re
 import shutil
 import subprocess
 import tempfile
+from threading import Lock
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Response, UploadFile, status
@@ -51,6 +52,8 @@ RENDER_PIPELINE_VERSION = "libreoffice-pdf-png-v2"
 LIBREOFFICE_RENDER_TIMEOUT_SECONDS = 300
 PDF_TO_PNG_RENDER_TIMEOUT_SECONDS = 300
 PDF_TO_PNG_DPI = 120
+_render_locks: dict[str, Lock] = {}
+_render_locks_guard = Lock()
 
 
 def resource_to_read(resource: Resource) -> ResourceRead:
@@ -148,6 +151,15 @@ def _write_render_manifest(stored: StoredFile) -> None:
     _render_manifest_path(stored.id).write_text(_render_manifest_value(stored), encoding="utf-8")
 
 
+def _render_lock_for(file_id: str) -> Lock:
+    with _render_locks_guard:
+        lock = _render_locks.get(file_id)
+        if lock is None:
+            lock = Lock()
+            _render_locks[file_id] = lock
+        return lock
+
+
 def _required_tool(name: str) -> str:
     path = shutil.which(name)
     if path is None:
@@ -169,6 +181,11 @@ def _office_command() -> str:
 
 
 def _render_slides(stored: StoredFile) -> list[Path]:
+    with _render_lock_for(stored.id):
+        return _render_slides_locked(stored)
+
+
+def _render_slides_locked(stored: StoredFile) -> list[Path]:
     source_path = Path(stored.storage_path)
     if not source_path.exists():
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Stored file is missing")

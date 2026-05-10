@@ -17,6 +17,7 @@ export const AUTH_REQUIRED_EVENT = "cspot-pro:auth-required";
 const DEFAULT_REQUEST_TIMEOUT_MS = 8000;
 const DECK_IMPORT_TIMEOUT_MS = 180000;
 const DECK_RENDER_TIMEOUT_MS = 180000;
+const LIVE_SYNC_TIMEOUT_MS = 30000;
 
 function buildApiUrl(path: string) {
   const base = API_BASE_URL.endsWith("/") ? API_BASE_URL.slice(0, -1) : API_BASE_URL;
@@ -638,7 +639,9 @@ export async function updatePresentationLiveState(
     fullscreen: boolean;
   },
 ): Promise<PresentationLiveSyncState> {
-  return sendJson<PresentationLiveSyncState>(`/api/v1/presentation/live/${planId}`, "PATCH", payload);
+  return sendJson<PresentationLiveSyncState>(`/api/v1/presentation/live/${planId}`, "PATCH", payload, {
+    timeoutMs: LIVE_SYNC_TIMEOUT_MS,
+  });
 }
 
 export async function createPlan(payload: PlanPayload): Promise<PlanDetail> {

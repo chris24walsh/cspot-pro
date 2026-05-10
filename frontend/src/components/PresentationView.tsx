@@ -657,7 +657,9 @@ export function PresentationView({
       });
       lastLiveStateRef.current = synced.updated_at;
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Could not sync presentation state.");
+      if (!isTransientApiError(error)) {
+        setMessage(error instanceof Error ? error.message : "Could not sync presentation state.");
+      }
     }
   }
 

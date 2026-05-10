@@ -167,7 +167,7 @@ export function PresentationOutput() {
 
   useEffect(() => {
     void load(liveState);
-  }, [liveState?.planId, liveState?.updatedAt, load]);
+  }, [liveState?.planId, load]);
 
   useEffect(() => {
     writeOutputHeartbeat();
