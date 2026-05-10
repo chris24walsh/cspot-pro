@@ -2058,6 +2058,17 @@ export function PresentationView({
             <div className="stage-meta">
               <span>Current · {plan?.title ?? "Presentation"}</span>
               <div className="stage-meta-actions">
+                <button
+                  aria-label="Choose or create a service"
+                  className="stage-header-button"
+                  disabled={loading}
+                  onClick={openServicePicker}
+                  title="Choose or create a service"
+                  type="button"
+                >
+                  <CalendarDays size={15} aria-hidden="true" />
+                  <span>Service</span>
+                </button>
                 <label className="stage-theme-switch" title="Toggle slide theme">
                   <input
                     checked={slideTheme === "light"}
