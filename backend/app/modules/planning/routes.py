@@ -180,7 +180,13 @@ def update_plan(
 
     session.commit()
     session.refresh(plan)
-    return get_plan(plan.id, session)
+    items = session.scalars(
+        select(PlanItem).where(PlanItem.plan_id == plan.id, PlanItem.deleted_at.is_(None)).order_by(
+            PlanItem.sequence,
+            PlanItem.created_at,
+        )
+    ).all()
+    return plan_to_detail(session, plan, list(items))
 
 
 @router.delete("/plans/{plan_id}", status_code=status.HTTP_204_NO_CONTENT)
