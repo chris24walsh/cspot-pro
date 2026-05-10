@@ -218,15 +218,16 @@ button {
 .service-picker-dialog {
   gap: 12px;
   max-height: min(820px, calc(100svh - 24px));
-  max-width: min(980px, calc(100vw - 24px));
+  max-width: calc(100vw - 36px);
   overflow: hidden;
   padding: 14px;
+  width: min(900px, calc(100vw - 36px));
 }
 
 .service-picker-grid {
   display: grid;
   gap: 10px;
-  grid-template-columns: minmax(300px, 1fr) minmax(260px, 0.72fr);
+  grid-template-columns: minmax(280px, 1fr) minmax(240px, 0.68fr);
   grid-template-rows: minmax(0, 1fr) auto;
   min-height: 0;
   overflow: hidden;
@@ -243,7 +244,7 @@ button {
   min-height: 0;
   min-width: 0;
   overflow: hidden;
-  padding: 10px;
+  padding: 9px;
 }
 
 .service-calendar-panel {
@@ -273,7 +274,7 @@ button {
 
 .service-calendar-heading strong {
   color: #17201b;
-  font-size: 18px;
+  font-size: 16px;
   font-weight: 900;
   text-align: center;
 }
@@ -303,14 +304,14 @@ button {
   cursor: pointer;
   display: grid;
   gap: 3px;
-  min-height: 52px;
+  min-height: 48px;
   min-width: 0;
   padding: 5px;
   text-align: left;
 }
 
 .service-calendar-day span {
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 900;
 }
 
@@ -322,6 +323,18 @@ button {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.service-edit-panel .action-row {
+  display: grid;
+  grid-template-columns: 1fr;
+  justify-content: stretch;
+}
+
+.service-edit-panel .primary-button,
+.service-edit-panel .text-button,
+.service-edit-panel .danger-button {
+  width: 100%;
 }
 
 .service-calendar-day:hover:not(:disabled),
