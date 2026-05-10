@@ -1980,7 +1980,7 @@ export function PresentationView({
             </div>
 
             <div className="service-picker-grid">
-              <section className="service-picker-panel">
+              <section className="service-picker-panel service-calendar-panel">
                 <div className="service-calendar-heading">
                   <button
                     aria-label="Previous month"
@@ -2035,7 +2035,7 @@ export function PresentationView({
                 </div>
               </section>
 
-              <section className="service-picker-panel">
+              <section className="service-picker-panel service-list-panel">
                 <h3>Existing Services</h3>
                 <div className="stack-list compact service-date-list">
                   {sortedPlans.map((planSummary) => (
@@ -2061,7 +2061,7 @@ export function PresentationView({
                 </div>
               </section>
 
-              <section className="service-picker-panel">
+              <section className="service-picker-panel service-edit-panel">
                 <h3>Selected Date</h3>
                 <div className="form-grid single-column">
                   <label>

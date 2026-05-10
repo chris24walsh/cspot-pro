@@ -226,7 +226,8 @@ button {
 .service-picker-grid {
   display: grid;
   gap: 10px;
-  grid-template-columns: minmax(300px, 1fr) minmax(220px, 0.7fr) minmax(230px, 0.72fr);
+  grid-template-columns: minmax(300px, 1fr) minmax(260px, 0.72fr);
+  grid-template-rows: minmax(0, 1fr) auto;
   min-height: 0;
   overflow: hidden;
 }
@@ -243,6 +244,18 @@ button {
   min-width: 0;
   overflow: hidden;
   padding: 10px;
+}
+
+.service-calendar-panel {
+  grid-row: 1 / span 2;
+}
+
+.service-list-panel {
+  max-height: min(45svh, 420px);
+}
+
+.service-edit-panel {
+  grid-template-rows: auto auto auto auto;
 }
 
 .service-date-list {
@@ -3117,6 +3130,11 @@ h3 {
 
   .service-picker-grid {
     grid-template-columns: 1fr;
+    grid-template-rows: none;
+  }
+
+  .service-calendar-panel {
+    grid-row: auto;
   }
 
   .song-manager-grid {
