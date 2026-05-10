@@ -876,6 +876,13 @@ export function PresentationView({
     setServiceCalendarMonth(nextDate.slice(0, 7) || serviceCalendarMonth);
   }
 
+  function startNewServiceDraft(dateInput = serviceDraftDate || nextSundayDateInput()) {
+    setServiceDraftPlanId(null);
+    setServiceDraftDate(dateInput);
+    setServiceDraftTitle(suggestedServiceTitle(dateInput));
+    setServiceCalendarMonth(dateInput.slice(0, 7) || serviceCalendarMonth);
+  }
+
   async function chooseServiceDate(dateInput: string) {
     const existing = plansByDate.get(dateInput);
     if (existing) {
@@ -885,14 +892,7 @@ export function PresentationView({
       setServiceDraftTitle(existing.title);
       return;
     }
-    if (serviceDraftPlanId) {
-      updateServiceDraftDate(dateInput);
-      return;
-    }
-    setServiceDraftPlanId(null);
-    setServiceDraftDate(dateInput);
-    setServiceCalendarMonth(dateInput.slice(0, 7) || serviceCalendarMonth);
-    setServiceDraftTitle(suggestedServiceTitle(dateInput));
+    startNewServiceDraft(dateInput);
   }
 
   async function createServiceForDate(dateInput = serviceDraftDate || nextSundayDateInput(), title = serviceDraftTitle) {
@@ -2081,7 +2081,17 @@ export function PresentationView({
               </section>
 
               <section className="service-picker-panel service-list-panel">
-                <h3>Existing Services</h3>
+                <div className="service-panel-heading">
+                  <h3>Existing Services</h3>
+                  <button
+                    className="text-button compact-button"
+                    disabled={!canCreatePlan}
+                    onClick={() => startNewServiceDraft()}
+                    type="button"
+                  >
+                    New
+                  </button>
+                </div>
                 <div className="stack-list compact service-date-list">
                   {sortedPlans.map((planSummary) => (
                     <button
@@ -2107,7 +2117,19 @@ export function PresentationView({
               </section>
 
               <section className="service-picker-panel service-edit-panel">
-                <h3>Selected Date</h3>
+                <div className="service-panel-heading">
+                  <h3>{serviceDraftPlanId ? "Edit Service" : "New Service"}</h3>
+                  {serviceDraftPlanId ? (
+                    <button
+                      className="text-button compact-button"
+                      disabled={!canCreatePlan}
+                      onClick={() => startNewServiceDraft(serviceDraftDate)}
+                      type="button"
+                    >
+                      Deselect
+                    </button>
+                  ) : null}
+                </div>
                 <div className="form-grid single-column">
                   <label>
                     Date

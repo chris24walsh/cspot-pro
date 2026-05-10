@@ -259,6 +259,23 @@ button {
   grid-template-rows: auto auto auto auto;
 }
 
+.service-panel-heading {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+  justify-content: space-between;
+  min-width: 0;
+}
+
+.service-panel-heading h3 {
+  margin: 0;
+}
+
+.compact-button {
+  min-height: 28px;
+  padding: 4px 8px;
+}
+
 .service-date-list {
   max-height: none;
   overflow: auto;
