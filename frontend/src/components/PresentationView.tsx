@@ -846,6 +846,10 @@ export function PresentationView({
       setServiceDraftTitle(existing.title);
       return;
     }
+    if (serviceDraftPlanId) {
+      setServiceDraftTitle((current) => current || suggestedServiceTitle(dateInput));
+      return;
+    }
     setServiceDraftPlanId(null);
     setServiceDraftTitle(suggestedServiceTitle(dateInput));
   }
@@ -2069,10 +2073,10 @@ export function PresentationView({
                     <input
                       onChange={(event) => {
                         const nextDate = event.target.value;
-                        const existing = plansByDate.get(nextDate);
                         setServiceDraftDate(nextDate);
-                        setServiceDraftPlanId(existing?.id ?? null);
-                        setServiceDraftTitle(existing?.title ?? suggestedServiceTitle(nextDate));
+                        if (!serviceDraftPlanId && !serviceDraftTitle.trim()) {
+                          setServiceDraftTitle(suggestedServiceTitle(nextDate));
+                        }
                         setServiceCalendarMonth(nextDate.slice(0, 7) || serviceCalendarMonth);
                       }}
                       type="date"
