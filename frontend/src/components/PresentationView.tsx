@@ -175,6 +175,27 @@ function isTransientApiError(error: unknown) {
   return error instanceof ApiError && [408, 502, 503, 504].includes(error.status);
 }
 
+function scrollItemIntoOperatorView(container: HTMLElement | null, item: HTMLElement | null) {
+  if (!container || !item) {
+    return;
+  }
+
+  const containerRect = container.getBoundingClientRect();
+  const itemRect = item.getBoundingClientRect();
+  const itemTop = itemRect.top - containerRect.top + container.scrollTop;
+  const rowHeight = Math.max(itemRect.height + 6, 1);
+  const visibleRows = Math.floor(container.clientHeight / rowHeight);
+  const preferredOffset = visibleRows > 2 ? rowHeight : 0;
+  const maxScroll = Math.max(container.scrollHeight - container.clientHeight, 0);
+  const targetTop = Math.min(Math.max(itemTop - preferredOffset, 0), maxScroll);
+
+  if (Math.abs(container.scrollTop - targetTop) < 2) {
+    return;
+  }
+
+  container.scrollTo({ top: targetTop, behavior: "smooth" });
+}
+
 function parseBibleReference(reference: string) {
   const match = reference.trim().match(/^(.*)\s+(\d+):(\d+)(?:-(\d+))?$/);
   if (!match) {
@@ -363,7 +384,10 @@ export function PresentationView({
   const searchInputRef = useRef<HTMLInputElement | null>(null);
   const outputWindowRef = useRef<Window | null>(null);
   const channelRef = useRef<BroadcastChannel | null>(null);
+  const slideGridRef = useRef<HTMLDivElement | null>(null);
+  const sectionRailListRef = useRef<HTMLDivElement | null>(null);
   const thumbnailRefs = useRef<Record<string, HTMLButtonElement | null>>({});
+  const sectionRailRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const currentLiveStateRef = useRef<PresentationLiveState | null>(null);
   const lastLiveStateRef = useRef<number>(0);
   const suppressPublishRef = useRef(false);
@@ -1648,11 +1672,11 @@ export function PresentationView({
       return;
     }
 
-    thumbnailRefs.current[activeSlide.id]?.scrollIntoView({
-      block: "nearest",
-      inline: "nearest",
+    window.requestAnimationFrame(() => {
+      scrollItemIntoOperatorView(slideGridRef.current, thumbnailRefs.current[activeSlide.id] ?? null);
+      scrollItemIntoOperatorView(sectionRailListRef.current, sectionRailRefs.current[activeSlide.sectionId] ?? null);
     });
-  }, [liveIndex, slides]);
+  }, [liveIndex, slides, sections]);
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
@@ -2113,7 +2137,7 @@ export function PresentationView({
         </div>
 
         <aside className="presenter-sidebar" aria-label="Slide context">
-          <div className="slide-grid" aria-label="All slides">
+          <div className="slide-grid" aria-label="All slides" ref={slideGridRef}>
             {sections.map((section) => {
               const sectionStart = slides.findIndex((slide) => slide.sectionId === section.id);
               const sectionItem = (plan?.items ?? []).find((item) => item.id === section.id);
@@ -2222,7 +2246,7 @@ export function PresentationView({
 
         <aside className="section-rail" aria-label="Sections">
           <div className="section-rail-title">Sections</div>
-          <div className="section-rail-list">
+          <div className="section-rail-list" ref={sectionRailListRef}>
             {canEditPlan ? (
               <button
                 aria-label="Search or add at the start"
@@ -2238,7 +2262,13 @@ export function PresentationView({
               const sectionItem = (plan?.items ?? []).find((item) => item.id === section.id);
               const canEditSectionSong = canEditSong && sectionItem?.song_id;
               return (
-                <div key={section.id} className="section-rail-block">
+                <div
+                  key={section.id}
+                  className="section-rail-block"
+                  ref={(element) => {
+                    sectionRailRefs.current[section.id] = element;
+                  }}
+                >
                   <div
                     className={`section-rail-item ${presentationTypeClass(section.itemType)} ${
                       liveSlide?.sectionId === section.id ? "active" : ""
