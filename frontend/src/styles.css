@@ -216,14 +216,19 @@ button {
 }
 
 .service-picker-dialog {
-  max-width: min(1040px, 100%);
+  gap: 12px;
+  max-height: min(820px, calc(100svh - 24px));
+  max-width: min(980px, calc(100vw - 24px));
+  overflow: hidden;
+  padding: 14px;
 }
 
 .service-picker-grid {
   display: grid;
-  gap: 14px;
-  grid-template-columns: minmax(310px, 1fr) minmax(230px, 0.72fr) minmax(240px, 0.72fr);
+  gap: 10px;
+  grid-template-columns: minmax(300px, 1fr) minmax(220px, 0.7fr) minmax(230px, 0.72fr);
   min-height: 0;
+  overflow: hidden;
 }
 
 .service-picker-panel {
@@ -231,13 +236,17 @@ button {
   border: 1px solid #e3dcc8;
   border-radius: 8px;
   display: grid;
-  gap: 10px;
+  gap: 8px;
+  grid-template-rows: auto minmax(0, 1fr);
+  max-height: calc(100svh - 128px);
+  min-height: 0;
   min-width: 0;
-  padding: 12px;
+  overflow: hidden;
+  padding: 10px;
 }
 
 .service-date-list {
-  max-height: min(50vh, 420px);
+  max-height: none;
   overflow: auto;
   padding-right: 2px;
 }
@@ -258,8 +267,9 @@ button {
 
 .service-calendar-grid {
   display: grid;
-  gap: 5px;
+  gap: 4px;
   grid-template-columns: repeat(7, minmax(0, 1fr));
+  min-height: 0;
 }
 
 .service-calendar-weekday {
@@ -280,9 +290,9 @@ button {
   cursor: pointer;
   display: grid;
   gap: 3px;
-  min-height: 58px;
+  min-height: 52px;
   min-width: 0;
-  padding: 6px;
+  padding: 5px;
   text-align: left;
 }
 
@@ -297,6 +307,8 @@ button {
   font-weight: 800;
   line-height: 1.08;
   overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .service-calendar-day:hover:not(:disabled),

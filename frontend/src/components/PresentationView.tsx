@@ -26,6 +26,7 @@ import {
   searchGoogleDriveFiles,
   selectCustomProviderMatch,
   uploadStoredFile,
+  updatePlan,
   updatePresentationLiveState,
   updatePlanItem,
   updateSong,
@@ -365,6 +366,7 @@ export function PresentationView({
   const [serviceDraftDate, setServiceDraftDate] = useState("");
   const [serviceDraftTitle, setServiceDraftTitle] = useState("");
   const [serviceCalendarMonth, setServiceCalendarMonth] = useState(monthInputFromDate(new Date()));
+  const [serviceDraftPlanId, setServiceDraftPlanId] = useState<string | null>(null);
   const [customProviderSelection, setCustomProviderSelection] = useState<CustomProviderSelectResult | null>(null);
   const [customProviderSelectionLoading, setCustomProviderSelectionLoading] = useState(false);
   const [editingSongId, setEditingSongId] = useState<string | null>(null);
@@ -792,7 +794,8 @@ export function PresentationView({
   function openServicePicker() {
     const draftDate = dateInputFromIso(plan?.service_date) || nextSundayDateInput();
     setServiceDraftDate(draftDate);
-    setServiceDraftTitle(suggestedServiceTitle(draftDate));
+    setServiceDraftTitle(plan?.title ?? suggestedServiceTitle(draftDate));
+    setServiceDraftPlanId(plan?.id ?? null);
     setServiceCalendarMonth(draftDate.slice(0, 7) || monthInputFromDate(new Date()));
     setServicePickerOpen(true);
   }
@@ -836,18 +839,22 @@ export function PresentationView({
 
   async function chooseServiceDate(dateInput: string) {
     const existing = plansByDate.get(dateInput);
+    setServiceDraftDate(dateInput);
+    setServiceCalendarMonth(dateInput.slice(0, 7) || serviceCalendarMonth);
     if (existing) {
-      await selectPlan(existing.id);
+      setServiceDraftPlanId(existing.id);
+      setServiceDraftTitle(existing.title);
       return;
     }
-    setServiceDraftDate(dateInput);
+    setServiceDraftPlanId(null);
     setServiceDraftTitle(suggestedServiceTitle(dateInput));
-    if (canCreatePlan) {
-      await createServiceForDate(dateInput, suggestedServiceTitle(dateInput));
-    }
   }
 
   async function createServiceForDate(dateInput = serviceDraftDate || nextSundayDateInput(), title = serviceDraftTitle) {
+    if (!dateInput) {
+      setMessage("Choose a date first.");
+      return;
+    }
     if (!canCreatePlan) {
       setMessage("Only service leaders, worship leaders, and administrators can create services.");
       return;
@@ -876,6 +883,56 @@ export function PresentationView({
       setMessage("New service created.");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Could not create a new service.");
+    }
+  }
+
+  async function openDraftService() {
+    if (serviceDraftPlanId) {
+      await selectPlan(serviceDraftPlanId);
+      return;
+    }
+
+    await createServiceForDate(serviceDraftDate, serviceDraftTitle);
+  }
+
+  async function saveDraftService() {
+    if (!serviceDraftDate) {
+      setMessage("Choose a date first.");
+      return;
+    }
+    if (!serviceDraftPlanId) {
+      await createServiceForDate(serviceDraftDate, serviceDraftTitle);
+      return;
+    }
+    if (!canEditPlan) {
+      setMessage("Only service leaders, worship leaders, and administrators can edit services.");
+      return;
+    }
+
+    const target = plans.find((candidate) => candidate.id === serviceDraftPlanId);
+    const currentDetail = serviceDraftPlanId === plan?.id ? plan : null;
+    const primaryPlanType = serviceTypeForDate(serviceDraftDate);
+    if (!primaryPlanType || !target) {
+      setMessage("Could not find that service.");
+      return;
+    }
+
+    try {
+      await updatePlan(serviceDraftPlanId, {
+        plan_type_id: currentDetail?.plan_type_id ?? primaryPlanType.id,
+        service_date: serviceIsoFromDateInput(serviceDraftDate),
+        title: serviceDraftTitle.trim() || suggestedServiceTitle(serviceDraftDate),
+        subtitle: currentDetail?.subtitle ?? null,
+        leader_id: currentDetail?.leader_id ?? null,
+        teacher_id: currentDetail?.teacher_id ?? null,
+        status: currentDetail?.status ?? target.status,
+        info: currentDetail?.info ?? null,
+      });
+      await load(serviceDraftPlanId, { refreshCatalogs: true });
+      setServicePickerOpen(false);
+      setMessage("Service updated.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not update this service.");
     }
   }
 
@@ -1983,9 +2040,15 @@ export function PresentationView({
                 <div className="stack-list compact service-date-list">
                   {sortedPlans.map((planSummary) => (
                     <button
-                      className={`stack-row ${planSummary.id === selectedPlanId ? "selected" : ""}`}
+                      className={`stack-row ${planSummary.id === serviceDraftPlanId ? "selected" : ""}`}
                       key={planSummary.id}
-                      onClick={() => void selectPlan(planSummary.id)}
+                      onClick={() => {
+                        const dateInput = dateInputFromIso(planSummary.service_date);
+                        setServiceDraftPlanId(planSummary.id);
+                        setServiceDraftDate(dateInput);
+                        setServiceDraftTitle(planSummary.title);
+                        setServiceCalendarMonth(dateInput.slice(0, 7) || serviceCalendarMonth);
+                      }}
                       type="button"
                     >
                       <strong>{formatServiceDate(planSummary.service_date)}</strong>
@@ -2006,8 +2069,10 @@ export function PresentationView({
                     <input
                       onChange={(event) => {
                         const nextDate = event.target.value;
+                        const existing = plansByDate.get(nextDate);
                         setServiceDraftDate(nextDate);
-                        setServiceDraftTitle(suggestedServiceTitle(nextDate));
+                        setServiceDraftPlanId(existing?.id ?? null);
+                        setServiceDraftTitle(existing?.title ?? suggestedServiceTitle(nextDate));
                         setServiceCalendarMonth(nextDate.slice(0, 7) || serviceCalendarMonth);
                       }}
                       type="date"
@@ -2024,8 +2089,21 @@ export function PresentationView({
                   </label>
                 </div>
                 <div className="action-row">
-                  <button className="primary-button" disabled={!canCreatePlan || !serviceDraftDate} onClick={() => void createServiceForDate()} type="button">
-                    Create Service
+                  <button
+                    className="primary-button"
+                    disabled={!serviceDraftDate || (!serviceDraftPlanId && !canCreatePlan)}
+                    onClick={() => void openDraftService()}
+                    type="button"
+                  >
+                    {serviceDraftPlanId ? "Open Service" : "Create & Open"}
+                  </button>
+                  <button
+                    className="text-button"
+                    disabled={!serviceDraftDate || (!serviceDraftPlanId && !canCreatePlan) || (Boolean(serviceDraftPlanId) && !canEditPlan)}
+                    onClick={() => void saveDraftService()}
+                    type="button"
+                  >
+                    {serviceDraftPlanId ? "Save Changes" : "Create Service"}
                   </button>
                 </div>
                 {plan && canDeletePlan ? (
