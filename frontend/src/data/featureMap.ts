@@ -1,6 +1,7 @@
 export type ModuleId =
   | "planning"
   | "music"
+  | "worship"
   | "people"
   | "presentation"
   | "imports"
@@ -75,6 +76,31 @@ export const featureModules: FeatureModule[] = [
       {
         title: "Collaboration",
         items: ["Plan notes", "Item notes", "Read markers", "Audit history"],
+      },
+    ],
+  },
+  {
+    id: "worship",
+    label: "Worship",
+    kicker: "Songs and sets",
+    status: "Ready",
+    metrics: [
+      { label: "Mode", value: "Builder" },
+      { label: "Slides", value: "Songs" },
+      { label: "Chords", value: "Next" },
+    ],
+    lanes: [
+      {
+        title: "Build",
+        items: ["Search songs", "Add to service", "Reorder worship set", "Remove song items"],
+      },
+      {
+        title: "Review",
+        items: ["Lyric slide tiles", "Song sections", "Ready status", "Missing lyrics"],
+      },
+      {
+        title: "Live",
+        items: ["Musician view", "Chord overlay", "Transpose", "Capo shapes"],
       },
     ],
   },

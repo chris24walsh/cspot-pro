@@ -2,6 +2,7 @@ import {
   CalendarDays,
   Clapperboard,
   ListMusic,
+  Music2,
   Settings,
   UploadCloud,
   UsersRound,
@@ -27,12 +28,14 @@ import { PresentationOutput } from "./components/PresentationOutput";
 import { PresentationView } from "./components/PresentationView";
 import { SongManager } from "./components/SongManager";
 import { UserManager } from "./components/UserManager";
+import { WorshipBuilderView } from "./components/WorshipBuilderView";
 import { featureModules, type FeatureModule, type ModuleId } from "./data/featureMap";
 import { appAssetUrl } from "./paths";
 
 const iconMap = {
   planning: CalendarDays,
   music: ListMusic,
+  worship: Music2,
   people: UsersRound,
   presentation: Clapperboard,
   imports: UploadCloud,
@@ -79,6 +82,11 @@ function App() {
   const canEditSongs = canCreateSongs || permissions.has("songs:edit");
   const canUsePresentation = permissions.has("presentation:use");
   const canCreateLibrary = permissions.has("library:create");
+  const roleNames = useMemo(() => new Set(sessionUser?.roles ?? []), [sessionUser?.roles]);
+  const canUseServiceOperator =
+    canUsePresentation &&
+    (roleNames.has("administrator") || roleNames.has("service_leader") || roleNames.has("worship_leader"));
+  const canUseWorshipTools = canReadSongs && permissions.has("plans:read");
 
   const loadAuth = useCallback(async () => {
     setAuthLoading(true);
@@ -179,15 +187,18 @@ function App() {
         if (module.id === "music") {
           return canReadSongs;
         }
+        if (module.id === "worship") {
+          return canUseWorshipTools;
+        }
         if (module.id === "presentation") {
-          return canUsePresentation;
+          return canUseServiceOperator;
         }
         if (module.id === "admin") {
           return canManageUsers;
         }
         return true;
       }),
-    [canManageUsers, canReadSongs, canUsePresentation, workspace],
+    [canManageUsers, canReadSongs, canUseServiceOperator, canUseWorshipTools, workspace],
   );
 
   const activeModule = useMemo(
@@ -210,6 +221,13 @@ function App() {
           label: "Ready",
           value: String(workspace.songs.filter((song) => song.lyrics_status === "available").length),
         },
+      ];
+    }
+
+    if (activeModule.id === "worship") {
+      return [
+        { label: "Services", value: String(workspace.plans.length) },
+        { label: "Songs", value: String(workspace.songs.length) },
       ];
     }
 
@@ -307,14 +325,16 @@ function App() {
           </div>
         </header>
 
-        {activeModuleId === "music" ? (
+        {activeModule.id === "music" ? (
           <SongManager
             canArchive={canDeleteSongs}
             canCreate={canCreateSongs}
             canEdit={canEditSongs}
             onDataChange={() => void loadWorkspace()}
           />
-        ) : activeModuleId === "presentation" ? (
+        ) : activeModule.id === "worship" ? (
+          <WorshipBuilderView canEditPlan={canEditPlans} />
+        ) : activeModule.id === "presentation" ? (
           <PresentationView
             canAttachDeck={canEditPlans && canCreateLibrary}
             canCreatePlan={canCreatePlans}
@@ -323,7 +343,7 @@ function App() {
             canCreateSong={canCreateSongs}
             canEditSong={canEditSongs}
           />
-        ) : activeModuleId === "admin" ? (
+        ) : activeModule.id === "admin" ? (
           <UserManager />
         ) : (
           <PresentationView

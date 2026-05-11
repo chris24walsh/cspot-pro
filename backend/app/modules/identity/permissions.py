@@ -54,11 +54,11 @@ ROLE_DEFINITIONS: dict[str, RoleDefinition] = {
         "permissions": VIEWER_PERMISSIONS,
     },
     "musician": {
-        "description": "Use service, song, chord, team, and presentation tools. Cannot edit or delete content.",
+        "description": "Use worship song, chord, team, and live musician tools. Cannot edit or delete content.",
         "permissions": PARTICIPANT_PERMISSIONS,
     },
     "worship_team": {
-        "description": "Add/edit songs and existing service items. Cannot archive/delete songs, services, users, or integrations.",
+        "description": "Add/edit songs and build worship sets for existing services. Cannot archive/delete songs, services, users, or integrations.",
         "permissions": PARTICIPANT_PERMISSIONS | {"plans:edit", "songs:edit", "songs:create"},
     },
     "service_leader": {
