@@ -12,7 +12,6 @@ import {
 import {
   LEADING_CHORD_ANCHORS,
   TRAILING_CHORD_ANCHORS,
-  displayChord,
   lyricLines,
   parseChordChart,
   transposeChordSymbol,
@@ -73,12 +72,49 @@ function clampNumber(value: number, min: number, max: number) {
   return Math.min(Math.max(value, min), max);
 }
 
-function fitFontSize(lines: string[], withChordRows: boolean) {
+function fitFontSize(lines: string[]) {
   const lineCount = Math.max(lines.length, 1);
   const longestLine = Math.max(...lines.map((line) => Array.from(line).length), 1);
-  const widthDrivenSize = 980 / Math.max(longestLine * (withChordRows ? 0.72 : 0.58), 1);
-  const heightDrivenSize = 430 / Math.max(lineCount * (withChordRows ? 1.48 : 1.12), 1);
-  return Math.floor(clampNumber(Math.min(widthDrivenSize, heightDrivenSize), withChordRows ? 17 : 24, withChordRows ? 44 : 78));
+  const widthDrivenSize = 980 / Math.max(longestLine * 0.72, 1);
+  const heightDrivenSize = 430 / Math.max(lineCount * 1.48, 1);
+  return Math.floor(clampNumber(Math.min(widthDrivenSize, heightDrivenSize), 17, 44));
+}
+
+function fitFontSizeForSlides(slideTexts: string[]) {
+  const sizes = slideTexts.map((text) => fitFontSize(lyricLines(text))).filter((size) => Number.isFinite(size));
+  if (!sizes.length) {
+    return 34;
+  }
+  return Math.min(...sizes);
+}
+
+function musicianChordLabel(
+  chord: string,
+  options: {
+    chartCapo: number;
+    capo: number;
+    detailMode: ChordDetailMode;
+    displayMode: ChordDisplayMode;
+    transposeBy: number;
+  },
+) {
+  const preferFlats = chord.includes("b");
+  const capoShape = transposeChordSymbol(chord, -options.chartCapo, {
+    detailMode: options.detailMode,
+    preferFlats,
+  });
+
+  if (options.displayMode === "capo") {
+    return transposeChordSymbol(capoShape, options.transposeBy, {
+      detailMode: options.detailMode,
+      preferFlats,
+    });
+  }
+
+  return transposeChordSymbol(capoShape, options.capo + options.transposeBy, {
+    detailMode: options.detailMode,
+    preferFlats,
+  });
 }
 
 function publishStateForSlide(plan: PlanDetail, slides: ReturnType<typeof buildPresentationSlides>, nextIndex: number): PresentationLiveState {
@@ -102,16 +138,20 @@ function publishStateForSlide(plan: PlanDetail, slides: ReturnType<typeof buildP
 function MusicianChordLine({
   annotations,
   capo,
+  chartCapo,
   detailMode,
   displayMode,
   line,
+  showChords,
   transposeBy,
 }: {
   annotations: ChordAnnotation[];
   capo: number;
+  chartCapo: number;
   detailMode: ChordDetailMode;
   displayMode: ChordDisplayMode;
   line: string;
+  showChords: boolean;
   transposeBy: number;
 }) {
   const totalSlots = Math.max(LEADING_CHORD_ANCHORS + line.length + TRAILING_CHORD_ANCHORS, 16);
@@ -120,16 +160,16 @@ function MusicianChordLine({
   return (
     <div className="musician-chord-line" style={{ gridTemplateColumns: `repeat(${totalSlots}, minmax(0, 1ch))` }}>
       {annotations.map((annotation) => {
-        const shiftedChord = transposeChordSymbol(annotation.chord, transposeBy, { detailMode });
-        const label = displayChord(shiftedChord, {
+        const label = musicianChordLabel(annotation.chord, {
           capo,
+          chartCapo,
           detailMode,
           displayMode,
-          preferFlats: shiftedChord.includes("b"),
+          transposeBy,
         });
         return (
           <span
-            className="musician-chord-token"
+            className={`musician-chord-token ${showChords ? "" : "is-hidden"}`}
             key={annotation.id}
             style={{
               gridColumn: `${Math.min(Math.max(annotation.anchorIndex + 1, 1), totalSlots)} / span ${Math.max(label.length, 1)}`,
@@ -169,6 +209,10 @@ export function MusicianLiveView({ plan, songs }: MusicianLiveViewProps) {
   const liveItem = plan?.items.find((item) => item.id === liveSlide?.planItemId) ?? null;
   const liveSong = liveItem?.song_id ? songs.find((song) => song.id === liveItem.song_id) ?? null : null;
   const chordChart = useMemo(() => parseChordChart(liveSong?.chords ?? null).document, [liveSong?.chords]);
+  const liveFontSize = useMemo(
+    () => fitFontSizeForSlides(slides.filter((slide) => slide.itemType === "song").map((slide) => slide.text)),
+    [slides],
+  );
   const slideLineOffset = useMemo(
     () => findSlideLineOffset(liveSong?.lyrics ?? "", liveSlide?.text ?? ""),
     [liveSlide?.text, liveSong?.lyrics],
@@ -263,7 +307,6 @@ export function MusicianLiveView({ plan, songs }: MusicianLiveViewProps) {
   }
 
   const lyricLinesForSlide = lyricLines(liveSlide?.text ?? "");
-  const liveFontSize = fitFontSize(lyricLinesForSlide, showChords);
 
   return (
     <section className="musician-live-view" aria-label="Musician live view">
@@ -273,14 +316,15 @@ export function MusicianLiveView({ plan, songs }: MusicianLiveViewProps) {
           <h2>{liveSong?.title ?? liveSlide?.sectionTitle ?? "Waiting for a song"}</h2>
         </div>
         <div className="musician-live-controls">
-          <div className="segmented-control compact-toggle" aria-label="Chord visibility">
-            <button className={showChords ? "is-active" : ""} onClick={() => setShowChords(true)} type="button">
+          <button
+            aria-pressed={showChords}
+            className={`chord-toggle-button ${showChords ? "is-active" : ""}`}
+            onClick={() => setShowChords((current) => !current)}
+            type="button"
+          >
+            <span aria-hidden="true" />
               Chords
-            </button>
-            <button className={!showChords ? "is-active" : ""} onClick={() => setShowChords(false)} type="button">
-              Lyrics
-            </button>
-          </div>
+          </button>
           <div className="segmented-control compact-toggle" aria-label="Chord display mode">
             <button className={displayMode === "absolute" ? "is-active" : ""} onClick={() => setDisplayMode("absolute")} type="button">
               Abs
@@ -341,25 +385,20 @@ export function MusicianLiveView({ plan, songs }: MusicianLiveViewProps) {
             <h3>{liveSlide.sectionTitle}</h3>
             <p>The congregation view is not on a song right now.</p>
           </div>
-        ) : showChords ? (
+        ) : (
           <div className="musician-chord-sheet" aria-label="Lyrics with chords">
             {lyricLinesForSlide.map((line, index) => (
               <MusicianChordLine
                 annotations={annotationsByLine.get(index) ?? []}
                 capo={capo}
+                chartCapo={chordChart.capo}
                 detailMode={detailMode}
                 displayMode={displayMode}
                 key={`${index}-${line}`}
                 line={line}
+                showChords={showChords}
                 transposeBy={transposeBy}
               />
-            ))}
-            {!chordChart.annotations.length ? <p className="musician-chord-hint">No chords saved for this song yet.</p> : null}
-          </div>
-        ) : (
-          <div className="musician-lyrics-only">
-            {lyricLinesForSlide.map((line, index) => (
-              <p key={`${index}-${line}`}>{line}</p>
             ))}
           </div>
         )}

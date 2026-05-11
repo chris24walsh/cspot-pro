@@ -888,6 +888,55 @@ h3 {
   width: 72px;
 }
 
+.chord-toggle-button {
+  align-items: center;
+  background: #fffdf7;
+  border: 1px solid #cfc7b4;
+  border-radius: 999px;
+  color: #234a40;
+  cursor: pointer;
+  display: inline-flex;
+  font-size: 12px;
+  font-weight: 900;
+  gap: 6px;
+  min-height: 30px;
+  padding: 4px 10px 4px 5px;
+}
+
+.chord-toggle-button span {
+  background: #cfc7b4;
+  border-radius: 999px;
+  display: inline-block;
+  height: 18px;
+  position: relative;
+  width: 32px;
+}
+
+.chord-toggle-button span::after {
+  background: #fffefa;
+  border-radius: 999px;
+  content: "";
+  height: 14px;
+  left: 2px;
+  position: absolute;
+  top: 2px;
+  transition: transform 140ms ease;
+  width: 14px;
+}
+
+.chord-toggle-button.is-active {
+  background: #eaf5ef;
+  border-color: #8ebba9;
+}
+
+.chord-toggle-button.is-active span {
+  background: #234a40;
+}
+
+.chord-toggle-button.is-active span::after {
+  transform: translateX(14px);
+}
+
 .icon-text-button {
   gap: 6px;
 }
@@ -938,6 +987,10 @@ h3 {
   white-space: nowrap;
 }
 
+.musician-chord-token.is-hidden {
+  visibility: hidden;
+}
+
 .musician-lyric-character,
 .musician-lyric-space {
   grid-row: 2;
@@ -954,15 +1007,6 @@ h3 {
   font-weight: 850;
   line-height: 1.08;
   margin: 0;
-}
-
-.musician-chord-hint {
-  align-self: center;
-  color: #65716a;
-  font-size: 13px;
-  font-weight: 750;
-  margin: 0;
-  text-align: center;
 }
 
 .musician-live-waiting {

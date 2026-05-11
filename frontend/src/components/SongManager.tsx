@@ -540,22 +540,22 @@ export function SongManager({
   function updateCapo(nextCapoValue: number) {
     const nextCapo = Math.max(0, Math.trunc(nextCapoValue));
     setChordChart((current) => {
-      const currentLinkedAbsoluteKey =
-        current.absoluteKey && current.capoKey && deriveAbsoluteKey(current.capoKey, current.capo) === current.absoluteKey;
+      const capoDelta = nextCapo - current.capo;
+      const preserveCapoShapes = displayMode === "capo" || current.keyAnchor === "capo";
       const nextChart: ChordChartDocument = {
         ...current,
         capo: nextCapo,
       };
 
+      if (preserveCapoShapes && capoDelta !== 0) {
+        const targetKey = current.capoKey ? deriveAbsoluteKey(current.capoKey, nextCapo) : current.absoluteKey;
+        nextChart.annotations = transposeChordAnnotations(current.annotations, capoDelta, {
+          preferFlats: targetKey?.includes("b"),
+        });
+      }
+
       if (current.keyAnchor === "capo" && current.capoKey) {
         const nextAbsoluteKey = deriveAbsoluteKey(current.capoKey, nextCapo);
-        if (current.absoluteKey && currentLinkedAbsoluteKey && current.absoluteKey !== nextAbsoluteKey) {
-          nextChart.annotations = transposeChordAnnotations(
-            current.annotations,
-            semitoneDistance(current.absoluteKey, nextAbsoluteKey),
-            { preferFlats: nextAbsoluteKey.includes("b") },
-          );
-        }
         nextChart.absoluteKey = nextAbsoluteKey;
       } else if (current.absoluteKey) {
         nextChart.capoKey = deriveCapoKey(current.absoluteKey, nextCapo);
