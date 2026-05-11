@@ -1,4 +1,5 @@
 import { ChevronLeft, ChevronRight, Maximize2, Music2 } from "lucide-react";
+import type { CSSProperties } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import {
@@ -66,6 +67,18 @@ function boundedIndex(index: number, length: number) {
     return 0;
   }
   return Math.min(Math.max(index, 0), length - 1);
+}
+
+function clampNumber(value: number, min: number, max: number) {
+  return Math.min(Math.max(value, min), max);
+}
+
+function fitFontSize(lines: string[], withChordRows: boolean) {
+  const lineCount = Math.max(lines.length, 1);
+  const longestLine = Math.max(...lines.map((line) => Array.from(line).length), 1);
+  const widthDrivenSize = 980 / Math.max(longestLine * (withChordRows ? 0.72 : 0.58), 1);
+  const heightDrivenSize = 430 / Math.max(lineCount * (withChordRows ? 1.48 : 1.12), 1);
+  return Math.floor(clampNumber(Math.min(widthDrivenSize, heightDrivenSize), withChordRows ? 17 : 24, withChordRows ? 44 : 78));
 }
 
 function publishStateForSlide(plan: PlanDetail, slides: ReturnType<typeof buildPresentationSlides>, nextIndex: number): PresentationLiveState {
@@ -250,7 +263,7 @@ export function MusicianLiveView({ plan, songs }: MusicianLiveViewProps) {
   }
 
   const lyricLinesForSlide = lyricLines(liveSlide?.text ?? "");
-  const hasChordAnnotations = chordChart.annotations.length > 0;
+  const liveFontSize = fitFontSize(lyricLinesForSlide, showChords);
 
   return (
     <section className="musician-live-view" aria-label="Musician live view">
@@ -313,7 +326,10 @@ export function MusicianLiveView({ plan, songs }: MusicianLiveViewProps) {
 
       {message ? <p className="form-message">{message}</p> : null}
 
-      <div className="musician-live-stage">
+      <div
+        className="musician-live-stage"
+        style={{ "--musician-live-font-size": `${liveFontSize}px` } as CSSProperties & Record<"--musician-live-font-size", string>}
+      >
         {!liveSlide ? (
           <p className="empty-state compact-empty">
             <Music2 size={18} aria-hidden="true" />
@@ -325,7 +341,7 @@ export function MusicianLiveView({ plan, songs }: MusicianLiveViewProps) {
             <h3>{liveSlide.sectionTitle}</h3>
             <p>The congregation view is not on a song right now.</p>
           </div>
-        ) : showChords && hasChordAnnotations ? (
+        ) : showChords ? (
           <div className="musician-chord-sheet" aria-label="Lyrics with chords">
             {lyricLinesForSlide.map((line, index) => (
               <MusicianChordLine
@@ -338,6 +354,7 @@ export function MusicianLiveView({ plan, songs }: MusicianLiveViewProps) {
                 transposeBy={transposeBy}
               />
             ))}
+            {!chordChart.annotations.length ? <p className="musician-chord-hint">No chords saved for this song yet.</p> : null}
           </div>
         ) : (
           <div className="musician-lyrics-only">

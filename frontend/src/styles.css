@@ -902,7 +902,7 @@ h3 {
   display: grid;
   justify-items: center;
   min-height: 0;
-  overflow: auto;
+  overflow: hidden;
   padding: clamp(18px, 4vw, 48px);
 }
 
@@ -917,11 +917,12 @@ h3 {
 .musician-chord-line {
   display: grid;
   font-family: "Courier New", Courier, monospace;
-  font-size: clamp(21px, 3vw, 44px);
+  font-size: var(--musician-live-font-size, clamp(21px, 3vw, 44px));
   justify-content: center;
   line-height: 1.08;
   min-width: 0;
-  overflow-x: auto;
+  max-width: 100%;
+  overflow: hidden;
   row-gap: 2px;
   white-space: pre;
 }
@@ -949,10 +950,19 @@ h3 {
 }
 
 .musician-lyrics-only p {
-  font-size: clamp(36px, 5vw, 80px);
+  font-size: var(--musician-live-font-size, clamp(36px, 5vw, 80px));
   font-weight: 850;
   line-height: 1.08;
   margin: 0;
+}
+
+.musician-chord-hint {
+  align-self: center;
+  color: #65716a;
+  font-size: 13px;
+  font-weight: 750;
+  margin: 0;
+  text-align: center;
 }
 
 .musician-live-waiting {
