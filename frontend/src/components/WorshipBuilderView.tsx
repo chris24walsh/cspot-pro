@@ -1,4 +1,4 @@
-import { ChevronDown, ChevronUp, ListPlus, Music2, Trash2 } from "lucide-react";
+import { ChevronDown, ChevronUp, ListPlus, MonitorUp, Music2, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
 import {
@@ -15,6 +15,7 @@ import {
 } from "../api";
 import { buildPresentationSections, suggestSlideGroupFontCap } from "../presentation";
 import { AutoFitSlideText } from "./AutoFitSlideText";
+import { MusicianLiveView } from "./MusicianLiveView";
 
 interface WorshipBuilderViewProps {
   canEditPlan: boolean;
@@ -54,6 +55,7 @@ export function WorshipBuilderView({ canEditPlan }: WorshipBuilderViewProps) {
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<"builder" | "live">("builder");
 
   const sortedPlans = useMemo(
     () =>
@@ -185,6 +187,33 @@ export function WorshipBuilderView({ canEditPlan }: WorshipBuilderViewProps) {
     }
   }
 
+  if (viewMode === "live") {
+    return (
+      <section className="worship-builder worship-live-shell" aria-label="Musician live worship">
+        <div className="worship-live-topbar">
+          <label>
+            Service
+            <select
+              disabled={loading}
+              onChange={(event) => void selectPlan(event.target.value)}
+              value={selectedPlanId}
+            >
+              {sortedPlans.map((service) => (
+                <option key={service.id} value={service.id}>
+                  {formatServiceDate(service.service_date)} · {service.title}
+                </option>
+              ))}
+            </select>
+          </label>
+          <button className="text-button" onClick={() => setViewMode("builder")} type="button">
+            Back to builder
+          </button>
+        </div>
+        <MusicianLiveView plan={plan} songs={songs} />
+      </section>
+    );
+  }
+
   return (
     <section className="worship-builder" aria-label="Worship builder">
       <aside className="worship-song-browser">
@@ -242,6 +271,10 @@ export function WorshipBuilderView({ canEditPlan }: WorshipBuilderViewProps) {
             <strong>{worshipItems.length}</strong>
             <span>worship songs</span>
           </div>
+          <button className="primary-button icon-text-button" disabled={!plan} onClick={() => setViewMode("live")} type="button">
+            <MonitorUp size={16} aria-hidden="true" />
+            Live View
+          </button>
         </div>
 
         {message ? <p className="form-message">{message}</p> : null}

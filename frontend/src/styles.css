@@ -698,7 +698,7 @@ h3 {
   align-items: end;
   display: grid;
   gap: 10px;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) auto auto;
 }
 
 .worship-set-toolbar label {
@@ -795,6 +795,190 @@ h3 {
 
 .worship-slide-list {
   grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.worship-live-shell {
+  display: grid;
+  grid-template-columns: 1fr;
+  grid-template-rows: auto minmax(0, 1fr);
+}
+
+.worship-live-topbar {
+  align-items: end;
+  background: #fffefa;
+  border: 1px solid #e3dcc8;
+  border-radius: 8px;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  padding: 10px;
+}
+
+.worship-live-topbar label {
+  color: #3b4741;
+  display: grid;
+  font-size: 12px;
+  font-weight: 900;
+  gap: 5px;
+}
+
+.worship-live-topbar select {
+  background: #fffdf7;
+  border: 1px solid #cfc7b4;
+  border-radius: 8px;
+  color: #17201b;
+  font: inherit;
+  min-height: 38px;
+  min-width: 0;
+  padding: 8px 10px;
+  width: 100%;
+}
+
+.musician-live-view {
+  background: #fffefa;
+  border: 1px solid #e3dcc8;
+  border-radius: 8px;
+  display: grid;
+  gap: 10px;
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
+  min-height: 0;
+  overflow: hidden;
+  padding: 14px;
+}
+
+.musician-live-toolbar {
+  align-items: start;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: minmax(220px, 0.44fr) minmax(0, 1fr);
+}
+
+.musician-live-toolbar h2 {
+  font-size: clamp(24px, 3vw, 42px);
+  margin: 0;
+}
+
+.musician-live-controls {
+  align-items: end;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.compact-number-field {
+  color: #3b4741;
+  display: grid;
+  font-size: 11px;
+  font-weight: 900;
+  gap: 3px;
+  text-transform: uppercase;
+}
+
+.compact-number-field input {
+  background: #fffdf7;
+  border: 1px solid #cfc7b4;
+  border-radius: 8px;
+  color: #17201b;
+  font: inherit;
+  font-size: 15px;
+  font-weight: 900;
+  min-height: 30px;
+  padding: 4px 8px;
+  width: 72px;
+}
+
+.icon-text-button {
+  gap: 6px;
+}
+
+.musician-live-stage {
+  align-items: center;
+  background:
+    linear-gradient(180deg, rgba(235, 248, 239, 0.78), rgba(255, 253, 247, 0.9)),
+    #fffefa;
+  border: 1px solid #d8d0bd;
+  border-radius: 8px;
+  display: grid;
+  justify-items: center;
+  min-height: 0;
+  overflow: auto;
+  padding: clamp(18px, 4vw, 48px);
+}
+
+.musician-chord-sheet,
+.musician-lyrics-only {
+  display: grid;
+  gap: clamp(16px, 2vh, 26px);
+  justify-content: center;
+  width: min(100%, 1120px);
+}
+
+.musician-chord-line {
+  display: grid;
+  font-family: "Courier New", Courier, monospace;
+  font-size: clamp(21px, 3vw, 44px);
+  justify-content: center;
+  line-height: 1.08;
+  min-width: 0;
+  overflow-x: auto;
+  row-gap: 2px;
+  white-space: pre;
+}
+
+.musician-chord-token {
+  align-self: end;
+  color: #075a77;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: 0.52em;
+  font-weight: 900;
+  line-height: 1;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.musician-lyric-character,
+.musician-lyric-space {
+  grid-row: 2;
+}
+
+.musician-lyrics-only {
+  align-content: center;
+  min-height: 100%;
+  text-align: center;
+}
+
+.musician-lyrics-only p {
+  font-size: clamp(36px, 5vw, 80px);
+  font-weight: 850;
+  line-height: 1.08;
+  margin: 0;
+}
+
+.musician-live-waiting {
+  display: grid;
+  gap: 8px;
+  justify-items: center;
+  text-align: center;
+}
+
+.musician-live-waiting h3 {
+  font-size: clamp(32px, 5vw, 72px);
+  margin: 0;
+}
+
+.musician-live-transport {
+  align-items: center;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+}
+
+.musician-live-transport span {
+  color: #3b4741;
+  font-weight: 900;
+  min-width: 72px;
+  text-align: center;
 }
 
 .compact-empty {
@@ -3421,6 +3605,21 @@ h3 {
     overflow: visible;
   }
 
+  .worship-set-toolbar,
+  .worship-live-topbar,
+  .musician-live-toolbar {
+    grid-template-columns: 1fr;
+  }
+
+  .worship-set-toolbar .primary-button,
+  .worship-live-topbar .text-button {
+    justify-self: stretch;
+  }
+
+  .musician-live-controls {
+    justify-content: flex-start;
+  }
+
   .song-editor-panel {
     max-height: calc(100svh - 144px);
   }
@@ -3592,6 +3791,26 @@ h3 {
   .field-action-row {
     flex-wrap: wrap;
     justify-content: flex-start;
+  }
+
+  .musician-live-view {
+    padding: 8px;
+  }
+
+  .musician-live-stage {
+    padding: 16px 8px;
+  }
+
+  .musician-chord-line {
+    font-size: clamp(19px, 5vw, 28px);
+  }
+
+  .musician-lyrics-only p {
+    font-size: clamp(30px, 8vw, 54px);
+  }
+
+  .musician-live-transport {
+    gap: 6px;
   }
 }
 .auth-shell {
