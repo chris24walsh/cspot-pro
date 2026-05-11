@@ -248,6 +248,8 @@ button {
 }
 
 .service-calendar-panel {
+  align-self: start;
+  grid-template-rows: auto auto;
   grid-row: 1 / span 2;
 }
 
@@ -297,6 +299,7 @@ button {
 }
 
 .service-calendar-grid {
+  align-content: start;
   display: grid;
   gap: 4px;
   grid-template-columns: repeat(7, minmax(0, 1fr));
@@ -321,6 +324,7 @@ button {
   cursor: pointer;
   display: grid;
   gap: 3px;
+  height: 48px;
   min-height: 48px;
   min-width: 0;
   padding: 5px;

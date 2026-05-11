@@ -51,6 +51,7 @@ export function PresentationOutput() {
   const [renderedSlidesByFileId, setRenderedSlidesByFileId] = useState<Record<string, RenderedSlide[]>>({});
   const [blanked, setBlanked] = useState(false);
   const lastLiveStateRef = useRef(0);
+  const livePollInFlightRef = useRef(false);
 
   const slides = useMemo(
     () => buildPresentationSlides(plan?.items ?? [], songs, renderedSlidesByFileId),
@@ -195,6 +196,10 @@ export function PresentationOutput() {
     }
 
     const timer = window.setInterval(() => {
+      if (livePollInFlightRef.current) {
+        return;
+      }
+      livePollInFlightRef.current = true;
       void (async () => {
         try {
           const remoteState = await getPresentationLiveState(liveState.planId);
@@ -213,11 +218,16 @@ export function PresentationOutput() {
           });
         } catch {
           // Keep showing the last known slide if remote polling drops briefly.
+        } finally {
+          livePollInFlightRef.current = false;
         }
       })();
-    }, 1200);
+    }, 2000);
 
-    return () => window.clearInterval(timer);
+    return () => {
+      livePollInFlightRef.current = false;
+      window.clearInterval(timer);
+    };
   }, [liveState?.planId]);
 
   useEffect(() => {

@@ -420,6 +420,7 @@ export function PresentationView({
   const sectionRailRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const currentLiveStateRef = useRef<PresentationLiveState | null>(null);
   const lastLiveStateRef = useRef<number>(0);
+  const livePollInFlightRef = useRef(false);
   const suppressPublishRef = useRef(false);
   const activeDeckLoadsRef = useRef<Set<string>>(new Set());
 
@@ -1685,6 +1686,10 @@ export function PresentationView({
     }
 
     const timer = window.setInterval(() => {
+      if (livePollInFlightRef.current) {
+        return;
+      }
+      livePollInFlightRef.current = true;
       void (async () => {
         try {
           const previousPlanItemId = currentLiveStateRef.current?.planItemId ?? null;
@@ -1714,11 +1719,16 @@ export function PresentationView({
           }
         } catch {
           // Keep local presentation usable even if sync polling fails briefly.
+        } finally {
+          livePollInFlightRef.current = false;
         }
       })();
-    }, 1200);
+    }, 2000);
 
-    return () => window.clearInterval(timer);
+    return () => {
+      livePollInFlightRef.current = false;
+      window.clearInterval(timer);
+    };
   }, [selectedPlanId, slides]);
 
   useEffect(() => {
