@@ -574,7 +574,7 @@ export async function bootstrapAdmin(payload: {
   });
 }
 
-export async function login(payload: { email: string; password: string }): Promise<SessionUser> {
+export async function login(payload: { email: string; password: string; remember?: boolean }): Promise<SessionUser> {
   return sendJson<SessionUser>("/api/v1/identity/auth/login", "POST", payload, {
     suppressAuthEvent: true,
   });

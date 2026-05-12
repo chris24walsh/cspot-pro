@@ -266,7 +266,7 @@ def login(
     if user is None or not user.active or not verify_password(payload.password, user.password_hash):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid email or password.")
 
-    set_session_cookie(response, user_id=user.id)
+    set_session_cookie(response, user_id=user.id, remember=payload.remember)
     return user_to_session_read(session, user)
 
 

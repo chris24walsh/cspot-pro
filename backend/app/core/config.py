@@ -14,6 +14,7 @@ class Settings(BaseSettings):
     database_url: str = "postgresql+psycopg://cspot:cspot@db:5432/cspot"
     auth_secret_key: str = "change-me-before-public-hosting"
     session_hours: int = 12
+    remembered_session_days: int = 30
     session_cookie_secure: bool = False
     auth_invite_hours: int = 72
     auth_reset_hours: int = 2

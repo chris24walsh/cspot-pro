@@ -81,12 +81,13 @@ def hash_auth_token(token: str) -> str:
     return sha256(token.encode("utf-8")).hexdigest()
 
 
-def build_session_token(*, user_id: str) -> str:
+def build_session_token(*, user_id: str, lifetime_hours: int | None = None) -> str:
     now = datetime.now(UTC)
+    hours = lifetime_hours if lifetime_hours is not None else settings.session_hours
     payload = {
         "sub": user_id,
         "iat": int(now.timestamp()),
-        "exp": int((now + timedelta(hours=settings.session_hours)).timestamp()),
+        "exp": int((now + timedelta(hours=hours)).timestamp()),
         "iss": settings.app_name,
     }
     return jwt.encode(payload, settings.auth_secret_key, algorithm=JWT_ALGORITHM)

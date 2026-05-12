@@ -54,6 +54,7 @@ class SessionUserRead(UserRead):
 class LoginRequest(BaseModel):
     email: str
     password: str
+    remember: bool = False
 
 
 class BootstrapStatusRead(BaseModel):

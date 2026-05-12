@@ -3915,6 +3915,48 @@ h3 {
   font-weight: 700;
 }
 
+.password-input-wrap {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  position: relative;
+}
+
+.password-input-wrap input {
+  grid-column: 1 / -1;
+  padding-right: 2.8rem;
+}
+
+.password-visibility-button {
+  align-self: stretch;
+  background: transparent;
+  border: 0;
+  color: #456159;
+  cursor: pointer;
+  display: inline-grid;
+  grid-column: 2;
+  grid-row: 1;
+  min-width: 2.6rem;
+  place-items: center;
+}
+
+.password-visibility-button:hover,
+.password-visibility-button:focus-visible {
+  color: #173f36;
+}
+
+.auth-remember-row {
+  align-items: center;
+  display: flex !important;
+  flex-direction: row;
+  gap: 0.55rem !important;
+  justify-content: flex-start;
+}
+
+.auth-remember-row input {
+  height: 1.05rem;
+  width: 1.05rem;
+}
+
 .auth-submit {
   justify-self: start;
 }

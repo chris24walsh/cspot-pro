@@ -1,4 +1,5 @@
 import { type FormEvent, useEffect, useMemo, useState } from "react";
+import { Eye, EyeOff } from "lucide-react";
 
 import {
   bootstrapAdmin,
@@ -17,6 +18,7 @@ interface AuthScreenProps {
 }
 
 type AuthMode = "login" | "bootstrap" | "forgot" | "password_setup";
+const REMEMBER_EMAIL_KEY = "cspot-pro:remember-email";
 
 function tokenHeading(tokenMeta: AuthActionToken | null) {
   if (tokenMeta?.purpose === "invite") {
@@ -45,8 +47,18 @@ export function AuthScreen({ bootstrapAvailable, onAuthenticated }: AuthScreenPr
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [remember, setRemember] = useState(() => Boolean(localStorage.getItem(REMEMBER_EMAIL_KEY)));
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    const rememberedEmail = localStorage.getItem(REMEMBER_EMAIL_KEY);
+    if (rememberedEmail && !actionToken) {
+      setEmail(rememberedEmail);
+    }
+  }, [actionToken]);
 
   useEffect(() => {
     if (actionToken) {
@@ -127,7 +139,12 @@ export function AuthScreen({ bootstrapAvailable, onAuthenticated }: AuthScreenPr
         return;
       }
 
-      const user = await login({ email, password });
+      const user = await login({ email, password, remember });
+      if (remember) {
+        localStorage.setItem(REMEMBER_EMAIL_KEY, email);
+      } else {
+        localStorage.removeItem(REMEMBER_EMAIL_KEY);
+      }
       onAuthenticated(user);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Could not complete that request.");
@@ -199,37 +216,74 @@ export function AuthScreen({ bootstrapAvailable, onAuthenticated }: AuthScreenPr
             <>
               <label>
                 Password
-                <input
-                  minLength={12}
-                  onChange={(event) => setPassword(event.target.value)}
-                  required
-                  type="password"
-                  value={password}
-                />
+                <span className="password-input-wrap">
+                  <input
+                    minLength={12}
+                    onChange={(event) => setPassword(event.target.value)}
+                    required
+                    type={showPassword ? "text" : "password"}
+                    value={password}
+                  />
+                  <button
+                    aria-label={showPassword ? "Hide password" : "Show password"}
+                    className="password-visibility-button"
+                    onClick={() => setShowPassword((current) => !current)}
+                    type="button"
+                  >
+                    {showPassword ? <EyeOff size={18} aria-hidden="true" /> : <Eye size={18} aria-hidden="true" />}
+                  </button>
+                </span>
               </label>
               <label>
                 Confirm password
-                <input
-                  minLength={12}
-                  onChange={(event) => setConfirmPassword(event.target.value)}
-                  required
-                  type="password"
-                  value={confirmPassword}
-                />
+                <span className="password-input-wrap">
+                  <input
+                    minLength={12}
+                    onChange={(event) => setConfirmPassword(event.target.value)}
+                    required
+                    type={showConfirmPassword ? "text" : "password"}
+                    value={confirmPassword}
+                  />
+                  <button
+                    aria-label={showConfirmPassword ? "Hide password" : "Show password"}
+                    className="password-visibility-button"
+                    onClick={() => setShowConfirmPassword((current) => !current)}
+                    type="button"
+                  >
+                    {showConfirmPassword ? <EyeOff size={18} aria-hidden="true" /> : <Eye size={18} aria-hidden="true" />}
+                  </button>
+                </span>
               </label>
             </>
           ) : mode === "forgot" ? null : (
             <label>
               Password
-              <input
-                minLength={mode === "bootstrap" ? 12 : undefined}
-                onChange={(event) => setPassword(event.target.value)}
-                required
-                type="password"
-                value={password}
-              />
+              <span className="password-input-wrap">
+                <input
+                  minLength={mode === "bootstrap" ? 12 : undefined}
+                  onChange={(event) => setPassword(event.target.value)}
+                  required
+                  type={showPassword ? "text" : "password"}
+                  value={password}
+                />
+                <button
+                  aria-label={showPassword ? "Hide password" : "Show password"}
+                  className="password-visibility-button"
+                  onClick={() => setShowPassword((current) => !current)}
+                  type="button"
+                >
+                  {showPassword ? <EyeOff size={18} aria-hidden="true" /> : <Eye size={18} aria-hidden="true" />}
+                </button>
+              </span>
             </label>
           )}
+
+          {mode === "login" ? (
+            <label className="auth-remember-row">
+              <input checked={remember} onChange={(event) => setRemember(event.target.checked)} type="checkbox" />
+              <span>Remember me</span>
+            </label>
+          ) : null}
 
           {message ? <p className="form-message">{message}</p> : null}
 

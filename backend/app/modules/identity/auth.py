@@ -48,14 +48,19 @@ def has_bootstrap_admin(session: Session) -> bool:
     )
 
 
-def set_session_cookie(response: Response, *, user_id: str) -> None:
+def set_session_cookie(response: Response, *, user_id: str, remember: bool = False) -> None:
+    max_age = (
+        settings.remembered_session_days * 24 * 60 * 60
+        if remember
+        else settings.session_hours * 60 * 60
+    )
     response.set_cookie(
         key=SESSION_COOKIE_NAME,
-        value=build_session_token(user_id=user_id),
+        value=build_session_token(user_id=user_id, lifetime_hours=max_age // 3600),
         httponly=True,
         secure=settings.session_cookie_secure,
         samesite="lax",
-        max_age=settings.session_hours * 60 * 60,
+        max_age=max_age,
         path="/",
     )
 
