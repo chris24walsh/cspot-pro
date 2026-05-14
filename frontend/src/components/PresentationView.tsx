@@ -434,6 +434,14 @@ export function PresentationView({
     () => mergeWorshipSetIntoService(plan?.items ?? [], worshipSetPlan?.items ?? []),
     [plan?.items, worshipSetPlan?.items],
   );
+  const serviceItemsById = useMemo(
+    () => new Map((plan?.items ?? []).map((item) => [item.id, item] as const)),
+    [plan?.items],
+  );
+  const worshipSetItemsById = useMemo(
+    () => new Map((worshipSetPlan?.items ?? []).map((item) => [item.id, item] as const)),
+    [worshipSetPlan?.items],
+  );
   const sections = useMemo(
     () => buildPresentationSections(effectivePlanItems, songs, renderedSlidesByFileId),
     [effectivePlanItems, songs, renderedSlidesByFileId],
@@ -1039,6 +1047,28 @@ export function PresentationView({
     });
   }
 
+  function orderedWorshipSetItems() {
+    return [...(worshipSetPlan?.items ?? [])].sort((first, second) => {
+      const firstSequence = Number.parseFloat(first.sequence) || 0;
+      const secondSequence = Number.parseFloat(second.sequence) || 0;
+      return firstSequence - secondSequence;
+    });
+  }
+
+  function sectionPlanItem(sectionId: string) {
+    return serviceItemsById.get(sectionId) ?? worshipSetItemsById.get(sectionId) ?? null;
+  }
+
+  function sectionOwner(sectionId: string) {
+    if (serviceItemsById.has(sectionId)) {
+      return "service";
+    }
+    if (worshipSetItemsById.has(sectionId)) {
+      return "worship";
+    }
+    return null;
+  }
+
   function sequenceForInsert(afterIndex: number) {
     const orderedItems = orderedPlanItems();
     const previous = afterIndex >= 0 ? orderedItems[afterIndex] : null;
@@ -1480,6 +1510,12 @@ export function PresentationView({
       return;
     }
 
+    const owner = sectionOwner(sectionId);
+    if (owner === "worship" && !worshipSetPlan) {
+      setMessage("Could not find the worship set for this song.");
+      return;
+    }
+
     try {
       await deletePlanItem(sectionId);
       await load(plan.id);
@@ -1493,7 +1529,12 @@ export function PresentationView({
       return;
     }
 
-    const orderedItems = orderedPlanItems();
+    const owner = sectionOwner(sectionId);
+    if (!owner) {
+      return;
+    }
+
+    const orderedItems = owner === "worship" ? orderedWorshipSetItems() : orderedPlanItems();
     const itemIndex = orderedItems.findIndex((item) => item.id === sectionId);
     const target = orderedItems[itemIndex + delta];
     const item = orderedItems[itemIndex];
@@ -2326,7 +2367,7 @@ export function PresentationView({
           <div className="slide-grid" aria-label="All slides" ref={slideGridRef}>
             {sections.map((section) => {
               const sectionStart = slides.findIndex((slide) => slide.sectionId === section.id);
-              const sectionItem = (plan?.items ?? []).find((item) => item.id === section.id);
+              const sectionItem = sectionPlanItem(section.id);
               const sectionFileIds = sectionItem?.files?.map((file) => file.file_id) ?? [];
               const canEditSectionSong = canEditSong && sectionItem?.song_id;
               const deckStatus = describeDeckStatus(
@@ -2445,8 +2486,10 @@ export function PresentationView({
             ) : null}
             {sections.map((section, sectionIndex) => {
               const sectionStart = slides.findIndex((slide) => slide.sectionId === section.id);
-              const sectionItem = (plan?.items ?? []).find((item) => item.id === section.id);
+              const sectionItem = sectionPlanItem(section.id);
               const canEditSectionSong = canEditSong && sectionItem?.song_id;
+              const ownerItems = sectionOwner(section.id) === "worship" ? orderedWorshipSetItems() : orderedPlanItems();
+              const ownerItemIndex = ownerItems.findIndex((item) => item.id === section.id);
               return (
                 <div
                   key={section.id}
@@ -2485,7 +2528,7 @@ export function PresentationView({
                         <button
                           aria-label={`Move ${section.title} up`}
                           className="section-icon-button"
-                          disabled={sectionIndex === 0}
+                          disabled={ownerItemIndex <= 0}
                           onClick={() => void moveSection(section.id, -1)}
                           type="button"
                         >
@@ -2494,7 +2537,7 @@ export function PresentationView({
                         <button
                           aria-label={`Move ${section.title} down`}
                           className="section-icon-button"
-                          disabled={sectionIndex === sections.length - 1}
+                          disabled={ownerItemIndex < 0 || ownerItemIndex === ownerItems.length - 1}
                           onClick={() => void moveSection(section.id, 1)}
                           type="button"
                         >
