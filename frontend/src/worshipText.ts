@@ -49,6 +49,10 @@ function normalizeSectionHeading(line: string): string | null {
   return match[2] ? `${label}${match[2]}` : label;
 }
 
+function compactSectionLabel(label: string) {
+  return label.replace(/^(Verse|Section)\s+(\d+)$/i, (_, section: string, number: string) => `${section}${number}`);
+}
+
 export function isWorshipSectionHeading(line: string): boolean {
   return normalizeSectionHeading(line) !== null;
 }
@@ -195,7 +199,7 @@ export function splitWorshipSlides(value: string) {
 
 export function buildLyricsFromSections(sections: WorshipStructureSection[]) {
   return sections
-    .map((section) => [section.label ? `[${section.label}]` : "", section.content].filter(Boolean).join("\n").trim())
+    .map((section) => [section.label ? `[${compactSectionLabel(section.label)}]` : "", section.content].filter(Boolean).join("\n").trim())
     .filter(Boolean)
     .join("\n\n");
 }
@@ -366,7 +370,7 @@ function inferSectionsFromBlocks(blocks: string[]) {
     }
 
     if (hymnLike) {
-      labels.set(key, `Verse ${verseNumber}`);
+      labels.set(key, `Verse${verseNumber}`);
       verseNumber += 1;
       continue;
     }
@@ -397,7 +401,7 @@ function inferSectionsFromBlocks(blocks: string[]) {
       continue;
     }
 
-    labels.set(key, `Verse ${verseNumber}`);
+    labels.set(key, `Verse${verseNumber}`);
     verseNumber += 1;
   }
 
@@ -416,7 +420,7 @@ function inferSectionsFromBlocks(blocks: string[]) {
       return {
         content: block,
         key,
-        label: labels.get(key) ?? `Section ${firstIndex.get(key)! + 1}`,
+        label: labels.get(key) ?? `Section${firstIndex.get(key)! + 1}`,
       };
     }),
   };
