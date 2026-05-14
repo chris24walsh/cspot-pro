@@ -1399,15 +1399,16 @@ h3 {
   padding: 14px;
 }
 
-.musician-tools-header {
+.musician-tools-shell {
   align-items: start;
   display: grid;
-  gap: 14px;
-  grid-template-columns: minmax(130px, 170px) minmax(0, 1fr);
+  gap: 16px;
+  grid-template-columns: 220px minmax(0, 1fr);
+  min-width: 0;
 }
 
 .musician-chord-summary {
-  max-width: 170px;
+  width: 100%;
 }
 
 .musician-side-panel {
@@ -1421,16 +1422,15 @@ h3 {
   align-items: start;
   display: grid;
   gap: 10px;
-  justify-items: end;
+  justify-items: stretch;
   min-width: 0;
 }
 
 .musician-control-row {
   align-items: end;
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
   gap: 8px;
-  justify-content: flex-end;
+  justify-content: stretch;
   min-width: 0;
 }
 
@@ -1438,23 +1438,41 @@ h3 {
   background: #f7f3e8;
   border: 1px solid #e3dcc8;
   border-radius: 8px;
+  grid-template-columns: 1fr;
   padding: 8px;
+  width: 100%;
 }
 
 .musician-key-field {
-  min-width: 120px;
+  min-width: 0;
+  width: 100%;
+}
+
+.musician-key-field select {
+  width: 100%;
+}
+
+.musician-derived-key {
+  min-height: 16px;
 }
 
 .musician-capo-field {
-  width: 86px;
+  min-width: 0;
+  width: 100%;
+}
+
+.musician-capo-field input {
+  width: 100%;
 }
 
 .musician-print-button {
   min-height: 36px;
+  width: 100%;
 }
 
 .musician-chart-panel {
   min-width: 0;
+  overflow: hidden;
 }
 
 .musician-annotator {
@@ -1692,12 +1710,12 @@ h3 {
 }
 
 @media (max-width: 900px) {
-  .musician-tools-header {
+  .musician-tools-shell {
     grid-template-columns: 1fr;
   }
 
   .musician-chord-summary {
-    max-width: 180px;
+    max-width: 220px;
   }
 
   .musician-toolbar,
