@@ -269,8 +269,8 @@ export function MusicianLiveView({ plan, songs }: MusicianLiveViewProps) {
   useEffect(() => {
     const nextCapo = normalizeCapo(chordChart.capo);
     const nextCapoKey =
-      chordChart.capoKey ?? (chordChart.absoluteKey ? deriveCapoKey(chordChart.absoluteKey, nextCapo) : MUSICAL_KEYS[0]);
-    const nextAbsoluteKey = chordChart.absoluteKey ?? deriveAbsoluteKey(nextCapoKey, nextCapo);
+      chordChart.capoKey ?? (chordChart.absoluteKey ? deriveCapoKey(chordChart.absoluteKey, nextCapo) : null);
+    const nextAbsoluteKey = chordChart.absoluteKey ?? (nextCapoKey ? deriveAbsoluteKey(nextCapoKey, nextCapo) : null);
     setCapo(nextCapo);
     setCapoKey(nextCapoKey);
     setAbsoluteKey(nextAbsoluteKey);
