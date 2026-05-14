@@ -207,6 +207,95 @@ function blockKey(value: string) {
     .replace(/\s+/g, " ");
 }
 
+interface BlockStats {
+  internalRepeats: number;
+  lineCount: number;
+  repeatedOpeningWords: number;
+  wordCount: number;
+}
+
+function meaningfulLines(value: string) {
+  return value
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+}
+
+function openingWordsKey(line: string, wordCount = 3) {
+  return line
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}\s']/gu, "")
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, wordCount)
+    .join(" ");
+}
+
+function blockStats(block: string): BlockStats {
+  const lines = meaningfulLines(block);
+  const lineCounts = new Map<string, number>();
+  const openingCounts = new Map<string, number>();
+
+  for (const line of lines) {
+    const normalizedLine = normalizedTextKey(line);
+    lineCounts.set(normalizedLine, (lineCounts.get(normalizedLine) ?? 0) + 1);
+
+    const openingKey = openingWordsKey(line);
+    if (openingKey.split(/\s+/).length >= 2) {
+      openingCounts.set(openingKey, (openingCounts.get(openingKey) ?? 0) + 1);
+    }
+  }
+
+  return {
+    internalRepeats: [...lineCounts.values()].filter((count) => count > 1).length,
+    lineCount: lines.length,
+    repeatedOpeningWords: [...openingCounts.values()].filter((count) => count > 1).length,
+    wordCount: lines.join(" ").split(/\s+/).filter(Boolean).length,
+  };
+}
+
+function isStructurallySimilarHymn(blocks: string[], stats: BlockStats[], repeatedKeys: Array<[string, number]>) {
+  if (blocks.length < 4 || repeatedKeys.length) {
+    return false;
+  }
+
+  const lineCounts = stats.map((stat) => stat.lineCount).filter(Boolean);
+  const wordCounts = stats.map((stat) => stat.wordCount).filter(Boolean);
+  if (!lineCounts.length || !wordCounts.length) {
+    return false;
+  }
+
+  const minLines = Math.min(...lineCounts);
+  const maxLines = Math.max(...lineCounts);
+  const minWords = Math.min(...wordCounts);
+  const maxWords = Math.max(...wordCounts);
+  const averageWords = wordCounts.reduce((total, count) => total + count, 0) / wordCounts.length;
+  const standoutHook = stats.some((stat) => {
+    const muchShorter = stat.wordCount < averageWords * 0.55;
+    const hookRepeats = stat.internalRepeats > 0 || stat.repeatedOpeningWords > 0;
+    return muchShorter && hookRepeats;
+  });
+
+  return maxLines - minLines <= 2 && minWords >= averageWords * 0.62 && maxWords <= averageWords * 1.45 && !standoutHook;
+}
+
+function looksLikeChorusCandidate(index: number, blocks: string[], stats: BlockStats[], averageWordCount: number) {
+  if (index <= 0 || index >= blocks.length - 1 || blocks.length < 3) {
+    return false;
+  }
+
+  const stat = stats[index];
+  const previous = stats[index - 1];
+  const next = stats[index + 1];
+  const shorterThanBothNeighbors =
+    stat.wordCount <= previous.wordCount * 0.82 && stat.wordCount <= next.wordCount * 0.88;
+  const shorterThanSong = stat.wordCount <= averageWordCount * 0.78;
+  const hookLike = stat.internalRepeats > 0 || stat.repeatedOpeningWords > 0 || /!/.test(blocks[index]);
+  const compactComparedWithNeighbors = stat.lineCount + 1 < Math.max(previous.lineCount, next.lineCount);
+
+  return hookLike && (shorterThanBothNeighbors || shorterThanSong || compactComparedWithNeighbors);
+}
+
 function parseExplicitSections(formatted: string) {
   const blocks = formatted
     .split(/\n{2,}/)
@@ -255,13 +344,15 @@ function inferSectionsFromBlocks(blocks: string[]) {
 
   const chorusKey =
     repeatedKeys.find(([key]) => (firstIndex.get(key) ?? 0) > 0)?.[0] ?? repeatedKeys[0]?.[0] ?? null;
+  const stats = blocks.map(blockStats);
   const labels = new Map<string, string>();
   const notes: string[] = [];
   let verseNumber = 1;
   let usedBridge = false;
   let usedInferredChorus = Boolean(chorusKey);
-  const wordCounts = blocks.map((block) => block.split(/\s+/).filter(Boolean).length);
+  const wordCounts = stats.map((stat) => stat.wordCount);
   const averageWordCount = wordCounts.reduce((total, count) => total + count, 0) / Math.max(1, wordCounts.length);
+  const hymnLike = isStructurallySimilarHymn(blocks, stats, repeatedKeys);
 
   for (const [index, block] of blocks.entries()) {
     const key = blockKey(block);
@@ -274,28 +365,34 @@ function inferSectionsFromBlocks(blocks: string[]) {
       continue;
     }
 
-    const count = counts.get(key) ?? 1;
-    const isNearEnd = index >= Math.max(2, Math.floor(blocks.length * 0.66));
-    const isFinal = index === blocks.length - 1;
-    const lineCount = block.split(/\r?\n/).filter((line) => line.trim()).length;
-    const wordCount = wordCounts[index] ?? 0;
-    const isShorterThanAverage = wordCount > 0 && wordCount <= averageWordCount * 0.72;
-    const isCompactChunk = lineCount <= 4 || isShorterThanAverage;
-
-    if (!usedInferredChorus && index > 0 && !isFinal && isCompactChunk && blocks.length >= 3) {
-      labels.set(key, "Chorus");
-      usedInferredChorus = true;
-      notes.push("A shorter repeated-style lyric chunk was labelled as Chorus; check this before presenting.");
+    if (hymnLike) {
+      labels.set(key, `Verse ${verseNumber}`);
+      verseNumber += 1;
       continue;
     }
 
-    if (!usedBridge && isNearEnd && count === 1 && blocks.length >= 4 && !isFinal) {
+    const count = counts.get(key) ?? 1;
+    const isNearEnd = index >= Math.max(2, Math.floor(blocks.length * 0.66));
+    const isFinal = index === blocks.length - 1;
+    const wordCount = wordCounts[index] ?? 0;
+
+    if (!usedInferredChorus && looksLikeChorusCandidate(index, blocks, stats, averageWordCount)) {
+      labels.set(key, "Chorus");
+      usedInferredChorus = true;
+      notes.push("A hook-like middle lyric chunk was labelled as Chorus; check this before presenting.");
+      continue;
+    }
+
+    const isMuchShorterThanAverage = wordCount > 0 && wordCount <= averageWordCount * 0.55;
+    const hasHookRepeats = stats[index].internalRepeats > 0 || stats[index].repeatedOpeningWords > 0;
+
+    if (!usedBridge && isNearEnd && count === 1 && blocks.length >= 4 && !isFinal && isMuchShorterThanAverage && hasHookRepeats) {
       labels.set(key, "Bridge");
       usedBridge = true;
       continue;
     }
 
-    if (isFinal && count === 1 && blocks.length >= 4) {
+    if (isFinal && count === 1 && blocks.length >= 4 && isMuchShorterThanAverage && hasHookRepeats) {
       labels.set(key, "Tag");
       continue;
     }
@@ -306,6 +403,10 @@ function inferSectionsFromBlocks(blocks: string[]) {
 
   if (chorusKey) {
     notes.push("Repeated slide content was used to infer a chorus sequence.");
+  }
+
+  if (hymnLike) {
+    notes.push("Similar-length stanzas were treated as hymn-style verses.");
   }
 
   return {
