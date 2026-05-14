@@ -4,7 +4,6 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 import {
   getPresentationLiveState,
-  updatePresentationLiveState,
   type PlanDetail,
   type PresentationLiveSyncState,
   type Song,
@@ -139,24 +138,6 @@ function musicianChordLabel(
   });
 }
 
-function publishStateForSlide(plan: PlanDetail, slides: ReturnType<typeof buildPresentationSlides>, nextIndex: number): PresentationLiveState {
-  const slide = slides[boundedIndex(nextIndex, slides.length)] ?? null;
-  const slideOffset = slide
-    ? slides.filter((candidate) => candidate.planItemId === slide.planItemId).findIndex((candidate) => candidate.id === slide.id)
-    : 0;
-
-  return {
-    planId: plan.id,
-    index: boundedIndex(nextIndex, slides.length),
-    updatedAt: Date.now(),
-    planItemId: slide?.planItemId ?? null,
-    slideOffset: Math.max(slideOffset, 0),
-    theme: "light",
-    blanked: false,
-    fullscreen: false,
-  };
-}
-
 function MusicianChordLine({
   annotations,
   baseAbsoluteKey,
@@ -226,10 +207,24 @@ export function MusicianLiveView({ plan, songs }: MusicianLiveViewProps) {
   const [message, setMessage] = useState<string | null>(null);
   const pollingRef = useRef(false);
 
-  const slides = useMemo(() => buildPresentationSlides(plan?.items ?? [], songs), [plan?.items, songs]);
-  const liveIndex = useMemo(() => resolveLiveIndex(slides, liveState), [liveState, slides]);
+  const worshipItems = useMemo(
+    () =>
+      [...(plan?.items ?? [])]
+        .filter((item) => item.item_type === "song" && item.song_id)
+        .sort((left, right) => (Number.parseFloat(left.sequence) || 0) - (Number.parseFloat(right.sequence) || 0)),
+    [plan?.items],
+  );
+  const slides = useMemo(() => buildPresentationSlides(worshipItems, songs), [songs, worshipItems]);
+  const [localIndex, setLocalIndex] = useState(0);
+  const remoteWorshipIndex = useMemo(() => {
+    if (!liveState?.planItemId) {
+      return -1;
+    }
+    return resolveLiveIndex(slides, liveState);
+  }, [liveState, slides]);
+  const liveIndex = remoteWorshipIndex >= 0 ? remoteWorshipIndex : boundedIndex(localIndex, slides.length);
   const liveSlide = slides[liveIndex] ?? null;
-  const liveItem = plan?.items.find((item) => item.id === liveSlide?.planItemId) ?? null;
+  const liveItem = worshipItems.find((item) => item.id === liveSlide?.planItemId) ?? null;
   const liveSong = liveItem?.song_id ? songs.find((song) => song.id === liveItem.song_id) ?? null : null;
   const chordChart = useMemo(() => parseChordChart(liveSong?.chords ?? null).document, [liveSong?.chords]);
   const liveFontSize = useMemo(
@@ -263,6 +258,7 @@ export function MusicianLiveView({ plan, songs }: MusicianLiveViewProps) {
 
   useEffect(() => {
     setLiveState(null);
+    setLocalIndex(0);
     setMessage(null);
   }, [plan?.id]);
 
@@ -302,28 +298,9 @@ export function MusicianLiveView({ plan, songs }: MusicianLiveViewProps) {
     return () => window.clearInterval(timer);
   }, [plan?.id]);
 
-  async function moveLive(delta: -1 | 1) {
-    if (!plan || !slides.length) {
-      return;
-    }
-    const nextState = publishStateForSlide(plan, slides, liveIndex + delta);
-    setLiveState(nextState);
-    try {
-      const synced = await updatePresentationLiveState(plan.id, {
-        plan_id: nextState.planId,
-        index: nextState.index,
-        plan_item_id: nextState.planItemId ?? null,
-        slide_offset: nextState.slideOffset ?? 0,
-        updated_at: nextState.updatedAt,
-        theme: nextState.theme ?? "light",
-        blanked: false,
-        fullscreen: false,
-      });
-      setLiveState(syncStateFromApi(synced));
-      setMessage(null);
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Could not move live slide.");
-    }
+  function moveLive(delta: -1 | 1) {
+    setLocalIndex(boundedIndex(liveIndex + delta, slides.length));
+    setLiveState(null);
   }
 
   function changeRealKey(delta: -1 | 1) {
@@ -444,7 +421,7 @@ export function MusicianLiveView({ plan, songs }: MusicianLiveViewProps) {
       </div>
 
       <div className="musician-live-transport">
-        <button className="text-button" disabled={!slides.length || liveIndex <= 0} onClick={() => void moveLive(-1)} type="button">
+        <button className="text-button" disabled={!slides.length || liveIndex <= 0} onClick={() => moveLive(-1)} type="button">
           <ChevronLeft size={16} aria-hidden="true" />
           Previous
         </button>
@@ -454,7 +431,7 @@ export function MusicianLiveView({ plan, songs }: MusicianLiveViewProps) {
         <button
           className="primary-button"
           disabled={!slides.length || liveIndex >= slides.length - 1}
-          onClick={() => void moveLive(1)}
+          onClick={() => moveLive(1)}
           type="button"
         >
           Next

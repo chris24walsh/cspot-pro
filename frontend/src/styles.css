@@ -625,6 +625,7 @@ h3 {
 .worship-song-list {
   display: grid;
   gap: 8px;
+  align-content: start;
 }
 
 .worship-song-row {
@@ -763,6 +764,7 @@ h3 {
 .worship-section-list {
   display: grid;
   gap: 8px;
+  align-content: start;
 }
 
 .worship-set-item {
@@ -805,6 +807,7 @@ h3 {
 .worship-slide-review {
   display: grid;
   gap: 8px;
+  align-content: start;
   padding: 12px;
 }
 
