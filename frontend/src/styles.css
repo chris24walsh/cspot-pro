@@ -565,6 +565,19 @@ h3 {
   padding: 12px;
 }
 
+.library-browser {
+  display: grid;
+  gap: 10px;
+  grid-template-rows: auto auto minmax(0, 1fr);
+  overflow: hidden;
+}
+
+.library-browser-results {
+  min-height: 0;
+  overflow: auto;
+  padding-right: 2px;
+}
+
 .manager-list,
 .editor-panel {
   max-height: calc(100vh - 78px);
@@ -1212,7 +1225,6 @@ h3 {
   font-size: 12px;
   font-weight: 800;
   gap: 4px;
-  margin-bottom: 10px;
 }
 
 .list-search input {

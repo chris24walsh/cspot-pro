@@ -1045,7 +1045,7 @@ export function SongManager({
 
   return (
     <section className="manager-grid song-manager-grid" aria-label="Song management">
-      <aside className="manager-list">
+      <aside className="manager-list library-browser">
         <div className="section-heading">
           <h2>Songs</h2>
           <button className="text-button" disabled={!canCreate} onClick={startCreate} type="button">
@@ -1063,7 +1063,7 @@ export function SongManager({
           />
         </label>
 
-        <div className="stack-list">
+        <div className="stack-list library-browser-results">
           {filteredSongs.map((song) => (
             <button
               className={`stack-row ${song.id === selectedSong?.id ? "selected" : ""}`}
