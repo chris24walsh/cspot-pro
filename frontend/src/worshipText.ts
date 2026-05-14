@@ -351,7 +351,6 @@ function inferSectionsFromBlocks(blocks: string[]) {
   const stats = blocks.map(blockStats);
   const labels = new Map<string, string>();
   const notes: string[] = [];
-  let verseNumber = 1;
   let usedBridge = false;
   let usedInferredChorus = Boolean(chorusKey);
   const wordCounts = stats.map((stat) => stat.wordCount);
@@ -370,8 +369,7 @@ function inferSectionsFromBlocks(blocks: string[]) {
     }
 
     if (hymnLike) {
-      labels.set(key, `Verse${verseNumber}`);
-      verseNumber += 1;
+      labels.set(key, "Verse");
       continue;
     }
 
@@ -401,8 +399,16 @@ function inferSectionsFromBlocks(blocks: string[]) {
       continue;
     }
 
-    labels.set(key, `Verse${verseNumber}`);
-    verseNumber += 1;
+    labels.set(key, "Verse");
+  }
+
+  let verseNumber = 1;
+  for (const block of blocks) {
+    const key = blockKey(block);
+    if (labels.get(key) === "Verse") {
+      labels.set(key, `Verse${verseNumber}`);
+      verseNumber += 1;
+    }
   }
 
   if (chorusKey) {
