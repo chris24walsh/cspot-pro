@@ -563,12 +563,18 @@ export function WorshipBuilderView({ canEditPlan }: WorshipBuilderViewProps) {
       </main>
 
       {setPickerOpen ? (
-        <div className="modal-backdrop" role="presentation">
-          <div className="modal-panel service-picker-dialog worship-set-picker-dialog" role="dialog" aria-modal="true" aria-label="Worship sets">
-            <div className="modal-header">
+        <div className="app-dialog-backdrop" role="presentation" onMouseDown={() => setSetPickerOpen(false)}>
+          <section
+            className="app-dialog app-dialog-wide service-picker-dialog worship-set-picker-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="worship-set-picker-title"
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            <div className="section-heading">
               <div>
                 <p className="eyebrow">Calendar</p>
-                <h2>Worship Sets</h2>
+                <h2 id="worship-set-picker-title">Worship Sets</h2>
               </div>
               <button className="text-button" onClick={() => setSetPickerOpen(false)} type="button">
                 Close
@@ -579,7 +585,7 @@ export function WorshipBuilderView({ canEditPlan }: WorshipBuilderViewProps) {
               <section className="service-picker-panel service-calendar-panel" aria-label="Worship set calendar">
                 <div className="service-calendar-heading">
                   <button
-                    className="section-icon-button"
+                    className="text-button"
                     onClick={() => {
                       const [year, month] = setCalendarMonth.split("-").map(Number);
                       setSetCalendarMonth(monthInputFromDate(new Date(year, month - 2, 1)));
@@ -596,7 +602,7 @@ export function WorshipBuilderView({ canEditPlan }: WorshipBuilderViewProps) {
                     })}
                   </strong>
                   <button
-                    className="section-icon-button"
+                    className="text-button"
                     onClick={() => {
                       const [year, month] = setCalendarMonth.split("-").map(Number);
                       setSetCalendarMonth(monthInputFromDate(new Date(year, month, 1)));
@@ -609,9 +615,7 @@ export function WorshipBuilderView({ canEditPlan }: WorshipBuilderViewProps) {
                 </div>
                 <div className="service-calendar-grid">
                   {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day) => (
-                    <span className="service-calendar-weekday" key={day}>
-                      {day}
-                    </span>
+                    <span className="service-calendar-weekday" key={day}>{day}</span>
                   ))}
                   {calendarDays.map((day) => {
                     const existing = worshipSetsByDate.get(day.key);
@@ -622,6 +626,7 @@ export function WorshipBuilderView({ canEditPlan }: WorshipBuilderViewProps) {
                         }`}
                         key={day.key}
                         onClick={() => chooseSetDate(day.key)}
+                        title={existing ? `Open ${existing.title}` : `Create ${suggestedWorshipSetTitle(day.key)}`}
                         type="button"
                       >
                         <span>{day.date.getDate()}</span>
@@ -639,10 +644,10 @@ export function WorshipBuilderView({ canEditPlan }: WorshipBuilderViewProps) {
                     New
                   </button>
                 </div>
-                <div className="service-date-list">
+                <div className="stack-list compact service-date-list">
                   {sortedPlans.map((worshipSet) => (
                     <button
-                      className={`service-calendar-day service-date-card ${setDraftPlanId === worshipSet.id ? "is-selected" : ""}`}
+                      className={`stack-row ${setDraftPlanId === worshipSet.id ? "selected" : ""}`}
                       key={worshipSet.id}
                       onClick={() => {
                         setSetDraftPlanId(worshipSet.id);
@@ -652,11 +657,13 @@ export function WorshipBuilderView({ canEditPlan }: WorshipBuilderViewProps) {
                       }}
                       type="button"
                     >
-                      <span>{formatServiceDate(worshipSet.service_date)}</span>
-                      <small>{worshipSet.title} · {worshipSet.item_count} songs</small>
+                      <strong>{formatServiceDate(worshipSet.service_date)}</strong>
+                      <span>
+                        {worshipSet.title} · {worshipSet.item_count} song{worshipSet.item_count === 1 ? "" : "s"}
+                      </span>
                     </button>
                   ))}
-                  {!sortedPlans.length ? <p className="field-help">No worship sets yet. Pick a date and create one.</p> : null}
+                  {!sortedPlans.length ? <p className="search-empty">No worship sets yet.</p> : null}
                 </div>
               </section>
 
@@ -676,33 +683,40 @@ export function WorshipBuilderView({ canEditPlan }: WorshipBuilderViewProps) {
                     </button>
                   ) : null}
                 </div>
-                <label className="filter-label">
-                  Date
-                  <input
-                    onChange={(event) => {
-                      const nextDate = event.target.value;
-                      setSetDraftDate(nextDate);
-                      setSetCalendarMonth(nextDate.slice(0, 7) || setCalendarMonth);
-                    }}
-                    type="date"
-                    value={setDraftDate}
-                  />
-                </label>
-                <label className="filter-label">
-                  Title
-                  <input onChange={(event) => setSetDraftTitle(event.target.value)} type="text" value={setDraftTitle} />
-                </label>
+                <div className="form-grid single-column">
+                  <label>
+                    Date
+                    <input
+                      onChange={(event) => {
+                        const nextDate = event.target.value;
+                        setSetDraftDate(nextDate);
+                        setSetCalendarMonth(nextDate.slice(0, 7) || setCalendarMonth);
+                      }}
+                      type="date"
+                      value={setDraftDate}
+                    />
+                  </label>
+                  <label>
+                    Title
+                    <input
+                      onChange={(event) => setSetDraftTitle(event.target.value)}
+                      placeholder={suggestedWorshipSetTitle(setDraftDate)}
+                      type="text"
+                      value={setDraftTitle}
+                    />
+                  </label>
+                </div>
                 <div className="action-row">
                   <button className="primary-button" disabled={!canEditPlan} onClick={() => void openDraftWorshipSet()} type="button">
-                    Open Set
+                    {setDraftPlanId ? "Open Set" : "Create & Open"}
                   </button>
                   <button className="text-button" disabled={!canEditPlan} onClick={() => void saveWorshipSetDraft(false)} type="button">
-                    Save Changes
+                    {setDraftPlanId ? "Save Changes" : "Create Set"}
                   </button>
                 </div>
               </section>
             </div>
-          </div>
+          </section>
         </div>
       ) : null}
     </section>

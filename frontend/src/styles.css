@@ -847,16 +847,6 @@ h3 {
   padding: 6px 8px;
 }
 
-.worship-set-picker-dialog .service-picker-grid {
-  grid-template-columns: minmax(280px, 1fr) minmax(240px, 0.72fr);
-}
-
-.service-date-card {
-  height: auto;
-  margin-bottom: 8px;
-  min-height: 72px;
-}
-
 .worship-live-topbar label {
   color: #3b4741;
   display: grid;
