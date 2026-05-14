@@ -41,6 +41,7 @@ import {
   type GoogleDriveFile,
   type GoogleDriveStatus,
   type PlanDetail,
+  type PlanItem,
   type PlanSummary,
   type PlanType,
   type Song,
@@ -1069,8 +1070,7 @@ export function PresentationView({
     return null;
   }
 
-  function sequenceForInsert(afterIndex: number) {
-    const orderedItems = orderedPlanItems();
+  function sequenceForInsertInItems(orderedItems: PlanItem[], afterIndex: number) {
     const previous = afterIndex >= 0 ? orderedItems[afterIndex] : null;
     const next = orderedItems[afterIndex + 1] ?? null;
     const previousSequence = previous ? Number.parseFloat(previous.sequence) || 0 : null;
@@ -1086,6 +1086,28 @@ export function PresentationView({
       return Math.max(nextSequence / 2, 1).toFixed(2);
     }
     return "10.00";
+  }
+
+  function sequenceForInsert(afterIndex: number) {
+    return sequenceForInsertInItems(orderedPlanItems(), afterIndex);
+  }
+
+  function songInsertTarget(afterIndex: number) {
+    const section = sections[afterIndex] ?? null;
+    const owner = section ? sectionOwner(section.id) : null;
+    if (owner === "worship" && worshipSetPlan) {
+      const orderedItems = orderedWorshipSetItems();
+      const ownerIndex = orderedItems.findIndex((item) => item.id === section.id);
+      return {
+        planId: worshipSetPlan.id,
+        sequence: sequenceForInsertInItems(orderedItems, ownerIndex),
+      };
+    }
+
+    return {
+      planId: plan?.id ?? "",
+      sequence: sequenceForInsert(afterIndex),
+    };
   }
 
   function activeSectionInsertIndex() {
@@ -1139,9 +1161,15 @@ export function PresentationView({
       return;
     }
 
-    await createPlanItem(plan.id, {
+    const target = songInsertTarget(afterIndex);
+    if (!target.planId) {
+      setMessage("Select a service before adding a song.");
+      return;
+    }
+
+    await createPlanItem(target.planId, {
       item_type: "song",
-      sequence: sequenceForInsert(afterIndex),
+      sequence: target.sequence,
       title: song?.title ?? fallbackTitle ?? "Song",
       comment: null,
       key_signature: null,
