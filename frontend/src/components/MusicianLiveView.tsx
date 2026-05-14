@@ -335,6 +335,7 @@ export function MusicianLiveView({ plan, songs }: MusicianLiveViewProps) {
   const baseAbsoluteKey =
     chordChart.absoluteKey ?? deriveAbsoluteKey(chordChart.capoKey ?? currentCapoKey ?? MUSICAL_KEYS[0], chordChart.capo);
   const activeKey = displayMode === "absolute" ? currentAbsoluteKey : currentCapoKey;
+  const activeKeyLabel = `${activeKey ?? "Unset"}${capo > 0 ? ` Capo ${capo}` : ""}`;
   const keyControlTitle = displayMode === "absolute" ? "Key" : "Capo";
   const keyControlValue = displayMode === "absolute" ? (currentAbsoluteKey ?? "Unset") : String(capo);
 
@@ -343,7 +344,7 @@ export function MusicianLiveView({ plan, songs }: MusicianLiveViewProps) {
       <div className="musician-live-toolbar">
         <div className="musician-live-title">
           <strong>{liveSong?.title ?? liveSlide?.sectionTitle ?? "Waiting for a song"}</strong>
-          <span>Key: {activeKey ?? "Unset"}</span>
+          <span>Key: {activeKeyLabel}</span>
         </div>
         <div className="musician-live-controls" aria-label="Musician display controls">
           <button
