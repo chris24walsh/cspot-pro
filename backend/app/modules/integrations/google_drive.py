@@ -38,6 +38,7 @@ GOOGLE_DRIVE_SCOPES = [
 ]
 GOOGLE_DRIVE_EXPORT_MIME_TYPE = "application/pdf"
 GOOGLE_SLIDES_MIME_TYPE = "application/vnd.google-apps.presentation"
+GOOGLE_FOLDER_MIME_TYPE = "application/vnd.google-apps.folder"
 GOOGLE_DECK_MIME_TYPES = {
     "application/pdf",
     "application/vnd.ms-powerpoint",
@@ -46,6 +47,10 @@ GOOGLE_DECK_MIME_TYPES = {
 }
 STATE_LIFETIME_MINUTES = 15
 STATE_ALGORITHM = "HS256"
+
+
+def _escape_drive_query(value: str) -> str:
+    return value.replace("\\", "\\\\").replace("'", "\\'")
 
 
 def _fernet() -> Fernet:
@@ -295,13 +300,72 @@ def revoke_google_drive_connection(session: Session) -> None:
     session.commit()
 
 
-def list_google_drive_decks(session: Session, *, query: str, limit: int = 20) -> list[GoogleDriveFileRead]:
+def _find_google_drive_folders(
+    *,
+    access_token: str,
+    name: str,
+    parent_ids: list[str] | None = None,
+) -> list[str]:
+    escaped = _escape_drive_query(name)
+    query_parts = [
+        "trashed=false",
+        f"mimeType='{GOOGLE_FOLDER_MIME_TYPE}'",
+        f"name='{escaped}'",
+    ]
+    if parent_ids:
+        query_parts.append("(" + " or ".join(f"'{parent_id}' in parents" for parent_id in parent_ids) + ")")
+
+    params = urlencode(
+        {
+            "q": " and ".join(query_parts),
+            "pageSize": "50",
+            "fields": "files(id,name)",
+            "supportsAllDrives": "true",
+            "includeItemsFromAllDrives": "true",
+        }
+    )
+    payload = _json_request(
+        f"{GOOGLE_DRIVE_FILES_URL}?{params}",
+        headers={"Authorization": f"Bearer {access_token}"},
+    )
+    files = payload.get("files")
+    if not isinstance(files, list):
+        return []
+    return [str(item["id"]) for item in files if isinstance(item, dict) and item.get("id")]
+
+
+def _folder_ids_for_path(access_token: str, folder_path: str) -> list[str]:
+    parts = [part.strip() for part in folder_path.replace("\\", "/").split("/") if part.strip()]
+    parent_ids: list[str] | None = None
+    for index, part in enumerate(parts):
+        found = _find_google_drive_folders(access_token=access_token, name=part, parent_ids=parent_ids)
+        if not found and index == 0 and len(parts) > 1:
+            # The first visible name may be a shared-drive label rather than a folder.
+            continue
+        if not found:
+            return []
+        parent_ids = found
+    return parent_ids or []
+
+
+def list_google_drive_decks(
+    session: Session,
+    *,
+    query: str,
+    limit: int = 20,
+    folder_path: str | None = None,
+) -> list[GoogleDriveFileRead]:
     access_token = get_valid_google_drive_access_token(session)
-    escaped = query.replace("\\", "\\\\").replace("'", "\\'")
+    escaped = _escape_drive_query(query)
     mime_filters = " or ".join([f"mimeType='{mime_type}'" for mime_type in sorted(GOOGLE_DECK_MIME_TYPES)])
     query_parts = [f"trashed=false", f"({mime_filters})"]
     if escaped:
         query_parts.append(f"name contains '{escaped}'")
+    if folder_path:
+        folder_ids = _folder_ids_for_path(access_token, folder_path)
+        if not folder_ids:
+            return []
+        query_parts.append("(" + " or ".join(f"'{folder_id}' in parents" for folder_id in folder_ids) + ")")
 
     params = urlencode(
         {

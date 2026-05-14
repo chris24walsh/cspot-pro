@@ -761,8 +761,12 @@ export async function disconnectGoogleDrive(): Promise<void> {
   return deleteRequest("/api/v1/integrations/google-drive/connection");
 }
 
-export async function searchGoogleDriveFiles(query: string): Promise<GoogleDriveFile[]> {
-  return getJson<GoogleDriveFile[]>(`/api/v1/integrations/google-drive/files?q=${encodeURIComponent(query)}`);
+export async function searchGoogleDriveFiles(query: string, folderPath?: string): Promise<GoogleDriveFile[]> {
+  const search = new URLSearchParams({ q: query });
+  if (folderPath) {
+    search.set("folder_path", folderPath);
+  }
+  return getJson<GoogleDriveFile[]>(`/api/v1/integrations/google-drive/files?${search.toString()}`);
 }
 
 export async function importGoogleDriveDeck(payload: {
