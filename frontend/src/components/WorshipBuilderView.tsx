@@ -81,12 +81,12 @@ function suggestedWorshipSetTitle(value: string) {
 
 function songStatus(song: Pick<Song, "lyrics" | "chords"> | null | undefined) {
   if (!song?.lyrics?.trim()) {
-    return "needs lyrics";
+    return "Needs lyrics";
   }
   if (!song.chords?.trim()) {
-    return "lyrics ready";
+    return "Ready";
   }
-  return "lyrics + chords";
+  return "Chords";
 }
 
 function nextSongSequence(items: PlanItem[]) {
@@ -428,7 +428,7 @@ export function WorshipBuilderView({ canDeletePlan, canEditPlan }: WorshipBuilde
         <div className="worship-song-list">
           {filteredSongs.map((song) => (
             <button
-              className="worship-song-row"
+              className="song-library-row"
               disabled={!canEditPlan || !plan}
               key={song.id}
               onClick={() => void addSong(song)}

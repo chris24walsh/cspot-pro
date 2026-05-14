@@ -172,6 +172,16 @@ function searchUrl(base: string, query: string) {
   return url.toString();
 }
 
+function songStatus(song: Pick<Song, "lyrics" | "chords"> | null | undefined) {
+  if (!song?.lyrics?.trim()) {
+    return "Needs lyrics";
+  }
+  if (!song.chords?.trim()) {
+    return "Ready";
+  }
+  return "Chords";
+}
+
 function diagramChordKey(chord: string) {
   const main = chord.trim().split("/")[0] ?? "";
   const match = main.match(/^([A-G](?:#|b)?)(m|maj7|maj|min|dim|sus\d?|add\d?|[0-9]*)?/);
@@ -1066,15 +1076,16 @@ export function SongManager({
         <div className="stack-list library-browser-results">
           {filteredSongs.map((song) => (
             <button
-              className={`stack-row ${song.id === selectedSong?.id ? "selected" : ""}`}
+              className={`song-library-row ${song.id === selectedSong?.id ? "selected" : ""}`}
               key={song.id}
               onClick={() => void selectSong(song)}
               type="button"
             >
-              <strong>{song.title}</strong>
               <span>
-                {song.author ?? "Unknown author"} · {song.lyrics_status}
+                <strong>{song.title}</strong>
+                <small>{song.author ?? "Unknown author"}</small>
               </span>
+              <em>{songStatus(song)}</em>
             </button>
           ))}
           {!filteredSongs.length ? (

@@ -641,7 +641,7 @@ h3 {
   align-content: start;
 }
 
-.worship-song-row {
+.song-library-row {
   align-items: center;
   background: #f9f6eb;
   border: 1px solid #e3dcc8;
@@ -654,40 +654,46 @@ h3 {
   min-width: 0;
   padding: 10px;
   text-align: left;
+  width: 100%;
 }
 
-.worship-song-row:hover:not(:disabled),
-.worship-song-row:focus-visible:not(:disabled) {
+.song-library-row:hover:not(:disabled),
+.song-library-row:focus-visible:not(:disabled),
+.song-library-row.selected {
   background: #eaf5ef;
   border-color: #8ebba9;
+  outline: none;
 }
 
-.worship-song-row:disabled {
+.song-library-row:disabled {
   cursor: not-allowed;
   opacity: 0.7;
 }
 
-.worship-song-row span,
+.song-library-row span,
 .worship-set-item div {
   display: grid;
   gap: 2px;
   min-width: 0;
 }
 
-.worship-song-row strong,
+.song-library-row strong,
 .worship-set-item strong {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.worship-song-row small,
+.song-library-row small,
 .worship-set-item small {
   color: #65716a;
   font-weight: 650;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.worship-song-row em {
+.song-library-row em {
   background: #fffefa;
   border: 1px solid #e3dcc8;
   border-radius: 999px;
