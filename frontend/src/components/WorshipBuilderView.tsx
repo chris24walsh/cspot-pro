@@ -1,5 +1,5 @@
 import { ChevronDown, ChevronUp, ListPlus, MonitorUp, Music2, Trash2 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import {
   createPlanItem,
@@ -43,6 +43,27 @@ function nextSongSequence(items: PlanItem[]) {
   return (highest + 1).toFixed(2);
 }
 
+function sortedWorshipItems(items: PlanItem[]) {
+  return [...items]
+    .filter((item) => item.item_type === "song" && item.song_id)
+    .sort((left, right) => (Number.parseFloat(left.sequence) || 0) - (Number.parseFloat(right.sequence) || 0));
+}
+
+function sequenceAfterSelected(items: PlanItem[], selectedItemId: string | null) {
+  const worshipItems = sortedWorshipItems(items);
+  const selectedIndex = selectedItemId ? worshipItems.findIndex((item) => item.id === selectedItemId) : -1;
+  if (selectedIndex < 0) {
+    return nextSongSequence(items);
+  }
+
+  const selectedSequence = Number.parseFloat(worshipItems[selectedIndex]?.sequence ?? "0") || 0;
+  const nextSequence = Number.parseFloat(worshipItems[selectedIndex + 1]?.sequence ?? "");
+  if (Number.isFinite(nextSequence)) {
+    return ((selectedSequence + nextSequence) / 2).toFixed(4);
+  }
+  return (selectedSequence + 1).toFixed(2);
+}
+
 function compactSongTitle(song: Song) {
   return song.author ? `${song.title} · ${song.author}` : song.title;
 }
@@ -56,6 +77,11 @@ export function WorshipBuilderView({ canEditPlan }: WorshipBuilderViewProps) {
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<"builder" | "live">("builder");
+  const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
+  const setListRef = useRef<HTMLDivElement | null>(null);
+  const slideReviewRef = useRef<HTMLElement | null>(null);
+  const setItemRefs = useRef<Record<string, HTMLElement | null>>({});
+  const slideGroupRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
   const sortedPlans = useMemo(
     () =>
@@ -68,10 +94,7 @@ export function WorshipBuilderView({ canEditPlan }: WorshipBuilderViewProps) {
   );
 
   const worshipItems = useMemo(
-    () =>
-      [...(plan?.items ?? [])]
-        .filter((item) => item.item_type === "song" && item.song_id)
-        .sort((left, right) => (Number.parseFloat(left.sequence) || 0) - (Number.parseFloat(right.sequence) || 0)),
+    () => sortedWorshipItems(plan?.items ?? []),
     [plan],
   );
 
@@ -107,10 +130,14 @@ export function WorshipBuilderView({ canEditPlan }: WorshipBuilderViewProps) {
       const [nextPlans, nextSongs] = await Promise.all([getPlans(), getSongs()]);
       const resolvedPlanId = targetPlanId || selectedPlanId || nextPlans[0]?.id || "";
       const nextPlan = resolvedPlanId ? await getPlan(resolvedPlanId) : null;
+      const nextWorshipItems = sortedWorshipItems(nextPlan?.items ?? []);
       setPlans(nextPlans);
       setSongs(nextSongs);
       setSelectedPlanId(resolvedPlanId);
       setPlan(nextPlan);
+      setSelectedItemId((current) =>
+        current && nextWorshipItems.some((item) => item.id === current) ? current : nextWorshipItems[0]?.id ?? null,
+      );
       setMessage(null);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Could not load worship builder.");
@@ -122,6 +149,14 @@ export function WorshipBuilderView({ canEditPlan }: WorshipBuilderViewProps) {
   useEffect(() => {
     void load();
   }, []);
+
+  useEffect(() => {
+    if (!selectedItemId) {
+      return;
+    }
+    setItemRefs.current[selectedItemId]?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    slideGroupRefs.current[selectedItemId]?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  }, [selectedItemId, worshipSections]);
 
   async function selectPlan(planId: string) {
     setSelectedPlanId(planId);
@@ -140,13 +175,14 @@ export function WorshipBuilderView({ canEditPlan }: WorshipBuilderViewProps) {
     try {
       await createPlanItem(plan.id, {
         item_type: "song",
-        sequence: nextSongSequence(plan.items),
+        sequence: sequenceAfterSelected(plan.items, selectedItemId),
         title: song.title,
         comment: null,
         key_signature: null,
         song_id: song.id,
       });
       await load(plan.id);
+      setMessage(`Added "${song.title}" after the selected song.`);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Could not add song.");
     }
@@ -287,17 +323,32 @@ export function WorshipBuilderView({ canEditPlan }: WorshipBuilderViewProps) {
                 <h2>{plan?.title ?? "No service selected"}</h2>
               </div>
             </div>
-            <div className="worship-section-list">
+            <div className="worship-section-list" ref={setListRef}>
               {worshipItems.map((item, index) => {
                 const song = songs.find((candidate) => candidate.id === item.song_id);
                 return (
-                  <article className="worship-set-item" key={item.id}>
+                  <article
+                    className={`worship-set-item ${selectedItemId === item.id ? "is-selected" : ""}`}
+                    key={item.id}
+                    onClick={() => setSelectedItemId(item.id)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" || event.key === " ") {
+                        event.preventDefault();
+                        setSelectedItemId(item.id);
+                      }
+                    }}
+                    ref={(element) => {
+                      setItemRefs.current[item.id] = element;
+                    }}
+                    role="button"
+                    tabIndex={0}
+                  >
                     <span>{String(index + 1).padStart(2, "0")}</span>
                     <div>
                       <strong>{song ? compactSongTitle(song) : item.title}</strong>
-                      <small>{songStatus(song)}</small>
+                      <small>{selectedItemId === item.id ? "insert next song after this" : songStatus(song)}</small>
                     </div>
-                    <div className="worship-set-actions">
+                    <div className="worship-set-actions" onClick={(event) => event.stopPropagation()}>
                       <button
                         aria-label={`Move ${item.title} up`}
                         className="section-icon-button"
@@ -338,16 +389,27 @@ export function WorshipBuilderView({ canEditPlan }: WorshipBuilderViewProps) {
             </div>
           </section>
 
-          <section className="worship-slide-review" aria-label="Worship song slides">
+          <section className="worship-slide-review" aria-label="Worship song slides" ref={slideReviewRef}>
             {worshipSections.map((section) => (
-              <div className="section-slide-group" key={section.id}>
-                <div className={`section-jump type-song readonly`}>
+              <div
+                className={`section-slide-group ${selectedItemId === section.id ? "is-selected" : ""}`}
+                key={section.id}
+                ref={(element) => {
+                  slideGroupRefs.current[section.id] = element;
+                }}
+              >
+                <button className={`section-jump type-song readonly`} onClick={() => setSelectedItemId(section.id)} type="button">
                   <span>{section.itemType}</span>
                   <strong>{section.title}</strong>
-                </div>
+                </button>
                 <div className="section-slide-list worship-slide-list">
                   {section.slides.map((slide, index) => (
-                    <div className="slide-tile preview-tile type-song readonly" key={slide.id}>
+                    <button
+                      className="slide-tile preview-tile type-song readonly"
+                      key={slide.id}
+                      onClick={() => setSelectedItemId(section.id)}
+                      type="button"
+                    >
                       <span>{String(index + 1).padStart(2, "0")}</span>
                       <div className="mini-slide-surface stage-theme-light">
                         <AutoFitSlideText
@@ -356,7 +418,7 @@ export function WorshipBuilderView({ canEditPlan }: WorshipBuilderViewProps) {
                           text={slide.text || "No lyrics"}
                         />
                       </div>
-                    </div>
+                    </button>
                   ))}
                 </div>
               </div>

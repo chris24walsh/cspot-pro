@@ -770,10 +770,25 @@ h3 {
   background: #f9f6eb;
   border: 1px solid #e3dcc8;
   border-radius: 8px;
+  color: #17201b;
+  cursor: pointer;
   display: grid;
   gap: 8px;
   grid-template-columns: auto minmax(0, 1fr) auto;
   padding: 9px;
+  text-align: left;
+}
+
+.worship-set-item:hover,
+.worship-set-item:focus-visible {
+  border-color: #8ebba9;
+  outline: none;
+}
+
+.worship-set-item.is-selected {
+  background: #eaf5ef;
+  border-color: #8ebba9;
+  box-shadow: inset 3px 0 0 #234a40;
 }
 
 .worship-set-item > span {
@@ -795,6 +810,18 @@ h3 {
 
 .worship-slide-list {
   grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.section-slide-group.is-selected .section-jump {
+  border-color: #8ebba9;
+  box-shadow: inset 3px 0 0 #234a40;
+}
+
+.worship-slide-review .section-jump,
+.worship-slide-review .slide-tile {
+  cursor: pointer;
+  text-align: left;
+  width: 100%;
 }
 
 .worship-live-shell {
