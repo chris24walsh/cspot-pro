@@ -303,6 +303,35 @@ export function MusicianLiveView({ plan, songs }: MusicianLiveViewProps) {
     setLiveState(null);
   }
 
+  useEffect(() => {
+    function onKeyDown(event: KeyboardEvent) {
+      const target = event.target;
+      const editing =
+        target instanceof HTMLInputElement ||
+        target instanceof HTMLTextAreaElement ||
+        target instanceof HTMLSelectElement ||
+        (target instanceof HTMLElement && target.isContentEditable);
+
+      if (editing) {
+        return;
+      }
+
+      if (event.key === "ArrowRight" || event.key === "ArrowDown" || event.key === "PageDown" || event.key === " ") {
+        event.preventDefault();
+        moveLive(1);
+        return;
+      }
+
+      if (event.key === "ArrowLeft" || event.key === "ArrowUp" || event.key === "PageUp") {
+        event.preventDefault();
+        moveLive(-1);
+      }
+    }
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [liveIndex, slides.length]);
+
   function changeRealKey(delta: -1 | 1) {
     setAbsoluteKey((currentAbsoluteKey) => {
       const nextAbsoluteKey = shiftKey(currentAbsoluteKey ?? chordChart.absoluteKey ?? MUSICAL_KEYS[0], delta);

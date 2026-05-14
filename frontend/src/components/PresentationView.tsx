@@ -1822,13 +1822,13 @@ export function PresentationView({
       if (editing || searchOverlayOpen || servicePickerOpen) {
         return;
       }
-      if (event.key === "ArrowRight" || event.key === " ") {
+      if (event.key === "ArrowRight" || event.key === "PageDown" || event.key === " ") {
         event.preventDefault();
         clearHotkeyButtonFocus();
         moveLive(1);
         return;
       }
-      if (event.key === "ArrowLeft") {
+      if (event.key === "ArrowLeft" || event.key === "PageUp") {
         event.preventDefault();
         clearHotkeyButtonFocus();
         moveLive(-1);
