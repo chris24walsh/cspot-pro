@@ -1,4 +1,4 @@
-import { ChevronLeft, ChevronRight, Maximize2, Music2 } from "lucide-react";
+import { ChevronLeft, ChevronRight, Music2 } from "lucide-react";
 import type { CSSProperties } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
@@ -326,14 +326,6 @@ export function MusicianLiveView({ plan, songs }: MusicianLiveViewProps) {
     }
   }
 
-  async function enterFullscreen() {
-    try {
-      await document.documentElement.requestFullscreen();
-    } catch {
-      setMessage("Fullscreen is blocked by this browser.");
-    }
-  }
-
   function changeRealKey(delta: -1 | 1) {
     setAbsoluteKey((currentAbsoluteKey) => {
       const nextAbsoluteKey = shiftKey(currentAbsoluteKey ?? chordChart.absoluteKey ?? MUSICAL_KEYS[0], delta);
@@ -365,19 +357,16 @@ export function MusicianLiveView({ plan, songs }: MusicianLiveViewProps) {
   const currentCapoKey = capoKey ?? (currentAbsoluteKey ? deriveCapoKey(currentAbsoluteKey, capo) : null);
   const baseAbsoluteKey =
     chordChart.absoluteKey ?? deriveAbsoluteKey(chordChart.capoKey ?? currentCapoKey ?? MUSICAL_KEYS[0], chordChart.capo);
-  const keyControlTitle = displayMode === "absolute" ? "Real Key" : "Capo";
+  const activeKey = displayMode === "absolute" ? currentAbsoluteKey : currentCapoKey;
+  const keyControlTitle = displayMode === "absolute" ? "Key" : "Capo";
   const keyControlValue = displayMode === "absolute" ? (currentAbsoluteKey ?? "Unset") : String(capo);
-  const keySummary =
-    displayMode === "absolute"
-      ? `Real ${currentAbsoluteKey ?? "Unset"} · capo ${capo} shapes ${currentCapoKey ?? "Unset"}`
-      : `Capo ${capo} · shapes ${currentCapoKey ?? "Unset"} · real ${currentAbsoluteKey ?? "Unset"}`;
 
   return (
     <section className="musician-live-view" aria-label="Musician live view">
       <div className="musician-live-toolbar">
         <div className="musician-live-title">
           <strong>{liveSong?.title ?? liveSlide?.sectionTitle ?? "Waiting for a song"}</strong>
-          <span>{keySummary}</span>
+          <span>Key: {activeKey ?? "Unset"}</span>
         </div>
         <div className="musician-live-controls" aria-label="Musician display controls">
           <button
@@ -389,7 +378,7 @@ export function MusicianLiveView({ plan, songs }: MusicianLiveViewProps) {
             <span aria-hidden="true" />
             Chords
           </button>
-          <div className="segmented-control compact-toggle" aria-label="Chord display mode">
+          <div className="musician-pill-toggle" aria-label="Chord display mode">
             <button className={displayMode === "absolute" ? "is-active" : ""} onClick={() => setDisplayMode("absolute")} type="button">
               Real
             </button>
@@ -397,12 +386,12 @@ export function MusicianLiveView({ plan, songs }: MusicianLiveViewProps) {
               Capo
             </button>
           </div>
-          <div className="segmented-control compact-toggle" aria-label="Chord detail">
+          <div className="musician-pill-toggle" aria-label="Chord detail">
             <button className={detailMode === "simple" ? "is-active" : ""} onClick={() => setDetailMode("simple")} type="button">
-              Simple
+              Easy
             </button>
             <button className={detailMode === "advanced" ? "is-active" : ""} disabled onClick={() => setDetailMode("advanced")} type="button">
-              Adv
+              Advanced
             </button>
           </div>
           <div className="musician-stepper" aria-label={keyControlTitle}>
@@ -415,10 +404,6 @@ export function MusicianLiveView({ plan, songs }: MusicianLiveViewProps) {
               +
             </button>
           </div>
-          <button className="text-button icon-text-button" onClick={() => void enterFullscreen()} type="button">
-            <Maximize2 size={16} aria-hidden="true" />
-            Fullscreen
-          </button>
         </div>
       </div>
 

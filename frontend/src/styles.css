@@ -851,34 +851,36 @@ h3 {
 
 .musician-live-toolbar {
   align-items: center;
-  background: #fffdf7;
-  border: 1px solid #e3dcc8;
-  border-radius: 8px;
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid #e3dcc8;
+  border-radius: 0;
   display: grid;
-  gap: 8px;
+  gap: 12px;
   grid-template-columns: minmax(180px, 1fr) auto;
-  min-height: 42px;
-  padding: 5px 8px;
+  min-height: 36px;
+  padding: 0 2px 6px;
 }
 
 .musician-live-title {
   align-items: baseline;
   display: flex;
-  gap: 10px;
+  gap: 18px;
   min-width: 0;
 }
 
 .musician-live-title strong {
-  font-size: 16px;
+  font-size: 18px;
+  font-weight: 900;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .musician-live-title span {
-  color: #56645f;
-  font-size: 12px;
-  font-weight: 800;
+  color: #234a40;
+  font-size: 15px;
+  font-weight: 900;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -888,23 +890,23 @@ h3 {
   align-items: center;
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: 7px;
   justify-content: flex-end;
 }
 
 .chord-toggle-button {
   align-items: center;
-  background: #fffdf7;
+  background: #fffefa;
   border: 1px solid #cfc7b4;
-  border-radius: 999px;
+  border-radius: 8px;
   color: #234a40;
   cursor: pointer;
   display: inline-flex;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 900;
-  gap: 6px;
-  min-height: 30px;
-  padding: 4px 10px 4px 5px;
+  gap: 7px;
+  min-height: 32px;
+  padding: 4px 11px 4px 6px;
 }
 
 .chord-toggle-button span {
@@ -941,16 +943,50 @@ h3 {
   transform: translateX(14px);
 }
 
+.musician-pill-toggle {
+  background: #fffefa;
+  border: 1px solid #cfc7b4;
+  border-radius: 8px;
+  display: inline-flex;
+  gap: 3px;
+  min-height: 32px;
+  padding: 3px;
+}
+
+.musician-pill-toggle button {
+  background: transparent;
+  border: 0;
+  border-radius: 6px;
+  color: #234a40;
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 900;
+  min-width: 52px;
+  padding: 4px 9px;
+}
+
+.musician-pill-toggle button.is-active {
+  background: #eaf5ef;
+  color: #163f35;
+}
+
+.musician-pill-toggle button:disabled {
+  color: #8a8f88;
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
 .musician-stepper {
   align-items: center;
-  background: #fffdf7;
+  background: #fffefa;
   border: 1px solid #cfc7b4;
-  border-radius: 999px;
+  border-radius: 8px;
   display: inline-grid;
-  gap: 3px;
-  grid-template-columns: auto 26px minmax(42px, auto) 26px;
-  min-height: 30px;
-  padding: 3px 5px 3px 10px;
+  gap: 4px;
+  grid-template-columns: auto 28px minmax(46px, auto) 28px;
+  min-height: 32px;
+  padding: 3px 5px 3px 9px;
 }
 
 .musician-stepper > span {
@@ -962,15 +998,15 @@ h3 {
 
 .musician-stepper strong {
   color: #17201b;
-  font-size: 14px;
+  font-size: 15px;
   min-width: 36px;
   text-align: center;
 }
 
 .musician-stepper button {
-  background: #f4efe2;
+  background: #f7f3e9;
   border: 1px solid #d8d0bd;
-  border-radius: 999px;
+  border-radius: 6px;
   color: #234a40;
   cursor: pointer;
   font: inherit;
