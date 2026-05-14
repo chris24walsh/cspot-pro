@@ -63,6 +63,8 @@ import { ScaledSlideImage } from "./ScaledSlideImage";
 import { analyzeWorshipText, buildLyricsFromSections } from "../worshipText";
 import { isWorshipSetPlan, matchingWorshipSetForService, mergeWorshipSetIntoService } from "../worshipSets";
 
+const SELECTED_SERVICE_SESSION_KEY = "cspot.selectedServicePlanId";
+
 interface PresentationScreen {
   label: string;
   left: number;
@@ -603,7 +605,10 @@ export function PresentationView({
         setSongs(nextSongs);
         setPlanTypes(nextPlanTypes);
       }
-      const requestedPlanId = planId || selectedPlanId;
+      const requestedPlanId =
+        planId !== undefined
+          ? planId
+          : sessionStorage.getItem(SELECTED_SERVICE_SESSION_KEY) || selectedPlanId;
       const nextServicePlans = nextPlans.filter((candidate) => !isWorshipSetPlan(candidate));
       const nextWorshipSetPlans = nextPlans.filter(isWorshipSetPlan);
       const targetPlanId = nextServicePlans.some((candidate) => candidate.id === requestedPlanId)
@@ -616,6 +621,11 @@ export function PresentationView({
       const matchingWorshipSet = matchingWorshipSetForService(targetPlan, nextWorshipSetPlans);
       const nextWorshipSetPlan = matchingWorshipSet ? await getPlan(matchingWorshipSet.id) : null;
       setSelectedPlanId(targetPlanId);
+      if (targetPlanId) {
+        sessionStorage.setItem(SELECTED_SERVICE_SESSION_KEY, targetPlanId);
+      } else {
+        sessionStorage.removeItem(SELECTED_SERVICE_SESSION_KEY);
+      }
       setPlan(targetPlan);
       setWorshipSetPlan(nextWorshipSetPlan);
       const nextEffectiveItems = mergeWorshipSetIntoService(targetPlan?.items ?? [], nextWorshipSetPlan?.items ?? []);

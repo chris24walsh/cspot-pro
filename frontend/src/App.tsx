@@ -333,7 +333,7 @@ function App() {
             onDataChange={() => void loadWorkspace()}
           />
         ) : activeModule.id === "worship" ? (
-          <WorshipBuilderView canEditPlan={canEditPlans} />
+          <WorshipBuilderView canDeletePlan={canDeletePlans} canEditPlan={canEditPlans} />
         ) : activeModule.id === "presentation" ? (
           <PresentationView
             canAttachDeck={canEditPlans && canCreateLibrary}

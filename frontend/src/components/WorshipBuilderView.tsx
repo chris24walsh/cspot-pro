@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import {
   createPlanItem,
   createPlan,
+  deletePlan,
   deletePlanItem,
   getPlan,
   getPlanTypes,
@@ -22,7 +23,10 @@ import { dateKey, isWorshipSetPlan, worshipSetType } from "../worshipSets";
 import { AutoFitSlideText } from "./AutoFitSlideText";
 import { MusicianLiveView } from "./MusicianLiveView";
 
+const SELECTED_WORSHIP_SET_SESSION_KEY = "cspot.selectedWorshipSetPlanId";
+
 interface WorshipBuilderViewProps {
+  canDeletePlan: boolean;
   canEditPlan: boolean;
 }
 
@@ -115,7 +119,7 @@ function compactSongTitle(song: Song) {
   return song.author ? `${song.title} · ${song.author}` : song.title;
 }
 
-export function WorshipBuilderView({ canEditPlan }: WorshipBuilderViewProps) {
+export function WorshipBuilderView({ canDeletePlan, canEditPlan }: WorshipBuilderViewProps) {
   const [plans, setPlans] = useState<PlanSummary[]>([]);
   const [planTypes, setPlanTypes] = useState<PlanType[]>([]);
   const [songs, setSongs] = useState<Song[]>([]);
@@ -191,13 +195,24 @@ export function WorshipBuilderView({ canEditPlan }: WorshipBuilderViewProps) {
     try {
       const [nextPlans, nextSongs, nextPlanTypes] = await Promise.all([getPlans(), getSongs(), getPlanTypes()]);
       const nextWorshipPlans = nextPlans.filter(isWorshipSetPlan);
-      const resolvedPlanId = targetPlanId || selectedPlanId || nextWorshipPlans[0]?.id || "";
+      const requestedPlanId =
+        targetPlanId !== undefined
+          ? targetPlanId
+          : sessionStorage.getItem(SELECTED_WORSHIP_SET_SESSION_KEY) || selectedPlanId;
+      const resolvedPlanId = nextWorshipPlans.some((candidate) => candidate.id === requestedPlanId)
+        ? requestedPlanId
+        : nextWorshipPlans[0]?.id || "";
       const nextPlan = resolvedPlanId ? await getPlan(resolvedPlanId) : null;
       const nextWorshipItems = sortedWorshipItems(nextPlan?.items ?? []);
       setPlans(nextPlans);
       setSongs(nextSongs);
       setPlanTypes(nextPlanTypes);
       setSelectedPlanId(resolvedPlanId);
+      if (resolvedPlanId) {
+        sessionStorage.setItem(SELECTED_WORSHIP_SET_SESSION_KEY, resolvedPlanId);
+      } else {
+        sessionStorage.removeItem(SELECTED_WORSHIP_SET_SESSION_KEY);
+      }
       setPlan(nextPlan);
       setSelectedItemId((current) =>
         current && nextWorshipItems.some((item) => item.id === current) ? current : nextWorshipItems[0]?.id ?? null,
@@ -290,6 +305,23 @@ export function WorshipBuilderView({ canEditPlan }: WorshipBuilderViewProps) {
     await saveWorshipSetDraft(true);
   }
 
+  async function archiveSelectedWorshipSet() {
+    if (!setDraftPlanId || !canDeletePlan) {
+      return;
+    }
+
+    try {
+      await deletePlan(setDraftPlanId);
+      const nextPlanId = selectedPlanId === setDraftPlanId ? "" : selectedPlanId;
+      setSetDraftPlanId(null);
+      setSetDraftTitle(suggestedWorshipSetTitle(setDraftDate));
+      await load(nextPlanId);
+      setMessage("Worship set archived.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not archive worship set.");
+    }
+  }
+
   async function addSong(song: Song) {
     if (!plan || !canEditPlan) {
       return;
@@ -368,10 +400,6 @@ export function WorshipBuilderView({ canEditPlan }: WorshipBuilderViewProps) {
               ))}
             </select>
           </label>
-          <button className="text-button" onClick={openSetPicker} type="button">
-            <CalendarDays size={16} aria-hidden="true" />
-            Sets
-          </button>
           <button className="text-button" onClick={() => setViewMode("builder")} type="button">
             Back to builder
           </button>
@@ -714,6 +742,14 @@ export function WorshipBuilderView({ canEditPlan }: WorshipBuilderViewProps) {
                     {setDraftPlanId ? "Save Changes" : "Create Set"}
                   </button>
                 </div>
+                {setDraftPlanId && canDeletePlan ? (
+                  <div className="service-picker-danger">
+                    <p className="muted-copy">Archive this worship set if it was created by mistake.</p>
+                    <button className="danger-button" onClick={() => void archiveSelectedWorshipSet()} type="button">
+                      Archive Set
+                    </button>
+                  </div>
+                ) : null}
               </section>
             </div>
           </section>
