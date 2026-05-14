@@ -799,8 +799,11 @@ h3 {
 
 .worship-live-shell {
   display: grid;
+  gap: 6px;
   grid-template-columns: 1fr;
   grid-template-rows: auto minmax(0, 1fr);
+  height: 100%;
+  padding: 6px;
 }
 
 .worship-live-topbar {
@@ -811,7 +814,7 @@ h3 {
   display: grid;
   gap: 10px;
   grid-template-columns: minmax(0, 1fr) auto;
-  padding: 10px;
+  padding: 6px 8px;
 }
 
 .worship-live-topbar label {
@@ -828,64 +831,65 @@ h3 {
   border-radius: 8px;
   color: #17201b;
   font: inherit;
-  min-height: 38px;
+  min-height: 30px;
   min-width: 0;
-  padding: 8px 10px;
+  padding: 4px 8px;
   width: 100%;
 }
 
 .musician-live-view {
   background: #fffefa;
-  border: 1px solid #e3dcc8;
+  border: 1px solid #d8d0bd;
   border-radius: 8px;
   display: grid;
-  gap: 10px;
-  grid-template-rows: auto auto minmax(0, 1fr) auto;
+  gap: 6px;
+  grid-template-rows: auto minmax(0, 1fr) auto;
   min-height: 0;
   overflow: hidden;
-  padding: 14px;
+  padding: 8px;
 }
 
 .musician-live-toolbar {
-  align-items: start;
+  align-items: center;
+  background: #fffdf7;
+  border: 1px solid #e3dcc8;
+  border-radius: 8px;
   display: grid;
-  gap: 12px;
-  grid-template-columns: minmax(220px, 0.44fr) minmax(0, 1fr);
+  gap: 8px;
+  grid-template-columns: minmax(180px, 1fr) auto;
+  min-height: 42px;
+  padding: 5px 8px;
 }
 
-.musician-live-toolbar h2 {
-  font-size: clamp(24px, 3vw, 42px);
-  margin: 0;
+.musician-live-title {
+  align-items: baseline;
+  display: flex;
+  gap: 10px;
+  min-width: 0;
+}
+
+.musician-live-title strong {
+  font-size: 16px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.musician-live-title span {
+  color: #56645f;
+  font-size: 12px;
+  font-weight: 800;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .musician-live-controls {
-  align-items: end;
+  align-items: center;
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 6px;
   justify-content: flex-end;
-}
-
-.compact-number-field {
-  color: #3b4741;
-  display: grid;
-  font-size: 11px;
-  font-weight: 900;
-  gap: 3px;
-  text-transform: uppercase;
-}
-
-.compact-number-field input {
-  background: #fffdf7;
-  border: 1px solid #cfc7b4;
-  border-radius: 8px;
-  color: #17201b;
-  font: inherit;
-  font-size: 15px;
-  font-weight: 900;
-  min-height: 30px;
-  padding: 4px 8px;
-  width: 72px;
 }
 
 .chord-toggle-button {
@@ -937,22 +941,66 @@ h3 {
   transform: translateX(14px);
 }
 
+.musician-stepper {
+  align-items: center;
+  background: #fffdf7;
+  border: 1px solid #cfc7b4;
+  border-radius: 999px;
+  display: inline-grid;
+  gap: 3px;
+  grid-template-columns: auto 26px minmax(42px, auto) 26px;
+  min-height: 30px;
+  padding: 3px 5px 3px 10px;
+}
+
+.musician-stepper > span {
+  color: #3b4741;
+  font-size: 11px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.musician-stepper strong {
+  color: #17201b;
+  font-size: 14px;
+  min-width: 36px;
+  text-align: center;
+}
+
+.musician-stepper button {
+  background: #f4efe2;
+  border: 1px solid #d8d0bd;
+  border-radius: 999px;
+  color: #234a40;
+  cursor: pointer;
+  font: inherit;
+  font-size: 17px;
+  font-weight: 900;
+  height: 24px;
+  line-height: 1;
+  width: 24px;
+}
+
+.musician-stepper button:hover,
+.musician-stepper button:focus-visible {
+  background: #eaf5ef;
+  border-color: #8ebba9;
+}
+
 .icon-text-button {
   gap: 6px;
 }
 
 .musician-live-stage {
   align-items: center;
-  background:
-    linear-gradient(180deg, rgba(235, 248, 239, 0.78), rgba(255, 253, 247, 0.9)),
-    #fffefa;
-  border: 1px solid #d8d0bd;
-  border-radius: 8px;
+  background: linear-gradient(180deg, rgba(235, 248, 239, 0.78), rgba(255, 253, 247, 0.9)), #fffefa;
+  border: 0;
+  border-radius: 6px;
   display: grid;
   justify-items: center;
   min-height: 0;
   overflow: hidden;
-  padding: clamp(18px, 4vw, 48px);
+  padding: clamp(10px, 3vw, 34px);
 }
 
 .musician-chord-sheet,
@@ -1023,9 +1071,14 @@ h3 {
 
 .musician-live-transport {
   align-items: center;
+  background: #fffdf7;
+  border: 1px solid #e3dcc8;
+  border-radius: 8px;
   display: grid;
-  gap: 10px;
+  gap: 6px;
   grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  min-height: 42px;
+  padding: 5px 8px;
 }
 
 .musician-live-transport span {

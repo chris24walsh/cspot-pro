@@ -11,9 +11,13 @@ import {
 } from "../api";
 import {
   LEADING_CHORD_ANCHORS,
+  MUSICAL_KEYS,
   TRAILING_CHORD_ANCHORS,
+  deriveAbsoluteKey,
+  deriveCapoKey,
   lyricLines,
   parseChordChart,
+  semitoneDistance,
   transposeChordSymbol,
   type ChordAnnotation,
   type ChordDetailMode,
@@ -72,6 +76,21 @@ function clampNumber(value: number, min: number, max: number) {
   return Math.min(Math.max(value, min), max);
 }
 
+function normalizeCapo(value: number) {
+  return Math.min(Math.max(Math.trunc(value), 0), 11);
+}
+
+function shiftKey(key: string | null, semitones: number) {
+  if (!key) {
+    return MUSICAL_KEYS[0];
+  }
+  const index = MUSICAL_KEYS.findIndex((candidate) => candidate === key);
+  if (index < 0) {
+    return key;
+  }
+  return MUSICAL_KEYS[(index + semitones + 120) % MUSICAL_KEYS.length];
+}
+
 function fitFontSize(lines: string[]) {
   const lineCount = Math.max(lines.length, 1);
   const longestLine = Math.max(...lines.map((line) => Array.from(line).length), 1);
@@ -91,27 +110,30 @@ function fitFontSizeForSlides(slideTexts: string[]) {
 function musicianChordLabel(
   chord: string,
   options: {
-    chartCapo: number;
+    baseAbsoluteKey: string | null;
     capo: number;
+    capoKey: string | null;
     detailMode: ChordDetailMode;
     displayMode: ChordDisplayMode;
-    transposeBy: number;
   },
 ) {
   const preferFlats = chord.includes("b");
-  const capoShape = transposeChordSymbol(chord, -options.chartCapo, {
+  const keyShift = options.baseAbsoluteKey
+    ? semitoneDistance(options.baseAbsoluteKey, deriveAbsoluteKey(options.capoKey ?? options.baseAbsoluteKey, options.capo))
+    : 0;
+  const absoluteChord = transposeChordSymbol(chord, keyShift, {
     detailMode: options.detailMode,
     preferFlats,
   });
 
   if (options.displayMode === "capo") {
-    return transposeChordSymbol(capoShape, options.transposeBy, {
+    return transposeChordSymbol(absoluteChord, -options.capo, {
       detailMode: options.detailMode,
       preferFlats,
     });
   }
 
-  return transposeChordSymbol(capoShape, options.capo + options.transposeBy, {
+  return transposeChordSymbol(absoluteChord, 0, {
     detailMode: options.detailMode,
     preferFlats,
   });
@@ -137,22 +159,22 @@ function publishStateForSlide(plan: PlanDetail, slides: ReturnType<typeof buildP
 
 function MusicianChordLine({
   annotations,
+  baseAbsoluteKey,
   capo,
-  chartCapo,
+  capoKey,
   detailMode,
   displayMode,
   line,
   showChords,
-  transposeBy,
 }: {
   annotations: ChordAnnotation[];
+  baseAbsoluteKey: string | null;
   capo: number;
-  chartCapo: number;
+  capoKey: string | null;
   detailMode: ChordDetailMode;
   displayMode: ChordDisplayMode;
   line: string;
   showChords: boolean;
-  transposeBy: number;
 }) {
   const totalSlots = Math.max(LEADING_CHORD_ANCHORS + line.length + TRAILING_CHORD_ANCHORS, 16);
   const characters = Array.from(line);
@@ -161,11 +183,11 @@ function MusicianChordLine({
     <div className="musician-chord-line" style={{ gridTemplateColumns: `repeat(${totalSlots}, minmax(0, 1ch))` }}>
       {annotations.map((annotation) => {
         const label = musicianChordLabel(annotation.chord, {
+          baseAbsoluteKey,
           capo,
-          chartCapo,
+          capoKey,
           detailMode,
           displayMode,
-          transposeBy,
         });
         return (
           <span
@@ -199,7 +221,8 @@ export function MusicianLiveView({ plan, songs }: MusicianLiveViewProps) {
   const [displayMode, setDisplayMode] = useState<ChordDisplayMode>("capo");
   const [detailMode, setDetailMode] = useState<ChordDetailMode>("simple");
   const [capo, setCapo] = useState(0);
-  const [transposeBy, setTransposeBy] = useState(0);
+  const [absoluteKey, setAbsoluteKey] = useState<string | null>(null);
+  const [capoKey, setCapoKey] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const pollingRef = useRef(false);
 
@@ -244,9 +267,14 @@ export function MusicianLiveView({ plan, songs }: MusicianLiveViewProps) {
   }, [plan?.id]);
 
   useEffect(() => {
-    setCapo(chordChart.capo);
-    setTransposeBy(0);
-  }, [chordChart.capo, liveSong?.id]);
+    const nextCapo = normalizeCapo(chordChart.capo);
+    const nextCapoKey =
+      chordChart.capoKey ?? (chordChart.absoluteKey ? deriveCapoKey(chordChart.absoluteKey, nextCapo) : MUSICAL_KEYS[0]);
+    const nextAbsoluteKey = chordChart.absoluteKey ?? deriveAbsoluteKey(nextCapoKey, nextCapo);
+    setCapo(nextCapo);
+    setCapoKey(nextCapoKey);
+    setAbsoluteKey(nextAbsoluteKey);
+  }, [chordChart.absoluteKey, chordChart.capo, chordChart.capoKey, liveSong?.id]);
 
   useEffect(() => {
     if (!plan?.id) {
@@ -306,16 +334,52 @@ export function MusicianLiveView({ plan, songs }: MusicianLiveViewProps) {
     }
   }
 
+  function changeRealKey(delta: -1 | 1) {
+    setAbsoluteKey((currentAbsoluteKey) => {
+      const nextAbsoluteKey = shiftKey(currentAbsoluteKey ?? chordChart.absoluteKey ?? MUSICAL_KEYS[0], delta);
+      setCapoKey(deriveCapoKey(nextAbsoluteKey, capo));
+      return nextAbsoluteKey;
+    });
+  }
+
+  function changeCapo(delta: -1 | 1) {
+    setCapo((currentCapo) => {
+      const nextCapo = normalizeCapo(currentCapo + delta);
+      const shapesKey = capoKey ?? chordChart.capoKey ?? MUSICAL_KEYS[0];
+      setAbsoluteKey(deriveAbsoluteKey(shapesKey, nextCapo));
+      setCapoKey(shapesKey);
+      return nextCapo;
+    });
+  }
+
+  function changeActiveKeyControl(delta: -1 | 1) {
+    if (displayMode === "absolute") {
+      changeRealKey(delta);
+      return;
+    }
+    changeCapo(delta);
+  }
+
   const lyricLinesForSlide = lyricLines(liveSlide?.text ?? "");
+  const currentAbsoluteKey = absoluteKey ?? chordChart.absoluteKey ?? (capoKey ? deriveAbsoluteKey(capoKey, capo) : null);
+  const currentCapoKey = capoKey ?? (currentAbsoluteKey ? deriveCapoKey(currentAbsoluteKey, capo) : null);
+  const baseAbsoluteKey =
+    chordChart.absoluteKey ?? deriveAbsoluteKey(chordChart.capoKey ?? currentCapoKey ?? MUSICAL_KEYS[0], chordChart.capo);
+  const keyControlTitle = displayMode === "absolute" ? "Real Key" : "Capo";
+  const keyControlValue = displayMode === "absolute" ? (currentAbsoluteKey ?? "Unset") : String(capo);
+  const keySummary =
+    displayMode === "absolute"
+      ? `Real ${currentAbsoluteKey ?? "Unset"} · capo ${capo} shapes ${currentCapoKey ?? "Unset"}`
+      : `Capo ${capo} · shapes ${currentCapoKey ?? "Unset"} · real ${currentAbsoluteKey ?? "Unset"}`;
 
   return (
     <section className="musician-live-view" aria-label="Musician live view">
       <div className="musician-live-toolbar">
-        <div>
-          <p className="eyebrow">Live Worship</p>
-          <h2>{liveSong?.title ?? liveSlide?.sectionTitle ?? "Waiting for a song"}</h2>
+        <div className="musician-live-title">
+          <strong>{liveSong?.title ?? liveSlide?.sectionTitle ?? "Waiting for a song"}</strong>
+          <span>{keySummary}</span>
         </div>
-        <div className="musician-live-controls">
+        <div className="musician-live-controls" aria-label="Musician display controls">
           <button
             aria-pressed={showChords}
             className={`chord-toggle-button ${showChords ? "is-active" : ""}`}
@@ -323,11 +387,11 @@ export function MusicianLiveView({ plan, songs }: MusicianLiveViewProps) {
             type="button"
           >
             <span aria-hidden="true" />
-              Chords
+            Chords
           </button>
           <div className="segmented-control compact-toggle" aria-label="Chord display mode">
             <button className={displayMode === "absolute" ? "is-active" : ""} onClick={() => setDisplayMode("absolute")} type="button">
-              Abs
+              Real
             </button>
             <button className={displayMode === "capo" ? "is-active" : ""} onClick={() => setDisplayMode("capo")} type="button">
               Capo
@@ -337,30 +401,20 @@ export function MusicianLiveView({ plan, songs }: MusicianLiveViewProps) {
             <button className={detailMode === "simple" ? "is-active" : ""} onClick={() => setDetailMode("simple")} type="button">
               Simple
             </button>
-            <button className={detailMode === "advanced" ? "is-active" : ""} onClick={() => setDetailMode("advanced")} type="button">
+            <button className={detailMode === "advanced" ? "is-active" : ""} disabled onClick={() => setDetailMode("advanced")} type="button">
               Adv
             </button>
           </div>
-          <label className="compact-number-field">
-            Transpose
-            <input
-              max={12}
-              min={-12}
-              onChange={(event) => setTransposeBy(Number(event.target.value) || 0)}
-              type="number"
-              value={transposeBy}
-            />
-          </label>
-          <label className="compact-number-field">
-            Capo
-            <input
-              max={12}
-              min={0}
-              onChange={(event) => setCapo(Math.max(0, Number(event.target.value) || 0))}
-              type="number"
-              value={capo}
-            />
-          </label>
+          <div className="musician-stepper" aria-label={keyControlTitle}>
+            <span>{keyControlTitle}</span>
+            <button onClick={() => changeActiveKeyControl(-1)} type="button" aria-label={`Lower ${keyControlTitle}`}>
+              -
+            </button>
+            <strong>{keyControlValue}</strong>
+            <button onClick={() => changeActiveKeyControl(1)} type="button" aria-label={`Raise ${keyControlTitle}`}>
+              +
+            </button>
+          </div>
           <button className="text-button icon-text-button" onClick={() => void enterFullscreen()} type="button">
             <Maximize2 size={16} aria-hidden="true" />
             Fullscreen
@@ -390,14 +444,14 @@ export function MusicianLiveView({ plan, songs }: MusicianLiveViewProps) {
             {lyricLinesForSlide.map((line, index) => (
               <MusicianChordLine
                 annotations={annotationsByLine.get(index) ?? []}
+                baseAbsoluteKey={baseAbsoluteKey}
                 capo={capo}
-                chartCapo={chordChart.capo}
+                capoKey={currentCapoKey}
                 detailMode={detailMode}
                 displayMode={displayMode}
                 key={`${index}-${line}`}
                 line={line}
                 showChords={showChords}
-                transposeBy={transposeBy}
               />
             ))}
           </div>
