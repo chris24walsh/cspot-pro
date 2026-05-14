@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, String, Text
+from sqlalchemy import DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.database import Base
@@ -21,6 +21,10 @@ class Song(IdMixin, TimestampMixin, Base):
     sequence: Mapped[str | None] = mapped_column(String(120))
     youtube_id: Mapped[str | None] = mapped_column(String(80))
     external_link: Mapped[str | None] = mapped_column(String(500))
+    worship_role: Mapped[str | None] = mapped_column(String(40), index=True)
+    energy: Mapped[int | None] = mapped_column(Integer)
+    tempo: Mapped[str | None] = mapped_column(String(40))
+    theme_tags: Mapped[str | None] = mapped_column(String(500))
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 

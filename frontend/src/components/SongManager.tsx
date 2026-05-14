@@ -106,6 +106,10 @@ function blankSong(): SongPayload {
     sequence: null,
     youtube_id: null,
     external_link: null,
+    worship_role: "any",
+    energy: 3,
+    tempo: null,
+    theme_tags: null,
   };
 }
 
@@ -122,6 +126,10 @@ function formFromSong(song: Song): SongPayload {
     sequence: song.sequence,
     youtube_id: song.youtube_id,
     external_link: song.external_link,
+    worship_role: song.worship_role,
+    energy: song.energy,
+    tempo: song.tempo,
+    theme_tags: song.theme_tags,
   };
 }
 
@@ -138,6 +146,10 @@ function normalizeForm(form: SongPayload): SongPayload {
     sequence: form.sequence || null,
     youtube_id: form.youtube_id || null,
     external_link: form.external_link || null,
+    worship_role: form.worship_role || "any",
+    energy: form.energy ? Number(form.energy) : null,
+    tempo: form.tempo || null,
+    theme_tags: form.theme_tags || null,
   };
 }
 
@@ -1200,6 +1212,56 @@ export function SongManager({
               onChange={(event) => setForm({ ...form, sequence: event.target.value })}
               placeholder="V1 C V2 C B C"
               value={form.sequence ?? ""}
+            />
+          </label>
+
+          <label>
+            Worship Use
+            <select
+              disabled={mode === "create" ? !canCreate : !canEdit}
+              onChange={(event) => setForm({ ...form, worship_role: event.target.value })}
+              value={form.worship_role ?? "any"}
+            >
+              <option value="any">Any slot</option>
+              <option value="opener">Opening song</option>
+              <option value="middle">Middle song</option>
+              <option value="closer">Closing song</option>
+            </select>
+          </label>
+
+          <label>
+            Energy
+            <input
+              disabled={mode === "create" ? !canCreate : !canEdit}
+              max={5}
+              min={1}
+              onChange={(event) => setForm({ ...form, energy: Number(event.target.value) })}
+              type="number"
+              value={form.energy ?? 3}
+            />
+          </label>
+
+          <label>
+            Tempo / Feel
+            <select
+              disabled={mode === "create" ? !canCreate : !canEdit}
+              onChange={(event) => setForm({ ...form, tempo: event.target.value || null })}
+              value={form.tempo ?? ""}
+            >
+              <option value="">Unset</option>
+              <option value="slow">Slow</option>
+              <option value="medium">Medium</option>
+              <option value="upbeat">Upbeat</option>
+            </select>
+          </label>
+
+          <label className="wide-field">
+            Themes
+            <input
+              disabled={mode === "create" ? !canCreate : !canEdit}
+              onChange={(event) => setForm({ ...form, theme_tags: event.target.value })}
+              placeholder="praise, cross, surrender, mission"
+              value={form.theme_tags ?? ""}
             />
           </label>
 

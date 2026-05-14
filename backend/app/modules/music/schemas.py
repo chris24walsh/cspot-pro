@@ -13,6 +13,10 @@ class SongBase(BaseModel):
     sequence: str | None = None
     youtube_id: str | None = None
     external_link: str | None = None
+    worship_role: str | None = None
+    energy: int | None = None
+    tempo: str | None = None
+    theme_tags: str | None = None
 
 
 class SongCreate(SongBase):
@@ -31,6 +35,10 @@ class SongUpdate(BaseModel):
     sequence: str | None = None
     youtube_id: str | None = None
     external_link: str | None = None
+    worship_role: str | None = None
+    energy: int | None = None
+    tempo: str | None = None
+    theme_tags: str | None = None
 
 
 class SongRead(SongBase):
@@ -43,3 +51,20 @@ class SongPartRead(BaseModel):
     name: str
     abbreviation: str
     sort_order: int
+
+
+class WorshipSongUsageRead(BaseModel):
+    use_count: int
+    last_used: str | None = None
+
+
+class WorshipSuggestedSongRead(BaseModel):
+    song: SongRead
+    slot: str
+    score: float
+    reason: str
+    usage: WorshipSongUsageRead
+
+
+class WorshipSetSuggestionRead(BaseModel):
+    songs: list[WorshipSuggestedSongRead]

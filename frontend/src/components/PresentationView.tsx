@@ -1254,6 +1254,10 @@ export function PresentationView({
           sequence: analysis.sequence,
           youtube_id: null,
           external_link: null,
+          worship_role: "any",
+          energy: 3,
+          tempo: null,
+          theme_tags: null,
         });
         songId = importedSong.id;
         setSongs((current) => [...current, importedSong]);

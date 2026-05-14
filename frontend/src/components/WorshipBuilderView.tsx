@@ -10,6 +10,7 @@ import {
   getPlanTypes,
   getPlans,
   getSongs,
+  getWorshipSetSuggestion,
   updatePlan,
   updatePlanItem,
   type PlanDetail,
@@ -132,6 +133,7 @@ export function WorshipBuilderView({ canDeletePlan, canEditPlan }: WorshipBuilde
   const [setDraftTitle, setSetDraftTitle] = useState(suggestedWorshipSetTitle(dateInputFromIso(new Date().toISOString())));
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(true);
+  const [suggesting, setSuggesting] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<"builder" | "live">("builder");
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
@@ -347,6 +349,41 @@ export function WorshipBuilderView({ canDeletePlan, canEditPlan }: WorshipBuilde
     }
   }
 
+  async function suggestWorshipSet() {
+    if (!plan || !canEditPlan) {
+      return;
+    }
+
+    setSuggesting(true);
+    try {
+      const suggestion = await getWorshipSetSuggestion(5);
+      const existingSongIds = new Set(worshipItems.map((item) => item.song_id).filter(Boolean));
+      const songsToAdd = suggestion.songs.filter((entry) => !existingSongIds.has(entry.song.id));
+      let sequence = Number.parseFloat(nextSongSequence(worshipItems));
+      for (const entry of songsToAdd) {
+        await createPlanItem(plan.id, {
+          item_type: "song",
+          sequence: sequence.toFixed(2),
+          title: entry.song.title,
+          comment: `${entry.slot}: ${entry.reason}`,
+          key_signature: null,
+          song_id: entry.song.id,
+        });
+        sequence += 10;
+      }
+      await load(plan.id);
+      setMessage(
+        songsToAdd.length
+          ? `Suggested ${songsToAdd.length} song${songsToAdd.length === 1 ? "" : "s"} from worship history.`
+          : "No new suggestion found outside the songs already in this set.",
+      );
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not suggest a worship set.");
+    } finally {
+      setSuggesting(false);
+    }
+  }
+
   async function removeSong(item: PlanItem) {
     if (!canEditPlan) {
       return;
@@ -470,6 +507,9 @@ export function WorshipBuilderView({ canDeletePlan, canEditPlan }: WorshipBuilde
             <strong>{worshipItems.length}</strong>
             <span>worship songs</span>
           </div>
+          <button className="text-button" disabled={!plan || !canEditPlan || suggesting} onClick={() => void suggestWorshipSet()} type="button">
+            {suggesting ? "Suggesting..." : "Suggest Set"}
+          </button>
           <button className="primary-button icon-text-button" disabled={!plan} onClick={() => setViewMode("live")} type="button">
             <MonitorUp size={16} aria-hidden="true" />
             Live View

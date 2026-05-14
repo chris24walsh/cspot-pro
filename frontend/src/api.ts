@@ -106,7 +106,26 @@ export interface Song {
   sequence: string | null;
   youtube_id: string | null;
   external_link: string | null;
+  worship_role: string | null;
+  energy: number | null;
+  tempo: string | null;
+  theme_tags: string | null;
   lyrics_status: string;
+}
+
+export interface WorshipSuggestedSong {
+  song: Song;
+  slot: string;
+  score: number;
+  reason: string;
+  usage: {
+    use_count: number;
+    last_used: string | null;
+  };
+}
+
+export interface WorshipSetSuggestion {
+  songs: WorshipSuggestedSong[];
 }
 
 export interface Role {
@@ -673,6 +692,10 @@ export async function deletePlanItem(itemId: string): Promise<void> {
 
 export async function getSongs(): Promise<Song[]> {
   return getJson<Song[]>("/api/v1/music/songs");
+}
+
+export async function getWorshipSetSuggestion(limit = 5): Promise<WorshipSetSuggestion> {
+  return getJson<WorshipSetSuggestion>(`/api/v1/music/worship-suggestions?limit=${encodeURIComponent(String(limit))}`);
 }
 
 export async function createSong(payload: Omit<Song, "id" | "lyrics_status">): Promise<Song> {
