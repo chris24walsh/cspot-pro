@@ -61,6 +61,7 @@ import {
 import { AutoFitSlideText } from "./AutoFitSlideText";
 import { ScaledSlideImage } from "./ScaledSlideImage";
 import { analyzeWorshipText, buildLyricsFromSections } from "../worshipText";
+import { isWorshipSetPlan, matchingWorshipSetForService, mergeWorshipSetIntoService } from "../worshipSets";
 
 interface PresentationScreen {
   label: string;
@@ -362,6 +363,7 @@ export function PresentationView({
   const [songs, setSongs] = useState<Song[]>([]);
   const [selectedPlanId, setSelectedPlanId] = useState("");
   const [plan, setPlan] = useState<PlanDetail | null>(null);
+  const [worshipSetPlan, setWorshipSetPlan] = useState<PlanDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [liveIndex, setLiveIndex] = useState(0);
   const [message, setMessage] = useState<string | null>(null);
@@ -424,35 +426,41 @@ export function PresentationView({
   const suppressPublishRef = useRef(false);
   const activeDeckLoadsRef = useRef<Set<string>>(new Set());
 
+  const servicePlans = useMemo(() => plans.filter((candidate) => !isWorshipSetPlan(candidate)), [plans]);
+  const worshipSetPlans = useMemo(() => plans.filter(isWorshipSetPlan), [plans]);
+  const effectivePlanItems = useMemo(
+    () => mergeWorshipSetIntoService(plan?.items ?? [], worshipSetPlan?.items ?? []),
+    [plan?.items, worshipSetPlan?.items],
+  );
   const sections = useMemo(
-    () => buildPresentationSections(plan?.items ?? [], songs, renderedSlidesByFileId),
-    [plan, songs, renderedSlidesByFileId],
+    () => buildPresentationSections(effectivePlanItems, songs, renderedSlidesByFileId),
+    [effectivePlanItems, songs, renderedSlidesByFileId],
   );
   const sortedPlans = useMemo(
     () =>
-      [...plans].sort((a, b) => {
+      [...servicePlans].sort((a, b) => {
         const aTime = new Date(a.service_date).getTime();
         const bTime = new Date(b.service_date).getTime();
         return (Number.isNaN(bTime) ? 0 : bTime) - (Number.isNaN(aTime) ? 0 : aTime);
       }),
-    [plans],
+    [servicePlans],
   );
   const plansByDate = useMemo(
     () =>
       new Map(
-        plans
+        servicePlans
           .map((planSummary) => [dateInputFromIso(planSummary.service_date), planSummary] as const)
           .filter(([date]) => Boolean(date)),
       ),
-    [plans],
+    [servicePlans],
   );
   const calendarDays = useMemo(() => calendarDaysForMonth(serviceCalendarMonth), [serviceCalendarMonth]);
   const slides = useMemo(
-    () => buildPresentationSlides(plan?.items ?? [], songs, renderedSlidesByFileId),
-    [plan, songs, renderedSlidesByFileId],
+    () => buildPresentationSlides(effectivePlanItems, songs, renderedSlidesByFileId),
+    [effectivePlanItems, songs, renderedSlidesByFileId],
   );
   const liveSlide = slides[liveIndex] ?? null;
-  const currentPlanItem = (plan?.items ?? []).find((item) => item.id === liveSlide?.planItemId) ?? null;
+  const currentPlanItem = effectivePlanItems.find((item) => item.id === liveSlide?.planItemId) ?? null;
   const planTextSlides = useMemo(
     () => slides.filter((slide) => !slide.imageUrl && slide.text.trim()),
     [slides],
@@ -596,16 +604,22 @@ export function PresentationView({
         setPlanTypes(nextPlanTypes);
       }
       const requestedPlanId = planId || selectedPlanId;
-      const targetPlanId = nextPlans.some((candidate) => candidate.id === requestedPlanId)
+      const nextServicePlans = nextPlans.filter((candidate) => !isWorshipSetPlan(candidate));
+      const nextWorshipSetPlans = nextPlans.filter(isWorshipSetPlan);
+      const targetPlanId = nextServicePlans.some((candidate) => candidate.id === requestedPlanId)
         ? requestedPlanId
-        : nextPlans[0]?.id ?? "";
+        : nextServicePlans[0]?.id ?? "";
       const [targetPlan, liveState] = await Promise.all([
         targetPlanId ? getPlan(targetPlanId) : Promise.resolve(null),
         targetPlanId ? getPresentationLiveState(targetPlanId) : Promise.resolve(null),
       ]);
+      const matchingWorshipSet = matchingWorshipSetForService(targetPlan, nextWorshipSetPlans);
+      const nextWorshipSetPlan = matchingWorshipSet ? await getPlan(matchingWorshipSet.id) : null;
       setSelectedPlanId(targetPlanId);
       setPlan(targetPlan);
-      const nextSlides = buildPresentationSlides(targetPlan?.items ?? [], nextSongs, renderedSlidesByFileId);
+      setWorshipSetPlan(nextWorshipSetPlan);
+      const nextEffectiveItems = mergeWorshipSetIntoService(targetPlan?.items ?? [], nextWorshipSetPlan?.items ?? []);
+      const nextSlides = buildPresentationSlides(nextEffectiveItems, nextSongs, renderedSlidesByFileId);
       const preservedState = liveState
         ? {
             planId: liveState.plan_id,
@@ -648,6 +662,7 @@ export function PresentationView({
     } catch (error) {
       if (!isTransientApiError(error) || !plan) {
         setPlan(null);
+        setWorshipSetPlan(null);
       }
       setMessage(error instanceof Error ? error.message : "Could not load presentation.");
     } finally {

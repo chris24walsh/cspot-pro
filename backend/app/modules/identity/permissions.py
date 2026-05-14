@@ -58,8 +58,8 @@ ROLE_DEFINITIONS: dict[str, RoleDefinition] = {
         "permissions": PARTICIPANT_PERMISSIONS,
     },
     "worship_team": {
-        "description": "Add/edit songs and build worship sets for existing services. Cannot archive/delete songs, services, users, or integrations.",
-        "permissions": PARTICIPANT_PERMISSIONS | {"plans:edit", "songs:edit", "songs:create"},
+        "description": "Add/edit songs and create dated worship sets. Cannot archive/delete songs, services, users, or integrations.",
+        "permissions": PARTICIPANT_PERMISSIONS | {"plans:create", "plans:edit", "songs:edit", "songs:create"},
     },
     "service_leader": {
         "description": "Own service plans and team assignments. Cannot archive/delete songs, users, or integrations.",

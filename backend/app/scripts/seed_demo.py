@@ -71,6 +71,7 @@ def seed_reference_data(session: Session) -> PlanType:
         ("Midweek Meeting", "19:30"),
         ("Prayer Night", "20:00"),
         ("Youth Event", "19:00"),
+        ("Worship Set", "10:30"),
     ]:
         get_or_create(
             session,

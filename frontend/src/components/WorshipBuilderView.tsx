@@ -1,19 +1,24 @@
-import { ChevronDown, ChevronUp, ListPlus, MonitorUp, Music2, Trash2 } from "lucide-react";
+import { CalendarDays, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, ListPlus, MonitorUp, Music2, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import {
   createPlanItem,
+  createPlan,
   deletePlanItem,
   getPlan,
+  getPlanTypes,
   getPlans,
   getSongs,
+  updatePlan,
   updatePlanItem,
   type PlanDetail,
   type PlanItem,
   type PlanSummary,
+  type PlanType,
   type Song,
 } from "../api";
 import { buildPresentationSections, suggestSlideGroupFontCap } from "../presentation";
+import { dateKey, isWorshipSetPlan, worshipSetType } from "../worshipSets";
 import { AutoFitSlideText } from "./AutoFitSlideText";
 import { MusicianLiveView } from "./MusicianLiveView";
 
@@ -26,6 +31,48 @@ function formatServiceDate(value: string) {
   return Number.isNaN(date.getTime())
     ? "No date"
     : date.toLocaleDateString(undefined, { day: "numeric", month: "short", weekday: "short" });
+}
+
+function monthInputFromDate(date: Date) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function dateInputFromIso(value: string | null | undefined) {
+  return dateKey(value);
+}
+
+function isoFromDateInput(value: string) {
+  return `${value}T10:30:00.000Z`;
+}
+
+function calendarDaysForMonth(monthInput: string) {
+  const [yearValue, monthValue] = monthInput.split("-").map(Number);
+  const year = Number.isFinite(yearValue) ? yearValue : new Date().getFullYear();
+  const month = Number.isFinite(monthValue) ? monthValue - 1 : new Date().getMonth();
+  const firstDay = new Date(year, month, 1);
+  const start = new Date(firstDay);
+  start.setDate(1 - firstDay.getDay());
+
+  return Array.from({ length: 42 }, (_, index) => {
+    const date = new Date(start);
+    date.setDate(start.getDate() + index);
+    return {
+      date,
+      key: dateInputFromIso(date.toISOString()),
+      muted: date.getMonth() !== month,
+    };
+  });
+}
+
+function longDateForInput(value: string) {
+  const date = new Date(isoFromDateInput(value));
+  return Number.isNaN(date.getTime())
+    ? value
+    : date.toLocaleDateString(undefined, { day: "numeric", month: "long", year: "numeric", weekday: "long" });
+}
+
+function suggestedWorshipSetTitle(value: string) {
+  return `Worship Set ${longDateForInput(value)}`;
 }
 
 function songStatus(song: Pick<Song, "lyrics" | "chords"> | null | undefined) {
@@ -70,9 +117,15 @@ function compactSongTitle(song: Song) {
 
 export function WorshipBuilderView({ canEditPlan }: WorshipBuilderViewProps) {
   const [plans, setPlans] = useState<PlanSummary[]>([]);
+  const [planTypes, setPlanTypes] = useState<PlanType[]>([]);
   const [songs, setSongs] = useState<Song[]>([]);
   const [plan, setPlan] = useState<PlanDetail | null>(null);
   const [selectedPlanId, setSelectedPlanId] = useState("");
+  const [setPickerOpen, setSetPickerOpen] = useState(false);
+  const [setCalendarMonth, setSetCalendarMonth] = useState(monthInputFromDate(new Date()));
+  const [setDraftPlanId, setSetDraftPlanId] = useState<string | null>(null);
+  const [setDraftDate, setSetDraftDate] = useState(dateInputFromIso(new Date().toISOString()));
+  const [setDraftTitle, setSetDraftTitle] = useState(suggestedWorshipSetTitle(dateInputFromIso(new Date().toISOString())));
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState<string | null>(null);
@@ -83,15 +136,24 @@ export function WorshipBuilderView({ canEditPlan }: WorshipBuilderViewProps) {
   const setItemRefs = useRef<Record<string, HTMLElement | null>>({});
   const slideGroupRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
+  const worshipSetPlans = useMemo(() => plans.filter(isWorshipSetPlan), [plans]);
+
   const sortedPlans = useMemo(
     () =>
-      [...plans].sort((left, right) => {
+      [...worshipSetPlans].sort((left, right) => {
         const leftTime = new Date(left.service_date).getTime();
         const rightTime = new Date(right.service_date).getTime();
         return (Number.isNaN(rightTime) ? 0 : rightTime) - (Number.isNaN(leftTime) ? 0 : leftTime);
       }),
-    [plans],
+    [worshipSetPlans],
   );
+
+  const worshipSetsByDate = useMemo(
+    () => new Map(worshipSetPlans.map((worshipSet) => [dateInputFromIso(worshipSet.service_date), worshipSet])),
+    [worshipSetPlans],
+  );
+
+  const calendarDays = useMemo(() => calendarDaysForMonth(setCalendarMonth), [setCalendarMonth]);
 
   const worshipItems = useMemo(
     () => sortedWorshipItems(plan?.items ?? []),
@@ -127,12 +189,14 @@ export function WorshipBuilderView({ canEditPlan }: WorshipBuilderViewProps) {
   async function load(targetPlanId?: string) {
     setLoading(true);
     try {
-      const [nextPlans, nextSongs] = await Promise.all([getPlans(), getSongs()]);
-      const resolvedPlanId = targetPlanId || selectedPlanId || nextPlans[0]?.id || "";
+      const [nextPlans, nextSongs, nextPlanTypes] = await Promise.all([getPlans(), getSongs(), getPlanTypes()]);
+      const nextWorshipPlans = nextPlans.filter(isWorshipSetPlan);
+      const resolvedPlanId = targetPlanId || selectedPlanId || nextWorshipPlans[0]?.id || "";
       const nextPlan = resolvedPlanId ? await getPlan(resolvedPlanId) : null;
       const nextWorshipItems = sortedWorshipItems(nextPlan?.items ?? []);
       setPlans(nextPlans);
       setSongs(nextSongs);
+      setPlanTypes(nextPlanTypes);
       setSelectedPlanId(resolvedPlanId);
       setPlan(nextPlan);
       setSelectedItemId((current) =>
@@ -161,6 +225,69 @@ export function WorshipBuilderView({ canEditPlan }: WorshipBuilderViewProps) {
   async function selectPlan(planId: string) {
     setSelectedPlanId(planId);
     await load(planId);
+  }
+
+  function openSetPicker() {
+    const draftDate = dateInputFromIso(plan?.service_date) || dateInputFromIso(new Date().toISOString());
+    setSetDraftDate(draftDate);
+    setSetDraftPlanId(plan?.id ?? null);
+    setSetDraftTitle(plan?.title ?? suggestedWorshipSetTitle(draftDate));
+    setSetCalendarMonth(draftDate.slice(0, 7) || monthInputFromDate(new Date()));
+    setSetPickerOpen(true);
+  }
+
+  function chooseSetDate(dateInput: string) {
+    const existing = worshipSetsByDate.get(dateInput);
+    setSetDraftDate(dateInput);
+    setSetCalendarMonth(dateInput.slice(0, 7) || setCalendarMonth);
+    if (existing) {
+      setSetDraftPlanId(existing.id);
+      setSetDraftTitle(existing.title);
+      return;
+    }
+    setSetDraftPlanId(null);
+    setSetDraftTitle(suggestedWorshipSetTitle(dateInput));
+  }
+
+  async function saveWorshipSetDraft(openAfterSave = false) {
+    if (!canEditPlan) {
+      setMessage("Only worship team members and leaders can save worship sets.");
+      return;
+    }
+    const planType = worshipSetType(planTypes);
+    if (!planType) {
+      setMessage("The Worship Set plan type has not been installed yet. Run migrations and rebuild the API.");
+      return;
+    }
+
+    try {
+      const payload = {
+        plan_type_id: planType.id,
+        service_date: isoFromDateInput(setDraftDate),
+        title: setDraftTitle.trim() || suggestedWorshipSetTitle(setDraftDate),
+        subtitle: null,
+        leader_id: null,
+        teacher_id: null,
+        status: "draft",
+        info: null,
+      };
+      const saved = setDraftPlanId ? await updatePlan(setDraftPlanId, payload) : await createPlan(payload);
+      await load(openAfterSave ? saved.id : selectedPlanId || saved.id);
+      setSetDraftPlanId(saved.id);
+      setSetPickerOpen(!openAfterSave);
+      setMessage(setDraftPlanId ? "Worship set saved." : "Worship set created.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not save worship set.");
+    }
+  }
+
+  async function openDraftWorshipSet() {
+    if (setDraftPlanId) {
+      await selectPlan(setDraftPlanId);
+      setSetPickerOpen(false);
+      return;
+    }
+    await saveWorshipSetDraft(true);
   }
 
   async function addSong(song: Song) {
@@ -228,19 +355,23 @@ export function WorshipBuilderView({ canEditPlan }: WorshipBuilderViewProps) {
       <section className="worship-builder worship-live-shell" aria-label="Musician live worship">
         <div className="worship-live-topbar">
           <label>
-            Service
+            Worship Set
             <select
               disabled={loading}
               onChange={(event) => void selectPlan(event.target.value)}
               value={selectedPlanId}
             >
-              {sortedPlans.map((service) => (
-                <option key={service.id} value={service.id}>
-                  {formatServiceDate(service.service_date)} · {service.title}
+              {sortedPlans.map((worshipSet) => (
+                <option key={worshipSet.id} value={worshipSet.id}>
+                  {formatServiceDate(worshipSet.service_date)} · {worshipSet.title}
                 </option>
               ))}
             </select>
           </label>
+          <button className="text-button" onClick={openSetPicker} type="button">
+            <CalendarDays size={16} aria-hidden="true" />
+            Sets
+          </button>
           <button className="text-button" onClick={() => setViewMode("builder")} type="button">
             Back to builder
           </button>
@@ -290,19 +421,23 @@ export function WorshipBuilderView({ canEditPlan }: WorshipBuilderViewProps) {
       <main className="worship-set-builder">
         <div className="worship-set-toolbar">
           <label>
-            Service
+            Worship Set
             <select
               disabled={loading}
               onChange={(event) => void selectPlan(event.target.value)}
               value={selectedPlanId}
             >
-              {sortedPlans.map((service) => (
-                <option key={service.id} value={service.id}>
-                  {formatServiceDate(service.service_date)} · {service.title}
+              {sortedPlans.map((worshipSet) => (
+                <option key={worshipSet.id} value={worshipSet.id}>
+                  {formatServiceDate(worshipSet.service_date)} · {worshipSet.title}
                 </option>
               ))}
             </select>
           </label>
+          <button className="text-button icon-text-button" onClick={openSetPicker} type="button">
+            <CalendarDays size={16} aria-hidden="true" />
+            Sets
+          </button>
           <div className="worship-set-summary">
             <strong>{worshipItems.length}</strong>
             <span>worship songs</span>
@@ -320,7 +455,7 @@ export function WorshipBuilderView({ canEditPlan }: WorshipBuilderViewProps) {
             <div className="worship-panel-heading">
               <div>
                 <p className="eyebrow">Set</p>
-                <h2>{plan?.title ?? "No service selected"}</h2>
+                <h2>{plan?.title ?? "No worship set selected"}</h2>
               </div>
             </div>
             <div className="worship-section-list" ref={setListRef}>
@@ -426,6 +561,150 @@ export function WorshipBuilderView({ canEditPlan }: WorshipBuilderViewProps) {
           </section>
         </div>
       </main>
+
+      {setPickerOpen ? (
+        <div className="modal-backdrop" role="presentation">
+          <div className="modal-panel service-picker-dialog worship-set-picker-dialog" role="dialog" aria-modal="true" aria-label="Worship sets">
+            <div className="modal-header">
+              <div>
+                <p className="eyebrow">Calendar</p>
+                <h2>Worship Sets</h2>
+              </div>
+              <button className="text-button" onClick={() => setSetPickerOpen(false)} type="button">
+                Close
+              </button>
+            </div>
+
+            <div className="service-picker-grid">
+              <section className="service-picker-panel service-calendar-panel" aria-label="Worship set calendar">
+                <div className="service-calendar-heading">
+                  <button
+                    className="section-icon-button"
+                    onClick={() => {
+                      const [year, month] = setCalendarMonth.split("-").map(Number);
+                      setSetCalendarMonth(monthInputFromDate(new Date(year, month - 2, 1)));
+                    }}
+                    type="button"
+                    aria-label="Previous month"
+                  >
+                    <ChevronLeft size={16} aria-hidden="true" />
+                  </button>
+                  <strong>
+                    {new Date(`${setCalendarMonth}-01T00:00:00`).toLocaleDateString(undefined, {
+                      month: "long",
+                      year: "numeric",
+                    })}
+                  </strong>
+                  <button
+                    className="section-icon-button"
+                    onClick={() => {
+                      const [year, month] = setCalendarMonth.split("-").map(Number);
+                      setSetCalendarMonth(monthInputFromDate(new Date(year, month, 1)));
+                    }}
+                    type="button"
+                    aria-label="Next month"
+                  >
+                    <ChevronRight size={16} aria-hidden="true" />
+                  </button>
+                </div>
+                <div className="service-calendar-grid">
+                  {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day) => (
+                    <span className="service-calendar-weekday" key={day}>
+                      {day}
+                    </span>
+                  ))}
+                  {calendarDays.map((day) => {
+                    const existing = worshipSetsByDate.get(day.key);
+                    return (
+                      <button
+                        className={`service-calendar-day ${existing ? "has-service" : ""} ${setDraftDate === day.key ? "is-selected" : ""} ${
+                          day.muted ? "is-muted" : ""
+                        }`}
+                        key={day.key}
+                        onClick={() => chooseSetDate(day.key)}
+                        type="button"
+                      >
+                        <span>{day.date.getDate()}</span>
+                        {existing ? <small>{existing.title}</small> : null}
+                      </button>
+                    );
+                  })}
+                </div>
+              </section>
+
+              <section className="service-picker-panel service-list-panel" aria-label="Existing worship sets">
+                <div className="service-panel-heading">
+                  <h3>Existing Sets</h3>
+                  <button className="text-button compact-button" onClick={() => chooseSetDate(dateInputFromIso(new Date().toISOString()))} type="button">
+                    New
+                  </button>
+                </div>
+                <div className="service-date-list">
+                  {sortedPlans.map((worshipSet) => (
+                    <button
+                      className={`service-calendar-day service-date-card ${setDraftPlanId === worshipSet.id ? "is-selected" : ""}`}
+                      key={worshipSet.id}
+                      onClick={() => {
+                        setSetDraftPlanId(worshipSet.id);
+                        setSetDraftDate(dateInputFromIso(worshipSet.service_date));
+                        setSetDraftTitle(worshipSet.title);
+                        setSetCalendarMonth(dateInputFromIso(worshipSet.service_date).slice(0, 7));
+                      }}
+                      type="button"
+                    >
+                      <span>{formatServiceDate(worshipSet.service_date)}</span>
+                      <small>{worshipSet.title} · {worshipSet.item_count} songs</small>
+                    </button>
+                  ))}
+                  {!sortedPlans.length ? <p className="field-help">No worship sets yet. Pick a date and create one.</p> : null}
+                </div>
+              </section>
+
+              <section className="service-picker-panel service-edit-panel" aria-label="Selected worship set">
+                <div className="service-panel-heading">
+                  <h3>{setDraftPlanId ? "Edit Set" : "New Set"}</h3>
+                  {setDraftPlanId ? (
+                    <button
+                      className="text-button compact-button"
+                      onClick={() => {
+                        setSetDraftPlanId(null);
+                        setSetDraftTitle(suggestedWorshipSetTitle(setDraftDate));
+                      }}
+                      type="button"
+                    >
+                      Deselect
+                    </button>
+                  ) : null}
+                </div>
+                <label className="filter-label">
+                  Date
+                  <input
+                    onChange={(event) => {
+                      const nextDate = event.target.value;
+                      setSetDraftDate(nextDate);
+                      setSetCalendarMonth(nextDate.slice(0, 7) || setCalendarMonth);
+                    }}
+                    type="date"
+                    value={setDraftDate}
+                  />
+                </label>
+                <label className="filter-label">
+                  Title
+                  <input onChange={(event) => setSetDraftTitle(event.target.value)} type="text" value={setDraftTitle} />
+                </label>
+                <div className="action-row">
+                  <button className="primary-button" disabled={!canEditPlan} onClick={() => void openDraftWorshipSet()} type="button">
+                    Open Set
+                  </button>
+                  <button className="text-button" disabled={!canEditPlan} onClick={() => void saveWorshipSetDraft(false)} type="button">
+                    Save Changes
+                  </button>
+                </div>
+              </section>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </section>
   );
 }

@@ -1,4 +1,4 @@
-import { ChevronLeft, ChevronRight, Music2 } from "lucide-react";
+import { ChevronLeft, ChevronRight, Maximize, Music2 } from "lucide-react";
 import type { CSSProperties } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
@@ -358,6 +358,18 @@ export function MusicianLiveView({ plan, songs }: MusicianLiveViewProps) {
     changeCapo(delta);
   }
 
+  async function toggleFullscreen() {
+    try {
+      if (document.fullscreenElement) {
+        await document.exitFullscreen();
+        return;
+      }
+      await document.documentElement.requestFullscreen();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Use the browser fullscreen control for this display.");
+    }
+  }
+
   const lyricLinesForSlide = lyricLines(liveSlide?.text ?? "");
   const currentAbsoluteKey = absoluteKey ?? chordChart.absoluteKey ?? (capoKey ? deriveAbsoluteKey(capoKey, capo) : null);
   const currentCapoKey = capoKey ?? (currentAbsoluteKey ? deriveCapoKey(currentAbsoluteKey, capo) : null);
@@ -411,6 +423,9 @@ export function MusicianLiveView({ plan, songs }: MusicianLiveViewProps) {
               +
             </button>
           </div>
+          <button className="musician-fullscreen-button" onClick={() => void toggleFullscreen()} type="button" aria-label="Toggle fullscreen">
+            <Maximize size={18} aria-hidden="true" />
+          </button>
         </div>
       </div>
 

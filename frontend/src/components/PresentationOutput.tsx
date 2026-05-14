@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   getFileSlides,
   getPlan,
+  getPlans,
   getPresentationLiveState,
   getSongs,
   updatePresentationLiveState,
@@ -21,6 +22,7 @@ import {
   suggestSlideGroupFontCap,
   type PresentationLiveState,
 } from "../presentation";
+import { isWorshipSetPlan, matchingWorshipSetForService, mergeWorshipSetIntoService } from "../worshipSets";
 import { AutoFitSlideText } from "./AutoFitSlideText";
 import { ScaledSlideImage } from "./ScaledSlideImage";
 
@@ -39,6 +41,7 @@ function readLiveState(): PresentationLiveState | null {
 
 export function PresentationOutput() {
   const [plan, setPlan] = useState<PlanDetail | null>(null);
+  const [worshipSetPlan, setWorshipSetPlan] = useState<PlanDetail | null>(null);
   const [songs, setSongs] = useState<Song[]>([]);
   const [liveState, setLiveState] = useState<PresentationLiveState | null>(() => {
     const params = new URLSearchParams(window.location.search);
@@ -54,8 +57,8 @@ export function PresentationOutput() {
   const livePollInFlightRef = useRef(false);
 
   const slides = useMemo(
-    () => buildPresentationSlides(plan?.items ?? [], songs, renderedSlidesByFileId),
-    [plan, songs, renderedSlidesByFileId],
+    () => buildPresentationSlides(mergeWorshipSetIntoService(plan?.items ?? [], worshipSetPlan?.items ?? []), songs, renderedSlidesByFileId),
+    [plan, worshipSetPlan, songs, renderedSlidesByFileId],
   );
   const resolvedIndex = resolveLiveIndex(slides, liveState);
   const liveSlide = slides[resolvedIndex] ?? null;
@@ -134,8 +137,11 @@ export function PresentationOutput() {
     }
 
     try {
-      const [nextPlan, nextSongs] = await Promise.all([getPlan(state.planId), getSongs()]);
+      const [nextPlan, nextSongs, nextPlans] = await Promise.all([getPlan(state.planId), getSongs(), getPlans()]);
+      const matchingWorshipSet = matchingWorshipSetForService(nextPlan, nextPlans.filter(isWorshipSetPlan));
+      const nextWorshipSetPlan = matchingWorshipSet ? await getPlan(matchingWorshipSet.id) : null;
       setPlan(nextPlan);
+      setWorshipSetPlan(nextWorshipSetPlan);
       setSongs(nextSongs);
       setMessage(null);
     } catch (error) {
