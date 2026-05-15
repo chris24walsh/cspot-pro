@@ -1,6 +1,7 @@
 import type { PlanDetail, PlanItem, PlanSummary, PlanType } from "./api";
 
 export const WORSHIP_SET_PLAN_TYPE = "Worship Set";
+export const WORSHIP_SET_ANCHOR_ITEM_TYPE = "worship_set";
 
 function normalized(value: string | null | undefined) {
   return (value ?? "").trim().toLowerCase();
@@ -51,15 +52,19 @@ export function worshipSongItems(items: PlanItem[]) {
 export function mergeWorshipSetIntoService(serviceItems: PlanItem[], worshipSetItems: PlanItem[]) {
   const songs = worshipSongItems(worshipSetItems);
   if (!songs.length) {
-    return sortedItems(serviceItems);
+    return sortedItems(serviceItems.filter((item) => item.item_type !== WORSHIP_SET_ANCHOR_ITEM_TYPE));
   }
 
+  const anchorSequence = sortedItems(serviceItems)
+    .filter((item) => item.item_type === WORSHIP_SET_ANCHOR_ITEM_TYPE)
+    .map((item) => Number.parseFloat(item.sequence))
+    .find((sequence) => Number.isFinite(sequence));
   const firstServiceSongSequence = sortedItems(serviceItems)
     .filter((item) => item.item_type === "song")
     .map((item) => Number.parseFloat(item.sequence))
     .find((sequence) => Number.isFinite(sequence));
-  const insertionSequence = firstServiceSongSequence ?? 30;
-  const serviceWithoutSongs = serviceItems.filter((item) => item.item_type !== "song");
+  const insertionSequence = anchorSequence ?? firstServiceSongSequence ?? 30;
+  const serviceWithoutSongs = serviceItems.filter((item) => item.item_type !== "song" && item.item_type !== WORSHIP_SET_ANCHOR_ITEM_TYPE);
   const mergedSongs = songs.map((item, index) => ({
     ...item,
     sequence: (insertionSequence + index).toFixed(2),

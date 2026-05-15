@@ -62,7 +62,13 @@ import {
 import { AutoFitSlideText } from "./AutoFitSlideText";
 import { ScaledSlideImage } from "./ScaledSlideImage";
 import { analyzeWorshipText, buildLyricsFromSections } from "../worshipText";
-import { isWorshipSetPlan, matchingWorshipSetForService, mergeWorshipSetIntoService, worshipSetType } from "../worshipSets";
+import {
+  WORSHIP_SET_ANCHOR_ITEM_TYPE,
+  isWorshipSetPlan,
+  matchingWorshipSetForService,
+  mergeWorshipSetIntoService,
+  worshipSetType,
+} from "../worshipSets";
 
 const SELECTED_SERVICE_SESSION_KEY = "cspot.selectedServicePlanId";
 
@@ -1056,6 +1062,42 @@ export function PresentationView({
     });
   }
 
+  function syntheticWorshipAnchor(): PlanItem | null {
+    if (!plan || !worshipSetPlan?.items.some((item) => item.item_type === "song" && item.song_id)) {
+      return null;
+    }
+
+    return {
+      id: "__worship_anchor__",
+      plan_id: plan.id,
+      song_id: null,
+      item_type: WORSHIP_SET_ANCHOR_ITEM_TYPE,
+      sequence: "30.00",
+      title: "Worship songs",
+      comment: null,
+      key_signature: null,
+      files: [],
+    };
+  }
+
+  function orderedPlanItemsWithWorshipAnchor() {
+    const orderedItems = orderedPlanItems();
+    if (orderedItems.some((item) => item.item_type === WORSHIP_SET_ANCHOR_ITEM_TYPE)) {
+      return orderedItems;
+    }
+
+    const anchor = syntheticWorshipAnchor();
+    if (!anchor) {
+      return orderedItems;
+    }
+
+    return [...orderedItems, anchor].sort((first, second) => {
+      const firstSequence = Number.parseFloat(first.sequence) || 0;
+      const secondSequence = Number.parseFloat(second.sequence) || 0;
+      return firstSequence - secondSequence;
+    });
+  }
+
   function sectionPlanItem(sectionId: string) {
     return serviceItemsById.get(sectionId) ?? worshipSetItemsById.get(sectionId) ?? null;
   }
@@ -1068,6 +1110,10 @@ export function PresentationView({
       return "worship";
     }
     return null;
+  }
+
+  function worshipAnchorItem() {
+    return orderedPlanItems().find((item) => item.item_type === WORSHIP_SET_ANCHOR_ITEM_TYPE) ?? null;
   }
 
   function sequenceForInsertInItems(orderedItems: PlanItem[], afterIndex: number) {
@@ -1089,7 +1135,23 @@ export function PresentationView({
   }
 
   function sequenceForInsert(afterIndex: number) {
-    return sequenceForInsertInItems(orderedPlanItems(), afterIndex);
+    const orderedItems = orderedPlanItemsWithWorshipAnchor();
+    const section = sections[afterIndex] ?? null;
+    const owner = section ? sectionOwner(section.id) : null;
+
+    if (owner === "service") {
+      return sequenceForInsertInItems(
+        orderedItems,
+        orderedItems.findIndex((item) => item.id === section.id),
+      );
+    }
+
+    if (owner === "worship") {
+      const anchorIndex = orderedItems.findIndex((item) => item.item_type === WORSHIP_SET_ANCHOR_ITEM_TYPE);
+      return sequenceForInsertInItems(orderedItems, anchorIndex);
+    }
+
+    return sequenceForInsertInItems(orderedItems, orderedItems.length - 1);
   }
 
   function suggestedWorshipSetTitleForService(servicePlan: PlanDetail) {
@@ -1121,6 +1183,8 @@ export function PresentationView({
       });
     }
 
+    await ensureWorshipAnchor();
+
     const serviceSongItems = orderedPlanItems().filter((item) => item.item_type === "song" && item.song_id);
     if (serviceSongItems.length) {
       const existingSongIds = new Set(targetSet.items.map((item) => item.song_id).filter(Boolean));
@@ -1142,6 +1206,29 @@ export function PresentationView({
     }
 
     return targetSet;
+  }
+
+  async function ensureWorshipAnchor() {
+    if (!plan) {
+      return null;
+    }
+
+    const existing = worshipAnchorItem();
+    if (existing) {
+      return existing;
+    }
+
+    const serviceSongItems = orderedPlanItems().filter((item) => item.item_type === "song" && item.song_id);
+    const syntheticAnchor = syntheticWorshipAnchor();
+    const sequence = serviceSongItems[0]?.sequence ?? syntheticAnchor?.sequence ?? sequenceForInsertInItems(orderedPlanItems(), orderedPlanItems().length - 1);
+    return createPlanItem(plan.id, {
+      item_type: WORSHIP_SET_ANCHOR_ITEM_TYPE,
+      sequence,
+      title: "Worship songs",
+      comment: null,
+      key_signature: null,
+      song_id: null,
+    });
   }
 
   function sequenceForSongInsert(afterIndex: number, targetSet: PlanDetail) {
@@ -1646,7 +1733,17 @@ export function PresentationView({
       return;
     }
 
-    const orderedItems = owner === "worship" ? orderedWorshipSetItems() : orderedPlanItems();
+    let orderedItems = owner === "worship" ? orderedWorshipSetItems() : orderedPlanItems();
+    if (owner === "service" && worshipSetPlan?.items.some((item) => item.item_type === "song" && item.song_id)) {
+      const anchor = await ensureWorshipAnchor();
+      if (anchor && !orderedItems.some((item) => item.id === anchor.id)) {
+        orderedItems = [...orderedItems, anchor].sort((first, second) => {
+          const firstSequence = Number.parseFloat(first.sequence) || 0;
+          const secondSequence = Number.parseFloat(second.sequence) || 0;
+          return firstSequence - secondSequence;
+        });
+      }
+    }
     const itemIndex = orderedItems.findIndex((item) => item.id === sectionId);
     const target = orderedItems[itemIndex + delta];
     const item = orderedItems[itemIndex];
@@ -2600,7 +2697,7 @@ export function PresentationView({
               const sectionStart = slides.findIndex((slide) => slide.sectionId === section.id);
               const sectionItem = sectionPlanItem(section.id);
               const canEditSectionSong = canEditSong && sectionItem?.song_id;
-              const ownerItems = sectionOwner(section.id) === "worship" ? orderedWorshipSetItems() : orderedPlanItems();
+              const ownerItems = sectionOwner(section.id) === "worship" ? orderedWorshipSetItems() : orderedPlanItemsWithWorshipAnchor();
               const ownerItemIndex = ownerItems.findIndex((item) => item.id === section.id);
               return (
                 <div
