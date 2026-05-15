@@ -35,7 +35,11 @@ export function AutoFitSlideText({
       }
 
       activePre.style.fontSize = `${candidate}px`;
-      return activePre.scrollHeight <= activeFrame.clientHeight && activePre.scrollWidth <= activeFrame.clientWidth;
+      const verticalBreathingRoom = Math.max(3, Math.ceil(candidate * (compact ? 0.08 : 0.14)));
+      return (
+        activePre.scrollHeight + verticalBreathingRoom <= activeFrame.clientHeight &&
+        activePre.scrollWidth <= activeFrame.clientWidth
+      );
     }
 
     function updateSize() {
@@ -59,7 +63,7 @@ export function AutoFitSlideText({
         }
       }
 
-      const settled = Math.max(min, best - (compact ? 0 : 1));
+      const settled = Math.max(min, best - (compact ? 0 : 2));
       activePre.style.fontSize = `${settled}px`;
       setFontSize(settled);
     }
