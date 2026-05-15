@@ -111,15 +111,15 @@ function musicianChordLabel(
   options: {
     baseAbsoluteKey: string | null;
     capo: number;
-    capoKey: string | null;
     detailMode: ChordDetailMode;
     displayMode: ChordDisplayMode;
+    targetAbsoluteKey: string | null;
   },
 ) {
-  const preferFlats = chord.includes("b");
-  const keyShift = options.baseAbsoluteKey
-    ? semitoneDistance(options.baseAbsoluteKey, deriveAbsoluteKey(options.capoKey ?? options.baseAbsoluteKey, options.capo))
-    : 0;
+  const targetAbsoluteKey = options.targetAbsoluteKey ?? options.baseAbsoluteKey;
+  const preferFlats = Boolean(targetAbsoluteKey?.includes("b") || chord.includes("b"));
+  const keyShift =
+    options.baseAbsoluteKey && targetAbsoluteKey ? semitoneDistance(options.baseAbsoluteKey, targetAbsoluteKey) : 0;
   const absoluteChord = transposeChordSymbol(chord, keyShift, {
     detailMode: options.detailMode,
     preferFlats,
@@ -142,20 +142,20 @@ function MusicianChordLine({
   annotations,
   baseAbsoluteKey,
   capo,
-  capoKey,
   detailMode,
   displayMode,
   line,
   showChords,
+  targetAbsoluteKey,
 }: {
   annotations: ChordAnnotation[];
   baseAbsoluteKey: string | null;
   capo: number;
-  capoKey: string | null;
   detailMode: ChordDetailMode;
   displayMode: ChordDisplayMode;
   line: string;
   showChords: boolean;
+  targetAbsoluteKey: string | null;
 }) {
   const totalSlots = Math.max(LEADING_CHORD_ANCHORS + line.length + TRAILING_CHORD_ANCHORS, 16);
   const characters = Array.from(line);
@@ -166,9 +166,9 @@ function MusicianChordLine({
         const label = musicianChordLabel(annotation.chord, {
           baseAbsoluteKey,
           capo,
-          capoKey,
           detailMode,
           displayMode,
+          targetAbsoluteKey,
         });
         return (
           <span
@@ -453,12 +453,12 @@ export function MusicianLiveView({ plan, songs }: MusicianLiveViewProps) {
                 annotations={annotationsByLine.get(index) ?? []}
                 baseAbsoluteKey={baseAbsoluteKey}
                 capo={capo}
-                capoKey={currentCapoKey}
                 detailMode={detailMode}
                 displayMode={displayMode}
                 key={`${index}-${line}`}
                 line={line}
                 showChords={showChords}
+                targetAbsoluteKey={currentAbsoluteKey}
               />
             ))}
           </div>
