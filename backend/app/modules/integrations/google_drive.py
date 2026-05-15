@@ -37,6 +37,7 @@ GOOGLE_DRIVE_SCOPES = [
     "https://www.googleapis.com/auth/drive.readonly",
 ]
 GOOGLE_DRIVE_EXPORT_MIME_TYPE = "application/pdf"
+GOOGLE_DRIVE_PARSE_EXPORT_MIME_TYPE = "application/vnd.openxmlformats-officedocument.presentationml.presentation"
 GOOGLE_SLIDES_MIME_TYPE = "application/vnd.google-apps.presentation"
 GOOGLE_FOLDER_MIME_TYPE = "application/vnd.google-apps.folder"
 GOOGLE_DECK_MIME_TYPES = {
@@ -477,3 +478,39 @@ def import_google_drive_file(
     session.commit()
     session.refresh(stored)
     return stored, selected
+
+
+def download_google_drive_deck_for_parsing(
+    *,
+    session: Session,
+    file_id: str,
+) -> tuple[str, bytes]:
+    access_token = get_valid_google_drive_access_token(session)
+    params = urlencode(
+        {
+            "fields": "id,name,mimeType",
+            "supportsAllDrives": "true",
+        }
+    )
+    payload = _json_request(
+        f"{GOOGLE_DRIVE_FILES_URL}/{file_id}?{params}",
+        headers={"Authorization": f"Bearer {access_token}"},
+    )
+    name = str(payload.get("name") or "Google Drive deck")
+    mime_type = str(payload.get("mimeType") or "")
+
+    if mime_type == GOOGLE_SLIDES_MIME_TYPE:
+        content, _content_type = _binary_request(
+            f"{GOOGLE_DRIVE_EXPORT_URL.format(file_id=file_id)}?{urlencode({'mimeType': GOOGLE_DRIVE_PARSE_EXPORT_MIME_TYPE})}",
+            headers={"Authorization": f"Bearer {access_token}"},
+        )
+        return f"{name}.pptx", content
+
+    if mime_type == "application/vnd.openxmlformats-officedocument.presentationml.presentation":
+        content, _content_type = _binary_request(
+            f"{GOOGLE_DRIVE_DOWNLOAD_URL.format(file_id=file_id)}?{urlencode({'alt': 'media', 'supportsAllDrives': 'true'})}",
+            headers={"Authorization": f"Bearer {access_token}"},
+        )
+        return name if name.lower().endswith(".pptx") else f"{name}.pptx", content
+
+    raise ValueError("Only Google Slides and .pptx files can be parsed for worship history right now.")

@@ -11,8 +11,12 @@ import {
   getPlans,
   getSongs,
   getWorshipSetSuggestion,
+  parseGoogleDriveDeck,
+  searchGoogleDriveFiles,
   updatePlan,
   updatePlanItem,
+  type GoogleDriveFile,
+  type ParsedSlideDeck,
   type PlanDetail,
   type PlanItem,
   type PlanSummary,
@@ -25,6 +29,14 @@ import { AutoFitSlideText } from "./AutoFitSlideText";
 import { MusicianLiveView } from "./MusicianLiveView";
 
 const SELECTED_WORSHIP_SET_SESSION_KEY = "cspot.selectedWorshipSetPlanId";
+const WORSHIP_HISTORY_FOLDER = "LCF Cloud/Worship/Weekly Worship Slidedecks";
+
+type WorshipHistoryPreview = {
+  date: string;
+  deck: ParsedSlideDeck;
+  file: GoogleDriveFile;
+  matchedSongs: Array<{ firstSlideIndex: number; song: Song }>;
+};
 
 interface WorshipBuilderViewProps {
   canDeletePlan: boolean;
@@ -120,6 +132,48 @@ function compactSongTitle(song: Song) {
   return song.author ? `${song.title} · ${song.author}` : song.title;
 }
 
+function normalizedTitle(value: string) {
+  return value
+    .toLowerCase()
+    .replace(/&/g, "and")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim()
+    .replace(/\s+/g, " ");
+}
+
+function inferDeckDate(file: Pick<GoogleDriveFile, "name" | "modified_time">) {
+  const numeric = file.name.match(/\b(20\d{2})[-_. ]?([01]?\d)[-_. ]?([0-3]?\d)\b/);
+  if (numeric) {
+    return `${numeric[1]}-${numeric[2].padStart(2, "0")}-${numeric[3].padStart(2, "0")}`;
+  }
+
+  const shortDate = file.name.match(/\b([0-3]?\d)[-_. /]([01]?\d)[-_. /](20\d{2}|\d{2})\b/);
+  if (shortDate) {
+    const year = shortDate[3].length === 2 ? `20${shortDate[3]}` : shortDate[3];
+    return `${year}-${shortDate[2].padStart(2, "0")}-${shortDate[1].padStart(2, "0")}`;
+  }
+
+  return dateInputFromIso(file.modified_time);
+}
+
+function matchSongsInDeck(deck: ParsedSlideDeck, songs: Song[]) {
+  const matched = new Map<string, { firstSlideIndex: number; song: Song }>();
+  const searchableSlides = deck.slides.map((slide) => ({
+    index: slide.index,
+    text: normalizedTitle(`${slide.title}\n${slide.text}`),
+  }));
+
+  for (const song of songs) {
+    const keys = [song.title, song.alternate_title].filter(Boolean).map((value) => normalizedTitle(value!));
+    const firstSlide = searchableSlides.find((slide) => keys.some((key) => key.length >= 5 && slide.text.includes(key)));
+    if (firstSlide) {
+      matched.set(song.id, { firstSlideIndex: firstSlide.index, song });
+    }
+  }
+
+  return [...matched.values()].sort((left, right) => left.firstSlideIndex - right.firstSlideIndex);
+}
+
 export function WorshipBuilderView({ canDeletePlan, canEditPlan }: WorshipBuilderViewProps) {
   const [plans, setPlans] = useState<PlanSummary[]>([]);
   const [planTypes, setPlanTypes] = useState<PlanType[]>([]);
@@ -134,6 +188,12 @@ export function WorshipBuilderView({ canDeletePlan, canEditPlan }: WorshipBuilde
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(true);
   const [suggesting, setSuggesting] = useState(false);
+  const [historyImportOpen, setHistoryImportOpen] = useState(false);
+  const [historySearch, setHistorySearch] = useState("");
+  const [historyFiles, setHistoryFiles] = useState<GoogleDriveFile[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyPreview, setHistoryPreview] = useState<WorshipHistoryPreview | null>(null);
+  const [historyImporting, setHistoryImporting] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<"builder" | "live">("builder");
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
@@ -384,6 +444,99 @@ export function WorshipBuilderView({ canDeletePlan, canEditPlan }: WorshipBuilde
     }
   }
 
+  async function searchHistoryDecks() {
+    setHistoryLoading(true);
+    setHistoryPreview(null);
+    try {
+      const files = await searchGoogleDriveFiles(historySearch.trim(), WORSHIP_HISTORY_FOLDER);
+      setHistoryFiles(files);
+      setMessage(files.length ? null : `No decks found in ${WORSHIP_HISTORY_FOLDER}.`);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not search worship history decks.");
+      setHistoryFiles([]);
+    } finally {
+      setHistoryLoading(false);
+    }
+  }
+
+  async function previewHistoryDeck(file: GoogleDriveFile) {
+    setHistoryLoading(true);
+    try {
+      const deck = await parseGoogleDriveDeck(file.id);
+      const date = inferDeckDate(file);
+      setHistoryPreview({
+        date,
+        deck,
+        file,
+        matchedSongs: matchSongsInDeck(deck, songs),
+      });
+      setMessage(null);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not parse this worship deck.");
+      setHistoryPreview(null);
+    } finally {
+      setHistoryLoading(false);
+    }
+  }
+
+  async function importHistoryPreview() {
+    if (!historyPreview || !canEditPlan) {
+      return;
+    }
+
+    const type = worshipSetType(planTypes);
+    if (!type) {
+      setMessage("The Worship Set plan type has not been installed yet. Run migrations and rebuild the API.");
+      return;
+    }
+    if (!historyPreview.matchedSongs.length) {
+      setMessage("No existing songs were matched in that deck. Import or rename songs first, then retry.");
+      return;
+    }
+
+    setHistoryImporting(true);
+    try {
+      const existingSummary = worshipSetsByDate.get(historyPreview.date);
+      const targetPlan = existingSummary
+        ? await getPlan(existingSummary.id)
+        : await createPlan({
+            plan_type_id: type.id,
+            service_date: isoFromDateInput(historyPreview.date),
+            title: suggestedWorshipSetTitle(historyPreview.date),
+            subtitle: null,
+            leader_id: null,
+            teacher_id: null,
+            status: "draft",
+            info: `Imported from ${historyPreview.file.name}`,
+          });
+
+      const existingSongIds = new Set(targetPlan.items.map((item) => item.song_id).filter(Boolean));
+      let sequence = Number.parseFloat(nextSongSequence(targetPlan.items));
+      for (const match of historyPreview.matchedSongs) {
+        if (existingSongIds.has(match.song.id)) {
+          continue;
+        }
+        await createPlanItem(targetPlan.id, {
+          item_type: "song",
+          sequence: sequence.toFixed(2),
+          title: match.song.title,
+          comment: `Imported from ${historyPreview.file.name} slide ${match.firstSlideIndex}`,
+          key_signature: null,
+          song_id: match.song.id,
+        });
+        sequence += 10;
+      }
+
+      await load(targetPlan.id);
+      setHistoryImportOpen(false);
+      setMessage(`Imported worship history from "${historyPreview.file.name}".`);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not import worship history.");
+    } finally {
+      setHistoryImporting(false);
+    }
+  }
+
   async function removeSong(item: PlanItem) {
     if (!canEditPlan) {
       return;
@@ -509,6 +662,9 @@ export function WorshipBuilderView({ canDeletePlan, canEditPlan }: WorshipBuilde
           </div>
           <button className="text-button" disabled={!plan || !canEditPlan || suggesting} onClick={() => void suggestWorshipSet()} type="button">
             {suggesting ? "Suggesting..." : "Suggest Set"}
+          </button>
+          <button className="text-button" disabled={!canEditPlan} onClick={() => setHistoryImportOpen(true)} type="button">
+            History Import
           </button>
           <button className="primary-button icon-text-button" disabled={!plan} onClick={() => setViewMode("live")} type="button">
             <MonitorUp size={16} aria-hidden="true" />
@@ -791,6 +947,88 @@ export function WorshipBuilderView({ canDeletePlan, canEditPlan }: WorshipBuilde
                   </div>
                 ) : null}
               </section>
+            </div>
+          </section>
+        </div>
+      ) : null}
+      {historyImportOpen ? (
+        <div className="app-dialog-backdrop" role="presentation" onMouseDown={() => setHistoryImportOpen(false)}>
+          <section
+            aria-labelledby="worship-history-import-title"
+            className="app-dialog app-dialog-wide"
+            onMouseDown={(event) => event.stopPropagation()}
+            role="dialog"
+          >
+            <div className="section-heading">
+              <div>
+                <p className="eyebrow">History</p>
+                <h2 id="worship-history-import-title">Import Worship Sets</h2>
+              </div>
+              <button className="text-button" onClick={() => setHistoryImportOpen(false)} type="button">
+                Close
+              </button>
+            </div>
+            <p className="field-help">Searches {WORSHIP_HISTORY_FOLDER} and matches slide text against songs already in the library.</p>
+            <div className="dialog-form-grid">
+              <label>
+                Search
+                <input
+                  onChange={(event) => setHistorySearch(event.target.value)}
+                  placeholder="May 2024, Easter, or leave blank"
+                  value={historySearch}
+                />
+              </label>
+              <button className="primary-button" disabled={historyLoading} onClick={() => void searchHistoryDecks()} type="button">
+                {historyLoading ? "Searching..." : "Search Folder"}
+              </button>
+            </div>
+            <div className="two-column-review">
+              <div className="stack-list compact">
+                {historyFiles.map((file) => (
+                  <button
+                    className={`stack-row ${historyPreview?.file.id === file.id ? "selected" : ""}`}
+                    key={file.id}
+                    onClick={() => void previewHistoryDeck(file)}
+                    type="button"
+                  >
+                    <strong>{file.name}</strong>
+                    <span>{file.modified_time ? formatServiceDate(file.modified_time) : file.source_kind}</span>
+                  </button>
+                ))}
+                {!historyFiles.length ? <p className="search-empty">No history decks loaded yet.</p> : null}
+              </div>
+              <div className="subsection-panel">
+                {historyPreview ? (
+                  <>
+                    <div className="empty-state import-summary">
+                      <strong>{historyPreview.file.name}</strong>
+                      <span>Date: {historyPreview.date}</span>
+                      <span>{historyPreview.deck.slide_count} parsed slides</span>
+                      <span>{historyPreview.matchedSongs.length} matched song{historyPreview.matchedSongs.length === 1 ? "" : "s"}</span>
+                    </div>
+                    <div className="stack-list compact">
+                      {historyPreview.matchedSongs.map((match) => (
+                        <div className="stack-row readonly" key={match.song.id}>
+                          <strong>{match.song.title}</strong>
+                          <span>First seen on slide {match.firstSlideIndex}</span>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="action-row">
+                      <button
+                        className="primary-button"
+                        disabled={historyImporting || !historyPreview.matchedSongs.length}
+                        onClick={() => void importHistoryPreview()}
+                        type="button"
+                      >
+                        {historyImporting ? "Importing..." : "Create Worship Set"}
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  <p className="search-empty">Select a deck to preview matched songs.</p>
+                )}
+              </div>
             </div>
           </section>
         </div>

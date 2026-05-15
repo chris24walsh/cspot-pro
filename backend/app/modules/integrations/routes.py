@@ -15,6 +15,7 @@ from app.modules.integrations.google_drive import (
     exchange_google_drive_code,
     fetch_google_profile,
     google_drive_status,
+    download_google_drive_deck_for_parsing,
     import_google_drive_file,
     list_google_drive_decks,
     revoke_google_drive_connection,
@@ -24,8 +25,10 @@ from app.modules.integrations.schemas import (
     GoogleDriveFileRead,
     GoogleDriveImportRead,
     GoogleDriveImportRequest,
+    GoogleDriveParseRequest,
     GoogleDriveStatusRead,
 )
+from app.modules.imports.routes import ParsedSlide, ParsedSlideDeck, _parse_slide_deck, _slide_title
 from app.modules.library.routes import UPLOAD_ROOT, stored_file_to_read
 
 router = APIRouter()
@@ -128,3 +131,31 @@ def import_google_drive_deck(
         return GoogleDriveImportRead(file=stored_file_to_read(stored), source=source)
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+
+
+@router.post("/google-drive/parse", response_model=ParsedSlideDeck)
+def parse_google_drive_deck(
+    payload: GoogleDriveParseRequest,
+    _current_user: User = Depends(require_permission("library:create")),
+    session: Session = Depends(get_session),
+) -> ParsedSlideDeck:
+    try:
+        filename, content = download_google_drive_deck_for_parsing(session=session, file_id=payload.file_id)
+        deck_format, slide_lines, notes = _parse_slide_deck(filename, content)
+    except HTTPException:
+        raise
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=f"Could not parse Google Drive deck: {exc}") from exc
+
+    slides = [
+        ParsedSlide(
+            index=index + 1,
+            title=_slide_title(lines, f"Slide {index + 1}"),
+            text="\n".join(lines),
+        )
+        for index, lines in enumerate(slide_lines)
+        if lines
+    ]
+    return ParsedSlideDeck(filename=filename, format=deck_format, slide_count=len(slides), slides=slides, notes=notes)

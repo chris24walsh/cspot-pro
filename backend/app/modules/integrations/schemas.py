@@ -28,6 +28,10 @@ class GoogleDriveImportRequest(BaseModel):
     display_name: str | None = None
 
 
+class GoogleDriveParseRequest(BaseModel):
+    file_id: str
+
+
 class GoogleDriveImportRead(BaseModel):
     file: StoredFileRead
     source: GoogleDriveFileRead

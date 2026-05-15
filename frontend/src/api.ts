@@ -778,6 +778,12 @@ export async function importGoogleDriveDeck(payload: {
   });
 }
 
+export async function parseGoogleDriveDeck(fileId: string): Promise<ParsedSlideDeck> {
+  return sendJson<ParsedSlideDeck>("/api/v1/integrations/google-drive/parse", "POST", { file_id: fileId }, {
+    timeoutMs: DECK_IMPORT_TIMEOUT_MS,
+  });
+}
+
 export async function getInstruments(): Promise<Instrument[]> {
   return getJson<Instrument[]>("/api/v1/people/instruments");
 }

@@ -1330,6 +1330,13 @@ h3 {
   padding: 16px;
 }
 
+.two-column-review {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: minmax(240px, 0.8fr) minmax(0, 1fr);
+  min-height: 0;
+}
+
 .muted-copy {
   color: #65716a;
   margin: 0;
