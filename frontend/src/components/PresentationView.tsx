@@ -1199,8 +1199,6 @@ export function PresentationView({
       });
     }
 
-    await ensureWorshipAnchor();
-
     const serviceSongItems = orderedPlanItems().filter((item) => item.item_type === "song" && item.song_id);
     if (serviceSongItems.length) {
       const existingSongIds = new Set(targetSet.items.map((item) => item.song_id).filter(Boolean));
@@ -1224,7 +1222,7 @@ export function PresentationView({
     return targetSet;
   }
 
-  async function ensureWorshipAnchor() {
+  async function ensureWorshipAnchor(sequenceOverride?: string) {
     if (!plan) {
       return null;
     }
@@ -1236,7 +1234,11 @@ export function PresentationView({
 
     const serviceSongItems = orderedPlanItems().filter((item) => item.item_type === "song" && item.song_id);
     const syntheticAnchor = syntheticWorshipAnchor();
-    const sequence = serviceSongItems[0]?.sequence ?? syntheticAnchor?.sequence ?? sequenceForInsertInItems(orderedPlanItems(), orderedPlanItems().length - 1);
+    const sequence =
+      sequenceOverride ??
+      serviceSongItems[0]?.sequence ??
+      syntheticAnchor?.sequence ??
+      sequenceForInsertInItems(orderedPlanItems(), orderedPlanItems().length - 1);
     return createPlanItem(plan.id, {
       item_type: WORSHIP_SET_ANCHOR_ITEM_TYPE,
       sequence,
@@ -1288,6 +1290,7 @@ export function PresentationView({
     }
 
     return {
+      anchorSequence: sequenceForInsert(afterIndex),
       planId: targetSet.id,
       sequence: sequenceForSongInsert(afterIndex, targetSet),
     };
@@ -1358,6 +1361,7 @@ export function PresentationView({
       key_signature: null,
       song_id: songId,
     });
+    await ensureWorshipAnchor(target.anchorSequence);
   }
 
   async function runCustomSongImportSearch() {
@@ -1732,7 +1736,16 @@ export function PresentationView({
     }
 
     try {
+      const removingLastWorshipSong =
+        owner === "worship" &&
+        orderedWorshipSetItems().filter((item) => item.item_type === "song" && item.song_id).length <= 1;
       await deletePlanItem(sectionId);
+      if (removingLastWorshipSong) {
+        const anchor = worshipAnchorItem();
+        if (anchor) {
+          await deletePlanItem(anchor.id);
+        }
+      }
       await load(plan.id);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Could not remove section.");

@@ -118,6 +118,7 @@ def list_plans(
             select(func.count(PlanItem.id)).where(
                 PlanItem.plan_id == plan.id,
                 PlanItem.deleted_at.is_(None),
+                PlanItem.item_type != "worship_set",
             )
         )
         summaries.append(
