@@ -72,7 +72,10 @@ type GuitarChordShape = {
   baseFret?: number;
   frets: Array<number | "x">;
   fingers?: Array<number | null>;
+  label?: string;
 };
+
+type GuitarShapeMode = "standard" | "open-e";
 
 const GUITAR_CHORDS: Record<string, GuitarChordShape> = {
   A: { frets: ["x", 0, 2, 2, 2, 0], fingers: [null, null, 1, 2, 3, null] },
@@ -93,6 +96,18 @@ const GUITAR_CHORDS: Record<string, GuitarChordShape> = {
   Fm: { baseFret: 1, frets: [1, 3, 3, 1, 1, 1], fingers: [1, 3, 4, 1, 1, 1] },
   G: { frets: [3, 2, 0, 0, 0, 3], fingers: [2, 1, null, null, null, 3] },
   G7: { frets: [3, 2, 0, 0, 0, 1], fingers: [3, 2, null, null, null, 1] },
+};
+
+const OPEN_E_GUITAR_CHORDS: Record<string, GuitarChordShape> = {
+  E: { frets: [0, 7, 9, 9, 0, 0], fingers: [null, 1, 3, 4, null, null], label: "open E" },
+  E7: { frets: [0, 7, 6, 7, 0, 0], fingers: [null, 2, 1, 3, null, null], label: "open E7" },
+  A: { frets: ["x", 0, 7, 6, 0, 0], fingers: [null, null, 2, 1, null, null], label: "A2 / open E" },
+  A7: { frets: ["x", 0, 7, 6, 8, 0], fingers: [null, null, 2, 1, 3, null], label: "A7 / open E" },
+  B: { frets: ["x", 2, 4, 4, 0, 0], fingers: [null, 1, 3, 4, null, null], label: "Bsus / open E" },
+  B7: { frets: ["x", 2, 1, 2, 0, 0], fingers: [null, 2, 1, 3, null, null], label: "B7 / open E" },
+  "C#m": { frets: ["x", 4, 6, 6, 0, 0], fingers: [null, 1, 3, 4, null, null], label: "C#m7 / open E" },
+  "F#m": { frets: [2, 4, 4, 2, 0, 0], fingers: [1, 3, 4, 1, null, null], label: "F#m11 / open E" },
+  "G#m": { frets: [4, 6, 6, 4, 0, 0], fingers: [1, 3, 4, 1, null, null], label: "G#m / open E" },
 };
 
 function blankSong(): SongPayload {
@@ -213,11 +228,38 @@ function diagramChordKey(chord: string) {
   return root;
 }
 
-function GuitarChordDiagram({ chord }: { chord: string | null }) {
+function resolveGuitarShape(chordKey: string, shapeMode: GuitarShapeMode) {
+  if (shapeMode === "open-e") {
+    return OPEN_E_GUITAR_CHORDS[chordKey] ?? GUITAR_CHORDS[chordKey] ?? null;
+  }
+  return GUITAR_CHORDS[chordKey] ?? null;
+}
+
+function diagramBaseFret(shape: GuitarChordShape) {
+  if (shape.baseFret) {
+    return shape.baseFret;
+  }
+  const fretted = shape.frets.filter((fret): fret is number => typeof fret === "number" && fret > 0);
+  const minimumFret = Math.min(...fretted);
+  return Number.isFinite(minimumFret) && minimumFret > 3 ? minimumFret : undefined;
+}
+
+function diagramFretPosition(baseFret: number | undefined, fret: number) {
+  if (fret <= 0) {
+    return 0;
+  }
+  if (!baseFret || baseFret <= 1) {
+    return fret;
+  }
+  return fret - baseFret + 1;
+}
+
+function GuitarChordDiagram({ chord, shapeMode }: { chord: string | null; shapeMode: GuitarShapeMode }) {
   const chordKey = chord ? diagramChordKey(chord) : "";
-  const shape = chordKey ? GUITAR_CHORDS[chordKey] : null;
+  const shape = chordKey ? resolveGuitarShape(chordKey, shapeMode) : null;
   const stringX = [14, 32, 50, 68, 86, 104];
   const fretY = [26, 46, 66, 86, 106];
+  const baseFret = shape ? diagramBaseFret(shape) : undefined;
 
   if (!chord) {
     return (
@@ -232,7 +274,7 @@ function GuitarChordDiagram({ chord }: { chord: string | null }) {
     return (
       <div className="chord-diagram-card empty">
         <strong>{chord}</strong>
-        <span>No guitar shape yet</span>
+        <span>No {shapeMode === "open-e" ? "open E" : "guitar"} shape yet</span>
       </div>
     );
   }
@@ -240,13 +282,14 @@ function GuitarChordDiagram({ chord }: { chord: string | null }) {
   return (
     <div className="chord-diagram-card">
       <strong>{chord}</strong>
+      {shape.label ? <span>{shape.label}</span> : null}
       <svg aria-label={`${chord} guitar chord`} className="chord-diagram" role="img" viewBox="0 0 118 128">
-        {shape.baseFret && shape.baseFret > 1 ? <text className="chord-fret-label" x="108" y="43">{shape.baseFret}fr</text> : null}
+        {baseFret && baseFret > 1 ? <text className="chord-fret-label" x="108" y="43">{baseFret}fr</text> : null}
         {stringX.map((x) => (
           <line className="chord-string" key={`string-${x}`} x1={x} x2={x} y1="26" y2="106" />
         ))}
         {fretY.map((y, index) => (
-          <line className={index === 0 && !shape.baseFret ? "chord-nut" : "chord-fret"} key={`fret-${y}`} x1="14" x2="104" y1={y} y2={y} />
+          <line className={index === 0 && !baseFret ? "chord-nut" : "chord-fret"} key={`fret-${y}`} x1="14" x2="104" y1={y} y2={y} />
         ))}
         {shape.frets.map((fret, index) => {
           const x = stringX[index];
@@ -256,7 +299,8 @@ function GuitarChordDiagram({ chord }: { chord: string | null }) {
           if (fret === 0) {
             return <circle className="chord-open" cx={x} cy="13" key={`mark-${index}`} r="3.5" />;
           }
-          const y = fretY[Math.max(0, Math.min(fret - 1, fretY.length - 2))] + 10;
+          const fretPosition = diagramFretPosition(baseFret, fret);
+          const y = fretY[Math.max(0, Math.min(fretPosition - 1, fretY.length - 2))] + 10;
           return (
             <g key={`mark-${index}`}>
               <circle className="chord-finger-dot" cx={x} cy={y} r="7" />
@@ -309,6 +353,7 @@ export function SongManager({
   const [chordInput, setChordInput] = useState("");
   const [displayMode, setDisplayMode] = useState<ChordDisplayMode>("absolute");
   const [detailMode, setDetailMode] = useState<ChordDetailMode>("advanced");
+  const [shapeMode, setShapeMode] = useState<GuitarShapeMode>("standard");
   const [draggedAnnotationId, setDraggedAnnotationId] = useState<string | null>(null);
   const [hoveredAnchor, setHoveredAnchor] = useState<{ lineIndex: number; slotIndex: number } | null>(null);
   const [hoveredChordId, setHoveredChordId] = useState<string | null>(null);
@@ -1621,7 +1666,7 @@ export function SongManager({
             <div className="musician-tools-shell">
               <aside className="musician-side-panel">
                 <div className="musician-chord-summary">
-                  <GuitarChordDiagram chord={activeDisplayedChord} />
+                  <GuitarChordDiagram chord={activeDisplayedChord} shapeMode={shapeMode} />
                 </div>
 
                 <div className="musician-toolbar">
@@ -1660,6 +1705,24 @@ export function SongManager({
                         type="button"
                       >
                         Advanced
+                      </button>
+                    </div>
+                    <div className="segmented-control compact-toggle">
+                      <button
+                        className={shapeMode === "standard" ? "is-active" : ""}
+                        disabled={mode === "create" ? !canCreate : !canEdit}
+                        onClick={() => setShapeMode("standard")}
+                        type="button"
+                      >
+                        Shapes
+                      </button>
+                      <button
+                        className={shapeMode === "open-e" ? "is-active" : ""}
+                        disabled={mode === "create" ? !canCreate : !canEdit}
+                        onClick={() => setShapeMode("open-e")}
+                        type="button"
+                      >
+                        Open E
                       </button>
                     </div>
                   </div>
