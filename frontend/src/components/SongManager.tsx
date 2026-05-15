@@ -77,6 +77,11 @@ type GuitarChordShape = {
 
 type GuitarShapeMode = "standard" | "open-e";
 
+const GUITAR_SHAPE_SETS = {
+  standard: { label: "Shapes", requiredKey: null },
+  "open-e": { label: "Open E", requiredKey: "E" },
+} as const satisfies Record<GuitarShapeMode, { label: string; requiredKey: string | null }>;
+
 const GUITAR_CHORDS: Record<string, GuitarChordShape> = {
   A: { frets: ["x", 0, 2, 2, 2, 0], fingers: [null, null, 1, 2, 3, null] },
   Am: { frets: ["x", 0, 2, 2, 1, 0], fingers: [null, null, 2, 3, 1, null] },
@@ -382,6 +387,9 @@ export function SongManager({
     customProviderResult?.matches.find((match) => match.id === selectedCustomProviderMatchId) ?? null;
   const editableKey = chordChart.keyAnchor === "absolute" ? chordChart.absoluteKey : chordChart.capoKey;
   const derivedKey = chordChart.keyAnchor === "absolute" ? chordChart.capoKey : chordChart.absoluteKey;
+  const currentShapeKey = displayMode === "capo" ? chordChart.capoKey : chordChart.absoluteKey;
+  const openEShapesAvailable = currentShapeKey === "E";
+  const activeShapeMode = openEShapesAvailable ? shapeMode : "standard";
   function hydrateChordState(raw: string | null) {
     const parsed = parseChordChart(raw);
     setChordChart(parsed.document);
@@ -1094,6 +1102,12 @@ export function SongManager({
   }, []);
 
   useEffect(() => {
+    if (!openEShapesAvailable && shapeMode === "open-e") {
+      setShapeMode("standard");
+    }
+  }, [openEShapesAvailable, shapeMode]);
+
+  useEffect(() => {
     if (!lines.length) {
       setSelectedLineIndex(0);
       setSelectedAnchorIndex(0);
@@ -1666,7 +1680,7 @@ export function SongManager({
             <div className="musician-tools-shell">
               <aside className="musician-side-panel">
                 <div className="musician-chord-summary">
-                  <GuitarChordDiagram chord={activeDisplayedChord} shapeMode={shapeMode} />
+                  <GuitarChordDiagram chord={activeDisplayedChord} shapeMode={activeShapeMode} />
                 </div>
 
                 <div className="musician-toolbar">
@@ -1708,22 +1722,26 @@ export function SongManager({
                       </button>
                     </div>
                     <div className="segmented-control compact-toggle">
-                      <button
-                        className={shapeMode === "standard" ? "is-active" : ""}
-                        disabled={mode === "create" ? !canCreate : !canEdit}
-                        onClick={() => setShapeMode("standard")}
-                        type="button"
-                      >
-                        Shapes
-                      </button>
-                      <button
-                        className={shapeMode === "open-e" ? "is-active" : ""}
-                        disabled={mode === "create" ? !canCreate : !canEdit}
-                        onClick={() => setShapeMode("open-e")}
-                        type="button"
-                      >
-                        Open E
-                      </button>
+                      {(Object.keys(GUITAR_SHAPE_SETS) as GuitarShapeMode[]).map((setKey) => {
+                        const shapeSet = GUITAR_SHAPE_SETS[setKey];
+                        const shapeSetAvailable = !shapeSet.requiredKey || shapeSet.requiredKey === currentShapeKey;
+                        return (
+                          <button
+                            className={activeShapeMode === setKey ? "is-active" : ""}
+                            disabled={(mode === "create" ? !canCreate : !canEdit) || !shapeSetAvailable}
+                            key={setKey}
+                            onClick={() => setShapeMode(setKey)}
+                            title={
+                              shapeSet.requiredKey && !shapeSetAvailable
+                                ? `${shapeSet.label} applies when the displayed guitar key is ${shapeSet.requiredKey}.`
+                                : undefined
+                            }
+                            type="button"
+                          >
+                            {shapeSet.label}
+                          </button>
+                        );
+                      })}
                     </div>
                   </div>
 
