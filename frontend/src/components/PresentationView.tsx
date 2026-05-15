@@ -2724,8 +2724,6 @@ export function PresentationView({
             ) : null}
             {sections.map((section, sectionIndex) => {
               const sectionStart = slides.findIndex((slide) => slide.sectionId === section.id);
-              const sectionItem = sectionPlanItem(section.id);
-              const canEditSectionSong = canEditSong && sectionItem?.song_id;
               const ownerItems = sectionOwner(section.id) === "worship" ? orderedWorshipSetItems() : orderedPlanItemsWithWorshipAnchor();
               const ownerItemIndex = ownerItems.findIndex((item) => item.id === section.id);
               return (
@@ -2752,17 +2750,6 @@ export function PresentationView({
                     </button>
                     {canEditPlan || canDeletePlan ? (
                       <div className="section-actions">
-                        {canEditSectionSong ? (
-                          <button
-                            aria-label={`Edit song ${section.title}`}
-                            className="section-icon-button section-edit-button"
-                            onClick={() => openSongEditor(sectionItem.song_id!)}
-                            type="button"
-                          >
-                            <Pencil size={14} aria-hidden="true" />
-                            <span>Edit</span>
-                          </button>
-                        ) : null}
                         <button
                           aria-label={`Move ${section.title} up`}
                           className="section-icon-button"
