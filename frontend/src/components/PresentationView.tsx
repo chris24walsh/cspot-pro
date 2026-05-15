@@ -62,7 +62,7 @@ import {
 import { AutoFitSlideText } from "./AutoFitSlideText";
 import { ScaledSlideImage } from "./ScaledSlideImage";
 import { analyzeWorshipText, buildLyricsFromSections } from "../worshipText";
-import { isWorshipSetPlan, matchingWorshipSetForService, mergeWorshipSetIntoService } from "../worshipSets";
+import { isWorshipSetPlan, matchingWorshipSetForService, mergeWorshipSetIntoService, worshipSetType } from "../worshipSets";
 
 const SELECTED_SERVICE_SESSION_KEY = "cspot.selectedServicePlanId";
 
@@ -1092,21 +1092,101 @@ export function PresentationView({
     return sequenceForInsertInItems(orderedPlanItems(), afterIndex);
   }
 
-  function songInsertTarget(afterIndex: number) {
+  function suggestedWorshipSetTitleForService(servicePlan: PlanDetail) {
+    return `Worship Set ${serviceLongDateForInput(dateInputFromIso(servicePlan.service_date))}`;
+  }
+
+  async function ensureWorshipSetForCurrentService() {
+    if (!plan) {
+      return null;
+    }
+
+    const setType = worshipSetType(planTypes);
+    if (!setType) {
+      setMessage("The Worship Set plan type has not been installed yet. Run migrations and rebuild the API.");
+      return null;
+    }
+
+    let targetSet = worshipSetPlan;
+    if (!targetSet) {
+      targetSet = await createPlan({
+        plan_type_id: setType.id,
+        service_date: plan.service_date,
+        title: suggestedWorshipSetTitleForService(plan),
+        subtitle: null,
+        leader_id: null,
+        teacher_id: null,
+        status: "draft",
+        info: `Song set for ${plan.title}`,
+      });
+    }
+
+    const serviceSongItems = orderedPlanItems().filter((item) => item.item_type === "song" && item.song_id);
+    if (serviceSongItems.length) {
+      const existingSongIds = new Set(targetSet.items.map((item) => item.song_id).filter(Boolean));
+      for (const item of serviceSongItems) {
+        if (!existingSongIds.has(item.song_id)) {
+          await createPlanItem(targetSet.id, {
+            item_type: "song",
+            sequence: item.sequence,
+            title: item.title,
+            comment: item.comment,
+            key_signature: item.key_signature,
+            song_id: item.song_id,
+          });
+          existingSongIds.add(item.song_id);
+        }
+        await deletePlanItem(item.id);
+      }
+      targetSet = await getPlan(targetSet.id);
+    }
+
+    return targetSet;
+  }
+
+  function sequenceForSongInsert(afterIndex: number, targetSet: PlanDetail) {
+    const orderedItems = [...targetSet.items]
+      .filter((item) => item.item_type === "song" && item.song_id)
+      .sort((first, second) => (Number.parseFloat(first.sequence) || 0) - (Number.parseFloat(second.sequence) || 0));
     const section = sections[afterIndex] ?? null;
-    const owner = section ? sectionOwner(section.id) : null;
-    if (owner === "worship" && worshipSetPlan) {
-      const orderedItems = orderedWorshipSetItems();
-      const ownerIndex = orderedItems.findIndex((item) => item.id === section.id);
-      return {
-        planId: worshipSetPlan.id,
-        sequence: sequenceForInsertInItems(orderedItems, ownerIndex),
-      };
+
+    if (section && orderedItems.some((item) => item.id === section.id)) {
+      return sequenceForInsertInItems(
+        orderedItems,
+        orderedItems.findIndex((item) => item.id === section.id),
+      );
+    }
+
+    const previousWorshipSection = [...sections.slice(0, afterIndex + 1)]
+      .reverse()
+      .find((candidate) => orderedItems.some((item) => item.id === candidate.id));
+    if (previousWorshipSection) {
+      return sequenceForInsertInItems(
+        orderedItems,
+        orderedItems.findIndex((item) => item.id === previousWorshipSection.id),
+      );
+    }
+
+    const nextWorshipSection = sections.slice(afterIndex + 1).find((candidate) => orderedItems.some((item) => item.id === candidate.id));
+    if (nextWorshipSection) {
+      return sequenceForInsertInItems(
+        orderedItems,
+        orderedItems.findIndex((item) => item.id === nextWorshipSection.id) - 1,
+      );
+    }
+
+    return sequenceForInsertInItems(orderedItems, orderedItems.length - 1);
+  }
+
+  async function songInsertTarget(afterIndex: number) {
+    const targetSet = await ensureWorshipSetForCurrentService();
+    if (!targetSet) {
+      return null;
     }
 
     return {
-      planId: plan?.id ?? "",
-      sequence: sequenceForInsert(afterIndex),
+      planId: targetSet.id,
+      sequence: sequenceForSongInsert(afterIndex, targetSet),
     };
   }
 
@@ -1161,8 +1241,8 @@ export function PresentationView({
       return;
     }
 
-    const target = songInsertTarget(afterIndex);
-    if (!target.planId) {
+    const target = await songInsertTarget(afterIndex);
+    if (!target?.planId) {
       setMessage("Select a service before adding a song.");
       return;
     }
@@ -2741,7 +2821,7 @@ export function PresentationView({
                         onClick={() => {
                           void insertSongById(song.id, searchInsertIndex ?? activeSectionInsertIndex())
                             .then(async () => {
-                              await load(plan?.id);
+                              await load(plan?.id, { refreshCatalogs: true });
                               closeSearchOverlay();
                             })
                             .catch((error: unknown) => {

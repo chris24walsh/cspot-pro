@@ -336,6 +336,10 @@ export function WorshipBuilderView({ canDeletePlan, canEditPlan }: WorshipBuilde
     () => new Map(worshipSetPlans.map((worshipSet) => [dateInputFromIso(worshipSet.service_date), worshipSet])),
     [worshipSetPlans],
   );
+  const servicePlansByDate = useMemo(
+    () => new Map(plans.filter((candidate) => !isWorshipSetPlan(candidate)).map((servicePlan) => [dateInputFromIso(servicePlan.service_date), servicePlan])),
+    [plans],
+  );
 
   const calendarDays = useMemo(() => calendarDaysForMonth(setCalendarMonth), [setCalendarMonth]);
 
@@ -467,12 +471,43 @@ export function WorshipBuilderView({ canDeletePlan, canEditPlan }: WorshipBuilde
         info: null,
       };
       const saved = setDraftPlanId ? await updatePlan(setDraftPlanId, payload) : await createPlan(payload);
+      await absorbServiceSongsIntoWorshipSet(saved, setDraftDate);
       await load(openAfterSave ? saved.id : selectedPlanId || saved.id);
       setSetDraftPlanId(saved.id);
       setSetPickerOpen(!openAfterSave);
       setMessage(setDraftPlanId ? "Worship set saved." : "Worship set created.");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Could not save worship set.");
+    }
+  }
+
+  async function absorbServiceSongsIntoWorshipSet(worshipSet: PlanDetail, dateInput: string) {
+    const matchingService = servicePlansByDate.get(dateInput);
+    if (!matchingService) {
+      return;
+    }
+
+    const servicePlan = await getPlan(matchingService.id);
+    const serviceSongs = sortedWorshipItems(servicePlan.items);
+    if (!serviceSongs.length) {
+      return;
+    }
+
+    const targetSet = await getPlan(worshipSet.id);
+    const existingSongIds = new Set(targetSet.items.map((item) => item.song_id).filter(Boolean));
+    for (const item of serviceSongs) {
+      if (!existingSongIds.has(item.song_id)) {
+        await createPlanItem(targetSet.id, {
+          item_type: "song",
+          sequence: item.sequence,
+          title: item.title,
+          comment: item.comment,
+          key_signature: item.key_signature,
+          song_id: item.song_id,
+        });
+        existingSongIds.add(item.song_id);
+      }
+      await deletePlanItem(item.id);
     }
   }
 
