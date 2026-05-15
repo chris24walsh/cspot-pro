@@ -154,7 +154,13 @@ export function PresentationOutput() {
       await document.documentElement.requestFullscreen();
       setFullscreenReady(false);
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Use the browser fullscreen control for this display.");
+      const browserMessage = error instanceof Error ? error.message : "";
+      setMessage(
+        browserMessage.toLowerCase().includes("permission")
+          ? "Fullscreen was blocked by this browser. Use the Fullscreen button again after clicking the slide, or press F11 on this computer."
+          : browserMessage || "Use the browser fullscreen control for this display.",
+      );
+      setFullscreenReady(true);
     }
   }
 
@@ -367,6 +373,15 @@ export function PresentationOutput() {
     void syncFullscreenMode();
   }, [liveState?.fullscreen]);
 
+  useEffect(() => {
+    if (!message) {
+      return;
+    }
+
+    const timer = window.setTimeout(() => setMessage(null), 8000);
+    return () => window.clearTimeout(timer);
+  }, [message]);
+
   return (
     <main className="slideshow-output" aria-label="Live slideshow output">
       {fullscreenReady ? (
@@ -376,7 +391,14 @@ export function PresentationOutput() {
         </button>
       ) : null}
 
-      {message ? <p className="slideshow-message">{message}</p> : null}
+      {message ? (
+        <div className="slideshow-message" role="status">
+          <span>{message}</span>
+          <button aria-label="Dismiss message" onClick={() => setMessage(null)} type="button">
+            ×
+          </button>
+        </div>
+      ) : null}
 
       <section
         className={`slideshow-stage ${liveSlide?.imageUrl ? "slideshow-stage-image" : ""} stage-theme-${
