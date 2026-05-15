@@ -890,24 +890,26 @@ export function WorshipBuilderView({ canDeletePlan, canEditPlan }: WorshipBuilde
               ))}
             </select>
           </label>
-          <button className="text-button icon-text-button" onClick={openSetPicker} type="button">
-            <CalendarDays size={16} aria-hidden="true" />
-            Sets
-          </button>
+          <div className="toolbar-button-cluster">
+            <button className="text-button icon-text-button" onClick={openSetPicker} type="button">
+              <CalendarDays size={16} aria-hidden="true" />
+              Sets
+            </button>
+            <button className="text-button" disabled={!plan || !canEditPlan || suggesting} onClick={() => void suggestWorshipSet()} type="button">
+              {suggesting ? "Suggesting..." : "Suggest Set"}
+            </button>
+            <button className="text-button" disabled={!canEditPlan} onClick={() => setHistoryImportOpen(true)} type="button">
+              History Import
+            </button>
+            <button className="primary-button icon-text-button" disabled={!plan} onClick={() => setViewMode("live")} type="button">
+              <MonitorUp size={16} aria-hidden="true" />
+              Live View
+            </button>
+          </div>
           <div className="worship-set-summary">
             <strong>{worshipItems.length}</strong>
             <span>worship songs</span>
           </div>
-          <button className="text-button" disabled={!plan || !canEditPlan || suggesting} onClick={() => void suggestWorshipSet()} type="button">
-            {suggesting ? "Suggesting..." : "Suggest Set"}
-          </button>
-          <button className="text-button" disabled={!canEditPlan} onClick={() => setHistoryImportOpen(true)} type="button">
-            History Import
-          </button>
-          <button className="primary-button icon-text-button" disabled={!plan} onClick={() => setViewMode("live")} type="button">
-            <MonitorUp size={16} aria-hidden="true" />
-            Live View
-          </button>
         </div>
 
         {message ? <p className="form-message">{message}</p> : null}
