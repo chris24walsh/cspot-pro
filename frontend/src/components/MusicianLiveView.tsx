@@ -202,8 +202,7 @@ export function MusicianLiveView({ plan, songs }: MusicianLiveViewProps) {
   const [displayMode, setDisplayMode] = useState<ChordDisplayMode>("capo");
   const [detailMode, setDetailMode] = useState<ChordDetailMode>("simple");
   const [capo, setCapo] = useState(0);
-  const [absoluteKey, setAbsoluteKey] = useState<string | null>(null);
-  const [capoKey, setCapoKey] = useState<string | null>(null);
+  const [guitarKey, setGuitarKey] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const pollingRef = useRef(false);
 
@@ -264,12 +263,12 @@ export function MusicianLiveView({ plan, songs }: MusicianLiveViewProps) {
 
   useEffect(() => {
     const nextCapo = normalizeCapo(chordChart.capo);
+    const nextAbsoluteKey =
+      chordChart.absoluteKey ?? (chordChart.capoKey ? deriveAbsoluteKey(chordChart.capoKey, nextCapo) : null);
     const nextCapoKey =
-      chordChart.capoKey ?? (chordChart.absoluteKey ? deriveCapoKey(chordChart.absoluteKey, nextCapo) : null);
-    const nextAbsoluteKey = chordChart.absoluteKey ?? (nextCapoKey ? deriveAbsoluteKey(nextCapoKey, nextCapo) : null);
+      chordChart.capoKey ?? (nextAbsoluteKey ? deriveCapoKey(nextAbsoluteKey, nextCapo) : null);
     setCapo(nextCapo);
-    setCapoKey(nextCapoKey);
-    setAbsoluteKey(nextAbsoluteKey);
+    setGuitarKey(nextCapoKey);
   }, [chordChart.absoluteKey, chordChart.capo, chordChart.capoKey, liveSong?.id]);
 
   useEffect(() => {
@@ -333,19 +332,26 @@ export function MusicianLiveView({ plan, songs }: MusicianLiveViewProps) {
   }, [liveIndex, slides.length]);
 
   function changeRealKey(delta: -1 | 1) {
-    setAbsoluteKey((currentAbsoluteKey) => {
-      const nextAbsoluteKey = shiftKey(currentAbsoluteKey ?? chordChart.absoluteKey ?? MUSICAL_KEYS[0], delta);
-      setCapoKey(deriveCapoKey(nextAbsoluteKey, capo));
-      return nextAbsoluteKey;
-    });
+    const currentRealKey =
+      guitarKey
+        ? deriveAbsoluteKey(guitarKey, capo)
+        : chordChart.absoluteKey ?? (chordChart.capoKey ? deriveAbsoluteKey(chordChart.capoKey, capo) : MUSICAL_KEYS[0]);
+    const nextAbsoluteKey = shiftKey(currentRealKey, delta);
+    setGuitarKey(deriveCapoKey(nextAbsoluteKey, capo));
   }
 
   function changeCapo(delta: -1 | 1) {
     setCapo((currentCapo) => {
       const nextCapo = normalizeCapo(currentCapo + delta);
-      const shapesKey = capoKey ?? chordChart.capoKey ?? MUSICAL_KEYS[0];
-      setAbsoluteKey(deriveAbsoluteKey(shapesKey, nextCapo));
-      setCapoKey(shapesKey);
+      setGuitarKey((currentGuitarKey) => {
+        if (currentGuitarKey) {
+          return currentGuitarKey;
+        }
+        if (chordChart.capoKey) {
+          return chordChart.capoKey;
+        }
+        return chordChart.absoluteKey ? deriveCapoKey(chordChart.absoluteKey, currentCapo) : MUSICAL_KEYS[0];
+      });
       return nextCapo;
     });
   }
@@ -371,12 +377,17 @@ export function MusicianLiveView({ plan, songs }: MusicianLiveViewProps) {
   }
 
   const lyricLinesForSlide = lyricLines(liveSlide?.text ?? "");
-  const currentAbsoluteKey = absoluteKey ?? chordChart.absoluteKey ?? (capoKey ? deriveAbsoluteKey(capoKey, capo) : null);
-  const currentCapoKey = capoKey ?? (currentAbsoluteKey ? deriveCapoKey(currentAbsoluteKey, capo) : null);
+  const currentGuitarKey = guitarKey ?? chordChart.capoKey ?? (chordChart.absoluteKey ? deriveCapoKey(chordChart.absoluteKey, capo) : null);
+  const currentAbsoluteKey = currentGuitarKey
+    ? deriveAbsoluteKey(currentGuitarKey, capo)
+    : chordChart.absoluteKey ?? null;
   const baseAbsoluteKey =
-    chordChart.absoluteKey ?? deriveAbsoluteKey(chordChart.capoKey ?? currentCapoKey ?? MUSICAL_KEYS[0], chordChart.capo);
-  const activeKey = displayMode === "absolute" ? currentAbsoluteKey : currentCapoKey;
-  const activeKeyLabel = `${activeKey ?? "Unset"}${capo > 0 ? ` Capo ${capo}` : ""}`;
+    chordChart.absoluteKey ?? deriveAbsoluteKey(chordChart.capoKey ?? currentGuitarKey ?? MUSICAL_KEYS[0], chordChart.capo);
+  const activeKeyLabel = currentAbsoluteKey
+    ? capo > 0
+      ? `${currentAbsoluteKey} · Capo ${capo} · ${currentGuitarKey ?? deriveCapoKey(currentAbsoluteKey, capo)} shapes`
+      : currentAbsoluteKey
+    : "Unset";
   const keyControlTitle = displayMode === "absolute" ? "Key" : "Capo";
   const keyControlValue = displayMode === "absolute" ? (currentAbsoluteKey ?? "Unset") : String(capo);
 
@@ -402,7 +413,7 @@ export function MusicianLiveView({ plan, songs }: MusicianLiveViewProps) {
               Real
             </button>
             <button className={displayMode === "capo" ? "is-active" : ""} onClick={() => setDisplayMode("capo")} type="button">
-              Capo
+              Guitar
             </button>
           </div>
           <div className="musician-pill-toggle" aria-label="Chord detail">
@@ -410,7 +421,7 @@ export function MusicianLiveView({ plan, songs }: MusicianLiveViewProps) {
               Easy
             </button>
             <button className={detailMode === "advanced" ? "is-active" : ""} disabled onClick={() => setDetailMode("advanced")} type="button">
-              Advanced
+              Full
             </button>
           </div>
           <div className="musician-stepper" aria-label={keyControlTitle}>
