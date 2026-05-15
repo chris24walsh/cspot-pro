@@ -1136,6 +1136,22 @@ export function PresentationView({
 
   function sequenceForInsert(afterIndex: number) {
     const orderedItems = orderedPlanItemsWithWorshipAnchor();
+    if (afterIndex < 0) {
+      const firstSection = sections[0] ?? null;
+      const firstOwner = firstSection ? sectionOwner(firstSection.id) : null;
+      if (firstOwner === "service") {
+        return sequenceForInsertInItems(
+          orderedItems,
+          orderedItems.findIndex((item) => item.id === firstSection.id) - 1,
+        );
+      }
+      if (firstOwner === "worship") {
+        const anchorIndex = orderedItems.findIndex((item) => item.item_type === WORSHIP_SET_ANCHOR_ITEM_TYPE);
+        return sequenceForInsertInItems(orderedItems, anchorIndex - 1);
+      }
+      return sequenceForInsertInItems(orderedItems, -1);
+    }
+
     const section = sections[afterIndex] ?? null;
     const owner = section ? sectionOwner(section.id) : null;
 
