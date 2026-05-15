@@ -2,6 +2,7 @@ import { CalendarDays, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, ListPl
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import {
+  createSong,
   createPlanItem,
   createPlan,
   deletePlan,
@@ -24,6 +25,7 @@ import {
   type Song,
 } from "../api";
 import { buildPresentationSections, suggestSlideGroupFontCap } from "../presentation";
+import { analyzeImportedSongSlides, buildLyricsFromSections } from "../worshipText";
 import { dateKey, isWorshipSetPlan, worshipSetType } from "../worshipSets";
 import { AutoFitSlideText } from "./AutoFitSlideText";
 import { MusicianLiveView } from "./MusicianLiveView";
@@ -36,6 +38,19 @@ type WorshipHistoryPreview = {
   deck: ParsedSlideDeck;
   file: GoogleDriveFile;
   matchedSongs: Array<{ firstSlideIndex: number; song: Song }>;
+  missingSongs: WorshipHistoryMissingSong[];
+};
+
+type WorshipHistoryMissingSong = {
+  author: string | null;
+  ccliNumber: string | null;
+  firstSlideIndex: number;
+  lastSlideIndex: number;
+  license: string | null;
+  lyrics: string;
+  notes: string[];
+  sequence: string | null;
+  title: string;
 };
 
 interface WorshipBuilderViewProps {
@@ -141,6 +156,58 @@ function normalizedTitle(value: string) {
     .replace(/\s+/g, " ");
 }
 
+function songTitleKeys(song: Pick<Song, "alternate_title" | "title">) {
+  return [song.title, song.alternate_title].filter(Boolean).map((value) => normalizedTitle(value!));
+}
+
+function cleanSlideTitle(value: string) {
+  return value
+    .replace(/\.[a-z0-9]+$/i, "")
+    .replace(/\s+(?:lyrics|song|worship)\s*$/i, "")
+    .replace(/\s*[-–—]\s*(?:lyrics|song|worship)\s*$/i, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function meaningfulSlideLines(value: string) {
+  return value
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+}
+
+function titleFromSlide(slide: ParsedSlideDeck["slides"][number]) {
+  const lines = meaningfulSlideLines(`${slide.title}\n${slide.text}`);
+  const candidate = lines.find((line) => {
+    const cleaned = cleanSlideTitle(line);
+    return cleaned.length >= 4 && cleaned.length <= 70 && !/[.;:,]$/.test(cleaned);
+  });
+
+  return candidate ? cleanSlideTitle(candidate) : "";
+}
+
+function isProbablySongTitleSlide(slide: ParsedSlideDeck["slides"][number]) {
+  const lines = meaningfulSlideLines(`${slide.title}\n${slide.text}`);
+  const candidate = titleFromSlide(slide);
+  if (!candidate || lines.length > 4) {
+    return false;
+  }
+
+  const normalized = normalizedTitle(candidate);
+  if (
+    /^(welcome|sermon|reading|offering|communion|notices|announcements|prayer|closing|opening)$/i.test(candidate) ||
+    /^(?:slide|page)\s+\d+$/i.test(candidate) ||
+    /\b(?:john|genesis|exodus|psalm|psalms|matthew|mark|luke|romans|revelation)\s+\d+/i.test(candidate) ||
+    normalized.includes("ccli") ||
+    normalized.includes("copyright")
+  ) {
+    return false;
+  }
+
+  const lyricLookingLines = lines.filter((line) => line.split(/\s+/).length >= 6);
+  return lyricLookingLines.length <= 1;
+}
+
 function inferDeckDate(file: Pick<GoogleDriveFile, "name" | "modified_time">) {
   const numeric = file.name.match(/\b(20\d{2})[-_. ]?([01]?\d)[-_. ]?([0-3]?\d)\b/);
   if (numeric) {
@@ -164,7 +231,7 @@ function matchSongsInDeck(deck: ParsedSlideDeck, songs: Song[]) {
   }));
 
   for (const song of songs) {
-    const keys = [song.title, song.alternate_title].filter(Boolean).map((value) => normalizedTitle(value!));
+    const keys = songTitleKeys(song);
     const firstSlide = searchableSlides.find((slide) => keys.some((key) => key.length >= 5 && slide.text.includes(key)));
     if (firstSlide) {
       matched.set(song.id, { firstSlideIndex: firstSlide.index, song });
@@ -172,6 +239,56 @@ function matchSongsInDeck(deck: ParsedSlideDeck, songs: Song[]) {
   }
 
   return [...matched.values()].sort((left, right) => left.firstSlideIndex - right.firstSlideIndex);
+}
+
+function detectMissingSongsInDeck(deck: ParsedSlideDeck, songs: Song[]) {
+  const existingTitleKeys = songs.flatMap(songTitleKeys).filter((key) => key.length >= 5);
+  const titleSlides = deck.slides
+    .filter(isProbablySongTitleSlide)
+    .map((slide) => ({
+      index: slide.index,
+      slide,
+      title: titleFromSlide(slide),
+    }))
+    .filter((entry) => entry.title);
+
+  const seenTitles = new Set<string>();
+  const missing: WorshipHistoryMissingSong[] = [];
+
+  for (const [anchorIndex, anchor] of titleSlides.entries()) {
+    const titleKey = normalizedTitle(anchor.title);
+    if (seenTitles.has(titleKey)) {
+      continue;
+    }
+    seenTitles.add(titleKey);
+
+    const exists = existingTitleKeys.some((key) => titleKey === key || titleKey.includes(key) || key.includes(titleKey));
+    if (exists) {
+      continue;
+    }
+
+    const nextTitleSlide = titleSlides[anchorIndex + 1];
+    const rangeSlides = deck.slides.filter((slide) => slide.index >= anchor.index && (!nextTitleSlide || slide.index < nextTitleSlide.index));
+    const analysis = analyzeImportedSongSlides(rangeSlides.map((slide) => slide.text || slide.title), anchor.title);
+    const lyrics = buildLyricsFromSections(analysis.sections) || analysis.lyrics;
+    if (!lyrics.trim()) {
+      continue;
+    }
+
+    missing.push({
+      author: analysis.suggestions.author,
+      ccliNumber: analysis.suggestions.ccliNumber,
+      firstSlideIndex: anchor.index,
+      lastSlideIndex: rangeSlides[rangeSlides.length - 1]?.index ?? anchor.index,
+      license: analysis.suggestions.license,
+      lyrics,
+      notes: analysis.notes,
+      sequence: analysis.sequence,
+      title: analysis.suggestions.title ?? anchor.title,
+    });
+  }
+
+  return missing;
 }
 
 export function WorshipBuilderView({ canDeletePlan, canEditPlan }: WorshipBuilderViewProps) {
@@ -194,6 +311,7 @@ export function WorshipBuilderView({ canDeletePlan, canEditPlan }: WorshipBuilde
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyPreview, setHistoryPreview] = useState<WorshipHistoryPreview | null>(null);
   const [historyImporting, setHistoryImporting] = useState(false);
+  const [historyBatchImporting, setHistoryBatchImporting] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<"builder" | "live">("builder");
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
@@ -459,17 +577,22 @@ export function WorshipBuilderView({ canDeletePlan, canEditPlan }: WorshipBuilde
     }
   }
 
+  async function buildHistoryPreview(file: GoogleDriveFile, songCatalog = songs): Promise<WorshipHistoryPreview> {
+    const deck = await parseGoogleDriveDeck(file.id);
+    const date = inferDeckDate(file);
+    return {
+      date,
+      deck,
+      file,
+      matchedSongs: matchSongsInDeck(deck, songCatalog),
+      missingSongs: detectMissingSongsInDeck(deck, songCatalog),
+    };
+  }
+
   async function previewHistoryDeck(file: GoogleDriveFile) {
     setHistoryLoading(true);
     try {
-      const deck = await parseGoogleDriveDeck(file.id);
-      const date = inferDeckDate(file);
-      setHistoryPreview({
-        date,
-        deck,
-        file,
-        matchedSongs: matchSongsInDeck(deck, songs),
-      });
+      setHistoryPreview(await buildHistoryPreview(file));
       setMessage(null);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Could not parse this worship deck.");
@@ -479,61 +602,141 @@ export function WorshipBuilderView({ canDeletePlan, canEditPlan }: WorshipBuilde
     }
   }
 
+  async function createMissingHistorySongs(preview: WorshipHistoryPreview, songCatalog: Song[]) {
+    const entries: Array<{ firstSlideIndex: number; song: Song }> = [];
+    const localCatalog = [...songCatalog];
+    let createdSongCount = 0;
+
+    for (const missing of preview.missingSongs) {
+      const titleKey = normalizedTitle(missing.title);
+      const existing = localCatalog.find((song) => songTitleKeys(song).some((key) => key === titleKey || key.includes(titleKey) || titleKey.includes(key)));
+      if (existing) {
+        entries.push({ firstSlideIndex: missing.firstSlideIndex, song: existing });
+        continue;
+      }
+
+      const song = await createSong({
+        alternate_title: null,
+        author: missing.author,
+        book_reference: null,
+        ccli_number: missing.ccliNumber,
+        chords: null,
+        energy: null,
+        external_link: null,
+        license: missing.license,
+        lyrics: missing.lyrics,
+        sequence: missing.sequence,
+        tempo: null,
+        theme_tags: null,
+        title: missing.title,
+        worship_role: null,
+        youtube_id: null,
+      });
+      localCatalog.push(song);
+      entries.push({ firstSlideIndex: missing.firstSlideIndex, song });
+      createdSongCount += 1;
+    }
+
+    if (entries.length) {
+      setSongs(localCatalog);
+    }
+    return { createdSongCount, entries, songCatalog: localCatalog };
+  }
+
+  async function importHistory(preview: WorshipHistoryPreview, songCatalog = songs) {
+    const type = worshipSetType(planTypes);
+    if (!type) {
+      setMessage("The Worship Set plan type has not been installed yet. Run migrations and rebuild the API.");
+      return { createdSongCount: 0, planSongCount: 0, songCatalog };
+    }
+
+    const missingResult = await createMissingHistorySongs(preview, songCatalog);
+    const entries = [...preview.matchedSongs, ...missingResult.entries].sort((left, right) => left.firstSlideIndex - right.firstSlideIndex);
+    if (!entries.length) {
+      setMessage("No songs were matched or detected in that deck.");
+      return { createdSongCount: missingResult.createdSongCount, planSongCount: 0, songCatalog: missingResult.songCatalog };
+    }
+
+    const existingSummary = worshipSetsByDate.get(preview.date);
+    const targetPlan = existingSummary
+        ? await getPlan(existingSummary.id)
+        : await createPlan({
+            plan_type_id: type.id,
+            service_date: isoFromDateInput(preview.date),
+            title: suggestedWorshipSetTitle(preview.date),
+            subtitle: null,
+            leader_id: null,
+            teacher_id: null,
+            status: "draft",
+            info: `Imported from ${preview.file.name}`,
+          });
+
+    const existingSongIds = new Set(targetPlan.items.map((item) => item.song_id).filter(Boolean));
+    let sequence = Number.parseFloat(nextSongSequence(targetPlan.items));
+    let planSongCount = 0;
+    for (const entry of entries) {
+      if (existingSongIds.has(entry.song.id)) {
+        continue;
+      }
+      await createPlanItem(targetPlan.id, {
+        item_type: "song",
+        sequence: sequence.toFixed(2),
+        title: entry.song.title,
+        comment: `Imported from ${preview.file.name} slide ${entry.firstSlideIndex}`,
+        key_signature: null,
+        song_id: entry.song.id,
+      });
+      existingSongIds.add(entry.song.id);
+      sequence += 10;
+      planSongCount += 1;
+    }
+
+    await load(targetPlan.id);
+    return { createdSongCount: missingResult.createdSongCount, planSongCount, songCatalog: missingResult.songCatalog };
+  }
+
   async function importHistoryPreview() {
     if (!historyPreview || !canEditPlan) {
       return;
     }
 
-    const type = worshipSetType(planTypes);
-    if (!type) {
-      setMessage("The Worship Set plan type has not been installed yet. Run migrations and rebuild the API.");
-      return;
-    }
-    if (!historyPreview.matchedSongs.length) {
-      setMessage("No existing songs were matched in that deck. Import or rename songs first, then retry.");
-      return;
-    }
-
     setHistoryImporting(true);
     try {
-      const existingSummary = worshipSetsByDate.get(historyPreview.date);
-      const targetPlan = existingSummary
-        ? await getPlan(existingSummary.id)
-        : await createPlan({
-            plan_type_id: type.id,
-            service_date: isoFromDateInput(historyPreview.date),
-            title: suggestedWorshipSetTitle(historyPreview.date),
-            subtitle: null,
-            leader_id: null,
-            teacher_id: null,
-            status: "draft",
-            info: `Imported from ${historyPreview.file.name}`,
-          });
-
-      const existingSongIds = new Set(targetPlan.items.map((item) => item.song_id).filter(Boolean));
-      let sequence = Number.parseFloat(nextSongSequence(targetPlan.items));
-      for (const match of historyPreview.matchedSongs) {
-        if (existingSongIds.has(match.song.id)) {
-          continue;
-        }
-        await createPlanItem(targetPlan.id, {
-          item_type: "song",
-          sequence: sequence.toFixed(2),
-          title: match.song.title,
-          comment: `Imported from ${historyPreview.file.name} slide ${match.firstSlideIndex}`,
-          key_signature: null,
-          song_id: match.song.id,
-        });
-        sequence += 10;
-      }
-
-      await load(targetPlan.id);
+      const result = await importHistory(historyPreview);
       setHistoryImportOpen(false);
-      setMessage(`Imported worship history from "${historyPreview.file.name}".`);
+      setMessage(`Imported "${historyPreview.file.name}": ${result.planSongCount} set song${result.planSongCount === 1 ? "" : "s"}, ${result.createdSongCount} new song${result.createdSongCount === 1 ? "" : "s"}.`);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Could not import worship history.");
     } finally {
       setHistoryImporting(false);
+    }
+  }
+
+  async function importHistoryBatch(limit?: number) {
+    if (!canEditPlan || !historyFiles.length) {
+      return;
+    }
+
+    setHistoryBatchImporting(true);
+    setMessage("Importing worship history. This can take a little while for PowerPoint decks.");
+    try {
+      const files = typeof limit === "number" ? historyFiles.slice(0, limit) : historyFiles;
+      let songCatalog = songs;
+      let createdSongCount = 0;
+      let planSongCount = 0;
+      for (const file of files) {
+        const preview = await buildHistoryPreview(file, songCatalog);
+        const result = await importHistory(preview, songCatalog);
+        songCatalog = result.songCatalog;
+        createdSongCount += result.createdSongCount;
+        planSongCount += result.planSongCount;
+      }
+      setHistoryImportOpen(false);
+      setMessage(`Imported ${files.length} deck${files.length === 1 ? "" : "s"}: ${planSongCount} set song${planSongCount === 1 ? "" : "s"}, ${createdSongCount} new song${createdSongCount === 1 ? "" : "s"}.`);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not import worship history batch.");
+    } finally {
+      setHistoryBatchImporting(false);
     }
   }
 
@@ -982,6 +1185,26 @@ export function WorshipBuilderView({ canDeletePlan, canEditPlan }: WorshipBuilde
                 {historyLoading ? "Searching..." : "Search Folder"}
               </button>
             </div>
+            {historyFiles.length ? (
+              <div className="action-row">
+                <button
+                  className="text-button"
+                  disabled={historyBatchImporting || historyLoading}
+                  onClick={() => void importHistoryBatch(2)}
+                  type="button"
+                >
+                  {historyBatchImporting ? "Importing..." : "Test Import First 2"}
+                </button>
+                <button
+                  className="primary-button"
+                  disabled={historyBatchImporting || historyLoading}
+                  onClick={() => void importHistoryBatch()}
+                  type="button"
+                >
+                  {historyBatchImporting ? "Importing..." : `Import All ${historyFiles.length}`}
+                </button>
+              </div>
+            ) : null}
             <div className="two-column-review">
               <div className="stack-list compact">
                 {historyFiles.map((file) => (
@@ -1005,7 +1228,25 @@ export function WorshipBuilderView({ canDeletePlan, canEditPlan }: WorshipBuilde
                       <span>Date: {historyPreview.date}</span>
                       <span>{historyPreview.deck.slide_count} parsed slides</span>
                       <span>{historyPreview.matchedSongs.length} matched song{historyPreview.matchedSongs.length === 1 ? "" : "s"}</span>
+                      <span>{historyPreview.missingSongs.length} new song candidate{historyPreview.missingSongs.length === 1 ? "" : "s"}</span>
                     </div>
+                    {historyPreview.missingSongs.length ? (
+                      <>
+                        <p className="eyebrow">Will Create Songs</p>
+                        <div className="stack-list compact">
+                          {historyPreview.missingSongs.map((missing) => (
+                            <div className="stack-row readonly" key={`${missing.firstSlideIndex}-${missing.title}`}>
+                              <strong>{missing.title}</strong>
+                              <span>
+                                Slides {missing.firstSlideIndex}-{missing.lastSlideIndex}
+                                {missing.sequence ? ` · ${missing.sequence}` : ""}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </>
+                    ) : null}
+                    <p className="eyebrow">Matched Library Songs</p>
                     <div className="stack-list compact">
                       {historyPreview.matchedSongs.map((match) => (
                         <div className="stack-row readonly" key={match.song.id}>
@@ -1017,7 +1258,7 @@ export function WorshipBuilderView({ canDeletePlan, canEditPlan }: WorshipBuilde
                     <div className="action-row">
                       <button
                         className="primary-button"
-                        disabled={historyImporting || !historyPreview.matchedSongs.length}
+                        disabled={historyImporting || (!historyPreview.matchedSongs.length && !historyPreview.missingSongs.length)}
                         onClick={() => void importHistoryPreview()}
                         type="button"
                       >
