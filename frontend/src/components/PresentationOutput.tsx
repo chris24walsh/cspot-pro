@@ -61,7 +61,10 @@ export function PresentationOutput() {
     [plan, worshipSetPlan, songs, renderedSlidesByFileId],
   );
   const resolvedIndex = resolveLiveIndex(slides, liveState);
-  const liveSlide = slides[resolvedIndex] ?? null;
+  const liveTargetMissing = Boolean(
+    liveState?.planItemId && slides.length && !slides.some((slide) => slide.planItemId === liveState.planItemId),
+  );
+  const liveSlide = liveTargetMissing ? null : slides[resolvedIndex] ?? null;
   const liveTextFontCap = useMemo(
     () => suggestSlideGroupFontCap(slides.filter((slide) => !slide.imageUrl && slide.text.trim()).map((slide) => slide.text)),
     [slides],
@@ -181,6 +184,14 @@ export function PresentationOutput() {
   useEffect(() => {
     void load(liveState);
   }, [liveState?.planId, load]);
+
+  useEffect(() => {
+    if (!liveTargetMissing) {
+      return;
+    }
+
+    void load(liveState);
+  }, [liveState, liveTargetMissing, load]);
 
   useEffect(() => {
     writeOutputHeartbeat();
