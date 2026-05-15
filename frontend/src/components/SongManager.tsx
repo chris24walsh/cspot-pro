@@ -26,6 +26,7 @@ import {
   LEADING_CHORD_ANCHORS,
   lyricLines,
   normalizeKeySignature,
+  normalizeChordSymbolInput,
   parseChordChart,
   removeChordAnnotation,
   semitoneDistance,
@@ -33,6 +34,7 @@ import {
   transposeChordSymbol,
   transposeChordAnnotations,
   TRAILING_CHORD_ANCHORS,
+  validateChordSymbol,
   type ChordAnnotation,
   type ChordChartDocument,
   type ChordDetailMode,
@@ -492,6 +494,11 @@ export function SongManager({
       setMessage("You do not have permission to save songs.");
       return;
     }
+    if (chordChart.annotations.length && !chordChart.absoluteKey && !chordChart.capoKey) {
+      setActiveSongTab("chords");
+      setMessage("Set the song key before saving chord annotations.");
+      return;
+    }
     setMessage(null);
 
     try {
@@ -510,10 +517,9 @@ export function SongManager({
   }
 
   function normalizeChordInput(value: string) {
-    return value
-      .replace(/[^A-Ga-g#bB/0-9A-Za-z()+.\-\s]/g, "")
-      .toUpperCase()
-      .replace(/([A-G])B/g, "$1b");
+    const input = normalizeChordSymbolInput(value);
+    const validation = validateChordSymbol(input);
+    return validation.normalized || input;
   }
 
   function editableChordValue(annotation: ChordAnnotation) {
@@ -649,6 +655,11 @@ export function SongManager({
   }
 
   function startInlineChordEdit(lineIndex: number, anchorIndex: number, annotation?: ChordAnnotation) {
+    if (!chordChart.absoluteKey && !chordChart.capoKey) {
+      setMessage("Set the song key before adding chords.");
+      return;
+    }
+
     setSelectedLineIndex(lineIndex);
     setSelectedAnchorIndex(anchorIndex);
     setEditingAnnotationId(annotation?.id ?? null);
@@ -665,13 +676,20 @@ export function SongManager({
   }
 
   function saveAnnotation() {
-    if (!chordInput.trim()) {
-      setMessage("Enter a chord symbol first.");
+    if (!chordChart.absoluteKey && !chordChart.capoKey) {
+      setMessage("Set the song key before adding chords.");
       return;
     }
 
-    const storedChord = transposeChordSymbol(chordInput.trim(), displayMode === "capo" ? chordChart.capo : 0, {
+    const validation = validateChordSymbol(chordInput);
+    if (validation.error) {
+      setMessage(validation.error);
+      return;
+    }
+
+    const storedChord = transposeChordSymbol(validation.normalized, displayMode === "capo" ? chordChart.capo : 0, {
       detailMode: "advanced",
+      preferFlats: chordChart.absoluteKey?.includes("b") || chordChart.capoKey?.includes("b"),
     });
 
     setChordChart((current) =>
@@ -1680,7 +1698,9 @@ export function SongManager({
                         ))}
                       </select>
                       <span className="field-help musician-derived-key">
-                        {derivedKey ? `${chordChart.keyAnchor === "absolute" ? "Capo" : "Concert"} ${derivedKey}` : "\u00a0"}
+                        {derivedKey
+                          ? `${chordChart.keyAnchor === "absolute" ? "Capo" : "Concert"} ${derivedKey}`
+                          : "Required before adding chords"}
                       </span>
                     </label>
                     <label className="compact-field musician-capo-field">

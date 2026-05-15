@@ -26,6 +26,11 @@ export interface ParsedChordChart {
   legacyText: string | null;
 }
 
+export interface ChordSymbolValidation {
+  normalized: string;
+  error: string | null;
+}
+
 const SHARP_NOTES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
 const FLAT_NOTES = ["C", "Db", "D", "Eb", "E", "F", "Gb", "G", "Ab", "A", "Bb", "B"];
 const NOTE_INDEX = new Map<string, number>([
@@ -83,6 +88,108 @@ export function transposeChordSymbol(
   const transposedBass = bassRoot ? transposeNote(bassRoot, semitones, options.preferFlats) : null;
   const advanced = `${transposedRoot}${quality}${transposedBass ? `/${transposedBass}${bassTail}` : ""}`;
   return options.detailMode === "simple" ? simplifyChordSymbol(advanced) : advanced;
+}
+
+function normalizeChordRoot(value: string, context = "root") {
+  const trimmed = value.trim().replace(/♯/g, "#").replace(/♭/g, "b");
+  const match = trimmed.match(/^([A-Ga-g])([#bB]?)(.*)$/);
+  if (!match) {
+    return {
+      root: "",
+      rest: trimmed,
+      error: `Chord ${context} must start with A, B, C, D, E, F, or G.`,
+    };
+  }
+
+  const [, rootLetter, accidental = "", rest = ""] = match;
+  const normalizedAccidental = accidental === "B" ? "b" : accidental;
+  return {
+    root: `${rootLetter.toUpperCase()}${normalizedAccidental}`,
+    rest,
+    error: null,
+  };
+}
+
+function normalizeChordQuality(value: string) {
+  let suffix = value.trim().replace(/\s+/g, "");
+  suffix = suffix.replace(/♯/g, "#").replace(/♭/g, "b").replace(/∆/g, "maj").replace(/°/g, "dim");
+  suffix = suffix.replace(/-/g, "m");
+
+  const upper = suffix.toUpperCase();
+  if (upper.startsWith("MAJOR")) {
+    suffix = `maj${suffix.slice(5)}`;
+  } else if (upper.startsWith("MAJ")) {
+    suffix = `maj${suffix.slice(3)}`;
+  } else if (upper.startsWith("MINOR")) {
+    suffix = `m${suffix.slice(5)}`;
+  } else if (upper.startsWith("MIN")) {
+    suffix = `m${suffix.slice(3)}`;
+  } else if (upper.startsWith("M")) {
+    suffix = `m${suffix.slice(1)}`;
+  }
+
+  suffix = suffix
+    .replace(/MAJ/g, "maj")
+    .replace(/Maj/g, "maj")
+    .replace(/SUS/g, "sus")
+    .replace(/Sus/g, "sus")
+    .replace(/ADD/g, "add")
+    .replace(/Add/g, "add")
+    .replace(/DIM/g, "dim")
+    .replace(/Dim/g, "dim")
+    .replace(/AUG/g, "aug")
+    .replace(/Aug/g, "aug");
+
+  return suffix;
+}
+
+const CHORD_QUALITY_PATTERN =
+  /^(?:|m|2|4|5|6|7|9|11|13|m6|m7|m9|m11|m13|maj|maj6|maj7|maj9|maj13|mmaj7|m\(maj7\)|sus|sus2|sus4|7sus|7sus2|7sus4|9sus|9sus4|add2|add4|add9|add11|dim|dim7|aug|\+|m7b5|ø|ø7)(?:\(?[#b](?:5|9|11|13)\)?)*$/;
+
+export function validateChordSymbol(value: string): ChordSymbolValidation {
+  const cleaned = value.trim().replace(/\s+/g, "");
+  if (!cleaned) {
+    return { normalized: "", error: "Enter a chord symbol first." };
+  }
+
+  const parts = cleaned.split("/");
+  if (parts.length > 2) {
+    return { normalized: cleaned, error: "Use only one slash bass note, for example C/E." };
+  }
+
+  const rootResult = normalizeChordRoot(parts[0]);
+  if (rootResult.error) {
+    return { normalized: cleaned, error: rootResult.error };
+  }
+
+  const suffix = normalizeChordQuality(rootResult.rest);
+  const normalizedMain = `${rootResult.root}${suffix}`;
+  if (!CHORD_QUALITY_PATTERN.test(suffix)) {
+    return {
+      normalized: normalizedMain,
+      error: "That chord quality is not recognised yet. Try plain, m, 7, maj7, sus, add9, dim, aug, or a slash chord.",
+    };
+  }
+
+  if (!parts[1]) {
+    return { normalized: normalizedMain, error: null };
+  }
+
+  const bassResult = normalizeChordRoot(parts[1], "bass note");
+  if (bassResult.error) {
+    return { normalized: `${normalizedMain}/${parts[1]}`, error: bassResult.error };
+  }
+  if (bassResult.rest.trim()) {
+    return { normalized: `${normalizedMain}/${bassResult.root}`, error: "Slash chords should end with a bass note, like C/E." };
+  }
+
+  return { normalized: `${normalizedMain}/${bassResult.root}`, error: null };
+}
+
+export function normalizeChordSymbolInput(value: string) {
+  return value
+    .replace(/[^A-Ga-g#bB/0-9A-Za-z()+.\-♯♭∆°ø]/g, "")
+    .replace(/\s+/g, "");
 }
 
 export function wordsForLine(line: string) {
