@@ -1451,42 +1451,37 @@ h3 {
   border: 1px solid #ded8c7;
   border-radius: 8px;
   display: grid;
-  gap: 14px;
-  padding: 14px;
+  gap: 10px;
+  grid-template-rows: auto minmax(0, 1fr);
+  min-height: 0;
+  padding: 10px;
 }
 
-.musician-tools-shell {
-  align-items: start;
+.musician-chord-editor-bar {
+  align-items: stretch;
   display: grid;
-  gap: 16px;
-  grid-template-columns: 220px minmax(0, 1fr);
+  gap: 10px;
+  grid-template-columns: 180px minmax(0, 1fr);
   min-width: 0;
 }
 
 .musician-chord-summary {
-  width: 100%;
-}
-
-.musician-side-panel {
-  align-content: start;
-  display: grid;
-  gap: 12px;
   min-width: 0;
 }
 
 .musician-toolbar {
-  align-items: start;
+  align-items: stretch;
   display: grid;
-  gap: 10px;
-  justify-items: stretch;
+  gap: 8px;
   min-width: 0;
 }
 
 .musician-control-row {
-  align-items: end;
-  display: grid;
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
   gap: 8px;
-  justify-content: stretch;
+  justify-content: flex-end;
   min-width: 0;
 }
 
@@ -1494,39 +1489,33 @@ h3 {
   background: #f7f3e8;
   border: 1px solid #e3dcc8;
   border-radius: 8px;
-  grid-template-columns: 1fr;
+  display: grid;
+  gap: 8px;
+  grid-template-columns: auto minmax(120px, 0.7fr) 94px auto;
   padding: 8px;
-  width: 100%;
 }
 
-.musician-key-field {
+.musician-key-field,
+.musician-capo-field {
   min-width: 0;
-  width: 100%;
 }
 
-.musician-key-field select {
+.musician-key-field select,
+.musician-capo-field input {
   width: 100%;
 }
 
 .musician-derived-key {
   min-height: 16px;
-}
-
-.musician-capo-field {
-  min-width: 0;
-  width: 100%;
-}
-
-.musician-capo-field input {
-  width: 100%;
+  white-space: nowrap;
 }
 
 .musician-print-button {
   min-height: 36px;
-  width: 100%;
 }
 
 .musician-chart-panel {
+  min-height: 0;
   min-width: 0;
   overflow: hidden;
 }
@@ -1582,8 +1571,8 @@ h3 {
   color: #17201b;
   display: grid;
   justify-items: center;
-  min-height: 142px;
-  padding: 8px;
+  min-height: 118px;
+  padding: 6px;
 }
 
 .chord-diagram-card.empty {
@@ -1594,7 +1583,7 @@ h3 {
 
 .chord-diagram-card strong {
   color: #134e4a;
-  font-size: 18px;
+  font-size: 16px;
   font-weight: 900;
   line-height: 1;
 }
@@ -1606,8 +1595,8 @@ h3 {
 }
 
 .chord-diagram {
-  height: 108px;
-  width: 100px;
+  height: 88px;
+  width: 88px;
 }
 
 .chord-string,
@@ -1766,18 +1755,20 @@ h3 {
 }
 
 @media (max-width: 900px) {
-  .musician-tools-shell {
+  .musician-chord-editor-bar {
     grid-template-columns: 1fr;
   }
 
   .musician-chord-summary {
-    max-width: 220px;
+    max-width: none;
   }
 
-  .musician-toolbar,
   .musician-control-row {
     justify-content: flex-start;
-    justify-items: start;
+  }
+
+  .musician-key-row {
+    grid-template-columns: 1fr 1fr;
   }
 }
 
@@ -3899,24 +3890,66 @@ h3 {
   }
 
   .worship-builder {
-    grid-template-columns: 1fr;
-    overflow: auto;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    height: calc(100svh - 70px);
+    overflow: hidden;
+    padding: 6px;
   }
 
   .worship-song-browser,
   .worship-set-builder {
-    min-height: 420px;
+    min-height: 0;
+  }
+
+  .worship-set-builder {
+    grid-template-rows: auto minmax(0, 1fr);
+    padding: 8px;
+  }
+
+  .worship-song-browser {
+    padding: 8px;
+  }
+
+  .worship-song-browser .worship-panel-heading h2 {
+    font-size: 18px;
   }
 
   .worship-set-layout {
     grid-template-columns: 1fr;
-    overflow: visible;
+    overflow: hidden;
   }
 
-  .worship-set-toolbar,
+  .worship-set-list {
+    min-height: 0;
+    padding: 8px;
+  }
+
+  .worship-slide-review {
+    display: none;
+  }
+
+  .worship-set-toolbar {
+    grid-template-columns: 1fr;
+  }
+
   .worship-live-topbar,
   .musician-live-toolbar {
     grid-template-columns: 1fr;
+  }
+
+  .worship-set-summary {
+    display: none;
+  }
+
+  .worship-set-toolbar .toolbar-button-cluster {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .worship-set-toolbar .toolbar-button-cluster .text-button,
+  .worship-set-toolbar .toolbar-button-cluster .primary-button {
+    min-height: 34px;
+    padding-inline: 8px;
   }
 
   .toolbar-button-cluster {

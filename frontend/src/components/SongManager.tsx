@@ -1677,129 +1677,128 @@ export function SongManager({
 
         {activeSongTab === "chords" ? (
           <section className="musician-tools" aria-label="Chord editor">
-            <div className="musician-tools-shell">
-              <aside className="musician-side-panel">
-                <div className="musician-chord-summary">
-                  <GuitarChordDiagram chord={activeDisplayedChord} shapeMode={activeShapeMode} />
-                </div>
+            <div className="musician-chord-editor-bar">
+              <div className="musician-chord-summary">
+                <GuitarChordDiagram chord={activeDisplayedChord} shapeMode={activeShapeMode} />
+              </div>
 
-                <div className="musician-toolbar">
-                  <div className="musician-control-row">
-                    <div className="segmented-control">
-                      <button
-                        className={displayMode === "absolute" ? "is-active" : ""}
-                        disabled={mode === "create" ? !canCreate : !canEdit}
-                        onClick={() => setDisplayMode("absolute")}
-                        type="button"
-                      >
-                        Absolute
-                      </button>
-                      <button
-                        className={displayMode === "capo" ? "is-active" : ""}
-                        disabled={mode === "create" ? !canCreate : !canEdit}
-                        onClick={() => setDisplayMode("capo")}
-                        type="button"
-                      >
-                        Capo Shapes
-                      </button>
-                    </div>
-                    <div className="segmented-control compact-toggle">
-                      <button
-                        className={detailMode === "simple" ? "is-active" : ""}
-                        disabled={mode === "create" ? !canCreate : !canEdit}
-                        onClick={() => setDetailMode("simple")}
-                        type="button"
-                      >
-                        Simple
-                      </button>
-                      <button
-                        className={detailMode === "advanced" ? "is-active" : ""}
-                        disabled={mode === "create" ? !canCreate : !canEdit}
-                        onClick={() => setDetailMode("advanced")}
-                        type="button"
-                      >
-                        Advanced
-                      </button>
-                    </div>
-                    <div className="segmented-control compact-toggle">
-                      {(Object.keys(GUITAR_SHAPE_SETS) as GuitarShapeMode[]).map((setKey) => {
-                        const shapeSet = GUITAR_SHAPE_SETS[setKey];
-                        const shapeSetAvailable = !shapeSet.requiredKey || shapeSet.requiredKey === currentShapeKey;
-                        return (
-                          <button
-                            className={activeShapeMode === setKey ? "is-active" : ""}
-                            disabled={(mode === "create" ? !canCreate : !canEdit) || !shapeSetAvailable}
-                            key={setKey}
-                            onClick={() => setShapeMode(setKey)}
-                            title={
-                              shapeSet.requiredKey && !shapeSetAvailable
-                                ? `${shapeSet.label} applies when the displayed guitar key is ${shapeSet.requiredKey}.`
-                                : undefined
-                            }
-                            type="button"
-                          >
-                            {shapeSet.label}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-
-                  <div className="musician-control-row musician-key-row">
-                    <div className="segmented-control compact-toggle">
-                      <button
-                        className={chordChart.keyAnchor === "absolute" ? "is-active" : ""}
-                        disabled={mode === "create" ? !canCreate : !canEdit}
-                        onClick={() => updateKeyAnchor("absolute")}
-                        type="button"
-                      >
-                        Concert
-                      </button>
-                      <button
-                        className={chordChart.keyAnchor === "capo" ? "is-active" : ""}
-                        disabled={mode === "create" ? !canCreate : !canEdit}
-                        onClick={() => updateKeyAnchor("capo")}
-                        type="button"
-                      >
-                        Capo
-                      </button>
-                    </div>
-                    <label className="compact-field musician-key-field">
-                      Key
-                      <select
-                        disabled={mode === "create" ? !canCreate : !canEdit}
-                        onChange={(event) => updateEditableKey(event.target.value)}
-                        value={editableKey ?? ""}
-                      >
-                        <option value="">Unset</option>
-                        {MUSICAL_KEYS.map((keyOption) => (
-                          <option key={`editable-${keyOption}`} value={keyOption}>
-                            {keyOption}
-                          </option>
-                        ))}
-                      </select>
-                      <span className="field-help musician-derived-key">
-                        {derivedKey
-                          ? `${chordChart.keyAnchor === "absolute" ? "Capo" : "Concert"} ${derivedKey}`
-                          : "Required before adding chords"}
-                      </span>
-                    </label>
-                    <label className="compact-field musician-capo-field">
-                      Capo
-                      <input
-                        disabled={mode === "create" ? !canCreate : !canEdit}
-                        min={0}
-                        onChange={(event) => updateCapo(Number(event.target.value || 0))}
-                        type="number"
-                        value={chordChart.capo}
-                      />
-                    </label>
-                    <button className="text-button musician-print-button" onClick={printChordChart} type="button">
-                      Print Chart
+              <div className="musician-toolbar">
+                <div className="musician-control-row">
+                  <div className="segmented-control">
+                    <button
+                      className={displayMode === "absolute" ? "is-active" : ""}
+                      disabled={mode === "create" ? !canCreate : !canEdit}
+                      onClick={() => setDisplayMode("absolute")}
+                      type="button"
+                    >
+                      Real Chords
+                    </button>
+                    <button
+                      className={displayMode === "capo" ? "is-active" : ""}
+                      disabled={mode === "create" ? !canCreate : !canEdit}
+                      onClick={() => setDisplayMode("capo")}
+                      type="button"
+                    >
+                      Guitar Shapes
                     </button>
                   </div>
+                  <div className="segmented-control compact-toggle">
+                    <button
+                      className={detailMode === "simple" ? "is-active" : ""}
+                      disabled={mode === "create" ? !canCreate : !canEdit}
+                      onClick={() => setDetailMode("simple")}
+                      type="button"
+                    >
+                      Easy
+                    </button>
+                    <button
+                      className={detailMode === "advanced" ? "is-active" : ""}
+                      disabled={mode === "create" ? !canCreate : !canEdit}
+                      onClick={() => setDetailMode("advanced")}
+                      type="button"
+                    >
+                      Full
+                    </button>
+                  </div>
+                  <div className="segmented-control compact-toggle">
+                    {(Object.keys(GUITAR_SHAPE_SETS) as GuitarShapeMode[]).map((setKey) => {
+                      const shapeSet = GUITAR_SHAPE_SETS[setKey];
+                      const shapeSetAvailable = !shapeSet.requiredKey || shapeSet.requiredKey === currentShapeKey;
+                      return (
+                        <button
+                          className={activeShapeMode === setKey ? "is-active" : ""}
+                          disabled={(mode === "create" ? !canCreate : !canEdit) || !shapeSetAvailable}
+                          key={setKey}
+                          onClick={() => setShapeMode(setKey)}
+                          title={
+                            shapeSet.requiredKey && !shapeSetAvailable
+                              ? `${shapeSet.label} applies when the displayed guitar key is ${shapeSet.requiredKey}.`
+                              : undefined
+                          }
+                          type="button"
+                        >
+                          {shapeSet.label}
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
-              </aside>
+
+                <div className="musician-control-row musician-key-row">
+                  <div className="segmented-control compact-toggle">
+                    <button
+                      className={chordChart.keyAnchor === "absolute" ? "is-active" : ""}
+                      disabled={mode === "create" ? !canCreate : !canEdit}
+                      onClick={() => updateKeyAnchor("absolute")}
+                      type="button"
+                    >
+                      Real Key
+                    </button>
+                    <button
+                      className={chordChart.keyAnchor === "capo" ? "is-active" : ""}
+                      disabled={mode === "create" ? !canCreate : !canEdit}
+                      onClick={() => updateKeyAnchor("capo")}
+                      type="button"
+                    >
+                      Guitar Key
+                    </button>
+                  </div>
+                  <label className="compact-field musician-key-field">
+                    Key
+                    <select
+                      disabled={mode === "create" ? !canCreate : !canEdit}
+                      onChange={(event) => updateEditableKey(event.target.value)}
+                      value={editableKey ?? ""}
+                    >
+                      <option value="">Unset</option>
+                      {MUSICAL_KEYS.map((keyOption) => (
+                        <option key={`editable-${keyOption}`} value={keyOption}>
+                          {keyOption}
+                        </option>
+                      ))}
+                    </select>
+                    <span className="field-help musician-derived-key">
+                      {derivedKey
+                        ? `${chordChart.keyAnchor === "absolute" ? "Guitar" : "Sounds in"} ${derivedKey}`
+                        : "Required before adding chords"}
+                    </span>
+                  </label>
+                  <label className="compact-field musician-capo-field">
+                    Capo
+                    <input
+                      disabled={mode === "create" ? !canCreate : !canEdit}
+                      min={0}
+                      onChange={(event) => updateCapo(Number(event.target.value || 0))}
+                      type="number"
+                      value={chordChart.capo}
+                    />
+                  </label>
+                  <button className="text-button musician-print-button" onClick={printChordChart} type="button">
+                    Print Chart
+                  </button>
+                </div>
+              </div>
+            </div>
 
               <div className="musician-chart-panel">
                 {lines.length ? (
@@ -1953,7 +1952,6 @@ export function SongManager({
                   <p className="field-help">Add lyrics first, then place chord annotations over individual words without changing the lyric text.</p>
                 )}
               </div>
-            </div>
 
             {legacyChords ? <p className="field-help">Legacy chord text will be preserved when this song is saved.</p> : null}
           </section>
