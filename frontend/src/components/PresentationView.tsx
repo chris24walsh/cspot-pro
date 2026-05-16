@@ -412,6 +412,8 @@ export function PresentationView({
   const [editingSongTitle, setEditingSongTitle] = useState("");
   const [editingSongAuthor, setEditingSongAuthor] = useState("");
   const [editingSongLyrics, setEditingSongLyrics] = useState("");
+  const [editingSongChords, setEditingSongChords] = useState("");
+  const [editingSongTab, setEditingSongTab] = useState<"details" | "lyrics" | "chords">("lyrics");
   const [editingSongSaving, setEditingSongSaving] = useState(false);
   const [googleDriveStatus, setGoogleDriveStatus] = useState<GoogleDriveStatus | null>(null);
   const [googleDriveFiles, setGoogleDriveFiles] = useState<GoogleDriveFile[]>([]);
@@ -422,6 +424,7 @@ export function PresentationView({
   const [slideshowOpen, setSlideshowOpen] = useState(false);
   const [mobileBibleNavOpen, setMobileBibleNavOpen] = useState(false);
   const [deckRenderRetryToken, setDeckRenderRetryToken] = useState(0);
+  const [undoAction, setUndoAction] = useState<{ label: string; run: () => Promise<void> } | null>(null);
   const searchInputRef = useRef<HTMLInputElement | null>(null);
   const outputWindowRef = useRef<Window | null>(null);
   const channelRef = useRef<BroadcastChannel | null>(null);
@@ -542,6 +545,8 @@ export function PresentationView({
     setEditingSongTitle(song.title);
     setEditingSongAuthor(song.author ?? "");
     setEditingSongLyrics(song.lyrics ?? "");
+    setEditingSongChords(song.chords ?? "");
+    setEditingSongTab("lyrics");
   }
 
   function closeSongEditor() {
@@ -549,6 +554,8 @@ export function PresentationView({
     setEditingSongTitle("");
     setEditingSongAuthor("");
     setEditingSongLyrics("");
+    setEditingSongChords("");
+    setEditingSongTab("lyrics");
     setEditingSongSaving(false);
   }
 
@@ -1371,7 +1378,7 @@ export function PresentationView({
       return;
     }
 
-    await createPlanItem(target.planId, {
+    const createdItem = await createPlanItem(target.planId, {
       item_type: "song",
       sequence: target.sequence,
       title: song?.title ?? fallbackTitle ?? "Song",
@@ -1379,7 +1386,18 @@ export function PresentationView({
       key_signature: null,
       song_id: songId,
     });
-    await ensureWorshipAnchor(target.anchorSequence);
+    const anchorBefore = worshipAnchorItem();
+    const anchor = await ensureWorshipAnchor(target.anchorSequence);
+    setUndoAction({
+      label: `adding "${createdItem.title}"`,
+      run: async () => {
+        await deletePlanItem(createdItem.id);
+        if (!anchorBefore && anchor) {
+          await deletePlanItem(anchor.id);
+        }
+        await load(plan.id);
+      },
+    });
   }
 
   async function runCustomSongImportSearch() {
@@ -1490,13 +1508,20 @@ export function PresentationView({
       setMessage("Only worship team members, worship leaders, and service leaders can add Scripture to the running order.");
       return;
     }
-    await createPlanItem(plan.id, {
+    const createdItem = await createPlanItem(plan.id, {
       item_type: "reading",
       sequence: sequenceForInsert(afterIndex),
       title: result.reference,
       comment: result.text,
       key_signature: result.version,
       song_id: null,
+    });
+    setUndoAction({
+      label: `adding ${result.reference}`,
+      run: async () => {
+        await deletePlanItem(createdItem.id);
+        await load(plan.id);
+      },
     });
   }
 
@@ -1685,6 +1710,7 @@ export function PresentationView({
       const updated = await updateSong(editingSongId, {
         title: editingSongTitle.trim(),
         author: editingSongAuthor.trim() || null,
+        chords: editingSongChords.trim() || null,
         lyrics: buildLyricsFromSections(analysis.sections) || analysis.lyrics,
         sequence: analysis.sequence,
       });
@@ -1757,12 +1783,41 @@ export function PresentationView({
       const removingLastWorshipSong =
         owner === "worship" &&
         orderedWorshipSetItems().filter((item) => item.item_type === "song" && item.song_id).length <= 1;
+      const targetPlanId = owner === "worship" ? worshipSetPlan?.id : plan.id;
+      const removedItem = owner === "worship" ? worshipSetItemsById.get(sectionId) : serviceItemsById.get(sectionId);
+      const removedAnchor = removingLastWorshipSong ? worshipAnchorItem() : null;
       await deletePlanItem(sectionId);
       if (removingLastWorshipSong) {
         const anchor = worshipAnchorItem();
         if (anchor) {
           await deletePlanItem(anchor.id);
         }
+      }
+      if (targetPlanId && removedItem) {
+        setUndoAction({
+          label: `removing "${removedItem.title}"`,
+          run: async () => {
+            await createPlanItem(targetPlanId, {
+              item_type: removedItem.item_type,
+              sequence: removedItem.sequence,
+              title: removedItem.title,
+              comment: removedItem.comment,
+              key_signature: removedItem.key_signature,
+              song_id: removedItem.song_id,
+            });
+            if (removedAnchor) {
+              await createPlanItem(plan.id, {
+                item_type: removedAnchor.item_type,
+                sequence: removedAnchor.sequence,
+                title: removedAnchor.title,
+                comment: removedAnchor.comment,
+                key_signature: removedAnchor.key_signature,
+                song_id: removedAnchor.song_id,
+              });
+            }
+            await load(plan.id);
+          },
+        });
       }
       await load(plan.id);
     } catch (error) {
@@ -1799,13 +1854,40 @@ export function PresentationView({
     }
 
     try {
+      const originalItemSequence = item.sequence;
+      const originalTargetSequence = target.sequence;
       await Promise.all([
         updatePlanItem(item.id, { sequence: target.sequence }),
         updatePlanItem(target.id, { sequence: item.sequence }),
       ]);
+      setUndoAction({
+        label: `moving "${item.title}"`,
+        run: async () => {
+          await Promise.all([
+            updatePlanItem(item.id, { sequence: originalItemSequence }),
+            updatePlanItem(target.id, { sequence: originalTargetSequence }),
+          ]);
+          await load(plan.id);
+        },
+      });
       await load(plan.id);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Could not reorder section.");
+    }
+  }
+
+  async function runUndoAction() {
+    if (!undoAction) {
+      return;
+    }
+
+    const action = undoAction;
+    setUndoAction(null);
+    try {
+      await action.run();
+      setMessage(`Undid ${action.label}.`);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : `Could not undo ${action.label}.`);
     }
   }
 
@@ -2586,6 +2668,11 @@ export function PresentationView({
                   Search
                 </button>
               ) : null}
+              {undoAction ? (
+                <button className="text-button" onClick={() => void runUndoAction()} type="button">
+                  Undo
+                </button>
+              ) : null}
               {currentPlanItem?.item_type === "reading" && canEditPlan ? (
                 <button
                   className="text-button bible-nav-toggle"
@@ -3109,30 +3196,59 @@ export function PresentationView({
             <div className="section-heading">
               <div>
                 <h2 id="edit-song-title">Edit Song</h2>
-                <p>Tidy the title, author, and lyrics here without leaving the service.</p>
+                <p>Tidy song details without leaving the service.</p>
               </div>
             </div>
 
-            <div className="dialog-form-grid">
-              <label>
-                Title
-                <input onChange={(event) => setEditingSongTitle(event.target.value)} value={editingSongTitle} />
-              </label>
-              <label>
-                Author
-                <input onChange={(event) => setEditingSongAuthor(event.target.value)} value={editingSongAuthor} />
-              </label>
+            <div className="tab-row" role="tablist" aria-label="Song editor sections">
+              {(["lyrics", "chords", "details"] as const).map((tab) => (
+                <button
+                  className={`tab-button ${editingSongTab === tab ? "active" : ""}`}
+                  key={tab}
+                  onClick={() => setEditingSongTab(tab)}
+                  type="button"
+                >
+                  {tab[0].toUpperCase() + tab.slice(1)}
+                </button>
+              ))}
             </div>
 
-            <label className="wide-field">
-              Lyrics
-              <textarea
-                className="lyrics-editor"
-                onChange={(event) => setEditingSongLyrics(event.target.value)}
-                rows={18}
-                value={editingSongLyrics}
-              />
-            </label>
+            {editingSongTab === "details" ? (
+              <div className="dialog-form-grid">
+                <label>
+                  Title
+                  <input onChange={(event) => setEditingSongTitle(event.target.value)} value={editingSongTitle} />
+                </label>
+                <label>
+                  Author
+                  <input onChange={(event) => setEditingSongAuthor(event.target.value)} value={editingSongAuthor} />
+                </label>
+              </div>
+            ) : null}
+
+            {editingSongTab === "lyrics" ? (
+              <label className="wide-field">
+                Lyrics
+                <textarea
+                  className="lyrics-editor"
+                  onChange={(event) => setEditingSongLyrics(event.target.value)}
+                  rows={18}
+                  value={editingSongLyrics}
+                />
+              </label>
+            ) : null}
+
+            {editingSongTab === "chords" ? (
+              <label className="wide-field">
+                Chords
+                <textarea
+                  className="lyrics-editor"
+                  onChange={(event) => setEditingSongChords(event.target.value)}
+                  rows={18}
+                  value={editingSongChords}
+                />
+              </label>
+            ) : null}
 
             <div className="app-dialog-actions">
               <button className="text-button" onClick={closeSongEditor} type="button">

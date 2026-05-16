@@ -14,6 +14,7 @@ import {
   getWorshipSetSuggestion,
   parseGoogleDriveDeck,
   searchGoogleDriveFiles,
+  updateSong,
   updatePlan,
   updatePlanItem,
   type GoogleDriveFile,
@@ -23,6 +24,7 @@ import {
   type PlanSummary,
   type PlanType,
   type Song,
+  type WorshipSuggestedSong,
 } from "../api";
 import { buildPresentationSections, suggestSlideGroupFontCap } from "../presentation";
 import { analyzeImportedSongSlides, buildLyricsFromSections } from "../worshipText";
@@ -54,9 +56,9 @@ type WorshipHistoryMissingSong = {
 };
 
 interface WorshipBuilderViewProps {
+  canAccessAdminTools: boolean;
   canDeletePlan: boolean;
   canEditPlan: boolean;
-  onEditSong?: (songId: string) => void;
 }
 
 function formatServiceDate(value: string) {
@@ -304,7 +306,7 @@ function detectMissingSongsInDeck(deck: ParsedSlideDeck, songs: Song[]) {
   return missing;
 }
 
-export function WorshipBuilderView({ canDeletePlan, canEditPlan, onEditSong }: WorshipBuilderViewProps) {
+export function WorshipBuilderView({ canAccessAdminTools, canDeletePlan, canEditPlan }: WorshipBuilderViewProps) {
   const [plans, setPlans] = useState<PlanSummary[]>([]);
   const [planTypes, setPlanTypes] = useState<PlanType[]>([]);
   const [songs, setSongs] = useState<Song[]>([]);
@@ -325,6 +327,18 @@ export function WorshipBuilderView({ canDeletePlan, canEditPlan, onEditSong }: W
   const [historyPreview, setHistoryPreview] = useState<WorshipHistoryPreview | null>(null);
   const [historyImporting, setHistoryImporting] = useState(false);
   const [historyBatchImporting, setHistoryBatchImporting] = useState(false);
+  const [suggestionReviewOpen, setSuggestionReviewOpen] = useState(false);
+  const [suggestedSongs, setSuggestedSongs] = useState<WorshipSuggestedSong[]>([]);
+  const [editingSong, setEditingSong] = useState<Song | null>(null);
+  const [editingSongTab, setEditingSongTab] = useState<"details" | "lyrics" | "chords">("lyrics");
+  const [editingSongForm, setEditingSongForm] = useState({
+    author: "",
+    chords: "",
+    lyrics: "",
+    title: "",
+  });
+  const [editingSongSaving, setEditingSongSaving] = useState(false);
+  const [undoAction, setUndoAction] = useState<{ label: string; run: () => Promise<void> } | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<"builder" | "live">("builder");
   const [mobileBuilderPane, setMobileBuilderPane] = useState<"library" | "set">("library");
@@ -579,7 +593,8 @@ export function WorshipBuilderView({ canDeletePlan, canEditPlan, onEditSong }: W
     }
 
     try {
-      await createPlanItem(plan.id, {
+      const targetPlanId = plan.id;
+      const createdItem = await createPlanItem(targetPlanId, {
         item_type: "song",
         sequence: sequenceAfterSelected(plan.items, selectedItemId),
         title: song.title,
@@ -587,7 +602,14 @@ export function WorshipBuilderView({ canDeletePlan, canEditPlan, onEditSong }: W
         key_signature: null,
         song_id: song.id,
       });
-      await load(plan.id);
+      setUndoAction({
+        label: `adding "${song.title}"`,
+        run: async () => {
+          await deletePlanItem(createdItem.id);
+          await load(targetPlanId);
+        },
+      });
+      await load(targetPlanId);
       setMobileBuilderPane("set");
       setMessage(`Added "${song.title}" after the selected song.`);
     } catch (error) {
@@ -605,28 +627,112 @@ export function WorshipBuilderView({ canDeletePlan, canEditPlan, onEditSong }: W
       const suggestion = await getWorshipSetSuggestion(5);
       const existingSongIds = new Set(worshipItems.map((item) => item.song_id).filter(Boolean));
       const songsToAdd = suggestion.songs.filter((entry) => !existingSongIds.has(entry.song.id));
-      let sequence = Number.parseFloat(nextSongSequence(worshipItems));
-      for (const entry of songsToAdd) {
-        await createPlanItem(plan.id, {
+      setSuggestedSongs(songsToAdd);
+      setSuggestionReviewOpen(true);
+      setMessage(songsToAdd.length ? "Review the suggested worship set before adding it." : "No new suggestion found outside the songs already in this set.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not suggest a worship set.");
+    } finally {
+      setSuggesting(false);
+    }
+  }
+
+  async function addReviewedSuggestions() {
+    if (!plan || !canEditPlan || !suggestedSongs.length) {
+      return;
+    }
+
+    try {
+      const targetPlanId = plan.id;
+      const createdItems: PlanItem[] = [];
+      let sequence = Number.parseFloat(sequenceAfterSelected(plan.items, selectedItemId));
+      for (const entry of suggestedSongs) {
+        const createdItem = await createPlanItem(targetPlanId, {
           item_type: "song",
-          sequence: sequence.toFixed(2),
+          sequence: sequence.toFixed(4),
           title: entry.song.title,
           comment: `${entry.slot}: ${entry.reason}`,
           key_signature: null,
           song_id: entry.song.id,
         });
-        sequence += 10;
+        createdItems.push(createdItem);
+        sequence += 1;
       }
-      await load(plan.id);
-      setMessage(
-        songsToAdd.length
-          ? `Suggested ${songsToAdd.length} song${songsToAdd.length === 1 ? "" : "s"} from worship history.`
-          : "No new suggestion found outside the songs already in this set.",
-      );
+      setSuggestionReviewOpen(false);
+      setSuggestedSongs([]);
+      setMobileBuilderPane("set");
+      setUndoAction({
+        label: "adding suggested songs",
+        run: async () => {
+          await Promise.all(createdItems.map((item) => deletePlanItem(item.id)));
+          await load(targetPlanId);
+        },
+      });
+      await load(targetPlanId);
+      setMessage(`Added ${suggestedSongs.length} suggested song${suggestedSongs.length === 1 ? "" : "s"}.`);
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Could not suggest a worship set.");
+      setMessage(error instanceof Error ? error.message : "Could not add suggested songs.");
+    }
+  }
+
+  function moveSuggestedSong(index: number, delta: -1 | 1) {
+    setSuggestedSongs((current) => {
+      const targetIndex = index + delta;
+      if (targetIndex < 0 || targetIndex >= current.length) {
+        return current;
+      }
+      const next = [...current];
+      [next[index], next[targetIndex]] = [next[targetIndex], next[index]];
+      return next;
+    });
+  }
+
+  function openInlineSongEditor(song: Song) {
+    setEditingSong(song);
+    setEditingSongTab("lyrics");
+    setEditingSongForm({
+      author: song.author ?? "",
+      chords: song.chords ?? "",
+      lyrics: song.lyrics ?? "",
+      title: song.title,
+    });
+  }
+
+  function cleanInlineSongLyrics() {
+    if (!editingSong) {
+      return;
+    }
+    const analysis = analyzeImportedSongSlides([editingSongForm.lyrics], editingSongForm.title || editingSong.title);
+    setEditingSongForm((current) => ({
+      ...current,
+      lyrics: buildLyricsFromSections(analysis.sections) || analysis.lyrics,
+    }));
+  }
+
+  async function saveInlineSongEditor() {
+    if (!editingSong) {
+      return;
+    }
+    setEditingSongSaving(true);
+    try {
+      const analysis = analyzeImportedSongSlides([editingSongForm.lyrics], editingSongForm.title || editingSong.title);
+      const updated = await updateSong(editingSong.id, {
+        author: editingSongForm.author.trim() || null,
+        chords: editingSongForm.chords.trim() || null,
+        lyrics: buildLyricsFromSections(analysis.sections) || analysis.lyrics,
+        sequence: analysis.sequence,
+        title: editingSongForm.title.trim(),
+      });
+      setSongs((current) => current.map((song) => (song.id === updated.id ? updated : song)));
+      if (plan) {
+        await load(plan.id);
+      }
+      setEditingSong(null);
+      setMessage(`Saved "${updated.title}".`);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not save song.");
     } finally {
-      setSuggesting(false);
+      setEditingSongSaving(false);
     }
   }
 
@@ -813,9 +919,25 @@ export function WorshipBuilderView({ canDeletePlan, canEditPlan, onEditSong }: W
       return;
     }
     try {
+      const targetPlanId = plan?.id;
+      const removedItem = item;
       await deletePlanItem(item.id);
-      if (plan) {
-        await load(plan.id);
+      if (targetPlanId) {
+        setUndoAction({
+          label: `removing "${removedItem.title}"`,
+          run: async () => {
+            await createPlanItem(targetPlanId, {
+              item_type: removedItem.item_type,
+              sequence: removedItem.sequence,
+              title: removedItem.title,
+              comment: removedItem.comment,
+              key_signature: removedItem.key_signature,
+              song_id: removedItem.song_id,
+            });
+            await load(targetPlanId);
+          },
+        });
+        await load(targetPlanId);
       }
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Could not remove song.");
@@ -833,13 +955,41 @@ export function WorshipBuilderView({ canDeletePlan, canEditPlan, onEditSong }: W
     }
 
     try {
+      const targetPlanId = plan.id;
+      const originalItemSequence = item.sequence;
+      const originalTargetSequence = target.sequence;
       await Promise.all([
         updatePlanItem(item.id, { sequence: target.sequence }),
         updatePlanItem(target.id, { sequence: item.sequence }),
       ]);
-      await load(plan.id);
+      setUndoAction({
+        label: `moving "${item.title}"`,
+        run: async () => {
+          await Promise.all([
+            updatePlanItem(item.id, { sequence: originalItemSequence }),
+            updatePlanItem(target.id, { sequence: originalTargetSequence }),
+          ]);
+          await load(targetPlanId);
+        },
+      });
+      await load(targetPlanId);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Could not reorder worship set.");
+    }
+  }
+
+  async function runUndoAction() {
+    if (!undoAction) {
+      return;
+    }
+
+    const action = undoAction;
+    setUndoAction(null);
+    try {
+      await action.run();
+      setMessage(`Undid ${action.label}.`);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : `Could not undo ${action.label}.`);
     }
   }
 
@@ -948,9 +1098,16 @@ export function WorshipBuilderView({ canDeletePlan, canEditPlan, onEditSong }: W
             <button className="text-button" disabled={!plan || !canEditPlan || suggesting} onClick={() => void suggestWorshipSet()} type="button">
               {suggesting ? "Suggesting..." : "Suggest Set"}
             </button>
-            <button className="text-button" disabled={!canEditPlan} onClick={() => setHistoryImportOpen(true)} type="button">
-              History Import
-            </button>
+            {undoAction ? (
+              <button className="text-button" onClick={() => void runUndoAction()} type="button">
+                Undo
+              </button>
+            ) : null}
+            {canAccessAdminTools ? (
+              <button className="text-button" disabled={!canEditPlan} onClick={() => setHistoryImportOpen(true)} type="button">
+                History Import
+              </button>
+            ) : null}
             <button className="primary-button icon-text-button" disabled={!plan} onClick={() => setViewMode("live")} type="button">
               <MonitorUp size={16} aria-hidden="true" />
               Live View
@@ -998,11 +1155,11 @@ export function WorshipBuilderView({ canDeletePlan, canEditPlan, onEditSong }: W
                       <small>{selectedItemId === item.id ? "insert next song after this" : songStatus(song)}</small>
                     </div>
                     <div className="worship-set-actions" onClick={(event) => event.stopPropagation()}>
-                      {song?.id && onEditSong ? (
+                      {song?.id ? (
                         <button
                           aria-label={`Edit ${song.title}`}
                           className="section-icon-button"
-                          onClick={() => onEditSong(song.id)}
+                          onClick={() => openInlineSongEditor(song)}
                           type="button"
                         >
                           <Pencil size={14} aria-hidden="true" />
@@ -1085,6 +1242,142 @@ export function WorshipBuilderView({ canDeletePlan, canEditPlan, onEditSong }: W
           </section>
         </div>
       </main>
+
+      {suggestionReviewOpen ? (
+        <div className="app-dialog-backdrop" role="presentation" onMouseDown={() => setSuggestionReviewOpen(false)}>
+          <section
+            aria-labelledby="suggest-worship-set-title"
+            aria-modal="true"
+            className="app-dialog app-dialog-wide"
+            onMouseDown={(event) => event.stopPropagation()}
+            role="dialog"
+          >
+            <div className="section-heading">
+              <div>
+                <p className="eyebrow">Suggestions</p>
+                <h2 id="suggest-worship-set-title">Review Worship Set</h2>
+              </div>
+              <button className="text-button" onClick={() => setSuggestionReviewOpen(false)} type="button">
+                Close
+              </button>
+            </div>
+            <p className="field-help">These songs are only added after you confirm. Reorder or remove anything that does not fit.</p>
+            <div className="stack-list compact">
+              {suggestedSongs.map((entry, index) => (
+                <div className="stack-row suggestion-row" key={entry.song.id}>
+                  <div>
+                    <strong>{entry.song.title}</strong>
+                    <span>
+                      {entry.slot} · {entry.reason}
+                    </span>
+                  </div>
+                  <div className="worship-set-actions">
+                    <button className="section-icon-button" disabled={index === 0} onClick={() => moveSuggestedSong(index, -1)} type="button" aria-label={`Move ${entry.song.title} up`}>
+                      <ChevronUp size={14} aria-hidden="true" />
+                    </button>
+                    <button className="section-icon-button" disabled={index === suggestedSongs.length - 1} onClick={() => moveSuggestedSong(index, 1)} type="button" aria-label={`Move ${entry.song.title} down`}>
+                      <ChevronDown size={14} aria-hidden="true" />
+                    </button>
+                    <button className="section-icon-button section-remove-button" onClick={() => setSuggestedSongs((current) => current.filter((candidate) => candidate.song.id !== entry.song.id))} type="button" aria-label={`Remove ${entry.song.title}`}>
+                      <Trash2 size={14} aria-hidden="true" />
+                    </button>
+                  </div>
+                </div>
+              ))}
+              {!suggestedSongs.length ? <p className="search-empty">No suggestions to add.</p> : null}
+            </div>
+            <div className="app-dialog-actions">
+              <button className="text-button" onClick={() => setSuggestionReviewOpen(false)} type="button">
+                Cancel
+              </button>
+              <button className="primary-button" disabled={!canEditPlan || !suggestedSongs.length} onClick={() => void addReviewedSuggestions()} type="button">
+                Add Suggestions
+              </button>
+            </div>
+          </section>
+        </div>
+      ) : null}
+
+      {editingSong ? (
+        <div className="app-dialog-backdrop" role="presentation" onMouseDown={() => setEditingSong(null)}>
+          <section
+            aria-labelledby="worship-edit-song-title"
+            aria-modal="true"
+            className="app-dialog app-dialog-wide edit-song-dialog"
+            onMouseDown={(event) => event.stopPropagation()}
+            role="dialog"
+          >
+            <div className="section-heading">
+              <div>
+                <p className="eyebrow">Song</p>
+                <h2 id="worship-edit-song-title">Edit Song</h2>
+              </div>
+            </div>
+            <div className="tab-row" role="tablist" aria-label="Song editor sections">
+              {(["lyrics", "chords", "details"] as const).map((tab) => (
+                <button
+                  className={`tab-button ${editingSongTab === tab ? "active" : ""}`}
+                  key={tab}
+                  onClick={() => setEditingSongTab(tab)}
+                  type="button"
+                >
+                  {tab[0].toUpperCase() + tab.slice(1)}
+                </button>
+              ))}
+            </div>
+            {editingSongTab === "details" ? (
+              <div className="dialog-form-grid">
+                <label>
+                  Title
+                  <input onChange={(event) => setEditingSongForm((current) => ({ ...current, title: event.target.value }))} value={editingSongForm.title} />
+                </label>
+                <label>
+                  Author
+                  <input onChange={(event) => setEditingSongForm((current) => ({ ...current, author: event.target.value }))} value={editingSongForm.author} />
+                </label>
+              </div>
+            ) : null}
+            {editingSongTab === "lyrics" ? (
+              <label className="wide-field">
+                Lyrics
+                <textarea
+                  className="lyrics-editor"
+                  onChange={(event) => setEditingSongForm((current) => ({ ...current, lyrics: event.target.value }))}
+                  rows={18}
+                  value={editingSongForm.lyrics}
+                />
+              </label>
+            ) : null}
+            {editingSongTab === "chords" ? (
+              <label className="wide-field">
+                Chords
+                <textarea
+                  className="lyrics-editor"
+                  onChange={(event) => setEditingSongForm((current) => ({ ...current, chords: event.target.value }))}
+                  rows={18}
+                  value={editingSongForm.chords}
+                />
+              </label>
+            ) : null}
+            <div className="app-dialog-actions">
+              <button className="text-button" onClick={() => setEditingSong(null)} type="button">
+                Close
+              </button>
+              <button className="text-button" onClick={cleanInlineSongLyrics} type="button">
+                Clean & Detect
+              </button>
+              <button
+                className="primary-button"
+                disabled={editingSongSaving || !editingSongForm.title.trim() || !editingSongForm.lyrics.trim()}
+                onClick={() => void saveInlineSongEditor()}
+                type="button"
+              >
+                {editingSongSaving ? "Saving..." : "Save Song"}
+              </button>
+            </div>
+          </section>
+        </div>
+      ) : null}
 
       {setPickerOpen ? (
         <div className="app-dialog-backdrop" role="presentation" onMouseDown={() => setSetPickerOpen(false)}>
