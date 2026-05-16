@@ -1139,11 +1139,11 @@ h3 {
   font-size: var(--musician-live-font-size, clamp(30px, 4.8vw, 72px));
   font-weight: 650;
   justify-content: center;
-  line-height: 1.18;
+  line-height: 1.22;
   min-width: 0;
   max-width: 100%;
   overflow: hidden;
-  row-gap: 2px;
+  row-gap: 4px;
   white-space: pre;
 }
 
@@ -4406,8 +4406,8 @@ h3 {
   }
 
   .musician-chord-line {
-    font-size: clamp(24px, 6.8vw, 38px);
-    line-height: 1.16;
+    font-size: min(var(--musician-live-font-size, 32px), clamp(22px, 5.8vw, 32px));
+    line-height: 1.22;
   }
 
   .musician-lyrics-only p {
