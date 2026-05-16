@@ -394,6 +394,7 @@ export function PresentationView({
   const [searchOverlayOpen, setSearchOverlayOpen] = useState(false);
   const [searchMode, setSearchMode] = useState<SearchOverlayMode>("songs");
   const [searchInsertIndex, setSearchInsertIndex] = useState<number | null>(null);
+  const [searchSelectInserted, setSearchSelectInserted] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [bibleSearchResults, setBibleSearchResults] = useState<BibleSearchHit[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
@@ -436,6 +437,7 @@ export function PresentationView({
   const lastLiveStateRef = useRef<number>(0);
   const livePollInFlightRef = useRef(false);
   const suppressPublishRef = useRef(false);
+  const suppressNextOperatorScrollRef = useRef(false);
   const activeDeckLoadsRef = useRef<Set<string>>(new Set());
 
   const servicePlans = useMemo(() => plans.filter((candidate) => !isWorshipSetPlan(candidate)), [plans]);
@@ -1328,13 +1330,18 @@ export function PresentationView({
     return sections.findIndex((section) => section.id === liveSlide.sectionId);
   }
 
-  function openSearchOverlay(afterIndex = activeSectionInsertIndex(), mode: SearchOverlayMode = "songs") {
+  function openSearchOverlay(
+    afterIndex = activeSectionInsertIndex(),
+    mode: SearchOverlayMode = "bible",
+    options?: { selectInserted?: boolean },
+  ) {
     if (!canEditPlan) {
       setMessage("You can present this plan, but only worship team members, worship leaders, and service leaders can change the running order.");
       return;
     }
     setSearchInsertIndex(afterIndex);
     setSearchMode(mode);
+    setSearchSelectInserted(Boolean(options?.selectInserted));
     setSearchOverlayOpen(true);
   }
 
@@ -1351,6 +1358,7 @@ export function PresentationView({
     setGoogleDriveLoading(false);
     setSearchQuery("");
     setSearchInsertIndex(null);
+    setSearchSelectInserted(false);
     setDeckFile(null);
     setDeckTitle("");
     setDeckTitleTouched(false);
@@ -1398,6 +1406,7 @@ export function PresentationView({
         await load(plan.id);
       },
     });
+    return createdItem;
   }
 
   async function runCustomSongImportSearch() {
@@ -1487,6 +1496,7 @@ export function PresentationView({
       }
 
       await insertSongById(songId, searchInsertIndex ?? activeSectionInsertIndex(), resolvedTitle);
+      suppressNextOperatorScrollRef.current = true;
       await load(plan.id, { refreshCatalogs: true });
       closeSearchOverlay();
       setMessage(
@@ -1523,6 +1533,7 @@ export function PresentationView({
         await load(plan.id);
       },
     });
+    return createdItem;
   }
 
   async function navigateBibleReading(mode: "verse" | "chapter", delta: -1 | 1) {
@@ -1685,6 +1696,7 @@ export function PresentationView({
       await attachItemFile(item.id, { file_id: stored.id, sort_order: 0 });
       setDeckFile(null);
       closeSearchOverlay();
+      suppressNextOperatorScrollRef.current = true;
       await load(plan.id);
     } catch (error) {
       if (error instanceof ApiError && error.status === 413) {
@@ -1762,6 +1774,7 @@ export function PresentationView({
       });
       await attachItemFile(item.id, { file_id: imported.file.id, sort_order: 0 });
       closeSearchOverlay();
+      suppressNextOperatorScrollRef.current = true;
       await load(plan.id);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Could not import this Google Drive deck.");
@@ -1921,6 +1934,9 @@ export function PresentationView({
         },
         searchInsertIndex ?? sections.length - 1,
       );
+      if (!searchSelectInserted) {
+        suppressNextOperatorScrollRef.current = true;
+      }
       await load(plan.id);
       closeSearchOverlay();
     } catch (error) {
@@ -2187,6 +2203,10 @@ export function PresentationView({
     if (!activeSlide) {
       return;
     }
+    if (suppressNextOperatorScrollRef.current) {
+      suppressNextOperatorScrollRef.current = false;
+      return;
+    }
 
     window.requestAnimationFrame(() => {
       scrollItemIntoOperatorView(slideGridRef.current, thumbnailRefs.current[activeSlide.id] ?? null);
@@ -2220,7 +2240,7 @@ export function PresentationView({
       }
       if ((event.key === "s" || event.key === "S") && !editing) {
         event.preventDefault();
-        openSearchOverlay();
+        openSearchOverlay(activeSectionInsertIndex(), "bible", { selectInserted: true });
         return;
       }
       if (editing || searchOverlayOpen || servicePickerOpen) {
@@ -3039,6 +3059,7 @@ export function PresentationView({
                         onClick={() => {
                           void insertSongById(song.id, searchInsertIndex ?? activeSectionInsertIndex())
                             .then(async () => {
+                              suppressNextOperatorScrollRef.current = true;
                               await load(plan?.id, { refreshCatalogs: true });
                               closeSearchOverlay();
                             })
@@ -3137,8 +3158,18 @@ export function PresentationView({
                       key={`${result.version}:${result.reference}:${result.verse_from}`}
                       onClick={() => {
                         void insertBibleResult(result, searchInsertIndex ?? activeSectionInsertIndex())
-                          .then(async () => {
-                            await load(plan?.id);
+                          .then(async (createdItem) => {
+                            if (searchSelectInserted && createdItem) {
+                              await load(plan?.id, {
+                                preserveLocation: {
+                                  planItemId: createdItem.id,
+                                  slideOffset: 0,
+                                },
+                              });
+                            } else {
+                              suppressNextOperatorScrollRef.current = true;
+                              await load(plan?.id);
+                            }
                             closeSearchOverlay();
                           })
                           .catch((error: unknown) => {
