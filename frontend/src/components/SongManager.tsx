@@ -1752,7 +1752,7 @@ export function SongManager({
                       onClick={() => updateKeyAnchor("absolute")}
                       type="button"
                     >
-                      Real Key
+                      Real
                     </button>
                     <button
                       className={chordChart.keyAnchor === "capo" ? "is-active" : ""}
@@ -1760,7 +1760,7 @@ export function SongManager({
                       onClick={() => updateKeyAnchor("capo")}
                       type="button"
                     >
-                      Guitar Key
+                      Guitar
                     </button>
                   </div>
                   <label className="compact-field musician-key-field">
@@ -1804,6 +1804,15 @@ export function SongManager({
                 {lines.length ? (
                   <div className="musician-preview">
                     {lines.map((line, lineIndex) => {
+                      const isSectionMarker = /^\[[^\]]+\]$/.test(line.trim());
+                      if (isSectionMarker) {
+                        return (
+                          <div className="musician-section-marker" key={`${lineIndex}-${line}`}>
+                            {line}
+                          </div>
+                        );
+                      }
+
                       const annotations = lineAnnotations.filter((annotation) => annotation.lineIndex === lineIndex);
                       const totalSlots = line.length + LEADING_CHORD_ANCHORS + TRAILING_CHORD_ANCHORS;
                       const renderSlot = (slotIndex: number) => {

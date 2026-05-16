@@ -1238,6 +1238,7 @@ h3 {
 }
 
 .stack-list {
+  align-content: start;
   display: grid;
   gap: 8px;
 }
@@ -1465,10 +1466,10 @@ h3 {
 }
 
 .musician-chord-editor-bar {
-  align-items: stretch;
+  align-items: start;
   display: grid;
   gap: 10px;
-  grid-template-columns: 180px minmax(0, 1fr);
+  grid-template-columns: minmax(160px, 220px) minmax(0, 1fr);
   min-width: 0;
 }
 
@@ -1477,7 +1478,7 @@ h3 {
 }
 
 .musician-toolbar {
-  align-items: stretch;
+  align-items: start;
   display: grid;
   gap: 8px;
   min-width: 0;
@@ -1492,14 +1493,29 @@ h3 {
   min-width: 0;
 }
 
+.musician-toolbar > .musician-control-row:first-child {
+  justify-content: flex-end;
+}
+
 .musician-key-row {
+  align-items: end;
   background: #f7f3e8;
   border: 1px solid #e3dcc8;
   border-radius: 8px;
   display: grid;
   gap: 8px;
-  grid-template-columns: auto minmax(120px, 0.7fr) 94px auto;
+  grid-template-columns: auto minmax(180px, 1fr) minmax(86px, 112px) auto;
   padding: 8px;
+}
+
+.musician-key-row .segmented-control {
+  align-self: end;
+  flex-wrap: nowrap;
+}
+
+.musician-key-row .segmented-control button {
+  min-width: 62px;
+  white-space: nowrap;
 }
 
 .musician-key-field,
@@ -1568,6 +1584,15 @@ h3 {
   gap: 18px;
   overflow: auto;
   padding: 18px 20px 26px;
+}
+
+.musician-section-marker {
+  color: #17201b;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  font-size: 20px;
+  font-weight: 700;
+  padding: 2px 0 0 2.25ch;
+  white-space: pre;
 }
 
 .chord-diagram-card {
