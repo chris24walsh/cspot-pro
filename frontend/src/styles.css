@@ -2123,6 +2123,21 @@ h3 {
   margin-top: -4px;
 }
 
+.inline-checkbox {
+  align-items: center;
+  display: inline-flex;
+  gap: 8px;
+}
+
+.inline-checkbox input {
+  min-height: auto;
+  width: auto;
+}
+
+.search-follow-checkbox {
+  margin-top: 10px;
+}
+
 .search-results-list {
   display: grid;
   gap: 8px;

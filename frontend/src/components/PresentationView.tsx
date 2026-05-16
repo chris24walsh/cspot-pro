@@ -1341,7 +1341,7 @@ export function PresentationView({
     }
     setSearchInsertIndex(afterIndex);
     setSearchMode(mode);
-    setSearchSelectInserted(Boolean(options?.selectInserted));
+    setSearchSelectInserted(options?.selectInserted ?? mode === "bible");
     setSearchOverlayOpen(true);
   }
 
@@ -1495,9 +1495,19 @@ export function PresentationView({
         setSongs((current) => [...current, importedSong]);
       }
 
-      await insertSongById(songId, searchInsertIndex ?? activeSectionInsertIndex(), resolvedTitle);
-      suppressNextOperatorScrollRef.current = true;
-      await load(plan.id, { refreshCatalogs: true });
+      const createdItem = await insertSongById(songId, searchInsertIndex ?? activeSectionInsertIndex(), resolvedTitle);
+      if (searchSelectInserted && createdItem) {
+        await load(plan.id, {
+          preserveLocation: {
+            planItemId: createdItem.id,
+            slideOffset: 0,
+          },
+          refreshCatalogs: true,
+        });
+      } else {
+        suppressNextOperatorScrollRef.current = true;
+        await load(plan.id, { refreshCatalogs: true });
+      }
       closeSearchOverlay();
       setMessage(
         duplicate
@@ -1696,8 +1706,17 @@ export function PresentationView({
       await attachItemFile(item.id, { file_id: stored.id, sort_order: 0 });
       setDeckFile(null);
       closeSearchOverlay();
-      suppressNextOperatorScrollRef.current = true;
-      await load(plan.id);
+      if (searchSelectInserted) {
+        await load(plan.id, {
+          preserveLocation: {
+            planItemId: item.id,
+            slideOffset: 0,
+          },
+        });
+      } else {
+        suppressNextOperatorScrollRef.current = true;
+        await load(plan.id);
+      }
     } catch (error) {
       if (error instanceof ApiError && error.status === 413) {
         setMessage(
@@ -1774,8 +1793,17 @@ export function PresentationView({
       });
       await attachItemFile(item.id, { file_id: imported.file.id, sort_order: 0 });
       closeSearchOverlay();
-      suppressNextOperatorScrollRef.current = true;
-      await load(plan.id);
+      if (searchSelectInserted) {
+        await load(plan.id, {
+          preserveLocation: {
+            planItemId: item.id,
+            slideOffset: 0,
+          },
+        });
+      } else {
+        suppressNextOperatorScrollRef.current = true;
+        await load(plan.id);
+      }
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Could not import this Google Drive deck.");
     }
@@ -2934,6 +2962,7 @@ export function PresentationView({
                 className={`text-button ${searchMode === "songs" ? "active-choice" : ""}`}
                 onClick={() => {
                   setSearchMode("songs");
+                  setSearchSelectInserted(false);
                 }}
                 type="button"
               >
@@ -2943,6 +2972,7 @@ export function PresentationView({
                 className={`text-button ${searchMode === "bible" ? "active-choice" : ""}`}
                 onClick={() => {
                   setSearchMode("bible");
+                  setSearchSelectInserted(true);
                 }}
                 type="button"
               >
@@ -2952,12 +2982,22 @@ export function PresentationView({
                 className={`text-button ${searchMode === "deck" ? "active-choice" : ""}`}
                 onClick={() => {
                   setSearchMode("deck");
+                  setSearchSelectInserted(false);
                 }}
                 type="button"
               >
                 Slide Deck
               </button>
             </div>
+
+            <label className="inline-checkbox search-follow-checkbox">
+              <input
+                checked={searchSelectInserted}
+                onChange={(event) => setSearchSelectInserted(event.target.checked)}
+                type="checkbox"
+              />
+              <span>Show after adding</span>
+            </label>
 
             <div className="dialog-form-grid">
               {searchMode === "bible" ? (
@@ -3058,9 +3098,19 @@ export function PresentationView({
                         key={song.id}
                         onClick={() => {
                           void insertSongById(song.id, searchInsertIndex ?? activeSectionInsertIndex())
-                            .then(async () => {
-                              suppressNextOperatorScrollRef.current = true;
-                              await load(plan?.id, { refreshCatalogs: true });
+                            .then(async (createdItem) => {
+                              if (searchSelectInserted && createdItem) {
+                                await load(plan?.id, {
+                                  preserveLocation: {
+                                    planItemId: createdItem.id,
+                                    slideOffset: 0,
+                                  },
+                                  refreshCatalogs: true,
+                                });
+                              } else {
+                                suppressNextOperatorScrollRef.current = true;
+                                await load(plan?.id, { refreshCatalogs: true });
+                              }
                               closeSearchOverlay();
                             })
                             .catch((error: unknown) => {
