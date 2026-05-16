@@ -326,6 +326,7 @@ export function WorshipBuilderView({ canDeletePlan, canEditPlan }: WorshipBuilde
   const [historyBatchImporting, setHistoryBatchImporting] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<"builder" | "live">("builder");
+  const [mobileBuilderPane, setMobileBuilderPane] = useState<"library" | "set">("library");
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
   const setListRef = useRef<HTMLDivElement | null>(null);
   const slideReviewRef = useRef<HTMLElement | null>(null);
@@ -586,6 +587,7 @@ export function WorshipBuilderView({ canDeletePlan, canEditPlan }: WorshipBuilde
         song_id: song.id,
       });
       await load(plan.id);
+      setMobileBuilderPane("set");
       setMessage(`Added "${song.title}" after the selected song.`);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Could not add song.");
@@ -842,7 +844,7 @@ export function WorshipBuilderView({ canDeletePlan, canEditPlan }: WorshipBuilde
 
   if (viewMode === "live") {
     return (
-      <section className="worship-builder worship-live-shell" aria-label="Musician live worship">
+      <section className="worship-live-shell" aria-label="Musician live worship">
         <div className="worship-live-topbar">
           <label>
             Worship Set
@@ -868,8 +870,25 @@ export function WorshipBuilderView({ canDeletePlan, canEditPlan }: WorshipBuilde
   }
 
   return (
-    <section className="worship-builder" aria-label="Worship builder">
-      <aside className="worship-song-browser">
+    <section className={`worship-builder worship-builder-pane-${mobileBuilderPane}`} aria-label="Worship builder">
+      <div className="worship-mobile-pane-tabs" aria-label="Worship builder panels">
+        <button
+          className={mobileBuilderPane === "library" ? "active" : ""}
+          onClick={() => setMobileBuilderPane("library")}
+          type="button"
+        >
+          Library
+        </button>
+        <button
+          className={mobileBuilderPane === "set" ? "active" : ""}
+          onClick={() => setMobileBuilderPane("set")}
+          type="button"
+        >
+          Set <span>{worshipItems.length}</span>
+        </button>
+      </div>
+
+      <aside className={`worship-song-browser ${mobileBuilderPane === "library" ? "is-mobile-active" : ""}`}>
         <div className="worship-panel-heading">
           <div>
             <p className="eyebrow">Library</p>
@@ -904,7 +923,7 @@ export function WorshipBuilderView({ canDeletePlan, canEditPlan }: WorshipBuilde
         </div>
       </aside>
 
-      <main className="worship-set-builder">
+      <main className={`worship-set-builder ${mobileBuilderPane === "set" ? "is-mobile-active" : ""}`}>
         <div className="worship-set-toolbar">
           <label>
             Worship Set

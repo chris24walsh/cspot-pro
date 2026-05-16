@@ -600,6 +600,10 @@ h3 {
   padding: 12px;
 }
 
+.worship-mobile-pane-tabs {
+  display: none;
+}
+
 .worship-song-browser,
 .worship-set-builder,
 .worship-set-list,
@@ -1131,10 +1135,11 @@ h3 {
 
 .musician-chord-line {
   display: grid;
-  font-family: "Courier New", Courier, monospace;
+  font-family: Arial, Helvetica, sans-serif;
   font-size: var(--musician-live-font-size, clamp(30px, 4.8vw, 72px));
+  font-weight: 780;
   justify-content: center;
-  line-height: 1.14;
+  line-height: 1.18;
   min-width: 0;
   max-width: 100%;
   overflow: hidden;
@@ -4140,25 +4145,292 @@ h3 {
     justify-content: flex-start;
   }
 
-  .musician-live-view {
+  .worship-builder {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto minmax(0, 1fr);
+    height: calc(100svh - 132px);
+    padding: 6px;
+  }
+
+  .worship-mobile-pane-tabs {
+    background: #f4efe2;
+    border: 1px solid #ded8c7;
+    border-radius: 10px;
+    display: grid;
+    gap: 4px;
+    grid-template-columns: 1fr 1fr;
+    padding: 3px;
+  }
+
+  .worship-mobile-pane-tabs button {
+    background: transparent;
+    border: 0;
+    border-radius: 8px;
+    color: #3b4741;
+    cursor: pointer;
+    font: inherit;
+    font-size: 15px;
+    font-weight: 900;
+    min-height: 34px;
+    padding: 5px 8px;
+  }
+
+  .worship-mobile-pane-tabs button.active {
+    background: #fffefa;
+    box-shadow: 0 0 0 1px #ded8c7;
+    color: #17201b;
+  }
+
+  .worship-mobile-pane-tabs span {
+    color: #65716a;
+    font-size: 12px;
+  }
+
+  .worship-song-browser,
+  .worship-set-builder {
+    display: none;
+  }
+
+  .worship-song-browser.is-mobile-active,
+  .worship-set-builder.is-mobile-active {
+    display: grid;
+  }
+
+  .worship-song-browser {
+    grid-template-rows: auto auto minmax(0, 1fr);
+  }
+
+  .worship-panel-heading .eyebrow {
+    font-size: 12px;
+  }
+
+  .worship-song-browser .worship-panel-heading h2,
+  .worship-set-list .worship-panel-heading h2 {
+    font-size: 22px;
+  }
+
+  .song-library-row,
+  .worship-set-item {
+    gap: 8px;
+    min-height: 78px;
+    padding: 10px;
+  }
+
+  .song-library-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .song-library-row svg {
+    grid-column: 2;
+  }
+
+  .song-library-row em {
+    font-size: 10px;
+    justify-self: end;
+    padding: 3px 6px;
+  }
+
+  .song-library-row strong,
+  .worship-set-item strong {
+    display: -webkit-box;
+    font-size: 18px;
+    line-height: 1.15;
+    overflow: hidden;
+    text-overflow: clip;
+    white-space: normal;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+  }
+
+  .song-library-row small,
+  .worship-set-item small {
+    display: -webkit-box;
+    font-size: 14px;
+    line-height: 1.2;
+    overflow: hidden;
+    text-overflow: clip;
+    white-space: normal;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+  }
+
+  .worship-set-toolbar {
+    gap: 6px;
+  }
+
+  .worship-set-toolbar .toolbar-button-cluster {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .worship-set-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .worship-set-list {
+    padding: 10px;
+  }
+
+  .worship-slide-review {
+    display: none;
+  }
+
+  .worship-live-shell {
+    gap: 4px;
+    height: calc(100svh - 126px);
     padding: 4px;
   }
 
+  .worship-live-topbar {
+    align-items: center;
+    gap: 5px;
+    grid-template-columns: minmax(0, 1fr) auto;
+    padding: 4px;
+  }
+
+  .worship-live-topbar label {
+    font-size: 0;
+    gap: 0;
+  }
+
+  .worship-live-topbar select {
+    font-size: 13px;
+    min-height: 30px;
+    padding: 4px 7px;
+  }
+
+  .worship-live-topbar .text-button {
+    font-size: 12px;
+    min-height: 30px;
+    padding: 4px 8px;
+    white-space: nowrap;
+  }
+
+  .musician-live-view {
+    gap: 4px;
+    padding: 4px;
+  }
+
+  .musician-live-toolbar {
+    gap: 4px;
+    min-height: 0;
+    padding-bottom: 3px;
+  }
+
+  .musician-live-title {
+    gap: 8px;
+  }
+
+  .musician-live-title strong {
+    font-size: 15px;
+  }
+
+  .musician-live-title span {
+    font-size: 12px;
+  }
+
+  .musician-live-controls {
+    flex-wrap: nowrap;
+    gap: 4px;
+    justify-content: flex-start;
+    overflow-x: auto;
+    padding-bottom: 2px;
+    scrollbar-width: thin;
+  }
+
+  .chord-toggle-button {
+    font-size: 12px;
+    gap: 5px;
+    min-height: 28px;
+    padding: 3px 8px 3px 5px;
+  }
+
+  .chord-toggle-button span {
+    height: 16px;
+    width: 28px;
+  }
+
+  .chord-toggle-button span::after {
+    height: 12px;
+    width: 12px;
+  }
+
+  .chord-toggle-button.is-active span::after {
+    transform: translateX(12px);
+  }
+
+  .musician-pill-toggle {
+    min-height: 28px;
+    padding: 2px;
+  }
+
+  .musician-pill-toggle button {
+    font-size: 12px;
+    min-width: 48px;
+    padding: 3px 7px;
+  }
+
+  .musician-stepper {
+    grid-template-columns: auto 26px minmax(34px, auto) 26px;
+    min-height: 28px;
+    padding: 2px 4px 2px 7px;
+  }
+
+  .musician-stepper > span {
+    font-size: 10px;
+  }
+
+  .musician-stepper strong {
+    font-size: 13px;
+    min-width: 28px;
+  }
+
+  .musician-stepper button {
+    height: 22px;
+    width: 22px;
+  }
+
+  .musician-fullscreen-button {
+    height: 28px;
+    width: 32px;
+  }
+
   .musician-live-stage {
-    padding: 8px 4px;
+    align-items: center;
+    padding: 6px 4px;
+  }
+
+  .musician-chord-sheet,
+  .musician-lyrics-only {
+    gap: clamp(14px, 2.4vh, 26px);
+    width: 100%;
   }
 
   .musician-chord-line {
-    font-size: var(--musician-live-font-size, clamp(30px, 7vw, 58px));
+    font-size: clamp(24px, 6.8vw, 38px);
+    line-height: 1.16;
   }
 
   .musician-lyrics-only p {
-    font-size: clamp(30px, 8vw, 54px);
+    font-size: clamp(28px, 8vw, 44px);
+    line-height: 1.1;
   }
 
   .musician-live-transport {
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
     gap: 6px;
-    min-height: 38px;
+    min-height: 34px;
+  }
+
+  .musician-live-transport .text-button,
+  .musician-live-transport .primary-button {
+    font-size: 13px;
+    min-height: 34px;
+    padding: 5px 8px;
+  }
+
+  .musician-live-transport span {
+    font-size: 13px;
+    white-space: nowrap;
   }
 }
 .auth-shell {
