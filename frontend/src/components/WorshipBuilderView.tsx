@@ -1,4 +1,4 @@
-import { CalendarDays, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, ListPlus, MonitorUp, Music2, Trash2 } from "lucide-react";
+import { CalendarDays, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, ListPlus, MonitorUp, Music2, Pencil, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import {
@@ -56,6 +56,7 @@ type WorshipHistoryMissingSong = {
 interface WorshipBuilderViewProps {
   canDeletePlan: boolean;
   canEditPlan: boolean;
+  onEditSong?: (songId: string) => void;
 }
 
 function formatServiceDate(value: string) {
@@ -303,7 +304,7 @@ function detectMissingSongsInDeck(deck: ParsedSlideDeck, songs: Song[]) {
   return missing;
 }
 
-export function WorshipBuilderView({ canDeletePlan, canEditPlan }: WorshipBuilderViewProps) {
+export function WorshipBuilderView({ canDeletePlan, canEditPlan, onEditSong }: WorshipBuilderViewProps) {
   const [plans, setPlans] = useState<PlanSummary[]>([]);
   const [planTypes, setPlanTypes] = useState<PlanType[]>([]);
   const [songs, setSongs] = useState<Song[]>([]);
@@ -997,6 +998,16 @@ export function WorshipBuilderView({ canDeletePlan, canEditPlan }: WorshipBuilde
                       <small>{selectedItemId === item.id ? "insert next song after this" : songStatus(song)}</small>
                     </div>
                     <div className="worship-set-actions" onClick={(event) => event.stopPropagation()}>
+                      {song?.id && onEditSong ? (
+                        <button
+                          aria-label={`Edit ${song.title}`}
+                          className="section-icon-button"
+                          onClick={() => onEditSong(song.id)}
+                          type="button"
+                        >
+                          <Pencil size={14} aria-hidden="true" />
+                        </button>
+                      ) : null}
                       <button
                         aria-label={`Move ${item.title} up`}
                         className="section-icon-button"
@@ -1327,6 +1338,8 @@ export function WorshipBuilderView({ canDeletePlan, canEditPlan }: WorshipBuilde
                                 Slides {missing.firstSlideIndex}-{missing.lastSlideIndex}
                                 {missing.sequence ? ` · ${missing.sequence}` : ""}
                               </span>
+                              <span>{missing.lyrics.split(/\r?\n/).filter(Boolean).slice(0, 2).join(" / ")}</span>
+                              {missing.notes.length ? <span>Check: {missing.notes.join("; ")}</span> : null}
                             </div>
                           ))}
                         </div>

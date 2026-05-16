@@ -61,6 +61,7 @@ function isTransientApiError(error: unknown) {
 function App() {
   const isPresentationOutput = new URLSearchParams(window.location.search).get("presentation") === "output";
   const [activeModuleId, setActiveModuleId] = useState<ModuleId>("presentation");
+  const [songEditorTargetId, setSongEditorTargetId] = useState<string | null>(null);
   const [sessionUser, setSessionUser] = useState<SessionUser | null>(null);
   const [bootstrapAvailable, setBootstrapAvailable] = useState(false);
   const [authLoading, setAuthLoading] = useState(true);
@@ -330,10 +331,18 @@ function App() {
             canArchive={canDeleteSongs}
             canCreate={canCreateSongs}
             canEdit={canEditSongs}
+            focusSongId={songEditorTargetId}
             onDataChange={() => void loadWorkspace()}
           />
         ) : activeModule.id === "worship" ? (
-          <WorshipBuilderView canDeletePlan={canDeletePlans} canEditPlan={canEditPlans} />
+          <WorshipBuilderView
+            canDeletePlan={canDeletePlans}
+            canEditPlan={canEditPlans}
+            onEditSong={(songId) => {
+              setSongEditorTargetId(songId);
+              setActiveModuleId("music");
+            }}
+          />
         ) : activeModule.id === "presentation" ? (
           <PresentationView
             canAttachDeck={canEditPlans && canCreateLibrary}

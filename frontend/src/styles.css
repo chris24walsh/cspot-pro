@@ -827,8 +827,15 @@ h3 {
 }
 
 .worship-set-actions {
-  display: flex;
+  display: grid;
   gap: 4px;
+  grid-template-columns: repeat(2, 32px);
+}
+
+.worship-set-actions .section-icon-button {
+  min-height: 32px;
+  min-width: 32px;
+  padding: 0;
 }
 
 .worship-slide-review {
@@ -4239,6 +4246,25 @@ h3 {
     gap: 8px;
     min-height: 78px;
     padding: 10px;
+  }
+
+  .worship-set-item {
+    align-items: center;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+  }
+
+  .worship-set-item > span {
+    font-size: 14px;
+  }
+
+  .worship-set-actions {
+    grid-template-columns: repeat(2, 34px);
+  }
+
+  .worship-set-actions .section-icon-button {
+    border-radius: 10px;
+    min-height: 34px;
+    min-width: 34px;
   }
 
   .song-library-row {

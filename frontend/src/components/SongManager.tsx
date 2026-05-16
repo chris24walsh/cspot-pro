@@ -322,11 +322,13 @@ export function SongManager({
   canArchive,
   canCreate,
   canEdit,
+  focusSongId,
   onDataChange,
 }: {
   canArchive: boolean;
   canCreate: boolean;
   canEdit: boolean;
+  focusSongId?: string | null;
   onDataChange: () => void;
 }) {
   const [songs, setSongs] = useState<Song[]>([]);
@@ -1100,6 +1102,13 @@ export function SongManager({
   useEffect(() => {
     void load();
   }, []);
+
+  useEffect(() => {
+    if (!focusSongId) {
+      return;
+    }
+    void load(focusSongId);
+  }, [focusSongId]);
 
   useEffect(() => {
     if (!openEShapesAvailable && shapeMode === "open-e") {

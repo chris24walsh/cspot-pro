@@ -90,16 +90,20 @@ function shiftKey(key: string | null, semitones: number) {
   return MUSICAL_KEYS[(index + semitones + 120) % MUSICAL_KEYS.length];
 }
 
-function fitFontSize(lines: string[]) {
+function fitFontSize(lines: string[], stageWidth = 1120, stageHeight = 650) {
   const lineCount = Math.max(lines.length, 1);
   const longestLine = Math.max(...lines.map((line) => Array.from(line).length), 1);
-  const widthDrivenSize = 1120 / Math.max((longestLine + LEADING_CHORD_ANCHORS + TRAILING_CHORD_ANCHORS) * 0.72, 1);
-  const heightDrivenSize = 650 / Math.max(lineCount * 1.55, 1);
+  const usableWidth = Math.max(stageWidth * 0.9, 240);
+  const usableHeight = Math.max(stageHeight * 0.82, 220);
+  const widthDrivenSize = usableWidth / Math.max((longestLine + LEADING_CHORD_ANCHORS + TRAILING_CHORD_ANCHORS) * 0.72, 1);
+  const heightDrivenSize = usableHeight / Math.max(lineCount * 1.55, 1);
   return Math.floor(clampNumber(Math.min(widthDrivenSize, heightDrivenSize), 22, 56));
 }
 
-function fitFontSizeForSlides(slideTexts: string[]) {
-  const sizes = slideTexts.map((text) => fitFontSize(lyricLines(text))).filter((size) => Number.isFinite(size));
+function fitFontSizeForSlides(slideTexts: string[], stageWidth: number, stageHeight: number) {
+  const sizes = slideTexts
+    .map((text) => fitFontSize(lyricLines(text), stageWidth, stageHeight))
+    .filter((size) => Number.isFinite(size));
   if (!sizes.length) {
     return 40;
   }
@@ -204,6 +208,8 @@ export function MusicianLiveView({ plan, songs }: MusicianLiveViewProps) {
   const [capo, setCapo] = useState(0);
   const [guitarKey, setGuitarKey] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [stageSize, setStageSize] = useState({ height: 650, width: 1120 });
+  const stageRef = useRef<HTMLDivElement | null>(null);
   const pollingRef = useRef(false);
 
   const worshipItems = useMemo(
@@ -227,8 +233,8 @@ export function MusicianLiveView({ plan, songs }: MusicianLiveViewProps) {
   const liveSong = liveItem?.song_id ? songs.find((song) => song.id === liveItem.song_id) ?? null : null;
   const chordChart = useMemo(() => parseChordChart(liveSong?.chords ?? null).document, [liveSong?.chords]);
   const liveFontSize = useMemo(
-    () => fitFontSizeForSlides(slides.filter((slide) => slide.itemType === "song").map((slide) => slide.text)),
-    [slides],
+    () => fitFontSizeForSlides(slides.filter((slide) => slide.itemType === "song").map((slide) => slide.text), stageSize.width, stageSize.height),
+    [slides, stageSize.height, stageSize.width],
   );
   const slideLineOffset = useMemo(
     () => findSlideLineOffset(liveSong?.lyrics ?? "", liveSlide?.text ?? ""),
@@ -270,6 +276,34 @@ export function MusicianLiveView({ plan, songs }: MusicianLiveViewProps) {
     setCapo(nextCapo);
     setGuitarKey(nextCapoKey);
   }, [chordChart.absoluteKey, chordChart.capo, chordChart.capoKey, liveSong?.id]);
+
+  useEffect(() => {
+    const element = stageRef.current;
+    if (!element) {
+      return undefined;
+    }
+
+    function updateStageSize() {
+      if (!element) {
+        return;
+      }
+      const box = element.getBoundingClientRect();
+      setStageSize({
+        height: Math.max(Math.floor(box.height), 220),
+        width: Math.max(Math.floor(box.width), 240),
+      });
+    }
+
+    updateStageSize();
+    if (typeof ResizeObserver === "undefined") {
+      window.addEventListener("resize", updateStageSize);
+      return () => window.removeEventListener("resize", updateStageSize);
+    }
+
+    const observer = new ResizeObserver(updateStageSize);
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, []);
 
   useEffect(() => {
     if (!plan?.id) {
@@ -365,12 +399,23 @@ export function MusicianLiveView({ plan, songs }: MusicianLiveViewProps) {
   }
 
   async function toggleFullscreen() {
+    const root = document.documentElement as HTMLElement & {
+      webkitRequestFullscreen?: () => Promise<void> | void;
+    };
+    const exit = document.exitFullscreen?.bind(document) as (() => Promise<void>) | undefined;
+    const request = root.requestFullscreen?.bind(root) ?? root.webkitRequestFullscreen?.bind(root);
+
+    if (!request) {
+      setMessage("This browser does not support fullscreen here. Use the browser share/menu fullscreen option if available.");
+      return;
+    }
+
     try {
       if (document.fullscreenElement) {
-        await document.exitFullscreen();
+        await exit?.();
         return;
       }
-      await document.documentElement.requestFullscreen();
+      await request();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Use the browser fullscreen control for this display.");
     }
@@ -443,6 +488,7 @@ export function MusicianLiveView({ plan, songs }: MusicianLiveViewProps) {
       {message ? <p className="form-message">{message}</p> : null}
 
       <div
+        ref={stageRef}
         className="musician-live-stage"
         style={{ "--musician-live-font-size": `${liveFontSize}px` } as CSSProperties & Record<"--musician-live-font-size", string>}
       >
