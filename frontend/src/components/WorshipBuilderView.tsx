@@ -77,6 +77,13 @@ function isoFromDateInput(value: string) {
   return `${value}T10:30:00.000Z`;
 }
 
+function nextSundayDateInput() {
+  const date = new Date();
+  date.setDate(date.getDate() + ((7 - date.getDay()) % 7 || 7));
+  date.setHours(10, 30, 0, 0);
+  return dateInputFromIso(date.toISOString());
+}
+
 function calendarDaysForMonth(monthInput: string) {
   const [yearValue, monthValue] = monthInput.split("-").map(Number);
   const year = Number.isFinite(yearValue) ? yearValue : new Date().getFullYear();
@@ -180,7 +187,8 @@ function titleFromSlide(slide: ParsedSlideDeck["slides"][number]) {
   const lines = meaningfulSlideLines(`${slide.title}\n${slide.text}`);
   const candidate = lines.find((line) => {
     const cleaned = cleanSlideTitle(line);
-    return cleaned.length >= 4 && cleaned.length <= 70 && !/[.;:,]$/.test(cleaned);
+    const wordCount = cleaned.split(/\s+/).filter(Boolean).length;
+    return cleaned.length >= 4 && cleaned.length <= 70 && wordCount <= 7 && !/[.;:,]$/.test(cleaned);
   });
 
   return candidate ? cleanSlideTitle(candidate) : "";
@@ -205,7 +213,11 @@ function isProbablySongTitleSlide(slide: ParsedSlideDeck["slides"][number]) {
   }
 
   const lyricLookingLines = lines.filter((line) => line.split(/\s+/).length >= 6);
-  return lyricLookingLines.length <= 1;
+  const titleLineCount = lines.filter((line) => {
+    const cleaned = cleanSlideTitle(line);
+    return cleaned.length >= 4 && cleaned.split(/\s+/).filter(Boolean).length <= 7 && !/[.;:,]$/.test(cleaned);
+  }).length;
+  return titleLineCount > 0 && lyricLookingLines.length === 0;
 }
 
 function inferDeckDate(file: Pick<GoogleDriveFile, "name" | "modified_time">) {
@@ -343,6 +355,21 @@ export function WorshipBuilderView({ canDeletePlan, canEditPlan }: WorshipBuilde
 
   const calendarDays = useMemo(() => calendarDaysForMonth(setCalendarMonth), [setCalendarMonth]);
 
+  function nextWorshipSetPlanId(planList: PlanSummary[]) {
+    const todayKey = dateInputFromIso(new Date().toISOString());
+    const sundayKey = nextSundayDateInput();
+    const newestFirst = [...planList].sort((left, right) => {
+      const leftTime = new Date(left.service_date).getTime();
+      const rightTime = new Date(right.service_date).getTime();
+      return (Number.isNaN(rightTime) ? 0 : rightTime) - (Number.isNaN(leftTime) ? 0 : leftTime);
+    });
+    const nextSundayPlan = planList.find((candidate) => dateInputFromIso(candidate.service_date) === sundayKey);
+    const upcoming = [...planList]
+      .filter((candidate) => dateInputFromIso(candidate.service_date) >= todayKey)
+      .sort((left, right) => new Date(left.service_date).getTime() - new Date(right.service_date).getTime());
+    return nextSundayPlan?.id ?? upcoming[0]?.id ?? newestFirst[0]?.id ?? "";
+  }
+
   const worshipItems = useMemo(
     () => sortedWorshipItems(plan?.items ?? []),
     [plan],
@@ -383,9 +410,12 @@ export function WorshipBuilderView({ canDeletePlan, canEditPlan }: WorshipBuilde
         targetPlanId !== undefined
           ? targetPlanId
           : sessionStorage.getItem(SELECTED_WORSHIP_SET_SESSION_KEY) || selectedPlanId;
-      const resolvedPlanId = nextWorshipPlans.some((candidate) => candidate.id === requestedPlanId)
+      const requestedPlan = nextWorshipPlans.find((candidate) => candidate.id === requestedPlanId);
+      const requestedPlanIsUsable =
+        targetPlanId !== undefined || (requestedPlan && dateInputFromIso(requestedPlan.service_date) >= dateInputFromIso(new Date().toISOString()));
+      const resolvedPlanId = requestedPlan && requestedPlanIsUsable
         ? requestedPlanId
-        : nextWorshipPlans[0]?.id || "";
+        : nextWorshipSetPlanId(nextWorshipPlans);
       const nextPlan = resolvedPlanId ? await getPlan(resolvedPlanId) : null;
       const nextWorshipItems = sortedWorshipItems(nextPlan?.items ?? []);
       setPlans(nextPlans);

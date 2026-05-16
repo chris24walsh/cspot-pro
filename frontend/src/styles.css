@@ -855,7 +855,9 @@ h3 {
   gap: 6px;
   grid-template-columns: 1fr;
   grid-template-rows: auto minmax(0, 1fr);
-  height: 100%;
+  height: calc(100svh - 72px);
+  min-height: 0;
+  overflow: hidden;
   padding: 6px;
 }
 
@@ -865,9 +867,9 @@ h3 {
   border: 1px solid #e3dcc8;
   border-radius: 8px;
   display: grid;
-  gap: 10px;
+  gap: 8px;
   grid-template-columns: minmax(0, 1fr) auto;
-  padding: 6px 8px;
+  padding: 4px 6px;
 }
 
 .worship-live-topbar label {
@@ -875,7 +877,7 @@ h3 {
   display: grid;
   font-size: 12px;
   font-weight: 900;
-  gap: 5px;
+  gap: 3px;
 }
 
 .worship-live-topbar select {
@@ -895,11 +897,11 @@ h3 {
   border: 1px solid #d8d0bd;
   border-radius: 8px;
   display: grid;
-  gap: 6px;
+  gap: 5px;
   grid-template-rows: auto minmax(0, 1fr) auto;
   min-height: 0;
   overflow: hidden;
-  padding: 8px;
+  padding: 6px;
 }
 
 .musician-live-toolbar {
@@ -909,10 +911,10 @@ h3 {
   border-bottom: 1px solid #e3dcc8;
   border-radius: 0;
   display: grid;
-  gap: 12px;
+  gap: 8px;
   grid-template-columns: minmax(180px, 1fr) auto;
   min-height: 36px;
-  padding: 0 2px 6px;
+  padding: 0 2px 4px;
 }
 
 .musician-live-title {
@@ -943,7 +945,7 @@ h3 {
   align-items: center;
   display: flex;
   flex-wrap: wrap;
-  gap: 7px;
+  gap: 5px;
   justify-content: flex-end;
 }
 
@@ -1116,23 +1118,23 @@ h3 {
   justify-items: center;
   min-height: 0;
   overflow: hidden;
-  padding: clamp(10px, 3vw, 34px);
+  padding: clamp(8px, 2vw, 24px);
 }
 
 .musician-chord-sheet,
 .musician-lyrics-only {
   display: grid;
-  gap: clamp(16px, 2vh, 26px);
+  gap: clamp(20px, 3vh, 42px);
   justify-content: center;
-  width: min(100%, 1120px);
+  width: min(100%, 1500px);
 }
 
 .musician-chord-line {
   display: grid;
   font-family: "Courier New", Courier, monospace;
-  font-size: var(--musician-live-font-size, clamp(21px, 3vw, 44px));
+  font-size: var(--musician-live-font-size, clamp(30px, 4.8vw, 72px));
   justify-content: center;
-  line-height: 1.08;
+  line-height: 1.14;
   min-width: 0;
   max-width: 100%;
   overflow: hidden;
@@ -1193,8 +1195,8 @@ h3 {
   display: grid;
   gap: 6px;
   grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
-  min-height: 42px;
-  padding: 5px 8px;
+  min-height: 38px;
+  padding: 4px 8px;
 }
 
 .musician-live-transport span {
@@ -4139,15 +4141,15 @@ h3 {
   }
 
   .musician-live-view {
-    padding: 8px;
+    padding: 4px;
   }
 
   .musician-live-stage {
-    padding: 16px 8px;
+    padding: 8px 4px;
   }
 
   .musician-chord-line {
-    font-size: clamp(19px, 5vw, 28px);
+    font-size: var(--musician-live-font-size, clamp(30px, 7vw, 58px));
   }
 
   .musician-lyrics-only p {
@@ -4156,6 +4158,7 @@ h3 {
 
   .musician-live-transport {
     gap: 6px;
+    min-height: 38px;
   }
 }
 .auth-shell {

@@ -462,6 +462,21 @@ export function PresentationView({
       }),
     [servicePlans],
   );
+
+  function nextServicePlanId(planList: PlanSummary[]) {
+    const todayKey = dateInputFromIso(new Date().toISOString());
+    const sundayKey = nextSundayDateInput();
+    const newestFirst = [...planList].sort((left, right) => {
+      const leftTime = new Date(left.service_date).getTime();
+      const rightTime = new Date(right.service_date).getTime();
+      return (Number.isNaN(rightTime) ? 0 : rightTime) - (Number.isNaN(leftTime) ? 0 : leftTime);
+    });
+    const nextSundayPlan = planList.find((candidate) => dateInputFromIso(candidate.service_date) === sundayKey);
+    const upcoming = [...planList]
+      .filter((candidate) => dateInputFromIso(candidate.service_date) >= todayKey)
+      .sort((left, right) => new Date(left.service_date).getTime() - new Date(right.service_date).getTime());
+    return nextSundayPlan?.id ?? upcoming[0]?.id ?? newestFirst[0]?.id ?? "";
+  }
   const plansByDate = useMemo(
     () =>
       new Map(
@@ -626,9 +641,12 @@ export function PresentationView({
           : sessionStorage.getItem(SELECTED_SERVICE_SESSION_KEY) || selectedPlanId;
       const nextServicePlans = nextPlans.filter((candidate) => !isWorshipSetPlan(candidate));
       const nextWorshipSetPlans = nextPlans.filter(isWorshipSetPlan);
-      const targetPlanId = nextServicePlans.some((candidate) => candidate.id === requestedPlanId)
+      const requestedPlan = nextServicePlans.find((candidate) => candidate.id === requestedPlanId);
+      const requestedPlanIsUsable =
+        planId !== undefined || (requestedPlan && dateInputFromIso(requestedPlan.service_date) >= dateInputFromIso(new Date().toISOString()));
+      const targetPlanId = requestedPlan && requestedPlanIsUsable
         ? requestedPlanId
-        : nextServicePlans[0]?.id ?? "";
+        : nextServicePlanId(nextServicePlans);
       const [targetPlan, liveState] = await Promise.all([
         targetPlanId ? getPlan(targetPlanId) : Promise.resolve(null),
         targetPlanId ? getPresentationLiveState(targetPlanId) : Promise.resolve(null),

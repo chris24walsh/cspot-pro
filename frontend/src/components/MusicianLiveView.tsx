@@ -93,15 +93,15 @@ function shiftKey(key: string | null, semitones: number) {
 function fitFontSize(lines: string[]) {
   const lineCount = Math.max(lines.length, 1);
   const longestLine = Math.max(...lines.map((line) => Array.from(line).length), 1);
-  const widthDrivenSize = 980 / Math.max(longestLine * 0.72, 1);
-  const heightDrivenSize = 430 / Math.max(lineCount * 1.48, 1);
-  return Math.floor(clampNumber(Math.min(widthDrivenSize, heightDrivenSize), 17, 44));
+  const widthDrivenSize = 1320 / Math.max(longestLine * 0.66, 1);
+  const heightDrivenSize = 720 / Math.max(lineCount * 1.35, 1);
+  return Math.floor(clampNumber(Math.min(widthDrivenSize, heightDrivenSize), 24, 72));
 }
 
 function fitFontSizeForSlides(slideTexts: string[]) {
   const sizes = slideTexts.map((text) => fitFontSize(lyricLines(text))).filter((size) => Number.isFinite(size));
   if (!sizes.length) {
-    return 34;
+    return 46;
   }
   return Math.min(...sizes);
 }
