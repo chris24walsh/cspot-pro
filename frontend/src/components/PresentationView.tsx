@@ -1626,7 +1626,7 @@ export function PresentationView({
   }
 
   async function selectTopSearchResult() {
-    if (searchLoading || googleDriveLoading || customProviderLoading || customProviderSelectionLoading) {
+    if (googleDriveLoading || customProviderLoading || customProviderSelectionLoading) {
       return;
     }
     if (searchMode === "songs") {
@@ -1637,7 +1637,7 @@ export function PresentationView({
       return;
     }
     if (searchMode === "bible") {
-      const firstResult = bibleSearchResults[0];
+      const firstResult = bibleSearchResults[0] ?? (searchQuery.trim() ? (await runBibleSearch())[0] : null);
       if (firstResult) {
         await addBibleSearchResult(firstResult);
       }
@@ -1653,6 +1653,15 @@ export function PresentationView({
         await attachImportedDriveDeck(firstFile);
       }
     }
+  }
+
+  function handleSearchEnter(event: React.KeyboardEvent<HTMLInputElement>) {
+    if (event.key !== "Enter" || event.shiftKey) {
+      return;
+    }
+    event.preventDefault();
+    event.stopPropagation();
+    void selectTopSearchResult();
   }
 
   async function navigateBibleReading(mode: "verse" | "chapter", delta: -1 | 1) {
@@ -2446,17 +2455,27 @@ export function PresentationView({
     plan,
     screens,
     searchOverlayOpen,
+    searchMode,
+    searchQuery,
+    searchLoading,
+    googleDriveLoading,
+    customProviderLoading,
+    customProviderSelectionLoading,
+    songSearchResults,
+    bibleSearchResults,
+    googleDriveFiles,
+    deckFile,
     selectedScreenIndex,
     servicePickerOpen,
     slides,
     sections,
   ]);
 
-  async function runBibleSearch() {
+  async function runBibleSearch(): Promise<BibleSearchHit[]> {
     const query = searchQuery.trim();
     if (!query) {
       setBibleSearchResults([]);
-      return;
+      return [];
     }
     setSearchLoading(true);
     try {
@@ -2484,9 +2503,11 @@ export function PresentationView({
 
       setBibleSearchResults(merged);
       setMessage(null);
+      return merged;
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Could not search Bible.");
       setBibleSearchResults([]);
+      return [];
     } finally {
       setSearchLoading(false);
     }
@@ -3117,6 +3138,7 @@ export function PresentationView({
                   Search
                   <input
                     onChange={(event) => setSearchQuery(event.target.value)}
+                    onKeyDown={handleSearchEnter}
                     ref={searchInputRef}
                     placeholder={searchMode === "bible" ? "John 3 16 or shepherd" : "Amazing Grace"}
                     value={searchQuery}
@@ -3147,6 +3169,7 @@ export function PresentationView({
                         setDeckTitle(event.target.value);
                         setDeckTitleTouched(true);
                       }}
+                      onKeyDown={handleSearchEnter}
                       placeholder="Sermon"
                       value={deckTitle}
                     />
@@ -3163,6 +3186,7 @@ export function PresentationView({
                     <input
                       disabled={!googleDriveStatus?.connected}
                       onChange={(event) => setSearchQuery(event.target.value)}
+                      onKeyDown={handleSearchEnter}
                       placeholder={
                         googleDriveStatus?.connected
                           ? "Search sermons, slides, or PDF decks"
