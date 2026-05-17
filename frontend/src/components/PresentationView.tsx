@@ -442,6 +442,7 @@ export function PresentationView({
   const livePollInFlightRef = useRef(false);
   const suppressPublishRef = useRef(false);
   const suppressNextOperatorScrollRef = useRef(false);
+  const scrollOperatorToSelectedSlideRef = useRef(false);
   const activeDeckLoadsRef = useRef<Set<string>>(new Set());
 
   const servicePlans = useMemo(() => plans.filter((candidate) => !isWorshipSetPlan(candidate)), [plans]);
@@ -741,6 +742,11 @@ export function PresentationView({
     setLiveBlanked(false);
     setLiveIndex(boundedIndex);
     void publishLiveState(boundedIndex, { blanked: false });
+  }
+
+  function selectSlideFromOperator(nextIndex: number) {
+    scrollOperatorToSelectedSlideRef.current = true;
+    setLiveSlide(nextIndex);
   }
 
   function moveLive(delta: number) {
@@ -1365,6 +1371,16 @@ export function PresentationView({
     });
   }
 
+  async function reloadPreservingOperatorScroll(options?: { refreshCatalogs?: boolean }) {
+    if (!plan) {
+      return;
+    }
+    const scrollPosition = captureOperatorScrollPositions();
+    suppressNextOperatorScrollRef.current = true;
+    await load(plan.id, { refreshCatalogs: options?.refreshCatalogs });
+    restoreOperatorScrollPositions(scrollPosition);
+  }
+
   async function reloadAfterInsertedItem(createdItem: PlanItem | null | undefined, options?: { refreshCatalogs?: boolean }) {
     if (!plan) {
       return;
@@ -1381,10 +1397,7 @@ export function PresentationView({
       return;
     }
 
-    const scrollPosition = captureOperatorScrollPositions();
-    suppressNextOperatorScrollRef.current = true;
-    await load(plan.id, { refreshCatalogs: options?.refreshCatalogs });
-    restoreOperatorScrollPositions(scrollPosition);
+    await reloadPreservingOperatorScroll(options);
   }
 
   function openSearchOverlay(
@@ -1932,11 +1945,11 @@ export function PresentationView({
                 song_id: removedAnchor.song_id,
               });
             }
-            await load(plan.id);
+            await reloadPreservingOperatorScroll();
           },
         });
       }
-      await load(plan.id);
+      await reloadPreservingOperatorScroll();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Could not remove section.");
     }
@@ -1984,10 +1997,10 @@ export function PresentationView({
             updatePlanItem(item.id, { sequence: originalItemSequence }),
             updatePlanItem(target.id, { sequence: originalTargetSequence }),
           ]);
-          await load(plan.id);
+          await reloadPreservingOperatorScroll();
         },
       });
-      await load(plan.id);
+      await reloadPreservingOperatorScroll();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Could not reorder section.");
     }
@@ -2308,6 +2321,10 @@ export function PresentationView({
       suppressNextOperatorScrollRef.current = false;
       return;
     }
+    if (!scrollOperatorToSelectedSlideRef.current) {
+      return;
+    }
+    scrollOperatorToSelectedSlideRef.current = false;
 
     window.requestAnimationFrame(() => {
       scrollItemIntoOperatorView(slideGridRef.current, thumbnailRefs.current[activeSlide.id] ?? null);
@@ -2864,7 +2881,7 @@ export function PresentationView({
                       className={`section-jump ${presentationTypeClass(section.itemType)} ${
                         liveSlide?.sectionId === section.id ? "active" : ""
                       }`}
-                      onClick={() => setLiveSlide(sectionStart)}
+                      onClick={() => selectSlideFromOperator(sectionStart)}
                       type="button"
                     >
                       <span>{section.itemType}</span>
@@ -2901,7 +2918,7 @@ export function PresentationView({
                               slideIndex === liveIndex ? "active" : ""
                             }`}
                             key={slide.id}
-                            onClick={() => setLiveSlide(slideIndex)}
+                            onClick={() => selectSlideFromOperator(slideIndex)}
                             ref={(element) => {
                               thumbnailRefs.current[slide.id] = element;
                             }}
@@ -2925,7 +2942,7 @@ export function PresentationView({
                   ) : (
                     <button
                       className={`deck-slide-summary status-${deckStatus.tone}`}
-                      onClick={() => setLiveSlide(sectionStart)}
+                      onClick={() => selectSlideFromOperator(sectionStart)}
                       type="button"
                     >
                       {renderMiniSlide(
@@ -2977,7 +2994,7 @@ export function PresentationView({
                   >
                     <button
                       className="section-rail-jump"
-                      onClick={() => setLiveSlide(sectionStart)}
+                      onClick={() => selectSlideFromOperator(sectionStart)}
                       type="button"
                       title={section.title}
                     >
