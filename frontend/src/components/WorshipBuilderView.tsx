@@ -494,6 +494,16 @@ export function WorshipBuilderView({ canAccessAdminTools, canDeletePlan, canEdit
     setSetDraftTitle(suggestedWorshipSetTitle(dateInput));
   }
 
+  async function openSetDate(dateInput: string) {
+    const existing = worshipSetsByDate.get(dateInput);
+    if (existing) {
+      await selectPlan(existing.id);
+      setSetPickerOpen(false);
+      return;
+    }
+    chooseSetDate(dateInput);
+  }
+
   async function saveWorshipSetDraft(openAfterSave = false) {
     if (!canEditPlan) {
       setMessage("Only worship team members and leaders can save worship sets.");
@@ -1443,6 +1453,7 @@ export function WorshipBuilderView({ canAccessAdminTools, canDeletePlan, canEdit
                         }`}
                         key={day.key}
                         onClick={() => chooseSetDate(day.key)}
+                        onDoubleClick={() => void openSetDate(day.key)}
                         title={existing ? `Open ${existing.title}` : `Create ${suggestedWorshipSetTitle(day.key)}`}
                         type="button"
                       >
@@ -1471,6 +1482,9 @@ export function WorshipBuilderView({ canAccessAdminTools, canDeletePlan, canEdit
                         setSetDraftDate(dateInputFromIso(worshipSet.service_date));
                         setSetDraftTitle(worshipSet.title);
                         setSetCalendarMonth(dateInputFromIso(worshipSet.service_date).slice(0, 7));
+                      }}
+                      onDoubleClick={() => {
+                        void selectPlan(worshipSet.id).then(() => setSetPickerOpen(false));
                       }}
                       type="button"
                     >

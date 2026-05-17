@@ -235,6 +235,10 @@ function scrollItemIntoOperatorView(container: HTMLElement | null, item: HTMLEle
   container.scrollTo({ top: targetTop, behavior: "smooth" });
 }
 
+function captureScrollPosition(element: HTMLElement | null) {
+  return element?.scrollTop ?? 0;
+}
+
 function parseBibleReference(reference: string) {
   const match = reference.trim().match(/^(.*)\s+(\d+):(\d+)(?:-(\d+))?$/);
   if (!match) {
@@ -963,6 +967,16 @@ export function PresentationView({
     startNewServiceDraft(dateInput);
   }
 
+  async function openServiceDate(dateInput: string) {
+    const existing = plansByDate.get(dateInput);
+    if (existing) {
+      setServicePickerOpen(false);
+      await selectPlan(existing.id);
+      return;
+    }
+    startNewServiceDraft(dateInput);
+  }
+
   async function createServiceForDate(dateInput = serviceDraftDate || nextSundayDateInput(), title = serviceDraftTitle) {
     if (!dateInput) {
       setMessage("Choose a date first.");
@@ -1330,6 +1344,49 @@ export function PresentationView({
     return sections.findIndex((section) => section.id === liveSlide.sectionId);
   }
 
+  function captureOperatorScrollPositions() {
+    return {
+      rail: captureScrollPosition(sectionRailListRef.current),
+      sorter: captureScrollPosition(slideGridRef.current),
+    };
+  }
+
+  function restoreOperatorScrollPositions(position: { rail: number; sorter: number }) {
+    suppressNextOperatorScrollRef.current = true;
+    window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(() => {
+        if (slideGridRef.current) {
+          slideGridRef.current.scrollTop = position.sorter;
+        }
+        if (sectionRailListRef.current) {
+          sectionRailListRef.current.scrollTop = position.rail;
+        }
+      });
+    });
+  }
+
+  async function reloadAfterInsertedItem(createdItem: PlanItem | null | undefined, options?: { refreshCatalogs?: boolean }) {
+    if (!plan) {
+      return;
+    }
+
+    if (searchSelectInserted && createdItem) {
+      await load(plan.id, {
+        preserveLocation: {
+          planItemId: createdItem.id,
+          slideOffset: 0,
+        },
+        refreshCatalogs: options?.refreshCatalogs,
+      });
+      return;
+    }
+
+    const scrollPosition = captureOperatorScrollPositions();
+    suppressNextOperatorScrollRef.current = true;
+    await load(plan.id, { refreshCatalogs: options?.refreshCatalogs });
+    restoreOperatorScrollPositions(scrollPosition);
+  }
+
   function openSearchOverlay(
     afterIndex = activeSectionInsertIndex(),
     mode: SearchOverlayMode = "bible",
@@ -1496,18 +1553,7 @@ export function PresentationView({
       }
 
       const createdItem = await insertSongById(songId, searchInsertIndex ?? activeSectionInsertIndex(), resolvedTitle);
-      if (searchSelectInserted && createdItem) {
-        await load(plan.id, {
-          preserveLocation: {
-            planItemId: createdItem.id,
-            slideOffset: 0,
-          },
-          refreshCatalogs: true,
-        });
-      } else {
-        suppressNextOperatorScrollRef.current = true;
-        await load(plan.id, { refreshCatalogs: true });
-      }
+      await reloadAfterInsertedItem(createdItem, { refreshCatalogs: true });
       closeSearchOverlay();
       setMessage(
         duplicate
@@ -1544,6 +1590,56 @@ export function PresentationView({
       },
     });
     return createdItem;
+  }
+
+  async function addSongSearchResult(song: Song) {
+    try {
+      const createdItem = await insertSongById(song.id, searchInsertIndex ?? activeSectionInsertIndex());
+      await reloadAfterInsertedItem(createdItem, { refreshCatalogs: true });
+      closeSearchOverlay();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not add song.");
+    }
+  }
+
+  async function addBibleSearchResult(result: BibleSearchHit) {
+    try {
+      const createdItem = await insertBibleResult(result, searchInsertIndex ?? activeSectionInsertIndex());
+      await reloadAfterInsertedItem(createdItem);
+      closeSearchOverlay();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not add Scripture.");
+    }
+  }
+
+  async function selectTopSearchResult() {
+    if (searchLoading || googleDriveLoading || customProviderLoading || customProviderSelectionLoading) {
+      return;
+    }
+    if (searchMode === "songs") {
+      const firstSong = songSearchResults[0];
+      if (firstSong) {
+        await addSongSearchResult(firstSong);
+      }
+      return;
+    }
+    if (searchMode === "bible") {
+      const firstResult = bibleSearchResults[0];
+      if (firstResult) {
+        await addBibleSearchResult(firstResult);
+      }
+      return;
+    }
+    if (searchMode === "deck") {
+      if (deckFile) {
+        await attachDeckToPlan();
+        return;
+      }
+      const firstFile = googleDriveFiles[0];
+      if (firstFile) {
+        await attachImportedDriveDeck(firstFile);
+      }
+    }
   }
 
   async function navigateBibleReading(mode: "verse" | "chapter", delta: -1 | 1) {
@@ -1705,18 +1801,8 @@ export function PresentationView({
       });
       await attachItemFile(item.id, { file_id: stored.id, sort_order: 0 });
       setDeckFile(null);
+      await reloadAfterInsertedItem(item);
       closeSearchOverlay();
-      if (searchSelectInserted) {
-        await load(plan.id, {
-          preserveLocation: {
-            planItemId: item.id,
-            slideOffset: 0,
-          },
-        });
-      } else {
-        suppressNextOperatorScrollRef.current = true;
-        await load(plan.id);
-      }
     } catch (error) {
       if (error instanceof ApiError && error.status === 413) {
         setMessage(
@@ -1792,18 +1878,8 @@ export function PresentationView({
         song_id: null,
       });
       await attachItemFile(item.id, { file_id: imported.file.id, sort_order: 0 });
+      await reloadAfterInsertedItem(item);
       closeSearchOverlay();
-      if (searchSelectInserted) {
-        await load(plan.id, {
-          preserveLocation: {
-            planItemId: item.id,
-            slideOffset: 0,
-          },
-        });
-      } else {
-        suppressNextOperatorScrollRef.current = true;
-        await load(plan.id);
-      }
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Could not import this Google Drive deck.");
     }
@@ -1950,7 +2026,7 @@ export function PresentationView({
         Number(bibleVerseFrom),
         bibleVerseTo ? Number(bibleVerseTo) : undefined,
       );
-      await insertBibleResult(
+      const createdItem = await insertBibleResult(
         {
           version: passage.version,
           reference: passage.reference,
@@ -1962,10 +2038,7 @@ export function PresentationView({
         },
         searchInsertIndex ?? sections.length - 1,
       );
-      if (!searchSelectInserted) {
-        suppressNextOperatorScrollRef.current = true;
-      }
-      await load(plan.id);
+      await reloadAfterInsertedItem(createdItem);
       closeSearchOverlay();
     } catch (error) {
       const messageText = error instanceof Error ? error.message : "Could not add Scripture slide.";
@@ -2261,6 +2334,11 @@ export function PresentationView({
         closeSearchOverlay();
         return;
       }
+      if (event.key === "Enter" && searchOverlayOpen && !event.shiftKey) {
+        event.preventDefault();
+        void selectTopSearchResult();
+        return;
+      }
       if (event.key === "Escape" && servicePickerOpen) {
         event.preventDefault();
         setServicePickerOpen(false);
@@ -2531,6 +2609,7 @@ export function PresentationView({
                         disabled={!existing && !canCreatePlan}
                         key={dateInput}
                         onClick={() => void chooseServiceDate(dateInput)}
+                        onDoubleClick={() => void openServiceDate(dateInput)}
                         title={existing ? `Open ${existing.title}` : `Create ${suggestedServiceTitle(dateInput)}`}
                         type="button"
                       >
@@ -2565,6 +2644,10 @@ export function PresentationView({
                         setServiceDraftDate(dateInput);
                         setServiceDraftTitle(planSummary.title);
                         setServiceCalendarMonth(dateInput.slice(0, 7) || serviceCalendarMonth);
+                      }}
+                      onDoubleClick={() => {
+                        setServicePickerOpen(false);
+                        void selectPlan(planSummary.id);
                       }}
                       type="button"
                     >
@@ -2869,7 +2952,7 @@ export function PresentationView({
               <button
                 aria-label="Search or add at the start"
                 className="section-insert-button"
-                onClick={() => openSearchOverlay(-1)}
+                onClick={() => openSearchOverlay(-1, "bible", { selectInserted: false })}
                 type="button"
               >
                 <Plus size={14} aria-hidden="true" />
@@ -2936,7 +3019,7 @@ export function PresentationView({
                     <button
                       aria-label={`Search or add after ${section.title}`}
                       className="section-insert-button"
-                      onClick={() => openSearchOverlay(sectionIndex)}
+                      onClick={() => openSearchOverlay(sectionIndex, "bible", { selectInserted: false })}
                       type="button"
                     >
                       <Plus size={14} aria-hidden="true" />
@@ -3097,25 +3180,7 @@ export function PresentationView({
                         disabled={!canEditPlan}
                         key={song.id}
                         onClick={() => {
-                          void insertSongById(song.id, searchInsertIndex ?? activeSectionInsertIndex())
-                            .then(async (createdItem) => {
-                              if (searchSelectInserted && createdItem) {
-                                await load(plan?.id, {
-                                  preserveLocation: {
-                                    planItemId: createdItem.id,
-                                    slideOffset: 0,
-                                  },
-                                  refreshCatalogs: true,
-                                });
-                              } else {
-                                suppressNextOperatorScrollRef.current = true;
-                                await load(plan?.id, { refreshCatalogs: true });
-                              }
-                              closeSearchOverlay();
-                            })
-                            .catch((error: unknown) => {
-                              setMessage(error instanceof Error ? error.message : "Could not add song.");
-                            });
+                          void addSongSearchResult(song);
                         }}
                         type="button"
                       >
@@ -3207,24 +3272,7 @@ export function PresentationView({
                       disabled={!canEditPlan}
                       key={`${result.version}:${result.reference}:${result.verse_from}`}
                       onClick={() => {
-                        void insertBibleResult(result, searchInsertIndex ?? activeSectionInsertIndex())
-                          .then(async (createdItem) => {
-                            if (searchSelectInserted && createdItem) {
-                              await load(plan?.id, {
-                                preserveLocation: {
-                                  planItemId: createdItem.id,
-                                  slideOffset: 0,
-                                },
-                              });
-                            } else {
-                              suppressNextOperatorScrollRef.current = true;
-                              await load(plan?.id);
-                            }
-                            closeSearchOverlay();
-                          })
-                          .catch((error: unknown) => {
-                            setMessage(error instanceof Error ? error.message : "Could not add Scripture.");
-                          });
+                        void addBibleSearchResult(result);
                       }}
                       type="button"
                     >
