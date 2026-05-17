@@ -1900,7 +1900,6 @@ export function PresentationView({
         },
         silent: true,
       });
-      void publishLiveState(liveIndex);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Could not move to the next Bible passage.");
     }
