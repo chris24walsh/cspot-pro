@@ -2181,6 +2181,10 @@ h3 {
   padding: 6px 2px;
 }
 
+.search-empty.error-text {
+  color: #8b2518;
+}
+
 .custom-provider-panel {
   background: #f8f6ee;
   border: 1px solid #ded8c7;

@@ -15,6 +15,7 @@ function defaultApiBaseUrl() {
 export const API_BASE_URL = defaultApiBaseUrl();
 export const AUTH_REQUIRED_EVENT = "cspot-pro:auth-required";
 const DEFAULT_REQUEST_TIMEOUT_MS = 8000;
+const DRIVE_SEARCH_TIMEOUT_MS = 30000;
 const DECK_IMPORT_TIMEOUT_MS = 180000;
 const DECK_RENDER_TIMEOUT_MS = 180000;
 const LIVE_SYNC_TIMEOUT_MS = 30000;
@@ -766,7 +767,9 @@ export async function searchGoogleDriveFiles(query: string, folderPath?: string)
   if (folderPath) {
     search.set("folder_path", folderPath);
   }
-  return getJson<GoogleDriveFile[]>(`/api/v1/integrations/google-drive/files?${search.toString()}`);
+  return getJson<GoogleDriveFile[]>(`/api/v1/integrations/google-drive/files?${search.toString()}`, {
+    timeoutMs: DRIVE_SEARCH_TIMEOUT_MS,
+  });
 }
 
 export async function importGoogleDriveDeck(payload: {

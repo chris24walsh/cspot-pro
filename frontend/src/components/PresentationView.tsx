@@ -516,6 +516,7 @@ export function PresentationView({
   const [googleDriveStatus, setGoogleDriveStatus] = useState<GoogleDriveStatus | null>(null);
   const [googleDriveFiles, setGoogleDriveFiles] = useState<GoogleDriveFile[]>([]);
   const [googleDriveLoading, setGoogleDriveLoading] = useState(false);
+  const [googleDriveError, setGoogleDriveError] = useState("");
   const [slideTheme, setSlideTheme] = useState<PresentationTheme>("light");
   const [liveBlanked, setLiveBlanked] = useState(false);
   const [liveFullscreen, setLiveFullscreen] = useState(false);
@@ -1542,6 +1543,7 @@ export function PresentationView({
     setCustomProviderSelectionLoading(false);
     setGoogleDriveFiles([]);
     setGoogleDriveLoading(false);
+    setGoogleDriveError("");
     setSearchQuery("");
     setSearchInsertIndex(null);
     setSearchSelectInserted(false);
@@ -2655,8 +2657,14 @@ export function PresentationView({
     }
 
     void getGoogleDriveStatus()
-      .then((status) => setGoogleDriveStatus(status))
-      .catch(() => setGoogleDriveStatus(null));
+      .then((status) => {
+        setGoogleDriveStatus(status);
+        setGoogleDriveError("");
+      })
+      .catch((error: unknown) => {
+        setGoogleDriveStatus(null);
+        setGoogleDriveError(error instanceof Error ? error.message : "Could not check Google Drive connection.");
+      });
   }, [searchMode, searchOverlayOpen]);
 
   useEffect(() => {
@@ -2666,12 +2674,15 @@ export function PresentationView({
 
     const timer = window.setTimeout(() => {
       setGoogleDriveLoading(true);
+      setGoogleDriveError("");
       void searchGoogleDriveFiles(searchQuery.trim())
         .then((files) => {
           setGoogleDriveFiles(files);
         })
         .catch((error: unknown) => {
-          setMessage(error instanceof Error ? error.message : "Could not search Google Drive.");
+          const message = error instanceof Error ? error.message : "Could not search Google Drive.";
+          setGoogleDriveError(message);
+          setMessage(message);
           setGoogleDriveFiles([]);
         })
         .finally(() => {
@@ -3200,6 +3211,7 @@ export function PresentationView({
                 className={`text-button ${searchMode === "songs" ? "active-choice" : ""}`}
                 onClick={() => {
                   setSearchMode("songs");
+                  setSearchQuery("");
                   setSearchSelectInserted(false);
                 }}
                 type="button"
@@ -3210,6 +3222,7 @@ export function PresentationView({
                 className={`text-button ${searchMode === "bible" ? "active-choice" : ""}`}
                 onClick={() => {
                   setSearchMode("bible");
+                  setSearchQuery("");
                   setSearchSelectInserted(true);
                 }}
                 type="button"
@@ -3220,6 +3233,8 @@ export function PresentationView({
                 className={`text-button ${searchMode === "deck" ? "active-choice" : ""}`}
                 onClick={() => {
                   setSearchMode("deck");
+                  setSearchQuery("");
+                  setGoogleDriveError("");
                   setSearchSelectInserted(false);
                 }}
                 type="button"
@@ -3314,6 +3329,17 @@ export function PresentationView({
                     />
                   </label>
                 </div>
+                {searchMode === "deck" ? (
+                  <p className={`search-empty ${googleDriveError ? "error-text" : ""}`}>
+                    {googleDriveError
+                      ? googleDriveError
+                      : googleDriveStatus?.connected
+                        ? `Connected to ${googleDriveStatus.account_name || googleDriveStatus.account_email || "Google Drive"}.`
+                        : googleDriveStatus?.configured
+                          ? "Connect Google Drive in Admin first."
+                          : "Google Drive is not configured on this server."}
+                  </p>
+                ) : null}
               </>
             ) : null}
 
