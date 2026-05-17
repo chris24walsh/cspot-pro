@@ -26,6 +26,7 @@ class GoogleDriveFileRead(BaseModel):
 class GoogleDriveImportRequest(BaseModel):
     file_id: str
     display_name: str | None = None
+    flatten_builds: bool = False
 
 
 class GoogleDriveParseRequest(BaseModel):

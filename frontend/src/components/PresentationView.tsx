@@ -478,6 +478,7 @@ export function PresentationView({
   const [deckTitle, setDeckTitle] = useState("");
   const [deckTitleTouched, setDeckTitleTouched] = useState(false);
   const [deckFile, setDeckFile] = useState<File | null>(null);
+  const [deckFlattenBuilds, setDeckFlattenBuilds] = useState(false);
   const [renderedSlidesByFileId, setRenderedSlidesByFileId] = useState<Record<string, RenderedSlide[]>>({});
   const [renderingFileIds, setRenderingFileIds] = useState<string[]>([]);
   const [renderErrorsByFileId, setRenderErrorsByFileId] = useState<Record<string, string>>({});
@@ -1548,6 +1549,7 @@ export function PresentationView({
     setSearchInsertIndex(null);
     setSearchSelectInserted(false);
     setDeckFile(null);
+    setDeckFlattenBuilds(false);
     setDeckTitle("");
     setDeckTitleTouched(false);
   }
@@ -1929,6 +1931,7 @@ export function PresentationView({
       const stored = await uploadStoredFile({
         file: deckFile,
         display_name: resolvedDeckTitle,
+        flatten_builds: deckFlattenBuilds,
       });
       const item = await createPlanItem(plan.id, {
         item_type: "sermon",
@@ -2007,6 +2010,7 @@ export function PresentationView({
       const imported = await importGoogleDriveDeck({
         file_id: file.id,
         display_name: resolvedDeckTitle,
+        flatten_builds: deckFlattenBuilds,
       });
       const item = await createPlanItem(plan.id, {
         item_type: "sermon",
@@ -3306,6 +3310,16 @@ export function PresentationView({
                     />
                   </label>
                 </div>
+                <label className="checkbox-label">
+                  <input
+                    checked={deckFlattenBuilds}
+                    disabled={!canAttachDeck}
+                    onChange={(event) => setDeckFlattenBuilds(event.target.checked)}
+                    type="checkbox"
+                  />
+                  Import click builds as slides
+                </label>
+                <p className="field-help">Best effort for PowerPoint appear/fade bullet and overlay builds.</p>
 
                 <div className="search-deck-divider">
                   <span>or import from Google Drive</span>

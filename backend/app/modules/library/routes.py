@@ -6,11 +6,13 @@ import subprocess
 import tempfile
 from threading import Lock
 from uuid import uuid4
+from zipfile import ZIP_DEFLATED, ZipFile
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Response, UploadFile, status
 from fastapi.responses import FileResponse
 from sqlalchemy import case, or_, select
 from sqlalchemy.orm import Session
+from xml.etree import ElementTree
 
 from app.core.database import get_session
 from app.modules.identity.models import User
@@ -48,10 +50,28 @@ from app.modules.planning.routes import get_item_or_404, get_plan_or_404
 router = APIRouter()
 UPLOAD_ROOT = Path("/app/storage/uploads")
 RENDER_ROOT = Path("/app/storage/rendered")
-RENDER_PIPELINE_VERSION = "libreoffice-pdf-png-v2"
+RENDER_PIPELINE_VERSION = "libreoffice-pdf-png-v3"
 LIBREOFFICE_RENDER_TIMEOUT_SECONDS = 300
 PDF_TO_PNG_RENDER_TIMEOUT_SECONDS = 300
 PDF_TO_PNG_DPI = 120
+PML_NS = "http://schemas.openxmlformats.org/presentationml/2006/main"
+AML_NS = "http://schemas.openxmlformats.org/drawingml/2006/main"
+R_NS = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+REL_NS = "http://schemas.openxmlformats.org/package/2006/relationships"
+CT_NS = "http://schemas.openxmlformats.org/package/2006/content-types"
+SLIDE_REL_TYPE = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide"
+SLIDE_CONTENT_TYPE = "application/vnd.openxmlformats-officedocument.presentationml.slide+xml"
+SHAPE_TAGS = {
+    f"{{{PML_NS}}}sp",
+    f"{{{PML_NS}}}pic",
+    f"{{{PML_NS}}}graphicFrame",
+    f"{{{PML_NS}}}cxnSp",
+    f"{{{PML_NS}}}grpSp",
+}
+ElementTree.register_namespace("p", PML_NS)
+ElementTree.register_namespace("a", AML_NS)
+ElementTree.register_namespace("r", R_NS)
+ElementTree.register_namespace("", CT_NS)
 _render_locks: dict[str, Lock] = {}
 _render_locks_guard = Lock()
 
@@ -92,6 +112,7 @@ def stored_file_to_read(file: StoredFile) -> StoredFileRead:
         display_name=file.display_name,
         content_type=file.content_type,
         checksum=file.checksum,
+        flatten_builds=file.flatten_builds,
     )
 
 
@@ -132,7 +153,8 @@ def _render_manifest_path(file_id: str) -> Path:
 
 def _render_manifest_value(stored: StoredFile) -> str:
     suffix = Path(stored.storage_path).suffix.lower()
-    return "|".join([RENDER_PIPELINE_VERSION, stored.checksum or "", suffix])
+    flatten_builds = "flatten-builds" if stored.flatten_builds else "static"
+    return "|".join([RENDER_PIPELINE_VERSION, stored.checksum or "", suffix, flatten_builds])
 
 
 def _render_cache_is_current(stored: StoredFile) -> bool:
@@ -180,6 +202,218 @@ def _office_command() -> str:
     return command
 
 
+def _numeric_slide_key(name: str) -> int:
+    match = re.search(r"slide(\d+)\.xml$", name)
+    return int(match.group(1)) if match else 0
+
+
+def _shape_elements_by_id(root: ElementTree.Element) -> dict[str, ElementTree.Element]:
+    shapes: dict[str, ElementTree.Element] = {}
+    for shape in root.iter():
+        if shape.tag not in SHAPE_TAGS:
+            continue
+        candidate = shape.find(f".//{{{PML_NS}}}cNvPr")
+        target_id = candidate.attrib.get("id") if candidate is not None else None
+        if target_id:
+            shapes[target_id] = shape
+    return shapes
+
+
+def _parent_map(root: ElementTree.Element) -> dict[ElementTree.Element, ElementTree.Element]:
+    return {child: parent for parent in root.iter() for child in parent}
+
+
+def _animation_build_events(root: ElementTree.Element) -> list[tuple[str, int | None, int | None]]:
+    events: list[tuple[str, int | None, int | None]] = []
+    seen: set[tuple[str, int | None, int | None]] = set()
+    for target in root.findall(f".//{{{PML_NS}}}spTgt"):
+        target_id = target.attrib.get("spid")
+        if not target_id:
+            continue
+        paragraph_range = target.find(f".//{{{PML_NS}}}pRg")
+        start = end = None
+        if paragraph_range is not None:
+            start_raw = paragraph_range.attrib.get("st")
+            end_raw = paragraph_range.attrib.get("end")
+            if start_raw is not None and end_raw is not None:
+                try:
+                    start = int(start_raw)
+                    end = int(end_raw)
+                except ValueError:
+                    start = end = None
+        event = (target_id, start, end)
+        if event not in seen:
+            seen.add(event)
+            events.append(event)
+    return events
+
+
+def _remove_shape(root: ElementTree.Element, shape: ElementTree.Element) -> None:
+    parent = _parent_map(root).get(shape)
+    if parent is not None:
+        parent.remove(shape)
+
+
+def _hide_future_builds(
+    root: ElementTree.Element,
+    events: list[tuple[str, int | None, int | None]],
+    visible_event_count: int,
+) -> None:
+    shapes = _shape_elements_by_id(root)
+    future_events = events[visible_event_count:]
+    remove_shapes: set[str] = set()
+    hidden_paragraphs: dict[str, set[int]] = {}
+
+    for target_id, start, end in future_events:
+        if start is None or end is None:
+            remove_shapes.add(target_id)
+            continue
+        hidden_paragraphs.setdefault(target_id, set()).update(range(start, end + 1))
+
+    for target_id in remove_shapes:
+        shape = shapes.get(target_id)
+        if shape is not None:
+            _remove_shape(root, shape)
+
+    for target_id, paragraph_indexes in hidden_paragraphs.items():
+        shape = shapes.get(target_id)
+        if shape is None or target_id in remove_shapes:
+            continue
+        text_body = shape.find(f".//{{{PML_NS}}}txBody")
+        if text_body is None:
+            continue
+        paragraphs = [child for child in list(text_body) if child.tag == f"{{{AML_NS}}}p"]
+        for index in sorted(paragraph_indexes, reverse=True):
+            if 0 <= index < len(paragraphs):
+                text_body.remove(paragraphs[index])
+        if not [child for child in list(text_body) if child.tag == f"{{{AML_NS}}}p"]:
+            _remove_shape(root, shape)
+
+
+def _set_slide_id_list(presentation_root: ElementTree.Element, slide_entries: list[tuple[str, str]]) -> None:
+    slide_id_list = presentation_root.find(f"{{{PML_NS}}}sldIdLst")
+    if slide_id_list is None:
+        slide_id_list = ElementTree.SubElement(presentation_root, f"{{{PML_NS}}}sldIdLst")
+    slide_id_list.clear()
+    for index, (_slide_name, rel_id) in enumerate(slide_entries, start=256):
+        ElementTree.SubElement(
+            slide_id_list,
+            f"{{{PML_NS}}}sldId",
+            {"id": str(index), f"{{{R_NS}}}id": rel_id},
+        )
+
+
+def _set_presentation_relationships(rels_root: ElementTree.Element, slide_entries: list[tuple[str, str]]) -> None:
+    for relationship in list(rels_root):
+        if relationship.attrib.get("Type") == SLIDE_REL_TYPE:
+            rels_root.remove(relationship)
+    for slide_name, rel_id in slide_entries:
+        ElementTree.SubElement(
+            rels_root,
+            f"{{{REL_NS}}}Relationship",
+            {"Id": rel_id, "Type": SLIDE_REL_TYPE, "Target": f"slides/{Path(slide_name).name}"},
+        )
+
+
+def _set_content_types(content_types_root: ElementTree.Element, slide_entries: list[tuple[str, str]]) -> None:
+    slide_part_names = {f"/ppt/slides/{Path(slide_name).name}" for slide_name, _rel_id in slide_entries}
+    for override in list(content_types_root):
+        part_name = str(override.attrib.get("PartName", ""))
+        if override.tag == f"{{{CT_NS}}}Override" and part_name.startswith("/ppt/slides/slide"):
+            content_types_root.remove(override)
+    for part_name in sorted(slide_part_names, key=lambda value: _numeric_slide_key(value)):
+        ElementTree.SubElement(
+            content_types_root,
+            f"{{{CT_NS}}}Override",
+            {"PartName": part_name, "ContentType": SLIDE_CONTENT_TYPE},
+        )
+
+
+def _flatten_pptx_builds(source_path: Path, output_path: Path) -> bool:
+    with ZipFile(source_path, "r") as source:
+        names = source.namelist()
+        slide_names = sorted(
+            [name for name in names if re.fullmatch(r"ppt/slides/slide\d+\.xml", name)],
+            key=_numeric_slide_key,
+        )
+        if not slide_names:
+            return False
+
+        generated_slides: list[tuple[str, bytes, str | None, bytes | None]] = []
+        found_builds = False
+        next_slide_number = 1
+        for slide_name in slide_names:
+            slide_xml = source.read(slide_name)
+            root = ElementTree.fromstring(slide_xml)
+            events = _animation_build_events(root)
+            rels_name = f"ppt/slides/_rels/{Path(slide_name).name}.rels"
+            rels_xml = source.read(rels_name) if rels_name in names else None
+            states = range(len(events) + 1) if events else range(1)
+            if events:
+                found_builds = True
+            for visible_count in states:
+                state_root = ElementTree.fromstring(slide_xml)
+                if events:
+                    _hide_future_builds(state_root, events, visible_count)
+                new_slide_name = f"ppt/slides/slide{next_slide_number}.xml"
+                new_rels_name = f"ppt/slides/_rels/slide{next_slide_number}.xml.rels" if rels_xml is not None else None
+                generated_slides.append(
+                    (
+                        new_slide_name,
+                        ElementTree.tostring(state_root, encoding="utf-8", xml_declaration=True),
+                        new_rels_name,
+                        rels_xml,
+                    )
+                )
+                next_slide_number += 1
+
+        if not found_builds:
+            return False
+
+        slide_entries = [
+            (slide_name, f"rIdFlattenedSlide{index}")
+            for index, (slide_name, _xml, _rels_name, _rels_xml) in enumerate(generated_slides, start=1)
+        ]
+        presentation_root = ElementTree.fromstring(source.read("ppt/presentation.xml"))
+        _set_slide_id_list(presentation_root, slide_entries)
+        presentation_rels_root = ElementTree.fromstring(source.read("ppt/_rels/presentation.xml.rels"))
+        _set_presentation_relationships(presentation_rels_root, slide_entries)
+        content_types_root = ElementTree.fromstring(source.read("[Content_Types].xml"))
+        _set_content_types(content_types_root, slide_entries)
+        generated_slide_names = {slide_name for slide_name, _xml, _rels_name, _rels_xml in generated_slides}
+        generated_rels_names = {rels_name for _slide_name, _xml, rels_name, _rels_xml in generated_slides if rels_name}
+
+        with ZipFile(output_path, "w", compression=ZIP_DEFLATED) as target:
+            for name in names:
+                if name in slide_names:
+                    continue
+                if re.fullmatch(r"ppt/slides/_rels/slide\d+\.xml\.rels", name):
+                    continue
+                if name in {"ppt/presentation.xml", "ppt/_rels/presentation.xml.rels", "[Content_Types].xml"}:
+                    continue
+                target.writestr(name, source.read(name))
+            target.writestr(
+                "ppt/presentation.xml",
+                ElementTree.tostring(presentation_root, encoding="utf-8", xml_declaration=True),
+            )
+            target.writestr(
+                "ppt/_rels/presentation.xml.rels",
+                ElementTree.tostring(presentation_rels_root, encoding="utf-8", xml_declaration=True),
+            )
+            target.writestr(
+                "[Content_Types].xml",
+                ElementTree.tostring(content_types_root, encoding="utf-8", xml_declaration=True),
+            )
+            for slide_name, slide_xml, rels_name, rels_xml in generated_slides:
+                if slide_name not in generated_slide_names:
+                    continue
+                target.writestr(slide_name, slide_xml)
+                if rels_name and rels_xml and rels_name in generated_rels_names:
+                    target.writestr(rels_name, rels_xml)
+
+    return True
+
+
 def _render_slides(stored: StoredFile) -> list[Path]:
     with _render_lock_for(stored.id):
         return _render_slides_locked(stored)
@@ -212,6 +446,14 @@ def _render_slides_locked(stored: StoredFile) -> list[Path]:
         if suffix != ".pdf":
             office_command = _office_command()
             office_profile = temp_dir / "lo-profile"
+            office_source_path = source_path
+            if stored.flatten_builds and suffix == ".pptx":
+                flattened_path = temp_dir / f"{source_path.stem}-click-builds.pptx"
+                try:
+                    if _flatten_pptx_builds(source_path, flattened_path):
+                        office_source_path = flattened_path
+                except Exception:
+                    office_source_path = source_path
             subprocess.run(
                 [
                     office_command,
@@ -226,7 +468,7 @@ def _render_slides_locked(stored: StoredFile) -> list[Path]:
                     "pdf:impress_pdf_Export",
                     "--outdir",
                     str(temp_dir),
-                    str(source_path),
+                    str(office_source_path),
                 ],
                 check=True,
                 capture_output=True,
@@ -480,6 +722,7 @@ async def upload_file(
     display_name: str | None = Form(default=None),
     category_id: str | None = Form(default=None),
     song_id: str | None = Form(default=None),
+    flatten_builds: bool = Form(default=False),
     _current_user: User = Depends(require_permission("library:create")),
     session: Session = Depends(get_session),
 ) -> StoredFileRead:
@@ -501,6 +744,7 @@ async def upload_file(
         storage_path=str(storage_path),
         content_type=upload.content_type,
         checksum=digest.hexdigest(),
+        flatten_builds=flatten_builds,
     )
     session.add(stored)
     session.commit()

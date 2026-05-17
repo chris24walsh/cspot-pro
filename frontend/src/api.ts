@@ -201,6 +201,7 @@ export interface StoredFile {
   display_name: string;
   content_type: string | null;
   checksum: string | null;
+  flatten_builds: boolean;
 }
 
 export interface ItemFile {
@@ -775,6 +776,7 @@ export async function searchGoogleDriveFiles(query: string, folderPath?: string)
 export async function importGoogleDriveDeck(payload: {
   file_id: string;
   display_name?: string | null;
+  flatten_builds?: boolean;
 }): Promise<GoogleDriveImportResponse> {
   return sendJson<GoogleDriveImportResponse>("/api/v1/integrations/google-drive/import", "POST", payload, {
     timeoutMs: DECK_IMPORT_TIMEOUT_MS,
@@ -879,6 +881,7 @@ export async function uploadStoredFile(payload: {
   display_name?: string;
   category_id?: string;
   song_id?: string;
+  flatten_builds?: boolean;
 }): Promise<StoredFile> {
   const body = new FormData();
   body.set("upload", payload.file);
@@ -890,6 +893,9 @@ export async function uploadStoredFile(payload: {
   }
   if (payload.song_id) {
     body.set("song_id", payload.song_id);
+  }
+  if (payload.flatten_builds) {
+    body.set("flatten_builds", "true");
   }
   return uploadForm<StoredFile>("/api/v1/library/files", body);
 }

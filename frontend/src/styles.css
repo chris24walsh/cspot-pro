@@ -2185,6 +2185,17 @@ h3 {
   color: #8b2518;
 }
 
+.checkbox-label {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+  width: fit-content;
+}
+
+.checkbox-label input {
+  inline-size: auto;
+}
+
 .custom-provider-panel {
   background: #f8f6ee;
   border: 1px solid #ded8c7;

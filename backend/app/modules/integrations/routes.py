@@ -127,6 +127,7 @@ def import_google_drive_deck(
             display_name=payload.display_name,
             uploaded_by_user_id=current_user.id,
             upload_root=UPLOAD_ROOT,
+            flatten_builds=payload.flatten_builds,
         )
         return GoogleDriveImportRead(file=stored_file_to_read(stored), source=source)
     except ValueError as exc:

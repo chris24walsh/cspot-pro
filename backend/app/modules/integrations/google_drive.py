@@ -418,6 +418,7 @@ def import_google_drive_file(
     display_name: str | None,
     uploaded_by_user_id: str,
     upload_root: Path,
+    flatten_builds: bool = False,
 ) -> tuple[StoredFile, GoogleDriveFileRead]:
     matches = [item for item in list_google_drive_decks(session, query="", limit=100) if item.id == file_id]
     selected = matches[0] if matches else None
@@ -448,11 +449,13 @@ def import_google_drive_file(
 
     access_token = get_valid_google_drive_access_token(session)
     if selected.mime_type == GOOGLE_SLIDES_MIME_TYPE:
+        export_mime_type = GOOGLE_DRIVE_PARSE_EXPORT_MIME_TYPE if flatten_builds else GOOGLE_DRIVE_EXPORT_MIME_TYPE
+        export_suffix = ".pptx" if flatten_builds else ".pdf"
         content, content_type = _binary_request(
-            f"{GOOGLE_DRIVE_EXPORT_URL.format(file_id=file_id)}?{urlencode({'mimeType': GOOGLE_DRIVE_EXPORT_MIME_TYPE})}",
+            f"{GOOGLE_DRIVE_EXPORT_URL.format(file_id=file_id)}?{urlencode({'mimeType': export_mime_type})}",
             headers={"Authorization": f"Bearer {access_token}"},
         )
-        target_name = f"{display_name or selected.name}.pdf"
+        target_name = f"{display_name or selected.name}{export_suffix}"
     else:
         content, content_type = _binary_request(
             f"{GOOGLE_DRIVE_DOWNLOAD_URL.format(file_id=file_id)}?{urlencode({'alt': 'media', 'supportsAllDrives': 'true'})}",
@@ -473,6 +476,7 @@ def import_google_drive_file(
         content_type=content_type or selected.mime_type,
         checksum=checksum,
         uploaded_by_id=uploaded_by_user_id,
+        flatten_builds=flatten_builds,
     )
     session.add(stored)
     session.commit()

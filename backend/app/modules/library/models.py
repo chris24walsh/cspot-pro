@@ -1,4 +1,4 @@
-from sqlalchemy import ForeignKey, String, Text
+from sqlalchemy import Boolean, ForeignKey, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.database import Base
@@ -38,6 +38,7 @@ class StoredFile(IdMixin, TimestampMixin, Base):
     storage_path: Mapped[str] = mapped_column(String(1000))
     content_type: Mapped[str | None] = mapped_column(String(160))
     checksum: Mapped[str | None] = mapped_column(String(128))
+    flatten_builds: Mapped[bool] = mapped_column(Boolean, default=False)
 
 
 class ItemFile(IdMixin, TimestampMixin, Base):

@@ -54,6 +54,7 @@ class StoredFileRead(BaseModel):
     display_name: str
     content_type: str | None = None
     checksum: str | None = None
+    flatten_builds: bool = False
 
 
 class ItemFileCreate(BaseModel):
