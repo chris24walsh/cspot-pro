@@ -239,6 +239,99 @@ function captureScrollPosition(element: HTMLElement | null) {
   return element?.scrollTop ?? 0;
 }
 
+function compactBibleAlias(value: string) {
+  return value
+    .toLowerCase()
+    .replace(/\bfirst\b/g, "1")
+    .replace(/\bsecond\b/g, "2")
+    .replace(/\bthird\b/g, "3")
+    .replace(/\bi\b/g, "1")
+    .replace(/\bii\b/g, "2")
+    .replace(/\biii\b/g, "3")
+    .replace(/[^a-z0-9]/g, "");
+}
+
+function bibleBookAliasCandidates(book: BibleBook) {
+  const commonAliases: Record<string, string[]> = {
+    Matthew: ["mat"],
+    Mark: ["mrk"],
+    Luke: ["luk"],
+    John: ["jhn"],
+    Philippians: ["phil"],
+    Philemon: ["phile"],
+    Psalms: ["psalm", "psa"],
+    Revelation: ["revelations", "the revelation"],
+    "Song of Solomon": ["song of songs", "sos", "canticles"],
+  };
+  return [book.name, book.abbreviation, ...(commonAliases[book.name] ?? [])].map(compactBibleAlias);
+}
+
+function findBibleBookForQuery(rawBook: string, books: BibleBook[]) {
+  const compactBook = compactBibleAlias(rawBook);
+  if (!compactBook) {
+    return null;
+  }
+
+  const candidates = books
+    .map((book) => {
+      const aliases = bibleBookAliasCandidates(book);
+      const exact = aliases.some((alias) => alias === compactBook);
+      const prefix = compactBook.length >= 3 && aliases.some((alias) => alias.startsWith(compactBook));
+      const namePrefix = compactBook.length >= 3 && compactBibleAlias(book.name).startsWith(compactBook);
+      if (!exact && !prefix && !namePrefix) {
+        return null;
+      }
+      return {
+        book,
+        score: exact ? 0 : prefix ? 1 : 2,
+      };
+    })
+    .filter((candidate): candidate is { book: BibleBook; score: number } => Boolean(candidate))
+    .sort((left, right) => left.score - right.score || left.book.sort_order - right.book.sort_order);
+
+  return candidates[0]?.book ?? null;
+}
+
+function normalizeBibleReferenceSearchQuery(raw: string, books: BibleBook[]) {
+  const compact = raw
+    .trim()
+    .replace(/[–—]/g, "-")
+    .replace(/([A-Za-z])(\d)/g, "$1 $2")
+    .replace(/(\d)([A-Za-z])/g, "$1 $2")
+    .replace(/[:.,;]/g, " ")
+    .replace(/-/g, " - ")
+    .replace(/\s+/g, " ");
+  if (!compact) {
+    return raw;
+  }
+
+  const parts = compact.split(" ");
+  const firstNumberIndex = parts.findIndex((part) => /^\d+$/.test(part));
+  if (firstNumberIndex <= 0) {
+    return raw;
+  }
+
+  const book = findBibleBookForQuery(parts.slice(0, firstNumberIndex).join(" "), books);
+  if (!book) {
+    return raw;
+  }
+
+  const chapter = parts[firstNumberIndex];
+  const verseFrom = parts[firstNumberIndex + 1];
+  if (!verseFrom || !/^\d+$/.test(verseFrom)) {
+    return `${book.name} ${chapter}`;
+  }
+
+  let verseTo = "";
+  if (parts[firstNumberIndex + 2] === "-" && /^\d+$/.test(parts[firstNumberIndex + 3] ?? "")) {
+    verseTo = parts[firstNumberIndex + 3];
+  } else if (/^\d+$/.test(parts[firstNumberIndex + 2] ?? "")) {
+    verseTo = parts[firstNumberIndex + 2];
+  }
+
+  return `${book.name} ${chapter}:${verseFrom}${verseTo ? `-${verseTo}` : ""}`;
+}
+
 function parseBibleReference(reference: string) {
   const match = reference.trim().match(/^(.*)\s+(\d+):(\d+)(?:-(\d+))?$/);
   if (!match) {
@@ -2479,9 +2572,10 @@ export function PresentationView({
     }
     setSearchLoading(true);
     try {
+      const referenceQuery = normalizeBibleReferenceSearchQuery(query, bibleBooks);
       const [referenceMatches, keywordMatches] = await Promise.all([
         searchBible({
-          q: query,
+          q: referenceQuery,
           version_code: bibleVersion || "KJV",
           search_type: "reference",
           limit: 8,
