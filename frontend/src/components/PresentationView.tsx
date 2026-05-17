@@ -692,18 +692,23 @@ export function PresentationView({
     }
   }
 
-  function buildLiveState(nextIndex: number, overrides: Partial<PresentationLiveState> = {}): PresentationLiveState | null {
-    if (!plan) {
+  function buildLiveStateForSlides(
+    slideList: PresentationSlide[],
+    nextIndex: number,
+    overrides: Partial<PresentationLiveState> = {},
+    planId = plan?.id,
+  ): PresentationLiveState | null {
+    if (!planId) {
       return null;
     }
 
-    const slide = slides[Math.min(Math.max(nextIndex, 0), Math.max(slides.length - 1, 0))] ?? null;
+    const slide = slideList[Math.min(Math.max(nextIndex, 0), Math.max(slideList.length - 1, 0))] ?? null;
     const slideOffset = slide
-      ? slides.filter((candidate) => candidate.planItemId === slide.planItemId).findIndex((candidate) => candidate.id === slide.id)
+      ? slideList.filter((candidate) => candidate.planItemId === slide.planItemId).findIndex((candidate) => candidate.id === slide.id)
       : 0;
 
     return {
-      planId: plan.id,
+      planId,
       index: nextIndex,
       updatedAt: overrides.updatedAt ?? Date.now(),
       planItemId: overrides.planItemId ?? slide?.planItemId ?? null,
@@ -712,6 +717,10 @@ export function PresentationView({
       blanked: overrides.blanked ?? liveBlanked,
       fullscreen: overrides.fullscreen ?? liveFullscreen,
     };
+  }
+
+  function buildLiveState(nextIndex: number, overrides: Partial<PresentationLiveState> = {}): PresentationLiveState | null {
+    return buildLiveStateForSlides(slides, nextIndex, overrides);
   }
 
   function applyRemoteLiveState(state: PresentationLiveState) {
@@ -808,7 +817,12 @@ export function PresentationView({
         setLiveFullscreen(Boolean(preservedState.fullscreen));
         localStorage.setItem(PRESENTATION_STORAGE_KEY, JSON.stringify(preservedState));
       }
-      setLiveIndex(preservedIndex >= 0 ? preservedIndex : 0);
+      const nextLiveIndex = preservedIndex >= 0 ? preservedIndex : 0;
+      if (options?.preserveLocation && preservedIndex >= 0) {
+        setLiveBlanked(false);
+        void publishLiveStateForSlides(nextSlides, nextLiveIndex, { blanked: false }, targetPlan?.id);
+      }
+      setLiveIndex(nextLiveIndex);
     } catch (error) {
       if (!isTransientApiError(error) || !plan) {
         setPlan(null);
@@ -858,8 +872,13 @@ export function PresentationView({
     });
   }
 
-  async function publishLiveState(nextIndex: number, overrides: Partial<PresentationLiveState> = {}) {
-    const state = buildLiveState(nextIndex, overrides);
+  async function publishLiveStateForSlides(
+    slideList: PresentationSlide[],
+    nextIndex: number,
+    overrides: Partial<PresentationLiveState> = {},
+    planId = plan?.id,
+  ) {
+    const state = buildLiveStateForSlides(slideList, nextIndex, overrides, planId);
     if (!state) {
       return;
     }
@@ -886,6 +905,10 @@ export function PresentationView({
         setMessage(error instanceof Error ? error.message : "Could not sync presentation state.");
       }
     }
+  }
+
+  async function publishLiveState(nextIndex: number, overrides: Partial<PresentationLiveState> = {}) {
+    await publishLiveStateForSlides(slides, nextIndex, overrides);
   }
 
   async function detectDisplays() {

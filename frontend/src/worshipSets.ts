@@ -55,20 +55,23 @@ export function mergeWorshipSetIntoService(serviceItems: PlanItem[], worshipSetI
     return sortedItems(serviceItems.filter((item) => item.item_type !== WORSHIP_SET_ANCHOR_ITEM_TYPE));
   }
 
-  const anchorSequence = sortedItems(serviceItems)
+  const sortedServiceItems = sortedItems(serviceItems);
+  const anchorSequence = sortedServiceItems
     .filter((item) => item.item_type === WORSHIP_SET_ANCHOR_ITEM_TYPE)
     .map((item) => Number.parseFloat(item.sequence))
     .find((sequence) => Number.isFinite(sequence));
-  const firstServiceSongSequence = sortedItems(serviceItems)
+  const firstServiceSongSequence = sortedServiceItems
     .filter((item) => item.item_type === "song")
     .map((item) => Number.parseFloat(item.sequence))
     .find((sequence) => Number.isFinite(sequence));
   const insertionSequence = anchorSequence ?? firstServiceSongSequence ?? 30;
-  const serviceWithoutSongs = serviceItems.filter((item) => item.item_type !== "song" && item.item_type !== WORSHIP_SET_ANCHOR_ITEM_TYPE);
+  const serviceWithoutSongs = sortedServiceItems.filter((item) => item.item_type !== "song" && item.item_type !== WORSHIP_SET_ANCHOR_ITEM_TYPE);
+  const serviceBeforeWorship = serviceWithoutSongs.filter((item) => (Number.parseFloat(item.sequence) || 0) < insertionSequence);
+  const serviceAfterWorship = serviceWithoutSongs.filter((item) => (Number.parseFloat(item.sequence) || 0) >= insertionSequence);
   const mergedSongs = songs.map((item, index) => ({
     ...item,
-    sequence: (insertionSequence + index).toFixed(2),
+    sequence: (insertionSequence + (index + 1) / 10000).toFixed(4),
   }));
 
-  return sortedItems([...serviceWithoutSongs, ...mergedSongs]);
+  return [...serviceBeforeWorship, ...mergedSongs, ...serviceAfterWorship];
 }
