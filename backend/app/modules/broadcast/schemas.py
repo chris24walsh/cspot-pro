@@ -23,3 +23,26 @@ class ObsActionRead(BaseModel):
     action: str
     status: ObsStatusRead
     output_path: str | None = None
+
+
+class BroadcastRecordingRead(BaseModel):
+    id: str
+    plan_id: str | None
+    plan_item_id: str | None
+    title: str
+    source: str
+    media_kind: str
+    status: str
+    file_name: str
+    content_type: str | None
+    size_bytes: int | None
+    duration_seconds: int | None
+    has_audio: bool
+    recorded_at: str | None
+    created_at: str
+    updated_at: str
+
+
+class RecordingScanRead(BaseModel):
+    added: int
+    recordings: list[BroadcastRecordingRead]

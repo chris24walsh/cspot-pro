@@ -1,6 +1,7 @@
 """Import all ORM models so metadata/migrations see the full domain."""
 
 from app.modules.communication.models import Message, MessageParticipant, MessageThread
+from app.modules.broadcast.models import BroadcastRecording
 from app.modules.identity.models import Role, SocialLogin, User, UserRole
 from app.modules.imports.models import ImportProvider, ImportRun
 from app.modules.integrations.models import OAuthConnection
@@ -32,6 +33,7 @@ __all__ = [
     "BibleBook",
     "BibleVerse",
     "BibleVersion",
+    "BroadcastRecording",
     "DefaultItem",
     "FileCategory",
     "HistoryEntry",

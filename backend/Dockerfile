@@ -11,6 +11,7 @@ RUN apt-get update \
         fonts-crosextra-carlito \
         fonts-dejavu \
         fonts-liberation \
+        ffmpeg \
         libreoffice \
         libreoffice-impress \
         poppler-utils \

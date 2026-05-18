@@ -11,6 +11,7 @@ RUN apt-get update \
         fonts-crosextra-carlito \
         fonts-dejavu \
         fonts-liberation \
+        ffmpeg \
         libreoffice \
         libreoffice-impress \
         poppler-utils \
@@ -24,7 +25,7 @@ COPY backend/migrations ./migrations
 RUN pip install --no-cache-dir --upgrade pip \
     && pip install --no-cache-dir -e .
 
-RUN mkdir -p /app/storage/uploads /app/storage/rendered
+RUN mkdir -p /app/storage/uploads /app/storage/rendered /app/storage/recordings /app/storage/recording-audio
 
 EXPOSE 8000
 

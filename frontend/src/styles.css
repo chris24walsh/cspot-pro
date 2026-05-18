@@ -2373,6 +2373,77 @@ h3 {
   padding: 10px 12px;
 }
 
+.broadcast-library {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: minmax(260px, 0.8fr) minmax(420px, 1.6fr);
+  min-height: 0;
+}
+
+.broadcast-recording-list {
+  display: grid;
+  gap: 8px;
+  max-height: 420px;
+  overflow: auto;
+  padding-right: 4px;
+}
+
+.broadcast-recording-row {
+  background: #f8f4e9;
+  border: 1px solid #e3dcc8;
+  border-radius: 8px;
+  color: #1b251f;
+  cursor: pointer;
+  display: grid;
+  gap: 4px;
+  padding: 12px;
+  text-align: left;
+}
+
+.broadcast-recording-row:hover {
+  background: #fffefa;
+  border-color: #b6a77f;
+}
+
+.broadcast-recording-row.selected {
+  background: #e8f5ed;
+  border-color: #75b29e;
+  box-shadow: inset 4px 0 0 #1f5b4b;
+}
+
+.broadcast-recording-row strong {
+  font-size: 18px;
+  line-height: 1.15;
+}
+
+.broadcast-recording-row span {
+  color: #5d6b64;
+  font-weight: 650;
+}
+
+.broadcast-player {
+  background: #fffdf7;
+  border: 1px solid #e3dcc8;
+  border-radius: 8px;
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  min-width: 0;
+}
+
+.broadcast-video {
+  aspect-ratio: 16 / 9;
+  background: #0f1712;
+  border-radius: 6px;
+  max-height: 520px;
+  width: 100%;
+}
+
+.broadcast-player audio {
+  min-width: 220px;
+  width: min(100%, 460px);
+}
+
 .compact-preview {
   max-height: 220px;
   overflow: auto;
@@ -4754,6 +4825,10 @@ h3 {
 
 @media (max-width: 900px) {
   .broadcast-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .broadcast-library {
     grid-template-columns: 1fr;
   }
 

@@ -1,7 +1,19 @@
-import { Camera, Circle, Radio, RefreshCw, Square } from "lucide-react";
+import { Camera, Circle, Download, Music, Play, Radio, RefreshCw, Square } from "lucide-react";
 import { useEffect, useState } from "react";
 
-import { ApiError, getObsStatus, runObsAction, type ObsStatus } from "../api";
+import {
+  ApiError,
+  broadcastRecordingAudioUrl,
+  broadcastRecordingDownloadUrl,
+  broadcastRecordingVideoUrl,
+  createBroadcastRecordingAudio,
+  getBroadcastRecordings,
+  getObsStatus,
+  runObsAction,
+  scanBroadcastRecordings,
+  type BroadcastRecording,
+  type ObsStatus,
+} from "../api";
 
 function statusLabel(status: ObsStatus | null) {
   if (!status) {
@@ -23,15 +35,45 @@ function timecode(value: string | null) {
   return value.split(".")[0] ?? value;
 }
 
+function formatBytes(value: number | null) {
+  if (!value) {
+    return "Unknown size";
+  }
+  const units = ["B", "KB", "MB", "GB"];
+  let size = value;
+  let index = 0;
+  while (size >= 1024 && index < units.length - 1) {
+    size /= 1024;
+    index += 1;
+  }
+  return `${size.toFixed(index === 0 ? 0 : 1)} ${units[index]}`;
+}
+
+function formatDate(value: string | null) {
+  if (!value) {
+    return "No date";
+  }
+  return new Intl.DateTimeFormat(undefined, {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(new Date(value));
+}
+
 export function BroadcastManager() {
   const [status, setStatus] = useState<ObsStatus | null>(null);
+  const [recordings, setRecordings] = useState<BroadcastRecording[]>([]);
+  const [selectedRecordingId, setSelectedRecordingId] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [busyAction, setBusyAction] = useState<string | null>(null);
+  const [busyRecordingId, setBusyRecordingId] = useState<string | null>(null);
 
   async function refresh() {
     try {
       setMessage(null);
-      setStatus(await getObsStatus());
+      const [nextStatus, nextRecordings] = await Promise.all([getObsStatus(), getBroadcastRecordings()]);
+      setStatus(nextStatus);
+      setRecordings(nextRecordings);
+      setSelectedRecordingId((current) => current ?? nextRecordings[0]?.id ?? null);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Could not check OBS.");
     }
@@ -43,6 +85,11 @@ export function BroadcastManager() {
       const response = await runObsAction(action);
       setStatus(response.status);
       setMessage(response.output_path ? `Saved recording to ${response.output_path}` : null);
+      if (action === "stop-recording") {
+        const nextRecordings = await getBroadcastRecordings();
+        setRecordings(nextRecordings);
+        setSelectedRecordingId(nextRecordings[0]?.id ?? null);
+      }
     } catch (error) {
       const fallback =
         error instanceof ApiError && error.status === 403
@@ -55,6 +102,33 @@ export function BroadcastManager() {
     }
   }
 
+  async function scanLibrary() {
+    setBusyAction("scan-recordings");
+    try {
+      const response = await scanBroadcastRecordings();
+      setRecordings(response.recordings);
+      setSelectedRecordingId((current) => current ?? response.recordings[0]?.id ?? null);
+      setMessage(response.added ? `Added ${response.added} recording${response.added === 1 ? "" : "s"}.` : "Recording library is up to date.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not scan recordings.");
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
+  async function createAudio(recordingId: string) {
+    setBusyRecordingId(recordingId);
+    try {
+      const updated = await createBroadcastRecordingAudio(recordingId);
+      setRecordings((current) => current.map((recording) => (recording.id === updated.id ? updated : recording)));
+      setMessage("MP3 audio is ready.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not create MP3 audio.");
+    } finally {
+      setBusyRecordingId(null);
+    }
+  }
+
   useEffect(() => {
     void refresh();
     const timer = window.setInterval(() => void refresh(), 5000);
@@ -62,6 +136,8 @@ export function BroadcastManager() {
   }, []);
 
   const connected = Boolean(status?.connected);
+  const selectedRecording =
+    recordings.find((recording) => recording.id === selectedRecordingId) ?? recordings[0] ?? null;
 
   return (
     <section className="broadcast-workspace" aria-label="Broadcast controls">
@@ -172,6 +248,106 @@ export function BroadcastManager() {
             </div>
           </article>
         </div>
+      </div>
+
+      <div className="broadcast-card">
+        <div className="section-heading">
+          <div>
+            <p className="eyebrow">Library</p>
+            <h3>Recordings</h3>
+          </div>
+          <button
+            className="text-button icon-text-button"
+            disabled={busyAction !== null}
+            onClick={() => void scanLibrary()}
+            type="button"
+          >
+            <RefreshCw size={16} aria-hidden="true" />
+            Scan Folder
+          </button>
+        </div>
+
+        {recordings.length === 0 ? (
+          <div className="empty-state broadcast-empty-state">
+            <strong>No recordings registered yet.</strong>
+            <span>Stop an OBS recording, or scan the configured recordings folder.</span>
+          </div>
+        ) : (
+          <div className="broadcast-library">
+            <div className="broadcast-recording-list" aria-label="Recordings">
+              {recordings.map((recording) => (
+                <button
+                  className={`broadcast-recording-row ${recording.id === selectedRecording?.id ? "selected" : ""}`}
+                  key={recording.id}
+                  onClick={() => setSelectedRecordingId(recording.id)}
+                  type="button"
+                >
+                  <strong>{recording.title}</strong>
+                  <span>{formatDate(recording.recorded_at)} · {formatBytes(recording.size_bytes)}</span>
+                </button>
+              ))}
+            </div>
+
+            {selectedRecording ? (
+              <article className="broadcast-player">
+                <div className="section-heading">
+                  <div>
+                    <p className="eyebrow">Selected Recording</p>
+                    <h3>{selectedRecording.title}</h3>
+                  </div>
+                  <a
+                    className="text-button icon-text-button"
+                    href={broadcastRecordingDownloadUrl(selectedRecording.id)}
+                  >
+                    <Download size={16} aria-hidden="true" />
+                    Video
+                  </a>
+                </div>
+
+                {selectedRecording.media_kind === "video" ? (
+                  <video
+                    className="broadcast-video"
+                    controls
+                    preload="metadata"
+                    src={broadcastRecordingVideoUrl(selectedRecording.id)}
+                  />
+                ) : (
+                  <audio controls src={broadcastRecordingVideoUrl(selectedRecording.id)} />
+                )}
+
+                <div className="action-row">
+                  {selectedRecording.has_audio ? (
+                    <>
+                      <audio controls src={broadcastRecordingAudioUrl(selectedRecording.id)} />
+                      <a className="text-button icon-text-button" href={broadcastRecordingAudioUrl(selectedRecording.id)}>
+                        <Download size={16} aria-hidden="true" />
+                        MP3
+                      </a>
+                    </>
+                  ) : (
+                    <button
+                      className="text-button icon-text-button"
+                      disabled={busyRecordingId === selectedRecording.id}
+                      onClick={() => void createAudio(selectedRecording.id)}
+                      type="button"
+                    >
+                      {busyRecordingId === selectedRecording.id ? (
+                        <RefreshCw size={16} aria-hidden="true" />
+                      ) : (
+                        <Music size={16} aria-hidden="true" />
+                      )}
+                      Create MP3
+                    </button>
+                  )}
+                  <a className="text-button icon-text-button" href={broadcastRecordingVideoUrl(selectedRecording.id)}>
+                    <Play size={16} aria-hidden="true" />
+                    Open
+                  </a>
+                </div>
+              </article>
+            ) : null}
+          </div>
+        )}
       </div>
 
       <div className="broadcast-card">

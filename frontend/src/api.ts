@@ -462,6 +462,29 @@ export interface ObsActionResponse {
   output_path: string | null;
 }
 
+export interface BroadcastRecording {
+  id: string;
+  plan_id: string | null;
+  plan_item_id: string | null;
+  title: string;
+  source: string;
+  media_kind: string;
+  status: string;
+  file_name: string;
+  content_type: string | null;
+  size_bytes: number | null;
+  duration_seconds: number | null;
+  has_audio: boolean;
+  recorded_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface BroadcastRecordingScan {
+  added: number;
+  recordings: BroadcastRecording[];
+}
+
 export interface GoogleDriveStatus {
   configured: boolean;
   connected: boolean;
@@ -796,6 +819,30 @@ export async function runObsAction(action: "start-recording" | "stop-recording" 
     "stop-virtual-camera": "/api/v1/broadcast/obs/virtual-camera/stop",
   } satisfies Record<typeof action, string>;
   return sendJson<ObsActionResponse>(paths[action], "POST", {}, { timeoutMs: 15000 });
+}
+
+export async function getBroadcastRecordings(): Promise<BroadcastRecording[]> {
+  return getJson<BroadcastRecording[]>("/api/v1/broadcast/recordings");
+}
+
+export async function scanBroadcastRecordings(): Promise<BroadcastRecordingScan> {
+  return sendJson<BroadcastRecordingScan>("/api/v1/broadcast/recordings/scan", "POST", {}, { timeoutMs: 30000 });
+}
+
+export async function createBroadcastRecordingAudio(recordingId: string): Promise<BroadcastRecording> {
+  return sendJson<BroadcastRecording>(`/api/v1/broadcast/recordings/${recordingId}/audio`, "POST", {}, { timeoutMs: 600000 });
+}
+
+export function broadcastRecordingVideoUrl(recordingId: string) {
+  return buildAbsoluteApiUrl(`/api/v1/broadcast/recordings/${recordingId}/video`);
+}
+
+export function broadcastRecordingDownloadUrl(recordingId: string) {
+  return buildAbsoluteApiUrl(`/api/v1/broadcast/recordings/${recordingId}/download`);
+}
+
+export function broadcastRecordingAudioUrl(recordingId: string) {
+  return buildAbsoluteApiUrl(`/api/v1/broadcast/recordings/${recordingId}/audio`);
 }
 
 export async function getGoogleDriveStatus(): Promise<GoogleDriveStatus> {

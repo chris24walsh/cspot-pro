@@ -13,6 +13,7 @@ services:
     restart: unless-stopped
     volumes:
       - cspot_pro_storage:/app/storage
+      - ./recordings:/app/storage/recordings
 
   web:
     build:
