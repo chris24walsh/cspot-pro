@@ -45,6 +45,7 @@ DELETE_PERMISSIONS: set[PermissionName] = {
 }
 
 ALL_PERMISSIONS: set[PermissionName] = READ_PERMISSIONS | EDIT_PERMISSIONS | CREATE_PERMISSIONS | {
+    "broadcast:use",
     "users:manage",
 } | DELETE_PERMISSIONS
 
@@ -63,13 +64,13 @@ ROLE_DEFINITIONS: dict[str, RoleDefinition] = {
     },
     "service_leader": {
         "description": "Own service plans and team assignments. Cannot archive/delete songs, users, or integrations.",
-        "permissions": PARTICIPANT_PERMISSIONS | {"plans:edit", "plans:create", "plans:delete", "team:edit", "team:delete", "messages:write"},
+        "permissions": PARTICIPANT_PERMISSIONS | {"broadcast:use", "plans:edit", "plans:create", "plans:delete", "team:edit", "team:delete", "messages:write"},
     },
     "worship_leader": {
         "description": "Own worship songs, files, and service flow. Cannot manage users or disconnect integrations.",
         "permissions": PARTICIPANT_PERMISSIONS
         | EDIT_PERMISSIONS
-        | {"plans:create", "plans:delete", "songs:create", "songs:delete", "library:create", "library:delete"},
+        | {"broadcast:use", "plans:create", "plans:delete", "songs:create", "songs:delete", "library:create", "library:delete"},
     },
     "administrator": {
         "description": "Manage users, roles, and all planning, music, library, and presentation content.",

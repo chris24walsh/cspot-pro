@@ -2,6 +2,7 @@ export type ModuleId =
   | "planning"
   | "music"
   | "worship"
+  | "broadcast"
   | "people"
   | "presentation"
   | "imports"
@@ -126,6 +127,31 @@ export const featureModules: FeatureModule[] = [
       {
         title: "Attachments",
         items: ["Sheet music", "Chord charts", "Plan item linking", "File unlinking"],
+      },
+    ],
+  },
+  {
+    id: "broadcast",
+    label: "Broadcast",
+    kicker: "Recording and stream",
+    status: "Partial",
+    metrics: [
+      { label: "OBS", value: "Next" },
+      { label: "Record", value: "Ready" },
+      { label: "Stream", value: "Ready" },
+    ],
+    lanes: [
+      {
+        title: "OBS",
+        items: ["Connection status", "Start recording", "Stop recording", "Virtual camera"],
+      },
+      {
+        title: "Sermons",
+        items: ["Record audio/video", "Save file path", "Link to service", "Publish later"],
+      },
+      {
+        title: "Remote Viewers",
+        items: ["Zoom virtual camera", "OBS stream", "YouTube later", "Attendance notes"],
       },
     ],
   },

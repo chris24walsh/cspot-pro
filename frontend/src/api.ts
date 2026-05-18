@@ -438,6 +438,30 @@ export interface EmailTestResponse {
   recipient: string;
 }
 
+export interface ObsStatus {
+  configured: boolean;
+  connected: boolean;
+  host: string | null;
+  port: number | null;
+  obs_version: string | null;
+  websocket_version: string | null;
+  recording: boolean;
+  recording_paused: boolean;
+  recording_timecode: string | null;
+  recording_path: string | null;
+  streaming: boolean;
+  streaming_timecode: string | null;
+  virtual_camera: boolean;
+  error: string | null;
+}
+
+export interface ObsActionResponse {
+  ok: boolean;
+  action: string;
+  status: ObsStatus;
+  output_path: string | null;
+}
+
 export interface GoogleDriveStatus {
   configured: boolean;
   connected: boolean;
@@ -756,6 +780,22 @@ export async function sendPasswordReset(userId: string): Promise<PasswordResetAd
 
 export async function sendTestEmail(payload: { email: string }): Promise<EmailTestResponse> {
   return sendJson<EmailTestResponse>("/api/v1/identity/email/test", "POST", payload);
+}
+
+export async function getObsStatus(): Promise<ObsStatus> {
+  return getJson<ObsStatus>("/api/v1/broadcast/obs/status");
+}
+
+export async function runObsAction(action: "start-recording" | "stop-recording" | "start-streaming" | "stop-streaming" | "start-virtual-camera" | "stop-virtual-camera"): Promise<ObsActionResponse> {
+  const paths = {
+    "start-recording": "/api/v1/broadcast/obs/recording/start",
+    "stop-recording": "/api/v1/broadcast/obs/recording/stop",
+    "start-streaming": "/api/v1/broadcast/obs/streaming/start",
+    "stop-streaming": "/api/v1/broadcast/obs/streaming/stop",
+    "start-virtual-camera": "/api/v1/broadcast/obs/virtual-camera/start",
+    "stop-virtual-camera": "/api/v1/broadcast/obs/virtual-camera/stop",
+  } satisfies Record<typeof action, string>;
+  return sendJson<ObsActionResponse>(paths[action], "POST", {}, { timeoutMs: 15000 });
 }
 
 export async function getGoogleDriveStatus(): Promise<GoogleDriveStatus> {

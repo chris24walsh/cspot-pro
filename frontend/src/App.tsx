@@ -3,6 +3,7 @@ import {
   Clapperboard,
   ListMusic,
   Music2,
+  Radio,
   Settings,
   UploadCloud,
   UsersRound,
@@ -24,6 +25,7 @@ import {
   type Song,
 } from "./api";
 import { AuthScreen } from "./components/AuthScreen";
+import { BroadcastManager } from "./components/BroadcastManager";
 import { PresentationOutput } from "./components/PresentationOutput";
 import { PresentationView } from "./components/PresentationView";
 import { SongManager } from "./components/SongManager";
@@ -36,6 +38,7 @@ const iconMap = {
   planning: CalendarDays,
   music: ListMusic,
   worship: Music2,
+  broadcast: Radio,
   people: UsersRound,
   presentation: Clapperboard,
   imports: UploadCloud,
@@ -81,6 +84,7 @@ function App() {
   const canDeleteSongs = permissions.has("songs:delete");
   const canEditSongs = canCreateSongs || permissions.has("songs:edit");
   const canUsePresentation = permissions.has("presentation:use");
+  const canUseBroadcast = permissions.has("broadcast:use");
   const canCreateLibrary = permissions.has("library:create");
   const roleNames = useMemo(() => new Set(sessionUser?.roles ?? []), [sessionUser?.roles]);
   const canUseServiceOperator =
@@ -193,12 +197,15 @@ function App() {
         if (module.id === "presentation") {
           return canUseServiceOperator;
         }
+        if (module.id === "broadcast") {
+          return canUseBroadcast;
+        }
         if (module.id === "admin") {
           return canManageUsers;
         }
         return true;
       }),
-    [canManageUsers, canReadSongs, canUseServiceOperator, canUseWorshipTools, workspace],
+    [canManageUsers, canReadSongs, canUseBroadcast, canUseServiceOperator, canUseWorshipTools, workspace],
   );
 
   const activeModule = useMemo(
@@ -233,6 +240,10 @@ function App() {
 
     if (activeModule.id === "admin") {
       return [{ label: "Scope", value: "Users & access" }];
+    }
+
+    if (activeModule.id === "broadcast") {
+      return [{ label: "Mode", value: "OBS" }];
     }
 
     return [];
@@ -347,6 +358,8 @@ function App() {
             canCreateSong={canCreateSongs}
             canEditSong={canEditSongs}
           />
+        ) : activeModule.id === "broadcast" ? (
+          <BroadcastManager />
         ) : activeModule.id === "admin" ? (
           <UserManager />
         ) : (

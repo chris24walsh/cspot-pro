@@ -29,6 +29,10 @@ class Settings(BaseSettings):
     smtp_from_name: str | None = None
     smtp_use_starttls: bool = True
     smtp_use_ssl: bool = False
+    obs_websocket_host: str | None = None
+    obs_websocket_port: int = 4455
+    obs_websocket_password: str | None = None
+    obs_websocket_timeout: float = 3.0
 
     @cached_property
     def cors_origins(self) -> list[str]:
@@ -48,6 +52,10 @@ class Settings(BaseSettings):
             and self.public_app_url
             and self.google_drive_redirect_uri
         )
+
+    @cached_property
+    def obs_websocket_configured(self) -> bool:
+        return bool(self.obs_websocket_host)
 
 
 settings = Settings()
