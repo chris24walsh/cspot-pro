@@ -1,4 +1,6 @@
 from datetime import UTC, datetime
+import math
+import secrets
 
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy import select
@@ -45,6 +47,9 @@ def song_to_read(song: Song) -> SongRead:
     )
 
 
+_suggestion_random = secrets.SystemRandom()
+
+
 def _song_usage(session: Session) -> dict[str, dict[str, object]]:
     rows = session.execute(
         select(Song.id, Plan.service_date)
@@ -60,8 +65,12 @@ def _song_usage(session: Session) -> dict[str, dict[str, object]]:
     ).all()
     usage: dict[str, dict[str, object]] = {}
     for song_id, service_date in rows:
-        entry = usage.setdefault(song_id, {"use_count": 0, "last_used": None})
+        entry = usage.setdefault(song_id, {"use_count": 0, "last_used": None, "used_dates": []})
         entry["use_count"] = int(entry["use_count"]) + 1
+        if isinstance(service_date, datetime):
+            used_dates = entry["used_dates"]
+            if isinstance(used_dates, list):
+                used_dates.append(service_date)
         last_used = entry["last_used"]
         if last_used is None or service_date > last_used:
             entry["last_used"] = service_date
@@ -73,23 +82,60 @@ def _role_matches(song: Song, slot: str) -> bool:
     return role in {"", "any", slot}
 
 
+def _aware_datetime(value: datetime) -> datetime:
+    if value.tzinfo is None:
+        return value.replace(tzinfo=UTC)
+    return value
+
+
+def _days_between(now: datetime, used_at: datetime) -> int:
+    return max((_aware_datetime(now) - _aware_datetime(used_at)).days, 0)
+
+
+def _recent_use_count(usage: dict[str, object], now: datetime, days: int) -> int:
+    used_dates = usage.get("used_dates")
+    if not isinstance(used_dates, list):
+        return 0
+    count = 0
+    for used_at in used_dates:
+        if isinstance(used_at, datetime) and _days_between(now, used_at) <= days:
+            count += 1
+    return count
+
+
 def _song_score(song: Song, slot: str, usage: dict[str, object], now: datetime) -> tuple[float, str]:
     use_count = int(usage.get("use_count") or 0)
     last_used = usage.get("last_used")
     days_since = 9999
     if isinstance(last_used, datetime):
-        days_since = max((now - last_used).days, 0)
+        days_since = _days_between(now, last_used)
 
     energy = song.energy if song.energy is not None else 3
     target_energy = {"opener": 5, "middle": 3, "closer": 2}.get(slot, 3)
-    role_bonus = 20 if _role_matches(song, slot) else -18
-    freshness_bonus = min(days_since / 7, 16)
-    rotation_penalty = use_count * 2.2
-    energy_penalty = abs(energy - target_energy) * 2.5
-    score = 50 + role_bonus + freshness_bonus - rotation_penalty - energy_penalty
+    recent_count = _recent_use_count(usage, now, 35)
+    role_bonus = 18 if _role_matches(song, slot) else -22
+    favourite_bonus = min(math.log1p(use_count) * 5.0, 12)
+    recent_favourite_bonus = 0.0
+    if 7 <= days_since <= 35:
+        recent_favourite_bonus = 8 - abs(21 - days_since) / 4
+    elif 0 <= days_since < 7:
+        recent_favourite_bonus = 3
+
+    freshness_bonus = min(days_since / 9, 14)
+    stale_recent_penalty = 0.0
+    if recent_count >= 3:
+        stale_recent_penalty = 10 + (recent_count - 3) * 3
+    elif 36 <= days_since <= 70:
+        stale_recent_penalty = 7
+
+    rotation_penalty = min(use_count * 0.8, 10)
+    energy_penalty = abs(energy - target_energy) * 2.8
+    score = 50 + role_bonus + favourite_bonus + recent_favourite_bonus + freshness_bonus - stale_recent_penalty - rotation_penalty - energy_penalty
 
     if use_count == 0:
         reason = "new to the rotation"
+    elif 7 <= days_since <= 35:
+        reason = "recent favourite with room to repeat"
     elif days_since >= 90:
         reason = f"not used for {days_since} days"
     elif _role_matches(song, slot):
@@ -97,6 +143,21 @@ def _song_score(song: Song, slot: str, usage: dict[str, object], now: datetime) 
     else:
         reason = "balanced rotation pick"
     return score, reason
+
+
+def _weighted_pick(candidates: list[tuple[float, str, Song, dict[str, object]]]) -> tuple[float, str, Song, dict[str, object]]:
+    if len(candidates) == 1:
+        return candidates[0]
+    floor = min(score for score, _reason, _song, _usage in candidates)
+    weights = [math.exp((score - floor) / 18) for score, _reason, _song, _usage in candidates]
+    total = sum(weights)
+    marker = _suggestion_random.uniform(0, total)
+    running = 0.0
+    for candidate, weight in zip(candidates, weights, strict=True):
+        running += weight
+        if marker <= running:
+            return candidate
+    return candidates[-1]
 
 
 def get_song_or_404(session: Session, song_id: str) -> Song:
@@ -145,7 +206,7 @@ def suggest_worship_set(
             candidates.append((score, reason, song, song_usage))
         if not candidates:
             break
-        score, reason, song, song_usage = max(candidates, key=lambda candidate: candidate[0])
+        score, reason, song, song_usage = _weighted_pick(candidates)
         selected_ids.add(song.id)
         last_used = song_usage.get("last_used")
         suggested.append(
