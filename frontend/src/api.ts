@@ -216,6 +216,9 @@ export interface ItemFile {
 export interface RenderedSlide {
   index: number;
   image_url: string;
+  original_index: number | null;
+  build_index: number;
+  build_count: number;
 }
 
 export interface PresentationLiveSyncState {

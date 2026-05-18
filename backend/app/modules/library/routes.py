@@ -1,4 +1,5 @@
 from hashlib import sha256
+import json
 from pathlib import Path
 import re
 import shutil
@@ -50,7 +51,7 @@ from app.modules.planning.routes import get_item_or_404, get_plan_or_404
 router = APIRouter()
 UPLOAD_ROOT = Path("/app/storage/uploads")
 RENDER_ROOT = Path("/app/storage/rendered")
-RENDER_PIPELINE_VERSION = "libreoffice-pdf-png-v3"
+RENDER_PIPELINE_VERSION = "libreoffice-pdf-png-v4"
 LIBREOFFICE_RENDER_TIMEOUT_SECONDS = 300
 PDF_TO_PNG_RENDER_TIMEOUT_SECONDS = 300
 PDF_TO_PNG_DPI = 120
@@ -151,6 +152,10 @@ def _render_manifest_path(file_id: str) -> Path:
     return _rendered_dir(file_id) / "manifest.txt"
 
 
+def _build_manifest_path(file_id: str) -> Path:
+    return _rendered_dir(file_id) / "builds.json"
+
+
 def _render_manifest_value(stored: StoredFile) -> str:
     suffix = Path(stored.storage_path).suffix.lower()
     flatten_builds = "flatten-builds" if stored.flatten_builds else "static"
@@ -171,6 +176,47 @@ def _render_cache_is_current(stored: StoredFile) -> bool:
 
 def _write_render_manifest(stored: StoredFile) -> None:
     _render_manifest_path(stored.id).write_text(_render_manifest_value(stored), encoding="utf-8")
+
+
+def _write_build_manifest(file_id: str, build_counts: list[int]) -> None:
+    _build_manifest_path(file_id).write_text(json.dumps(build_counts), encoding="utf-8")
+
+
+def _read_build_manifest(file_id: str, slide_count: int) -> list[dict[str, int]]:
+    manifest_path = _build_manifest_path(file_id)
+    if not manifest_path.exists():
+        return [
+            {"original_index": index + 1, "build_index": 0, "build_count": 1}
+            for index in range(slide_count)
+        ]
+
+    try:
+        raw_counts = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        raw_counts = []
+
+    metadata: list[dict[str, int]] = []
+    if isinstance(raw_counts, list):
+        for original_index, raw_count in enumerate(raw_counts, start=1):
+            try:
+                build_count = max(int(raw_count), 1)
+            except (TypeError, ValueError):
+                build_count = 1
+            for build_index in range(build_count):
+                metadata.append(
+                    {
+                        "original_index": original_index,
+                        "build_index": build_index,
+                        "build_count": build_count,
+                    }
+                )
+
+    if len(metadata) != slide_count:
+        return [
+            {"original_index": index + 1, "build_index": 0, "build_count": 1}
+            for index in range(slide_count)
+        ]
+    return metadata
 
 
 def _render_lock_for(file_id: str) -> Lock:
@@ -223,10 +269,48 @@ def _parent_map(root: ElementTree.Element) -> dict[ElementTree.Element, ElementT
     return {child: parent for parent in root.iter() for child in parent}
 
 
+def _is_entrance_build_target(
+    target: ElementTree.Element,
+    parents: dict[ElementTree.Element, ElementTree.Element],
+) -> bool:
+    current: ElementTree.Element | None = target
+    while current is not None:
+        if current.tag == f"{{{PML_NS}}}animEffect":
+            transition = current.attrib.get("transition")
+            if transition == "out":
+                return False
+        if current.tag == f"{{{PML_NS}}}set":
+            for descendant in current.iter():
+                value = descendant.attrib.get("val")
+                if value == "hidden":
+                    return False
+        current = parents.get(current)
+    return True
+
+
+def _is_exit_build_target(
+    target: ElementTree.Element,
+    parents: dict[ElementTree.Element, ElementTree.Element],
+) -> bool:
+    current: ElementTree.Element | None = target
+    while current is not None:
+        if current.tag == f"{{{PML_NS}}}animEffect" and current.attrib.get("transition") == "out":
+            return True
+        if current.tag == f"{{{PML_NS}}}set":
+            for descendant in current.iter():
+                if descendant.attrib.get("val") == "hidden":
+                    return True
+        current = parents.get(current)
+    return False
+
+
 def _animation_build_events(root: ElementTree.Element) -> list[tuple[str, int | None, int | None]]:
     events: list[tuple[str, int | None, int | None]] = []
     seen: set[tuple[str, int | None, int | None]] = set()
+    parents = _parent_map(root)
     for target in root.findall(f".//{{{PML_NS}}}spTgt"):
+        if not _is_entrance_build_target(target, parents):
+            continue
         target_id = target.attrib.get("spid")
         if not target_id:
             continue
@@ -248,10 +332,32 @@ def _animation_build_events(root: ElementTree.Element) -> list[tuple[str, int | 
     return events
 
 
+def _animation_exit_targets(root: ElementTree.Element) -> set[str]:
+    targets: set[str] = set()
+    parents = _parent_map(root)
+    for target in root.findall(f".//{{{PML_NS}}}spTgt"):
+        if not _is_exit_build_target(target, parents):
+            continue
+        target_id = target.attrib.get("spid")
+        if target_id:
+            targets.add(target_id)
+    return targets
+
+
 def _remove_shape(root: ElementTree.Element, shape: ElementTree.Element) -> None:
     parent = _parent_map(root).get(shape)
     if parent is not None:
         parent.remove(shape)
+
+
+def _remove_shapes_by_id(root: ElementTree.Element, target_ids: set[str]) -> None:
+    if not target_ids:
+        return
+    shapes = _shape_elements_by_id(root)
+    for target_id in target_ids:
+        shape = shapes.get(target_id)
+        if shape is not None:
+            _remove_shape(root, shape)
 
 
 def _hide_future_builds(
@@ -329,7 +435,7 @@ def _set_content_types(content_types_root: ElementTree.Element, slide_entries: l
         )
 
 
-def _flatten_pptx_builds(source_path: Path, output_path: Path) -> bool:
+def _flatten_pptx_builds(source_path: Path, output_path: Path) -> list[int] | None:
     with ZipFile(source_path, "r") as source:
         names = source.namelist()
         slide_names = sorted(
@@ -337,22 +443,26 @@ def _flatten_pptx_builds(source_path: Path, output_path: Path) -> bool:
             key=_numeric_slide_key,
         )
         if not slide_names:
-            return False
+            return None
 
         generated_slides: list[tuple[str, bytes, str | None, bytes | None]] = []
+        build_counts: list[int] = []
         found_builds = False
         next_slide_number = 1
         for slide_name in slide_names:
             slide_xml = source.read(slide_name)
             root = ElementTree.fromstring(slide_xml)
             events = _animation_build_events(root)
+            exit_targets = _animation_exit_targets(root)
             rels_name = f"ppt/slides/_rels/{Path(slide_name).name}.rels"
             rels_xml = source.read(rels_name) if rels_name in names else None
             states = range(len(events) + 1) if events else range(1)
             if events:
                 found_builds = True
+            build_counts.append(len(events) + 1 if events else 1)
             for visible_count in states:
                 state_root = ElementTree.fromstring(slide_xml)
+                _remove_shapes_by_id(state_root, exit_targets)
                 if events:
                     _hide_future_builds(state_root, events, visible_count)
                 new_slide_name = f"ppt/slides/slide{next_slide_number}.xml"
@@ -368,7 +478,7 @@ def _flatten_pptx_builds(source_path: Path, output_path: Path) -> bool:
                 next_slide_number += 1
 
         if not found_builds:
-            return False
+            return None
 
         slide_entries = [
             (slide_name, f"rIdFlattenedSlide{index}")
@@ -411,7 +521,7 @@ def _flatten_pptx_builds(source_path: Path, output_path: Path) -> bool:
                 if rels_name and rels_xml and rels_name in generated_rels_names:
                     target.writestr(rels_name, rels_xml)
 
-    return True
+    return build_counts
 
 
 def _render_slides(stored: StoredFile) -> list[Path]:
@@ -442,6 +552,7 @@ def _render_slides_locked(stored: StoredFile) -> list[Path]:
     with tempfile.TemporaryDirectory() as temp_dir_name:
         temp_dir = Path(temp_dir_name)
         pdf_path = source_path
+        build_counts: list[int] | None = None
 
         if suffix != ".pdf":
             office_command = _office_command()
@@ -450,7 +561,9 @@ def _render_slides_locked(stored: StoredFile) -> list[Path]:
             if stored.flatten_builds and suffix == ".pptx":
                 flattened_path = temp_dir / f"{source_path.stem}-click-builds.pptx"
                 try:
-                    if _flatten_pptx_builds(source_path, flattened_path):
+                    next_build_counts = _flatten_pptx_builds(source_path, flattened_path)
+                    if next_build_counts:
+                        build_counts = next_build_counts
                         office_source_path = flattened_path
                 except Exception:
                     office_source_path = source_path
@@ -491,6 +604,9 @@ def _render_slides_locked(stored: StoredFile) -> list[Path]:
             text=True,
             timeout=PDF_TO_PNG_RENDER_TIMEOUT_SECONDS,
         )
+
+        if build_counts:
+            _write_build_manifest(stored.id, build_counts)
 
     slides = sorted(output_dir.glob("slide-*.png"))
     if not slides:
@@ -798,8 +914,15 @@ def list_rendered_slides(
             detail="Slide rendering completed but produced no preview images.",
         )
 
+    build_metadata = _read_build_manifest(file_id, len(slides))
     return [
-        RenderedSlideRead(index=index + 1, image_url=f"/api/v1/library/files/{file_id}/slides/{index + 1}.png")
+        RenderedSlideRead(
+            index=index + 1,
+            image_url=f"/api/v1/library/files/{file_id}/slides/{index + 1}.png",
+            original_index=build_metadata[index]["original_index"],
+            build_index=build_metadata[index]["build_index"],
+            build_count=build_metadata[index]["build_count"],
+        )
         for index, _path in enumerate(slides)
     ]
 

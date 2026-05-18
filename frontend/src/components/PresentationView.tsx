@@ -449,6 +449,17 @@ function describeDeckStatus(
   };
 }
 
+function sorterSlidesForSection(slides: PresentationSlide[]) {
+  return slides.filter((slide) => !slide.imageUrl || (slide.buildIndex ?? 0) === 0);
+}
+
+function deckBuildGroupKey(slide: PresentationSlide | null | undefined) {
+  if (!slide?.imageUrl) {
+    return slide?.id ?? "";
+  }
+  return `${slide.planItemId}:${slide.originalSlideIndex ?? slide.renderedSlideIndex ?? slide.id}`;
+}
+
 export function PresentationView({
   canAttachDeck,
   canCreatePlan,
@@ -3010,6 +3021,7 @@ export function PresentationView({
           <div className="slide-grid" aria-label="All slides" ref={slideGridRef}>
             {sections.map((section) => {
               const sectionStart = slides.findIndex((slide) => slide.sectionId === section.id);
+              const visibleSectionSlides = sorterSlidesForSection(section.slides);
               const sectionItem = sectionPlanItem(section.id);
               const sectionFileIds = sectionItem?.files?.map((file) => file.file_id) ?? [];
               const canEditSectionSong = canEditSong && sectionItem?.song_id;
@@ -3024,7 +3036,7 @@ export function PresentationView({
                 .find(Boolean);
               const showSlideTiles =
                 section.itemType !== "sermon" ||
-                section.slides.length <= 4 ||
+                visibleSectionSlides.length <= 4 ||
                 liveSlide?.sectionId === section.id;
               return (
                 <div className="section-slide-group" key={section.id}>
@@ -3062,17 +3074,23 @@ export function PresentationView({
                   {sectionRenderError ? <p className="render-error-message">{sectionRenderError}</p> : null}
                   {showSlideTiles ? (
                     <div className="section-slide-list">
-                      {section.slides.map((slide) => {
+                      {visibleSectionSlides.map((slide) => {
                         const slideIndex = slides.findIndex((candidate) => candidate.id === slide.id);
+                        const matchesLiveBuild =
+                          Boolean(slide.imageUrl && liveSlide?.imageUrl) &&
+                          deckBuildGroupKey(slide) === deckBuildGroupKey(liveSlide);
+                        const tileRefIds = matchesLiveBuild && liveSlide ? [slide.id, liveSlide.id] : [slide.id];
                         return (
                           <button
                             className={`slide-tile preview-tile ${presentationTypeClass(slide.itemType)} ${
-                              slideIndex === liveIndex ? "active" : ""
+                              slideIndex === liveIndex || matchesLiveBuild ? "active" : ""
                             }`}
                             key={slide.id}
                             onClick={() => selectSlideFromOperator(slideIndex)}
                             ref={(element) => {
-                              thumbnailRefs.current[slide.id] = element;
+                              tileRefIds.forEach((id) => {
+                                thumbnailRefs.current[id] = element;
+                              });
                             }}
                             type="button"
                             title={`${slideIndex + 1}. ${slide.title}`}
@@ -3084,6 +3102,7 @@ export function PresentationView({
                               slideTheme,
                               compactPlanTextFontCap,
                             )}
+                            {(slide.buildCount ?? 1) > 1 ? <small className="build-count-badge">{slide.buildCount} steps</small> : null}
                             <div className="thumbnail-menu">
                               <span>Go</span>
                             </div>
@@ -3103,7 +3122,10 @@ export function PresentationView({
                         slideTheme,
                         compactPlanTextFontCap,
                       )}
-                      <strong>{section.slides.length} deck slides</strong>
+                      <strong>
+                        {visibleSectionSlides.length} deck slides
+                        {section.slides.length > visibleSectionSlides.length ? ` · ${section.slides.length} steps` : ""}
+                      </strong>
                       <span>{deckStatus.label}</span>
                       <small>{deckStatus.detail}</small>
                     </button>

@@ -74,6 +74,9 @@ class ItemFileRead(BaseModel):
 class RenderedSlideRead(BaseModel):
     index: int
     image_url: str
+    original_index: int | None = None
+    build_index: int = 0
+    build_count: int = 1
 
 
 class BibleVersionRead(BaseModel):

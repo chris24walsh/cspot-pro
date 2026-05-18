@@ -25,6 +25,10 @@ export interface PresentationSlide {
   title: string;
   text: string;
   imageUrl?: string;
+  renderedSlideIndex?: number;
+  originalSlideIndex?: number | null;
+  buildIndex?: number;
+  buildCount?: number;
   itemType: string;
   sequence: string;
 }
@@ -169,17 +173,27 @@ export function buildPresentationSections(
     const sectionTitle = song?.title ?? item.title;
 
     const deckSlides = (item.files ?? []).flatMap((file) =>
-      (renderedSlidesByFileId[file.file_id] ?? []).map((slide) => ({
-        id: `${item.id}:${file.file_id}:${slide.index}`,
-        planItemId: item.id,
-        sectionId: item.id,
-        sectionTitle,
-        title: `${file.display_name} ${slide.index}`,
-        text: "",
-        imageUrl: slide.image_url,
-        itemType: item.item_type,
-        sequence: item.sequence,
-      })),
+      (renderedSlidesByFileId[file.file_id] ?? []).map((slide) => {
+        const originalIndex = slide.original_index ?? slide.index;
+        const buildIndex = slide.build_index ?? 0;
+        const buildCount = slide.build_count ?? 1;
+        const buildSuffix = buildCount > 1 ? `.${buildIndex + 1}` : "";
+        return {
+          id: `${item.id}:${file.file_id}:${slide.index}`,
+          planItemId: item.id,
+          sectionId: item.id,
+          sectionTitle,
+          title: `${file.display_name} ${originalIndex}${buildSuffix}`,
+          text: "",
+          imageUrl: slide.image_url,
+          renderedSlideIndex: slide.index,
+          originalSlideIndex: originalIndex,
+          buildIndex,
+          buildCount,
+          itemType: item.item_type,
+          sequence: item.sequence,
+        };
+      }),
     );
 
     if (deckSlides.length) {
