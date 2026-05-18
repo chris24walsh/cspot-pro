@@ -653,44 +653,58 @@ h3 {
   border: 1px solid #e3dcc8;
   border-radius: 8px;
   color: #17201b;
-  cursor: pointer;
   display: grid;
   gap: 8px;
-  grid-template-columns: minmax(0, 1fr) auto auto;
+  grid-template-columns: minmax(0, 1fr) auto;
   min-width: 0;
   padding: 10px;
   text-align: left;
   width: 100%;
 }
 
-.song-library-row:hover:not(:disabled),
-.song-library-row:focus-visible:not(:disabled),
+.song-library-main {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  color: inherit;
+  cursor: pointer;
+  display: grid;
+  gap: 8px;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  min-width: 0;
+  padding: 0;
+  text-align: left;
+}
+
+.song-library-row:hover,
+.song-library-row:focus-within,
 .song-library-row.selected {
   background: #eaf5ef;
   border-color: #8ebba9;
   outline: none;
 }
 
-.song-library-row:disabled {
+.song-library-main:disabled,
+.song-library-edit:disabled {
   cursor: not-allowed;
   opacity: 0.7;
 }
 
-.song-library-row span,
+.song-library-main span,
 .worship-set-item div {
   display: grid;
   gap: 2px;
   min-width: 0;
 }
 
-.song-library-row strong,
+.song-library-main strong,
 .worship-set-item strong {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.song-library-row small,
+.song-library-main small,
 .worship-set-item small {
   color: #65716a;
   font-weight: 650;
@@ -699,7 +713,7 @@ h3 {
   white-space: nowrap;
 }
 
-.song-library-row em {
+.song-library-main em {
   background: #fffefa;
   border: 1px solid #e3dcc8;
   border-radius: 999px;
@@ -2253,6 +2267,11 @@ h3 {
   font-size: 11px;
   font-weight: 800;
   padding: 3px 7px;
+}
+
+.song-library-edit {
+  min-height: 38px;
+  min-width: 38px;
 }
 
 .custom-provider-preview {
@@ -4314,17 +4333,17 @@ h3 {
     grid-template-columns: minmax(0, 1fr) auto;
   }
 
-  .song-library-row svg {
+  .song-library-main svg {
     grid-column: 2;
   }
 
-  .song-library-row em {
+  .song-library-main em {
     font-size: 10px;
     justify-self: end;
     padding: 3px 6px;
   }
 
-  .song-library-row strong,
+  .song-library-main strong,
   .worship-set-item strong {
     display: -webkit-box;
     font-size: 18px;
@@ -4336,7 +4355,7 @@ h3 {
     -webkit-line-clamp: 2;
   }
 
-  .song-library-row small,
+  .song-library-main small,
   .worship-set-item small {
     display: -webkit-box;
     font-size: 14px;

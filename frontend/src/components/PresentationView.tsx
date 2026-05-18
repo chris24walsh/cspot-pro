@@ -29,7 +29,6 @@ import {
   updatePlan,
   updatePresentationLiveState,
   updatePlanItem,
-  updateSong,
   type BibleBook,
   type BibleSearchHit,
   type BibleVersion,
@@ -61,6 +60,7 @@ import {
 } from "../presentation";
 import { AutoFitSlideText } from "./AutoFitSlideText";
 import { ScaledSlideImage } from "./ScaledSlideImage";
+import { SongEditorDialog } from "./SongEditorDialog";
 import { analyzeWorshipText, buildLyricsFromSections } from "../worshipText";
 import {
   WORSHIP_SET_ANCHOR_ITEM_TYPE,
@@ -519,12 +519,6 @@ export function PresentationView({
   const [customProviderSelection, setCustomProviderSelection] = useState<CustomProviderSelectResult | null>(null);
   const [customProviderSelectionLoading, setCustomProviderSelectionLoading] = useState(false);
   const [editingSongId, setEditingSongId] = useState<string | null>(null);
-  const [editingSongTitle, setEditingSongTitle] = useState("");
-  const [editingSongAuthor, setEditingSongAuthor] = useState("");
-  const [editingSongLyrics, setEditingSongLyrics] = useState("");
-  const [editingSongChords, setEditingSongChords] = useState("");
-  const [editingSongTab, setEditingSongTab] = useState<"details" | "lyrics" | "chords">("lyrics");
-  const [editingSongSaving, setEditingSongSaving] = useState(false);
   const [googleDriveStatus, setGoogleDriveStatus] = useState<GoogleDriveStatus | null>(null);
   const [googleDriveFiles, setGoogleDriveFiles] = useState<GoogleDriveFile[]>([]);
   const [googleDriveLoading, setGoogleDriveLoading] = useState(false);
@@ -634,6 +628,10 @@ export function PresentationView({
   );
   const selectedCustomProviderMatch =
     customProviderResult?.matches.find((match) => match.id === selectedCustomProviderMatchId) ?? null;
+  const editingSong = useMemo(
+    () => songs.find((candidate) => candidate.id === editingSongId) ?? null,
+    [editingSongId, songs],
+  );
 
   function normalizedSongKey(value: string) {
     return value.trim().toLowerCase().replace(/[_-]+/g, " ").replace(/\s+/g, " ");
@@ -655,26 +653,10 @@ export function PresentationView({
       return;
     }
     setEditingSongId(song.id);
-    setEditingSongTitle(song.title);
-    setEditingSongAuthor(song.author ?? "");
-    setEditingSongLyrics(song.lyrics ?? "");
-    setEditingSongChords(song.chords ?? "");
-    setEditingSongTab("lyrics");
   }
 
   function closeSongEditor() {
     setEditingSongId(null);
-    setEditingSongTitle("");
-    setEditingSongAuthor("");
-    setEditingSongLyrics("");
-    setEditingSongChords("");
-    setEditingSongTab("lyrics");
-    setEditingSongSaving(false);
-  }
-
-  function cleanEditingSongLyrics() {
-    const analysis = analyzeWorshipText(editingSongLyrics, { title: editingSongTitle });
-    setEditingSongLyrics(buildLyricsFromSections(analysis.sections) || analysis.lyrics);
   }
 
   function clearHotkeyButtonFocus() {
@@ -1966,32 +1948,6 @@ export function PresentationView({
         return;
       }
       setMessage(error instanceof Error ? error.message : "Could not attach slide deck.");
-    }
-  }
-
-  async function saveEditedSong() {
-    if (!editingSongId) {
-      return;
-    }
-
-    setEditingSongSaving(true);
-    try {
-      const analysis = analyzeWorshipText(editingSongLyrics, { title: editingSongTitle });
-      const updated = await updateSong(editingSongId, {
-        title: editingSongTitle.trim(),
-        author: editingSongAuthor.trim() || null,
-        chords: editingSongChords.trim() || null,
-        lyrics: buildLyricsFromSections(analysis.sections) || analysis.lyrics,
-        sequence: analysis.sequence,
-      });
-      setSongs((current) => current.map((song) => (song.id === updated.id ? updated : song)));
-      await load(plan?.id, { refreshCatalogs: true, silent: true });
-      closeSongEditor();
-      setMessage(`Saved "${updated.title}".`);
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Could not save song changes.");
-    } finally {
-      setEditingSongSaving(false);
     }
   }
 
@@ -3533,89 +3489,17 @@ export function PresentationView({
         </div>
       ) : null}
 
-      {editingSongId ? (
-        <div className="app-dialog-backdrop" role="presentation">
-        <div
-          aria-labelledby="edit-song-title"
-          aria-modal="true"
-          className="app-dialog app-dialog-wide edit-song-dialog"
-          role="dialog"
-        >
-            <div className="section-heading">
-              <div>
-                <h2 id="edit-song-title">Edit Song</h2>
-                <p>Tidy song details without leaving the service.</p>
-              </div>
-            </div>
-
-            <div className="tab-row" role="tablist" aria-label="Song editor sections">
-              {(["lyrics", "chords", "details"] as const).map((tab) => (
-                <button
-                  className={`tab-button ${editingSongTab === tab ? "active" : ""}`}
-                  key={tab}
-                  onClick={() => setEditingSongTab(tab)}
-                  type="button"
-                >
-                  {tab[0].toUpperCase() + tab.slice(1)}
-                </button>
-              ))}
-            </div>
-
-            {editingSongTab === "details" ? (
-              <div className="dialog-form-grid">
-                <label>
-                  Title
-                  <input onChange={(event) => setEditingSongTitle(event.target.value)} value={editingSongTitle} />
-                </label>
-                <label>
-                  Author
-                  <input onChange={(event) => setEditingSongAuthor(event.target.value)} value={editingSongAuthor} />
-                </label>
-              </div>
-            ) : null}
-
-            {editingSongTab === "lyrics" ? (
-              <label className="wide-field">
-                Lyrics
-                <textarea
-                  className="lyrics-editor"
-                  onChange={(event) => setEditingSongLyrics(event.target.value)}
-                  rows={18}
-                  value={editingSongLyrics}
-                />
-              </label>
-            ) : null}
-
-            {editingSongTab === "chords" ? (
-              <label className="wide-field">
-                Chords
-                <textarea
-                  className="lyrics-editor"
-                  onChange={(event) => setEditingSongChords(event.target.value)}
-                  rows={18}
-                  value={editingSongChords}
-                />
-              </label>
-            ) : null}
-
-            <div className="app-dialog-actions">
-              <button className="text-button" onClick={closeSongEditor} type="button">
-                Close
-              </button>
-              <button className="text-button" onClick={cleanEditingSongLyrics} type="button">
-                Clean & Detect
-              </button>
-              <button
-                className="primary-button"
-                disabled={editingSongSaving || !editingSongTitle.trim() || !editingSongLyrics.trim()}
-                onClick={() => void saveEditedSong()}
-                type="button"
-              >
-                {editingSongSaving ? "Saving…" : "Save Song"}
-              </button>
-            </div>
-          </div>
-        </div>
+      {editingSong ? (
+        <SongEditorDialog
+          canEdit={canEditPlan}
+          onClose={closeSongEditor}
+          onSaved={async (updated) => {
+            setSongs((current) => current.map((song) => (song.id === updated.id ? updated : song)));
+            await load(plan?.id, { refreshCatalogs: true, silent: true });
+            setMessage(`Saved "${updated.title}".`);
+          }}
+          song={editingSong}
+        />
       ) : null}
     </section>
   );

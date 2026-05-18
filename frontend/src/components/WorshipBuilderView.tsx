@@ -14,7 +14,6 @@ import {
   getWorshipSetSuggestion,
   parseGoogleDriveDeck,
   searchGoogleDriveFiles,
-  updateSong,
   updatePlan,
   updatePlanItem,
   type GoogleDriveFile,
@@ -31,6 +30,7 @@ import { analyzeImportedSongSlides, buildLyricsFromSections } from "../worshipTe
 import { dateKey, isWorshipSetPlan, worshipSetType } from "../worshipSets";
 import { AutoFitSlideText } from "./AutoFitSlideText";
 import { MusicianLiveView } from "./MusicianLiveView";
+import { SongEditorDialog } from "./SongEditorDialog";
 
 const SELECTED_WORSHIP_SET_SESSION_KEY = "cspot.selectedWorshipSetPlanId";
 const WORSHIP_HISTORY_FOLDER = "LCF Cloud/Worship/Weekly Worship Slidedecks";
@@ -330,14 +330,6 @@ export function WorshipBuilderView({ canAccessAdminTools, canDeletePlan, canEdit
   const [suggestionReviewOpen, setSuggestionReviewOpen] = useState(false);
   const [suggestedSongs, setSuggestedSongs] = useState<WorshipSuggestedSong[]>([]);
   const [editingSong, setEditingSong] = useState<Song | null>(null);
-  const [editingSongTab, setEditingSongTab] = useState<"details" | "lyrics" | "chords">("lyrics");
-  const [editingSongForm, setEditingSongForm] = useState({
-    author: "",
-    chords: "",
-    lyrics: "",
-    title: "",
-  });
-  const [editingSongSaving, setEditingSongSaving] = useState(false);
   const [undoAction, setUndoAction] = useState<{ label: string; run: () => Promise<void> } | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<"builder" | "live">("builder");
@@ -697,53 +689,8 @@ export function WorshipBuilderView({ canAccessAdminTools, canDeletePlan, canEdit
     });
   }
 
-  function openInlineSongEditor(song: Song) {
+  function openSongEditor(song: Song) {
     setEditingSong(song);
-    setEditingSongTab("lyrics");
-    setEditingSongForm({
-      author: song.author ?? "",
-      chords: song.chords ?? "",
-      lyrics: song.lyrics ?? "",
-      title: song.title,
-    });
-  }
-
-  function cleanInlineSongLyrics() {
-    if (!editingSong) {
-      return;
-    }
-    const analysis = analyzeImportedSongSlides([editingSongForm.lyrics], editingSongForm.title || editingSong.title);
-    setEditingSongForm((current) => ({
-      ...current,
-      lyrics: buildLyricsFromSections(analysis.sections) || analysis.lyrics,
-    }));
-  }
-
-  async function saveInlineSongEditor() {
-    if (!editingSong) {
-      return;
-    }
-    setEditingSongSaving(true);
-    try {
-      const analysis = analyzeImportedSongSlides([editingSongForm.lyrics], editingSongForm.title || editingSong.title);
-      const updated = await updateSong(editingSong.id, {
-        author: editingSongForm.author.trim() || null,
-        chords: editingSongForm.chords.trim() || null,
-        lyrics: buildLyricsFromSections(analysis.sections) || analysis.lyrics,
-        sequence: analysis.sequence,
-        title: editingSongForm.title.trim(),
-      });
-      setSongs((current) => current.map((song) => (song.id === updated.id ? updated : song)));
-      if (plan) {
-        await load(plan.id);
-      }
-      setEditingSong(null);
-      setMessage(`Saved "${updated.title}".`);
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Could not save song.");
-    } finally {
-      setEditingSongSaving(false);
-    }
   }
 
   async function searchHistoryDecks() {
@@ -1065,21 +1012,34 @@ export function WorshipBuilderView({ canAccessAdminTools, canDeletePlan, canEdit
         />
         <div className="worship-song-list">
           {filteredSongs.map((song) => (
-            <button
+            <div
               className="song-library-row"
-              disabled={!canEditPlan || !plan}
               key={song.id}
-              onClick={() => void addSong(song)}
-              title={canEditPlan ? `Add ${song.title}` : "Ask a worship leader to edit the worship set"}
-              type="button"
             >
-              <span>
-                <strong>{song.title}</strong>
-                <small>{song.author ?? "Unknown author"}</small>
-              </span>
-              <em>{songStatus(song)}</em>
-              <ListPlus size={16} aria-hidden="true" />
-            </button>
+              <button
+                className="song-library-main"
+                disabled={!canEditPlan || !plan}
+                onClick={() => void addSong(song)}
+                title={canEditPlan ? `Add ${song.title}` : "Ask a worship leader to edit the worship set"}
+                type="button"
+              >
+                <span>
+                  <strong>{song.title}</strong>
+                  <small>{song.author ?? "Unknown author"}</small>
+                </span>
+                <em>{songStatus(song)}</em>
+                <ListPlus size={16} aria-hidden="true" />
+              </button>
+              <button
+                aria-label={`Edit ${song.title}`}
+                className="section-icon-button song-library-edit"
+                disabled={!canEditPlan}
+                onClick={() => openSongEditor(song)}
+                type="button"
+              >
+                <Pencil size={14} aria-hidden="true" />
+              </button>
+            </div>
           ))}
         </div>
       </aside>
@@ -1169,7 +1129,7 @@ export function WorshipBuilderView({ canAccessAdminTools, canDeletePlan, canEdit
                         <button
                           aria-label={`Edit ${song.title}`}
                           className="section-icon-button"
-                          onClick={() => openInlineSongEditor(song)}
+                          onClick={() => openSongEditor(song)}
                           type="button"
                         >
                           <Pencil size={14} aria-hidden="true" />
@@ -1309,84 +1269,18 @@ export function WorshipBuilderView({ canAccessAdminTools, canDeletePlan, canEdit
       ) : null}
 
       {editingSong ? (
-        <div className="app-dialog-backdrop" role="presentation" onMouseDown={() => setEditingSong(null)}>
-          <section
-            aria-labelledby="worship-edit-song-title"
-            aria-modal="true"
-            className="app-dialog app-dialog-wide edit-song-dialog"
-            onMouseDown={(event) => event.stopPropagation()}
-            role="dialog"
-          >
-            <div className="section-heading">
-              <div>
-                <p className="eyebrow">Song</p>
-                <h2 id="worship-edit-song-title">Edit Song</h2>
-              </div>
-            </div>
-            <div className="tab-row" role="tablist" aria-label="Song editor sections">
-              {(["lyrics", "chords", "details"] as const).map((tab) => (
-                <button
-                  className={`tab-button ${editingSongTab === tab ? "active" : ""}`}
-                  key={tab}
-                  onClick={() => setEditingSongTab(tab)}
-                  type="button"
-                >
-                  {tab[0].toUpperCase() + tab.slice(1)}
-                </button>
-              ))}
-            </div>
-            {editingSongTab === "details" ? (
-              <div className="dialog-form-grid">
-                <label>
-                  Title
-                  <input onChange={(event) => setEditingSongForm((current) => ({ ...current, title: event.target.value }))} value={editingSongForm.title} />
-                </label>
-                <label>
-                  Author
-                  <input onChange={(event) => setEditingSongForm((current) => ({ ...current, author: event.target.value }))} value={editingSongForm.author} />
-                </label>
-              </div>
-            ) : null}
-            {editingSongTab === "lyrics" ? (
-              <label className="wide-field">
-                Lyrics
-                <textarea
-                  className="lyrics-editor"
-                  onChange={(event) => setEditingSongForm((current) => ({ ...current, lyrics: event.target.value }))}
-                  rows={18}
-                  value={editingSongForm.lyrics}
-                />
-              </label>
-            ) : null}
-            {editingSongTab === "chords" ? (
-              <label className="wide-field">
-                Chords
-                <textarea
-                  className="lyrics-editor"
-                  onChange={(event) => setEditingSongForm((current) => ({ ...current, chords: event.target.value }))}
-                  rows={18}
-                  value={editingSongForm.chords}
-                />
-              </label>
-            ) : null}
-            <div className="app-dialog-actions">
-              <button className="text-button" onClick={() => setEditingSong(null)} type="button">
-                Close
-              </button>
-              <button className="text-button" onClick={cleanInlineSongLyrics} type="button">
-                Clean & Detect
-              </button>
-              <button
-                className="primary-button"
-                disabled={editingSongSaving || !editingSongForm.title.trim() || !editingSongForm.lyrics.trim()}
-                onClick={() => void saveInlineSongEditor()}
-                type="button"
-              >
-                {editingSongSaving ? "Saving..." : "Save Song"}
-              </button>
-            </div>
-          </section>
-        </div>
+        <SongEditorDialog
+          canEdit={canEditPlan}
+          onClose={() => setEditingSong(null)}
+          onSaved={async (updated) => {
+            setSongs((current) => current.map((song) => (song.id === updated.id ? updated : song)));
+            if (plan) {
+              await load(plan.id);
+            }
+            setMessage(`Saved "${updated.title}".`);
+          }}
+          song={editingSong}
+        />
       ) : null}
 
       {setPickerOpen ? (
