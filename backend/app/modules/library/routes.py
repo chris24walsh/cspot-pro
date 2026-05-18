@@ -51,10 +51,12 @@ from app.modules.planning.routes import get_item_or_404, get_plan_or_404
 router = APIRouter()
 UPLOAD_ROOT = Path("/app/storage/uploads")
 RENDER_ROOT = Path("/app/storage/rendered")
-RENDER_PIPELINE_VERSION = "libreoffice-pdf-png-v4"
+RENDER_PIPELINE_VERSION = "libreoffice-pdf-png-v5"
 LIBREOFFICE_RENDER_TIMEOUT_SECONDS = 300
 PDF_TO_PNG_RENDER_TIMEOUT_SECONDS = 300
 PDF_TO_PNG_DPI = 120
+DEFAULT_SLIDE_WIDTH_EMU = 9144000
+DEFAULT_SLIDE_HEIGHT_EMU = 6858000
 PML_NS = "http://schemas.openxmlformats.org/presentationml/2006/main"
 AML_NS = "http://schemas.openxmlformats.org/drawingml/2006/main"
 R_NS = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
@@ -269,6 +271,46 @@ def _parent_map(root: ElementTree.Element) -> dict[ElementTree.Element, ElementT
     return {child: parent for parent in root.iter() for child in parent}
 
 
+def _shape_has_text(shape: ElementTree.Element) -> bool:
+    text_body = shape.find(f".//{{{PML_NS}}}txBody")
+    if text_body is None:
+        return False
+    return any((text.text or "").strip() for text in text_body.iter(f"{{{AML_NS}}}t"))
+
+
+def _shape_bounds(shape: ElementTree.Element) -> tuple[int, int, int, int] | None:
+    transform = shape.find(f".//{{{AML_NS}}}xfrm")
+    if transform is None:
+        return None
+    offset = transform.find(f"{{{AML_NS}}}off")
+    extent = transform.find(f"{{{AML_NS}}}ext")
+    if offset is None or extent is None:
+        return None
+    try:
+        return (
+            int(offset.attrib.get("x", "0")),
+            int(offset.attrib.get("y", "0")),
+            int(extent.attrib.get("cx", "0")),
+            int(extent.attrib.get("cy", "0")),
+        )
+    except ValueError:
+        return None
+
+
+def _shape_is_large_base_visual(shape: ElementTree.Element) -> bool:
+    if _shape_has_text(shape):
+        return False
+    if shape.tag == f"{{{PML_NS}}}pic":
+        return True
+    bounds = _shape_bounds(shape)
+    if bounds is None:
+        return False
+    _x, _y, width, height = bounds
+    slide_area = DEFAULT_SLIDE_WIDTH_EMU * DEFAULT_SLIDE_HEIGHT_EMU
+    shape_area = max(width, 0) * max(height, 0)
+    return width >= DEFAULT_SLIDE_WIDTH_EMU * 0.45 and height >= DEFAULT_SLIDE_HEIGHT_EMU * 0.45 and shape_area >= slide_area * 0.25
+
+
 def _is_entrance_build_target(
     target: ElementTree.Element,
     parents: dict[ElementTree.Element, ElementTree.Element],
@@ -372,7 +414,9 @@ def _hide_future_builds(
 
     for target_id, start, end in future_events:
         if start is None or end is None:
-            remove_shapes.add(target_id)
+            shape = shapes.get(target_id)
+            if shape is not None and not _shape_is_large_base_visual(shape):
+                remove_shapes.add(target_id)
             continue
         hidden_paragraphs.setdefault(target_id, set()).update(range(start, end + 1))
 
