@@ -148,8 +148,13 @@ def _json_request(
     except HTTPError as exc:
         detail = exc.read().decode("utf-8", errors="replace")
         raise ValueError(detail or f"Google request failed with status {exc.code}.") from exc
+    except TimeoutError as exc:
+        raise ValueError("Could not reach Google right now: the request timed out.") from exc
     except URLError as exc:
-        raise ValueError("Could not reach Google right now.") from exc
+        reason = getattr(exc, "reason", None)
+        raise ValueError(f"Could not reach Google right now: {reason or exc}.") from exc
+    except OSError as exc:
+        raise ValueError(f"Could not reach Google right now: {exc}.") from exc
 
 
 def _binary_request(
@@ -167,8 +172,13 @@ def _binary_request(
     except HTTPError as exc:
         detail = exc.read().decode("utf-8", errors="replace")
         raise ValueError(detail or f"Google download failed with status {exc.code}.") from exc
+    except TimeoutError as exc:
+        raise ValueError("Could not download the selected Drive file right now: the request timed out.") from exc
     except URLError as exc:
-        raise ValueError("Could not download the selected Drive file right now.") from exc
+        reason = getattr(exc, "reason", None)
+        raise ValueError(f"Could not download the selected Drive file right now: {reason or exc}.") from exc
+    except OSError as exc:
+        raise ValueError(f"Could not download the selected Drive file right now: {exc}.") from exc
 
 
 def exchange_google_drive_code(code: str) -> dict[str, object]:
