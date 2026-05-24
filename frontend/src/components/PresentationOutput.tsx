@@ -412,11 +412,11 @@ export function PresentationOutput() {
       ) : null}
 
       <section
-        className={`slideshow-stage ${liveSlide?.imageUrl ? "slideshow-stage-image" : ""} stage-theme-${
+        className={`slideshow-stage ${liveSlide?.imageUrl || liveSlide?.videoUrl ? "slideshow-stage-image" : ""} stage-theme-${
           liveState?.theme ?? "light"
         } ${liveSlide ? presentationTypeClass(liveSlide.itemType) : "type-generic"} ${blanked ? "stage-blanked" : ""}`}
       >
-        {blanked ? null : !liveSlide?.imageUrl && liveSlide?.itemType !== "song" ? (
+        {blanked ? null : !liveSlide?.imageUrl && !liveSlide?.videoUrl && liveSlide?.itemType !== "song" ? (
           <div className="stage-title">
             <span>{liveSlide?.title ?? "Ready"}</span>
           </div>
@@ -425,6 +425,15 @@ export function PresentationOutput() {
           <div className="blank-stage" aria-label="Blank live output" />
         ) : liveSlide?.imageUrl ? (
           <ScaledSlideImage alt={liveSlide.title} src={liveSlide.imageUrl} />
+        ) : liveSlide?.videoUrl ? (
+          <div className="stage-video-frame">
+            <iframe
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+              allowFullScreen
+              src={liveSlide.videoUrl}
+              title={liveSlide.title}
+            />
+          </div>
         ) : (
           <AutoFitSlideText maxFontSize={liveTextFontCap} text={liveSlide?.text ?? "Waiting for slideshow"} />
         )}

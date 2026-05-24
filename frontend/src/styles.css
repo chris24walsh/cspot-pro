@@ -3085,6 +3085,27 @@ h3 {
   background: #f3edff;
 }
 
+.mini-video-slide {
+  align-items: center;
+  display: grid;
+  gap: 3px;
+  justify-items: center;
+  padding: 8px;
+}
+
+.mini-video-slide span {
+  color: #6a746d;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.mini-video-slide strong {
+  font-size: 13px;
+  line-height: 1.1;
+}
+
 .mini-slide-surface pre,
 .fit-slide-text {
   box-sizing: border-box;
@@ -3369,6 +3390,11 @@ h3 {
 .slide-tile.type-sermon {
   background: #fbf7f2;
   border-color: #e8d8c4;
+}
+
+.slide-tile.type-video {
+  background: #f4fbfb;
+  border-color: #cfe5e6;
 }
 
 .slide-tile.active {
@@ -3661,6 +3687,23 @@ h3 {
   overflow: hidden;
   place-items: center;
   display: grid;
+  width: 100%;
+}
+
+.stage-video-frame {
+  align-self: stretch;
+  background: #050807;
+  display: grid;
+  height: 100%;
+  min-height: 0;
+  min-width: 0;
+  place-items: stretch;
+  width: 100%;
+}
+
+.stage-video-frame iframe {
+  border: 0;
+  height: 100%;
   width: 100%;
 }
 

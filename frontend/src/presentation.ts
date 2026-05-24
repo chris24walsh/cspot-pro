@@ -25,6 +25,9 @@ export interface PresentationSlide {
   title: string;
   text: string;
   imageUrl?: string;
+  videoUrl?: string;
+  videoProvider?: "youtube";
+  videoId?: string;
   renderedSlideIndex?: number;
   originalSlideIndex?: number | null;
   buildIndex?: number;
@@ -135,11 +138,45 @@ export function presentationTypeClass(itemType: string) {
       return "type-reading";
     case "sermon":
       return "type-sermon";
+    case "video":
+      return "type-video";
     case "welcome":
       return "type-welcome";
     default:
       return "type-generic";
   }
+}
+
+export function extractYouTubeId(value: string | null | undefined) {
+  const trimmed = value?.trim() ?? "";
+  if (!trimmed) {
+    return null;
+  }
+
+  const directId = trimmed.match(/^[A-Za-z0-9_-]{11}$/);
+  if (directId) {
+    return trimmed;
+  }
+
+  const patterns = [
+    /youtu\.be\/([A-Za-z0-9_-]{11})/,
+    /youtube\.com\/(?:embed|shorts|live)\/([A-Za-z0-9_-]{11})/,
+    /youtube\.com\/watch\?[^#]*\bv=([A-Za-z0-9_-]{11})/,
+    /youtube\.com\/.*[?&]v=([A-Za-z0-9_-]{11})/,
+  ];
+
+  for (const pattern of patterns) {
+    const match = trimmed.match(pattern);
+    if (match?.[1]) {
+      return match[1];
+    }
+  }
+
+  return null;
+}
+
+export function youtubeEmbedUrl(videoId: string) {
+  return `https://www.youtube-nocookie.com/embed/${videoId}?rel=0&modestbranding=1&playsinline=1`;
 }
 
 export function slideTextForItem(item: PlanItem, songs: Song[]) {
@@ -198,6 +235,24 @@ export function buildPresentationSections(
 
     if (deckSlides.length) {
       return { id: item.id, title: sectionTitle, itemType: item.item_type, slides: deckSlides };
+    }
+
+    if (item.item_type === "video") {
+      const videoId = extractYouTubeId(item.comment ?? item.title);
+      const slide = {
+        id: item.id,
+        planItemId: item.id,
+        sectionId: item.id,
+        sectionTitle,
+        title: sectionTitle,
+        text: videoId ? "" : item.comment ?? item.title,
+        videoId: videoId ?? undefined,
+        videoProvider: videoId ? ("youtube" as const) : undefined,
+        videoUrl: videoId ? youtubeEmbedUrl(videoId) : undefined,
+        itemType: item.item_type,
+        sequence: item.sequence,
+      };
+      return { id: item.id, title: sectionTitle, itemType: item.item_type, slides: [slide] };
     }
 
     if (song?.lyrics) {

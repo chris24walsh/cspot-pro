@@ -51,6 +51,7 @@ import {
   PRESENTATION_STORAGE_KEY,
   buildPresentationSections,
   buildPresentationSlides,
+  extractYouTubeId,
   presentationTypeClass,
   resolveLiveIndex,
   suggestSlideGroupFontCap,
@@ -99,7 +100,7 @@ interface WindowWithScreenDetails extends Window {
   }>;
 }
 
-type SearchOverlayMode = "songs" | "bible" | "deck";
+type SearchOverlayMode = "songs" | "bible" | "deck" | "video";
 type LoadOptions = {
   preserveLocation?: {
     planItemId: string;
@@ -390,6 +391,11 @@ function renderMiniSlide(
     <div className={`mini-slide-surface stage-theme-${theme} ${presentationTypeClass(slide.itemType)}`}>
       {slide.imageUrl ? (
         <img alt="" src={slide.imageUrl} />
+      ) : slide.videoUrl ? (
+        <div className="mini-video-slide">
+          <span>Video</span>
+          <strong>{slide.title}</strong>
+        </div>
       ) : (
         <SlideTextBlock compact maxFontSize={maxFontSize} text={slide.text} />
       )}
@@ -490,6 +496,7 @@ export function PresentationView({
   const [deckTitleTouched, setDeckTitleTouched] = useState(false);
   const [deckFile, setDeckFile] = useState<File | null>(null);
   const [deckFlattenBuilds, setDeckFlattenBuilds] = useState(false);
+  const [videoTitle, setVideoTitle] = useState("");
   const [renderedSlidesByFileId, setRenderedSlidesByFileId] = useState<Record<string, RenderedSlide[]>>({});
   const [renderingFileIds, setRenderingFileIds] = useState<string[]>([]);
   const [renderErrorsByFileId, setRenderErrorsByFileId] = useState<Record<string, string>>({});
@@ -1545,6 +1552,7 @@ export function PresentationView({
     setDeckFlattenBuilds(false);
     setDeckTitle("");
     setDeckTitleTouched(false);
+    setVideoTitle("");
   }
 
   async function insertSongById(songId: string, afterIndex: number, fallbackTitle?: string) {
@@ -1738,6 +1746,46 @@ export function PresentationView({
     }
   }
 
+  async function addVideoSearchResult() {
+    if (!plan) {
+      setMessage("Select a plan before adding a video.");
+      return;
+    }
+    if (!canEditPlan) {
+      setMessage("Only worship team members, worship leaders, and service leaders can add videos to the running order.");
+      return;
+    }
+
+    const query = searchQuery.trim();
+    const videoId = extractYouTubeId(query);
+    if (!videoId) {
+      setMessage("Paste a valid YouTube link or video ID.");
+      return;
+    }
+
+    try {
+      const createdItem = await createPlanItem(plan.id, {
+        item_type: "video",
+        sequence: sequenceForInsert(searchInsertIndex ?? activeSectionInsertIndex()),
+        title: videoTitle.trim() || "YouTube Video",
+        comment: videoId,
+        key_signature: "youtube",
+        song_id: null,
+      });
+      setUndoAction({
+        label: "adding YouTube video",
+        run: async () => {
+          await deletePlanItem(createdItem.id);
+          await load(plan.id);
+        },
+      });
+      await reloadAfterInsertedItem(createdItem);
+      closeSearchOverlay();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not add YouTube video.");
+    }
+  }
+
   async function selectTopSearchResult() {
     if (googleDriveLoading || customProviderLoading || customProviderSelectionLoading) {
       return;
@@ -1765,6 +1813,10 @@ export function PresentationView({
       if (firstFile) {
         await attachImportedDriveDeck(firstFile);
       }
+      return;
+    }
+    if (searchMode === "video") {
+      await addVideoSearchResult();
     }
   }
 
@@ -2903,14 +2955,23 @@ export function PresentationView({
                 </span>
               </div>
             </div>
-            <div className={`presentation-stage ${liveSlide?.imageUrl ? "presentation-stage-image" : ""}`}>
-              {liveSlide?.imageUrl || liveSlide?.itemType === "song" ? null : (
+            <div className={`presentation-stage ${liveSlide?.imageUrl || liveSlide?.videoUrl ? "presentation-stage-image" : ""}`}>
+              {liveSlide?.imageUrl || liveSlide?.videoUrl || liveSlide?.itemType === "song" ? null : (
                 <div className="stage-title">
                   <span>{liveSlide?.title ?? "Ready"}</span>
                 </div>
               )}
               {liveSlide?.imageUrl ? (
                 <ScaledSlideImage alt={liveSlide.title} src={liveSlide.imageUrl} />
+              ) : liveSlide?.videoUrl ? (
+                <div className="stage-video-frame">
+                  <iframe
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                    allowFullScreen
+                    src={liveSlide.videoUrl}
+                    title={liveSlide.title}
+                  />
+                </div>
               ) : (
                 <SlideTextBlock maxFontSize={planTextFontCap} text={liveSlide?.text ?? "No live slide selected"} />
               )}
@@ -3222,6 +3283,18 @@ export function PresentationView({
               >
                 Slide Deck
               </button>
+              <button
+                className={`text-button ${searchMode === "video" ? "active-choice" : ""}`}
+                onClick={() => {
+                  setSearchMode("video");
+                  setSearchQuery("");
+                  setSearchSelectInserted(false);
+                  setVideoTitle("");
+                }}
+                type="button"
+              >
+                Video
+              </button>
             </div>
 
             <label className="inline-checkbox search-follow-checkbox">
@@ -3253,8 +3326,25 @@ export function PresentationView({
                     onChange={(event) => setSearchQuery(event.target.value)}
                     onKeyDown={handleSearchEnter}
                     ref={searchInputRef}
-                    placeholder={searchMode === "bible" ? "John 3 16 or shepherd" : "Amazing Grace"}
+                    placeholder={
+                      searchMode === "bible"
+                        ? "John 3 16 or shepherd"
+                        : searchMode === "video"
+                          ? "Paste YouTube link or video ID"
+                          : "Amazing Grace"
+                    }
                     value={searchQuery}
+                  />
+                </label>
+              ) : null}
+              {searchMode === "video" ? (
+                <label>
+                  Title
+                  <input
+                    onChange={(event) => setVideoTitle(event.target.value)}
+                    onKeyDown={handleSearchEnter}
+                    placeholder="Optional video title"
+                    value={videoTitle}
                   />
                 </label>
               ) : null}
@@ -3341,6 +3431,16 @@ export function PresentationView({
               {searchMode === "deck" ? (
                 <button className="primary-button" disabled={!canAttachDeck || !deckFile} onClick={() => void attachDeckToPlan()} type="button">
                   Add Deck
+                </button>
+              ) : null}
+              {searchMode === "video" ? (
+                <button
+                  className="primary-button"
+                  disabled={!canEditPlan || !extractYouTubeId(searchQuery)}
+                  onClick={() => void addVideoSearchResult()}
+                  type="button"
+                >
+                  Add Video
                 </button>
               ) : null}
             </div>
@@ -3456,6 +3556,21 @@ export function PresentationView({
                     </button>
                   ))
                 : null}
+              {!searchLoading && searchMode === "video" && searchQuery.trim() ? (
+                extractYouTubeId(searchQuery) ? (
+                  <button
+                    className="search-result-card"
+                    disabled={!canEditPlan}
+                    onClick={() => void addVideoSearchResult()}
+                    type="button"
+                  >
+                    <strong>{videoTitle.trim() || "YouTube Video"}</strong>
+                    <span>{extractYouTubeId(searchQuery)}</span>
+                  </button>
+                ) : (
+                  <p className="search-empty">Paste a valid YouTube link or 11-character video ID.</p>
+                )
+              ) : null}
               {!googleDriveLoading && searchMode === "deck" && googleDriveStatus?.connected
                 ? googleDriveFiles.map((file) => (
                     <button
@@ -3481,7 +3596,8 @@ export function PresentationView({
                   googleDriveStatus?.connected &&
                   searchQuery.trim() &&
                   googleDriveFiles.length === 0 &&
-                  !googleDriveLoading)) ? (
+                  !googleDriveLoading) ||
+                (searchMode === "video" && !searchQuery.trim())) ? (
                 <p className="search-empty">No matches yet.</p>
               ) : null}
             </div>
