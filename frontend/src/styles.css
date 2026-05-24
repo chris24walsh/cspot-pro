@@ -3712,9 +3712,12 @@ h3 {
   width: 100%;
 }
 
-.stage-video-frame iframe {
+.stage-video-frame iframe,
+.stage-video-frame video {
+  background: #050807;
   border: 0;
   height: 100%;
+  object-fit: contain;
   width: 100%;
 }
 

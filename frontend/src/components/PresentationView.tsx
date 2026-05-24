@@ -106,6 +106,7 @@ type LoadOptions = {
     planItemId: string;
     slideOffset: number;
   };
+  publishPreservedLocation?: boolean;
   refreshCatalogs?: boolean;
   silent?: boolean;
 };
@@ -497,6 +498,7 @@ export function PresentationView({
   const [deckFile, setDeckFile] = useState<File | null>(null);
   const [deckFlattenBuilds, setDeckFlattenBuilds] = useState(false);
   const [videoTitle, setVideoTitle] = useState("");
+  const [videoFile, setVideoFile] = useState<File | null>(null);
   const [renderedSlidesByFileId, setRenderedSlidesByFileId] = useState<Record<string, RenderedSlide[]>>({});
   const [renderingFileIds, setRenderingFileIds] = useState<string[]>([]);
   const [renderErrorsByFileId, setRenderErrorsByFileId] = useState<Record<string, string>>({});
@@ -824,7 +826,7 @@ export function PresentationView({
         localStorage.setItem(PRESENTATION_STORAGE_KEY, JSON.stringify(preservedState));
       }
       const nextLiveIndex = preservedIndex >= 0 ? preservedIndex : 0;
-      if (options?.preserveLocation && preservedIndex >= 0) {
+      if (options?.preserveLocation && preservedIndex >= 0 && options.publishPreservedLocation !== false) {
         setLiveBlanked(false);
         void publishLiveStateForSlides(nextSlides, nextLiveIndex, { blanked: false }, targetPlan?.id);
       }
@@ -1570,6 +1572,7 @@ export function PresentationView({
     setDeckTitle("");
     setDeckTitleTouched(false);
     setVideoTitle("");
+    setVideoFile(null);
   }
 
   async function insertSongById(songId: string, afterIndex: number, fallbackTitle?: string) {
@@ -1775,22 +1778,35 @@ export function PresentationView({
 
     const query = searchQuery.trim();
     const videoId = extractYouTubeId(query);
-    if (!videoId) {
-      setMessage("Paste a valid YouTube link or video ID.");
+    if (!videoId && !videoFile) {
+      setMessage("Paste a valid YouTube link or choose a local video file.");
       return;
     }
 
     try {
+      if (videoFile && !canAttachDeck) {
+        setMessage("Uploading a local video requires library upload access.");
+        return;
+      }
+
+      const resolvedTitle = videoTitle.trim() || videoFile?.name.replace(/\.[^.]+$/, "") || "YouTube Video";
       const createdItem = await createPlanItem(plan.id, {
         item_type: "video",
         sequence: sequenceForInsert(searchInsertIndex ?? activeSectionInsertIndex()),
-        title: videoTitle.trim() || "YouTube Video",
+        title: resolvedTitle,
         comment: videoId,
-        key_signature: "youtube",
+        key_signature: videoFile ? "video-file" : "youtube",
         song_id: null,
       });
+      if (videoFile) {
+        const stored = await uploadStoredFile({
+          file: videoFile,
+          display_name: resolvedTitle,
+        });
+        await attachItemFile(createdItem.id, { file_id: stored.id, sort_order: 0 });
+      }
       setUndoAction({
-        label: "adding YouTube video",
+        label: `adding "${resolvedTitle}"`,
         run: async () => {
           await deletePlanItem(createdItem.id);
           await load(plan.id);
@@ -2416,6 +2432,7 @@ export function PresentationView({
                 planItemId: remoteState.plan_item_id,
                 slideOffset: remoteState.slide_offset,
               },
+              publishPreservedLocation: false,
               silent: true,
             });
           }
@@ -2984,12 +3001,16 @@ export function PresentationView({
                 <ScaledSlideImage alt={liveSlide.title} src={liveSlide.imageUrl} />
               ) : liveSlide?.videoUrl ? (
                 <div className="stage-video-frame">
-                  <iframe
-                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                    allowFullScreen
-                    src={liveSlide.videoUrl}
-                    title={liveSlide.title}
-                  />
+                  {liveSlide.videoProvider === "file" ? (
+                    <video controls src={liveSlide.videoUrl} title={liveSlide.title} />
+                  ) : (
+                    <iframe
+                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                      allowFullScreen
+                      src={liveSlide.videoUrl}
+                      title={liveSlide.title}
+                    />
+                  )}
                 </div>
               ) : (
                 <SlideTextBlock maxFontSize={planTextFontCap} text={liveSlide?.text ?? "No live slide selected"} />
@@ -3322,6 +3343,7 @@ export function PresentationView({
                   setSearchQuery("");
                   setSearchSelectInserted(false);
                   setVideoTitle("");
+                  setVideoFile(null);
                 }}
                 type="button"
               >
@@ -3371,7 +3393,7 @@ export function PresentationView({
               ) : null}
               {searchMode === "video" ? (
                 <label>
-                  Title
+                  Video Title
                   <input
                     onChange={(event) => setVideoTitle(event.target.value)}
                     onKeyDown={handleSearchEnter}
@@ -3381,6 +3403,20 @@ export function PresentationView({
                 </label>
               ) : null}
             </div>
+
+            {searchMode === "video" ? (
+              <div className="dialog-form-grid">
+                <label>
+                  Local Video File
+                  <input
+                    accept="video/mp4,video/webm,video/ogg"
+                    disabled={!canAttachDeck}
+                    onChange={(event) => setVideoFile(event.target.files?.[0] ?? null)}
+                    type="file"
+                  />
+                </label>
+              </div>
+            ) : null}
 
             {searchMode === "deck" ? (
               <>
@@ -3468,7 +3504,7 @@ export function PresentationView({
               {searchMode === "video" ? (
                 <button
                   className="primary-button"
-                  disabled={!canEditPlan || !extractYouTubeId(searchQuery)}
+                  disabled={!canEditPlan || (!extractYouTubeId(searchQuery) && !videoFile)}
                   onClick={() => void addVideoSearchResult()}
                   type="button"
                 >
@@ -3588,6 +3624,17 @@ export function PresentationView({
                     </button>
                   ))
                 : null}
+              {!searchLoading && searchMode === "video" && videoFile ? (
+                <button
+                  className="search-result-card"
+                  disabled={!canEditPlan || !canAttachDeck}
+                  onClick={() => void addVideoSearchResult()}
+                  type="button"
+                >
+                  <strong>{videoTitle.trim() || videoFile.name.replace(/\.[^.]+$/, "")}</strong>
+                  <span>Local video file</span>
+                </button>
+              ) : null}
               {!searchLoading && searchMode === "video" && searchQuery.trim() ? (
                 extractYouTubeId(searchQuery) ? (
                   <button
@@ -3629,7 +3676,7 @@ export function PresentationView({
                   searchQuery.trim() &&
                   googleDriveFiles.length === 0 &&
                   !googleDriveLoading) ||
-                (searchMode === "video" && !searchQuery.trim())) ? (
+                (searchMode === "video" && !searchQuery.trim() && !videoFile)) ? (
                 <p className="search-empty">No matches yet.</p>
               ) : null}
             </div>

@@ -1,4 +1,5 @@
 import type { PlanItem, RenderedSlide, Song } from "./api";
+import { appApiBasePath } from "./paths";
 import { splitWorshipSlides } from "./worshipText";
 
 export const PRESENTATION_CHANNEL = "cspot-pro-presentation-live";
@@ -28,7 +29,7 @@ export interface PresentationSlide {
   text: string;
   imageUrl?: string;
   videoUrl?: string;
-  videoProvider?: "youtube";
+  videoProvider?: "youtube" | "file";
   videoId?: string;
   renderedSlideIndex?: number;
   originalSlideIndex?: number | null;
@@ -181,6 +182,11 @@ export function youtubeEmbedUrl(videoId: string) {
   return `https://www.youtube-nocookie.com/embed/${videoId}?rel=0&modestbranding=1&playsinline=1&enablejsapi=1`;
 }
 
+export function storedFileDownloadUrl(fileId: string) {
+  const apiBase = appApiBasePath().replace(/\/$/, "");
+  return `${apiBase}/v1/library/files/${fileId}/download`;
+}
+
 export function slideTextForItem(item: PlanItem, songs: Song[]) {
   const song = item.song_id ? songs.find((candidate) => candidate.id === item.song_id) : null;
   if (song?.lyrics) {
@@ -240,6 +246,7 @@ export function buildPresentationSections(
     }
 
     if (item.item_type === "video") {
+      const videoFile = (item.files ?? []).find((file) => file.content_type?.startsWith("video/"));
       const videoId = extractYouTubeId(item.comment ?? item.title);
       const slide = {
         id: item.id,
@@ -247,10 +254,10 @@ export function buildPresentationSections(
         sectionId: item.id,
         sectionTitle,
         title: sectionTitle,
-        text: videoId ? "" : item.comment ?? item.title,
+        text: videoFile || videoId ? "" : item.comment ?? item.title,
         videoId: videoId ?? undefined,
-        videoProvider: videoId ? ("youtube" as const) : undefined,
-        videoUrl: videoId ? youtubeEmbedUrl(videoId) : undefined,
+        videoProvider: videoFile ? ("file" as const) : videoId ? ("youtube" as const) : undefined,
+        videoUrl: videoFile ? storedFileDownloadUrl(videoFile.file_id) : videoId ? youtubeEmbedUrl(videoId) : undefined,
         itemType: item.item_type,
         sequence: item.sequence,
       };

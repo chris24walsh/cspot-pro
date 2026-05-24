@@ -56,6 +56,7 @@ export function PresentationOutput() {
   const lastLiveStateRef = useRef(0);
   const livePollInFlightRef = useRef(false);
   const videoFrameRef = useRef<HTMLIFrameElement | null>(null);
+  const videoElementRef = useRef<HTMLVideoElement | null>(null);
   const lastVideoActionRef = useRef<number | null>(null);
 
   const slides = useMemo(
@@ -227,6 +228,24 @@ export function PresentationOutput() {
       return;
     }
 
+    lastVideoActionRef.current = liveState.videoActionAt;
+
+    if (liveSlide.videoProvider === "file") {
+      if (liveState.videoAction === "play") {
+        void videoElementRef.current?.play().catch(() => {
+          setMessage("This browser blocked remote video start. Click Play on the output once, then remote pause/stop will work.");
+        });
+      } else if (liveState.videoAction === "pause") {
+        videoElementRef.current?.pause();
+      } else {
+        videoElementRef.current?.pause();
+        if (videoElementRef.current) {
+          videoElementRef.current.currentTime = 0;
+        }
+      }
+      return;
+    }
+
     const command =
       liveState.videoAction === "play"
         ? "playVideo"
@@ -234,12 +253,11 @@ export function PresentationOutput() {
           ? "pauseVideo"
           : "stopVideo";
 
-    lastVideoActionRef.current = liveState.videoActionAt;
     videoFrameRef.current?.contentWindow?.postMessage(
       JSON.stringify({ event: "command", func: command, args: [] }),
       "*",
     );
-  }, [liveSlide?.videoUrl, liveState?.videoAction, liveState?.videoActionAt]);
+  }, [liveSlide?.videoProvider, liveSlide?.videoUrl, liveState?.videoAction, liveState?.videoActionAt]);
 
   useEffect(() => {
     if (!liveState?.planId) {
@@ -457,13 +475,27 @@ export function PresentationOutput() {
           <ScaledSlideImage alt={liveSlide.title} src={liveSlide.imageUrl} />
         ) : liveSlide?.videoUrl ? (
           <div className="stage-video-frame">
-            <iframe
-              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-              allowFullScreen
-              ref={videoFrameRef}
-              src={liveSlide.videoUrl}
-              title={liveSlide.title}
-            />
+            {liveSlide.videoProvider === "file" ? (
+              <video controls ref={videoElementRef} src={liveSlide.videoUrl} title={liveSlide.title} />
+            ) : (
+              <iframe
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                allowFullScreen
+                onLoad={() => {
+                  if (liveState?.videoAction === "play" && liveState.videoActionAt) {
+                    window.setTimeout(() => {
+                      videoFrameRef.current?.contentWindow?.postMessage(
+                        JSON.stringify({ event: "command", func: "playVideo", args: [] }),
+                        "*",
+                      );
+                    }, 350);
+                  }
+                }}
+                ref={videoFrameRef}
+                src={liveSlide.videoUrl}
+                title={liveSlide.title}
+              />
+            )}
           </div>
         ) : (
           <AutoFitSlideText maxFontSize={liveTextFontCap} text={liveSlide?.text ?? "Waiting for slideshow"} />
