@@ -2726,6 +2726,17 @@ h3 {
   grid-template-columns: minmax(0, 1fr) auto;
 }
 
+.video-control-group {
+  display: grid;
+  gap: 6px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  min-width: min(360px, 100%);
+}
+
+.video-control-group .text-button {
+  min-height: var(--control-height-lg);
+}
+
 .bible-nav-toggle {
   display: none;
 }
@@ -4344,6 +4355,11 @@ h3 {
   .presenter-utility-row {
     gap: 5px;
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .video-control-group {
+    grid-column: 1 / -1;
+    min-width: 0;
   }
 
   .presenter-controls .text-button,

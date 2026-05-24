@@ -55,6 +55,8 @@ export function PresentationOutput() {
   const [blanked, setBlanked] = useState(false);
   const lastLiveStateRef = useRef(0);
   const livePollInFlightRef = useRef(false);
+  const videoFrameRef = useRef<HTMLIFrameElement | null>(null);
+  const lastVideoActionRef = useRef<number | null>(null);
 
   const slides = useMemo(
     () => buildPresentationSlides(mergeWorshipSetIntoService(plan?.items ?? [], worshipSetPlan?.items ?? []), songs, renderedSlidesByFileId),
@@ -111,6 +113,8 @@ export function PresentationOutput() {
         theme: overrides.theme ?? liveState.theme ?? "light",
         blanked: overrides.blanked ?? blanked,
         fullscreen: overrides.fullscreen ?? Boolean(document.fullscreenElement),
+        videoAction: overrides.videoAction ?? liveState.videoAction ?? null,
+        videoActionAt: overrides.videoActionAt ?? liveState.videoActionAt,
       };
 
       applyLiveState(nextState);
@@ -125,6 +129,8 @@ export function PresentationOutput() {
           theme: nextState.theme ?? "light",
           blanked: Boolean(nextState.blanked),
           fullscreen: Boolean(nextState.fullscreen),
+          video_action: nextState.videoAction ?? null,
+          video_action_at: nextState.videoActionAt ?? null,
         });
         lastLiveStateRef.current = remoteState.updated_at;
       } catch {
@@ -214,6 +220,28 @@ export function PresentationOutput() {
   }, [liveState?.blanked]);
 
   useEffect(() => {
+    if (!liveState?.videoAction || !liveState.videoActionAt || !liveSlide?.videoUrl) {
+      return;
+    }
+    if (lastVideoActionRef.current === liveState.videoActionAt) {
+      return;
+    }
+
+    const command =
+      liveState.videoAction === "play"
+        ? "playVideo"
+        : liveState.videoAction === "pause"
+          ? "pauseVideo"
+          : "stopVideo";
+
+    lastVideoActionRef.current = liveState.videoActionAt;
+    videoFrameRef.current?.contentWindow?.postMessage(
+      JSON.stringify({ event: "command", func: command, args: [] }),
+      "*",
+    );
+  }, [liveSlide?.videoUrl, liveState?.videoAction, liveState?.videoActionAt]);
+
+  useEffect(() => {
     if (!liveState?.planId) {
       return;
     }
@@ -238,6 +266,8 @@ export function PresentationOutput() {
             theme: remoteState.theme,
             blanked: remoteState.blanked,
             fullscreen: remoteState.fullscreen,
+            videoAction: remoteState.video_action,
+            videoActionAt: remoteState.video_action_at ?? undefined,
           });
         } catch {
           // Keep showing the last known slide if remote polling drops briefly.
@@ -430,6 +460,7 @@ export function PresentationOutput() {
             <iframe
               allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
               allowFullScreen
+              ref={videoFrameRef}
               src={liveSlide.videoUrl}
               title={liveSlide.title}
             />

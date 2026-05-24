@@ -15,6 +15,8 @@ export interface PresentationLiveState {
   theme?: PresentationTheme;
   blanked?: boolean;
   fullscreen?: boolean;
+  videoAction?: "play" | "pause" | "stop" | null;
+  videoActionAt?: number;
 }
 
 export interface PresentationSlide {
@@ -176,7 +178,7 @@ export function extractYouTubeId(value: string | null | undefined) {
 }
 
 export function youtubeEmbedUrl(videoId: string) {
-  return `https://www.youtube-nocookie.com/embed/${videoId}?rel=0&modestbranding=1&playsinline=1`;
+  return `https://www.youtube-nocookie.com/embed/${videoId}?rel=0&modestbranding=1&playsinline=1&enablejsapi=1`;
 }
 
 export function slideTextForItem(item: PlanItem, songs: Song[]) {

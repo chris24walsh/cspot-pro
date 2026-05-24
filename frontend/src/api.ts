@@ -233,6 +233,8 @@ export interface PresentationLiveSyncState {
   theme: "dark" | "light";
   blanked: boolean;
   fullscreen: boolean;
+  video_action: "play" | "pause" | "stop" | null;
+  video_action_at: number | null;
 }
 
 export interface BibleVersion {
@@ -708,6 +710,8 @@ export async function updatePresentationLiveState(
     theme: "dark" | "light";
     blanked: boolean;
     fullscreen: boolean;
+    video_action?: "play" | "pause" | "stop" | null;
+    video_action_at?: number | null;
   },
 ): Promise<PresentationLiveSyncState> {
   return sendJson<PresentationLiveSyncState>(`/api/v1/presentation/live/${planId}`, "PATCH", payload, {

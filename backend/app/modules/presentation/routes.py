@@ -25,6 +25,8 @@ class PresentationLiveStateRead(BaseModel):
     theme: str = "light"
     blanked: bool = False
     fullscreen: bool = False
+    video_action: str | None = None
+    video_action_at: int | None = None
 
 
 class PresentationLiveStateWrite(BaseModel):
@@ -36,6 +38,8 @@ class PresentationLiveStateWrite(BaseModel):
     theme: str = "light"
     blanked: bool = False
     fullscreen: bool = False
+    video_action: str | None = None
+    video_action_at: int | None = None
 
 
 def _serialize_live_state(
@@ -64,6 +68,8 @@ def _serialize_live_state(
         theme=str(payload.get("theme", "light")),
         blanked=bool(payload.get("blanked", False)),
         fullscreen=bool(payload.get("fullscreen", False)),
+        video_action=payload.get("video_action") if isinstance(payload.get("video_action"), str) else None,
+        video_action_at=int(payload["video_action_at"]) if payload.get("video_action_at") is not None else None,
     )
 
 

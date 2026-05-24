@@ -718,6 +718,8 @@ export function PresentationView({
       theme: overrides.theme ?? slideTheme,
       blanked: overrides.blanked ?? liveBlanked,
       fullscreen: overrides.fullscreen ?? liveFullscreen,
+      videoAction: overrides.videoAction ?? null,
+      videoActionAt: overrides.videoActionAt,
     };
   }
 
@@ -791,6 +793,8 @@ export function PresentationView({
             theme: liveState.theme,
             blanked: liveState.blanked,
             fullscreen: liveState.fullscreen,
+            videoAction: liveState.video_action,
+            videoActionAt: liveState.video_action_at ?? undefined,
           }
         : null;
       const preservedIndex = options?.preserveLocation
@@ -874,6 +878,17 @@ export function PresentationView({
     });
   }
 
+  function sendVideoCommand(action: "play" | "pause" | "stop") {
+    if (!liveSlide?.videoUrl) {
+      setMessage("Select a video slide before using video controls.");
+      return;
+    }
+    void publishLiveState(liveIndex, {
+      videoAction: action,
+      videoActionAt: Date.now(),
+    });
+  }
+
   async function publishLiveStateForSlides(
     slideList: PresentationSlide[],
     nextIndex: number,
@@ -900,6 +915,8 @@ export function PresentationView({
         theme: state.theme ?? "light",
         blanked: Boolean(state.blanked),
         fullscreen: Boolean(state.fullscreen),
+        video_action: state.videoAction ?? null,
+        video_action_at: state.videoActionAt ?? null,
       });
       lastLiveStateRef.current = synced.updated_at;
     } catch (error) {
@@ -2390,6 +2407,8 @@ export function PresentationView({
             theme: remoteState.theme,
             blanked: remoteState.blanked,
             fullscreen: remoteState.fullscreen,
+            videoAction: remoteState.video_action,
+            videoActionAt: remoteState.video_action_at ?? undefined,
           });
           if (remoteState.plan_item_id && remoteState.plan_item_id === previousPlanItemId) {
             await load(selectedPlanId, {
@@ -3000,6 +3019,19 @@ export function PresentationView({
                 <button className="text-button" onClick={() => void runUndoAction()} type="button">
                   Undo
                 </button>
+              ) : null}
+              {liveSlide?.videoUrl ? (
+                <div className="video-control-group" aria-label="Video controls">
+                  <button className="text-button" onClick={() => sendVideoCommand("play")} type="button">
+                    Play
+                  </button>
+                  <button className="text-button" onClick={() => sendVideoCommand("pause")} type="button">
+                    Pause
+                  </button>
+                  <button className="text-button" onClick={() => sendVideoCommand("stop")} type="button">
+                    Stop
+                  </button>
+                </div>
               ) : null}
               {currentPlanItem?.item_type === "reading" && canEditPlan ? (
                 <button
