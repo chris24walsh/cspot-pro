@@ -237,6 +237,22 @@ function scrollItemIntoOperatorView(container: HTMLElement | null, item: HTMLEle
   container.scrollTo({ top: targetTop, behavior: "smooth" });
 }
 
+function slideVisibilityDirection(container: HTMLElement | null, item: HTMLElement | null) {
+  if (!container || !item) {
+    return null;
+  }
+
+  const containerRect = container.getBoundingClientRect();
+  const itemRect = item.getBoundingClientRect();
+  if (itemRect.top < containerRect.top) {
+    return "up" as const;
+  }
+  if (itemRect.bottom > containerRect.bottom) {
+    return "down" as const;
+  }
+  return null;
+}
+
 function captureScrollPosition(element: HTMLElement | null) {
   return element?.scrollTop ?? 0;
 }
@@ -534,11 +550,11 @@ export function PresentationView({
   const [googleDriveError, setGoogleDriveError] = useState("");
   const [slideTheme, setSlideTheme] = useState<PresentationTheme>("light");
   const [liveBlanked, setLiveBlanked] = useState(false);
-  const [liveFullscreen, setLiveFullscreen] = useState(false);
   const [slideshowOpen, setSlideshowOpen] = useState(false);
   const [mobileBibleNavOpen, setMobileBibleNavOpen] = useState(false);
   const [deckRenderRetryToken, setDeckRenderRetryToken] = useState(0);
   const [undoAction, setUndoAction] = useState<{ label: string; run: () => Promise<void> } | null>(null);
+  const [sorterCatchUpDirection, setSorterCatchUpDirection] = useState<"up" | "down" | null>(null);
   const searchInputRef = useRef<HTMLInputElement | null>(null);
   const outputWindowRef = useRef<Window | null>(null);
   const channelRef = useRef<BroadcastChannel | null>(null);
@@ -719,7 +735,7 @@ export function PresentationView({
       slideOffset: overrides.slideOffset ?? Math.max(slideOffset, 0),
       theme: overrides.theme ?? slideTheme,
       blanked: overrides.blanked ?? liveBlanked,
-      fullscreen: overrides.fullscreen ?? liveFullscreen,
+      fullscreen: currentLiveStateRef.current?.fullscreen ?? false,
       videoAction: overrides.videoAction ?? null,
       videoActionAt: overrides.videoActionAt,
     };
@@ -735,7 +751,6 @@ export function PresentationView({
     lastLiveStateRef.current = state.updatedAt;
     setSlideTheme(state.theme ?? "light");
     setLiveBlanked(Boolean(state.blanked));
-    setLiveFullscreen(Boolean(state.fullscreen));
     setLiveIndex(resolveLiveIndex(slides, state));
     localStorage.setItem(PRESENTATION_STORAGE_KEY, JSON.stringify(state));
     channelRef.current?.postMessage(state);
@@ -822,7 +837,6 @@ export function PresentationView({
         lastLiveStateRef.current = preservedState.updatedAt;
         setSlideTheme(preservedState.theme ?? "light");
         setLiveBlanked(Boolean(preservedState.blanked));
-        setLiveFullscreen(Boolean(preservedState.fullscreen));
         localStorage.setItem(PRESENTATION_STORAGE_KEY, JSON.stringify(preservedState));
       }
       const nextLiveIndex = preservedIndex >= 0 ? preservedIndex : 0;
@@ -861,7 +875,17 @@ export function PresentationView({
 
   function selectSlideFromOperator(nextIndex: number) {
     scrollOperatorToSelectedSlideRef.current = true;
+    setSorterCatchUpDirection(null);
     setLiveSlide(nextIndex);
+  }
+
+  function catchSorterUpToLiveSlide() {
+    const activeSlide = slides[liveIndex];
+    if (!activeSlide) {
+      return;
+    }
+    scrollItemIntoOperatorView(slideGridRef.current, thumbnailRefs.current[activeSlide.id] ?? null);
+    setSorterCatchUpDirection(null);
   }
 
   function moveLive(delta: number) {
@@ -2442,7 +2466,7 @@ export function PresentationView({
           livePollInFlightRef.current = false;
         }
       })();
-    }, 2000);
+    }, 900);
 
     return () => {
       livePollInFlightRef.current = false;
@@ -2495,11 +2519,12 @@ export function PresentationView({
       return;
     }
     void publishLiveState(liveIndex);
-  }, [liveBlanked, liveFullscreen, slideTheme]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [liveBlanked, slideTheme]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     const activeSlide = slides[liveIndex];
     if (!activeSlide) {
+      setSorterCatchUpDirection(null);
       return;
     }
     if (suppressNextOperatorScrollRef.current) {
@@ -2516,6 +2541,14 @@ export function PresentationView({
       scrollItemIntoOperatorView(sectionRailListRef.current, sectionRailRefs.current[activeSlide.sectionId] ?? null);
     });
   }, [liveIndex, slides, sections]);
+
+  useEffect(() => {
+    const frame = window.requestAnimationFrame(() => {
+      const activeSlide = slides[liveIndex];
+      setSorterCatchUpDirection(slideVisibilityDirection(slideGridRef.current, activeSlide ? thumbnailRefs.current[activeSlide.id] ?? null : null));
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [liveIndex, slides]);
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
@@ -2595,7 +2628,7 @@ export function PresentationView({
       if (event.key === "f" || event.key === "F") {
         event.preventDefault();
         clearHotkeyButtonFocus();
-        setLiveFullscreen((current) => !current);
+        void startSlideshow();
         return;
       }
       if (event.key === "b" || event.key === "B") {
@@ -2608,7 +2641,6 @@ export function PresentationView({
         event.preventDefault();
         clearHotkeyButtonFocus();
         setLiveBlanked(false);
-        setLiveFullscreen(false);
         return;
       }
       if (/^[1-9]$/.test(event.key)) {
@@ -3088,7 +3120,27 @@ export function PresentationView({
         </div>
 
         <aside className="presenter-sidebar" aria-label="Slide context">
-          <div className="slide-grid" aria-label="All slides" ref={slideGridRef}>
+          {sorterCatchUpDirection ? (
+            <button
+              className={`sorter-catch-up sorter-catch-up-${sorterCatchUpDirection}`}
+              onClick={catchSorterUpToLiveSlide}
+              type="button"
+            >
+              {sorterCatchUpDirection === "up" ? <ChevronUp size={18} aria-hidden="true" /> : <ChevronDown size={18} aria-hidden="true" />}
+              Live slide
+            </button>
+          ) : null}
+          <div
+            className="slide-grid"
+            aria-label="All slides"
+            onScroll={() => {
+              const activeSlide = slides[liveIndex];
+              setSorterCatchUpDirection(
+                slideVisibilityDirection(slideGridRef.current, activeSlide ? thumbnailRefs.current[activeSlide.id] ?? null : null),
+              );
+            }}
+            ref={slideGridRef}
+          >
             {sections.map((section) => {
               const sectionStart = slides.findIndex((slide) => slide.sectionId === section.id);
               const visibleSectionSlides = sorterSlidesForSection(section.slides);

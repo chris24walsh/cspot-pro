@@ -113,7 +113,7 @@ export function PresentationOutput() {
             : liveState.slideOffset ?? 0),
         theme: overrides.theme ?? liveState.theme ?? "light",
         blanked: overrides.blanked ?? blanked,
-        fullscreen: overrides.fullscreen ?? Boolean(document.fullscreenElement),
+        fullscreen: Boolean(document.fullscreenElement),
         videoAction: overrides.videoAction ?? liveState.videoAction ?? null,
         videoActionAt: overrides.videoActionAt ?? liveState.videoActionAt,
       };
@@ -129,7 +129,7 @@ export function PresentationOutput() {
           updated_at: nextState.updatedAt,
           theme: nextState.theme ?? "light",
           blanked: Boolean(nextState.blanked),
-          fullscreen: Boolean(nextState.fullscreen),
+          fullscreen: Boolean(document.fullscreenElement),
           video_action: nextState.videoAction ?? null,
           video_action_at: nextState.videoActionAt ?? null,
         });
@@ -167,7 +167,7 @@ export function PresentationOutput() {
       const browserMessage = error instanceof Error ? error.message : "";
       setMessage(
         browserMessage.toLowerCase().includes("permission")
-          ? "Fullscreen was blocked by this browser. Use the Fullscreen button again after clicking the slide, or press F11 on this computer."
+          ? "Fullscreen was blocked by this browser. Click the Fullscreen button on this output, or press F11 on this computer."
           : browserMessage || "Use the browser fullscreen control for this display.",
       );
       setFullscreenReady(true);
@@ -293,7 +293,7 @@ export function PresentationOutput() {
           livePollInFlightRef.current = false;
         }
       })();
-    }, 2000);
+    }, 900);
 
     return () => {
       livePollInFlightRef.current = false;
@@ -367,10 +367,8 @@ export function PresentationOutput() {
         event.preventDefault();
         if (document.fullscreenElement) {
           await exitFullscreen();
-          void publishLiveState({ fullscreen: false });
         } else {
           await enterFullscreen();
-          void publishLiveState({ fullscreen: true });
         }
         return;
       }
@@ -384,7 +382,6 @@ export function PresentationOutput() {
         if (document.fullscreenElement) {
           event.preventDefault();
           await exitFullscreen();
-          void publishLiveState({ fullscreen: false });
         }
         return;
       }
@@ -414,23 +411,6 @@ export function PresentationOutput() {
       setLiveState((current) => (current ? { ...current, index: resolvedIndex } : current));
     }
   }, [resolvedIndex, slides, liveState]);
-
-  useEffect(() => {
-    async function syncFullscreenMode() {
-      if (liveState?.fullscreen) {
-        if (!document.fullscreenElement) {
-          await enterFullscreen();
-        }
-        return;
-      }
-
-      if (document.fullscreenElement) {
-        await exitFullscreen();
-      }
-    }
-
-    void syncFullscreenMode();
-  }, [liveState?.fullscreen]);
 
   useEffect(() => {
     if (!message) {
