@@ -581,13 +581,24 @@ def import_preview(
     return created_songs, added, catalog
 
 
-def print_preview(preview: DeckPreview) -> None:
+def print_lyrics_block(label: str, lyrics: str | None) -> None:
+    print(f"      {label}:")
+    if not lyrics or not lyrics.strip():
+        print("        (empty)")
+        return
+    for line in lyrics.strip().splitlines():
+        print(f"        {line}")
+
+
+def print_preview(preview: DeckPreview, *, show_lyrics: bool = False) -> None:
     print(f"\n{preview.file.name}")
     print(f"  date: {preview.date}")
     print(f"  parsed slides: {len(preview.slides)}")
     print(f"  matched songs: {len(preview.matched)}")
     for match in preview.matched:
         print(f"    slide {match.first_slide:>2}: {match.song.title}")
+        if show_lyrics:
+            print_lyrics_block("library lyrics", match.song.lyrics)
     print(f"  new song candidates: {len(preview.missing)}")
     for item in preview.missing:
         first_lines = " / ".join(meaningful_lines(item.lyrics)[:3])
@@ -595,7 +606,10 @@ def print_preview(preview: DeckPreview) -> None:
         print(f"      sequence: {item.sequence or 'unknown'}")
         if item.notes:
             print(f"      notes: {'; '.join(item.notes)}")
-        print(f"      lyrics: {first_lines[:180]}")
+        if show_lyrics:
+            print_lyrics_block("candidate lyrics", item.lyrics)
+        else:
+            print(f"      lyrics: {first_lines[:180]}")
 
 
 def parse_args() -> argparse.Namespace:
@@ -606,6 +620,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--offset", type=int, default=0)
     parser.add_argument("--commit", action="store_true", help="Write songs and worship set items to the database.")
     parser.add_argument("--oldest-first", action="store_true")
+    parser.add_argument("--show-lyrics", action="store_true", help="Print full lyrics for matched and candidate songs.")
     return parser.parse_args()
 
 
@@ -630,7 +645,7 @@ def main() -> None:
         total_items = 0
         for file in selected:
             preview = build_preview(session, file, songs)
-            print_preview(preview)
+            print_preview(preview, show_lyrics=args.show_lyrics)
             created, items, songs = import_preview(session, preview, songs, commit=args.commit)
             if args.commit:
                 print(f"  committed: {items} set song item(s), {created} new song(s)")
