@@ -8,8 +8,9 @@ from __future__ import annotations
 
 import argparse
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
+from difflib import SequenceMatcher
 import re
 
 from sqlalchemy import select
@@ -41,6 +42,25 @@ WEB_CLUTTER_PATTERNS = [
         r"^page\s+\d+$",
     ]
 ]
+
+SECTION_ALIASES = {
+    "v": "Verse",
+    "verse": "Verse",
+    "c": "Chorus",
+    "chorus": "Chorus",
+    "refrain": "Chorus",
+    "b": "Bridge",
+    "bridge": "Bridge",
+    "pre chorus": "PreChorus",
+    "pre-chorus": "PreChorus",
+    "prechorus": "PreChorus",
+    "tag": "Tag",
+    "ending": "Ending",
+    "outro": "Outro",
+    "intro": "Intro",
+}
+
+TITLE_NOISE_SUFFIXES = ("lyrics", "lyric", "song", "worship")
 
 MONTHS = {
     "jan": 1,
@@ -113,6 +133,10 @@ class MissingSong:
 @dataclass
 class MatchedSong:
     first_slide: int
+    last_slide: int
+    lyrics: str | None
+    notes: list[str]
+    sequence: str | None
     song: Song
 
 
@@ -129,8 +153,93 @@ def normalized_title(value: str) -> str:
     return re.sub(r"\s+", " ", re.sub(r"[^a-z0-9]+", " ", value.lower().replace("&", "and"))).strip()
 
 
+def normalized_text_key(value: str) -> str:
+    return re.sub(r"\s+", " ", re.sub(r"[^\w\s']+", " ", value.lower(), flags=re.UNICODE)).strip()
+
+
+def text_lines(value: str) -> list[str]:
+    normalized = re.sub(r"([a-z,;.!?)])([A-Z][a-z])", r"\1\n\2", value.replace("\\n", "\n"))
+    return [line.strip() for line in normalized.splitlines() if line.strip()]
+
+
 def song_title_keys(song: Song) -> list[str]:
     return [normalized_title(value) for value in [song.title, song.alternate_title] if value]
+
+
+def title_similarity(left: str, right: str) -> float:
+    return SequenceMatcher(None, normalized_title(left), normalized_title(right)).ratio()
+
+
+def title_variants(value: str | None) -> set[str]:
+    if not value:
+        return set()
+    cleaned = clean_slide_title(value)
+    raw_candidates = {value, cleaned}
+    for separator in (" - ", " – ", " — "):
+        if separator in cleaned:
+            left, right = [part.strip() for part in cleaned.split(separator, 1)]
+            # Imported web titles often arrive as "Artist - Song". Prefer the
+            # song side but keep both as loose matches for older local titles.
+            raw_candidates.update([left, right])
+
+    variants: set[str] = set()
+    for candidate in raw_candidates:
+        normalized = normalized_title(candidate)
+        if not normalized:
+            continue
+        variants.add(normalized)
+        for suffix in TITLE_NOISE_SUFFIXES:
+            suffix_key = normalized_title(suffix)
+            if normalized.endswith(f" {suffix_key}"):
+                variants.add(normalized[: -(len(suffix_key) + 1)].strip())
+            if normalized.endswith(suffix_key) and len(normalized) > len(suffix_key) + 3:
+                variants.add(normalized[: -len(suffix_key)].strip())
+    return {variant for variant in variants if variant}
+
+
+def line_matches_title_noise(line: str, title: str | None) -> bool:
+    line_key = normalized_title(clean_slide_title(line))
+    if not line_key:
+        return False
+    for variant in title_variants(title):
+        if line_key == variant:
+            return True
+        if SequenceMatcher(None, line_key, variant).ratio() >= 0.92:
+            return True
+        for suffix in TITLE_NOISE_SUFFIXES:
+            if line_key == normalized_title(f"{variant} {suffix}"):
+                return True
+    return False
+
+
+def title_matches_song(title: str, song: Song) -> bool:
+    title_keys = title_variants(title)
+    if not title_keys:
+        return False
+
+    for title_key in title_keys:
+        title_word_count = len(title_key.split())
+        if len(title_key) < 4:
+            continue
+        for key in song_title_keys(song):
+            if title_key == key:
+                return True
+            if title_word_count >= 3 and (title_key in key or key in title_key):
+                return True
+            if title_word_count >= 2 and title_similarity(title_key, key) >= 0.88:
+                return True
+    return False
+
+
+def normalize_section_heading(line: str) -> str | None:
+    trimmed = line.strip().strip("[]").rstrip(":").strip()
+    match = re.fullmatch(r"(verse|v|chorus|c|refrain|bridge|b|pre[-\s]?chorus|tag|ending|outro|intro)\s*(\d+)?", trimmed, re.I)
+    if not match:
+        return None
+    label = SECTION_ALIASES.get(re.sub(r"\s+", " ", match.group(1).lower()))
+    if not label:
+        return None
+    return f"{label}{match.group(2)}" if match.group(2) else label
 
 
 def clean_slide_title(value: str) -> str:
@@ -141,11 +250,18 @@ def clean_slide_title(value: str) -> str:
 
 
 def meaningful_lines(value: str) -> list[str]:
-    return [line.strip() for line in value.splitlines() if line.strip()]
+    return text_lines(value)
+
+
+def slide_text_lines(slide: ParsedSlide) -> list[str]:
+    lines = meaningful_lines(slide.text or slide.title)
+    if not lines and slide.title:
+        lines = meaningful_lines(slide.title)
+    return lines
 
 
 def title_from_slide(slide: ParsedSlide) -> str:
-    lines = meaningful_lines(f"{slide.title}\n{slide.text}")
+    lines = slide_text_lines(slide)
     for line in lines:
         cleaned = clean_slide_title(line)
         word_count = len(cleaned.split())
@@ -155,12 +271,18 @@ def title_from_slide(slide: ParsedSlide) -> str:
 
 
 def is_probably_song_title_slide(slide: ParsedSlide) -> bool:
-    lines = meaningful_lines(f"{slide.title}\n{slide.text}")
+    lines = slide_text_lines(slide)
     candidate = title_from_slide(slide)
     if not candidate or len(lines) > 4:
         return False
 
     normalized = normalized_title(candidate)
+    if normalize_section_heading(candidate):
+        return False
+    if re.search(r"\bx\s*\d+\b", candidate, re.I):
+        return False
+    if re.search(r"^(?:and|but|for|so|then|there|lord|oh|o)\b", candidate, re.I):
+        return False
     if re.search(
         r"^(welcome|sermon|reading|offering|communion|notices|announcements|prayer|closing|opening)$",
         candidate,
@@ -208,6 +330,17 @@ def collapse_repeated_lines(block: str) -> str:
     return "\n".join(collapsed)
 
 
+def strip_title_noise_from_block(block: str, title: str | None) -> tuple[str, bool]:
+    lines = meaningful_lines(block)
+    if not lines:
+        return "", False
+    removed = False
+    while lines and line_matches_title_noise(lines[0], title):
+        lines = lines[1:]
+        removed = True
+    return "\n".join(lines).strip(), removed
+
+
 def format_worship_text(value: str, *, remove_chords: bool = True) -> str:
     output: list[str] = []
     previous_blank = True
@@ -243,18 +376,75 @@ def title_case_from_filename(value: str) -> str | None:
 
 
 def strip_leading_title_block(blocks: list[str], title: str | None) -> tuple[list[str], list[str]]:
-    if len(blocks) < 2 or not title:
+    if not blocks or not title:
         return blocks, []
+
+    cleaned_blocks: list[str] = []
+    removed_inline_title = False
+    for block in blocks:
+        stripped, removed = strip_title_noise_from_block(block, title)
+        removed_inline_title = removed_inline_title or removed
+        if stripped:
+            cleaned_blocks.append(stripped)
+
+    blocks = cleaned_blocks
+    if len(blocks) < 2:
+        return blocks, ["Removed title noise from imported lyrics."] if removed_inline_title else []
+
     first = meaningful_lines(blocks[0])
     if not first or len(first) > 2:
-        return blocks, []
-    if normalized_title(" ".join(first)) == normalized_title(title) and len(meaningful_lines(blocks[1])) >= 2:
+        return blocks, ["Removed title noise from imported lyrics."] if removed_inline_title else []
+    if line_matches_title_noise(" ".join(first), title) and len(meaningful_lines(blocks[1])) >= 2:
         return blocks[1:], ["Ignored the opening title slide and used it as the song title only."]
-    return blocks, []
+    return blocks, ["Removed title noise from imported lyrics."] if removed_inline_title else []
 
 
 def block_key(value: str) -> str:
     return re.sub(r"\s+", " ", value.strip().lower())
+
+
+def opening_words_key(line: str, word_count: int = 3) -> str:
+    return " ".join(normalized_text_key(line).split()[:word_count])
+
+
+def block_stats(block: str) -> tuple[int, int, int, int]:
+    lines = meaningful_lines(block)
+    line_counts: dict[str, int] = {}
+    opening_counts: dict[str, int] = {}
+    for line in lines:
+        line_key = normalized_text_key(line)
+        line_counts[line_key] = line_counts.get(line_key, 0) + 1
+        opening = opening_words_key(line)
+        if len(opening.split()) >= 2:
+            opening_counts[opening] = opening_counts.get(opening, 0) + 1
+    internal_repeats = sum(1 for count in line_counts.values() if count > 1)
+    repeated_openings = sum(1 for count in opening_counts.values() if count > 1)
+    return internal_repeats, len(lines), repeated_openings, len(" ".join(lines).split())
+
+
+def looks_like_chorus_candidate(index: int, blocks: list[str], stats: list[tuple[int, int, int, int]], average_words: float) -> bool:
+    if index <= 0 or index >= len(blocks) - 1 or len(blocks) < 3:
+        return False
+    internal_repeats, line_count, repeated_openings, word_count = stats[index]
+    _prev_repeats, prev_lines, _prev_openings, prev_words = stats[index - 1]
+    _next_repeats, next_lines, _next_openings, next_words = stats[index + 1]
+    shorter_than_neighbors = word_count <= prev_words * 0.82 and word_count <= next_words * 0.88
+    shorter_than_song = word_count <= average_words * 0.78
+    hook_like = internal_repeats > 0 or repeated_openings > 0 or "!" in blocks[index]
+    compact = line_count + 1 < max(prev_lines, next_lines)
+    return hook_like and (shorter_than_neighbors or shorter_than_song or compact)
+
+
+def renumber_verse_labels(labels: list[str]) -> list[str]:
+    verse_number = 1
+    output: list[str] = []
+    for label in labels:
+        if re.fullmatch(r"Verse\d*|Section\d*", label, re.I):
+            output.append(f"Verse{verse_number}")
+            verse_number += 1
+        else:
+            output.append(label)
+    return output
 
 
 def infer_sections(blocks: list[str]) -> tuple[str, str | None, list[str]]:
@@ -273,9 +463,11 @@ def infer_sections(blocks: list[str]) -> tuple[str, str | None, list[str]]:
         (key for key, _count in repeated if first_index.get(key, 0) > 0),
         repeated[0][0] if repeated else None,
     )
-    line_counts = [len(meaningful_lines(block)) for block in blocks]
-    word_counts = [len(" ".join(meaningful_lines(block)).split()) for block in blocks]
+    stats = [block_stats(block) for block in blocks]
+    line_counts = [stat[1] for stat in stats]
+    word_counts = [stat[3] for stat in stats]
     average_words = sum(word_counts) / max(1, len(word_counts))
+    standout_hook = any(stat[3] < average_words * 0.55 and (stat[0] > 0 or stat[2] > 0) for stat in stats)
     hymn_like = (
         len(blocks) >= 4
         and not repeated
@@ -283,11 +475,14 @@ def infer_sections(blocks: list[str]) -> tuple[str, str | None, list[str]]:
         and max(line_counts) - min(line_counts) <= 2
         and min(word_counts or [0]) >= average_words * 0.62
         and max(word_counts or [0]) <= average_words * 1.45
+        and not standout_hook
     )
 
     labels: dict[str, str] = {}
     notes: list[str] = []
     verse_number = 1
+    used_bridge = False
+    used_inferred_chorus = bool(chorus_key)
     for index, block in enumerate(blocks):
         key = block_key(block)
         if key in labels:
@@ -295,19 +490,28 @@ def infer_sections(blocks: list[str]) -> tuple[str, str | None, list[str]]:
         if chorus_key and key == chorus_key:
             labels[key] = "Chorus"
         elif hymn_like:
-            labels[key] = f"Verse{verse_number}"
-            verse_number += 1
+            labels[key] = "Verse"
         else:
             count = counts[key]
             word_count = word_counts[index]
             near_end = index >= max(2, int(len(blocks) * 0.66))
-            if index > 0 and index < len(blocks) - 1 and word_count <= average_words * 0.72:
+            final = index == len(blocks) - 1
+            internal_repeats, _line_count, repeated_openings, _word_count = stats[index]
+            hook_repeats = internal_repeats > 0 or repeated_openings > 0
+            much_shorter = word_count > 0 and word_count <= average_words * 0.55
+            repeat_marker = bool(re.search(r"\b(?:x\s*\d+|repeat(?:\s+all)?)\b|\(\s*x\s*\d+\s*\)", block, re.I))
+            bridge_marker = bool(re.search(r"\bbridge\b", block, re.I))
+            if not used_inferred_chorus and (looks_like_chorus_candidate(index, blocks, stats, average_words) or (index > 0 and repeat_marker and not bridge_marker)):
                 labels[key] = "Chorus"
-            elif near_end and count == 1 and len(blocks) >= 4 and word_count <= average_words * 0.55:
+                used_inferred_chorus = True
+                notes.append("A hook-like middle lyric chunk was labelled as Chorus; check this before presenting.")
+            elif not used_bridge and near_end and count == 1 and len(blocks) >= 4 and not final and much_shorter and hook_repeats:
                 labels[key] = "Bridge"
+                used_bridge = True
+            elif final and count == 1 and len(blocks) >= 4 and much_shorter and hook_repeats:
+                labels[key] = "Tag"
             else:
-                labels[key] = f"Verse{verse_number}"
-                verse_number += 1
+                labels[key] = "Verse"
 
     if repeated:
         notes.append("Repeated slide content was used to infer a chorus sequence.")
@@ -316,8 +520,30 @@ def infer_sections(blocks: list[str]) -> tuple[str, str | None, list[str]]:
 
     sections = []
     sequence = []
+    explicit_labels: dict[str, str] = {}
+    normalized_blocks: list[str] = []
+    for block in blocks:
+        lines = meaningful_lines(block)
+        heading = normalize_section_heading(lines[0]) if lines else None
+        content = "\n".join(lines[1:] if heading else lines).strip()
+        if not content:
+            continue
+        if heading:
+            explicit_labels[block_key(content)] = heading
+        normalized_blocks.append(content)
+
+    if normalized_blocks:
+        blocks = normalized_blocks
+
+    label_list = []
     for block in blocks:
         label = labels.get(block_key(block), "Section")
+        label = explicit_labels.get(block_key(block), label)
+        label_list.append(label)
+
+    label_list = renumber_verse_labels(label_list)
+
+    for block, label in zip(blocks, label_list, strict=False):
         sections.append(f"[{label}]\n{block}".strip())
         sequence.append(label)
     return "\n\n".join(sections), " ".join(sequence) if sequence else None, notes
@@ -334,10 +560,72 @@ def analyze_imported_song_slides(slides: list[str], title: str) -> tuple[str, st
     return lyrics, sequence, [*notes, *section_notes]
 
 
+def parse_labelled_lyrics(value: str | None) -> list[tuple[str, str]]:
+    if not value:
+        return []
+    sections: list[tuple[str, str]] = []
+    current_label: str | None = None
+    current_lines: list[str] = []
+
+    def flush() -> None:
+        nonlocal current_label, current_lines
+        content = "\n".join(current_lines).strip()
+        if current_label and content:
+            sections.append((current_label, content))
+        current_lines = []
+
+    for line in value.splitlines():
+        heading = normalize_section_heading(line)
+        if heading:
+            flush()
+            current_label = heading
+            continue
+        if line.strip():
+            current_lines.append(line.strip())
+    flush()
+    return sections
+
+
+def relabel_with_library_sections(lyrics: str, library_lyrics: str | None) -> tuple[str, str | None, bool]:
+    deck_sections = parse_labelled_lyrics(lyrics)
+    library_sections = parse_labelled_lyrics(library_lyrics)
+    if not deck_sections or not library_sections:
+        return lyrics, " ".join(label for label, _content in deck_sections) or None, False
+
+    relabelled: list[tuple[str, str]] = []
+    changed = False
+    for inferred_label, content in deck_sections:
+        content_key = normalized_text_key(content)
+        best_label = inferred_label
+        best_score = 0.0
+        for library_label, library_content in library_sections:
+            score = SequenceMatcher(None, content_key, normalized_text_key(library_content)).ratio()
+            if score > best_score:
+                best_score = score
+                best_label = library_label
+        if best_score >= 0.58 and best_label != inferred_label:
+            changed = True
+        relabelled.append((best_label if best_score >= 0.58 else inferred_label, content))
+
+    labels = renumber_verse_labels([label for label, _content in relabelled])
+    output = "\n\n".join(f"[{label}]\n{content}".strip() for label, (_old_label, content) in zip(labels, relabelled, strict=False))
+    return output, " ".join(labels) if labels else None, changed
+
+
 def infer_deck_date(file: GoogleDriveFileRead) -> str:
     name = file.name
     leading_weekday_match = re.match(r"\s*([A-Za-z]+)\b", name)
     expected_weekday = WEEKDAYS.get(leading_weekday_match.group(1).lower()) if leading_weekday_match else None
+
+    def nearest_expected_weekday(candidate: datetime) -> str | None:
+        if expected_weekday is None:
+            return None
+        options = [candidate + timedelta(days=offset) for offset in range(-3, 4)]
+        matches = [option for option in options if option.weekday() == expected_weekday]
+        if not matches:
+            return None
+        best = min(matches, key=lambda option: abs((option.date() - candidate.date()).days))
+        return best.date().isoformat()
 
     def resolve_candidate(year: int, month: int, day: int) -> str | None:
         try:
@@ -345,7 +633,7 @@ def infer_deck_date(file: GoogleDriveFileRead) -> str:
         except ValueError:
             return None
         if expected_weekday is not None and candidate.weekday() != expected_weekday:
-            return None
+            return nearest_expected_weekday(candidate)
         return candidate.date().isoformat()
 
     def fallback_date() -> str:
@@ -405,35 +693,72 @@ def parse_drive_deck(session: Session, file: GoogleDriveFileRead) -> list[Parsed
     _deck_format, slide_lines, _notes = _parse_slide_deck(filename, content)
     slides = []
     for index, lines in enumerate(slide_lines, start=1):
-        cleaned = [line.strip() for line in lines if line.strip()]
+        cleaned = [split_line for line in lines for split_line in text_lines(line)]
         if cleaned:
             slides.append(ParsedSlide(index=index, title=cleaned[0], text="\n".join(cleaned)))
     return slides
 
 
+def song_title_slides(slides: list[ParsedSlide]) -> list[tuple[int, ParsedSlide, str]]:
+    return [
+        (slide.index, slide, title_from_slide(slide))
+        for slide in slides
+        if is_probably_song_title_slide(slide) and title_from_slide(slide)
+    ]
+
+
+def slide_range_for_anchor(
+    slides: list[ParsedSlide],
+    title_slides: list[tuple[int, ParsedSlide, str]],
+    anchor_index: int,
+) -> list[ParsedSlide]:
+    next_title = next((entry for entry in title_slides if entry[0] > anchor_index), None)
+    return [
+        slide
+        for slide in slides
+        if slide.index >= anchor_index and (not next_title or slide.index < next_title[0])
+    ]
+
+
+def analyze_slide_range(slides: list[ParsedSlide], title: str, song: Song | None = None) -> tuple[str, str | None, list[str]]:
+    lyrics, sequence, notes = analyze_imported_song_slides([slide.text or slide.title for slide in slides], title)
+    if song and lyrics:
+        relabelled_lyrics, relabelled_sequence, changed = relabel_with_library_sections(lyrics, song.lyrics)
+        if changed:
+            lyrics = relabelled_lyrics
+            sequence = relabelled_sequence
+            notes = [*notes, "Matched existing library sections to improve labels."]
+    return lyrics, sequence, notes
+
+
 def match_songs(slides: list[ParsedSlide], songs: list[Song]) -> list[MatchedSong]:
     matched: dict[str, MatchedSong] = {}
     matched_title_keys: set[str] = set()
-    searchable = [(slide.index, normalized_title(f"{slide.title}\n{slide.text}")) for slide in slides]
-    for song in songs:
-        keys = [key for key in song_title_keys(song) if len(key) >= 5]
+    title_slides = song_title_slides(slides)
+    for anchor_index, _slide, title in title_slides:
+        song = next((candidate for candidate in songs if title_matches_song(title, candidate)), None)
+        if not song:
+            continue
+        keys = [key for key in song_title_keys(song) if len(key) >= 4]
         if any(key in matched_title_keys for key in keys):
             continue
-        first = next((index for index, text in searchable if any(key in text for key in keys)), None)
-        if first is not None:
-            matched[song.id] = MatchedSong(first_slide=first, song=song)
-            matched_title_keys.update(keys)
+        range_slides = slide_range_for_anchor(slides, title_slides, anchor_index)
+        lyrics, sequence, notes = analyze_slide_range(range_slides, song.title, song)
+        matched[song.id] = MatchedSong(
+            first_slide=anchor_index,
+            last_slide=range_slides[-1].index if range_slides else anchor_index,
+            lyrics=lyrics or None,
+            notes=notes,
+            sequence=sequence,
+            song=song,
+        )
+        matched_title_keys.update(keys)
     return sorted(matched.values(), key=lambda item: item.first_slide)
 
 
 def detect_missing_songs(slides: list[ParsedSlide], songs: list[Song]) -> list[MissingSong]:
     existing_keys = [key for song in songs for key in song_title_keys(song) if len(key) >= 5]
-    title_slides = [
-        (slide.index, slide, title_from_slide(slide))
-        for slide in slides
-        if is_probably_song_title_slide(slide)
-    ]
-    title_slides = [entry for entry in title_slides if entry[2]]
+    title_slides = song_title_slides(slides)
     seen: set[str] = set()
     missing: list[MissingSong] = []
     for anchor_index, (slide_index, _slide, title) in enumerate(title_slides):
@@ -441,19 +766,17 @@ def detect_missing_songs(slides: list[ParsedSlide], songs: list[Song]) -> list[M
         if title_key in seen:
             continue
         seen.add(title_key)
-        if any(title_key == key or title_key in key or key in title_key for key in existing_keys):
+        title_word_count = len(title_key.split())
+        if any(
+            title_key == key
+            or (title_word_count >= 3 and (title_key in key or key in title_key))
+            or (title_word_count >= 2 and SequenceMatcher(None, title_key, key).ratio() >= 0.88)
+            for key in existing_keys
+        ):
             continue
 
-        next_title = title_slides[anchor_index + 1] if anchor_index + 1 < len(title_slides) else None
-        range_slides = [
-            slide
-            for slide in slides
-            if slide.index >= slide_index and (not next_title or slide.index < next_title[0])
-        ]
-        lyrics, sequence, notes = analyze_imported_song_slides(
-            [slide.text or slide.title for slide in range_slides],
-            title,
-        )
+        range_slides = slide_range_for_anchor(slides, title_slides, slide_index)
+        lyrics, sequence, notes = analyze_slide_range(range_slides, title)
         if lyrics.strip():
             missing.append(
                 MissingSong(
@@ -535,7 +858,16 @@ def create_missing_songs(
             None,
         )
         if existing:
-            entries.append(MatchedSong(first_slide=item.first_slide, song=existing))
+            entries.append(
+                MatchedSong(
+                    first_slide=item.first_slide,
+                    last_slide=item.last_slide,
+                    lyrics=item.lyrics,
+                    notes=item.notes,
+                    sequence=item.sequence,
+                    song=existing,
+                )
+            )
             continue
         if not commit:
             continue
@@ -560,7 +892,16 @@ def create_missing_songs(
         session.commit()
         session.refresh(song)
         catalog.append(song)
-        entries.append(MatchedSong(first_slide=item.first_slide, song=song))
+        entries.append(
+            MatchedSong(
+                first_slide=item.first_slide,
+                last_slide=item.last_slide,
+                lyrics=item.lyrics,
+                notes=item.notes,
+                sequence=item.sequence,
+                song=song,
+            )
+        )
         created += 1
     return entries, created, catalog
 
@@ -571,11 +912,12 @@ def import_preview(
     songs: list[Song],
     *,
     commit: bool,
-) -> tuple[int, int, list[Song]]:
+    repair_lyrics: bool = False,
+) -> tuple[int, int, int, list[Song]]:
     missing_entries, created_songs, catalog = create_missing_songs(session, preview.missing, songs, commit=commit)
     entries = sorted([*preview.matched, *missing_entries], key=lambda entry: entry.first_slide)
     if not commit:
-        return 0, len(entries), catalog
+        return 0, 0, len(entries), catalog
 
     plan = find_or_create_worship_plan(session, preview.date, preview.file.name, commit=True)
     if plan is None:
@@ -598,7 +940,13 @@ def import_preview(
     )
     sequence = Decimal(highest or 0) + Decimal("1.00")
     added = 0
+    repaired = 0
     for entry in entries:
+        if repair_lyrics and entry.lyrics and normalized_title(entry.lyrics) != normalized_title(entry.song.lyrics or ""):
+            entry.song.lyrics = entry.lyrics
+            entry.song.sequence = entry.sequence
+            session.add(entry.song)
+            repaired += 1
         if entry.song.id in existing_song_ids:
             continue
         session.add(
@@ -616,7 +964,7 @@ def import_preview(
         existing_song_ids.add(entry.song.id)
         added += 1
     session.commit()
-    return created_songs, added, catalog
+    return created_songs, repaired, added, catalog
 
 
 def print_lyrics_block(label: str, lyrics: str | None) -> None:
@@ -634,9 +982,17 @@ def print_preview(preview: DeckPreview, *, show_lyrics: bool = False) -> None:
     print(f"  parsed slides: {len(preview.slides)}")
     print(f"  matched songs: {len(preview.matched)}")
     for match in preview.matched:
-        print(f"    slide {match.first_slide:>2}: {match.song.title}")
+        print(f"    slides {match.first_slide:>2}-{match.last_slide:<2}: {match.song.title}")
+        if match.sequence:
+            print(f"      deck sequence: {match.sequence}")
+        if match.notes:
+            print(f"      deck notes: {'; '.join(match.notes)}")
         if show_lyrics:
             print_lyrics_block("library lyrics", match.song.lyrics)
+            print_lyrics_block("deck-derived lyrics", match.lyrics)
+        elif match.lyrics:
+            first_lines = " / ".join(meaningful_lines(match.lyrics)[:3])
+            print(f"      deck lyrics: {first_lines[:180]}")
     print(f"  new song candidates: {len(preview.missing)}")
     for item in preview.missing:
         first_lines = " / ".join(meaningful_lines(item.lyrics)[:3])
@@ -657,6 +1013,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--limit", type=int, default=2)
     parser.add_argument("--offset", type=int, default=0)
     parser.add_argument("--commit", action="store_true", help="Write songs and worship set items to the database.")
+    parser.add_argument(
+        "--repair-lyrics",
+        action="store_true",
+        help="With --commit, update matched library songs from the cleaned deck-derived lyrics.",
+    )
     parser.add_argument("--oldest-first", action="store_true")
     parser.add_argument("--show-lyrics", action="store_true", help="Print full lyrics for matched and candidate songs.")
     return parser.parse_args()
@@ -680,18 +1041,32 @@ def main() -> None:
         print(f"files: {len(selected)} of {len(files)} loaded")
         songs = load_songs(session)
         total_created = 0
+        total_repaired = 0
         total_items = 0
         for file in selected:
             preview = build_preview(session, file, songs)
             print_preview(preview, show_lyrics=args.show_lyrics)
-            created, items, songs = import_preview(session, preview, songs, commit=args.commit)
+            created, repaired, items, songs = import_preview(
+                session,
+                preview,
+                songs,
+                commit=args.commit,
+                repair_lyrics=args.repair_lyrics,
+            )
             if args.commit:
-                print(f"  committed: {items} set song item(s), {created} new song(s)")
+                print(
+                    f"  committed: {items} set song item(s), "
+                    f"{created} new song(s), {repaired} repaired lyric record(s)"
+                )
             total_created += created
+            total_repaired += repaired
             total_items += items
         print("\nDone.")
         if args.commit:
-            print(f"Committed totals: {total_items} set song item(s), {total_created} new song(s).")
+            print(
+                f"Committed totals: {total_items} set song item(s), "
+                f"{total_created} new song(s), {total_repaired} repaired lyric record(s)."
+            )
         else:
             print("No changes written. Re-run with --commit when this preview looks right.")
 

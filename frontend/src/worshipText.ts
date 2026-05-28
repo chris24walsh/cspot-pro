@@ -15,6 +15,8 @@ const SECTION_ALIASES = new Map<string, string>([
   ["intro", "Intro"],
 ]);
 
+const TITLE_NOISE_SUFFIXES = ["lyrics", "lyric", "song", "worship"];
+
 const WEB_CLUTTER_PATTERNS = [
   /^lyrics?\s*$/i,
   /^submit corrections?$/i,
@@ -50,7 +52,7 @@ function normalizeSectionHeading(line: string): string | null {
 }
 
 function compactSectionLabel(label: string) {
-  return label.replace(/^(Verse|Section)\s+(\d+)$/i, (_, section: string, number: string) => `${section}${number}`);
+  return label.replace(/^(Verse|Section)\s*(\d+)$/i, (_, section: string, number: string) => `${section}${number}`);
 }
 
 export function isWorshipSectionHeading(line: string): boolean {
@@ -128,6 +130,7 @@ function collapseRepeatedLines(block: string) {
 export function formatWorshipText(value: string, options: { removeChordLines?: boolean } = {}) {
   const normalized = value
     .replace(/\r\n?/g, "\n")
+    .replace(/([a-z,;.!?)])([A-Z][a-z])/g, "$1\n$2")
     .replace(/[“”]/g, '"')
     .replace(/[‘’]/g, "'")
     .replace(/\u00a0/g, " ");
@@ -202,6 +205,85 @@ export function buildLyricsFromSections(sections: WorshipStructureSection[]) {
     .map((section) => [section.label ? `[${compactSectionLabel(section.label)}]` : "", section.content].filter(Boolean).join("\n").trim())
     .filter(Boolean)
     .join("\n\n");
+}
+
+function cleanTitleNoise(value: string) {
+  return value
+    .replace(/\.[a-z0-9]+$/i, "")
+    .replace(/\s+(lyrics?|song|worship)\s*$/i, "")
+    .replace(/\s*[-–—]\s*(lyrics?|song|worship)\s*$/i, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function titleVariants(value: string | null | undefined) {
+  if (!value) {
+    return new Set<string>();
+  }
+  const cleaned = cleanTitleNoise(value);
+  const candidates = new Set([value, cleaned]);
+  for (const separator of [" - ", " – ", " — "]) {
+    if (cleaned.includes(separator)) {
+      const [left, right] = cleaned.split(separator, 2).map((part) => part.trim());
+      if (left) {
+        candidates.add(left);
+      }
+      if (right) {
+        candidates.add(right);
+      }
+    }
+  }
+
+  const variants = new Set<string>();
+  for (const candidate of candidates) {
+    const key = normalizedTextKey(cleanTitleNoise(candidate));
+    if (!key) {
+      continue;
+    }
+    variants.add(key);
+    for (const suffix of TITLE_NOISE_SUFFIXES) {
+      const suffixKey = normalizedTextKey(suffix);
+      if (key.endsWith(` ${suffixKey}`)) {
+        variants.add(key.slice(0, -(suffixKey.length + 1)).trim());
+      }
+      if (key.endsWith(suffixKey) && key.length > suffixKey.length + 3) {
+        variants.add(key.slice(0, -suffixKey.length).trim());
+      }
+    }
+  }
+  return variants;
+}
+
+function titleSimilarity(left: string, right: string) {
+  if (!left || !right) {
+    return 0;
+  }
+  const maxLength = Math.max(left.length, right.length);
+  let matches = 0;
+  for (const token of new Set(left.split(/\s+/))) {
+    if (right.split(/\s+/).includes(token)) {
+      matches += token.length;
+    }
+  }
+  return matches / maxLength;
+}
+
+function lineMatchesTitleNoise(line: string, title: string | null | undefined) {
+  const lineKey = normalizedTextKey(cleanTitleNoise(line));
+  if (!lineKey) {
+    return false;
+  }
+  for (const variant of titleVariants(title)) {
+    if (lineKey === variant || titleSimilarity(lineKey, variant) >= 0.92) {
+      return true;
+    }
+    for (const suffix of TITLE_NOISE_SUFFIXES) {
+      if (lineKey === normalizedTextKey(`${variant} ${suffix}`)) {
+        return true;
+      }
+    }
+  }
+  return false;
 }
 
 function blockKey(value: string) {
@@ -322,7 +404,19 @@ function parseExplicitSections(formatted: string) {
     });
   }
 
-  return sections.every((section) => section.label) ? sections : [];
+  return sections.every((section) => section.label) ? renumberVerseSections(sections) : [];
+}
+
+function renumberVerseSections(sections: WorshipStructureSection[]) {
+  let verseNumber = 1;
+  return sections.map((section) => {
+    if (/^(Verse|Section)\d*$/i.test(section.label)) {
+      const label = `Verse${verseNumber}`;
+      verseNumber += 1;
+      return { ...section, label };
+    }
+    return section;
+  });
 }
 
 function inferSectionsFromBlocks(blocks: string[]) {
@@ -421,14 +515,14 @@ function inferSectionsFromBlocks(blocks: string[]) {
 
   return {
     notes,
-    sections: blocks.map((block) => {
+    sections: renumberVerseSections(blocks.map((block) => {
       const key = blockKey(block);
       return {
         content: block,
         key,
         label: labels.get(key) ?? `Section${firstIndex.get(key)! + 1}`,
       };
-    }),
+    })),
   };
 }
 
@@ -495,11 +589,33 @@ function extractImportSuggestions(slides: string[], fallbackTitle?: string): Wor
 }
 
 function stripLeadingTitleBlock(blocks: string[], title: string | null) {
-  if (blocks.length < 2 || !title) {
+  if (!blocks.length || !title) {
     return { notes: [] as string[], blocks };
   }
 
-  const [firstBlock, ...remainingBlocks] = blocks;
+  let removedInlineTitle = false;
+  const cleanedBlocks = blocks
+    .map((block) => {
+      const lines = block
+        .split(/\r?\n/)
+        .map((line) => line.trim())
+        .filter(Boolean);
+      while (lines.length && lineMatchesTitleNoise(lines[0], title)) {
+        lines.shift();
+        removedInlineTitle = true;
+      }
+      return lines.join("\n").trim();
+    })
+    .filter(Boolean);
+
+  if (cleanedBlocks.length < 2) {
+    return {
+      notes: removedInlineTitle ? ["Removed title noise from imported lyrics."] : [],
+      blocks: cleanedBlocks,
+    };
+  }
+
+  const [firstBlock, ...remainingBlocks] = cleanedBlocks;
   const firstLines = firstBlock
     .split(/\r?\n/)
     .map((line) => line.trim())
@@ -513,14 +629,17 @@ function stripLeadingTitleBlock(blocks: string[], title: string | null) {
   const titleText = normalizedTextKey(title);
   const nextSlideLineCount = remainingBlocks[0]?.split(/\r?\n/).filter((line) => line.trim()).length ?? 0;
 
-  if (firstSlideText && firstSlideText === titleText && nextSlideLineCount >= 2) {
+  if (firstSlideText && lineMatchesTitleNoise(firstSlideText, titleText) && nextSlideLineCount >= 2) {
     return {
       notes: ["Ignored the opening title slide and used it as the song title only."],
       blocks: remainingBlocks,
     };
   }
 
-  return { notes: [] as string[], blocks };
+  return {
+    notes: removedInlineTitle ? ["Removed title noise from imported lyrics."] : [],
+    blocks: cleanedBlocks,
+  };
 }
 
 export function analyzeWorshipText(value: string, options: { title?: string } = {}): WorshipStructureAnalysis {
