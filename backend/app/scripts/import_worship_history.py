@@ -326,18 +326,18 @@ def infer_deck_date(file: GoogleDriveFileRead) -> str:
         return f"{year}-{short.group(2).zfill(2)}-{short.group(1).zfill(2)}"
 
     words = re.search(
-        r"\b([0-3]?\d)\s+([A-Za-z]+)\s+(20\d{2})\b|\b([A-Za-z]+)\s+([0-3]?\d),?\s+(20\d{2})\b",
+        r"\b([0-3]?\d)\s+([A-Za-z]+)\s+(20\d{2}|\d{2})\b|\b([A-Za-z]+)\s+([0-3]?\d),?\s+(20\d{2}|\d{2})\b",
         name,
     )
     if words:
         if words.group(1):
             day = int(words.group(1))
             month = MONTHS.get(words.group(2).lower())
-            year = int(words.group(3))
+            year = int(words.group(3)) if len(words.group(3)) == 4 else int(f"20{words.group(3)}")
         else:
             month = MONTHS.get(words.group(4).lower())
             day = int(words.group(5))
-            year = int(words.group(6))
+            year = int(words.group(6)) if len(words.group(6)) == 4 else int(f"20{words.group(6)}")
         if month:
             return f"{year}-{month:02d}-{day:02d}"
 
@@ -375,12 +375,16 @@ def parse_drive_deck(session: Session, file: GoogleDriveFileRead) -> list[Parsed
 
 def match_songs(slides: list[ParsedSlide], songs: list[Song]) -> list[MatchedSong]:
     matched: dict[str, MatchedSong] = {}
+    matched_title_keys: set[str] = set()
     searchable = [(slide.index, normalized_title(f"{slide.title}\n{slide.text}")) for slide in slides]
     for song in songs:
         keys = [key for key in song_title_keys(song) if len(key) >= 5]
+        if any(key in matched_title_keys for key in keys):
+            continue
         first = next((index for index, text in searchable if any(key in text for key in keys)), None)
         if first is not None:
             matched[song.id] = MatchedSong(first_slide=first, song=song)
+            matched_title_keys.update(keys)
     return sorted(matched.values(), key=lambda item: item.first_slide)
 
 
