@@ -69,6 +69,26 @@ MONTHS = {
     "december": 12,
 }
 
+WEEKDAYS = {
+    "mon": 0,
+    "monday": 0,
+    "tue": 1,
+    "tues": 1,
+    "tuesday": 1,
+    "wed": 2,
+    "wednesday": 2,
+    "thu": 3,
+    "thur": 3,
+    "thurs": 3,
+    "thursday": 3,
+    "fri": 4,
+    "friday": 4,
+    "sat": 5,
+    "saturday": 5,
+    "sun": 6,
+    "sunday": 6,
+}
+
 
 @dataclass
 class ParsedSlide:
@@ -316,14 +336,32 @@ def analyze_imported_song_slides(slides: list[str], title: str) -> tuple[str, st
 
 def infer_deck_date(file: GoogleDriveFileRead) -> str:
     name = file.name
+    leading_weekday_match = re.match(r"\s*([A-Za-z]+)\b", name)
+    expected_weekday = WEEKDAYS.get(leading_weekday_match.group(1).lower()) if leading_weekday_match else None
+
+    def resolve_candidate(year: int, month: int, day: int) -> str | None:
+        try:
+            candidate = datetime(year, month, day, tzinfo=UTC)
+        except ValueError:
+            return None
+        if expected_weekday is not None and candidate.weekday() != expected_weekday:
+            return None
+        return candidate.date().isoformat()
+
+    def fallback_date() -> str:
+        fallback = file.modified_time or datetime.now(UTC)
+        return fallback.date().isoformat()
+
     numeric = re.search(r"\b(20\d{2})[-_. ]?([01]?\d)[-_. ]?([0-3]?\d)\b", name)
     if numeric:
-        return f"{numeric.group(1)}-{numeric.group(2).zfill(2)}-{numeric.group(3).zfill(2)}"
+        resolved = resolve_candidate(int(numeric.group(1)), int(numeric.group(2)), int(numeric.group(3)))
+        return resolved or fallback_date()
 
     short = re.search(r"\b([0-3]?\d)[-_. /]([01]?\d)[-_. /](20\d{2}|\d{2})\b", name)
     if short:
         year = short.group(3) if len(short.group(3)) == 4 else f"20{short.group(3)}"
-        return f"{year}-{short.group(2).zfill(2)}-{short.group(1).zfill(2)}"
+        resolved = resolve_candidate(int(year), int(short.group(2)), int(short.group(1)))
+        return resolved or fallback_date()
 
     words = re.search(
         r"\b([0-3]?\d)\s+([A-Za-z]+)\s+(20\d{2}|\d{2})\b|\b([A-Za-z]+)\s+([0-3]?\d),?\s+(20\d{2}|\d{2})\b",
@@ -339,10 +377,10 @@ def infer_deck_date(file: GoogleDriveFileRead) -> str:
             day = int(words.group(5))
             year = int(words.group(6)) if len(words.group(6)) == 4 else int(f"20{words.group(6)}")
         if month:
-            return f"{year}-{month:02d}-{day:02d}"
+            resolved = resolve_candidate(year, month, day)
+            return resolved or fallback_date()
 
-    fallback = file.modified_time or datetime.now(UTC)
-    return fallback.date().isoformat()
+    return fallback_date()
 
 
 def service_datetime(date_input: str) -> datetime:
