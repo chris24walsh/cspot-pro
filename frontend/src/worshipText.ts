@@ -286,6 +286,12 @@ function lineMatchesTitleNoise(line: string, title: string | null | undefined) {
   return false;
 }
 
+function lineMatchesTitleSuffixNoise(line: string, title: string | null | undefined) {
+  const lineKey = normalizedTextKey(line);
+  const cleanedKey = normalizedTextKey(cleanTitleNoise(line));
+  return lineKey !== cleanedKey && lineMatchesTitleNoise(line, title);
+}
+
 function blockKey(value: string) {
   return value
     .trim()
@@ -340,8 +346,13 @@ function blockStats(block: string): BlockStats {
   };
 }
 
-function isStructurallySimilarHymn(blocks: string[], stats: BlockStats[], repeatedKeys: Array<[string, number]>) {
-  if (blocks.length < 4 || repeatedKeys.length) {
+function isStructurallySimilarHymn(
+  blocks: string[],
+  stats: BlockStats[],
+  repeatedKeys: Array<[string, number]>,
+  languageChorusIndexes: Set<number>,
+) {
+  if (blocks.length < 4 || repeatedKeys.length || languageChorusIndexes.size) {
     return false;
   }
 
@@ -382,6 +393,42 @@ function looksLikeChorusCandidate(index: number, blocks: string[], stats: BlockS
   return hookLike && (shorterThanBothNeighbors || shorterThanSong || compactComparedWithNeighbors);
 }
 
+function looksLikeRefrainLanguage(index: number, blocks: string[], title?: string | null) {
+  if (index <= 0 || index >= blocks.length - 1 || blocks.length < 3) {
+    return false;
+  }
+  const block = blocks[index];
+  const lines = meaningfulLines(block);
+  if (!lines.length) {
+    return false;
+  }
+  const firstLineKey = normalizedTextKey(lines[0]);
+  const startsWithTitle = Boolean(
+    title && [...titleVariants(title)].some((variant) => firstLineKey === variant || firstLineKey.startsWith(`${variant} `)),
+  );
+  const responseWords = [
+    "sing",
+    "song",
+    "praise",
+    "praises",
+    "glory",
+    "honour",
+    "honor",
+    "worthy",
+    "hallelujah",
+    "amen",
+    "forevermore",
+    "throne",
+    "reign",
+    "worship",
+    "thank",
+    "crown",
+  ];
+  const text = normalizedTextKey(block);
+  const responseScore = responseWords.filter((word) => new RegExp(`\\b${word}\\b`).test(text)).length;
+  return lines.length <= 8 && (startsWithTitle || responseScore >= 3);
+}
+
 function parseExplicitSections(formatted: string) {
   const blocks = formatted
     .split(/\n{2,}/)
@@ -419,7 +466,7 @@ function renumberVerseSections(sections: WorshipStructureSection[]) {
   });
 }
 
-function inferSectionsFromBlocks(blocks: string[]) {
+function inferSectionsFromBlocks(blocks: string[], title?: string | null) {
   const counts = new Map<string, number>();
   const firstIndex = new Map<string, number>();
 
@@ -449,7 +496,8 @@ function inferSectionsFromBlocks(blocks: string[]) {
   let usedInferredChorus = Boolean(chorusKey);
   const wordCounts = stats.map((stat) => stat.wordCount);
   const averageWordCount = wordCounts.reduce((total, count) => total + count, 0) / Math.max(1, wordCounts.length);
-  const hymnLike = isStructurallySimilarHymn(blocks, stats, repeatedKeys);
+  const languageChorusIndexes = new Set(blocks.map((_block, index) => index).filter((index) => looksLikeRefrainLanguage(index, blocks, title)));
+  const hymnLike = isStructurallySimilarHymn(blocks, stats, repeatedKeys, languageChorusIndexes);
 
   for (const [index, block] of blocks.entries()) {
     const key = blockKey(block);
@@ -472,10 +520,18 @@ function inferSectionsFromBlocks(blocks: string[]) {
     const isFinal = index === blocks.length - 1;
     const wordCount = wordCounts[index] ?? 0;
 
-    if (!usedInferredChorus && looksLikeChorusCandidate(index, blocks, stats, averageWordCount)) {
+    const repeatMarker = /\b(?:x\s*\d+|repeat(?:\s+all)?)\b|\(\s*x\s*\d+\s*\)/i.test(block);
+    const bridgeMarker = /\bbridge\b/i.test(block);
+
+    if (
+      !usedInferredChorus &&
+      (looksLikeChorusCandidate(index, blocks, stats, averageWordCount) ||
+        languageChorusIndexes.has(index) ||
+        (index > 0 && repeatMarker && !bridgeMarker))
+    ) {
       labels.set(key, "Chorus");
       usedInferredChorus = true;
-      notes.push("A hook-like middle lyric chunk was labelled as Chorus; check this before presenting.");
+      notes.push("A refrain-like middle lyric chunk was labelled as Chorus; check this before presenting.");
       continue;
     }
 
@@ -595,12 +651,16 @@ function stripLeadingTitleBlock(blocks: string[], title: string | null) {
 
   let removedInlineTitle = false;
   const cleanedBlocks = blocks
-    .map((block) => {
+    .map((block, index) => {
       const lines = block
         .split(/\r?\n/)
         .map((line) => line.trim())
         .filter(Boolean);
-      while (lines.length && lineMatchesTitleNoise(lines[0], title)) {
+      while (
+        lines.length &&
+        ((index === 0 && lineMatchesTitleNoise(lines[0], title)) ||
+          (index > 0 && lineMatchesTitleSuffixNoise(lines[0], title)))
+      ) {
         lines.shift();
         removedInlineTitle = true;
       }
@@ -622,7 +682,10 @@ function stripLeadingTitleBlock(blocks: string[], title: string | null) {
     .filter(Boolean);
 
   if (firstLines.length === 0 || firstLines.length > 2) {
-    return { notes: [] as string[], blocks };
+    return {
+      notes: removedInlineTitle ? ["Removed title noise from imported lyrics."] : [],
+      blocks: cleanedBlocks,
+    };
   }
 
   const firstSlideText = normalizedTextKey(firstLines.join(" "));
@@ -685,7 +748,7 @@ export function analyzeWorshipText(value: string, options: { title?: string } = 
   }
 
   const blocks = titleBlockResult.blocks;
-  const inferred = inferSectionsFromBlocks(blocks);
+  const inferred = inferSectionsFromBlocks(blocks, options.title ? titleCaseFromFilename(options.title) : null);
 
   return {
     lyrics: blocks.join("\n\n"),
@@ -709,7 +772,7 @@ export function analyzeImportedSongSlides(slides: string[], title?: string): Wor
   const titleSlideResult = stripLeadingTitleBlock(cleanedSlides, suggestions.title);
   const normalizedSlides = titleSlideResult.blocks.filter(Boolean);
 
-  const inferred = inferSectionsFromBlocks(normalizedSlides);
+  const inferred = inferSectionsFromBlocks(normalizedSlides, suggestions.title);
 
   return {
     lyrics: normalizedSlides.join("\n\n"),

@@ -212,6 +212,12 @@ def line_matches_title_noise(line: str, title: str | None) -> bool:
     return False
 
 
+def line_matches_title_suffix_noise(line: str, title: str | None) -> bool:
+    line_key = normalized_title(line)
+    cleaned_key = normalized_title(clean_slide_title(line))
+    return line_key != cleaned_key and line_matches_title_noise(line, title)
+
+
 def title_matches_song(title: str, song: Song) -> bool:
     title_keys = title_variants(title)
     if not title_keys:
@@ -330,12 +336,15 @@ def collapse_repeated_lines(block: str) -> str:
     return "\n".join(collapsed)
 
 
-def strip_title_noise_from_block(block: str, title: str | None) -> tuple[str, bool]:
+def strip_title_noise_from_block(block: str, title: str | None, *, opening_block: bool) -> tuple[str, bool]:
     lines = meaningful_lines(block)
     if not lines:
         return "", False
     removed = False
-    while lines and line_matches_title_noise(lines[0], title):
+    while lines and (
+        (opening_block and line_matches_title_noise(lines[0], title))
+        or (not opening_block and line_matches_title_suffix_noise(lines[0], title))
+    ):
         lines = lines[1:]
         removed = True
     return "\n".join(lines).strip(), removed
@@ -381,8 +390,8 @@ def strip_leading_title_block(blocks: list[str], title: str | None) -> tuple[lis
 
     cleaned_blocks: list[str] = []
     removed_inline_title = False
-    for block in blocks:
-        stripped, removed = strip_title_noise_from_block(block, title)
+    for index, block in enumerate(blocks):
+        stripped, removed = strip_title_noise_from_block(block, title, opening_block=index == 0)
         removed_inline_title = removed_inline_title or removed
         if stripped:
             cleaned_blocks.append(stripped)
@@ -435,6 +444,39 @@ def looks_like_chorus_candidate(index: int, blocks: list[str], stats: list[tuple
     return hook_like and (shorter_than_neighbors or shorter_than_song or compact)
 
 
+def looks_like_refrain_language(index: int, blocks: list[str], title: str | None = None) -> bool:
+    if index <= 0 or index >= len(blocks) - 1 or len(blocks) < 3:
+        return False
+    block = blocks[index]
+    lines = meaningful_lines(block)
+    if not lines:
+        return False
+    first_line_key = normalized_title(lines[0])
+    starts_with_title = bool(title and any(first_line_key == variant or first_line_key.startswith(f"{variant} ") for variant in title_variants(title)))
+    response_words = [
+        "sing",
+        "song",
+        "praise",
+        "praises",
+        "glory",
+        "honour",
+        "honor",
+        "worthy",
+        "hallelujah",
+        "amen",
+        "forevermore",
+        "throne",
+        "reign",
+        "worship",
+        "thank",
+        "crown",
+    ]
+    text = normalized_text_key(block)
+    response_score = sum(1 for word in response_words if re.search(rf"\b{re.escape(word)}\b", text))
+    compact_lines = len(lines) <= 8
+    return compact_lines and (starts_with_title or response_score >= 3)
+
+
 def renumber_verse_labels(labels: list[str]) -> list[str]:
     verse_number = 1
     output: list[str] = []
@@ -447,7 +489,7 @@ def renumber_verse_labels(labels: list[str]) -> list[str]:
     return output
 
 
-def infer_sections(blocks: list[str]) -> tuple[str, str | None, list[str]]:
+def infer_sections(blocks: list[str], title: str | None = None) -> tuple[str, str | None, list[str]]:
     counts: dict[str, int] = {}
     first_index: dict[str, int] = {}
     for index, block in enumerate(blocks):
@@ -468,9 +510,11 @@ def infer_sections(blocks: list[str]) -> tuple[str, str | None, list[str]]:
     word_counts = [stat[3] for stat in stats]
     average_words = sum(word_counts) / max(1, len(word_counts))
     standout_hook = any(stat[3] < average_words * 0.55 and (stat[0] > 0 or stat[2] > 0) for stat in stats)
+    language_chorus_indexes = {index for index in range(len(blocks)) if looks_like_refrain_language(index, blocks, title)}
     hymn_like = (
         len(blocks) >= 4
         and not repeated
+        and not language_chorus_indexes
         and line_counts
         and max(line_counts) - min(line_counts) <= 2
         and min(word_counts or [0]) >= average_words * 0.62
@@ -501,10 +545,14 @@ def infer_sections(blocks: list[str]) -> tuple[str, str | None, list[str]]:
             much_shorter = word_count > 0 and word_count <= average_words * 0.55
             repeat_marker = bool(re.search(r"\b(?:x\s*\d+|repeat(?:\s+all)?)\b|\(\s*x\s*\d+\s*\)", block, re.I))
             bridge_marker = bool(re.search(r"\bbridge\b", block, re.I))
-            if not used_inferred_chorus and (looks_like_chorus_candidate(index, blocks, stats, average_words) or (index > 0 and repeat_marker and not bridge_marker)):
+            if not used_inferred_chorus and (
+                looks_like_chorus_candidate(index, blocks, stats, average_words)
+                or index in language_chorus_indexes
+                or (index > 0 and repeat_marker and not bridge_marker)
+            ):
                 labels[key] = "Chorus"
                 used_inferred_chorus = True
-                notes.append("A hook-like middle lyric chunk was labelled as Chorus; check this before presenting.")
+                notes.append("A refrain-like middle lyric chunk was labelled as Chorus; check this before presenting.")
             elif not used_bridge and near_end and count == 1 and len(blocks) >= 4 and not final and much_shorter and hook_repeats:
                 labels[key] = "Bridge"
                 used_bridge = True
@@ -556,7 +604,7 @@ def analyze_imported_song_slides(slides: list[str], title: str) -> tuple[str, st
     blocks, notes = strip_leading_title_block(cleaned, candidate_title)
     if not blocks:
         return "", None, notes
-    lyrics, sequence, section_notes = infer_sections(blocks)
+    lyrics, sequence, section_notes = infer_sections(blocks, candidate_title)
     return lyrics, sequence, [*notes, *section_notes]
 
 
@@ -590,6 +638,8 @@ def relabel_with_library_sections(lyrics: str, library_lyrics: str | None) -> tu
     deck_sections = parse_labelled_lyrics(lyrics)
     library_sections = parse_labelled_lyrics(library_lyrics)
     if not deck_sections or not library_sections:
+        return lyrics, " ".join(label for label, _content in deck_sections) or None, False
+    if not any(not re.fullmatch(r"Verse\d*", label, re.I) for label, _content in library_sections):
         return lyrics, " ".join(label for label, _content in deck_sections) or None, False
 
     relabelled: list[tuple[str, str]] = []
