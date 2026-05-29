@@ -705,7 +705,7 @@ function stripLeadingTitleBlock(blocks: string[], title: string | null) {
   };
 }
 
-export function analyzeWorshipText(value: string, options: { title?: string } = {}): WorshipStructureAnalysis {
+export function analyzeWorshipText(value: string, options: { title?: string; redetectSections?: boolean } = {}): WorshipStructureAnalysis {
   const formatted = formatWorshipText(value, { removeChordLines: true });
   if (!formatted) {
     return {
@@ -731,7 +731,7 @@ export function analyzeWorshipText(value: string, options: { title?: string } = 
   );
   const normalizedFormatted = titleBlockResult.blocks.join("\n\n");
 
-  const explicitSections = parseExplicitSections(normalizedFormatted);
+  const explicitSections = options.redetectSections ? [] : parseExplicitSections(normalizedFormatted);
   if (explicitSections.length) {
     return {
       lyrics: normalizedFormatted,
@@ -747,7 +747,13 @@ export function analyzeWorshipText(value: string, options: { title?: string } = 
     };
   }
 
-  const blocks = titleBlockResult.blocks;
+  const blocks = titleBlockResult.blocks
+    .map((block) => {
+      const lines = block.split(/\r?\n/);
+      const heading = normalizeSectionHeading(lines[0] ?? "");
+      return (heading ? lines.slice(1) : lines).join("\n").trim();
+    })
+    .filter(Boolean);
   const inferred = inferSectionsFromBlocks(blocks, options.title ? titleCaseFromFilename(options.title) : null);
 
   return {

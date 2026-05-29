@@ -904,7 +904,7 @@ export function SongManager({
       parsedSequence,
       parseNotes,
     });
-    const analysis = analyzeWorshipText(form.lyrics ?? "", { title: form.title });
+    const analysis = analyzeWorshipText(form.lyrics ?? "", { title: form.title, redetectSections: true });
     const lyrics = buildLyricsFromSections(analysis.sections) || analysis.lyrics;
     setForm({
       ...form,

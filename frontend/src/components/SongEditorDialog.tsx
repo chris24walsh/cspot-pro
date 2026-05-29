@@ -275,7 +275,7 @@ export function SongEditorDialog({
   }, [lines]);
 
   function cleanLyrics() {
-    const analysis = analyzeWorshipText(form.lyrics ?? "", { title: form.title });
+    const analysis = analyzeWorshipText(form.lyrics ?? "", { title: form.title, redetectSections: true });
     setForm((current) => ({
       ...current,
       lyrics: buildLyricsFromSections(analysis.sections) || analysis.lyrics,
