@@ -634,6 +634,11 @@ export function PresentationView({
   );
   const liveSlide = slides[liveIndex] ?? null;
   const currentPlanItem = effectivePlanItems.find((item) => item.id === liveSlide?.planItemId) ?? null;
+  const currentPlanItemAllowsNotes =
+    currentPlanItem?.item_type === "message" ||
+    currentPlanItem?.item_type === "sermon" ||
+    currentPlanItem?.item_type === "slide_deck" ||
+    Boolean(currentPlanItem?.files.length);
   const planTextSlides = useMemo(
     () => slides.filter((slide) => !slide.imageUrl && slide.text.trim()),
     [slides],
@@ -2856,53 +2861,6 @@ export function PresentationView({
                 <CalendarDays size={16} aria-hidden="true" />
                 <span>{plan ? `${formatServiceDate(plan.service_date)} · ${plan.title}` : "Choose service"}</span>
               </button>
-              <div className="topbar-action-group" aria-label="Service actions">
-                <button className="text-button topbar-action-button" disabled={loading || !plan} onClick={() => moveLive(-1)} type="button">
-                  <ChevronLeft size={15} aria-hidden="true" />
-                  Previous
-                </button>
-                <button className="text-button topbar-action-button" disabled={loading || !plan} onClick={() => moveLive(1)} type="button">
-                  Next
-                  <ChevronRight size={15} aria-hidden="true" />
-                </button>
-                {canEditPlan ? (
-                  <button className="text-button topbar-action-button" disabled={!plan} onClick={() => openSearchOverlay()} type="button">
-                    <Search size={15} aria-hidden="true" />
-                    Search
-                  </button>
-                ) : null}
-                {undoAction ? (
-                  <button className="text-button topbar-action-button" onClick={() => void runUndoAction()} type="button">
-                    Undo
-                  </button>
-                ) : null}
-                {liveSlide?.videoUrl ? (
-                  <div className="compact-video-controls" aria-label="Video controls">
-                    <button className="text-button" onClick={() => sendVideoCommand("play")} type="button">
-                      Play
-                    </button>
-                    <button className="text-button" onClick={() => sendVideoCommand("pause")} type="button">
-                      Pause
-                    </button>
-                    <button className="text-button" onClick={() => sendVideoCommand("stop")} type="button">
-                      Stop
-                    </button>
-                  </div>
-                ) : null}
-                {currentPlanItem?.item_type === "reading" && canEditPlan ? (
-                  <button
-                    className="text-button topbar-action-button bible-nav-toggle"
-                    onClick={() => setMobileBibleNavOpen((current) => !current)}
-                    type="button"
-                  >
-                    {mobileBibleNavOpen ? "Hide Bible" : "Bible"}
-                  </button>
-                ) : null}
-                <button className="primary-button topbar-primary-button" disabled={loading || !plan} onClick={() => void startSlideshow()} type="button">
-                  <MonitorUp size={15} aria-hidden="true" />
-                  {slideshowOpen ? "Close Slides" : "Start Slides"}
-                </button>
-              </div>
             </div>,
             topbarSlot,
           )
@@ -3143,8 +3101,60 @@ export function PresentationView({
             </div>
           </div>
 
-          {currentPlanItem?.item_type === "reading" && canEditPlan ? (
-            <div className="presenter-controls presenter-controls-compact">
+          <div className="presenter-controls" aria-label="Slide controls">
+            <div className="action-row presenter-transport-row">
+              <button className="text-button" disabled={loading || !plan} onClick={() => moveLive(-1)} type="button">
+                <ChevronLeft size={16} aria-hidden="true" />
+                Previous
+              </button>
+              <button className="text-button" disabled={loading || !plan} onClick={() => moveLive(1)} type="button">
+                Next
+                <ChevronRight size={16} aria-hidden="true" />
+              </button>
+            </div>
+            <div className="action-row presenter-utility-row">
+              {canEditPlan ? (
+                <button className="text-button" disabled={!plan} onClick={() => openSearchOverlay()} type="button">
+                  <Search size={16} aria-hidden="true" />
+                  Search
+                </button>
+              ) : null}
+              <button className="primary-button" disabled={loading || !plan} onClick={() => void startSlideshow()} type="button">
+                <MonitorUp size={16} aria-hidden="true" />
+                {slideshowOpen ? "Close Slides" : "Start Slides"}
+              </button>
+            </div>
+            {undoAction ? (
+              <div className="action-row presenter-single-row">
+                <button className="text-button" onClick={() => void runUndoAction()} type="button">
+                  Undo
+                </button>
+              </div>
+            ) : null}
+            {liveSlide?.videoUrl ? (
+              <div className="video-control-group" aria-label="Video controls">
+                <button className="text-button" onClick={() => sendVideoCommand("play")} type="button">
+                  Play
+                </button>
+                <button className="text-button" onClick={() => sendVideoCommand("pause")} type="button">
+                  Pause
+                </button>
+                <button className="text-button" onClick={() => sendVideoCommand("stop")} type="button">
+                  Stop
+                </button>
+              </div>
+            ) : null}
+            {currentPlanItem?.item_type === "reading" && canEditPlan ? (
+              <>
+                <div className="action-row presenter-bible-toggle-row">
+                  <button
+                    className="text-button"
+                    onClick={() => setMobileBibleNavOpen((current) => !current)}
+                    type="button"
+                  >
+                    Bible
+                  </button>
+                </div>
               <div className={`action-row bible-nav-row ${mobileBibleNavOpen ? "is-open" : ""}`}>
                 <button className="text-button" disabled={!canEditPlan} onClick={() => void navigateBibleReading("verse", -1)} type="button">
                   Prev Verse
@@ -3159,10 +3169,11 @@ export function PresentationView({
                   Next Chapter
                 </button>
               </div>
-            </div>
-          ) : null}
+              </>
+            ) : null}
+          </div>
 
-          {canEditSlideNotes ? (
+          {canEditSlideNotes && currentPlanItemAllowsNotes ? (
             <div className="slide-notes-panel">
               <div className="slide-notes-heading">
                 <strong>Teacher Notes</strong>
@@ -3172,7 +3183,7 @@ export function PresentationView({
                 disabled={!currentPlanItem || slideNotesSaving}
                 onBlur={() => void saveSlideNotes()}
                 onChange={(event) => setSlideNotesDraft(event.target.value)}
-                placeholder={currentPlanItem ? "Notes for this slide..." : "Select a slide to add notes."}
+                placeholder={currentPlanItem ? "Notes for this sermon slide..." : "Select a sermon slide to add notes."}
                 value={slideNotesDraft}
               />
             </div>

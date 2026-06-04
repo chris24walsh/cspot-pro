@@ -216,6 +216,14 @@ button {
   min-width: 0;
 }
 
+.worship-set-topbar-actions {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-width: 0;
+}
+
 .topbar-service-button {
   background: #fffdf7;
   max-width: min(520px, 100%);
@@ -2937,6 +2945,11 @@ h3 {
   grid-template-columns: minmax(0, 1fr) auto;
 }
 
+.presenter-single-row,
+.presenter-bible-toggle-row {
+  grid-template-columns: minmax(0, 1fr) !important;
+}
+
 .video-control-group {
   display: grid;
   gap: 6px;
@@ -2954,7 +2967,12 @@ h3 {
 
 .bible-nav-row {
   border-top: 1px solid #e3dcc8;
+  display: none;
   padding-top: 8px;
+}
+
+.bible-nav-row.is-open {
+  display: grid;
 }
 
 .bible-nav-row .text-button:last-child {
@@ -4471,6 +4489,41 @@ h3 {
 
   .presentation-topbar-tools {
     justify-content: flex-start;
+  }
+
+  .topbar-worship .topbar-actions {
+    display: none;
+  }
+
+  .worship-topbar-tools {
+    display: grid;
+    gap: 5px;
+    grid-template-columns: minmax(0, 1fr);
+    width: 100%;
+  }
+
+  .worship-topbar-tools .topbar-service-button {
+    font-size: 12px;
+    min-height: 32px;
+    padding: 4px 8px;
+  }
+
+  .worship-set-topbar-actions {
+    display: grid;
+    gap: 5px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100%;
+  }
+
+  .worship-builder-pane-library .worship-set-topbar-actions {
+    display: none;
+  }
+
+  .worship-set-topbar-actions .primary-button,
+  .worship-set-topbar-actions .text-button {
+    min-height: 34px;
+    padding: 6px 8px;
+    width: 100%;
   }
 
   .topbar-service-button {

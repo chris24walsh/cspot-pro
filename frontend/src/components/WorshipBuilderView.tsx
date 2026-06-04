@@ -1174,18 +1174,20 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
                 <CalendarDays size={16} aria-hidden="true" />
                 <span>{plan ? `${formatServiceDate(plan.service_date)} · ${plan.title}` : "Choose worship set"}</span>
               </button>
-              <button className="text-button topbar-action-button" disabled={!plan || !canEditPlan || suggesting} onClick={() => void suggestWorshipSet()} type="button">
-                {suggesting ? "Suggesting..." : "Suggest Set"}
-              </button>
-              {undoAction ? (
-                <button className="text-button topbar-action-button" onClick={() => void runUndoAction()} type="button">
-                  Undo
+              <div className="worship-set-topbar-actions">
+                <button className="text-button topbar-action-button" disabled={!plan || !canEditPlan || suggesting} onClick={() => void suggestWorshipSet()} type="button">
+                  {suggesting ? "Suggesting..." : "Suggest Set"}
                 </button>
-              ) : null}
-              <button className="primary-button topbar-primary-button" disabled={!plan} onClick={() => setViewMode("live")} type="button">
-                <MonitorUp size={16} aria-hidden="true" />
-                Live
-              </button>
+                {undoAction ? (
+                  <button className="text-button topbar-action-button" onClick={() => void runUndoAction()} type="button">
+                    Undo
+                  </button>
+                ) : null}
+                <button className="primary-button topbar-primary-button" disabled={!plan} onClick={() => setViewMode("live")} type="button">
+                  <MonitorUp size={16} aria-hidden="true" />
+                  Live
+                </button>
+              </div>
             </div>,
             topbarSlot,
           )

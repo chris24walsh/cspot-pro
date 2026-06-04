@@ -206,10 +206,6 @@ function App() {
       return [
         { label: "Services", value: String(workspace.plans.length) },
         { label: "Songs", value: String(workspace.songs.length) },
-        {
-          label: "Ready",
-          value: String(workspace.songs.filter((song) => song.lyrics_status === "available").length),
-        },
       ];
     }
 
@@ -294,7 +290,7 @@ function App() {
           })}
           <button className="nav-item" onClick={() => void signOut()} title="Sign out" type="button">
             <LogOut size={18} aria-hidden="true" />
-            <span>Sign out</span>
+            <span>{sessionUser.name} · Sign out</span>
           </button>
         </nav>
       </aside>
@@ -313,9 +309,6 @@ function App() {
                 <strong>{stat.value}</strong>
               </div>
             ))}
-            <div className="user-pill" aria-label={`Signed in as ${sessionUser.name}`}>
-              <strong>{sessionUser.name}</strong>
-            </div>
           </div>
         </header>
 
