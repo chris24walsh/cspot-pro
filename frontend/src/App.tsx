@@ -272,6 +272,10 @@ function App() {
         </div>
 
         <nav className="nav-list">
+          <a className="nav-item" href={publicWebsiteUrl} title="Website">
+            <Globe2 size={18} aria-hidden="true" />
+            <span>Website</span>
+          </a>
           {modules.map((module) => {
             const Icon = iconMap[module.id];
             return (
@@ -286,6 +290,10 @@ function App() {
               </button>
             );
           })}
+          <button className="nav-item" onClick={() => void signOut()} title="Sign out" type="button">
+            <LogOut size={18} aria-hidden="true" />
+            <span>Sign out</span>
+          </button>
         </nav>
       </aside>
 
@@ -303,15 +311,9 @@ function App() {
                 <strong>{stat.value}</strong>
               </div>
             ))}
-            <a className="topbar-link-pill" href={publicWebsiteUrl}>
-              <Globe2 size={15} aria-hidden="true" />
-              <span>Website</span>
-            </a>
-            <button className="user-pill" onClick={() => void signOut()} type="button">
+            <div className="user-pill" aria-label={`Signed in as ${sessionUser.name}`}>
               <strong>{sessionUser.name}</strong>
-              <span>Sign out</span>
-              <LogOut size={14} aria-hidden="true" />
-            </button>
+            </div>
           </div>
         </header>
 
