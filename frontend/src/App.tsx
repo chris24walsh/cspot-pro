@@ -94,6 +94,8 @@ function App() {
     canUsePresentation &&
     (roleNames.has("administrator") || roleNames.has("service_leader") || roleNames.has("worship_leader"));
   const canUseWorshipTools = canReadSongs && permissions.has("plans:read");
+  const canEditSlideNotes =
+    roleNames.has("administrator") || roleNames.has("service_leader") || roleNames.has("teacher");
 
   const loadAuth = useCallback(async () => {
     setAuthLoading(true);
@@ -334,6 +336,7 @@ function App() {
             canEditPlan={canEditPlans}
             canCreateSong={canCreateSongs}
             canEditSong={canEditSongs}
+            canEditSlideNotes={canEditSlideNotes}
           />
         ) : activeModule.id === "broadcast" ? (
           <BroadcastManager />
@@ -347,6 +350,7 @@ function App() {
             canEditPlan={canEditPlans}
             canCreateSong={canCreateSongs}
             canEditSong={canEditSongs}
+            canEditSlideNotes={canEditSlideNotes}
           />
         )}
       </section>

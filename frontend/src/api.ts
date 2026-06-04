@@ -71,6 +71,7 @@ export interface PlanItem {
   comment: string | null;
   key_signature: string | null;
   files: PlanItemFile[];
+  teacher_notes: string | null;
 }
 
 export interface PlanItemFile {
@@ -401,6 +402,7 @@ export interface PlanItemPayload {
   comment: string | null;
   key_signature: string | null;
   song_id: string | null;
+  teacher_notes?: string | null;
 }
 
 export interface UserPayload {

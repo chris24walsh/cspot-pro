@@ -8,7 +8,7 @@ from app.core.database import get_session
 from app.modules.identity.models import User
 from app.modules.identity.auth import CurrentUser, require_any_permission, require_permission
 from app.modules.library.models import ItemFile, StoredFile
-from app.modules.planning.models import Plan, PlanItem, PlanType
+from app.modules.planning.models import ItemNote, Plan, PlanItem, PlanType
 from app.modules.planning.schemas import (
     PlanCreate,
     PlanDetail,
@@ -27,6 +27,11 @@ def plan_item_to_read(session: Session, item: PlanItem) -> PlanItemRead:
     item_files = session.scalars(
         select(ItemFile).where(ItemFile.plan_item_id == item.id).order_by(ItemFile.sort_order)
     ).all()
+    teacher_note = session.scalar(
+        select(ItemNote)
+        .where(ItemNote.plan_item_id == item.id)
+        .order_by(ItemNote.updated_at.desc(), ItemNote.created_at.desc())
+    )
     files = []
     for row in item_files:
         stored_file = session.get(StoredFile, row.file_id)
@@ -51,6 +56,7 @@ def plan_item_to_read(session: Session, item: PlanItem) -> PlanItemRead:
         comment=item.comment,
         key_signature=item.key_signature,
         files=files,
+        teacher_notes=teacher_note.body if teacher_note else None,
     )
 
 
@@ -225,12 +231,32 @@ def create_plan_item(
 def update_plan_item(
     item_id: str,
     payload: PlanItemUpdate,
-    _current_user: User = Depends(require_any_permission("plans:edit", "plans:create")),
+    current_user: User = Depends(require_any_permission("plans:edit", "plans:create")),
     session: Session = Depends(get_session),
 ) -> PlanItemRead:
     item = get_item_or_404(session, item_id)
-    for field, value in payload.model_dump(exclude_unset=True).items():
+    payload_data = payload.model_dump(exclude_unset=True)
+    teacher_notes = payload_data.pop("teacher_notes", None)
+
+    for field, value in payload_data.items():
         setattr(item, field, value)
+
+    if "teacher_notes" in payload.model_fields_set:
+        note = session.scalar(
+            select(ItemNote)
+            .where(ItemNote.plan_item_id == item.id)
+            .order_by(ItemNote.updated_at.desc(), ItemNote.created_at.desc())
+        )
+        note_text = (teacher_notes or "").strip()
+        if note_text:
+            if note is None:
+                note = ItemNote(plan_item_id=item.id, author_id=current_user.id, body=note_text)
+            else:
+                note.body = note_text
+                note.author_id = current_user.id
+            session.add(note)
+        elif note is not None:
+            session.delete(note)
 
     session.commit()
     session.refresh(item)

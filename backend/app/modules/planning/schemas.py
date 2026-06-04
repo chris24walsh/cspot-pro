@@ -33,12 +33,14 @@ class PlanItemUpdate(BaseModel):
     comment: str | None = None
     key_signature: str | None = None
     song_id: str | None = None
+    teacher_notes: str | None = None
 
 
 class PlanItemRead(PlanItemBase):
     id: str
     plan_id: str
     files: list["PlanItemFileRead"] = Field(default_factory=list)
+    teacher_notes: str | None = None
 
 
 class PlanItemFileRead(BaseModel):

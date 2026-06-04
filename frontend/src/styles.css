@@ -47,8 +47,7 @@ button {
   z-index: 20;
 }
 
-.sidebar:hover,
-.sidebar:focus-within {
+.sidebar:hover {
   box-shadow: 12px 0 28px rgba(23, 45, 39, 0.24);
   overflow: visible;
   width: 232px;
@@ -80,8 +79,7 @@ button {
     transform 120ms ease;
 }
 
-.sidebar:hover .brand span,
-.sidebar:focus-within .brand span {
+.sidebar:hover .brand span {
   opacity: 1;
   transform: translateX(0);
 }
@@ -120,8 +118,7 @@ button {
     transform 120ms ease;
 }
 
-.sidebar:hover .nav-item span,
-.sidebar:focus-within .nav-item span {
+.sidebar:hover .nav-item span {
   opacity: 1;
   transform: translateX(0);
 }
@@ -210,6 +207,15 @@ button {
   min-width: 0;
 }
 
+.topbar-action-group {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: center;
+  min-width: 0;
+}
+
 .topbar-service-button {
   background: #fffdf7;
   max-width: min(520px, 100%);
@@ -225,6 +231,24 @@ button {
 .topbar-action-button {
   min-height: 30px;
   padding: 4px 10px;
+  white-space: nowrap;
+}
+
+.topbar-primary-button {
+  min-height: 32px;
+  padding: 5px 12px;
+  white-space: nowrap;
+}
+
+.compact-video-controls {
+  align-items: center;
+  display: flex;
+  gap: 4px;
+}
+
+.compact-video-controls .text-button {
+  min-height: 30px;
+  padding: 4px 8px;
 }
 
 .service-picker-dialog {
@@ -732,10 +756,21 @@ h3 {
 }
 
 .worship-set-toolbar {
-  align-items: stretch;
-  display: grid;
+  align-items: center;
+  background: #fffdf7;
+  border: 1px solid #e3dcc8;
+  border-radius: 10px;
+  display: flex;
   gap: 10px;
-  grid-template-columns: minmax(0, 1fr) auto auto;
+  justify-content: space-between;
+  min-height: 50px;
+  padding: 8px 10px;
+}
+
+.worship-set-toolbar h2 {
+  font-size: 20px;
+  line-height: 1.12;
+  margin: 0;
 }
 
 .worship-set-toolbar label {
@@ -2004,6 +2039,40 @@ h3 {
   line-height: 1.35;
 }
 
+.compact-role-fieldset {
+  padding: 10px;
+}
+
+.role-chip-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.role-chip {
+  align-items: center;
+  background: #fffdf7;
+  border: 1px solid #d9cfb8;
+  border-radius: 999px;
+  color: #244c42;
+  display: inline-flex;
+  font-size: 13px;
+  font-weight: 850;
+  gap: 6px;
+  min-height: 34px;
+  padding: 5px 10px;
+}
+
+.role-chip.selected {
+  background: #e7f4ee;
+  border-color: #8dc7b5;
+}
+
+.role-chip input {
+  min-height: auto;
+  width: auto;
+}
+
 .action-row {
   align-items: center;
   display: flex;
@@ -2896,6 +2965,49 @@ h3 {
 .presenter-controls .primary-button {
   min-height: var(--control-height-lg);
   padding: 8px 10px;
+  width: 100%;
+}
+
+.presenter-controls-compact {
+  background: #fffefa;
+  border: 1px solid #e3dcc8;
+  border-radius: 10px;
+  padding: 6px;
+}
+
+.slide-notes-panel {
+  background: #fffefa;
+  border: 1px solid #e3dcc8;
+  border-radius: 10px;
+  display: grid;
+  gap: 6px;
+  padding: 8px;
+}
+
+.slide-notes-heading {
+  align-items: center;
+  color: #3b473f;
+  display: flex;
+  font-size: 13px;
+  gap: 8px;
+  justify-content: space-between;
+}
+
+.slide-notes-heading span {
+  color: #65736b;
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.slide-notes-panel textarea {
+  background: #fffdf7;
+  border: 1px solid #cfc6ae;
+  border-radius: 8px;
+  color: #17201b;
+  font: inherit;
+  min-height: 82px;
+  padding: 8px 10px;
+  resize: vertical;
   width: 100%;
 }
 
@@ -4256,8 +4368,7 @@ h3 {
     width: 100%;
   }
 
-  .sidebar:hover,
-  .sidebar:focus-within {
+  .sidebar:hover {
     box-shadow: none;
     overflow-x: auto;
     width: 100%;
@@ -4442,7 +4553,12 @@ h3 {
   }
 
   .worship-set-toolbar {
-    grid-template-columns: 1fr;
+    min-height: auto;
+    padding: 7px 9px;
+  }
+
+  .worship-set-toolbar h2 {
+    font-size: 16px;
   }
 
   .worship-live-topbar,
@@ -4452,17 +4568,6 @@ h3 {
 
   .worship-set-summary {
     display: none;
-  }
-
-  .worship-set-toolbar .toolbar-button-cluster {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-  }
-
-  .worship-set-toolbar .toolbar-button-cluster .text-button,
-  .worship-set-toolbar .toolbar-button-cluster .primary-button {
-    min-height: 34px;
-    padding-inline: 8px;
   }
 
   .toolbar-button-cluster {
@@ -4790,10 +4895,6 @@ h3 {
 
   .worship-set-toolbar {
     gap: 6px;
-  }
-
-  .worship-set-toolbar .toolbar-button-cluster {
-    grid-template-columns: 1fr 1fr;
   }
 
   .worship-set-layout {

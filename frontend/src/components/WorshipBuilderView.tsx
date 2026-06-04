@@ -1149,20 +1149,7 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
     return (
       <section className="worship-live-shell" aria-label="Musician live worship">
         <div className="worship-live-topbar">
-          <label>
-            Worship Set
-            <select
-              disabled={loading}
-              onChange={(event) => void selectPlan(event.target.value)}
-              value={selectedPlanId}
-            >
-              {sortedPlans.map((worshipSet) => (
-                <option key={worshipSet.id} value={worshipSet.id}>
-                  {formatServiceDate(worshipSet.service_date)} · {worshipSet.title}
-                </option>
-              ))}
-            </select>
-          </label>
+          <span>{plan ? `${formatServiceDate(plan.service_date)} · ${plan.title}` : "No worship set selected"}</span>
           <button className="text-button" onClick={() => setViewMode("builder")} type="button">
             Back to builder
           </button>
@@ -1177,23 +1164,27 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
       {topbarSlot
         ? createPortal(
             <div className="presentation-topbar-tools worship-topbar-tools">
-              <label className="topbar-select-field">
-                <span>Worship Set</span>
-                <select
-                  disabled={loading}
-                  onChange={(event) => void selectPlan(event.target.value)}
-                  value={selectedPlanId}
-                >
-                  {sortedPlans.map((worshipSet) => (
-                    <option key={worshipSet.id} value={worshipSet.id}>
-                      {formatServiceDate(worshipSet.service_date)} · {worshipSet.title}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <button className="text-button topbar-service-button" onClick={openSetPicker} title="Choose or create a worship set" type="button">
+              <button
+                className="text-button topbar-service-button"
+                disabled={loading}
+                onClick={openSetPicker}
+                title="Choose or create a worship set"
+                type="button"
+              >
                 <CalendarDays size={16} aria-hidden="true" />
-                <span>Sets</span>
+                <span>{plan ? `${formatServiceDate(plan.service_date)} · ${plan.title}` : "Choose worship set"}</span>
+              </button>
+              <button className="text-button topbar-action-button" disabled={!plan || !canEditPlan || suggesting} onClick={() => void suggestWorshipSet()} type="button">
+                {suggesting ? "Suggesting..." : "Suggest Set"}
+              </button>
+              {undoAction ? (
+                <button className="text-button topbar-action-button" onClick={() => void runUndoAction()} type="button">
+                  Undo
+                </button>
+              ) : null}
+              <button className="primary-button topbar-primary-button" disabled={!plan} onClick={() => setViewMode("live")} type="button">
+                <MonitorUp size={16} aria-hidden="true" />
+                Live
               </button>
             </div>,
             topbarSlot,
@@ -1267,25 +1258,10 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
       </aside>
 
       <main className={`worship-set-builder ${mobileBuilderPane === "set" ? "is-mobile-active" : ""}`}>
-        <div className="worship-set-toolbar">
-          <div className="toolbar-button-cluster">
-            <button className="text-button" disabled={!plan || !canEditPlan || suggesting} onClick={() => void suggestWorshipSet()} type="button">
-              {suggesting ? "Suggesting..." : "Suggest Set"}
-            </button>
-            {undoAction ? (
-              <button className="text-button" onClick={() => void runUndoAction()} type="button">
-                Undo
-              </button>
-            ) : null}
-            {canAccessAdminTools ? (
-              <button className="text-button" disabled={!canEditPlan} onClick={() => setHistoryImportOpen(true)} type="button">
-                History Import
-              </button>
-            ) : null}
-            <button className="primary-button icon-text-button" disabled={!plan} onClick={() => setViewMode("live")} type="button">
-              <MonitorUp size={16} aria-hidden="true" />
-              Live View
-            </button>
+        <div className="worship-set-toolbar worship-set-toolbar-compact">
+          <div>
+            <p className="eyebrow">Set</p>
+            <h2>{plan?.title ?? "No worship set selected"}</h2>
           </div>
           <div className="worship-set-summary">
             <strong>{worshipItems.length}</strong>

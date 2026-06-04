@@ -7,7 +7,6 @@ import {
   getGoogleDriveStatus,
   getRoles,
   getUsers,
-  sendTestEmail,
   type GoogleDriveStatus,
   inviteUser,
   resendInvite,
@@ -86,7 +85,6 @@ export function UserManager() {
   const [loading, setLoading] = useState(true);
   const [showInactive, setShowInactive] = useState(false);
   const [driveStatus, setDriveStatus] = useState<GoogleDriveStatus | null>(null);
-  const [testEmailAddress, setTestEmailAddress] = useState("");
 
   const filteredUsers = showInactive ? users : users.filter((user) => user.active);
 
@@ -108,7 +106,6 @@ export function UserManager() {
       if (target) {
         setSelectedUser(target);
         setForm(formFromUser(target));
-        setTestEmailAddress(target.email);
         setMode("edit");
       } else {
         startCreate();
@@ -132,13 +129,11 @@ export function UserManager() {
       active: true,
       role_names: ["viewer"],
     });
-    setTestEmailAddress("");
   }
 
   function selectUser(user: User) {
     setSelectedUser(user);
     setForm(formFromUser(user));
-    setTestEmailAddress(user.email);
     setMode("edit");
     setActionLink(null);
     setMessage(null);
@@ -304,22 +299,6 @@ export function UserManager() {
     window.location.href = buildAbsoluteApiUrl("/api/v1/integrations/google-drive/connect");
   }
 
-  async function runEmailTest() {
-    const email = testEmailAddress.trim();
-    if (!email) {
-      setMessage("Enter a test recipient email first.");
-      return;
-    }
-
-    setMessage(null);
-    try {
-      const result = await sendTestEmail({ email });
-      setMessage(`Test email sent to ${result.recipient}. Check your SMTP provider.`);
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Could not send test email.");
-    }
-  }
-
   return (
     <section className="manager-grid" aria-label="User management">
       <aside className="manager-list">
@@ -420,77 +399,26 @@ export function UserManager() {
             />
           </label>
 
-          <label>
-            Start Page
-            <input
-              onChange={(event) => setForm({ ...form, start_page: event.target.value })}
-              placeholder="/cspot/plans/next"
-              value={form.start_page}
-            />
-          </label>
-
-          <div className="toggle-row">
-            <label>
-              <input
-                checked={form.active}
-                onChange={(event) => setForm({ ...form, active: event.target.checked })}
-                type="checkbox"
-              />
-              Active
-            </label>
-            <label>
-              <input
-                checked={form.email_confirmed}
-                onChange={(event) => setForm({ ...form, email_confirmed: event.target.checked })}
-                type="checkbox"
-              />
-              Email confirmed
-            </label>
-          </div>
-
-          <fieldset className="wide-field role-fieldset">
+          <fieldset className="wide-field role-fieldset compact-role-fieldset">
             <legend>Roles</legend>
-            <div className="role-grid">
+            <div className="role-chip-grid">
               {roles.map((role) => (
-                <label key={role.id}>
+                <label
+                  className={`role-chip ${form.role_names.includes(role.name) ? "selected" : ""}`}
+                  key={role.id}
+                  title={role.description ?? formatRoleName(role.name)}
+                >
                   <input
                     checked={form.role_names.includes(role.name)}
                     onChange={() => toggleRole(role.name)}
                     type="checkbox"
                   />
                   <span>{formatRoleName(role.name)}</span>
-                  {role.description ? <small>{role.description}</small> : null}
                 </label>
               ))}
             </div>
           </fieldset>
         </div>
-
-        <section className="subsection-panel">
-          <div className="section-heading">
-            <div>
-              <p className="eyebrow">Email</p>
-              <h3>SMTP Email</h3>
-            </div>
-            <button className="text-button" onClick={() => void runEmailTest()} type="button">
-              Send Test Email
-            </button>
-          </div>
-          <p className="muted-copy">
-            Use your SMTP provider credentials in the backend env, then send a test message here before using invites or reset links.
-          </p>
-          <div className="form-grid">
-            <label className="wide-field">
-              Test recipient
-              <input
-                onChange={(event) => setTestEmailAddress(event.target.value)}
-                placeholder="you@example.com"
-                type="email"
-                value={testEmailAddress}
-              />
-            </label>
-          </div>
-        </section>
 
         <section className="subsection-panel">
           <div className="section-heading">
