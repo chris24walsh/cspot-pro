@@ -510,6 +510,24 @@ export interface GoogleDriveImportResponse {
   source: GoogleDriveFile;
 }
 
+export interface SiteContentBlock {
+  id: string;
+  key: string;
+  label: string;
+  block_type: string;
+  value: string;
+  draft_value: string | null;
+  published: boolean;
+  updated_at: string;
+}
+
+export interface SiteContentBlockPayload {
+  label?: string | null;
+  block_type?: string | null;
+  value: string;
+  published?: boolean;
+}
+
 export interface AuthActionToken {
   purpose: string;
   email: string;
@@ -881,6 +899,26 @@ export async function parseGoogleDriveDeck(fileId: string): Promise<ParsedSlideD
   return sendJson<ParsedSlideDeck>("/api/v1/integrations/google-drive/parse", "POST", { file_id: fileId }, {
     timeoutMs: DECK_IMPORT_TIMEOUT_MS,
   });
+}
+
+export async function getSiteContent(): Promise<SiteContentBlock[]> {
+  return getJson<SiteContentBlock[]>("/api/v1/site/content", { suppressAuthEvent: true });
+}
+
+export async function getAdminSiteContent(): Promise<SiteContentBlock[]> {
+  return getJson<SiteContentBlock[]>("/api/v1/site/content/admin", { suppressAuthEvent: true });
+}
+
+export async function updateSiteContentBlock(
+  key: string,
+  payload: SiteContentBlockPayload,
+): Promise<SiteContentBlock> {
+  return sendJson<SiteContentBlock>(
+    `/api/v1/site/content/${encodeURIComponent(key)}`,
+    "PATCH",
+    payload,
+    { suppressAuthEvent: true },
+  );
 }
 
 export async function getInstruments(): Promise<Instrument[]> {

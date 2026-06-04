@@ -121,6 +121,9 @@ These preferences have been made explicit and should guide future changes.
 
 - New songs should support paste-in lyrics and formatting assistance.
 - Worship songs should be normalized into a consistent slide structure.
+- Worship-song lyrics should store each distinct song part once where possible.
+  Repeated parts belong in the song sequence, or as bare section labels when
+  preserving imported lyric order.
 - The final slides do not need visible labels such as "verse" or "chorus" if
   the content already reads clearly as separate slides.
 

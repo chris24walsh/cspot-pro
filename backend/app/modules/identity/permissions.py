@@ -73,8 +73,8 @@ ROLE_DEFINITIONS: dict[str, RoleDefinition] = {
         | {"broadcast:use", "plans:create", "plans:delete", "songs:create", "songs:delete", "library:create", "library:delete"},
     },
     "administrator": {
-        "description": "Manage users, roles, and all planning, music, library, and presentation content.",
-        "permissions": ALL_PERMISSIONS,
+        "description": "Manage users, roles, website content, and all planning, music, library, and presentation content.",
+        "permissions": ALL_PERMISSIONS | {"site:edit"},
     },
 }
 

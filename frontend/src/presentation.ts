@@ -1,6 +1,6 @@
 import type { PlanItem, RenderedSlide, Song } from "./api";
 import { appApiBasePath } from "./paths";
-import { splitWorshipSlides } from "./worshipText";
+import { expandWorshipSlides } from "./worshipText";
 
 export const PRESENTATION_CHANNEL = "cspot-pro-presentation-live";
 export const PRESENTATION_STORAGE_KEY = "cspot-pro:presentation-live";
@@ -108,6 +108,65 @@ export function suggestSlideGroupFontCap(texts: string[], compact = false) {
   }
 
   return bestCap;
+}
+
+function meaningfulTextLines(text: string) {
+  return text
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+}
+
+function lineStats(lines: string[]) {
+  return {
+    longestLine: lines.reduce((longest, line) => Math.max(longest, line.length), 0),
+    totalChars: lines.join(" ").length,
+  };
+}
+
+function shouldSplitLyricSlide(lines: string[]) {
+  const { longestLine, totalChars } = lineStats(lines);
+  return lines.length > 5 || totalChars > 185 || longestLine > 46;
+}
+
+function chooseLyricSplitIndex(lines: string[]) {
+  const midpoint = lines.length / 2;
+  let bestIndex = Math.ceil(midpoint);
+  let bestScore = Number.POSITIVE_INFINITY;
+
+  for (let index = 2; index <= lines.length - 2; index += 1) {
+    const first = lines.slice(0, index);
+    const second = lines.slice(index);
+    const firstStats = lineStats(first);
+    const secondStats = lineStats(second);
+    const balanceScore = Math.abs(firstStats.totalChars - secondStats.totalChars);
+    const lineScore = Math.abs(first.length - second.length) * 18;
+    const phraseBonus = /[,;:.!?)]$/.test(lines[index - 1]) ? -16 : 0;
+    const score = balanceScore + lineScore + phraseBonus;
+    if (score < bestScore) {
+      bestScore = score;
+      bestIndex = index;
+    }
+  }
+
+  return bestIndex;
+}
+
+export function splitOversizedLyricSlide(text: string) {
+  const lines = meaningfulTextLines(text);
+  if (!shouldSplitLyricSlide(lines)) {
+    return [text];
+  }
+
+  const splitIndex = chooseLyricSplitIndex(lines);
+  const first = lines.slice(0, splitIndex).join("\n").trim();
+  const second = lines.slice(splitIndex).join("\n").trim();
+
+  if (!first || !second) {
+    return [text];
+  }
+
+  return [first, second];
 }
 
 export function resolveLiveIndex(slides: PresentationSlide[], liveState: PresentationLiveState | null) {
@@ -265,7 +324,7 @@ export function buildPresentationSections(
     }
 
     if (song?.lyrics) {
-      const songSlides = splitWorshipSlides(song.lyrics);
+      const songSlides = expandWorshipSlides(song.lyrics, song.sequence).flatMap(splitOversizedLyricSlide);
       if (songSlides.length) {
         const slides = songSlides.map((text, sectionIndex) => {
           return {

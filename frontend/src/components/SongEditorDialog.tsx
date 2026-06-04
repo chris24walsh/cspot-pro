@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 
-import { updateSong, type Song } from "../api";
+import { createSong, updateSong, type Song } from "../api";
 import {
   createEmptyChordChart,
   deriveAbsoluteKey,
@@ -26,7 +26,7 @@ import {
   type ChordDisplayMode,
   type KeyAnchorMode,
 } from "../chordSheet";
-import { analyzeWorshipText, buildLyricsFromSections } from "../worshipText";
+import { analyzeWorshipText, buildLyricsFromSections, canonicalizeWorshipLyrics, sequenceFromWorshipLyrics } from "../worshipText";
 
 type SongForm = Omit<Song, "id" | "lyrics_status">;
 type SongEditorTab = "lyrics" | "details" | "chords";
@@ -101,7 +101,7 @@ function normalizeForm(form: SongForm, chords: string | null): SongForm {
     title: form.title.trim(),
     alternate_title: form.alternate_title || null,
     author: form.author || null,
-    lyrics: form.lyrics ? analyzeWorshipText(form.lyrics, { title: form.title }).lyrics : null,
+    lyrics: form.lyrics ? canonicalizeWorshipLyrics(analyzeWorshipText(form.lyrics, { title: form.title }).lyrics, form.sequence) : null,
     chords,
     ccli_number: form.ccli_number || null,
     book_reference: form.book_reference || null,
@@ -208,11 +208,15 @@ function GuitarChordDiagram({ chord, shapeMode }: { chord: string | null; shapeM
 
 export function SongEditorDialog({
   canEdit,
+  mode = "edit",
+  onArchive,
   onClose,
   onSaved,
   song,
 }: {
   canEdit: boolean;
+  mode?: "create" | "edit";
+  onArchive?: (song: Song) => void | Promise<void>;
   onClose: () => void;
   onSaved: (song: Song) => void | Promise<void>;
   song: Song;
@@ -278,9 +282,23 @@ export function SongEditorDialog({
     const analysis = analyzeWorshipText(form.lyrics ?? "", { title: form.title, redetectSections: true });
     setForm((current) => ({
       ...current,
-      lyrics: buildLyricsFromSections(analysis.sections) || analysis.lyrics,
+      lyrics: canonicalizeWorshipLyrics(buildLyricsFromSections(analysis.sections) || analysis.lyrics, analysis.sequence),
       sequence: analysis.sequence,
     }));
+  }
+
+  function useLyricOrderAsSequence() {
+    const sequence = sequenceFromWorshipLyrics(form.lyrics);
+    if (!sequence) {
+      setMessage("Add section labels before setting sequence from lyric order.");
+      return;
+    }
+    setForm((current) => ({
+      ...current,
+      lyrics: canonicalizeWorshipLyrics(current.lyrics, sequence),
+      sequence,
+    }));
+    setMessage(`Sequence set to ${sequence}.`);
   }
 
   function normalizeChordInput(value: string) {
@@ -437,7 +455,8 @@ export function SongEditorDialog({
     setSaving(true);
     setMessage(null);
     try {
-      const saved = await updateSong(song.id, normalizeForm(form, serializeChordChart(chordChart, legacyChords)));
+      const payload = normalizeForm(form, serializeChordChart(chordChart, legacyChords));
+      const saved = mode === "create" ? await createSong(payload) : await updateSong(song.id, payload);
       await onSaved(saved);
       onClose();
     } catch (error) {
@@ -460,9 +479,19 @@ export function SongEditorDialog({
           <div className="section-heading">
             <div>
               <p className="eyebrow">Edit Song</p>
-              <h2 id="song-editor-dialog-title">{form.title || song.title}</h2>
+              <h2 id="song-editor-dialog-title">{mode === "create" ? "New Song" : form.title || song.title}</h2>
             </div>
             <div className="action-row">
+              {mode === "edit" && onArchive ? (
+                <button
+                  className="danger-button"
+                  disabled={saving || !canEdit}
+                  onClick={() => void onArchive(song)}
+                  type="button"
+                >
+                  Archive Song
+                </button>
+              ) : null}
               <button className="text-button" onClick={onClose} type="button">Close</button>
               <button className="primary-button" disabled={saving || !canEdit || !form.title.trim()} onClick={() => void saveSong()} type="button">
                 {saving ? "Saving..." : "Save Song"}
@@ -528,6 +557,7 @@ export function SongEditorDialog({
                 <label htmlFor="song-dialog-lyrics">Lyrics</label>
                 <div className="field-action-row">
                   <button className="text-button" disabled={!canEdit} onClick={cleanLyrics} type="button">Clean & Detect</button>
+                  <button className="text-button" disabled={!canEdit} onClick={useLyricOrderAsSequence} type="button">Use Lyric Order</button>
                 </div>
                 <textarea id="song-dialog-lyrics" disabled={!canEdit} onChange={(event) => setForm({ ...form, lyrics: event.target.value })} rows={18} value={form.lyrics ?? ""} />
               </div>

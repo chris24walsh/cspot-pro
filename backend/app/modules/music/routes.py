@@ -3,7 +3,7 @@ import math
 import secrets
 
 from fastapi import APIRouter, Depends, HTTPException, Response, status
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
 from app.core.database import get_session
@@ -52,21 +52,55 @@ _suggestion_random = secrets.SystemRandom()
 
 def _song_usage(session: Session) -> dict[str, dict[str, object]]:
     rows = session.execute(
-        select(Song.id, Plan.service_date)
-        .join(PlanItem, PlanItem.song_id == Song.id)
-        .join(Plan, Plan.id == PlanItem.plan_id)
-        .join(PlanType, PlanType.id == Plan.plan_type_id)
-        .where(
-            Song.deleted_at.is_(None),
-            PlanItem.deleted_at.is_(None),
-            Plan.deleted_at.is_(None),
-            PlanType.name == "Worship Set",
+        text(
+            """
+            with worship_items as (
+                select
+                    songs.id as song_id,
+                    plans.service_date,
+                    row_number() over (
+                        partition by plans.id
+                        order by plan_items.sequence, plan_items.created_at, plan_items.id
+                    ) as item_number,
+                    count(*) over (partition by plans.id) as item_count
+                from songs
+                join plan_items on plan_items.song_id = songs.id
+                join plans on plans.id = plan_items.plan_id
+                join plan_types on plan_types.id = plans.plan_type_id
+                where
+                    songs.deleted_at is null
+                    and plan_items.deleted_at is null
+                    and plans.deleted_at is null
+                    and plan_items.item_type = 'song'
+                    and plan_types.name = 'Worship Set'
+            )
+            select
+                song_id,
+                service_date,
+                case
+                    when item_number = 1 then 'opener'
+                    when item_number = item_count then 'closer'
+                    else 'middle'
+                end as slot
+            from worship_items
+            """
         )
     ).all()
     usage: dict[str, dict[str, object]] = {}
-    for song_id, service_date in rows:
-        entry = usage.setdefault(song_id, {"use_count": 0, "last_used": None, "used_dates": []})
+    for song_id, service_date, slot in rows:
+        entry = usage.setdefault(
+            song_id,
+            {
+                "use_count": 0,
+                "last_used": None,
+                "used_dates": [],
+                "slot_counts": {"opener": 0, "middle": 0, "closer": 0},
+            },
+        )
         entry["use_count"] = int(entry["use_count"]) + 1
+        slot_counts = entry["slot_counts"]
+        if isinstance(slot_counts, dict) and slot in slot_counts:
+            slot_counts[slot] = int(slot_counts[slot]) + 1
         if isinstance(service_date, datetime):
             used_dates = entry["used_dates"]
             if isinstance(used_dates, list):
@@ -103,6 +137,23 @@ def _recent_use_count(usage: dict[str, object], now: datetime, days: int) -> int
     return count
 
 
+def _historical_slot_fit(usage: dict[str, object], slot: str) -> tuple[float, int, float]:
+    slot_counts = usage.get("slot_counts")
+    if not isinstance(slot_counts, dict):
+        return 0.0, 0, 0.0
+
+    slot_count = int(slot_counts.get(slot) or 0)
+    total = sum(int(slot_counts.get(candidate) or 0) for candidate in ("opener", "middle", "closer"))
+    if total <= 0:
+        return 0.0, slot_count, 0.0
+
+    share = slot_count / total
+    bonus = min(slot_count * 3.5, 16) + share * 12
+    if slot_count == 0 and total >= 3:
+        bonus -= 8
+    return bonus, slot_count, share
+
+
 def _song_score(song: Song, slot: str, usage: dict[str, object], now: datetime) -> tuple[float, str]:
     use_count = int(usage.get("use_count") or 0)
     last_used = usage.get("last_used")
@@ -113,6 +164,7 @@ def _song_score(song: Song, slot: str, usage: dict[str, object], now: datetime) 
     energy = song.energy if song.energy is not None else 3
     target_energy = {"opener": 5, "middle": 3, "closer": 2}.get(slot, 3)
     recent_count = _recent_use_count(usage, now, 35)
+    historical_bonus, historical_slot_count, historical_slot_share = _historical_slot_fit(usage, slot)
     role_bonus = 18 if _role_matches(song, slot) else -22
     favourite_bonus = min(math.log1p(use_count) * 5.0, 12)
     recent_favourite_bonus = 0.0
@@ -130,10 +182,22 @@ def _song_score(song: Song, slot: str, usage: dict[str, object], now: datetime) 
 
     rotation_penalty = min(use_count * 0.8, 10)
     energy_penalty = abs(energy - target_energy) * 2.8
-    score = 50 + role_bonus + favourite_bonus + recent_favourite_bonus + freshness_bonus - stale_recent_penalty - rotation_penalty - energy_penalty
+    score = (
+        50
+        + role_bonus
+        + historical_bonus
+        + favourite_bonus
+        + recent_favourite_bonus
+        + freshness_bonus
+        - stale_recent_penalty
+        - rotation_penalty
+        - energy_penalty
+    )
 
     if use_count == 0:
         reason = "new to the rotation"
+    elif historical_slot_count >= 2 and historical_slot_share >= 0.45:
+        reason = f"historically strong {slot} song"
     elif 7 <= days_since <= 35:
         reason = "recent favourite with room to repeat"
     elif days_since >= 90:
@@ -201,7 +265,15 @@ def suggest_worship_set(
         for song in songs:
             if song.id in selected_ids:
                 continue
-            song_usage = usage.get(song.id, {"use_count": 0, "last_used": None})
+            song_usage = usage.get(
+                song.id,
+                {
+                    "use_count": 0,
+                    "last_used": None,
+                    "used_dates": [],
+                    "slot_counts": {"opener": 0, "middle": 0, "closer": 0},
+                },
+            )
             score, reason = _song_score(song, slot, song_usage, now)
             candidates.append((score, reason, song, song_usage))
         if not candidates:

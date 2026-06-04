@@ -218,6 +218,9 @@ Search modes:
 - Bible reference
 - Bible keyword
 - Songs
+- Song lyrics are treated as canonical labelled parts. The presenter can expand
+  slides from `Song.sequence`, so repeated choruses/verses do not need duplicated
+  lyric text.
 
 ### Keyboard behavior
 

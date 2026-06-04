@@ -55,6 +55,50 @@ function compactSectionLabel(label: string) {
   return label.replace(/^(Verse|Section)\s*(\d+)$/i, (_, section: string, number: string) => `${section}${number}`);
 }
 
+function normalizeSectionToken(token: string): string | null {
+  const trimmed = token.trim().replace(/^\[|\]$/g, "").replace(/:$/, "");
+  const compact = trimmed.replace(/\s+/g, "");
+  const match = compact.match(/^(v|verse|c|chorus|b|bridge|pc|prechorus|pre-chorus|tag|ending|outro|intro|section)(\d+)?$/i);
+  if (!match) {
+    return normalizeSectionHeading(trimmed);
+  }
+
+  const base = match[1].toLowerCase();
+  const number = match[2] ?? "";
+  const label =
+    base === "v" || base === "verse"
+      ? "Verse"
+      : base === "c" || base === "chorus"
+        ? "Chorus"
+        : base === "b" || base === "bridge"
+          ? "Bridge"
+          : base === "pc" || base === "prechorus" || base === "pre-chorus"
+            ? "PreChorus"
+            : base === "section"
+              ? "Section"
+              : base[0].toUpperCase() + base.slice(1);
+
+  return number ? `${label}${number}` : label;
+}
+
+function sequenceLabels(sequence: string | null | undefined) {
+  const labels: string[] = [];
+  const normalized = (sequence ?? "")
+    .replace(/([A-Za-z]+)(\d+)?x(\d+)/gi, (_match, part: string, number: string = "", count: string) =>
+      Array.from({ length: Number(count) || 1 }, () => `${part}${number}`).join(" "),
+    )
+    .replace(/\bC(?=V\d)/gi, "C ");
+
+  for (const token of normalized.split(/[\s,>/|-]+/)) {
+    const label = normalizeSectionToken(token);
+    if (label) {
+      labels.push(label);
+    }
+  }
+
+  return labels;
+}
+
 export function isWorshipSectionHeading(line: string): boolean {
   return normalizeSectionHeading(line) !== null;
 }
@@ -198,6 +242,109 @@ export function splitWorshipSlides(value: string) {
         .trim(),
     )
     .filter(Boolean);
+}
+
+function parseWorshipSectionBlocks(value: string | null | undefined) {
+  const formatted = formatWorshipText(value ?? "", { removeChordLines: true });
+  if (!formatted) {
+    return [] as WorshipStructureSection[];
+  }
+
+  return formatted
+    .split(/\n{2,}/)
+    .map((block, index) => {
+      const lines = block
+        .split(/\r?\n/)
+        .map((line) => line.trim())
+        .filter(Boolean);
+      const heading = normalizeSectionHeading(lines[0] ?? "");
+      const fallbackLabel = `Section${index + 1}`;
+      const label = compactSectionLabel(heading ?? fallbackLabel);
+      const content = (heading ? lines.slice(1) : lines).join("\n").trim();
+      return {
+        content,
+        key: blockKey(content || label),
+        label,
+      };
+    })
+    .filter((section) => section.content || section.label);
+}
+
+export function expandWorshipSlides(value: string | null | undefined, sequence?: string | null) {
+  const sections = parseWorshipSectionBlocks(value);
+  if (!sections.length) {
+    return [];
+  }
+
+  const contentByLabel = new Map<string, string[]>();
+  const fallbackSlides: string[] = [];
+
+  for (const section of sections) {
+    const label = normalizeSectionToken(section.label) ?? compactSectionLabel(section.label);
+    if (section.content) {
+      const group = contentByLabel.get(label) ?? [];
+      if (!group.some((content) => blockKey(content) === blockKey(section.content))) {
+        group.push(section.content);
+        contentByLabel.set(label, group);
+      }
+    }
+    if (section.content) {
+      fallbackSlides.push(section.content);
+    } else {
+      const referenced = contentByLabel.get(label) ?? [];
+      if (referenced.length) {
+        fallbackSlides.push(...referenced);
+      }
+    }
+  }
+
+  const ordered = sequenceLabels(sequence).flatMap((label) => contentByLabel.get(label) ?? []);
+
+  return ordered.length ? ordered : fallbackSlides;
+}
+
+export function canonicalizeWorshipLyrics(value: string | null | undefined, sequence?: string | null) {
+  const sections = parseWorshipSectionBlocks(value);
+  const seenContentByLabel = new Map<string, string>();
+
+  const blocks = sections
+    .map((section) => {
+      const label = normalizeSectionToken(section.label) ?? compactSectionLabel(section.label);
+      const previous = seenContentByLabel.get(label);
+      if (section.content && !previous) {
+        seenContentByLabel.set(label, blockKey(section.content));
+        return [`[${compactSectionLabel(label)}]`, section.content].join("\n");
+      }
+      if (section.content && previous === blockKey(section.content)) {
+        return `[${compactSectionLabel(label)}]`;
+      }
+      if (section.content) {
+        return [`[${compactSectionLabel(label)}]`, section.content].join("\n");
+      }
+      return `[${compactSectionLabel(label)}]`;
+    })
+    .filter(Boolean);
+
+  const sequenceOnlyRepeats = sequenceLabels(sequence).filter((label) => seenContentByLabel.has(label));
+  if (sequenceOnlyRepeats.length > blocks.length) {
+    const knownLabels = new Set(blocks.map((block) => normalizeSectionToken(block.split(/\r?\n/, 1)[0] ?? "")).filter(Boolean));
+    for (const label of sequenceOnlyRepeats) {
+      if (!knownLabels.has(label)) {
+        blocks.push(`[${compactSectionLabel(label)}]`);
+        knownLabels.add(label);
+      }
+    }
+  }
+
+  return blocks.join("\n\n").trim();
+}
+
+export function sequenceFromWorshipLyrics(value: string | null | undefined) {
+  const labels = parseWorshipSectionBlocks(value)
+    .map((section) => normalizeSectionToken(section.label) ?? compactSectionLabel(section.label))
+    .filter(Boolean);
+
+  return labels.filter((label, index) => index === 0 || label !== labels[index - 1]).join(" ");
 }
 
 export function buildLyricsFromSections(sections: WorshipStructureSection[]) {
@@ -394,7 +541,7 @@ function looksLikeChorusCandidate(index: number, blocks: string[], stats: BlockS
 }
 
 function looksLikeRefrainLanguage(index: number, blocks: string[], title?: string | null) {
-  if (index <= 0 || index >= blocks.length - 1 || blocks.length < 3) {
+  if (blocks.length < 2) {
     return false;
   }
   const block = blocks[index];
@@ -404,7 +551,10 @@ function looksLikeRefrainLanguage(index: number, blocks: string[], title?: strin
   }
   const firstLineKey = normalizedTextKey(lines[0]);
   const startsWithTitle = Boolean(
-    title && [...titleVariants(title)].some((variant) => firstLineKey === variant || firstLineKey.startsWith(`${variant} `)),
+    title &&
+      [...titleVariants(title)].some(
+        (variant) => firstLineKey === variant || firstLineKey.startsWith(`${variant} `) || firstLineKey.includes(` ${variant}`),
+      ),
   );
   const responseWords = [
     "sing",
@@ -426,7 +576,7 @@ function looksLikeRefrainLanguage(index: number, blocks: string[], title?: strin
   ];
   const text = normalizedTextKey(block);
   const responseScore = responseWords.filter((word) => new RegExp(`\\b${word}\\b`).test(text)).length;
-  return lines.length <= 8 && (startsWithTitle || responseScore >= 3);
+  return lines.length <= 8 && (startsWithTitle || (index > 0 && index < blocks.length - 1 && responseScore >= 3));
 }
 
 function parseExplicitSections(formatted: string) {
@@ -522,6 +672,15 @@ function inferSectionsFromBlocks(blocks: string[], title?: string | null) {
 
     const repeatMarker = /\b(?:x\s*\d+|repeat(?:\s+all)?)\b|\(\s*x\s*\d+\s*\)/i.test(block);
     const bridgeMarker = /\bbridge\b/i.test(block);
+    const nextKey = blocks[index + 1] ? blockKey(blocks[index + 1]) : null;
+    const nextIsChorus =
+      Boolean(nextKey && nextKey === chorusKey) || languageChorusIndexes.has(index + 1) || Boolean(nextKey && labels.get(nextKey) === "Chorus");
+    const isShortStandalone = stats[index].lineCount <= 2 && wordCount > 0 && wordCount <= averageWordCount * 0.62;
+
+    if (index > 0 && count === 1 && nextIsChorus && isShortStandalone && !repeatMarker && !bridgeMarker) {
+      labels.set(key, "PreChorus");
+      continue;
+    }
 
     if (
       !usedInferredChorus &&
@@ -672,6 +831,24 @@ function stripLeadingTitleBlock(blocks: string[], title: string | null) {
     return {
       notes: removedInlineTitle ? ["Removed title noise from imported lyrics."] : [],
       blocks: cleanedBlocks,
+    };
+  }
+
+  const laterTitleIndex = cleanedBlocks.findIndex((block, index) => {
+    if (index === 0 || index > 3) {
+      return false;
+    }
+    const lines = block
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter(Boolean);
+    return lines.length > 0 && lines.length <= 2 && lineMatchesTitleNoise(lines.join(" "), title);
+  });
+
+  if (laterTitleIndex > 0 && cleanedBlocks.length - laterTitleIndex >= 2) {
+    return {
+      notes: ["Ignored stray lyric slides before the detected song title."],
+      blocks: cleanedBlocks.slice(laterTitleIndex + 1),
     };
   }
 

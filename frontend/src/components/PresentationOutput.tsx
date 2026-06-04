@@ -54,6 +54,7 @@ export function PresentationOutput() {
   const [renderedSlidesByFileId, setRenderedSlidesByFileId] = useState<Record<string, RenderedSlide[]>>({});
   const [blanked, setBlanked] = useState(false);
   const lastLiveStateRef = useRef(0);
+  const lastReadingRefreshRef = useRef("");
   const livePollInFlightRef = useRef(false);
   const videoFrameRef = useRef<HTMLIFrameElement | null>(null);
   const videoElementRef = useRef<HTMLVideoElement | null>(null);
@@ -199,6 +200,20 @@ export function PresentationOutput() {
 
     void load(liveState);
   }, [liveState, liveTargetMissing, load]);
+
+  useEffect(() => {
+    if (!liveState?.planId || !liveState.planItemId || liveSlide?.itemType !== "reading") {
+      return;
+    }
+
+    const refreshKey = `${liveState.planId}:${liveState.planItemId}:${liveState.updatedAt}`;
+    if (lastReadingRefreshRef.current === refreshKey) {
+      return;
+    }
+
+    lastReadingRefreshRef.current = refreshKey;
+    void load(liveState);
+  }, [liveSlide?.itemType, liveState, load]);
 
   useEffect(() => {
     writeOutputHeartbeat();

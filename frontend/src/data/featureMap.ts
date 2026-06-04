@@ -106,31 +106,6 @@ export const featureModules: FeatureModule[] = [
     ],
   },
   {
-    id: "music",
-    label: "Songs",
-    kicker: "Lyrics, chords, files",
-    status: "Ready",
-    metrics: [
-      { label: "Parts", value: "6" },
-      { label: "Imports", value: "1" },
-      { label: "Search", value: "Queued" },
-    ],
-    lanes: [
-      {
-        title: "Song Library",
-        items: ["Title search", "Lyrics", "Chords", "CCLI fields"],
-      },
-      {
-        title: "OnSong",
-        items: ["Verse sections", "Chorus sections", "Sequence", "Key"],
-      },
-      {
-        title: "Attachments",
-        items: ["Sheet music", "Chord charts", "Plan item linking", "File unlinking"],
-      },
-    ],
-  },
-  {
     id: "broadcast",
     label: "Broadcast",
     kicker: "Recording and stream",

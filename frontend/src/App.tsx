@@ -1,7 +1,9 @@
 import {
   CalendarDays,
   Clapperboard,
+  Globe2,
   ListMusic,
+  LogOut,
   Music2,
   Radio,
   Settings,
@@ -26,13 +28,14 @@ import {
 } from "./api";
 import { AuthScreen } from "./components/AuthScreen";
 import { BroadcastManager } from "./components/BroadcastManager";
+import { ChurchWebsite } from "./components/ChurchWebsite";
 import { PresentationOutput } from "./components/PresentationOutput";
 import { PresentationView } from "./components/PresentationView";
-import { SongManager } from "./components/SongManager";
 import { UserManager } from "./components/UserManager";
 import { WorshipBuilderView } from "./components/WorshipBuilderView";
 import { featureModules, type FeatureModule, type ModuleId } from "./data/featureMap";
 import { appAssetUrl } from "./paths";
+import { ToastViewport } from "./toast";
 
 const iconMap = {
   planning: CalendarDays,
@@ -63,6 +66,8 @@ function isTransientApiError(error: unknown) {
 
 function App() {
   const isPresentationOutput = new URLSearchParams(window.location.search).get("presentation") === "output";
+  const publicSiteEnabled = import.meta.env.VITE_PUBLIC_SITE_ENABLED === "true";
+  const isMemberApp = !publicSiteEnabled || window.location.pathname.startsWith("/app");
   const [activeModuleId, setActiveModuleId] = useState<ModuleId>("presentation");
   const [sessionUser, setSessionUser] = useState<SessionUser | null>(null);
   const [bootstrapAvailable, setBootstrapAvailable] = useState(false);
@@ -162,34 +167,10 @@ function App() {
           };
         }
 
-        if (module.id === "music" && workspace.live) {
-          return {
-            ...module,
-            metrics: [
-              { label: "Songs", value: String(workspace.songs.length) },
-              {
-                label: "Lyrics",
-                value: String(workspace.songs.filter((song) => song.lyrics_status === "available").length),
-              },
-              { label: "Source", value: "Live API" },
-            ],
-            lanes: [
-              {
-                title: "Song Library",
-                items: workspace.songs.map((song) => song.title),
-              },
-              ...module.lanes.slice(1),
-            ],
-          };
-        }
-
         return module;
       }).filter((module) => {
         if (module.id === "planning" || module.id === "people" || module.id === "imports") {
           return false;
-        }
-        if (module.id === "music") {
-          return canReadSongs;
         }
         if (module.id === "worship") {
           return canUseWorshipTools;
@@ -205,7 +186,7 @@ function App() {
         }
         return true;
       }),
-    [canManageUsers, canReadSongs, canUseBroadcast, canUseServiceOperator, canUseWorshipTools, workspace],
+    [canManageUsers, canUseBroadcast, canUseServiceOperator, canUseWorshipTools, workspace],
   );
 
   const activeModule = useMemo(
@@ -221,20 +202,14 @@ function App() {
       return [];
     }
 
-    if (activeModule.id === "music") {
+    if (activeModule.id === "worship") {
       return [
+        { label: "Services", value: String(workspace.plans.length) },
         { label: "Songs", value: String(workspace.songs.length) },
         {
           label: "Ready",
           value: String(workspace.songs.filter((song) => song.lyrics_status === "available").length),
         },
-      ];
-    }
-
-    if (activeModule.id === "worship") {
-      return [
-        { label: "Services", value: String(workspace.plans.length) },
-        { label: "Songs", value: String(workspace.songs.length) },
       ];
     }
 
@@ -271,6 +246,10 @@ function App() {
     return <PresentationOutput />;
   }
 
+  if (publicSiteEnabled && !isMemberApp) {
+    return <ChurchWebsite />;
+  }
+
   if (authLoading) {
     return <main className="auth-shell"><section className="auth-card"><p>Loading cspot-pro...</p></section></main>;
   }
@@ -291,6 +270,7 @@ function App() {
 
   return (
     <main className="shell">
+      <ToastViewport />
       <aside className="sidebar" aria-label="Primary">
         <div className="brand">
           <img alt="" src={appAssetUrl("images/xs-cspot.png")} />
@@ -329,24 +309,25 @@ function App() {
                 <strong>{stat.value}</strong>
               </div>
             ))}
+            <a className="topbar-link-pill" href="/">
+              <Globe2 size={15} aria-hidden="true" />
+              <span>Website</span>
+            </a>
             <button className="user-pill" onClick={() => void signOut()} type="button">
               <strong>{sessionUser.name}</strong>
               <span>Sign out</span>
+              <LogOut size={14} aria-hidden="true" />
             </button>
           </div>
         </header>
 
-        {activeModule.id === "music" ? (
-          <SongManager
-            canArchive={canDeleteSongs}
-            canCreate={canCreateSongs}
-            canEdit={canEditSongs}
-            onDataChange={() => void loadWorkspace()}
-          />
-        ) : activeModule.id === "worship" ? (
+        {activeModule.id === "worship" ? (
           <WorshipBuilderView
             canAccessAdminTools={canManageUsers}
+            canArchiveSong={canDeleteSongs}
+            canCreateSong={canCreateSongs}
             canDeletePlan={canDeletePlans}
+            canEditSong={canEditSongs}
             canEditPlan={canEditPlans}
           />
         ) : activeModule.id === "presentation" ? (

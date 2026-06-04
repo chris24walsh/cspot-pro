@@ -1,5 +1,6 @@
-import { CalendarDays, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, ListPlus, MonitorUp, Music2, Pencil, Trash2 } from "lucide-react";
+import { CalendarDays, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, ListPlus, MonitorUp, Music2, Pencil, RefreshCw, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 
 import {
   createSong,
@@ -7,6 +8,7 @@ import {
   createPlan,
   deletePlan,
   deletePlanItem,
+  deleteSong,
   getPlan,
   getPlanTypes,
   getPlans,
@@ -26,7 +28,8 @@ import {
   type WorshipSuggestedSong,
 } from "../api";
 import { buildPresentationSections, suggestSlideGroupFontCap } from "../presentation";
-import { analyzeImportedSongSlides, buildLyricsFromSections } from "../worshipText";
+import { showToast } from "../toast";
+import { analyzeImportedSongSlides, buildLyricsFromSections, canonicalizeWorshipLyrics } from "../worshipText";
 import { dateKey, isWorshipSetPlan, worshipSetType } from "../worshipSets";
 import { AutoFitSlideText } from "./AutoFitSlideText";
 import { MusicianLiveView } from "./MusicianLiveView";
@@ -57,7 +60,10 @@ type WorshipHistoryMissingSong = {
 
 interface WorshipBuilderViewProps {
   canAccessAdminTools: boolean;
+  canArchiveSong: boolean;
+  canCreateSong: boolean;
   canDeletePlan: boolean;
+  canEditSong: boolean;
   canEditPlan: boolean;
 }
 
@@ -117,16 +123,6 @@ function suggestedWorshipSetTitle(value: string) {
   return `Worship Set ${longDateForInput(value)}`;
 }
 
-function songStatus(song: Pick<Song, "lyrics" | "chords"> | null | undefined) {
-  if (!song?.lyrics?.trim()) {
-    return "Needs lyrics";
-  }
-  if (!song.chords?.trim()) {
-    return "Ready";
-  }
-  return "Chords";
-}
-
 function nextSongSequence(items: PlanItem[]) {
   const highest = items.reduce((max, item) => Math.max(max, Number.parseFloat(item.sequence) || 0), 0);
   return (highest + 1).toFixed(2);
@@ -148,7 +144,7 @@ function sequenceAfterSelected(items: PlanItem[], selectedItemId: string | null)
   const selectedSequence = Number.parseFloat(worshipItems[selectedIndex]?.sequence ?? "0") || 0;
   const nextSequence = Number.parseFloat(worshipItems[selectedIndex + 1]?.sequence ?? "");
   if (Number.isFinite(nextSequence)) {
-    return ((selectedSequence + nextSequence) / 2).toFixed(4);
+    return ((selectedSequence + nextSequence) / 2).toFixed(2);
   }
   return (selectedSequence + 1).toFixed(2);
 }
@@ -172,11 +168,20 @@ function songTitleKeys(song: Pick<Song, "alternate_title" | "title">) {
 
 function cleanSlideTitle(value: string) {
   return value
+    .replace(/\bsav\s+iou?r\b/gi, "saviour")
     .replace(/\.[a-z0-9]+$/i, "")
     .replace(/\s+(?:lyrics|song|worship)\s*$/i, "")
     .replace(/\s*[-–—]\s*(?:lyrics|song|worship)\s*$/i, "")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+function correctedDetectedSongTitle(value: string) {
+  const normalized = normalizedTitle(value);
+  if (normalized === "you are saviour" || normalized === "you are savior") {
+    return "Lord Take Up Your Holy Throne";
+  }
+  return value;
 }
 
 function meaningfulSlideLines(value: string) {
@@ -194,7 +199,7 @@ function titleFromSlide(slide: ParsedSlideDeck["slides"][number]) {
     return cleaned.length >= 4 && cleaned.length <= 70 && wordCount <= 7 && !/[.;:,]$/.test(cleaned);
   });
 
-  return candidate ? cleanSlideTitle(candidate) : "";
+  return candidate ? correctedDetectedSongTitle(cleanSlideTitle(candidate)) : "";
 }
 
 function isProbablySongTitleSlide(slide: ParsedSlideDeck["slides"][number]) {
@@ -285,8 +290,9 @@ function detectMissingSongsInDeck(deck: ParsedSlideDeck, songs: Song[]) {
     const nextTitleSlide = titleSlides[anchorIndex + 1];
     const rangeSlides = deck.slides.filter((slide) => slide.index >= anchor.index && (!nextTitleSlide || slide.index < nextTitleSlide.index));
     const analysis = analyzeImportedSongSlides(rangeSlides.map((slide) => slide.text || slide.title), anchor.title);
-    const lyrics = buildLyricsFromSections(analysis.sections) || analysis.lyrics;
-    if (!lyrics.trim()) {
+    const lyrics = canonicalizeWorshipLyrics(buildLyricsFromSections(analysis.sections) || analysis.lyrics, analysis.sequence);
+    const lyricWordCount = lyrics.split(/\s+/).filter(Boolean).length;
+    if (!lyrics.trim() || (rangeSlides.length <= 2 && lyricWordCount < 12)) {
       continue;
     }
 
@@ -306,7 +312,7 @@ function detectMissingSongsInDeck(deck: ParsedSlideDeck, songs: Song[]) {
   return missing;
 }
 
-export function WorshipBuilderView({ canAccessAdminTools, canDeletePlan, canEditPlan }: WorshipBuilderViewProps) {
+export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCreateSong, canDeletePlan, canEditSong, canEditPlan }: WorshipBuilderViewProps) {
   const [plans, setPlans] = useState<PlanSummary[]>([]);
   const [planTypes, setPlanTypes] = useState<PlanType[]>([]);
   const [songs, setSongs] = useState<Song[]>([]);
@@ -329,12 +335,16 @@ export function WorshipBuilderView({ canAccessAdminTools, canDeletePlan, canEdit
   const [historyBatchImporting, setHistoryBatchImporting] = useState(false);
   const [suggestionReviewOpen, setSuggestionReviewOpen] = useState(false);
   const [suggestedSongs, setSuggestedSongs] = useState<WorshipSuggestedSong[]>([]);
+  const [includedSuggestionIds, setIncludedSuggestionIds] = useState<Set<string>>(new Set());
+  const [suggestionRefreshing, setSuggestionRefreshing] = useState(false);
   const [editingSong, setEditingSong] = useState<Song | null>(null);
+  const [songEditorMode, setSongEditorMode] = useState<"create" | "edit">("edit");
   const [undoAction, setUndoAction] = useState<{ label: string; run: () => Promise<void> } | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<"builder" | "live">("builder");
   const [mobileBuilderPane, setMobileBuilderPane] = useState<"library" | "set">("library");
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
+  const [topbarSlot, setTopbarSlot] = useState<HTMLElement | null>(null);
   const setListRef = useRef<HTMLDivElement | null>(null);
   const slideReviewRef = useRef<HTMLElement | null>(null);
   const setItemRefs = useRef<Record<string, HTMLElement | null>>({});
@@ -450,6 +460,19 @@ export function WorshipBuilderView({ canAccessAdminTools, canDeletePlan, canEdit
   useEffect(() => {
     void load();
   }, []);
+
+  useEffect(() => {
+    setTopbarSlot(document.getElementById("workspace-topbar-slot"));
+  }, []);
+
+  useEffect(() => {
+    if (!message) {
+      return;
+    }
+    showToast(message);
+    const timer = window.setTimeout(() => setMessage(null), 2600);
+    return () => window.clearTimeout(timer);
+  }, [message]);
 
   useEffect(() => {
     if (!selectedItemId) {
@@ -627,15 +650,127 @@ export function WorshipBuilderView({ canAccessAdminTools, canDeletePlan, canEdit
     setSuggesting(true);
     try {
       const suggestion = await getWorshipSetSuggestion(5);
-      const existingSongIds = new Set(worshipItems.map((item) => item.song_id).filter(Boolean));
+      const existingSongIds = new Set(worshipItems.flatMap((item) => (item.song_id ? [item.song_id] : [])));
       const songsToAdd = suggestion.songs.filter((entry) => !existingSongIds.has(entry.song.id));
       setSuggestedSongs(songsToAdd);
+      setIncludedSuggestionIds(new Set(songsToAdd.map((entry) => entry.song.id)));
       setSuggestionReviewOpen(true);
       setMessage(songsToAdd.length ? "Review the suggested worship set before adding it." : "No new suggestion found outside the songs already in this set.");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Could not suggest a worship set.");
     } finally {
       setSuggesting(false);
+    }
+  }
+
+  async function suggestionReplacements(limit: number, blockedSongIds: Set<string>) {
+    const replacements: WorshipSuggestedSong[] = [];
+    let attempts = 0;
+    while (replacements.length < limit && attempts < 4) {
+      attempts += 1;
+      const suggestion = await getWorshipSetSuggestion(Math.max(8, limit + blockedSongIds.size));
+      for (const entry of suggestion.songs) {
+        if (blockedSongIds.has(entry.song.id) || replacements.some((candidate) => candidate.song.id === entry.song.id)) {
+          continue;
+        }
+        replacements.push(entry);
+        blockedSongIds.add(entry.song.id);
+        if (replacements.length >= limit) {
+          break;
+        }
+      }
+    }
+    return replacements;
+  }
+
+  async function regenerateSuggestions(mode: "unchecked" | "all" = "unchecked") {
+    if (!plan || !canEditPlan || suggestionRefreshing) {
+      return;
+    }
+
+    const indexesToReplace =
+      mode === "all"
+        ? suggestedSongs.map((_entry, index) => index)
+        : suggestedSongs.flatMap((entry, index) => (includedSuggestionIds.has(entry.song.id) ? [] : [index]));
+
+    if (!indexesToReplace.length) {
+      setMessage("Untick songs you want regenerated, or swap a single row.");
+      return;
+    }
+
+    setSuggestionRefreshing(true);
+    try {
+      const existingSongIds = new Set(worshipItems.flatMap((item) => (item.song_id ? [item.song_id] : [])));
+      const keptSongIds = new Set(
+        suggestedSongs
+          .filter((_entry, index) => !indexesToReplace.includes(index))
+          .map((entry) => entry.song.id),
+      );
+      const replacements = await suggestionReplacements(indexesToReplace.length, new Set([...existingSongIds, ...keptSongIds]));
+      if (!replacements.length) {
+        setMessage("No fresh suggestions found outside the current list.");
+        return;
+      }
+
+      setSuggestedSongs((current) => {
+        const next = [...current];
+        indexesToReplace.forEach((targetIndex, replacementIndex) => {
+          if (replacements[replacementIndex]) {
+            next[targetIndex] = replacements[replacementIndex];
+          }
+        });
+        return next;
+      });
+      setIncludedSuggestionIds((current) => {
+        const next = new Set(current);
+        indexesToReplace.forEach((targetIndex) => {
+          const oldEntry = suggestedSongs[targetIndex];
+          if (oldEntry) {
+            next.delete(oldEntry.song.id);
+          }
+        });
+        replacements.forEach((entry) => next.add(entry.song.id));
+        return next;
+      });
+      setMessage(`Regenerated ${replacements.length} suggestion${replacements.length === 1 ? "" : "s"}.`);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not regenerate suggestions.");
+    } finally {
+      setSuggestionRefreshing(false);
+    }
+  }
+
+  async function swapSuggestedSong(index: number) {
+    if (!plan || !canEditPlan || suggestionRefreshing) {
+      return;
+    }
+
+    setSuggestionRefreshing(true);
+    try {
+      const existingSongIds = new Set(worshipItems.flatMap((item) => (item.song_id ? [item.song_id] : [])));
+      const otherSuggestedIds = new Set(suggestedSongs.filter((_entry, entryIndex) => entryIndex !== index).map((entry) => entry.song.id));
+      const replacements = await suggestionReplacements(1, new Set([...existingSongIds, ...otherSuggestedIds]));
+      const replacement = replacements[0];
+      if (!replacement) {
+        setMessage("No fresh swap found for that row.");
+        return;
+      }
+
+      const oldEntry = suggestedSongs[index];
+      setSuggestedSongs((current) => current.map((entry, entryIndex) => (entryIndex === index ? replacement : entry)));
+      setIncludedSuggestionIds((current) => {
+        const next = new Set(current);
+        if (oldEntry) {
+          next.delete(oldEntry.song.id);
+        }
+        next.add(replacement.song.id);
+        return next;
+      });
+      setMessage(`Swapped in "${replacement.song.title}".`);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not swap that suggestion.");
+    } finally {
+      setSuggestionRefreshing(false);
     }
   }
 
@@ -647,11 +782,19 @@ export function WorshipBuilderView({ canAccessAdminTools, canDeletePlan, canEdit
     try {
       const targetPlanId = plan.id;
       const createdItems: PlanItem[] = [];
+      const songsToAdd = suggestedSongs.filter((entry) => includedSuggestionIds.has(entry.song.id));
+      if (!songsToAdd.length) {
+        setSuggestionReviewOpen(false);
+        setSuggestedSongs([]);
+        setIncludedSuggestionIds(new Set());
+        setMessage("No suggestions added.");
+        return;
+      }
       let sequence = Number.parseFloat(sequenceAfterSelected(plan.items, selectedItemId));
-      for (const entry of suggestedSongs) {
+      for (const entry of songsToAdd) {
         const createdItem = await createPlanItem(targetPlanId, {
           item_type: "song",
-          sequence: sequence.toFixed(4),
+          sequence: sequence.toFixed(2),
           title: entry.song.title,
           comment: `${entry.slot}: ${entry.reason}`,
           key_signature: null,
@@ -662,6 +805,7 @@ export function WorshipBuilderView({ canAccessAdminTools, canDeletePlan, canEdit
       }
       setSuggestionReviewOpen(false);
       setSuggestedSongs([]);
+      setIncludedSuggestionIds(new Set());
       setMobileBuilderPane("set");
       setUndoAction({
         label: "adding suggested songs",
@@ -671,7 +815,7 @@ export function WorshipBuilderView({ canAccessAdminTools, canDeletePlan, canEdit
         },
       });
       await load(targetPlanId);
-      setMessage(`Added ${suggestedSongs.length} suggested song${suggestedSongs.length === 1 ? "" : "s"}.`);
+      setMessage(`Added ${songsToAdd.length} suggested song${songsToAdd.length === 1 ? "" : "s"}.`);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Could not add suggested songs.");
     }
@@ -689,8 +833,59 @@ export function WorshipBuilderView({ canAccessAdminTools, canDeletePlan, canEdit
     });
   }
 
+  function toggleSuggestedSong(songId: string) {
+    setIncludedSuggestionIds((current) => {
+      const next = new Set(current);
+      if (next.has(songId)) {
+        next.delete(songId);
+      } else {
+        next.add(songId);
+      }
+      return next;
+    });
+  }
+
   function openSongEditor(song: Song) {
+    setSongEditorMode("edit");
     setEditingSong(song);
+  }
+
+  function openNewSongEditor() {
+    setSongEditorMode("create");
+    setEditingSong({
+      alternate_title: null,
+      author: null,
+      book_reference: null,
+      ccli_number: null,
+      chords: null,
+      energy: null,
+      external_link: null,
+      id: "__new-song__",
+      license: null,
+      lyrics: null,
+      lyrics_status: "missing",
+      sequence: null,
+      tempo: null,
+      theme_tags: null,
+      title: "",
+      worship_role: "any",
+      youtube_id: null,
+    });
+  }
+
+  async function archiveLibrarySong(song: Song) {
+    if (!canArchiveSong || songEditorMode !== "edit") {
+      return;
+    }
+
+    try {
+      await deleteSong(song.id);
+      setEditingSong(null);
+      await load(plan?.id);
+      setMessage(`Archived "${song.title}".`);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not archive song.");
+    }
   }
 
   async function searchHistoryDecks() {
@@ -979,6 +1174,31 @@ export function WorshipBuilderView({ canAccessAdminTools, canDeletePlan, canEdit
 
   return (
     <section className={`worship-builder worship-builder-pane-${mobileBuilderPane}`} aria-label="Worship builder">
+      {topbarSlot
+        ? createPortal(
+            <div className="presentation-topbar-tools worship-topbar-tools">
+              <label className="topbar-select-field">
+                <span>Worship Set</span>
+                <select
+                  disabled={loading}
+                  onChange={(event) => void selectPlan(event.target.value)}
+                  value={selectedPlanId}
+                >
+                  {sortedPlans.map((worshipSet) => (
+                    <option key={worshipSet.id} value={worshipSet.id}>
+                      {formatServiceDate(worshipSet.service_date)} · {worshipSet.title}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <button className="text-button topbar-service-button" onClick={openSetPicker} title="Choose or create a worship set" type="button">
+                <CalendarDays size={16} aria-hidden="true" />
+                <span>Sets</span>
+              </button>
+            </div>,
+            topbarSlot,
+          )
+        : null}
       <div className="worship-mobile-pane-tabs" aria-label="Worship builder panels">
         <button
           className={mobileBuilderPane === "library" ? "active" : ""}
@@ -1002,6 +1222,9 @@ export function WorshipBuilderView({ canAccessAdminTools, canDeletePlan, canEdit
             <p className="eyebrow">Library</p>
             <h2>Songs</h2>
           </div>
+          <button className="text-button" disabled={!canCreateSong} onClick={openNewSongEditor} type="button">
+            New Song
+          </button>
         </div>
         <input
           aria-label="Search songs"
@@ -1027,13 +1250,12 @@ export function WorshipBuilderView({ canAccessAdminTools, canDeletePlan, canEdit
                   <strong>{song.title}</strong>
                   <small>{song.author ?? "Unknown author"}</small>
                 </span>
-                <em>{songStatus(song)}</em>
                 <ListPlus size={16} aria-hidden="true" />
               </button>
               <button
                 aria-label={`Edit ${song.title}`}
                 className="section-icon-button song-library-edit"
-                disabled={!canEditPlan}
+                disabled={!canEditSong}
                 onClick={() => openSongEditor(song)}
                 type="button"
               >
@@ -1046,25 +1268,7 @@ export function WorshipBuilderView({ canAccessAdminTools, canDeletePlan, canEdit
 
       <main className={`worship-set-builder ${mobileBuilderPane === "set" ? "is-mobile-active" : ""}`}>
         <div className="worship-set-toolbar">
-          <label>
-            Worship Set
-            <select
-              disabled={loading}
-              onChange={(event) => void selectPlan(event.target.value)}
-              value={selectedPlanId}
-            >
-              {sortedPlans.map((worshipSet) => (
-                <option key={worshipSet.id} value={worshipSet.id}>
-                  {formatServiceDate(worshipSet.service_date)} · {worshipSet.title}
-                </option>
-              ))}
-            </select>
-          </label>
           <div className="toolbar-button-cluster">
-            <button className="text-button icon-text-button" onClick={openSetPicker} type="button">
-              <CalendarDays size={16} aria-hidden="true" />
-              Sets
-            </button>
             <button className="text-button" disabled={!plan || !canEditPlan || suggesting} onClick={() => void suggestWorshipSet()} type="button">
               {suggesting ? "Suggesting..." : "Suggest Set"}
             </button>
@@ -1089,16 +1293,8 @@ export function WorshipBuilderView({ canAccessAdminTools, canDeletePlan, canEdit
           </div>
         </div>
 
-        {message ? <p className="form-message">{message}</p> : null}
-
         <div className="worship-set-layout">
           <section className="worship-set-list" aria-label="Worship set">
-            <div className="worship-panel-heading">
-              <div>
-                <p className="eyebrow">Set</p>
-                <h2>{plan?.title ?? "No worship set selected"}</h2>
-              </div>
-            </div>
             <div className="worship-section-list" ref={setListRef}>
               {worshipItems.map((item, index) => {
                 const song = songs.find((candidate) => candidate.id === item.song_id);
@@ -1120,21 +1316,23 @@ export function WorshipBuilderView({ canAccessAdminTools, canDeletePlan, canEdit
                     tabIndex={0}
                   >
                     <span>{String(index + 1).padStart(2, "0")}</span>
-                    <div>
+                    <div className="worship-set-item-body">
                       <strong>{song ? compactSongTitle(song) : item.title}</strong>
-                      <small>{selectedItemId === item.id ? "insert next song after this" : songStatus(song)}</small>
+                      {selectedItemId === item.id ? <small>insert next song after this</small> : null}
+                      <button
+                        aria-label={`Remove ${item.title}`}
+                        className="worship-remove-inline"
+                        disabled={!canEditPlan}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          void removeSong(item);
+                        }}
+                        type="button"
+                      >
+                        Remove
+                      </button>
                     </div>
                     <div className="worship-set-actions" onClick={(event) => event.stopPropagation()}>
-                      {song?.id ? (
-                        <button
-                          aria-label={`Edit ${song.title}`}
-                          className="section-icon-button"
-                          onClick={() => openSongEditor(song)}
-                          type="button"
-                        >
-                          <Pencil size={14} aria-hidden="true" />
-                        </button>
-                      ) : null}
                       <button
                         aria-label={`Move ${item.title} up`}
                         className="section-icon-button"
@@ -1153,15 +1351,6 @@ export function WorshipBuilderView({ canAccessAdminTools, canDeletePlan, canEdit
                       >
                         <ChevronDown size={14} aria-hidden="true" />
                       </button>
-                      <button
-                        aria-label={`Remove ${item.title}`}
-                        className="section-icon-button section-remove-button"
-                        disabled={!canEditPlan}
-                        onClick={() => void removeSong(item)}
-                        type="button"
-                      >
-                        <Trash2 size={14} aria-hidden="true" />
-                      </button>
                     </div>
                   </article>
                 );
@@ -1176,39 +1365,56 @@ export function WorshipBuilderView({ canAccessAdminTools, canDeletePlan, canEdit
           </section>
 
           <section className="worship-slide-review" aria-label="Worship song slides" ref={slideReviewRef}>
-            {worshipSections.map((section) => (
-              <div
-                className={`section-slide-group ${selectedItemId === section.id ? "is-selected" : ""}`}
-                key={section.id}
-                ref={(element) => {
-                  slideGroupRefs.current[section.id] = element;
-                }}
-              >
-                <button className={`section-jump type-song readonly`} onClick={() => setSelectedItemId(section.id)} type="button">
-                  <span>{section.itemType}</span>
-                  <strong>{section.title}</strong>
-                </button>
-                <div className="section-slide-list worship-slide-list">
-                  {section.slides.map((slide, index) => (
-                    <button
-                      className="slide-tile preview-tile type-song readonly"
-                      key={slide.id}
-                      onClick={() => setSelectedItemId(section.id)}
-                      type="button"
-                    >
-                      <span>{String(index + 1).padStart(2, "0")}</span>
-                      <div className="mini-slide-surface stage-theme-light">
-                        <AutoFitSlideText
-                          className="fit-slide-text-compact"
-                          maxFontSize={compactFontCap}
-                          text={slide.text || "No lyrics"}
-                        />
-                      </div>
+            {worshipSections.map((section) => {
+              const sectionItem = worshipItems.find((item) => item.id === section.id);
+              const sectionSong = songs.find((song) => song.id === sectionItem?.song_id);
+              return (
+                <div
+                  className={`section-slide-group ${selectedItemId === section.id ? "is-selected" : ""}`}
+                  key={section.id}
+                  ref={(element) => {
+                    slideGroupRefs.current[section.id] = element;
+                  }}
+                >
+                  <div className="worship-sorter-heading">
+                    <button className={`section-jump type-song readonly`} onClick={() => setSelectedItemId(section.id)} type="button">
+                      <span>{section.itemType}</span>
+                      <strong>{section.title}</strong>
                     </button>
-                  ))}
+                    {sectionSong ? (
+                      <button
+                        aria-label={`Edit ${sectionSong.title}`}
+                        className="section-icon-button"
+                        disabled={!canEditSong}
+                        onClick={() => openSongEditor(sectionSong)}
+                        type="button"
+                      >
+                        <Pencil size={14} aria-hidden="true" />
+                      </button>
+                    ) : null}
+                  </div>
+                  <div className="section-slide-list worship-slide-list">
+                    {section.slides.map((slide, index) => (
+                      <button
+                        className="slide-tile preview-tile type-song readonly"
+                        key={slide.id}
+                        onClick={() => setSelectedItemId(section.id)}
+                        type="button"
+                      >
+                        <span>{String(index + 1).padStart(2, "0")}</span>
+                        <div className="mini-slide-surface stage-theme-light">
+                          <AutoFitSlideText
+                            className="fit-slide-text-compact"
+                            maxFontSize={compactFontCap}
+                            text={slide.text || "No lyrics"}
+                          />
+                        </div>
+                      </button>
+                    ))}
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </section>
         </div>
       </main>
@@ -1231,24 +1437,56 @@ export function WorshipBuilderView({ canAccessAdminTools, canDeletePlan, canEdit
                 Close
               </button>
             </div>
-            <p className="field-help">These songs are only added after you confirm. Reorder or remove anything that does not fit.</p>
+            <p className="field-help">Tick songs to add. Unticked rows stay visible for comparison and are replaced when you regenerate.</p>
+            <div className="suggestion-toolbar">
+              <button className="text-button icon-text-button" disabled={suggestionRefreshing || !suggestedSongs.length} onClick={() => void regenerateSuggestions("unchecked")} type="button">
+                <RefreshCw size={15} aria-hidden="true" />
+                Regenerate Unticked
+              </button>
+              <button className="text-button" disabled={suggestionRefreshing || !suggestedSongs.length} onClick={() => void regenerateSuggestions("all")} type="button">
+                Regenerate All
+              </button>
+            </div>
             <div className="stack-list compact">
               {suggestedSongs.map((entry, index) => (
-                <div className="stack-row suggestion-row" key={entry.song.id}>
-                  <div>
+                <div className={`stack-row suggestion-row ${includedSuggestionIds.has(entry.song.id) ? "" : "is-excluded"}`} key={entry.song.id}>
+                  <label className="suggestion-include">
+                    <input
+                      checked={includedSuggestionIds.has(entry.song.id)}
+                      onChange={() => toggleSuggestedSong(entry.song.id)}
+                      type="checkbox"
+                    />
+                    <span>{includedSuggestionIds.has(entry.song.id) ? "Add" : "Skip"}</span>
+                  </label>
+                  <div className="suggestion-copy">
                     <strong>{entry.song.title}</strong>
                     <span>
                       {entry.slot} · {entry.reason}
                     </span>
                   </div>
-                  <div className="worship-set-actions">
+                  <div className="suggestion-actions">
+                    <button className="section-icon-button" disabled={suggestionRefreshing} onClick={() => void swapSuggestedSong(index)} type="button" aria-label={`Swap ${entry.song.title}`}>
+                      <RefreshCw size={14} aria-hidden="true" />
+                    </button>
                     <button className="section-icon-button" disabled={index === 0} onClick={() => moveSuggestedSong(index, -1)} type="button" aria-label={`Move ${entry.song.title} up`}>
                       <ChevronUp size={14} aria-hidden="true" />
                     </button>
                     <button className="section-icon-button" disabled={index === suggestedSongs.length - 1} onClick={() => moveSuggestedSong(index, 1)} type="button" aria-label={`Move ${entry.song.title} down`}>
                       <ChevronDown size={14} aria-hidden="true" />
                     </button>
-                    <button className="section-icon-button section-remove-button" onClick={() => setSuggestedSongs((current) => current.filter((candidate) => candidate.song.id !== entry.song.id))} type="button" aria-label={`Remove ${entry.song.title}`}>
+                    <button
+                      className="section-icon-button section-remove-button"
+                      onClick={() => {
+                        setSuggestedSongs((current) => current.filter((candidate) => candidate.song.id !== entry.song.id));
+                        setIncludedSuggestionIds((current) => {
+                          const next = new Set(current);
+                          next.delete(entry.song.id);
+                          return next;
+                        });
+                      }}
+                      type="button"
+                      aria-label={`Remove ${entry.song.title}`}
+                    >
                       <Trash2 size={14} aria-hidden="true" />
                     </button>
                   </div>
@@ -1260,8 +1498,8 @@ export function WorshipBuilderView({ canAccessAdminTools, canDeletePlan, canEdit
               <button className="text-button" onClick={() => setSuggestionReviewOpen(false)} type="button">
                 Cancel
               </button>
-              <button className="primary-button" disabled={!canEditPlan || !suggestedSongs.length} onClick={() => void addReviewedSuggestions()} type="button">
-                Add Suggestions
+              <button className="primary-button" disabled={!canEditPlan || !suggestedSongs.some((entry) => includedSuggestionIds.has(entry.song.id))} onClick={() => void addReviewedSuggestions()} type="button">
+                Add {suggestedSongs.filter((entry) => includedSuggestionIds.has(entry.song.id)).length || ""} Suggestions
               </button>
             </div>
           </section>
@@ -1270,10 +1508,15 @@ export function WorshipBuilderView({ canAccessAdminTools, canDeletePlan, canEdit
 
       {editingSong ? (
         <SongEditorDialog
-          canEdit={canEditPlan}
+          canEdit={songEditorMode === "create" ? canCreateSong : canEditSong}
+          mode={songEditorMode}
+          onArchive={canArchiveSong ? (song) => void archiveLibrarySong(song) : undefined}
           onClose={() => setEditingSong(null)}
           onSaved={async (updated) => {
-            setSongs((current) => current.map((song) => (song.id === updated.id ? updated : song)));
+            setSongs((current) => {
+              const exists = current.some((song) => song.id === updated.id);
+              return exists ? current.map((song) => (song.id === updated.id ? updated : song)) : [updated, ...current];
+            });
             if (plan) {
               await load(plan.id);
             }

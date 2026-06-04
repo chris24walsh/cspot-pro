@@ -62,7 +62,8 @@ import {
 import { AutoFitSlideText } from "./AutoFitSlideText";
 import { ScaledSlideImage } from "./ScaledSlideImage";
 import { SongEditorDialog } from "./SongEditorDialog";
-import { analyzeWorshipText, buildLyricsFromSections } from "../worshipText";
+import { showToast } from "../toast";
+import { analyzeWorshipText, buildLyricsFromSections, canonicalizeWorshipLyrics } from "../worshipText";
 import {
   WORSHIP_SET_ANCHOR_ITEM_TYPE,
   isWorshipSetPlan,
@@ -518,6 +519,7 @@ export function PresentationView({
   const [renderedSlidesByFileId, setRenderedSlidesByFileId] = useState<Record<string, RenderedSlide[]>>({});
   const [renderingFileIds, setRenderingFileIds] = useState<string[]>([]);
   const [renderErrorsByFileId, setRenderErrorsByFileId] = useState<Record<string, string>>({});
+  const [expandedSorterSectionIds, setExpandedSorterSectionIds] = useState<Set<string>>(() => new Set());
   const [bibleVersions, setBibleVersions] = useState<BibleVersion[]>([]);
   const [bibleBooks, setBibleBooks] = useState<BibleBook[]>([]);
   const [bibleVersion, setBibleVersion] = useState("KJV");
@@ -692,6 +694,18 @@ export function PresentationView({
     if (active.closest(".presenter-controls")) {
       active.blur();
     }
+  }
+
+  function toggleSorterSection(sectionId: string) {
+    setExpandedSorterSectionIds((current) => {
+      const next = new Set(current);
+      if (next.has(sectionId)) {
+        next.delete(sectionId);
+      } else {
+        next.add(sectionId);
+      }
+      return next;
+    });
   }
 
   function syncSlideshowStatusFromStorage() {
@@ -1713,7 +1727,7 @@ export function PresentationView({
           title: resolvedTitle,
           alternate_title: null,
           author: selectedCustomProviderMatch.subtitle?.trim() || null,
-          lyrics: buildLyricsFromSections(analysis.sections) || analysis.lyrics,
+          lyrics: canonicalizeWorshipLyrics(buildLyricsFromSections(analysis.sections) || analysis.lyrics, analysis.sequence),
           chords: null,
           ccli_number: null,
           book_reference: null,
@@ -2390,6 +2404,7 @@ export function PresentationView({
     if (!message) {
       return;
     }
+    showToast(message);
     const timer = window.setTimeout(() => setMessage(null), 3200);
     return () => window.clearTimeout(timer);
   }, [message]);
@@ -2982,7 +2997,6 @@ export function PresentationView({
           </section>
         </div>
       ) : null}
-      {message ? <p className="form-message presentation-message">{message}</p> : null}
       {!canEditPlan ? (
         <p className="empty-state presentation-readonly-note">
           Presenter mode is live, but this account is read-only for plan changes.
@@ -3156,10 +3170,11 @@ export function PresentationView({
               const sectionRenderError = sectionItem?.files
                 ?.map((file) => renderErrorsByFileId[file.file_id])
                 .find(Boolean);
+              const canCollapseSection = Boolean(sectionItem?.files?.length) && visibleSectionSlides.length > 4;
+              const sectionExpanded = expandedSorterSectionIds.has(section.id) || liveSlide?.sectionId === section.id;
               const showSlideTiles =
-                section.itemType !== "sermon" ||
-                visibleSectionSlides.length <= 4 ||
-                liveSlide?.sectionId === section.id;
+                !canCollapseSection ||
+                sectionExpanded;
               return (
                 <div className="section-slide-group" key={section.id}>
                   <div className="section-jump-row">
@@ -3181,6 +3196,18 @@ export function PresentationView({
                       ) : null}
                       {sectionRenderError ? <em className="error-badge">Render failed</em> : null}
                     </button>
+                    {canCollapseSection ? (
+                      <button
+                        aria-expanded={showSlideTiles}
+                        aria-label={`${showSlideTiles ? "Collapse" : "Expand"} ${section.title} slides`}
+                        className="section-icon-button section-collapse-button"
+                        onClick={() => toggleSorterSection(section.id)}
+                        title={showSlideTiles ? "Collapse slides" : "Expand slides"}
+                        type="button"
+                      >
+                        {showSlideTiles ? <ChevronUp size={15} aria-hidden="true" /> : <ChevronDown size={15} aria-hidden="true" />}
+                      </button>
+                    ) : null}
                     {canEditSectionSong ? (
                       <button
                         aria-label={`Edit song ${section.title}`}
@@ -3235,7 +3262,7 @@ export function PresentationView({
                   ) : (
                     <button
                       className={`deck-slide-summary status-${deckStatus.tone}`}
-                      onClick={() => selectSlideFromOperator(sectionStart)}
+                      onClick={() => toggleSorterSection(section.id)}
                       type="button"
                     >
                       {renderMiniSlide(
@@ -3249,7 +3276,7 @@ export function PresentationView({
                         {section.slides.length > visibleSectionSlides.length ? ` · ${section.slides.length} steps` : ""}
                       </strong>
                       <span>{deckStatus.label}</span>
-                      <small>{deckStatus.detail}</small>
+                      <small>{deckStatus.detail} · Click to expand</small>
                     </button>
                   )}
                 </div>
