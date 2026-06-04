@@ -28,7 +28,6 @@ import {
 } from "./api";
 import { AuthScreen } from "./components/AuthScreen";
 import { BroadcastManager } from "./components/BroadcastManager";
-import { ChurchWebsite } from "./components/ChurchWebsite";
 import { PresentationOutput } from "./components/PresentationOutput";
 import { PresentationView } from "./components/PresentationView";
 import { UserManager } from "./components/UserManager";
@@ -66,8 +65,7 @@ function isTransientApiError(error: unknown) {
 
 function App() {
   const isPresentationOutput = new URLSearchParams(window.location.search).get("presentation") === "output";
-  const publicSiteEnabled = import.meta.env.VITE_PUBLIC_SITE_ENABLED === "true";
-  const isMemberApp = !publicSiteEnabled || window.location.pathname.startsWith("/app");
+  const publicWebsiteUrl = import.meta.env.VITE_PUBLIC_WEBSITE_URL || "/";
   const [activeModuleId, setActiveModuleId] = useState<ModuleId>("presentation");
   const [sessionUser, setSessionUser] = useState<SessionUser | null>(null);
   const [bootstrapAvailable, setBootstrapAvailable] = useState(false);
@@ -246,10 +244,6 @@ function App() {
     return <PresentationOutput />;
   }
 
-  if (publicSiteEnabled && !isMemberApp) {
-    return <ChurchWebsite />;
-  }
-
   if (authLoading) {
     return <main className="auth-shell"><section className="auth-card"><p>Loading cspot-pro...</p></section></main>;
   }
@@ -309,7 +303,7 @@ function App() {
                 <strong>{stat.value}</strong>
               </div>
             ))}
-            <a className="topbar-link-pill" href="/">
+            <a className="topbar-link-pill" href={publicWebsiteUrl}>
               <Globe2 size={15} aria-hidden="true" />
               <span>Website</span>
             </a>

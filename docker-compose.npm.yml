@@ -19,29 +19,13 @@ services:
       args:
         VITE_API_BASE_URL: /api
         VITE_APP_BASE_PATH: /
-        VITE_PUBLIC_SITE_ENABLED: "false"
+        VITE_PUBLIC_WEBSITE_URL: ${VITE_PUBLIC_WEBSITE_URL:-/}
     env_file:
       - .env.npm
     depends_on:
       - api
     ports:
       - "8080:80"
-    restart: unless-stopped
-
-  lcf-web:
-    build:
-      context: .
-      dockerfile: frontend/Dockerfile.prod
-      args:
-        VITE_API_BASE_URL: /api
-        VITE_APP_BASE_PATH: /
-        VITE_PUBLIC_SITE_ENABLED: "true"
-    env_file:
-      - .env.npm
-    depends_on:
-      - api
-    ports:
-      - "8081:80"
     restart: unless-stopped
 
   db:

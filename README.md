@@ -131,6 +131,30 @@ Key files:
 - `docker-compose.npm.yml`
 - `.env.npm.example`
 
+## Public Website
+
+The Listowel Christian Fellowship public website is kept in a separate private
+repository so church-specific content and images do not have to live in this
+open-source app repository.
+
+Private website repo:
+
+- <https://github.com/chris24walsh/lcf-website>
+
+`cspot-pro` still exposes the generic site-content API used by the private site
+for logged-in admin editing:
+
+- `GET /api/v1/site/content`
+- `GET /api/v1/site/content/admin`
+- `PATCH /api/v1/site/content/{key}`
+
+When building the member app, set `VITE_PUBLIC_WEBSITE_URL` to the public site
+URL if the Website shortcut should link back there, for example:
+
+```bash
+VITE_PUBLIC_WEBSITE_URL=https://lcf.walsh.qzz.io
+```
+
 ## Project Layout
 
 ```text
