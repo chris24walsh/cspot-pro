@@ -627,6 +627,7 @@ export function PresentationView({
   const [undoAction, setUndoAction] = useState<{ label: string; run: () => Promise<void> } | null>(null);
   const [sorterCatchUpDirection, setSorterCatchUpDirection] = useState<"up" | "down" | null>(null);
   const [railCatchUpDirection, setRailCatchUpDirection] = useState<"up" | "down" | null>(null);
+  const [catchUpControlsReady, setCatchUpControlsReady] = useState(true);
   const [slideNotesDraft, setSlideNotesDraft] = useState("");
   const [slideNotesSaving, setSlideNotesSaving] = useState(false);
   const searchInputRef = useRef<HTMLInputElement | null>(null);
@@ -1032,6 +1033,7 @@ export function PresentationView({
     if (!activeSlide) {
       return;
     }
+    setCatchUpControlsReady(true);
     scrollItemIntoOperatorView(slideGridRef.current, thumbnailRefs.current[activeSlide.id] ?? null);
     scrollItemIntoOperatorView(sectionRailListRef.current, sectionRailRefs.current[activeSlide.sectionId] ?? null);
     setSorterCatchUpDirection(null);
@@ -2724,6 +2726,14 @@ export function PresentationView({
   }, [liveBlanked, slideTheme]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
+    setCatchUpControlsReady(false);
+    const timer = window.setTimeout(() => {
+      setCatchUpControlsReady(true);
+    }, 650);
+    return () => window.clearTimeout(timer);
+  }, [liveIndex]);
+
+  useEffect(() => {
     const activeSlide = slides[liveIndex];
     if (!activeSlide) {
       setSorterCatchUpDirection(null);
@@ -3362,7 +3372,7 @@ export function PresentationView({
         </div>
 
         <aside className="presenter-sidebar" aria-label="Slide context">
-          {sorterCatchUpDirection ? (
+          {catchUpControlsReady && sorterCatchUpDirection ? (
             <button
               className={`sorter-catch-up sorter-catch-up-${sorterCatchUpDirection}`}
               aria-label="Catch slide sorter up to live slide"
@@ -3514,7 +3524,7 @@ export function PresentationView({
         </aside>
 
         <aside className="section-rail" aria-label="Sections">
-          {railCatchUpDirection ? (
+          {catchUpControlsReady && railCatchUpDirection ? (
             <button
               aria-label="Catch section rail up to live slide"
               className={`sorter-catch-up sorter-catch-up-${railCatchUpDirection}`}

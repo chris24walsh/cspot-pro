@@ -279,7 +279,7 @@ button {
 }
 
 .worship-history-row {
-  align-items: center;
+  align-items: start;
   background: #f9f6eb;
   border: 1px solid #e3dcc8;
   border-radius: 8px;
@@ -287,7 +287,8 @@ button {
   cursor: pointer;
   display: grid;
   gap: 3px;
-  min-height: 42px;
+  grid-template-rows: auto auto auto;
+  min-height: 0;
   padding: 7px 9px;
   text-align: left;
 }
@@ -310,7 +311,7 @@ button {
   font-weight: 850;
   overflow: hidden;
   text-overflow: ellipsis;
-  white-space: nowrap;
+  white-space: normal;
 }
 
 .worship-history-row em {
@@ -327,7 +328,12 @@ button {
   color: #65716a;
   font-size: 11px;
   font-weight: 800;
+  line-height: 1.15;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
   text-transform: uppercase;
+  white-space: nowrap;
 }
 
 .topbar-service-button {
@@ -353,6 +359,22 @@ button {
   min-height: 32px;
   padding: 5px 12px;
   white-space: nowrap;
+}
+
+.worship-topbar-tools {
+  align-items: stretch;
+}
+
+.worship-topbar-tools .worship-set-picker-tools,
+.worship-topbar-tools .worship-set-topbar-actions {
+  align-items: stretch;
+}
+
+.worship-topbar-tools .topbar-service-button,
+.worship-topbar-tools .worship-history-button,
+.worship-topbar-tools .topbar-action-button,
+.worship-topbar-tools .topbar-primary-button {
+  min-height: 54px;
 }
 
 .compact-video-controls {
@@ -884,7 +906,7 @@ h3 {
 .worship-set-builder {
   display: grid;
   gap: 10px;
-  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
   overflow: hidden;
   padding: 14px;
 }
@@ -894,7 +916,7 @@ h3 {
   background: #fffdf7;
   border: 1px solid #e3dcc8;
   border-radius: 10px;
-  display: flex;
+  display: none;
   gap: 10px;
   justify-content: space-between;
   min-height: 50px;
@@ -4883,6 +4905,7 @@ h3 {
   }
 
   .worship-set-toolbar {
+    display: flex;
     min-height: auto;
     padding: 7px 9px;
   }
@@ -5309,6 +5332,7 @@ h3 {
   }
 
   .worship-set-toolbar {
+    display: flex;
     gap: 6px;
   }
 
