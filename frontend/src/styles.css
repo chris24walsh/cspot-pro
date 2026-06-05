@@ -826,6 +826,10 @@ h3 {
   text-transform: uppercase;
 }
 
+.worship-set-toolbar-actions {
+  display: none;
+}
+
 .worship-set-layout {
   display: grid;
   gap: 10px;
@@ -4372,9 +4376,9 @@ h3 {
   .shell {
     grid-template-columns: 1fr;
     grid-template-rows: auto minmax(0, 1fr);
-    height: auto;
-    min-height: 100vh;
-    overflow: visible;
+    height: 100dvh;
+    min-height: 0;
+    overflow: hidden;
   }
 
   .sidebar {
@@ -4509,14 +4513,10 @@ h3 {
   }
 
   .worship-set-topbar-actions {
-    display: grid;
+    display: none;
     gap: 5px;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     width: 100%;
-  }
-
-  .worship-builder-pane-library .worship-set-topbar-actions {
-    display: none;
   }
 
   .worship-set-topbar-actions .primary-button,
@@ -4568,7 +4568,8 @@ h3 {
 
   .worship-builder {
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-    height: calc(100svh - 70px);
+    flex: 1 1 auto;
+    height: auto;
     overflow: hidden;
     padding: 6px;
   }
@@ -4614,6 +4615,10 @@ h3 {
     font-size: 16px;
   }
 
+  .worship-set-toolbar-compact > div:first-child {
+    display: none;
+  }
+
   .worship-live-topbar,
   .musician-live-toolbar {
     grid-template-columns: 1fr;
@@ -4621,6 +4626,20 @@ h3 {
 
   .worship-set-summary {
     display: none;
+  }
+
+  .worship-set-toolbar-actions {
+    display: grid;
+    gap: 5px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100%;
+  }
+
+  .worship-set-toolbar-actions .text-button,
+  .worship-set-toolbar-actions .primary-button {
+    min-height: 34px;
+    padding: 6px 8px;
+    width: 100%;
   }
 
   .toolbar-button-cluster {
@@ -4821,7 +4840,7 @@ h3 {
   .worship-builder {
     grid-template-columns: 1fr;
     grid-template-rows: auto minmax(0, 1fr);
-    height: calc(100svh - 132px);
+    height: auto;
     padding: 6px;
   }
 

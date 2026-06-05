@@ -1265,6 +1265,20 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
             <p className="eyebrow">Set</p>
             <h2>{plan?.title ?? "No worship set selected"}</h2>
           </div>
+          <div className="worship-set-toolbar-actions" aria-label="Worship set actions">
+            <button className="text-button" disabled={!plan || !canEditPlan || suggesting} onClick={() => void suggestWorshipSet()} type="button">
+              {suggesting ? "Suggesting..." : "Suggest Set"}
+            </button>
+            {undoAction ? (
+              <button className="text-button" onClick={() => void runUndoAction()} type="button">
+                Undo
+              </button>
+            ) : null}
+            <button className="primary-button" disabled={!plan} onClick={() => setViewMode("live")} type="button">
+              <MonitorUp size={16} aria-hidden="true" />
+              Live
+            </button>
+          </div>
           <div className="worship-set-summary">
             <strong>{worshipItems.length}</strong>
             <span>worship songs</span>
