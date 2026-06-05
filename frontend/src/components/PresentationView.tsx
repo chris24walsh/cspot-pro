@@ -3232,10 +3232,6 @@ export function PresentationView({
 
           {canEditSlideNotes && currentPlanItemAllowsNotes ? (
             <div className="slide-notes-panel">
-              <div className="slide-notes-heading">
-                <strong>Teacher Notes</strong>
-                <span>{slideNotesSaving ? "Saving..." : "Private to teachers"}</span>
-              </div>
               <textarea
                 disabled={!currentPlanItem || slideNotesSaving}
                 onBlur={() => void saveSlideNotes()}
