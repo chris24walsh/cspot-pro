@@ -518,8 +518,14 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
       if (!targetSnapshot) {
         return;
       }
+      const before = snapshotWorshipItems((await getPlan(plan.id)).items);
       await applyWorshipSetSnapshot(plan.id, targetSnapshot);
-      setEditHistoryIndex(boundedIndex);
+      await recordSetHistory(
+        plan.id,
+        boundedIndex < editHistoryIndex ? `reverting "${entry.label}"` : `restoring "${entry.label}"`,
+        before,
+        targetSnapshot,
+      );
       setMessage(boundedIndex < editHistoryIndex ? `Reverted ${entry.label}.` : `Restored ${entry.label}.`);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Could not update worship set history.");
