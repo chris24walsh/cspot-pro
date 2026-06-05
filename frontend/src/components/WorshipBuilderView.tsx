@@ -1390,22 +1390,18 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
       </div>
 
       <aside className={`worship-song-browser ${mobileBuilderPane === "library" ? "is-mobile-active" : ""}`}>
-        <div className="worship-panel-heading">
-          <div>
-            <p className="eyebrow">Library</p>
-            <h2>Songs</h2>
-          </div>
+        <div className="worship-library-search-row">
+          <input
+            aria-label="Search songs"
+            className="search-input"
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="Search songs"
+            value={query}
+          />
           <button className="text-button" disabled={!canCreateSong} onClick={openNewSongEditor} type="button">
             New Song
           </button>
         </div>
-        <input
-          aria-label="Search songs"
-          className="search-input"
-          onChange={(event) => setQuery(event.target.value)}
-          placeholder="Search songs"
-          value={query}
-        />
         <div className="worship-song-list">
           {filteredSongs.map((song) => (
             <div

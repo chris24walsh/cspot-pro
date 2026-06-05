@@ -4,6 +4,7 @@ import { createPortal } from "react-dom";
 
 import {
   ApiError,
+  createPlanHistoryEntry,
   createSong,
   createPlan,
   createPlanItem,
@@ -805,6 +806,11 @@ export function PresentationView({
       });
       setPlan((current) => patchPlanItemInState(current, updatedItem));
       setWorshipSetPlan((current) => patchPlanItemInState(current, updatedItem));
+      void recordServiceHistory(
+        nextNotes ? `editing notes for "${liveSlide.title}"` : `clearing notes for "${liveSlide.title}"`,
+        currentPlanItem.title,
+        "slide_notes",
+      );
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Could not save slide notes.");
     } finally {
@@ -1237,6 +1243,25 @@ export function PresentationView({
       setMessage(error instanceof Error ? error.message : "Could not load service history.");
     } finally {
       setServiceHistoryLoading(false);
+    }
+  }
+
+  async function recordServiceHistory(label: string, affected: string, changeType: string) {
+    if (!plan?.id) {
+      return;
+    }
+    try {
+      const entry = await createPlanHistoryEntry(plan.id, {
+        label,
+        before: [],
+        after: [],
+        affected,
+        change_type: changeType,
+        restorable: false,
+      });
+      setServiceHistory((current) => [entry, ...current.filter((candidate) => candidate.id !== entry.id)]);
+    } catch {
+      // History is helpful but should not block service edits.
     }
   }
 
@@ -1815,6 +1840,7 @@ export function PresentationView({
         await load(plan.id);
       },
     });
+    void recordServiceHistory(`adding "${createdItem.title}"`, "Worship set", "song");
     return createdItem;
   }
 
@@ -1941,6 +1967,7 @@ export function PresentationView({
         await load(plan.id);
       },
     });
+    void recordServiceHistory(`adding ${result.reference}`, "Service", "reading");
     return createdItem;
   }
 
@@ -2003,6 +2030,7 @@ export function PresentationView({
         });
         await attachItemFile(createdItem.id, { file_id: stored.id, sort_order: 0 });
       }
+      void recordServiceHistory(`adding "${resolvedTitle}"`, "Service", "video");
       setUndoAction({
         label: `adding "${resolvedTitle}"`,
         run: async () => {
@@ -2168,6 +2196,7 @@ export function PresentationView({
         comment: passage.text,
         key_signature: versionCode,
       });
+      void recordServiceHistory(`moving reading to ${passage.reference}`, currentPlanItem.title, "reading");
       setBibleVersion(versionCode);
       await load(plan.id, {
         preserveLocation: {
@@ -2216,6 +2245,7 @@ export function PresentationView({
         song_id: null,
       });
       await attachItemFile(item.id, { file_id: stored.id, sort_order: 0 });
+      void recordServiceHistory(`adding "${resolvedDeckTitle}"`, "Service", "slide_deck");
       setDeckFile(null);
       await reloadAfterInsertedItem(item);
       closeSearchOverlay();
@@ -2269,6 +2299,7 @@ export function PresentationView({
         song_id: null,
       });
       await attachItemFile(item.id, { file_id: imported.file.id, sort_order: 0 });
+      void recordServiceHistory(`importing "${resolvedDeckTitle}"`, "Service", "slide_deck");
       await reloadAfterInsertedItem(item);
       closeSearchOverlay();
     } catch (error) {
@@ -2327,6 +2358,9 @@ export function PresentationView({
           },
         });
       }
+      if (removedItem) {
+        void recordServiceHistory(`removing "${removedItem.title}"`, owner === "worship" ? "Worship set" : "Service", removedItem.item_type);
+      }
       await reloadPreservingOperatorScroll();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Could not remove section.");
@@ -2378,6 +2412,7 @@ export function PresentationView({
           await reloadPreservingOperatorScroll();
         },
       });
+      void recordServiceHistory(`moving "${item.title}"`, owner === "worship" ? "Worship set" : "Service", item.item_type);
       await reloadPreservingOperatorScroll();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Could not reorder section.");

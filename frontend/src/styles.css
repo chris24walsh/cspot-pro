@@ -233,14 +233,14 @@ button {
   align-items: center;
   display: grid;
   gap: 6px;
-  grid-template-columns: minmax(0, 1fr) auto;
-  min-width: min(560px, 100%);
+  grid-template-columns: auto auto;
+  min-width: 0;
   position: relative;
 }
 
 .worship-history-button {
-  min-height: 40px;
-  min-width: 40px;
+  min-height: 44px;
+  min-width: 44px;
 }
 
 .worship-history-popover {
@@ -251,6 +251,7 @@ button {
   color: #17201b;
   display: grid;
   gap: 8px;
+  grid-template-rows: auto minmax(0, 1fr);
   max-height: min(360px, calc(100svh - 132px));
   min-width: min(320px, calc(100vw - 24px));
   overflow: hidden;
@@ -273,6 +274,8 @@ button {
   gap: 5px;
   min-height: 0;
   overflow: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
 }
 
 .worship-history-row {
@@ -329,8 +332,9 @@ button {
 
 .topbar-service-button {
   background: #fffdf7;
-  max-width: min(520px, 100%);
-  min-height: 40px;
+  max-width: min(240px, 100%);
+  min-height: 44px;
+  padding-inline: 10px;
 }
 
 .topbar-service-button span {
@@ -762,9 +766,21 @@ h3 {
 .worship-song-browser {
   display: grid;
   gap: 10px;
-  grid-template-rows: auto auto minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr);
   overflow: hidden;
   padding: 14px;
+}
+
+.worship-library-search-row {
+  align-items: center;
+  display: grid;
+  gap: 8px;
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.worship-library-search-row .text-button {
+  min-height: var(--control-height);
+  white-space: nowrap;
 }
 
 .worship-panel-heading {
@@ -837,7 +853,7 @@ h3 {
 }
 
 .song-library-main span,
-.worship-set-item div {
+.worship-set-item-body {
   display: grid;
   gap: 2px;
   min-width: 0;
@@ -997,20 +1013,20 @@ h3 {
   align-self: center;
   display: grid;
   gap: 4px;
-  grid-template-columns: repeat(2, 32px);
+  grid-template-columns: repeat(2, 36px);
   justify-content: end;
-  width: 68px;
+  width: 76px;
 }
 
 .worship-set-actions {
   display: grid;
   gap: 4px;
-  grid-template-columns: 32px;
+  grid-template-columns: 36px;
 }
 
 .worship-set-actions .section-icon-button {
-  min-height: 32px;
-  min-width: 32px;
+  min-height: 36px;
+  min-width: 36px;
   padding: 0;
 }
 
@@ -4740,19 +4756,27 @@ h3 {
   .worship-topbar-tools {
     display: grid;
     gap: 5px;
-    grid-template-columns: minmax(0, 1fr);
-    width: 100%;
+    grid-template-columns: auto;
+    width: auto;
   }
 
   .worship-set-picker-tools {
+    grid-template-columns: auto auto;
     min-width: 0;
-    width: 100%;
+    width: auto;
   }
 
   .worship-topbar-tools .topbar-service-button {
     font-size: 12px;
-    min-height: 32px;
-    padding: 4px 8px;
+    max-width: 168px;
+    min-height: 44px;
+    padding: 4px 10px;
+    width: auto;
+  }
+
+  .worship-topbar-tools .worship-history-button {
+    min-height: 44px;
+    min-width: 44px;
   }
 
   .worship-set-topbar-actions {
@@ -4772,6 +4796,15 @@ h3 {
   .topbar-service-button {
     max-width: 100%;
     width: 100%;
+  }
+
+  .worship-set-picker-tools .topbar-service-button {
+    max-width: 168px;
+    width: auto;
+  }
+
+  .worship-history-popover {
+    max-height: min(360px, calc(100dvh - 118px));
   }
 
   .presentation-workspace {
@@ -5188,7 +5221,7 @@ h3 {
   }
 
   .worship-song-browser {
-    grid-template-rows: auto auto minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
   }
 
   .worship-panel-heading .eyebrow {
@@ -5209,7 +5242,7 @@ h3 {
 
   .worship-set-item {
     align-items: center;
-    grid-template-columns: 28px minmax(0, 1fr) 76px;
+    grid-template-columns: 28px minmax(0, 1fr) 84px;
   }
 
   .worship-set-item > span {
@@ -5217,18 +5250,18 @@ h3 {
   }
 
   .worship-set-actions {
-    grid-template-columns: 34px;
+    grid-template-columns: 38px;
   }
 
   .worship-set-item-tools {
-    grid-template-columns: repeat(2, 34px);
-    width: 76px;
+    grid-template-columns: repeat(2, 38px);
+    width: 84px;
   }
 
   .worship-set-actions .section-icon-button {
     border-radius: 10px;
-    min-height: 34px;
-    min-width: 34px;
+    min-height: 38px;
+    min-width: 38px;
   }
 
   .song-library-row {
