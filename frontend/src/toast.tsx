@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-import { createPortal } from "react-dom";
 
 const TOAST_EVENT = "cspot:toast";
 
@@ -18,11 +17,8 @@ export function showToast(message: string) {
 
 export function ToastViewport() {
   const [toasts, setToasts] = useState<ToastItem[]>([]);
-  const [portalTarget, setPortalTarget] = useState<HTMLElement | null>(null);
 
   useEffect(() => {
-    setPortalTarget(document.getElementById("workspace-topbar-slot"));
-
     function handleToast(event: Event) {
       const detail = (event as CustomEvent<ToastEventDetail>).detail;
       const message = detail?.message?.trim();
@@ -45,7 +41,7 @@ export function ToastViewport() {
     return null;
   }
 
-  const viewport = (
+  return (
     <div className="toast-viewport" role="status" aria-live="polite">
       {toasts.map((toast) => (
         <div className="screen-toast" key={toast.id}>
@@ -54,6 +50,4 @@ export function ToastViewport() {
       ))}
     </div>
   );
-
-  return portalTarget ? createPortal(viewport, portalTarget) : viewport;
 }
