@@ -92,6 +92,9 @@ export interface PlanHistoryEntry {
   label: string;
   before: PlanHistorySnapshotItem[];
   after: PlanHistorySnapshotItem[];
+  affected: string | null;
+  change_type: string;
+  restorable: boolean;
 }
 
 export interface PlanItemFile {
@@ -429,6 +432,9 @@ export interface PlanHistoryPayload {
   label: string;
   before: PlanHistorySnapshotItem[];
   after: PlanHistorySnapshotItem[];
+  affected?: string | null;
+  change_type?: string;
+  restorable?: boolean;
 }
 
 export interface UserPayload {

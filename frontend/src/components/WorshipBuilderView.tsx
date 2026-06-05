@@ -438,9 +438,17 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
     }));
   }
 
-  async function recordSetHistory(planId: string, label: string, before: PlanHistorySnapshotItem[], after: PlanHistorySnapshotItem[]) {
+  function formatHistoryTime(value: string) {
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) {
+      return "";
+    }
+    return date.toLocaleString(undefined, { day: "numeric", hour: "2-digit", minute: "2-digit", month: "short" });
+  }
+
+  async function recordSetHistory(planId: string, label: string, before: PlanHistorySnapshotItem[], after: PlanHistorySnapshotItem[], affected: string) {
     try {
-      const entry = await createPlanHistoryEntry(planId, { label, before, after });
+      const entry = await createPlanHistoryEntry(planId, { label, before, after, affected, change_type: "plan_items", restorable: true });
       setEditHistory((current) => [...current, entry]);
       setEditHistoryIndex((current) => current + 1);
     } catch (error) {
@@ -510,10 +518,11 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
     if (!plan || editHistoryApplying || targetIndex === editHistoryIndex) {
       return;
     }
-    const boundedIndex = Math.max(0, Math.min(editHistory.length, targetIndex));
+    const restorableHistory = editHistory.filter((entry) => entry.restorable);
+    const boundedIndex = Math.max(0, Math.min(restorableHistory.length, targetIndex));
     setEditHistoryApplying(true);
     try {
-      const entry = editHistory[boundedIndex < editHistoryIndex ? boundedIndex : boundedIndex - 1];
+      const entry = restorableHistory[boundedIndex < editHistoryIndex ? boundedIndex : boundedIndex - 1];
       const targetSnapshot = boundedIndex < editHistoryIndex ? entry?.before : entry?.after;
       if (!targetSnapshot) {
         return;
@@ -525,6 +534,7 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
         boundedIndex < editHistoryIndex ? `reverting "${entry.label}"` : `restoring "${entry.label}"`,
         before,
         targetSnapshot,
+        entry.affected ?? entry.label,
       );
       setMessage(boundedIndex < editHistoryIndex ? `Reverted ${entry.label}.` : `Restored ${entry.label}.`);
     } catch (error) {
@@ -545,7 +555,7 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
     try {
       const nextHistory = await getPlanHistory(plan.id);
       setEditHistory(nextHistory);
-      setEditHistoryIndex(nextHistory.length);
+      setEditHistoryIndex(nextHistory.filter((entry) => entry.restorable).length);
       setEditHistoryOpen(true);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Could not load worship set history.");
@@ -581,7 +591,7 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
       }
       setPlan(nextPlan);
       setEditHistory(nextHistory);
-      setEditHistoryIndex(nextHistory.length);
+      setEditHistoryIndex(nextHistory.filter((entry) => entry.restorable).length);
       setEditHistoryOpen(false);
       setSelectedItemId((current) =>
         current && nextWorshipItems.some((item) => item.id === current) ? current : nextWorshipItems[0]?.id ?? null,
@@ -765,7 +775,7 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
         key_signature: null,
         song_id: song.id,
       });
-      await recordSetHistory(targetPlanId, `adding "${song.title}"`, before, snapshotWorshipItems([...plan.items, createdItem]));
+      await recordSetHistory(targetPlanId, `adding "${song.title}"`, before, snapshotWorshipItems([...plan.items, createdItem]), song.title);
       await load(targetPlanId);
       setMobileBuilderPane("set");
       setMessage(`Added "${song.title}" after the selected song.`);
@@ -940,7 +950,13 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
       setSuggestedSongs([]);
       setIncludedSuggestionIds(new Set());
       setMobileBuilderPane("set");
-      await recordSetHistory(targetPlanId, "adding suggested songs", before, snapshotWorshipItems([...plan.items, ...createdItems]));
+      await recordSetHistory(
+        targetPlanId,
+        "adding suggested songs",
+        before,
+        snapshotWorshipItems([...plan.items, ...createdItems]),
+        `${songsToAdd.length} song${songsToAdd.length === 1 ? "" : "s"} added`,
+      );
       await load(targetPlanId);
       setMessage(`Added ${songsToAdd.length} suggested song${songsToAdd.length === 1 ? "" : "s"}.`);
     } catch (error) {
@@ -1202,7 +1218,7 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
       const before = snapshotWorshipItems(plan?.items ?? worshipItems);
       await deletePlanItem(item.id);
       if (targetPlanId) {
-        await recordSetHistory(targetPlanId, `removing "${item.title}"`, before, before.filter((snapshotItem) => snapshotItem.id !== item.id));
+        await recordSetHistory(targetPlanId, `removing "${item.title}"`, before, before.filter((snapshotItem) => snapshotItem.id !== item.id), item.title);
         await load(targetPlanId);
       }
     } catch (error) {
@@ -1240,6 +1256,7 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
           }
           return snapshotItem;
         }),
+        item.title,
       );
       await load(targetPlanId);
     } catch (error) {
@@ -1306,22 +1323,38 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
                         <span>Original set</span>
                         <small>{editHistoryIndex === 0 ? "Current" : "Past"}</small>
                       </button>
-                      {editHistory.map((entry, index) => {
-                        const entryIndex = index + 1;
-                        const relation = entryIndex < editHistoryIndex ? "Past" : entryIndex > editHistoryIndex ? "Future" : "Current";
-                        return (
-                          <button
-                            className={`worship-history-row ${entryIndex === editHistoryIndex ? "active" : ""}`}
-                            disabled={editHistoryApplying}
-                            key={entry.id}
-                            onClick={() => void jumpSetHistory(entryIndex)}
-                            type="button"
-                          >
-                            <span>{entry.label}</span>
-                            <small>{entry.actor_name ? `${relation} · ${entry.actor_name}` : relation}</small>
-                          </button>
-                        );
-                      })}
+                      {(() => {
+                        let restorableEntryIndex = 0;
+                        return editHistory.map((entry) => {
+                          const entryIndex = entry.restorable ? ++restorableEntryIndex : null;
+                          const relation =
+                            entryIndex === null
+                              ? "Audit"
+                              : entryIndex < editHistoryIndex
+                                ? "Past"
+                                : entryIndex > editHistoryIndex
+                                  ? "Future"
+                                  : "Current";
+                          const meta = [relation, entry.actor_name, formatHistoryTime(entry.created_at)].filter(Boolean).join(" · ");
+                          return (
+                            <button
+                              className={`worship-history-row ${entryIndex === editHistoryIndex ? "active" : ""} ${entry.restorable ? "" : "is-audit"}`}
+                              disabled={editHistoryApplying || !entry.restorable || entryIndex === null}
+                              key={entry.id}
+                              onClick={() => {
+                                if (entryIndex !== null) {
+                                  void jumpSetHistory(entryIndex);
+                                }
+                              }}
+                              type="button"
+                            >
+                              <span>{entry.label}</span>
+                              {entry.affected ? <em>{entry.affected}</em> : null}
+                              <small>{meta}</small>
+                            </button>
+                          );
+                        });
+                      })()}
                     </div>
                   </section>
                 ) : null}

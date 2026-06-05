@@ -1,4 +1,5 @@
 from datetime import UTC, datetime
+import json
 import math
 import secrets
 
@@ -8,7 +9,7 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_session
 from app.modules.identity.models import User
-from app.modules.identity.auth import CurrentUser, require_any_permission, require_permission
+from app.modules.identity.auth import require_any_permission, require_permission
 from app.modules.music.models import Song, SongPart
 from app.modules.music.schemas import (
     SongCreate,
@@ -19,9 +20,54 @@ from app.modules.music.schemas import (
     WorshipSongUsageRead,
     WorshipSuggestedSongRead,
 )
-from app.modules.planning.models import Plan, PlanItem, PlanType
+from app.modules.planning.models import HistoryEntry, Plan, PlanItem, PlanType
 
 router = APIRouter()
+SONG_HISTORY_ACTION = "item_snapshot"
+SONG_HISTORY_ENTITY_TYPE = "song"
+
+
+def _short_value(value: object) -> str | None:
+    if value is None:
+        return None
+    text = str(value).strip()
+    if not text:
+        return None
+    return text if len(text) <= 80 else f"{text[:77]}..."
+
+
+def _song_change_summary(field: str, before: object, after: object) -> str:
+    if field in {"lyrics", "chords"}:
+        return f"{field} changed"
+    before_text = _short_value(before)
+    after_text = _short_value(after)
+    if before_text is None and after_text is not None:
+        return f"{field} set to {after_text}"
+    if before_text is not None and after_text is None:
+        return f"{field} cleared"
+    return f"{field} changed"
+
+
+def _record_song_history(session: Session, song: Song, actor: User, changes: list[str]) -> None:
+    if not changes:
+        return
+    details = {
+        "label": f'editing "{song.title}"',
+        "affected": f"{song.title}: {', '.join(changes[:4])}{'...' if len(changes) > 4 else ''}",
+        "change_type": "song",
+        "restorable": False,
+        "before": [],
+        "after": [],
+    }
+    session.add(
+        HistoryEntry(
+            actor_id=actor.id,
+            entity_type=SONG_HISTORY_ENTITY_TYPE,
+            entity_id=song.id,
+            action=SONG_HISTORY_ACTION,
+            details=json.dumps(details, separators=(",", ":")),
+        )
+    )
 
 
 def song_to_read(song: Song) -> SongRead:
@@ -300,11 +346,31 @@ def suggest_worship_set(
 @router.post("/songs", response_model=SongRead, status_code=status.HTTP_201_CREATED)
 def create_song(
     payload: SongCreate,
-    _current_user: User = Depends(require_permission("songs:create")),
+    current_user: User = Depends(require_permission("songs:create")),
     session: Session = Depends(get_session),
 ) -> SongRead:
     song = Song(**payload.model_dump())
     session.add(song)
+    session.flush()
+    session.add(
+        HistoryEntry(
+            actor_id=current_user.id,
+            entity_type=SONG_HISTORY_ENTITY_TYPE,
+            entity_id=song.id,
+            action=SONG_HISTORY_ACTION,
+            details=json.dumps(
+                {
+                    "label": f'creating "{song.title}"',
+                    "affected": song.title,
+                    "change_type": "song",
+                    "restorable": False,
+                    "before": [],
+                    "after": [],
+                },
+                separators=(",", ":"),
+            ),
+        )
+    )
     session.commit()
     session.refresh(song)
     return song_to_read(song)
@@ -323,13 +389,18 @@ def get_song(
 def update_song(
     song_id: str,
     payload: SongUpdate,
-    _current_user: User = Depends(require_any_permission("songs:edit", "songs:create")),
+    current_user: User = Depends(require_any_permission("songs:edit", "songs:create")),
     session: Session = Depends(get_session),
 ) -> SongRead:
     song = get_song_or_404(session, song_id)
+    changes: list[str] = []
     for field, value in payload.model_dump(exclude_unset=True).items():
+        before = getattr(song, field)
+        if before != value:
+            changes.append(_song_change_summary(field, before, value))
         setattr(song, field, value)
 
+    _record_song_history(session, song, current_user, changes)
     session.commit()
     session.refresh(song)
     return song_to_read(song)
@@ -338,11 +409,30 @@ def update_song(
 @router.delete("/songs/{song_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_song(
     song_id: str,
-    _current_user: User = Depends(require_permission("songs:delete")),
+    current_user: User = Depends(require_permission("songs:delete")),
     session: Session = Depends(get_session),
 ) -> Response:
     song = get_song_or_404(session, song_id)
     song.deleted_at = datetime.now(UTC)
+    session.add(
+        HistoryEntry(
+            actor_id=current_user.id,
+            entity_type=SONG_HISTORY_ENTITY_TYPE,
+            entity_id=song.id,
+            action=SONG_HISTORY_ACTION,
+            details=json.dumps(
+                {
+                    "label": f'archiving "{song.title}"',
+                    "affected": song.title,
+                    "change_type": "song",
+                    "restorable": False,
+                    "before": [],
+                    "after": [],
+                },
+                separators=(",", ":"),
+            ),
+        )
+    )
     session.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 

@@ -289,9 +289,27 @@ button {
   border-color: #8ebba9;
 }
 
+.worship-history-row.is-audit {
+  cursor: default;
+}
+
+.worship-history-row:disabled {
+  opacity: 1;
+}
+
 .worship-history-row span {
   font-size: 13px;
   font-weight: 850;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.worship-history-row em {
+  color: #3b4741;
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 750;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

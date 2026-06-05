@@ -57,6 +57,9 @@ class PlanHistoryCreate(BaseModel):
     label: str
     before: list[PlanItemHistorySnapshot]
     after: list[PlanItemHistorySnapshot]
+    affected: str | None = None
+    change_type: str = "plan_items"
+    restorable: bool = True
 
 
 class PlanHistoryRead(PlanHistoryCreate):

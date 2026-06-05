@@ -2,7 +2,7 @@ from datetime import UTC, datetime
 import json
 
 from fastapi import APIRouter, Depends, HTTPException, Response, status
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from app.core.database import get_session
@@ -105,6 +105,9 @@ def history_entry_to_read(session: Session, entry: HistoryEntry) -> PlanHistoryR
         label=details.get("label", entry.action),
         before=details.get("before", []),
         after=details.get("after", []),
+        affected=details.get("affected"),
+        change_type=details.get("change_type", "plan_items"),
+        restorable=details.get("restorable", bool(details.get("before") or details.get("after"))),
     )
 
 
@@ -207,12 +210,24 @@ def list_plan_history(
     session: Session = Depends(get_session),
 ) -> list[PlanHistoryRead]:
     get_plan_or_404(session, plan_id)
+    song_ids = session.scalars(
+        select(PlanItem.song_id).where(
+            PlanItem.plan_id == plan_id,
+            PlanItem.deleted_at.is_(None),
+            PlanItem.song_id.is_not(None),
+        )
+    ).all()
+    history_filters = [
+        (HistoryEntry.entity_type == PLAN_HISTORY_ENTITY_TYPE)
+        & (HistoryEntry.entity_id == plan_id),
+    ]
+    if song_ids:
+        history_filters.append((HistoryEntry.entity_type == "song") & HistoryEntry.entity_id.in_(song_ids))
     entries = session.scalars(
         select(HistoryEntry)
         .where(
-            HistoryEntry.entity_type == PLAN_HISTORY_ENTITY_TYPE,
-            HistoryEntry.entity_id == plan_id,
             HistoryEntry.action == PLAN_HISTORY_ACTION,
+            or_(*history_filters),
         )
         .order_by(HistoryEntry.created_at.desc())
         .limit(PLAN_HISTORY_LIMIT)
