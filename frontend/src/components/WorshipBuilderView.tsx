@@ -1,4 +1,4 @@
-import { CalendarDays, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, ListPlus, MonitorUp, Music2, Pencil, RefreshCw, Trash2 } from "lucide-react";
+import { CalendarDays, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, History, ListPlus, MonitorUp, Music2, Pencil, RefreshCw, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
@@ -56,6 +56,15 @@ type WorshipHistoryMissingSong = {
   notes: string[];
   sequence: string | null;
   title: string;
+};
+
+type WorshipSetSnapshotItem = Pick<PlanItem, "id" | "item_type" | "sequence" | "title" | "comment" | "key_signature" | "song_id" | "teacher_notes">;
+
+type WorshipSetEditHistoryEntry = {
+  after: WorshipSetSnapshotItem[];
+  before: WorshipSetSnapshotItem[];
+  label: string;
+  timestamp: number;
 };
 
 interface WorshipBuilderViewProps {
@@ -339,7 +348,10 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
   const [suggestionRefreshing, setSuggestionRefreshing] = useState(false);
   const [editingSong, setEditingSong] = useState<Song | null>(null);
   const [songEditorMode, setSongEditorMode] = useState<"create" | "edit">("edit");
-  const [undoAction, setUndoAction] = useState<{ label: string; run: () => Promise<void> } | null>(null);
+  const [editHistory, setEditHistory] = useState<WorshipSetEditHistoryEntry[]>([]);
+  const [editHistoryIndex, setEditHistoryIndex] = useState(0);
+  const [editHistoryOpen, setEditHistoryOpen] = useState(false);
+  const [editHistoryApplying, setEditHistoryApplying] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<"builder" | "live">("builder");
   const [mobileBuilderPane, setMobileBuilderPane] = useState<"library" | "set">("library");
@@ -419,6 +431,110 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
       .slice(0, 80);
   }, [query, songs]);
 
+  function snapshotWorshipItems(items: PlanItem[]): WorshipSetSnapshotItem[] {
+    return sortedWorshipItems(items).map((item) => ({
+      id: item.id,
+      item_type: item.item_type,
+      sequence: item.sequence,
+      title: item.title,
+      comment: item.comment,
+      key_signature: item.key_signature,
+      song_id: item.song_id,
+      teacher_notes: item.teacher_notes,
+    }));
+  }
+
+  function recordSetHistory(label: string, before: WorshipSetSnapshotItem[], after: WorshipSetSnapshotItem[]) {
+    setEditHistory((current) => {
+      const retained = current.slice(0, editHistoryIndex);
+      return [...retained, { label, before, after, timestamp: Date.now() }];
+    });
+    setEditHistoryIndex((current) => current + 1);
+  }
+
+  async function applyWorshipSetSnapshot(targetPlanId: string, targetItems: WorshipSetSnapshotItem[]) {
+    const latestPlan = await getPlan(targetPlanId);
+    const currentItems = sortedWorshipItems(latestPlan.items);
+    const targetById = new Map(targetItems.map((item) => [item.id, item]));
+    const targetBySongId = new Map(targetItems.flatMap((item) => (item.song_id ? [[item.song_id, item] as const] : [])));
+
+    const matchedTargetIds = new Set<string>();
+    const matchedCurrentIds = new Set<string>();
+
+    for (const current of currentItems) {
+      const target = targetById.get(current.id) ?? (current.song_id ? targetBySongId.get(current.song_id) : undefined);
+      if (!target) {
+        await deletePlanItem(current.id);
+        continue;
+      }
+      matchedTargetIds.add(target.id);
+      matchedCurrentIds.add(current.id);
+      await updatePlanItem(current.id, {
+        item_type: target.item_type,
+        sequence: target.sequence,
+        title: target.title,
+        comment: target.comment,
+        key_signature: target.key_signature,
+        song_id: target.song_id,
+        teacher_notes: target.teacher_notes,
+      });
+    }
+
+    for (const target of targetItems) {
+      if (matchedTargetIds.has(target.id)) {
+        continue;
+      }
+      const currentBySong = target.song_id ? currentItems.find((item) => item.song_id === target.song_id && !matchedCurrentIds.has(item.id)) : undefined;
+      if (currentBySong) {
+        matchedCurrentIds.add(currentBySong.id);
+        matchedTargetIds.add(target.id);
+        await updatePlanItem(currentBySong.id, {
+          item_type: target.item_type,
+          sequence: target.sequence,
+          title: target.title,
+          comment: target.comment,
+          key_signature: target.key_signature,
+          song_id: target.song_id,
+          teacher_notes: target.teacher_notes,
+        });
+        continue;
+      }
+      await createPlanItem(targetPlanId, {
+        item_type: target.item_type,
+        sequence: target.sequence,
+        title: target.title,
+        comment: target.comment,
+        key_signature: target.key_signature,
+        song_id: target.song_id,
+        teacher_notes: target.teacher_notes,
+      });
+    }
+
+    await load(targetPlanId);
+  }
+
+  async function jumpSetHistory(targetIndex: number) {
+    if (!plan || editHistoryApplying || targetIndex === editHistoryIndex) {
+      return;
+    }
+    const boundedIndex = Math.max(0, Math.min(editHistory.length, targetIndex));
+    setEditHistoryApplying(true);
+    try {
+      const entry = editHistory[boundedIndex < editHistoryIndex ? boundedIndex : boundedIndex - 1];
+      const targetSnapshot = boundedIndex < editHistoryIndex ? entry?.before : entry?.after;
+      if (!targetSnapshot) {
+        return;
+      }
+      await applyWorshipSetSnapshot(plan.id, targetSnapshot);
+      setEditHistoryIndex(boundedIndex);
+      setMessage(boundedIndex < editHistoryIndex ? `Reverted ${entry.label}.` : `Restored ${entry.label}.`);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not update worship set history.");
+    } finally {
+      setEditHistoryApplying(false);
+    }
+  }
+
   async function load(targetPlanId?: string) {
     setLoading(true);
     try {
@@ -464,6 +580,12 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
   useEffect(() => {
     setTopbarSlot(document.getElementById("workspace-topbar-slot"));
   }, []);
+
+  useEffect(() => {
+    setEditHistory([]);
+    setEditHistoryIndex(0);
+    setEditHistoryOpen(false);
+  }, [plan?.id]);
 
   useEffect(() => {
     if (!message) {
@@ -619,6 +741,7 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
 
     try {
       const targetPlanId = plan.id;
+      const before = snapshotWorshipItems(plan.items);
       const createdItem = await createPlanItem(targetPlanId, {
         item_type: "song",
         sequence: sequenceAfterSelected(plan.items, selectedItemId),
@@ -627,13 +750,7 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
         key_signature: null,
         song_id: song.id,
       });
-      setUndoAction({
-        label: `adding "${song.title}"`,
-        run: async () => {
-          await deletePlanItem(createdItem.id);
-          await load(targetPlanId);
-        },
-      });
+      recordSetHistory(`adding "${song.title}"`, before, snapshotWorshipItems([...plan.items, createdItem]));
       await load(targetPlanId);
       setMobileBuilderPane("set");
       setMessage(`Added "${song.title}" after the selected song.`);
@@ -781,6 +898,7 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
 
     try {
       const targetPlanId = plan.id;
+      const before = snapshotWorshipItems(plan.items);
       const createdItems: PlanItem[] = [];
       const songsToAdd = suggestedSongs.filter((entry) => includedSuggestionIds.has(entry.song.id));
       if (!songsToAdd.length) {
@@ -807,13 +925,7 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
       setSuggestedSongs([]);
       setIncludedSuggestionIds(new Set());
       setMobileBuilderPane("set");
-      setUndoAction({
-        label: "adding suggested songs",
-        run: async () => {
-          await Promise.all(createdItems.map((item) => deletePlanItem(item.id)));
-          await load(targetPlanId);
-        },
-      });
+      recordSetHistory("adding suggested songs", before, snapshotWorshipItems([...plan.items, ...createdItems]));
       await load(targetPlanId);
       setMessage(`Added ${songsToAdd.length} suggested song${songsToAdd.length === 1 ? "" : "s"}.`);
     } catch (error) {
@@ -1072,23 +1184,10 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
     }
     try {
       const targetPlanId = plan?.id;
-      const removedItem = item;
+      const before = snapshotWorshipItems(plan?.items ?? worshipItems);
       await deletePlanItem(item.id);
       if (targetPlanId) {
-        setUndoAction({
-          label: `removing "${removedItem.title}"`,
-          run: async () => {
-            await createPlanItem(targetPlanId, {
-              item_type: removedItem.item_type,
-              sequence: removedItem.sequence,
-              title: removedItem.title,
-              comment: removedItem.comment,
-              key_signature: removedItem.key_signature,
-              song_id: removedItem.song_id,
-            });
-            await load(targetPlanId);
-          },
-        });
+        recordSetHistory(`removing "${item.title}"`, before, before.filter((snapshotItem) => snapshotItem.id !== item.id));
         await load(targetPlanId);
       }
     } catch (error) {
@@ -1108,40 +1207,27 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
 
     try {
       const targetPlanId = plan.id;
-      const originalItemSequence = item.sequence;
-      const originalTargetSequence = target.sequence;
+      const before = snapshotWorshipItems(plan.items);
       await Promise.all([
         updatePlanItem(item.id, { sequence: target.sequence }),
         updatePlanItem(target.id, { sequence: item.sequence }),
       ]);
-      setUndoAction({
-        label: `moving "${item.title}"`,
-        run: async () => {
-          await Promise.all([
-            updatePlanItem(item.id, { sequence: originalItemSequence }),
-            updatePlanItem(target.id, { sequence: originalTargetSequence }),
-          ]);
-          await load(targetPlanId);
-        },
-      });
+      recordSetHistory(
+        `moving "${item.title}"`,
+        before,
+        before.map((snapshotItem) => {
+          if (snapshotItem.id === item.id) {
+            return { ...snapshotItem, sequence: target.sequence };
+          }
+          if (snapshotItem.id === target.id) {
+            return { ...snapshotItem, sequence: item.sequence };
+          }
+          return snapshotItem;
+        }),
+      );
       await load(targetPlanId);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Could not reorder worship set.");
-    }
-  }
-
-  async function runUndoAction() {
-    if (!undoAction) {
-      return;
-    }
-
-    const action = undoAction;
-    setUndoAction(null);
-    try {
-      await action.run();
-      setMessage(`Undid ${action.label}.`);
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : `Could not undo ${action.label}.`);
     }
   }
 
@@ -1162,27 +1248,72 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
   return (
     <section className={`worship-builder worship-builder-pane-${mobileBuilderPane}`} aria-label="Worship builder">
       {topbarSlot
-        ? createPortal(
+          ? createPortal(
             <div className="presentation-topbar-tools worship-topbar-tools">
-              <button
-                className="text-button topbar-service-button"
-                disabled={loading}
-                onClick={openSetPicker}
-                title="Choose or create a worship set"
-                type="button"
-              >
-                <CalendarDays size={16} aria-hidden="true" />
-                <span>{plan ? `${formatServiceDate(plan.service_date)} · ${plan.title}` : "Choose worship set"}</span>
-              </button>
+              <div className="worship-set-picker-tools">
+                <button
+                  className="text-button topbar-service-button"
+                  disabled={loading}
+                  onClick={openSetPicker}
+                  title="Choose or create a worship set"
+                  type="button"
+                >
+                  <CalendarDays size={16} aria-hidden="true" />
+                  <span>{plan ? `${formatServiceDate(plan.service_date)} · ${plan.title}` : "Choose worship set"}</span>
+                </button>
+                <button
+                  aria-expanded={editHistoryOpen}
+                  aria-label="Open worship set edit history"
+                  className="section-icon-button worship-history-button"
+                  disabled={!editHistory.length || editHistoryApplying}
+                  onClick={() => setEditHistoryOpen((current) => !current)}
+                  title="Worship set edit history"
+                  type="button"
+                >
+                  <History size={15} aria-hidden="true" />
+                </button>
+                {editHistoryOpen ? (
+                  <section className="worship-history-popover" aria-label="Worship set edit history">
+                    <div className="worship-history-popover-heading">
+                      <strong>Edit History</strong>
+                      <button className="section-icon-button" onClick={() => setEditHistoryOpen(false)} type="button" aria-label="Close edit history">
+                        x
+                      </button>
+                    </div>
+                    <div className="worship-history-list">
+                      <button
+                        className={`worship-history-row ${editHistoryIndex === 0 ? "active" : ""}`}
+                        disabled={editHistoryApplying}
+                        onClick={() => void jumpSetHistory(0)}
+                        type="button"
+                      >
+                        <span>Original set</span>
+                        <small>{editHistoryIndex === 0 ? "Current" : "Past"}</small>
+                      </button>
+                      {editHistory.map((entry, index) => {
+                        const entryIndex = index + 1;
+                        const relation = entryIndex < editHistoryIndex ? "Past" : entryIndex > editHistoryIndex ? "Future" : "Current";
+                        return (
+                          <button
+                            className={`worship-history-row ${entryIndex === editHistoryIndex ? "active" : ""}`}
+                            disabled={editHistoryApplying}
+                            key={`${entry.timestamp}-${entry.label}`}
+                            onClick={() => void jumpSetHistory(entryIndex)}
+                            type="button"
+                          >
+                            <span>{entry.label}</span>
+                            <small>{relation}</small>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </section>
+                ) : null}
+              </div>
               <div className="worship-set-topbar-actions">
                 <button className="text-button topbar-action-button" disabled={!plan || !canEditPlan || suggesting} onClick={() => void suggestWorshipSet()} type="button">
                   {suggesting ? "Suggesting..." : "Suggest Set"}
                 </button>
-                {undoAction ? (
-                  <button className="text-button topbar-action-button" onClick={() => void runUndoAction()} type="button">
-                    Undo
-                  </button>
-                ) : null}
                 <button className="primary-button topbar-primary-button" disabled={!plan} onClick={() => setViewMode("live")} type="button">
                   <MonitorUp size={16} aria-hidden="true" />
                   Live
@@ -1269,11 +1400,6 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
             <button className="text-button" disabled={!plan || !canEditPlan || suggesting} onClick={() => void suggestWorshipSet()} type="button">
               {suggesting ? "Suggesting..." : "Suggest Set"}
             </button>
-            {undoAction ? (
-              <button className="text-button" onClick={() => void runUndoAction()} type="button">
-                Undo
-              </button>
-            ) : null}
             <button className="primary-button" disabled={!plan} onClick={() => setViewMode("live")} type="button">
               <MonitorUp size={16} aria-hidden="true" />
               Live
@@ -1311,38 +1437,52 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
                     <div className="worship-set-item-body">
                       <strong>{song ? compactSongTitle(song) : item.title}</strong>
                       {selectedItemId === item.id ? <small>insert next song after this</small> : null}
-                      <button
-                        aria-label={`Remove ${item.title}`}
-                        className="worship-remove-inline"
-                        disabled={!canEditPlan}
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          void removeSong(item);
-                        }}
-                        type="button"
-                      >
-                        Remove
-                      </button>
                     </div>
-                    <div className="worship-set-actions" onClick={(event) => event.stopPropagation()}>
-                      <button
-                        aria-label={`Move ${item.title} up`}
-                        className="section-icon-button"
-                        disabled={!canEditPlan || index === 0}
-                        onClick={() => void moveSong(item, -1)}
-                        type="button"
-                      >
-                        <ChevronUp size={14} aria-hidden="true" />
-                      </button>
-                      <button
-                        aria-label={`Move ${item.title} down`}
-                        className="section-icon-button"
-                        disabled={!canEditPlan || index === worshipItems.length - 1}
-                        onClick={() => void moveSong(item, 1)}
-                        type="button"
-                      >
-                        <ChevronDown size={14} aria-hidden="true" />
-                      </button>
+                    <div className="worship-set-item-tools" onClick={(event) => event.stopPropagation()}>
+                      <div className="worship-set-actions">
+                        <button
+                          aria-label={`Edit ${song ? song.title : item.title}`}
+                          className="section-icon-button"
+                          disabled={!song || !canEditSong}
+                          onClick={() => {
+                            if (song) {
+                              openSongEditor(song);
+                            }
+                          }}
+                          type="button"
+                        >
+                          <Pencil size={14} aria-hidden="true" />
+                        </button>
+                        <button
+                          aria-label={`Remove ${item.title}`}
+                          className="section-icon-button section-remove-button"
+                          disabled={!canEditPlan}
+                          onClick={() => void removeSong(item)}
+                          type="button"
+                        >
+                          <Trash2 size={14} aria-hidden="true" />
+                        </button>
+                      </div>
+                      <div className="worship-set-actions">
+                        <button
+                          aria-label={`Move ${item.title} up`}
+                          className="section-icon-button"
+                          disabled={!canEditPlan || index === 0}
+                          onClick={() => void moveSong(item, -1)}
+                          type="button"
+                        >
+                          <ChevronUp size={14} aria-hidden="true" />
+                        </button>
+                        <button
+                          aria-label={`Move ${item.title} down`}
+                          className="section-icon-button"
+                          disabled={!canEditPlan || index === worshipItems.length - 1}
+                          onClick={() => void moveSong(item, 1)}
+                          type="button"
+                        >
+                          <ChevronDown size={14} aria-hidden="true" />
+                        </button>
+                      </div>
                     </div>
                   </article>
                 );

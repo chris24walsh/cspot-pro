@@ -224,6 +224,86 @@ button {
   min-width: 0;
 }
 
+.worship-set-picker-tools {
+  align-items: center;
+  display: grid;
+  gap: 6px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  min-width: min(560px, 100%);
+  position: relative;
+}
+
+.worship-history-button {
+  min-height: 40px;
+  min-width: 40px;
+}
+
+.worship-history-popover {
+  background: #fffefa;
+  border: 1px solid #cfc7b4;
+  border-radius: 8px;
+  box-shadow: 0 16px 40px rgba(23, 32, 27, 0.2);
+  color: #17201b;
+  display: grid;
+  gap: 8px;
+  max-height: min(360px, calc(100svh - 132px));
+  min-width: min(320px, calc(100vw - 24px));
+  overflow: hidden;
+  padding: 10px;
+  position: absolute;
+  right: 0;
+  top: calc(100% + 6px);
+  z-index: 35;
+}
+
+.worship-history-popover-heading {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+  justify-content: space-between;
+}
+
+.worship-history-list {
+  display: grid;
+  gap: 5px;
+  min-height: 0;
+  overflow: auto;
+}
+
+.worship-history-row {
+  align-items: center;
+  background: #f9f6eb;
+  border: 1px solid #e3dcc8;
+  border-radius: 8px;
+  color: #17201b;
+  cursor: pointer;
+  display: grid;
+  gap: 3px;
+  min-height: 42px;
+  padding: 7px 9px;
+  text-align: left;
+}
+
+.worship-history-row.active {
+  background: #eaf5ef;
+  border-color: #8ebba9;
+}
+
+.worship-history-row span {
+  font-size: 13px;
+  font-weight: 850;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.worship-history-row small {
+  color: #65716a;
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
 .topbar-service-button {
   background: #fffdf7;
   max-width: min(520px, 100%);
@@ -860,7 +940,7 @@ h3 {
   cursor: pointer;
   display: grid;
   gap: 10px;
-  grid-template-columns: 26px minmax(0, 1fr) 34px;
+  grid-template-columns: 26px minmax(0, 1fr) auto;
   padding: 9px;
   text-align: left;
 }
@@ -884,6 +964,12 @@ h3 {
   padding-top: 5px;
 }
 
+.worship-set-item-tools {
+  display: grid;
+  gap: 4px;
+  grid-template-columns: repeat(2, 32px);
+}
+
 .worship-set-actions {
   display: grid;
   gap: 4px;
@@ -898,26 +984,6 @@ h3 {
 
 .worship-set-item-body {
   align-content: start;
-}
-
-.worship-remove-inline {
-  background: transparent;
-  border: 0;
-  color: #a23b2b;
-  cursor: pointer;
-  font: inherit;
-  font-size: 12px;
-  font-weight: 850;
-  justify-self: start;
-  margin-top: 4px;
-  padding: 0;
-  text-decoration: underline;
-  text-underline-offset: 3px;
-}
-
-.worship-remove-inline:disabled {
-  cursor: not-allowed;
-  opacity: 0.45;
 }
 
 .worship-sorter-heading {
@@ -4506,6 +4572,11 @@ h3 {
     width: 100%;
   }
 
+  .worship-set-picker-tools {
+    min-width: 0;
+    width: 100%;
+  }
+
   .worship-topbar-tools .topbar-service-button {
     font-size: 12px;
     min-height: 32px;
@@ -4918,6 +4989,10 @@ h3 {
   }
 
   .worship-set-actions {
+    grid-template-columns: 34px;
+  }
+
+  .worship-set-item-tools {
     grid-template-columns: repeat(2, 34px);
   }
 
