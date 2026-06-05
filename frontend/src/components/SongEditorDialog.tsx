@@ -108,7 +108,7 @@ function normalizeForm(form: SongForm, chords: string | null): SongForm {
     title: form.title.trim(),
     alternate_title: form.alternate_title || null,
     author: form.author || null,
-    lyrics: form.lyrics ? canonicalizeWorshipLyrics(analyzeWorshipText(form.lyrics, { title: form.title }).lyrics, form.sequence) : null,
+    lyrics: form.lyrics ? canonicalizeWorshipLyrics(form.lyrics, form.sequence) : null,
     chords,
     ccli_number: form.ccli_number || null,
     book_reference: form.book_reference || null,

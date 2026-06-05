@@ -174,7 +174,6 @@ function collapseRepeatedLines(block: string) {
 export function formatWorshipText(value: string, options: { removeChordLines?: boolean } = {}) {
   const normalized = value
     .replace(/\r\n?/g, "\n")
-    .replace(/([a-z,;.!?)])([A-Z][a-z])/g, "$1\n$2")
     .replace(/[“”]/g, '"')
     .replace(/[‘’]/g, "'")
     .replace(/\u00a0/g, " ");
@@ -182,29 +181,35 @@ export function formatWorshipText(value: string, options: { removeChordLines?: b
   const output: string[] = [];
   let previousBlank = true;
 
-  for (const rawLine of normalized.split("\n")) {
-    const line = rawLine.replace(/\s+$/g, "").replace(/^\s+/g, "");
-    const heading = normalizeSectionHeading(line);
+  for (const rawSourceLine of normalized.split("\n")) {
+    const expandedLines = /^\s*\[[^\]]+\]\s*$/.test(rawSourceLine)
+      ? [rawSourceLine]
+      : rawSourceLine.replace(/([a-z,;.!?)])([A-Z][a-z])/g, "$1\n$2").split("\n");
 
-    if (!line || isWebClutter(line) || (options.removeChordLines && isLikelyChordLine(line))) {
-      if (!previousBlank && output.length) {
-        output.push("");
-        previousBlank = true;
-      }
-      continue;
-    }
+    for (const rawLine of expandedLines) {
+      const line = rawLine.replace(/\s+$/g, "").replace(/^\s+/g, "");
+      const heading = normalizeSectionHeading(line);
 
-    if (heading) {
-      if (!previousBlank && output.length) {
-        output.push("");
+      if (!line || isWebClutter(line) || (options.removeChordLines && isLikelyChordLine(line))) {
+        if (!previousBlank && output.length) {
+          output.push("");
+          previousBlank = true;
+        }
+        continue;
       }
-      output.push(`[${heading}]`);
+
+      if (heading) {
+        if (!previousBlank && output.length) {
+          output.push("");
+        }
+        output.push(`[${heading}]`);
+        previousBlank = false;
+        continue;
+      }
+
+      output.push(line.replace(/\s{2,}/g, " "));
       previousBlank = false;
-      continue;
     }
-
-    output.push(line.replace(/\s{2,}/g, " "));
-    previousBlank = false;
   }
 
   return output
