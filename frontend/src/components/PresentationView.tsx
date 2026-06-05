@@ -113,6 +113,13 @@ type LoadOptions = {
   refreshCatalogs?: boolean;
   silent?: boolean;
 };
+type SlideNotesPayload = {
+  kind: "cspot.slideNotes";
+  version: 1;
+  slides: Record<string, string>;
+};
+
+const SLIDE_NOTES_KIND = "cspot.slideNotes";
 
 const SERVICE_DATE_FORMATTER = new Intl.DateTimeFormat(undefined, {
   day: "numeric",
@@ -486,6 +493,61 @@ function deckBuildGroupKey(slide: PresentationSlide | null | undefined) {
   return `${slide.planItemId}:${slide.originalSlideIndex ?? slide.renderedSlideIndex ?? slide.id}`;
 }
 
+function parseSlideNotesPayload(value: string | null | undefined): SlideNotesPayload | null {
+  if (!value?.trim()) {
+    return null;
+  }
+  try {
+    const parsed = JSON.parse(value) as Partial<SlideNotesPayload>;
+    if (parsed.kind !== SLIDE_NOTES_KIND || parsed.version !== 1 || !parsed.slides || typeof parsed.slides !== "object") {
+      return null;
+    }
+    return {
+      kind: SLIDE_NOTES_KIND,
+      version: 1,
+      slides: Object.fromEntries(
+        Object.entries(parsed.slides).filter((entry): entry is [string, string] => typeof entry[1] === "string"),
+      ),
+    };
+  } catch {
+    return null;
+  }
+}
+
+function slideNoteFor(rawNotes: string | null | undefined, slide: PresentationSlide | null, siblingSlides: PresentationSlide[]) {
+  if (!slide) {
+    return "";
+  }
+  const payload = parseSlideNotesPayload(rawNotes);
+  if (payload) {
+    return payload.slides[slide.id] ?? "";
+  }
+  const legacyNote = rawNotes?.trim() ?? "";
+  if (!legacyNote) {
+    return "";
+  }
+  return siblingSlides.length <= 1 || siblingSlides[0]?.id === slide.id ? legacyNote : "";
+}
+
+function serializeSlideNote(rawNotes: string | null | undefined, slide: PresentationSlide, siblingSlides: PresentationSlide[], note: string) {
+  const existing = parseSlideNotesPayload(rawNotes);
+  const slides = existing?.slides ? { ...existing.slides } : {};
+  const legacyNote = existing ? "" : rawNotes?.trim() ?? "";
+  const firstSlideId = siblingSlides[0]?.id;
+  if (legacyNote && firstSlideId && firstSlideId !== slide.id) {
+    slides[firstSlideId] = legacyNote;
+  }
+  const trimmed = note.trim();
+  if (trimmed) {
+    slides[slide.id] = trimmed;
+  } else {
+    delete slides[slide.id];
+  }
+  return Object.keys(slides).length
+    ? JSON.stringify({ kind: SLIDE_NOTES_KIND, version: 1, slides } satisfies SlideNotesPayload)
+    : null;
+}
+
 export function PresentationView({
   canAttachDeck,
   canCreatePlan,
@@ -638,6 +700,10 @@ export function PresentationView({
   );
   const liveSlide = slides[liveIndex] ?? null;
   const currentPlanItem = effectivePlanItems.find((item) => item.id === liveSlide?.planItemId) ?? null;
+  const currentPlanItemSlides = useMemo(
+    () => (currentPlanItem ? slides.filter((slide) => slide.planItemId === currentPlanItem.id) : []),
+    [currentPlanItem?.id, slides],
+  );
   const currentPlanItemAllowsNotes =
     currentPlanItem?.item_type === "message" ||
     currentPlanItem?.item_type === "sermon" ||
@@ -721,19 +787,21 @@ export function PresentationView({
   }
 
   async function saveSlideNotes() {
-    if (!canEditSlideNotes || !currentPlanItem || slideNotesSaving) {
+    if (!canEditSlideNotes || !currentPlanItem || !liveSlide || slideNotesSaving) {
       return;
     }
 
     const nextNotes = slideNotesDraft.trim();
-    const currentNotes = currentPlanItem.teacher_notes ?? "";
+    const currentNotes = slideNoteFor(currentPlanItem.teacher_notes, liveSlide, currentPlanItemSlides);
     if (nextNotes === currentNotes) {
       return;
     }
 
     setSlideNotesSaving(true);
     try {
-      const updatedItem = await updatePlanItem(currentPlanItem.id, { teacher_notes: nextNotes || null });
+      const updatedItem = await updatePlanItem(currentPlanItem.id, {
+        teacher_notes: serializeSlideNote(currentPlanItem.teacher_notes, liveSlide, currentPlanItemSlides, nextNotes),
+      });
       setPlan((current) => patchPlanItemInState(current, updatedItem));
       setWorshipSetPlan((current) => patchPlanItemInState(current, updatedItem));
     } catch (error) {
@@ -744,8 +812,8 @@ export function PresentationView({
   }
 
   useEffect(() => {
-    setSlideNotesDraft(currentPlanItem?.teacher_notes ?? "");
-  }, [currentPlanItem?.id, currentPlanItem?.teacher_notes]);
+    setSlideNotesDraft(slideNoteFor(currentPlanItem?.teacher_notes, liveSlide, currentPlanItemSlides));
+  }, [currentPlanItem?.id, currentPlanItem?.teacher_notes, currentPlanItemSlides, liveSlide?.id]);
 
   function toggleSorterSection(sectionId: string) {
     setExpandedSorterSectionIds((current) => {
