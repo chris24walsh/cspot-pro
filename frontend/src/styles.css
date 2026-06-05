@@ -223,8 +223,8 @@ button {
 
 .worship-set-topbar-actions {
   align-items: center;
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: minmax(150px, auto) auto;
   gap: 8px;
   min-width: 0;
 }
@@ -252,7 +252,7 @@ button {
   display: grid;
   gap: 8px;
   grid-template-rows: auto minmax(0, 1fr);
-  max-height: min(360px, calc(100svh - 132px));
+  max-height: min(430px, calc(100svh - 112px));
   min-width: min(320px, calc(100vw - 24px));
   overflow: hidden;
   padding: 10px;
@@ -271,6 +271,8 @@ button {
 
 .worship-history-list {
   display: grid;
+  align-content: start;
+  grid-auto-rows: 58px;
   gap: 5px;
   min-height: 0;
   overflow: auto;
@@ -279,7 +281,7 @@ button {
 }
 
 .worship-history-row {
-  align-items: start;
+  align-content: center;
   background: #f9f6eb;
   border: 1px solid #e3dcc8;
   border-radius: 8px;
@@ -287,10 +289,15 @@ button {
   cursor: pointer;
   display: grid;
   gap: 3px;
-  grid-template-rows: auto auto auto;
-  min-height: 0;
+  grid-template-rows: minmax(0, auto) minmax(0, auto) minmax(0, auto);
+  line-height: 1.12;
+  height: 58px;
+  min-height: 58px;
+  min-width: 0;
+  overflow: hidden;
   padding: 7px 9px;
   text-align: left;
+  width: 100%;
 }
 
 .worship-history-row.active {
@@ -298,7 +305,8 @@ button {
   border-color: #8ebba9;
 }
 
-.worship-history-row.is-audit {
+.worship-history-row.is-audit,
+.worship-history-row[aria-disabled="true"] {
   cursor: default;
 }
 
@@ -309,9 +317,11 @@ button {
 .worship-history-row span {
   font-size: 13px;
   font-weight: 850;
+  line-height: 1.16;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
-  white-space: normal;
+  white-space: nowrap;
 }
 
 .worship-history-row em {
@@ -319,6 +329,8 @@ button {
   font-size: 12px;
   font-style: normal;
   font-weight: 750;
+  line-height: 1.15;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -350,31 +362,33 @@ button {
 }
 
 .topbar-action-button {
-  min-height: 30px;
+  min-height: 44px;
   padding: 4px 10px;
   white-space: nowrap;
 }
 
 .topbar-primary-button {
-  min-height: 32px;
+  min-height: 44px;
   padding: 5px 12px;
   white-space: nowrap;
 }
 
 .worship-topbar-tools {
-  align-items: stretch;
+  align-items: center;
+  display: grid;
+  grid-template-columns: auto auto;
 }
 
 .worship-topbar-tools .worship-set-picker-tools,
 .worship-topbar-tools .worship-set-topbar-actions {
-  align-items: stretch;
+  align-items: center;
 }
 
 .worship-topbar-tools .topbar-service-button,
 .worship-topbar-tools .worship-history-button,
 .worship-topbar-tools .topbar-action-button,
 .worship-topbar-tools .topbar-primary-button {
-  min-height: 54px;
+  min-height: 48px;
 }
 
 .compact-video-controls {
@@ -866,6 +880,40 @@ h3 {
   background: #eaf5ef;
   border-color: #8ebba9;
   outline: none;
+}
+
+.song-library-row-missing-lyrics {
+  background: #fff2ee;
+  border-color: #e4b0a5;
+}
+
+.song-library-row-missing-chords {
+  background: #fff8df;
+  border-color: #dfc775;
+}
+
+.song-library-row-complete {
+  background: #eef8f3;
+  border-color: #a7cdbd;
+}
+
+.song-library-row-missing-lyrics:hover,
+.song-library-row-missing-lyrics:focus-within {
+  background: #ffe8e2;
+  border-color: #c47d6d;
+}
+
+.song-library-row-missing-chords:hover,
+.song-library-row-missing-chords:focus-within {
+  background: #fff1bf;
+  border-color: #bba34f;
+}
+
+.song-library-row-complete:hover,
+.song-library-row-complete:focus-within,
+.song-library-row-complete.selected {
+  background: #e3f3eb;
+  border-color: #75ae96;
 }
 
 .song-library-main:disabled,
@@ -4818,6 +4866,18 @@ h3 {
   .worship-topbar-tools .worship-history-button {
     min-height: 44px;
     min-width: 44px;
+  }
+
+  .worship-history-popover {
+    left: 50%;
+    max-height: min(420px, calc(100dvh - 96px));
+    max-width: calc(100vw - 24px);
+    min-width: 0;
+    position: fixed;
+    right: auto;
+    top: 76px;
+    transform: translateX(-50%);
+    width: min(420px, calc(100vw - 24px));
   }
 
   .worship-set-topbar-actions {

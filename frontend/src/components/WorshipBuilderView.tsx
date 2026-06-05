@@ -162,6 +162,18 @@ function compactSongTitle(song: Song) {
   return song.author ? `${song.title} · ${song.author}` : song.title;
 }
 
+function songLibraryStatusClass(song: Song) {
+  const hasLyrics = Boolean(song.lyrics?.trim());
+  const hasChords = Boolean(song.chords?.trim());
+  if (!hasLyrics) {
+    return "song-library-row-missing-lyrics";
+  }
+  if (!hasChords) {
+    return "song-library-row-missing-chords";
+  }
+  return "song-library-row-complete";
+}
+
 function normalizedTitle(value: string) {
   return value
     .toLowerCase()
@@ -1473,10 +1485,12 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
                                   ? "Future"
                                   : "Current";
                           const meta = [relation, entry.actor_name, formatHistoryTime(entry.created_at)].filter(Boolean).join(" · ");
+                          const affectedLabel = entry.affected && entry.affected !== entry.label ? entry.affected : null;
                           return (
                             <button
+                              aria-disabled={!entry.restorable || entryIndex === null}
                               className={`worship-history-row ${entryIndex === editHistoryIndex ? "active" : ""} ${entry.restorable ? "" : "is-audit"}`}
-                              disabled={editHistoryApplying || !entry.restorable || entryIndex === null}
+                              disabled={editHistoryApplying}
                               key={entry.id}
                               onClick={() => {
                                 if (entryIndex !== null) {
@@ -1486,7 +1500,7 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
                               type="button"
                             >
                               <span>{entry.label}</span>
-                              {entry.affected ? <em>{entry.affected}</em> : null}
+                              {affectedLabel ? <em>{affectedLabel}</em> : null}
                               <small>{meta}</small>
                             </button>
                           );
@@ -1542,7 +1556,7 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
         <div className="worship-song-list">
           {filteredSongs.map((song) => (
             <div
-              className="song-library-row"
+              className={`song-library-row ${songLibraryStatusClass(song)}`}
               key={song.id}
             >
               <button
@@ -1682,7 +1696,6 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
                 >
                   <div className="worship-sorter-heading">
                     <button className={`section-jump type-song readonly`} onClick={() => setSelectedItemId(section.id)} type="button">
-                      <span>{section.itemType}</span>
                       <strong>{section.title}</strong>
                     </button>
                     {sectionSong ? (

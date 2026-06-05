@@ -3423,7 +3423,7 @@ export function PresentationView({
                       onClick={() => selectSlideFromOperator(sectionStart)}
                       type="button"
                     >
-                      <span>{section.itemType}</span>
+                      {section.itemType === "song" ? null : <span>{section.itemType}</span>}
                       <strong>{section.title}</strong>
                       {section.slides.some(
                         (slide) =>
