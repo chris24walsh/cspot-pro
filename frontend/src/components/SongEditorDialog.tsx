@@ -1,3 +1,4 @@
+import { Archive, Save, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
 import { createSong, updateSong, type Song } from "../api";
@@ -42,6 +43,12 @@ const GUITAR_SHAPE_SETS = {
   standard: { label: "Shapes", requiredKey: null },
   "open-e": { label: "Open E", requiredKey: "E" },
 } as const satisfies Record<GuitarShapeMode, { label: string; requiredKey: string | null }>;
+const WORSHIP_SLOT_OPTIONS = [
+  { value: "opener", label: "Opening" },
+  { value: "middle", label: "Middle" },
+  { value: "response", label: "Response" },
+  { value: "closer", label: "Closing" },
+] as const;
 
 const GUITAR_CHORDS: Record<string, GuitarChordShape> = {
   A: { frets: ["x", 0, 2, 2, 2, 0], fingers: [null, null, 1, 2, 3, null] },
@@ -114,6 +121,20 @@ function normalizeForm(form: SongForm, chords: string | null): SongForm {
     tempo: form.tempo || null,
     theme_tags: form.theme_tags || null,
   };
+}
+
+function worshipRoleValues(value: string | null | undefined) {
+  return new Set((value ?? "").split(",").map((entry) => entry.trim()).filter((entry) => entry && entry !== "any"));
+}
+
+function nextWorshipRoleValue(currentValue: string | null | undefined, toggledValue: string, checked: boolean) {
+  const values = worshipRoleValues(currentValue);
+  if (checked) {
+    values.add(toggledValue);
+  } else {
+    values.delete(toggledValue);
+  }
+  return values.size ? Array.from(values).join(",") : "any";
 }
 
 function extractYouTubeId(value: string | null): string | null {
@@ -484,17 +505,28 @@ export function SongEditorDialog({
             <div className="action-row">
               {mode === "edit" && onArchive ? (
                 <button
-                  className="danger-button"
+                  aria-label="Archive song"
+                  className="section-icon-button section-remove-button song-editor-action-button"
                   disabled={saving || !canEdit}
                   onClick={() => void onArchive(song)}
+                  title="Archive song"
                   type="button"
                 >
-                  Archive Song
+                  <Archive size={16} aria-hidden="true" />
                 </button>
               ) : null}
-              <button className="text-button" onClick={onClose} type="button">Close</button>
-              <button className="primary-button" disabled={saving || !canEdit || !form.title.trim()} onClick={() => void saveSong()} type="button">
-                {saving ? "Saving..." : "Save Song"}
+              <button aria-label="Close" className="section-icon-button song-editor-action-button" onClick={onClose} title="Close" type="button">
+                <X size={16} aria-hidden="true" />
+              </button>
+              <button
+                aria-label={saving ? "Saving song" : "Save song"}
+                className="section-icon-button song-editor-action-button song-editor-save-button"
+                disabled={saving || !canEdit || !form.title.trim()}
+                onClick={() => void saveSong()}
+                title={saving ? "Saving..." : "Save song"}
+                type="button"
+              >
+                <Save size={16} aria-hidden="true" />
               </button>
             </div>
           </div>
@@ -512,28 +544,27 @@ export function SongEditorDialog({
           {tab === "details" ? (
             <div className="form-grid">
               <label>Title<input disabled={!canEdit} onChange={(event) => setForm({ ...form, title: event.target.value })} required value={form.title} /></label>
-              <label>Alternate Title<input disabled={!canEdit} onChange={(event) => setForm({ ...form, alternate_title: event.target.value })} value={form.alternate_title ?? ""} /></label>
               <label>Author<input disabled={!canEdit} onChange={(event) => setForm({ ...form, author: event.target.value })} value={form.author ?? ""} /></label>
-              <label>
-                License
-                <select disabled={!canEdit} onChange={(event) => setForm({ ...form, license: event.target.value })} value={form.license ?? "Unknown"}>
-                  <option value="Unknown">Unknown</option>
-                  <option value="Public Domain">Public Domain</option>
-                  <option value="CCLI">CCLI</option>
-                  <option value="Other">Other</option>
-                </select>
-              </label>
-              <label>CCLI Number<input disabled={!canEdit} onChange={(event) => setForm({ ...form, ccli_number: event.target.value })} value={form.ccli_number ?? ""} /></label>
               <label>Sequence<input disabled={!canEdit} onChange={(event) => setForm({ ...form, sequence: event.target.value })} placeholder="V1 C V2 C B C" value={form.sequence ?? ""} /></label>
-              <label>
-                Worship Use
-                <select disabled={!canEdit} onChange={(event) => setForm({ ...form, worship_role: event.target.value })} value={form.worship_role ?? "any"}>
-                  <option value="any">Any slot</option>
-                  <option value="opener">Opening song</option>
-                  <option value="middle">Middle song</option>
-                  <option value="closer">Closing song</option>
-                </select>
-              </label>
+              <div className="field-block worship-slot-field">
+                <span>Worship Slot</span>
+                <div className="checkbox-pill-grid">
+                  {WORSHIP_SLOT_OPTIONS.map((option) => {
+                    const selectedValues = worshipRoleValues(form.worship_role);
+                    return (
+                      <label className="checkbox-pill" key={option.value}>
+                        <input
+                          checked={selectedValues.has(option.value)}
+                          disabled={!canEdit}
+                          onChange={(event) => setForm({ ...form, worship_role: nextWorshipRoleValue(form.worship_role, option.value, event.target.checked) })}
+                          type="checkbox"
+                        />
+                        <span>{option.label}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
               <label>Energy<input disabled={!canEdit} max={5} min={1} onChange={(event) => setForm({ ...form, energy: Number(event.target.value) })} type="number" value={form.energy ?? 3} /></label>
               <label>
                 Tempo / Feel

@@ -800,9 +800,9 @@ h3 {
   color: #17201b;
   display: grid;
   gap: 8px;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) 44px;
   min-width: 0;
-  padding: 10px;
+  padding: 8px;
   text-align: left;
   width: 100%;
 }
@@ -815,7 +815,8 @@ h3 {
   cursor: pointer;
   display: grid;
   gap: 8px;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr);
+  min-height: 40px;
   min-width: 0;
   padding: 0;
   text-align: left;
@@ -856,6 +857,12 @@ h3 {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.song-library-edit {
+  align-self: stretch;
+  min-height: 42px;
+  min-width: 42px;
 }
 
 .worship-set-builder {
@@ -2365,6 +2372,43 @@ h3 {
   max-width: min(860px, 100%);
 }
 
+.song-editor-dialog .section-heading {
+  align-items: center;
+  margin-bottom: 4px;
+}
+
+.song-editor-dialog .section-heading > div:first-child {
+  min-width: 0;
+}
+
+.song-editor-dialog .section-heading h2 {
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.song-editor-dialog .section-heading .action-row {
+  flex: 0 0 auto;
+  gap: 5px;
+}
+
+.song-editor-action-button {
+  min-height: 34px;
+  min-width: 34px;
+}
+
+.song-editor-save-button {
+  background: #204f43;
+  border-color: #204f43;
+  color: #fffefa;
+}
+
+.song-editor-save-button:hover:not(:disabled),
+.song-editor-save-button:focus-visible:not(:disabled) {
+  background: #153a31;
+}
+
 .edit-song-dialog .wide-field {
   color: #3b4741;
   display: grid;
@@ -2384,6 +2428,41 @@ h3 {
   font-size: 20px;
   line-height: 1.15;
   margin: 0 0 8px;
+}
+
+.worship-slot-field {
+  color: #3b4741;
+  display: grid;
+  font-size: 12px;
+  font-weight: 850;
+  gap: 6px;
+}
+
+.checkbox-pill-grid {
+  display: grid;
+  gap: 6px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.checkbox-pill {
+  align-items: center;
+  background: #fffdf7;
+  border: 1px solid #cfc7b4;
+  border-radius: 8px;
+  color: #243f37;
+  display: inline-flex;
+  gap: 7px;
+  min-height: 36px;
+  padding: 6px 8px;
+}
+
+.checkbox-pill input {
+  accent-color: #245d4d;
+}
+
+.checkbox-pill span {
+  font-size: 12px;
+  font-weight: 850;
 }
 
 .app-dialog p {
@@ -5124,8 +5203,8 @@ h3 {
   .song-library-row,
   .worship-set-item {
     gap: 8px;
-    min-height: 78px;
-    padding: 10px;
+    min-height: 64px;
+    padding: 8px;
   }
 
   .worship-set-item {
@@ -5153,11 +5232,7 @@ h3 {
   }
 
   .song-library-row {
-    grid-template-columns: minmax(0, 1fr) auto;
-  }
-
-  .song-library-main svg {
-    grid-column: 2;
+    grid-template-columns: minmax(0, 1fr) 48px;
   }
 
   .song-library-main em {
@@ -5176,6 +5251,16 @@ h3 {
     white-space: normal;
     -webkit-box-orient: vertical;
     -webkit-line-clamp: 2;
+  }
+
+  .song-library-edit {
+    min-height: 48px;
+    min-width: 48px;
+  }
+
+  .song-library-edit svg {
+    height: 18px;
+    width: 18px;
   }
 
   .song-library-main small,

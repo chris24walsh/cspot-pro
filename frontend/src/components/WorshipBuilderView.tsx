@@ -1,4 +1,4 @@
-import { CalendarDays, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, History, ListPlus, MonitorUp, Music2, Pencil, RefreshCw, Trash2 } from "lucide-react";
+import { CalendarDays, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, History, MonitorUp, Music2, Pencil, RefreshCw, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
@@ -421,7 +421,7 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
         if (!normalized) {
           return true;
         }
-        return `${song.title} ${song.author ?? ""}`.toLowerCase().includes(normalized);
+        return `${song.title} ${song.author ?? ""} ${song.alternate_title ?? ""} ${song.lyrics ?? ""}`.toLowerCase().includes(normalized);
       })
       .slice(0, 80);
   }, [query, songs]);
@@ -1292,7 +1292,7 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
                   type="button"
                 >
                   <CalendarDays size={16} aria-hidden="true" />
-                  <span>{plan ? `${formatServiceDate(plan.service_date)} · ${plan.title}` : "Choose worship set"}</span>
+                  <span>{plan ? formatServiceDate(plan.service_date) : "Choose worship set"}</span>
                 </button>
                 <button
                   aria-expanded={editHistoryOpen}
@@ -1378,7 +1378,7 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
           onClick={() => setMobileBuilderPane("library")}
           type="button"
         >
-          Library
+          Library <span>{songs.length}</span>
         </button>
         <button
           className={mobileBuilderPane === "set" ? "active" : ""}
@@ -1421,9 +1421,7 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
               >
                 <span>
                   <strong>{song.title}</strong>
-                  <small>{song.author ?? "Unknown author"}</small>
                 </span>
-                <ListPlus size={16} aria-hidden="true" />
               </button>
               <button
                 aria-label={`Edit ${song.title}`}
