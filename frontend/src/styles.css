@@ -3035,6 +3035,10 @@ h3 {
   grid-template-columns: minmax(0, 1fr) !important;
 }
 
+.presenter-mobile-command-row {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
 .video-control-group {
   display: grid;
   gap: 6px;
@@ -3058,10 +3062,6 @@ h3 {
 
 .bible-nav-row.is-open {
   display: grid;
-}
-
-.bible-nav-row .text-button:last-child {
-  grid-column: 1 / -1;
 }
 
 .presenter-controls .text-button,
@@ -3893,10 +3893,28 @@ h3 {
   padding: 6px 12px;
 }
 
+.stage-service-tools {
+  align-items: center;
+  display: inline-flex;
+  gap: 5px;
+  min-width: 0;
+  position: relative;
+}
+
+.stage-current-label {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  padding: 0 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .stage-meta-actions {
   align-items: center;
   display: inline-flex;
   gap: 10px;
+  white-space: nowrap;
 }
 
 .stage-header-button {
@@ -3923,6 +3941,38 @@ h3 {
 .stage-header-button:disabled {
   cursor: not-allowed;
   opacity: 0.5;
+}
+
+.stage-header-icon-button {
+  align-items: center;
+  background: rgba(255, 253, 247, 0.08);
+  border: 1px solid rgba(215, 239, 225, 0.35);
+  border-radius: 8px;
+  color: #d7efe1;
+  cursor: pointer;
+  display: inline-flex;
+  height: 28px;
+  justify-content: center;
+  padding: 0;
+  width: 28px;
+}
+
+.stage-header-icon-button:hover:not(:disabled),
+.stage-header-icon-button:focus-visible:not(:disabled) {
+  background: rgba(255, 253, 247, 0.16);
+  border-color: rgba(215, 239, 225, 0.7);
+}
+
+.stage-header-icon-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.service-history-popover {
+  color: #10251f;
+  left: 0;
+  right: auto;
+  top: calc(100% + 8px);
 }
 
 .stage-theme-switch {
@@ -4817,6 +4867,11 @@ h3 {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .presenter-controls .presenter-mobile-command-row,
+  .presenter-controls .bible-nav-row.is-open {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
   .video-control-group {
     grid-column: 1 / -1;
     min-width: 0;
@@ -4824,10 +4879,25 @@ h3 {
 
   .presenter-controls .text-button,
   .presenter-controls .primary-button {
+    align-items: center;
     border-radius: 10px;
+    display: inline-flex;
     font-size: 13px;
+    justify-content: center;
     min-height: 36px;
-    padding: 6px 8px;
+    padding: 6px;
+  }
+
+  .presenter-controls .mobile-button-label {
+    border: 0;
+    clip: rect(0 0 0 0);
+    clip-path: inset(50%);
+    height: 1px;
+    margin: -1px;
+    overflow: hidden;
+    position: absolute;
+    white-space: nowrap;
+    width: 1px;
   }
 
   .presenter-controls .text-button {
@@ -4840,21 +4910,6 @@ h3 {
     width: 15px;
   }
 
-  .presenter-utility-row .primary-button {
-    grid-column: 1 / -1;
-  }
-
-  .bible-nav-toggle {
-    display: inline-flex;
-    font-size: 12px;
-    min-height: 28px;
-    padding: 4px 8px;
-  }
-
-  .bible-nav-row .text-button:last-child {
-    grid-column: auto;
-  }
-
   .presenter-controls .bible-nav-row {
     border-top: 1px solid #ece4d0;
     display: none;
@@ -4865,7 +4920,41 @@ h3 {
   .presenter-controls .bible-nav-row.is-open {
     display: grid;
     gap: 5px;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .stage-meta {
+    gap: 6px;
+    padding: 5px 7px;
+  }
+
+  .stage-current-label {
+    display: none;
+  }
+
+  .stage-service-picker-button {
+    border-radius: 8px;
+    min-height: 28px;
+    padding: 0;
+    width: 28px;
+  }
+
+  .stage-service-picker-button span {
+    display: none;
+  }
+
+  .stage-theme-switch {
+    display: none;
+  }
+
+  .stage-meta-actions {
+    margin-left: auto;
+  }
+
+  .service-history-popover {
+    left: -1px;
+    max-width: calc(100vw - 24px);
+    top: calc(100% + 7px);
+    width: 310px;
   }
 
   .presentation-stage {

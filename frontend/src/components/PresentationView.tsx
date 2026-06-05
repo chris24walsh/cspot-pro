@@ -1,4 +1,4 @@
-import { CalendarDays, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, MonitorUp, Pencil, Plus, Search, Trash2, WandSparkles } from "lucide-react";
+import { CalendarDays, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, History, MonitorUp, Pencil, Plus, Search, Trash2, WandSparkles } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
@@ -20,6 +20,7 @@ import {
   getPlans,
   getPlanTypes,
   getPresentationLiveState,
+  getPlanHistory,
   getSongs,
   importGoogleDriveDeck,
   runCustomProviderSearch,
@@ -40,6 +41,7 @@ import {
   type GoogleDriveFile,
   type GoogleDriveStatus,
   type PlanDetail,
+  type PlanHistoryEntry,
   type PlanItem,
   type PlanSummary,
   type PlanType,
@@ -545,6 +547,9 @@ export function PresentationView({
   const [serviceDraftTitle, setServiceDraftTitle] = useState("");
   const [serviceCalendarMonth, setServiceCalendarMonth] = useState(monthInputFromDate(new Date()));
   const [serviceDraftPlanId, setServiceDraftPlanId] = useState<string | null>(null);
+  const [serviceHistoryOpen, setServiceHistoryOpen] = useState(false);
+  const [serviceHistory, setServiceHistory] = useState<PlanHistoryEntry[]>([]);
+  const [serviceHistoryLoading, setServiceHistoryLoading] = useState(false);
   const [customProviderSelection, setCustomProviderSelection] = useState<CustomProviderSelectResult | null>(null);
   const [customProviderSelectionLoading, setCustomProviderSelectionLoading] = useState(false);
   const [editingSongId, setEditingSongId] = useState<string | null>(null);
@@ -555,7 +560,6 @@ export function PresentationView({
   const [slideTheme, setSlideTheme] = useState<PresentationTheme>("light");
   const [liveBlanked, setLiveBlanked] = useState(false);
   const [slideshowOpen, setSlideshowOpen] = useState(false);
-  const [mobileBibleNavOpen, setMobileBibleNavOpen] = useState(false);
   const [deckRenderRetryToken, setDeckRenderRetryToken] = useState(0);
   const [undoAction, setUndoAction] = useState<{ label: string; run: () => Promise<void> } | null>(null);
   const [sorterCatchUpDirection, setSorterCatchUpDirection] = useState<"up" | "down" | null>(null);
@@ -1114,7 +1118,7 @@ export function PresentationView({
   }
 
   async function selectPlan(planId: string) {
-    setMobileBibleNavOpen(false);
+    setServiceHistoryOpen(false);
     setServicePickerOpen(false);
     await load(planId);
   }
@@ -1126,6 +1130,35 @@ export function PresentationView({
     setServiceDraftPlanId(plan?.id ?? null);
     setServiceCalendarMonth(draftDate.slice(0, 7) || monthInputFromDate(new Date()));
     setServicePickerOpen(true);
+    setServiceHistoryOpen(false);
+  }
+
+  function formatHistoryTime(value: string) {
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) {
+      return "";
+    }
+    return date.toLocaleString(undefined, { day: "numeric", hour: "2-digit", minute: "2-digit", month: "short" });
+  }
+
+  async function openServiceHistory() {
+    if (!plan) {
+      return;
+    }
+    const nextOpen = !serviceHistoryOpen;
+    setServicePickerOpen(false);
+    setServiceHistoryOpen(nextOpen);
+    if (!nextOpen) {
+      return;
+    }
+    setServiceHistoryLoading(true);
+    try {
+      setServiceHistory(await getPlanHistory(plan.id));
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not load service history.");
+    } finally {
+      setServiceHistoryLoading(false);
+    }
   }
 
   function nextSundayDateInput() {
@@ -2029,19 +2062,17 @@ export function PresentationView({
         return null;
       }
 
-      const preferredStarts = [currentReference.verseFrom, 1];
-      for (const verseFrom of preferredStarts) {
-        for (let verseTo = verseFrom + span; verseTo >= verseFrom; verseTo -= 1) {
-          const passage = await tryFetchBiblePassage(
-            versionCode,
-            currentReference.book,
-            targetChapter,
-            verseFrom,
-            verseTo > verseFrom ? verseTo : undefined,
-          );
-          if (passage) {
-            return passage;
-          }
+      const verseFrom = 1;
+      for (let verseTo = verseFrom + span; verseTo >= verseFrom; verseTo -= 1) {
+        const passage = await tryFetchBiblePassage(
+          versionCode,
+          currentReference.book,
+          targetChapter,
+          verseFrom,
+          verseTo > verseFrom ? verseTo : undefined,
+        );
+        if (passage) {
+          return passage;
         }
       }
       return null;
@@ -2536,12 +2567,6 @@ export function PresentationView({
       window.clearInterval(timer);
     };
   }, [selectedPlanId, slides]);
-
-  useEffect(() => {
-    if (currentPlanItem?.item_type !== "reading") {
-      setMobileBibleNavOpen(false);
-    }
-  }, [currentPlanItem?.item_type]);
 
   useEffect(() => {
     if (!currentLiveStateRef.current || currentLiveStateRef.current.planId !== selectedPlanId) {
@@ -3059,7 +3084,59 @@ export function PresentationView({
             }`}
           >
             <div className="stage-meta">
-              <span>Current · {plan?.title ?? "Presentation"}</span>
+              <div className="stage-service-tools">
+                <button
+                  className="stage-header-button stage-service-picker-button"
+                  disabled={loading}
+                  onClick={openServicePicker}
+                  title="Choose or create a service"
+                  type="button"
+                >
+                  <CalendarDays size={14} aria-hidden="true" />
+                  <span>{plan ? formatServiceDate(plan.service_date) : "Service"}</span>
+                </button>
+                <button
+                  aria-expanded={serviceHistoryOpen}
+                  aria-label="Open service edit history"
+                  className="stage-header-icon-button"
+                  disabled={!plan || serviceHistoryLoading}
+                  onClick={() => void openServiceHistory()}
+                  title="Service edit history"
+                  type="button"
+                >
+                  <History size={14} aria-hidden="true" />
+                </button>
+                {serviceHistoryOpen ? (
+                  <section className="worship-history-popover service-history-popover" aria-label="Service edit history">
+                    <div className="worship-history-popover-heading">
+                      <strong>Edit History</strong>
+                      <button className="section-icon-button" onClick={() => setServiceHistoryOpen(false)} type="button" aria-label="Close edit history">
+                        x
+                      </button>
+                    </div>
+                    <div className="worship-history-list">
+                      {serviceHistoryLoading ? <p className="search-empty">Loading history...</p> : null}
+                      {!serviceHistoryLoading && !serviceHistory.length ? <p className="search-empty">No service edits recorded yet.</p> : null}
+                      {serviceHistory.map((entry) => {
+                        const meta = [entry.restorable ? "Service" : "Audit", entry.actor_name, formatHistoryTime(entry.created_at)].filter(Boolean).join(" · ");
+                        return (
+                          <button
+                            className={`worship-history-row ${entry.restorable ? "" : "is-audit"}`}
+                            disabled
+                            key={entry.id}
+                            type="button"
+                          >
+                            <span>{entry.label}</span>
+                            {entry.affected ? <em>{entry.affected}</em> : null}
+                            <small>{meta}</small>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </section>
+                ) : null}
+              </div>
+              <span className="stage-current-label">Current · {plan?.title ?? "Presentation"}</span>
               <div className="stage-meta-actions">
                 <label className="stage-theme-switch" title="Toggle slide theme">
                   <input
@@ -3102,35 +3179,26 @@ export function PresentationView({
           </div>
 
           <div className="presenter-controls" aria-label="Slide controls">
-            <div className="action-row presenter-transport-row">
-              <button className="text-button" disabled={loading || !plan} onClick={() => moveLive(-1)} type="button">
-                <ChevronLeft size={16} aria-hidden="true" />
-                Previous
+            <div className="action-row presenter-mobile-command-row">
+              <button className="primary-button" disabled={loading || !plan} onClick={() => void startSlideshow()} title={slideshowOpen ? "Close slides" : "Start slides"} type="button">
+                <MonitorUp size={16} aria-hidden="true" />
+                <span className="mobile-button-label">{slideshowOpen ? "Close Slides" : "Start Slides"}</span>
               </button>
-              <button className="text-button" disabled={loading || !plan} onClick={() => moveLive(1)} type="button">
-                Next
+              {canEditPlan ? (
+                <button className="text-button" disabled={!plan} onClick={() => openSearchOverlay()} title="Search" type="button">
+                  <Search size={16} aria-hidden="true" />
+                  <span className="mobile-button-label">Search</span>
+                </button>
+              ) : null}
+              <button className="text-button" disabled={loading || !plan} onClick={() => moveLive(-1)} title="Previous slide" type="button">
+                <ChevronLeft size={16} aria-hidden="true" />
+                <span className="mobile-button-label">Previous</span>
+              </button>
+              <button className="text-button" disabled={loading || !plan} onClick={() => moveLive(1)} title="Next slide" type="button">
+                <span className="mobile-button-label">Next</span>
                 <ChevronRight size={16} aria-hidden="true" />
               </button>
             </div>
-            <div className="action-row presenter-utility-row">
-              {canEditPlan ? (
-                <button className="text-button" disabled={!plan} onClick={() => openSearchOverlay()} type="button">
-                  <Search size={16} aria-hidden="true" />
-                  Search
-                </button>
-              ) : null}
-              <button className="primary-button" disabled={loading || !plan} onClick={() => void startSlideshow()} type="button">
-                <MonitorUp size={16} aria-hidden="true" />
-                {slideshowOpen ? "Close Slides" : "Start Slides"}
-              </button>
-            </div>
-            {undoAction ? (
-              <div className="action-row presenter-single-row">
-                <button className="text-button" onClick={() => void runUndoAction()} type="button">
-                  Undo
-                </button>
-              </div>
-            ) : null}
             {liveSlide?.videoUrl ? (
               <div className="video-control-group" aria-label="Video controls">
                 <button className="text-button" onClick={() => sendVideoCommand("play")} type="button">
@@ -3145,31 +3213,20 @@ export function PresentationView({
               </div>
             ) : null}
             {currentPlanItem?.item_type === "reading" && canEditPlan ? (
-              <>
-                <div className="action-row presenter-bible-toggle-row">
-                  <button
-                    className="text-button"
-                    onClick={() => setMobileBibleNavOpen((current) => !current)}
-                    type="button"
-                  >
-                    Bible
-                  </button>
-                </div>
-              <div className={`action-row bible-nav-row ${mobileBibleNavOpen ? "is-open" : ""}`}>
-                <button className="text-button" disabled={!canEditPlan} onClick={() => void navigateBibleReading("verse", -1)} type="button">
-                  Prev Verse
+              <div className="action-row bible-nav-row is-open">
+                <button aria-label="Previous chapter" className="text-button" disabled={!canEditPlan} onClick={() => void navigateBibleReading("chapter", -1)} title="Previous chapter" type="button">
+                  &lt;&lt;
                 </button>
-                <button className="text-button" disabled={!canEditPlan} onClick={() => void navigateBibleReading("verse", 1)} type="button">
-                  Next Verse
+                <button aria-label="Previous verse" className="text-button" disabled={!canEditPlan} onClick={() => void navigateBibleReading("verse", -1)} title="Previous verse" type="button">
+                  &lt;
                 </button>
-                <button className="text-button" disabled={!canEditPlan} onClick={() => void navigateBibleReading("chapter", -1)} type="button">
-                  Prev Chapter
+                <button aria-label="Next verse" className="text-button" disabled={!canEditPlan} onClick={() => void navigateBibleReading("verse", 1)} title="Next verse" type="button">
+                  &gt;
                 </button>
-                <button className="text-button" disabled={!canEditPlan} onClick={() => void navigateBibleReading("chapter", 1)} type="button">
-                  Next Chapter
+                <button aria-label="Next chapter" className="text-button" disabled={!canEditPlan} onClick={() => void navigateBibleReading("chapter", 1)} title="Next chapter" type="button">
+                  &gt;&gt;
                 </button>
               </div>
-              </>
             ) : null}
           </div>
 
