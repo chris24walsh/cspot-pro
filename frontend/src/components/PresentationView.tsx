@@ -625,6 +625,7 @@ export function PresentationView({
   const [deckRenderRetryToken, setDeckRenderRetryToken] = useState(0);
   const [undoAction, setUndoAction] = useState<{ label: string; run: () => Promise<void> } | null>(null);
   const [sorterCatchUpDirection, setSorterCatchUpDirection] = useState<"up" | "down" | null>(null);
+  const [railCatchUpDirection, setRailCatchUpDirection] = useState<"up" | "down" | null>(null);
   const [slideNotesDraft, setSlideNotesDraft] = useState("");
   const [slideNotesSaving, setSlideNotesSaving] = useState(false);
   const searchInputRef = useRef<HTMLInputElement | null>(null);
@@ -1007,18 +1008,28 @@ export function PresentationView({
   }
 
   function selectSlideFromOperator(nextIndex: number) {
+    const targetSlide = slides[Math.min(Math.max(nextIndex, 0), Math.max(slides.length - 1, 0))];
     scrollOperatorToSelectedSlideRef.current = true;
     setSorterCatchUpDirection(null);
+    setRailCatchUpDirection(null);
+    if (targetSlide) {
+      window.requestAnimationFrame(() => {
+        scrollItemIntoOperatorView(slideGridRef.current, thumbnailRefs.current[targetSlide.id] ?? null);
+        scrollItemIntoOperatorView(sectionRailListRef.current, sectionRailRefs.current[targetSlide.sectionId] ?? null);
+      });
+    }
     setLiveSlide(nextIndex);
   }
 
-  function catchSorterUpToLiveSlide() {
+  function catchOperatorUpToLiveSlide() {
     const activeSlide = slides[liveIndex];
     if (!activeSlide) {
       return;
     }
     scrollItemIntoOperatorView(slideGridRef.current, thumbnailRefs.current[activeSlide.id] ?? null);
+    scrollItemIntoOperatorView(sectionRailListRef.current, sectionRailRefs.current[activeSlide.sectionId] ?? null);
     setSorterCatchUpDirection(null);
+    setRailCatchUpDirection(null);
   }
 
   function moveLive(delta: number) {
@@ -2681,27 +2692,31 @@ export function PresentationView({
     const activeSlide = slides[liveIndex];
     if (!activeSlide) {
       setSorterCatchUpDirection(null);
+      setRailCatchUpDirection(null);
       return;
     }
     if (suppressNextOperatorScrollRef.current) {
       suppressNextOperatorScrollRef.current = false;
       return;
     }
-    if (!scrollOperatorToSelectedSlideRef.current) {
-      return;
-    }
+    const forceSync = scrollOperatorToSelectedSlideRef.current;
     scrollOperatorToSelectedSlideRef.current = false;
 
     window.requestAnimationFrame(() => {
-      scrollItemIntoOperatorView(slideGridRef.current, thumbnailRefs.current[activeSlide.id] ?? null);
-      scrollItemIntoOperatorView(sectionRailListRef.current, sectionRailRefs.current[activeSlide.sectionId] ?? null);
+      if (forceSync || !sorterCatchUpDirection) {
+        scrollItemIntoOperatorView(slideGridRef.current, thumbnailRefs.current[activeSlide.id] ?? null);
+      }
+      if (forceSync || !railCatchUpDirection) {
+        scrollItemIntoOperatorView(sectionRailListRef.current, sectionRailRefs.current[activeSlide.sectionId] ?? null);
+      }
     });
-  }, [liveIndex, slides, sections]);
+  }, [liveIndex, railCatchUpDirection, sections, slides, sorterCatchUpDirection]);
 
   useEffect(() => {
     const frame = window.requestAnimationFrame(() => {
       const activeSlide = slides[liveIndex];
       setSorterCatchUpDirection(slideVisibilityDirection(slideGridRef.current, activeSlide ? thumbnailRefs.current[activeSlide.id] ?? null : null));
+      setRailCatchUpDirection(slideVisibilityDirection(sectionRailListRef.current, activeSlide ? sectionRailRefs.current[activeSlide.sectionId] ?? null : null));
     });
     return () => window.cancelAnimationFrame(frame);
   }, [liveIndex, slides]);
@@ -3315,11 +3330,11 @@ export function PresentationView({
           {sorterCatchUpDirection ? (
             <button
               className={`sorter-catch-up sorter-catch-up-${sorterCatchUpDirection}`}
-              onClick={catchSorterUpToLiveSlide}
+              aria-label="Catch slide sorter up to live slide"
+              onClick={catchOperatorUpToLiveSlide}
               type="button"
             >
               {sorterCatchUpDirection === "up" ? <ChevronUp size={18} aria-hidden="true" /> : <ChevronDown size={18} aria-hidden="true" />}
-              Live slide
             </button>
           ) : null}
           <div
@@ -3464,8 +3479,27 @@ export function PresentationView({
         </aside>
 
         <aside className="section-rail" aria-label="Sections">
+          {railCatchUpDirection ? (
+            <button
+              aria-label="Catch section rail up to live slide"
+              className={`sorter-catch-up sorter-catch-up-${railCatchUpDirection}`}
+              onClick={catchOperatorUpToLiveSlide}
+              type="button"
+            >
+              {railCatchUpDirection === "up" ? <ChevronUp size={18} aria-hidden="true" /> : <ChevronDown size={18} aria-hidden="true" />}
+            </button>
+          ) : null}
           <div className="section-rail-title">Sections</div>
-          <div className="section-rail-list" ref={sectionRailListRef}>
+          <div
+            className="section-rail-list"
+            onScroll={() => {
+              const activeSlide = slides[liveIndex];
+              setRailCatchUpDirection(
+                slideVisibilityDirection(sectionRailListRef.current, activeSlide ? sectionRailRefs.current[activeSlide.sectionId] ?? null : null),
+              );
+            }}
+            ref={sectionRailListRef}
+          >
             {canEditPlan ? (
               <button
                 aria-label="Search or add at the start"

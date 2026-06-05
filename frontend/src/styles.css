@@ -3162,12 +3162,15 @@ h3 {
   font-size: 12px;
   font-weight: 900;
   gap: 6px;
+  height: 34px;
   justify-self: center;
   left: 50%;
   min-height: 34px;
-  padding: 6px 12px;
+  justify-content: center;
+  padding: 0;
   position: absolute;
   transform: translateX(-50%);
+  width: 34px;
   z-index: 8;
 }
 
@@ -3187,6 +3190,7 @@ h3 {
   flex-direction: column;
   min-height: 0;
   overflow: hidden;
+  position: relative;
 }
 
 .section-rail-title {
