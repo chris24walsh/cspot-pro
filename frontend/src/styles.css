@@ -2462,6 +2462,11 @@ h3 {
   overflow: auto;
 }
 
+.worship-new-song-dialog {
+  max-height: min(820px, calc(100dvh - 32px));
+  overflow: auto;
+}
+
 .app-dialog h2 {
   font-size: 20px;
   line-height: 1.15;
@@ -2643,6 +2648,20 @@ h3 {
   display: grid;
   gap: 10px;
   padding: 12px;
+}
+
+.new-song-choice-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.provider-search-field {
+  color: #3b4741;
+  display: grid;
+  font-size: 12px;
+  font-weight: 850;
+  gap: 5px;
 }
 
 .custom-provider-header,

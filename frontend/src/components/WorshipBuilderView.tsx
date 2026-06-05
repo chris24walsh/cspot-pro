@@ -1,4 +1,4 @@
-import { CalendarDays, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, History, MonitorUp, Music2, Pencil, RefreshCw, Trash2 } from "lucide-react";
+import { CalendarDays, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, History, MonitorUp, Music2, Pencil, RefreshCw, Trash2, WandSparkles } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
@@ -17,9 +17,14 @@ import {
   getSongs,
   getWorshipSetSuggestion,
   parseGoogleDriveDeck,
+  runCustomProviderSearch,
   searchGoogleDriveFiles,
+  selectCustomProviderMatch,
   updatePlan,
   updatePlanItem,
+  type CustomProviderMatch,
+  type CustomProviderSearchResult,
+  type CustomProviderSelectResult,
   type GoogleDriveFile,
   type PlanHistoryEntry,
   type PlanHistorySnapshotItem,
@@ -33,7 +38,7 @@ import {
 } from "../api";
 import { buildPresentationSections, suggestSlideGroupFontCap } from "../presentation";
 import { showToast } from "../toast";
-import { analyzeImportedSongSlides, buildLyricsFromSections, canonicalizeWorshipLyrics } from "../worshipText";
+import { analyzeImportedSongSlides, analyzeWorshipText, buildLyricsFromSections, canonicalizeWorshipLyrics } from "../worshipText";
 import { dateKey, isWorshipSetPlan, worshipSetType } from "../worshipSets";
 import { AutoFitSlideText } from "./AutoFitSlideText";
 import { MusicianLiveView } from "./MusicianLiveView";
@@ -343,6 +348,14 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
   const [suggestionRefreshing, setSuggestionRefreshing] = useState(false);
   const [editingSong, setEditingSong] = useState<Song | null>(null);
   const [songEditorMode, setSongEditorMode] = useState<"create" | "edit">("edit");
+  const [newSongPromptOpen, setNewSongPromptOpen] = useState(false);
+  const [customImportQuery, setCustomImportQuery] = useState("");
+  const [customProviderLoading, setCustomProviderLoading] = useState(false);
+  const [customProviderResult, setCustomProviderResult] = useState<CustomProviderSearchResult | null>(null);
+  const [selectedCustomProviderMatchId, setSelectedCustomProviderMatchId] = useState<string | null>(null);
+  const [customProviderSelection, setCustomProviderSelection] = useState<CustomProviderSelectResult | null>(null);
+  const [customProviderSelectionLoading, setCustomProviderSelectionLoading] = useState(false);
+  const [customProviderImporting, setCustomProviderImporting] = useState(false);
   const [editHistory, setEditHistory] = useState<PlanHistoryEntry[]>([]);
   const [editHistoryIndex, setEditHistoryIndex] = useState(0);
   const [editHistoryOpen, setEditHistoryOpen] = useState(false);
@@ -425,6 +438,17 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
       })
       .slice(0, 80);
   }, [query, songs]);
+
+  const selectedCustomProviderMatch =
+    customProviderResult?.matches.find((match) => match.id === selectedCustomProviderMatchId) ?? null;
+
+  function findDuplicateSong(title: string) {
+    const titleKey = normalizedTitle(title);
+    if (!titleKey) {
+      return null;
+    }
+    return songs.find((song) => songTitleKeys(song).some((key) => key === titleKey || key.includes(titleKey) || titleKey.includes(key))) ?? null;
+  }
 
   function snapshotWorshipItems(items: PlanItem[]): PlanHistorySnapshotItem[] {
     return sortedWorshipItems(items).map((item) => ({
@@ -993,7 +1017,28 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
     setEditingSong(song);
   }
 
+  function resetCustomImportState(nextQuery = "") {
+    setCustomImportQuery(nextQuery);
+    setCustomProviderLoading(false);
+    setCustomProviderResult(null);
+    setSelectedCustomProviderMatchId(null);
+    setCustomProviderSelection(null);
+    setCustomProviderSelectionLoading(false);
+    setCustomProviderImporting(false);
+  }
+
+  function openNewSongPrompt() {
+    resetCustomImportState(query.trim());
+    setNewSongPromptOpen(true);
+  }
+
+  function closeNewSongPrompt() {
+    setNewSongPromptOpen(false);
+    resetCustomImportState();
+  }
+
   function openNewSongEditor() {
+    setNewSongPromptOpen(false);
     setSongEditorMode("create");
     setEditingSong({
       alternate_title: null,
@@ -1014,6 +1059,98 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
       worship_role: "any",
       youtube_id: null,
     });
+  }
+
+  async function runWorshipCustomSongImportSearch() {
+    const searchTerm = customImportQuery.trim();
+    if (!searchTerm) {
+      setCustomProviderResult(null);
+      return;
+    }
+
+    setCustomProviderLoading(true);
+    setSelectedCustomProviderMatchId(null);
+    setCustomProviderSelection(null);
+    try {
+      const result = await runCustomProviderSearch(searchTerm);
+      setCustomProviderResult(result);
+      setMessage(null);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not search your custom provider.");
+      setCustomProviderResult(null);
+    } finally {
+      setCustomProviderLoading(false);
+    }
+  }
+
+  async function loadWorshipCustomProviderMatch(match: CustomProviderMatch) {
+    setSelectedCustomProviderMatchId(match.id);
+    setCustomProviderSelectionLoading(true);
+    try {
+      const selection = await selectCustomProviderMatch(match.id);
+      setCustomProviderSelection(selection);
+      setMessage(null);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not load imported lyrics.");
+      setCustomProviderSelection(null);
+    } finally {
+      setCustomProviderSelectionLoading(false);
+    }
+  }
+
+  async function importSelectedWorshipCustomProviderSong() {
+    if (!canCreateSong) {
+      setMessage("Importing a new song into the library needs song-create permission.");
+      return;
+    }
+    if (!selectedCustomProviderMatch || !customProviderSelection?.output_text) {
+      setMessage("Choose a matched song with lyrics first.");
+      return;
+    }
+
+    const resolvedTitle = selectedCustomProviderMatch.title.trim() || customProviderSelection.title?.trim() || "";
+    if (!resolvedTitle) {
+      setMessage("The imported song needs a title.");
+      return;
+    }
+
+    const duplicate = findDuplicateSong(resolvedTitle);
+    if (duplicate) {
+      setQuery(duplicate.title);
+      closeNewSongPrompt();
+      setMessage(`"${duplicate.title}" is already in the library.`);
+      return;
+    }
+
+    setCustomProviderImporting(true);
+    try {
+      const analysis = analyzeWorshipText(customProviderSelection.output_text, { title: resolvedTitle });
+      const importedSong = await createSong({
+        title: resolvedTitle,
+        alternate_title: null,
+        author: selectedCustomProviderMatch.subtitle?.trim() || null,
+        lyrics: canonicalizeWorshipLyrics(buildLyricsFromSections(analysis.sections) || analysis.lyrics, analysis.sequence),
+        chords: null,
+        ccli_number: null,
+        book_reference: null,
+        license: "Unknown",
+        sequence: analysis.sequence,
+        youtube_id: null,
+        external_link: null,
+        worship_role: "any",
+        energy: 3,
+        tempo: null,
+        theme_tags: null,
+      });
+      setSongs((current) => [importedSong, ...current]);
+      setQuery(importedSong.title);
+      closeNewSongPrompt();
+      setMessage(`Imported "${importedSong.title}" into the song library.`);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not import this song.");
+    } finally {
+      setCustomProviderImporting(false);
+    }
   }
 
   async function archiveLibrarySong(song: Song) {
@@ -1398,7 +1535,7 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
             placeholder="Search songs"
             value={query}
           />
-          <button className="text-button" disabled={!canCreateSong} onClick={openNewSongEditor} type="button">
+          <button className="text-button" disabled={!canCreateSong} onClick={openNewSongPrompt} type="button">
             New Song
           </button>
         </div>
@@ -1668,6 +1805,126 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
               <button className="primary-button" disabled={!canEditPlan || !suggestedSongs.some((entry) => includedSuggestionIds.has(entry.song.id))} onClick={() => void addReviewedSuggestions()} type="button">
                 Add {suggestedSongs.filter((entry) => includedSuggestionIds.has(entry.song.id)).length || ""} Suggestions
               </button>
+            </div>
+          </section>
+        </div>
+      ) : null}
+
+      {newSongPromptOpen ? (
+        <div className="app-dialog-backdrop" role="presentation" onMouseDown={closeNewSongPrompt}>
+          <section
+            aria-labelledby="new-song-prompt-title"
+            aria-modal="true"
+            className="app-dialog app-dialog-wide worship-new-song-dialog"
+            onMouseDown={(event) => event.stopPropagation()}
+            role="dialog"
+          >
+            <div className="section-heading">
+              <div>
+                <p className="eyebrow">Song Library</p>
+                <h2 id="new-song-prompt-title">New Song</h2>
+              </div>
+              <button className="section-icon-button" onClick={closeNewSongPrompt} type="button" aria-label="Close new song">
+                x
+              </button>
+            </div>
+
+            <div className="new-song-choice-row">
+              <button className="primary-button" disabled={!canCreateSong} onClick={openNewSongEditor} type="button">
+                <Music2 size={16} aria-hidden="true" />
+                Manual Song
+              </button>
+            </div>
+
+            <div className="custom-provider-panel">
+              <div className="custom-provider-header">
+                <div>
+                  <strong>Import from Provider</strong>
+                  <span>Search your custom provider and save lyrics straight into the song library.</span>
+                </div>
+                <button
+                  className="text-button"
+                  disabled={customProviderLoading || !customImportQuery.trim()}
+                  onClick={() => void runWorshipCustomSongImportSearch()}
+                  type="button"
+                >
+                  <WandSparkles size={16} aria-hidden="true" />
+                  {customProviderLoading ? "Searching..." : "Search"}
+                </button>
+              </div>
+
+              <label className="provider-search-field">
+                <span>Search term</span>
+                <input
+                  className="search-input"
+                  onChange={(event) => setCustomImportQuery(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") {
+                      event.preventDefault();
+                      void runWorshipCustomSongImportSearch();
+                    }
+                  }}
+                  placeholder="Song title or lyric"
+                  value={customImportQuery}
+                />
+              </label>
+
+              {customProviderResult?.notes?.length ? (
+                <div className="custom-provider-notes">
+                  {customProviderResult.notes.map((note) => (
+                    <span key={note}>{note}</span>
+                  ))}
+                </div>
+              ) : null}
+
+              {customProviderResult && !customProviderResult.matches.length ? <p className="search-empty">No provider matches found.</p> : null}
+
+              {customProviderResult?.matches.length ? (
+                <div className="custom-provider-matches">
+                  {customProviderResult.matches.map((match) => (
+                    <button
+                      className={`search-result-card ${selectedCustomProviderMatchId === match.id ? "active-import-match" : ""}`}
+                      key={match.id}
+                      onClick={() => void loadWorshipCustomProviderMatch(match)}
+                      type="button"
+                    >
+                      <strong>{match.title}</strong>
+                      <span>{match.subtitle ?? match.summary ?? "Provider match"}</span>
+                    </button>
+                  ))}
+                </div>
+              ) : null}
+
+              {customProviderSelectionLoading ? <p className="search-empty">Loading imported lyrics...</p> : null}
+
+              {customProviderSelection ? (
+                <div className="custom-provider-preview">
+                  <div className="custom-provider-preview-header">
+                    <div>
+                      <strong>{customProviderSelection.title ?? selectedCustomProviderMatch?.title ?? "Imported song"}</strong>
+                      <span>{selectedCustomProviderMatch?.subtitle ?? "Lyrics ready to import"}</span>
+                    </div>
+                    <button
+                      className="primary-button"
+                      disabled={!customProviderSelection.output_text || customProviderImporting || !canCreateSong}
+                      onClick={() => void importSelectedWorshipCustomProviderSong()}
+                      type="button"
+                    >
+                      {customProviderImporting ? "Importing..." : "Import Song"}
+                    </button>
+                  </div>
+                  {customProviderSelection.notes.length ? (
+                    <div className="custom-provider-notes">
+                      {customProviderSelection.notes.map((note) => (
+                        <span key={note}>{note}</span>
+                      ))}
+                    </div>
+                  ) : null}
+                  {customProviderSelection.output_text ? (
+                    <pre className="import-lyric-preview compact-preview">{customProviderSelection.output_text}</pre>
+                  ) : null}
+                </div>
+              ) : null}
             </div>
           </section>
         </div>
