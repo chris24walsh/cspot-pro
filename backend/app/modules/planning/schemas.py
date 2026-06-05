@@ -43,6 +43,29 @@ class PlanItemRead(PlanItemBase):
     teacher_notes: str | None = None
 
 
+class PlanItemHistorySnapshot(BaseModel):
+    id: str
+    item_type: str
+    sequence: str
+    title: str
+    comment: str | None = None
+    key_signature: str | None = None
+    song_id: str | None = None
+
+
+class PlanHistoryCreate(BaseModel):
+    label: str
+    before: list[PlanItemHistorySnapshot]
+    after: list[PlanItemHistorySnapshot]
+
+
+class PlanHistoryRead(PlanHistoryCreate):
+    id: str
+    actor_id: str | None = None
+    actor_name: str | None = None
+    created_at: datetime
+
+
 class PlanItemFileRead(BaseModel):
     id: str
     file_id: str

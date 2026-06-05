@@ -4,12 +4,14 @@ import { createPortal } from "react-dom";
 
 import {
   createSong,
+  createPlanHistoryEntry,
   createPlanItem,
   createPlan,
   deletePlan,
   deletePlanItem,
   deleteSong,
   getPlan,
+  getPlanHistory,
   getPlanTypes,
   getPlans,
   getSongs,
@@ -19,6 +21,8 @@ import {
   updatePlan,
   updatePlanItem,
   type GoogleDriveFile,
+  type PlanHistoryEntry,
+  type PlanHistorySnapshotItem,
   type ParsedSlideDeck,
   type PlanDetail,
   type PlanItem,
@@ -56,15 +60,6 @@ type WorshipHistoryMissingSong = {
   notes: string[];
   sequence: string | null;
   title: string;
-};
-
-type WorshipSetSnapshotItem = Pick<PlanItem, "id" | "item_type" | "sequence" | "title" | "comment" | "key_signature" | "song_id" | "teacher_notes">;
-
-type WorshipSetEditHistoryEntry = {
-  after: WorshipSetSnapshotItem[];
-  before: WorshipSetSnapshotItem[];
-  label: string;
-  timestamp: number;
 };
 
 interface WorshipBuilderViewProps {
@@ -348,7 +343,7 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
   const [suggestionRefreshing, setSuggestionRefreshing] = useState(false);
   const [editingSong, setEditingSong] = useState<Song | null>(null);
   const [songEditorMode, setSongEditorMode] = useState<"create" | "edit">("edit");
-  const [editHistory, setEditHistory] = useState<WorshipSetEditHistoryEntry[]>([]);
+  const [editHistory, setEditHistory] = useState<PlanHistoryEntry[]>([]);
   const [editHistoryIndex, setEditHistoryIndex] = useState(0);
   const [editHistoryOpen, setEditHistoryOpen] = useState(false);
   const [editHistoryApplying, setEditHistoryApplying] = useState(false);
@@ -431,7 +426,7 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
       .slice(0, 80);
   }, [query, songs]);
 
-  function snapshotWorshipItems(items: PlanItem[]): WorshipSetSnapshotItem[] {
+  function snapshotWorshipItems(items: PlanItem[]): PlanHistorySnapshotItem[] {
     return sortedWorshipItems(items).map((item) => ({
       id: item.id,
       item_type: item.item_type,
@@ -440,19 +435,20 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
       comment: item.comment,
       key_signature: item.key_signature,
       song_id: item.song_id,
-      teacher_notes: item.teacher_notes,
     }));
   }
 
-  function recordSetHistory(label: string, before: WorshipSetSnapshotItem[], after: WorshipSetSnapshotItem[]) {
-    setEditHistory((current) => {
-      const retained = current.slice(0, editHistoryIndex);
-      return [...retained, { label, before, after, timestamp: Date.now() }];
-    });
-    setEditHistoryIndex((current) => current + 1);
+  async function recordSetHistory(planId: string, label: string, before: PlanHistorySnapshotItem[], after: PlanHistorySnapshotItem[]) {
+    try {
+      const entry = await createPlanHistoryEntry(planId, { label, before, after });
+      setEditHistory((current) => [...current, entry]);
+      setEditHistoryIndex((current) => current + 1);
+    } catch (error) {
+      setMessage(error instanceof Error ? `Saved change, but history was not recorded: ${error.message}` : "Saved change, but history was not recorded.");
+    }
   }
 
-  async function applyWorshipSetSnapshot(targetPlanId: string, targetItems: WorshipSetSnapshotItem[]) {
+  async function applyWorshipSetSnapshot(targetPlanId: string, targetItems: PlanHistorySnapshotItem[]) {
     const latestPlan = await getPlan(targetPlanId);
     const currentItems = sortedWorshipItems(latestPlan.items);
     const targetById = new Map(targetItems.map((item) => [item.id, item]));
@@ -476,7 +472,6 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
         comment: target.comment,
         key_signature: target.key_signature,
         song_id: target.song_id,
-        teacher_notes: target.teacher_notes,
       });
     }
 
@@ -495,7 +490,6 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
           comment: target.comment,
           key_signature: target.key_signature,
           song_id: target.song_id,
-          teacher_notes: target.teacher_notes,
         });
         continue;
       }
@@ -506,7 +500,6 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
         comment: target.comment,
         key_signature: target.key_signature,
         song_id: target.song_id,
-        teacher_notes: target.teacher_notes,
       });
     }
 
@@ -535,6 +528,24 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
     }
   }
 
+  async function openEditHistory() {
+    if (!plan || editHistoryApplying) {
+      return;
+    }
+    if (editHistoryOpen) {
+      setEditHistoryOpen(false);
+      return;
+    }
+    try {
+      const nextHistory = await getPlanHistory(plan.id);
+      setEditHistory(nextHistory);
+      setEditHistoryIndex(nextHistory.length);
+      setEditHistoryOpen(true);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not load worship set history.");
+    }
+  }
+
   async function load(targetPlanId?: string) {
     setLoading(true);
     try {
@@ -551,6 +562,7 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
         ? requestedPlanId
         : nextWorshipSetPlanId(nextWorshipPlans);
       const nextPlan = resolvedPlanId ? await getPlan(resolvedPlanId) : null;
+      const nextHistory = resolvedPlanId ? await getPlanHistory(resolvedPlanId) : [];
       const nextWorshipItems = sortedWorshipItems(nextPlan?.items ?? []);
       setPlans(nextPlans);
       setSongs(nextSongs);
@@ -562,6 +574,9 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
         sessionStorage.removeItem(SELECTED_WORSHIP_SET_SESSION_KEY);
       }
       setPlan(nextPlan);
+      setEditHistory(nextHistory);
+      setEditHistoryIndex(nextHistory.length);
+      setEditHistoryOpen(false);
       setSelectedItemId((current) =>
         current && nextWorshipItems.some((item) => item.id === current) ? current : nextWorshipItems[0]?.id ?? null,
       );
@@ -580,12 +595,6 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
   useEffect(() => {
     setTopbarSlot(document.getElementById("workspace-topbar-slot"));
   }, []);
-
-  useEffect(() => {
-    setEditHistory([]);
-    setEditHistoryIndex(0);
-    setEditHistoryOpen(false);
-  }, [plan?.id]);
 
   useEffect(() => {
     if (!message) {
@@ -750,7 +759,7 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
         key_signature: null,
         song_id: song.id,
       });
-      recordSetHistory(`adding "${song.title}"`, before, snapshotWorshipItems([...plan.items, createdItem]));
+      await recordSetHistory(targetPlanId, `adding "${song.title}"`, before, snapshotWorshipItems([...plan.items, createdItem]));
       await load(targetPlanId);
       setMobileBuilderPane("set");
       setMessage(`Added "${song.title}" after the selected song.`);
@@ -925,7 +934,7 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
       setSuggestedSongs([]);
       setIncludedSuggestionIds(new Set());
       setMobileBuilderPane("set");
-      recordSetHistory("adding suggested songs", before, snapshotWorshipItems([...plan.items, ...createdItems]));
+      await recordSetHistory(targetPlanId, "adding suggested songs", before, snapshotWorshipItems([...plan.items, ...createdItems]));
       await load(targetPlanId);
       setMessage(`Added ${songsToAdd.length} suggested song${songsToAdd.length === 1 ? "" : "s"}.`);
     } catch (error) {
@@ -1187,7 +1196,7 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
       const before = snapshotWorshipItems(plan?.items ?? worshipItems);
       await deletePlanItem(item.id);
       if (targetPlanId) {
-        recordSetHistory(`removing "${item.title}"`, before, before.filter((snapshotItem) => snapshotItem.id !== item.id));
+        await recordSetHistory(targetPlanId, `removing "${item.title}"`, before, before.filter((snapshotItem) => snapshotItem.id !== item.id));
         await load(targetPlanId);
       }
     } catch (error) {
@@ -1212,7 +1221,8 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
         updatePlanItem(item.id, { sequence: target.sequence }),
         updatePlanItem(target.id, { sequence: item.sequence }),
       ]);
-      recordSetHistory(
+      await recordSetHistory(
+        targetPlanId,
         `moving "${item.title}"`,
         before,
         before.map((snapshotItem) => {
@@ -1265,8 +1275,8 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
                   aria-expanded={editHistoryOpen}
                   aria-label="Open worship set edit history"
                   className="section-icon-button worship-history-button"
-                  disabled={!editHistory.length || editHistoryApplying}
-                  onClick={() => setEditHistoryOpen((current) => !current)}
+                  disabled={!plan || editHistoryApplying}
+                  onClick={() => void openEditHistory()}
                   title="Worship set edit history"
                   type="button"
                 >
@@ -1297,12 +1307,12 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
                           <button
                             className={`worship-history-row ${entryIndex === editHistoryIndex ? "active" : ""}`}
                             disabled={editHistoryApplying}
-                            key={`${entry.timestamp}-${entry.label}`}
+                            key={entry.id}
                             onClick={() => void jumpSetHistory(entryIndex)}
                             type="button"
                           >
                             <span>{entry.label}</span>
-                            <small>{relation}</small>
+                            <small>{entry.actor_name ? `${relation} · ${entry.actor_name}` : relation}</small>
                           </button>
                         );
                       })}

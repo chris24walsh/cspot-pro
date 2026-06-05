@@ -74,6 +74,26 @@ export interface PlanItem {
   teacher_notes: string | null;
 }
 
+export interface PlanHistorySnapshotItem {
+  id: string;
+  item_type: string;
+  sequence: string;
+  title: string;
+  comment: string | null;
+  key_signature: string | null;
+  song_id: string | null;
+}
+
+export interface PlanHistoryEntry {
+  id: string;
+  actor_id: string | null;
+  actor_name: string | null;
+  created_at: string;
+  label: string;
+  before: PlanHistorySnapshotItem[];
+  after: PlanHistorySnapshotItem[];
+}
+
 export interface PlanItemFile {
   id: string;
   file_id: string;
@@ -405,6 +425,12 @@ export interface PlanItemPayload {
   teacher_notes?: string | null;
 }
 
+export interface PlanHistoryPayload {
+  label: string;
+  before: PlanHistorySnapshotItem[];
+  after: PlanHistorySnapshotItem[];
+}
+
 export interface UserPayload {
   email: string;
   name: string;
@@ -715,6 +741,10 @@ export async function getPlan(planId: string): Promise<PlanDetail> {
   return getJson<PlanDetail>(`/api/v1/planning/plans/${planId}`);
 }
 
+export async function getPlanHistory(planId: string): Promise<PlanHistoryEntry[]> {
+  return getJson<PlanHistoryEntry[]>(`/api/v1/planning/plans/${planId}/history`);
+}
+
 export async function getPresentationLiveState(planId: string): Promise<PresentationLiveSyncState> {
   return getJson<PresentationLiveSyncState>(`/api/v1/presentation/live/${planId}`);
 }
@@ -745,6 +775,10 @@ export async function createPlan(payload: PlanPayload): Promise<PlanDetail> {
 
 export async function updatePlan(planId: string, payload: Partial<PlanPayload>): Promise<PlanDetail> {
   return sendJson<PlanDetail>(`/api/v1/planning/plans/${planId}`, "PATCH", payload);
+}
+
+export async function createPlanHistoryEntry(planId: string, payload: PlanHistoryPayload): Promise<PlanHistoryEntry> {
+  return sendJson<PlanHistoryEntry>(`/api/v1/planning/plans/${planId}/history`, "POST", payload);
 }
 
 export async function deletePlan(planId: string): Promise<void> {

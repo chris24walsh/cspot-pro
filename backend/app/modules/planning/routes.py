@@ -1,4 +1,5 @@
 from datetime import UTC, datetime
+import json
 
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy import func, select
@@ -6,10 +7,12 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_session
 from app.modules.identity.models import User
-from app.modules.identity.auth import CurrentUser, require_any_permission, require_permission
+from app.modules.identity.auth import require_any_permission, require_permission
 from app.modules.library.models import ItemFile, StoredFile
-from app.modules.planning.models import ItemNote, Plan, PlanItem, PlanType
+from app.modules.planning.models import HistoryEntry, ItemNote, Plan, PlanItem, PlanType
 from app.modules.planning.schemas import (
+    PlanHistoryCreate,
+    PlanHistoryRead,
     PlanCreate,
     PlanDetail,
     PlanItemCreate,
@@ -21,6 +24,9 @@ from app.modules.planning.schemas import (
 )
 
 router = APIRouter()
+PLAN_HISTORY_ACTION = "item_snapshot"
+PLAN_HISTORY_ENTITY_TYPE = "plan"
+PLAN_HISTORY_LIMIT = 80
 
 
 def plan_item_to_read(session: Session, item: PlanItem) -> PlanItemRead:
@@ -80,6 +86,26 @@ def get_plan_or_404(session: Session, plan_id: str) -> Plan:
     if plan is None or plan.deleted_at is not None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Plan not found")
     return plan
+
+
+def history_entry_to_read(session: Session, entry: HistoryEntry) -> PlanHistoryRead | None:
+    if entry.details is None:
+        return None
+    try:
+        details = json.loads(entry.details)
+    except json.JSONDecodeError:
+        return None
+
+    actor = session.get(User, entry.actor_id) if entry.actor_id else None
+    return PlanHistoryRead(
+        id=entry.id,
+        actor_id=entry.actor_id,
+        actor_name=actor.name if actor else None,
+        created_at=entry.created_at,
+        label=details.get("label", entry.action),
+        before=details.get("before", []),
+        after=details.get("after", []),
+    )
 
 
 def get_item_or_404(session: Session, item_id: str) -> PlanItem:
@@ -172,6 +198,52 @@ def get_plan(
         )
     ).all()
     return plan_to_detail(session, plan, list(items))
+
+
+@router.get("/plans/{plan_id}/history", response_model=list[PlanHistoryRead])
+def list_plan_history(
+    plan_id: str,
+    _current_user: User = Depends(require_permission("plans:read")),
+    session: Session = Depends(get_session),
+) -> list[PlanHistoryRead]:
+    get_plan_or_404(session, plan_id)
+    entries = session.scalars(
+        select(HistoryEntry)
+        .where(
+            HistoryEntry.entity_type == PLAN_HISTORY_ENTITY_TYPE,
+            HistoryEntry.entity_id == plan_id,
+            HistoryEntry.action == PLAN_HISTORY_ACTION,
+        )
+        .order_by(HistoryEntry.created_at.desc())
+        .limit(PLAN_HISTORY_LIMIT)
+    ).all()
+    history = [entry for entry in (history_entry_to_read(session, entry) for entry in entries) if entry]
+    return list(reversed(history))
+
+
+@router.post("/plans/{plan_id}/history", response_model=PlanHistoryRead, status_code=status.HTTP_201_CREATED)
+def create_plan_history(
+    plan_id: str,
+    payload: PlanHistoryCreate,
+    current_user: User = Depends(require_any_permission("plans:edit", "plans:create")),
+    session: Session = Depends(get_session),
+) -> PlanHistoryRead:
+    get_plan_or_404(session, plan_id)
+    details = payload.model_dump(mode="json")
+    entry = HistoryEntry(
+        actor_id=current_user.id,
+        entity_type=PLAN_HISTORY_ENTITY_TYPE,
+        entity_id=plan_id,
+        action=PLAN_HISTORY_ACTION,
+        details=json.dumps(details, separators=(",", ":")),
+    )
+    session.add(entry)
+    session.commit()
+    session.refresh(entry)
+    read_entry = history_entry_to_read(session, entry)
+    if read_entry is None:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Could not create plan history")
+    return read_entry
 
 
 @router.patch("/plans/{plan_id}", response_model=PlanDetail)
