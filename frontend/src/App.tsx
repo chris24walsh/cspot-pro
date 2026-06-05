@@ -265,7 +265,7 @@ function App() {
       <ToastViewport />
       <aside className="sidebar" aria-label="Primary">
         <div className="brand">
-          <img alt="" src={appAssetUrl("images/xs-cspot.png")} />
+          <img alt="" src={appAssetUrl("images/cspot.png")} />
           <span>cspot-pro</span>
         </div>
 
