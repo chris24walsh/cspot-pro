@@ -1534,6 +1534,17 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
           Set <span>{worshipItems.length}</span>
         </button>
       </div>
+      {mobileBuilderPane === "set" ? (
+        <div className="worship-mobile-actions" aria-label="Worship set actions">
+          <button className="text-button" disabled={!plan || !canEditPlan || suggesting} onClick={() => void suggestWorshipSet()} type="button">
+            {suggesting ? "Suggesting..." : "Suggest Set"}
+          </button>
+          <button className="primary-button" disabled={!plan} onClick={() => setViewMode("live")} type="button">
+            <MonitorUp size={16} aria-hidden="true" />
+            Live
+          </button>
+        </div>
+      ) : null}
 
       <aside className={`worship-song-browser ${mobileBuilderPane === "library" ? "is-mobile-active" : ""}`}>
         <div className="worship-library-search-row">
@@ -1580,18 +1591,6 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
       </aside>
 
       <main className={`worship-set-builder ${mobileBuilderPane === "set" ? "is-mobile-active" : ""}`}>
-        <div className="worship-set-toolbar worship-set-toolbar-compact">
-          <div className="worship-set-toolbar-actions" aria-label="Worship set actions">
-            <button className="text-button" disabled={!plan || !canEditPlan || suggesting} onClick={() => void suggestWorshipSet()} type="button">
-              {suggesting ? "Suggesting..." : "Suggest Set"}
-            </button>
-            <button className="primary-button" disabled={!plan} onClick={() => setViewMode("live")} type="button">
-              <MonitorUp size={16} aria-hidden="true" />
-              Live
-            </button>
-          </div>
-        </div>
-
         <div className="worship-set-layout">
           <section className="worship-set-list" aria-label="Worship set">
             <div className="worship-section-list" ref={setListRef}>

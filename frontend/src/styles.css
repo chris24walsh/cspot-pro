@@ -789,6 +789,10 @@ h3 {
   display: none;
 }
 
+.worship-mobile-actions {
+  display: none;
+}
+
 .worship-song-browser,
 .worship-set-builder,
 .worship-set-list,
@@ -5247,6 +5251,10 @@ h3 {
     padding: 6px;
   }
 
+  .worship-builder-pane-set {
+    grid-template-rows: auto auto minmax(0, 1fr);
+  }
+
   .worship-mobile-pane-tabs {
     background: #f4efe2;
     border: 1px solid #ded8c7;
@@ -5279,6 +5287,19 @@ h3 {
   .worship-mobile-pane-tabs span {
     color: #65716a;
     font-size: 12px;
+  }
+
+  .worship-mobile-actions {
+    display: grid;
+    gap: 5px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .worship-mobile-actions .primary-button,
+  .worship-mobile-actions .text-button {
+    min-height: 34px;
+    padding: 6px 8px;
+    width: 100%;
   }
 
   .worship-song-browser,
