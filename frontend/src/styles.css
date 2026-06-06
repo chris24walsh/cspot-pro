@@ -1394,6 +1394,13 @@ h3 {
   width: min(100%, 1500px);
 }
 
+.musician-lyric-line-group {
+  display: grid;
+  gap: 0.12em;
+  justify-items: center;
+  min-width: 0;
+}
+
 .musician-chord-line {
   display: grid;
   font-family: "Consolas", "Liberation Mono", "SFMono-Regular", "Menlo", monospace;
@@ -5542,7 +5549,7 @@ h3 {
 
   .musician-chord-sheet,
   .musician-lyrics-only {
-    gap: clamp(10px, 2.5vh, 28px);
+    gap: clamp(5px, 1.2vh, 16px);
     width: 100%;
   }
 

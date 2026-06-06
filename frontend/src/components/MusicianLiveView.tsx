@@ -99,24 +99,90 @@ function shiftKey(key: string | null, semitones: number) {
   return MUSICAL_KEYS[(index + semitones + 120) % MUSICAL_KEYS.length];
 }
 
-function fitFontSize(lines: string[], stageWidth = 1120, stageHeight = 650) {
-  const lineCount = Math.max(lines.length, 1);
-  const longestLine = Math.max(...lines.map((line) => Array.from(line).length), 1);
+function wrapCharacterLimit(fontSize: number, stageWidth = 1120) {
   const usableWidth = Math.max(stageWidth * 0.98, 180);
-  const usableHeight = Math.max(stageHeight * 0.9, 180);
-  const widthDrivenSize = usableWidth / Math.max((longestLine + LEADING_CHORD_ANCHORS + TRAILING_CHORD_ANCHORS) * 0.62, 1);
-  const heightDrivenSize = usableHeight / Math.max(lineCount * 1.36, 1);
-  return Math.floor(clampNumber(Math.min(widthDrivenSize, heightDrivenSize), 13, 56));
+  return Math.max(Math.floor(usableWidth / Math.max(fontSize * 0.62, 1)) - LEADING_CHORD_ANCHORS - TRAILING_CHORD_ANCHORS, 8);
 }
 
-function fitFontSizeForSlides(slideTexts: string[], stageWidth: number, stageHeight: number) {
-  const sizes = slideTexts
-    .map((text) => fitFontSize(lyricLines(text), stageWidth, stageHeight))
-    .filter((size) => Number.isFinite(size));
-  if (!sizes.length) {
+function wrapLyricLine(line: string, maxCharacters: number) {
+  if (line.length <= maxCharacters) {
+    return [{ line, start: 0 }];
+  }
+
+  const words = Array.from(line.matchAll(/\S+/g));
+  if (!words.length) {
+    return [{ line, start: 0 }];
+  }
+
+  const segments: Array<{ line: string; start: number }> = [];
+  let segmentStart = words[0].index ?? 0;
+  let segmentEnd = segmentStart;
+
+  function pushSegment(start: number, end: number) {
+    if (end > start) {
+      segments.push({ line: line.slice(start, end), start });
+    }
+  }
+
+  for (const wordMatch of words) {
+    const word = wordMatch[0];
+    const wordStart = wordMatch.index ?? segmentEnd;
+    const wordEnd = wordStart + word.length;
+
+    if (word.length > maxCharacters) {
+      pushSegment(segmentStart, segmentEnd);
+      for (let index = 0; index < word.length; index += maxCharacters) {
+        const chunkStart = wordStart + index;
+        const chunkEnd = Math.min(chunkStart + maxCharacters, wordEnd);
+        pushSegment(chunkStart, chunkEnd);
+      }
+      segmentStart = wordEnd;
+      segmentEnd = wordEnd;
+      continue;
+    }
+
+    if (segmentEnd > segmentStart && wordEnd - segmentStart > maxCharacters) {
+      pushSegment(segmentStart, segmentEnd);
+      segmentStart = wordStart;
+    }
+
+    segmentEnd = wordEnd;
+  }
+
+  pushSegment(segmentStart, segmentEnd);
+  return segments.length ? segments : [{ line, start: 0 }];
+}
+
+function wrappedLineCount(lines: string[], maxCharacters: number) {
+  return lines.reduce((total, line) => total + wrapLyricLine(line, maxCharacters).length, 0);
+}
+
+function fitFontSizeForSlide(slideText: string, stageWidth: number, stageHeight: number) {
+  const lines = lyricLines(slideText);
+  if (!lines.length) {
     return 40;
   }
-  return Math.min(...sizes);
+
+  const usableHeight = Math.max(stageHeight * 0.94, 180);
+  let low = 13;
+  let high = 72;
+  let best = low;
+
+  while (low <= high) {
+    const candidate = Math.floor((low + high) / 2);
+    const wrapCharacters = wrapCharacterLimit(candidate, stageWidth);
+    const visualLineCount = wrappedLineCount(lines, wrapCharacters);
+    const groupGapCount = Math.max(lines.length - 1, 0);
+    const estimatedHeight = visualLineCount * candidate * 1.2 + groupGapCount * candidate * 0.32;
+    if (estimatedHeight <= usableHeight) {
+      best = candidate;
+      low = candidate + 1;
+    } else {
+      high = candidate - 1;
+    }
+  }
+
+  return best;
 }
 
 function musicianChordLabel(
@@ -209,6 +275,22 @@ function MusicianChordLine({
   );
 }
 
+function annotationsForSegment(annotations: ChordAnnotation[], segmentStart: number, segmentLength: number) {
+  const segmentEnd = segmentStart + segmentLength;
+  return annotations
+    .map((annotation) => {
+      const lyricAnchor = annotation.anchorIndex >= LEADING_CHORD_ANCHORS ? annotation.anchorIndex - LEADING_CHORD_ANCHORS : annotation.anchorIndex;
+      if (lyricAnchor < segmentStart || lyricAnchor > segmentEnd + TRAILING_CHORD_ANCHORS) {
+        return null;
+      }
+      return {
+        ...annotation,
+        anchorIndex: LEADING_CHORD_ANCHORS + Math.max(lyricAnchor - segmentStart, 0),
+      };
+    })
+    .filter((annotation): annotation is ChordAnnotation => Boolean(annotation));
+}
+
 export function MusicianLiveView({ controlPlanId, onExit, plan, songs }: MusicianLiveViewProps) {
   const [liveState, setLiveState] = useState<PresentationLiveState | null>(null);
   const [showChords, setShowChords] = useState(true);
@@ -244,9 +326,10 @@ export function MusicianLiveView({ controlPlanId, onExit, plan, songs }: Musicia
   const liveSong = liveItem?.song_id ? songs.find((song) => song.id === liveItem.song_id) ?? null : null;
   const chordChart = useMemo(() => parseChordChart(liveSong?.chords ?? null).document, [liveSong?.chords]);
   const liveFontSize = useMemo(
-    () => fitFontSizeForSlides(slides.filter((slide) => slide.itemType === "song").map((slide) => slide.text), stageSize.width, stageSize.height),
-    [slides, stageSize.height, stageSize.width],
+    () => fitFontSizeForSlide(liveSlide?.itemType === "song" ? liveSlide.text : "", stageSize.width, stageSize.height),
+    [liveSlide?.itemType, liveSlide?.text, stageSize.height, stageSize.width],
   );
+  const liveWrapCharacters = useMemo(() => wrapCharacterLimit(liveFontSize, stageSize.width), [liveFontSize, stageSize.width]);
   const slideLineOffset = useMemo(
     () => findSlideLineOffset(liveSong?.lyrics ?? "", liveSlide?.text ?? ""),
     [liveSlide?.text, liveSong?.lyrics],
@@ -472,6 +555,10 @@ export function MusicianLiveView({ controlPlanId, onExit, plan, songs }: Musicia
   }
 
   const lyricLinesForSlide = lyricLines(liveSlide?.text ?? "");
+  const wrappedLyricLinesForSlide = useMemo(
+    () => lyricLinesForSlide.map((line) => wrapLyricLine(line, liveWrapCharacters)),
+    [liveWrapCharacters, lyricLinesForSlide],
+  );
   const currentGuitarKey = guitarKey ?? chordChart.capoKey ?? (chordChart.absoluteKey ? deriveCapoKey(chordChart.absoluteKey, capo) : null);
   const currentAbsoluteKey = currentGuitarKey
     ? deriveAbsoluteKey(currentGuitarKey, capo)
@@ -547,18 +634,22 @@ export function MusicianLiveView({ controlPlanId, onExit, plan, songs }: Musicia
           </div>
         ) : (
           <div className="musician-chord-sheet" aria-label="Lyrics with chords">
-            {lyricLinesForSlide.map((line, index) => (
-              <MusicianChordLine
-                annotations={annotationsByLine.get(index) ?? []}
-                baseAbsoluteKey={baseAbsoluteKey}
-                capo={capo}
-                detailMode={detailMode}
-                displayMode={displayMode}
-                key={`${index}-${line}`}
-                line={line}
-                showChords={showChords}
-                targetAbsoluteKey={currentAbsoluteKey}
-              />
+            {wrappedLyricLinesForSlide.map((segments, lineIndex) => (
+              <div className="musician-lyric-line-group" key={`${lineIndex}-${lyricLinesForSlide[lineIndex]}`}>
+                {segments.map((segment, segmentIndex) => (
+                  <MusicianChordLine
+                    annotations={annotationsForSegment(annotationsByLine.get(lineIndex) ?? [], segment.start, segment.line.length)}
+                    baseAbsoluteKey={baseAbsoluteKey}
+                    capo={capo}
+                    detailMode={detailMode}
+                    displayMode={displayMode}
+                    key={`${lineIndex}-${segmentIndex}-${segment.line}`}
+                    line={segment.line}
+                    showChords={showChords}
+                    targetAbsoluteKey={currentAbsoluteKey}
+                  />
+                ))}
+              </div>
             ))}
           </div>
         )}
