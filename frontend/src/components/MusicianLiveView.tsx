@@ -157,7 +157,7 @@ function wrappedLineCount(lines: string[], maxCharacters: number) {
   return lines.reduce((total, line) => total + wrapLyricLine(line, maxCharacters).length, 0);
 }
 
-function fitFontSizeForSlide(slideText: string, stageWidth: number, stageHeight: number, showChords: boolean) {
+function fitFontSizeForSlide(slideText: string, stageWidth: number, stageHeight: number) {
   const lines = lyricLines(slideText);
   if (!lines.length) {
     return 40;
@@ -173,7 +173,7 @@ function fitFontSizeForSlide(slideText: string, stageWidth: number, stageHeight:
     const wrapCharacters = wrapCharacterLimit(candidate, stageWidth);
     const visualLineCount = wrappedLineCount(lines, wrapCharacters);
     const groupGapCount = Math.max(lines.length - 1, 0);
-    const estimatedHeight = visualLineCount * candidate * (showChords ? 1.62 : 1.16) + groupGapCount * candidate * 0.42;
+    const estimatedHeight = visualLineCount * candidate * 1.62 + groupGapCount * candidate * 0.42;
     if (estimatedHeight <= usableHeight) {
       best = candidate;
       low = candidate + 1;
@@ -326,8 +326,8 @@ export function MusicianLiveView({ controlPlanId, onExit, plan, songs }: Musicia
   const liveSong = liveItem?.song_id ? songs.find((song) => song.id === liveItem.song_id) ?? null : null;
   const chordChart = useMemo(() => parseChordChart(liveSong?.chords ?? null).document, [liveSong?.chords]);
   const liveFontSize = useMemo(
-    () => fitFontSizeForSlide(liveSlide?.itemType === "song" ? liveSlide.text : "", stageSize.width, stageSize.height, showChords),
-    [liveSlide?.itemType, liveSlide?.text, showChords, stageSize.height, stageSize.width],
+    () => fitFontSizeForSlide(liveSlide?.itemType === "song" ? liveSlide.text : "", stageSize.width, stageSize.height),
+    [liveSlide?.itemType, liveSlide?.text, stageSize.height, stageSize.width],
   );
   const liveWrapCharacters = useMemo(() => wrapCharacterLimit(liveFontSize, stageSize.width), [liveFontSize, stageSize.width]);
   const slideLineOffset = useMemo(
