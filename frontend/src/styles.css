@@ -1390,6 +1390,7 @@ h3 {
   display: grid;
   gap: clamp(20px, 3vh, 42px);
   justify-content: center;
+  min-width: 0;
   width: min(100%, 1500px);
 }
 
@@ -5418,9 +5419,9 @@ h3 {
   }
 
   .worship-live-shell {
-    gap: 4px;
-    height: calc(100svh - 126px);
-    padding: 4px;
+    gap: 0;
+    height: 100%;
+    padding: 0;
   }
 
   .worship-live-topbar {
@@ -5536,18 +5537,18 @@ h3 {
 
   .musician-live-stage {
     align-items: center;
-    padding: 6px 4px;
+    padding: 3px 2px;
   }
 
   .musician-chord-sheet,
   .musician-lyrics-only {
-    gap: clamp(18px, 3.5vh, 38px);
+    gap: clamp(10px, 2.5vh, 28px);
     width: 100%;
   }
 
   .musician-chord-line {
-    font-size: min(var(--musician-live-font-size, 44px), clamp(32px, 9.5vw, 58px));
-    line-height: 1.18;
+    font-size: min(var(--musician-live-font-size, 44px), clamp(13px, 9.5vw, 58px));
+    line-height: 1.12;
   }
 
   .musician-lyrics-only p {

@@ -102,11 +102,11 @@ function shiftKey(key: string | null, semitones: number) {
 function fitFontSize(lines: string[], stageWidth = 1120, stageHeight = 650) {
   const lineCount = Math.max(lines.length, 1);
   const longestLine = Math.max(...lines.map((line) => Array.from(line).length), 1);
-  const usableWidth = Math.max(stageWidth * 0.9, 240);
-  const usableHeight = Math.max(stageHeight * 0.82, 220);
-  const widthDrivenSize = usableWidth / Math.max((longestLine + LEADING_CHORD_ANCHORS + TRAILING_CHORD_ANCHORS) * 0.72, 1);
-  const heightDrivenSize = usableHeight / Math.max(lineCount * 1.55, 1);
-  return Math.floor(clampNumber(Math.min(widthDrivenSize, heightDrivenSize), 22, 56));
+  const usableWidth = Math.max(stageWidth * 0.98, 180);
+  const usableHeight = Math.max(stageHeight * 0.9, 180);
+  const widthDrivenSize = usableWidth / Math.max((longestLine + LEADING_CHORD_ANCHORS + TRAILING_CHORD_ANCHORS) * 0.62, 1);
+  const heightDrivenSize = usableHeight / Math.max(lineCount * 1.36, 1);
+  return Math.floor(clampNumber(Math.min(widthDrivenSize, heightDrivenSize), 13, 56));
 }
 
 function fitFontSizeForSlides(slideTexts: string[], stageWidth: number, stageHeight: number) {
