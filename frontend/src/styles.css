@@ -1144,56 +1144,24 @@ h3 {
 
 .worship-live-shell {
   display: grid;
-  gap: 6px;
   grid-template-columns: 1fr;
-  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
   height: calc(100svh - 72px);
   min-height: 0;
   overflow: hidden;
-  padding: 6px;
-}
-
-.worship-live-topbar {
-  align-items: end;
-  background: #fffefa;
-  border: 1px solid #e3dcc8;
-  border-radius: 8px;
-  display: grid;
-  gap: 8px;
-  grid-template-columns: minmax(0, 1fr) auto;
-  padding: 4px 6px;
-}
-
-.worship-live-topbar label {
-  color: #3b4741;
-  display: grid;
-  font-size: 12px;
-  font-weight: 900;
-  gap: 3px;
-}
-
-.worship-live-topbar select {
-  background: #fffdf7;
-  border: 1px solid #cfc7b4;
-  border-radius: 8px;
-  color: #17201b;
-  font: inherit;
-  min-height: 30px;
-  min-width: 0;
-  padding: 4px 8px;
-  width: 100%;
+  padding: 0;
 }
 
 .musician-live-view {
   background: #fffefa;
-  border: 1px solid #d8d0bd;
-  border-radius: 8px;
+  border: 0;
+  border-radius: 0;
   display: grid;
-  gap: 5px;
+  gap: 0;
   grid-template-rows: auto minmax(0, 1fr) auto;
   min-height: 0;
   overflow: hidden;
-  padding: 6px;
+  padding: 0;
 }
 
 .musician-live-toolbar {
@@ -1206,7 +1174,7 @@ h3 {
   gap: 8px;
   grid-template-columns: minmax(180px, 1fr) auto;
   min-height: 36px;
-  padding: 0 2px 4px;
+  padding: 4px 6px;
 }
 
 .musician-live-title {
@@ -1405,12 +1373,12 @@ h3 {
   align-items: center;
   background: linear-gradient(180deg, rgba(235, 248, 239, 0.78), rgba(255, 253, 247, 0.9)), #fffefa;
   border: 0;
-  border-radius: 6px;
+  border-radius: 0;
   display: grid;
   justify-items: center;
   min-height: 0;
   overflow: hidden;
-  padding: clamp(8px, 2vw, 24px);
+  padding: clamp(8px, 2vw, 20px);
 }
 
 .musician-chord-sheet,
@@ -1483,20 +1451,22 @@ h3 {
 .musician-live-transport {
   align-items: center;
   background: #fffdf7;
-  border: 1px solid #e3dcc8;
-  border-radius: 8px;
+  border: 0;
+  border-top: 1px solid #e3dcc8;
+  border-radius: 0;
   display: grid;
-  gap: 6px;
-  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
-  min-height: 38px;
-  padding: 4px 8px;
+  gap: 1px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  min-height: 34px;
+  padding: 0;
 }
 
-.musician-live-transport span {
-  color: #3b4741;
-  font-weight: 900;
-  min-width: 72px;
-  text-align: center;
+.musician-live-transport .primary-button,
+.musician-live-transport .text-button {
+  border-radius: 0;
+  justify-content: center;
+  min-height: 34px;
+  padding: 4px;
 }
 
 .compact-empty {
@@ -5024,8 +4994,7 @@ h3 {
     min-width: 0;
   }
 
-  .worship-set-toolbar .primary-button,
-  .worship-live-topbar .text-button {
+  .worship-set-toolbar .primary-button {
     justify-self: stretch;
   }
 
@@ -5458,43 +5427,40 @@ h3 {
     white-space: nowrap;
   }
 
-  .musician-live-view {
-    gap: 4px;
-    padding: 4px;
-  }
-
   .musician-live-toolbar {
-    gap: 4px;
+    grid-template-columns: minmax(0, auto) minmax(0, 1fr);
+    gap: 5px;
     min-height: 0;
-    padding-bottom: 3px;
+    padding: 3px 4px;
   }
 
   .musician-live-title {
-    gap: 8px;
+    align-items: center;
+    gap: 0;
   }
 
   .musician-live-title strong {
-    font-size: 15px;
+    display: none;
   }
 
   .musician-live-title span {
-    font-size: 12px;
+    font-size: 11px;
   }
 
   .musician-live-controls {
     flex-wrap: nowrap;
     gap: 4px;
-    justify-content: flex-start;
+    justify-content: flex-end;
     overflow-x: auto;
-    padding-bottom: 2px;
+    padding: 0;
     scrollbar-width: thin;
   }
 
   .chord-toggle-button {
-    font-size: 12px;
+    font-size: 0;
     gap: 5px;
-    min-height: 28px;
-    padding: 3px 8px 3px 5px;
+    min-height: 26px;
+    padding: 2px 5px;
   }
 
   .chord-toggle-button span {
@@ -5512,24 +5478,24 @@ h3 {
   }
 
   .musician-pill-toggle {
-    min-height: 28px;
+    min-height: 26px;
     padding: 2px;
   }
 
   .musician-pill-toggle button {
-    font-size: 12px;
-    min-width: 48px;
-    padding: 3px 7px;
+    font-size: 11px;
+    min-width: 42px;
+    padding: 2px 6px;
   }
 
   .musician-stepper {
-    grid-template-columns: auto 26px minmax(34px, auto) 26px;
-    min-height: 28px;
-    padding: 2px 4px 2px 7px;
+    grid-template-columns: 22px minmax(28px, auto) 22px;
+    min-height: 26px;
+    padding: 2px 4px;
   }
 
   .musician-stepper > span {
-    font-size: 10px;
+    display: none;
   }
 
   .musician-stepper strong {
@@ -5538,13 +5504,13 @@ h3 {
   }
 
   .musician-stepper button {
-    height: 22px;
-    width: 22px;
+    height: 20px;
+    width: 20px;
   }
 
   .musician-fullscreen-button {
-    height: 28px;
-    width: 32px;
+    height: 26px;
+    width: 30px;
   }
 
   .musician-live-stage {
@@ -5554,13 +5520,13 @@ h3 {
 
   .musician-chord-sheet,
   .musician-lyrics-only {
-    gap: clamp(14px, 2.4vh, 26px);
+    gap: clamp(18px, 3.5vh, 38px);
     width: 100%;
   }
 
   .musician-chord-line {
-    font-size: min(var(--musician-live-font-size, 32px), clamp(22px, 5.8vw, 32px));
-    line-height: 1.22;
+    font-size: min(var(--musician-live-font-size, 44px), clamp(32px, 9.5vw, 58px));
+    line-height: 1.18;
   }
 
   .musician-lyrics-only p {
@@ -5569,21 +5535,15 @@ h3 {
   }
 
   .musician-live-transport {
-    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
-    gap: 6px;
-    min-height: 34px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1px;
+    min-height: 32px;
   }
 
   .musician-live-transport .text-button,
   .musician-live-transport .primary-button {
-    font-size: 13px;
-    min-height: 34px;
-    padding: 5px 8px;
-  }
-
-  .musician-live-transport span {
-    font-size: 13px;
-    white-space: nowrap;
+    min-height: 32px;
+    padding: 3px;
   }
 }
 .auth-shell {

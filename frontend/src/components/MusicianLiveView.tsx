@@ -1,9 +1,10 @@
-import { ChevronLeft, ChevronRight, Maximize, Music2 } from "lucide-react";
+import { ChevronLeft, ChevronRight, LogOut, Music2 } from "lucide-react";
 import type { CSSProperties } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import {
   getPresentationLiveState,
+  updatePresentationLiveState,
   type PlanDetail,
   type PresentationLiveSyncState,
   type Song,
@@ -22,9 +23,17 @@ import {
   type ChordDetailMode,
   type ChordDisplayMode,
 } from "../chordSheet";
-import { buildPresentationSlides, resolveLiveIndex, type PresentationLiveState } from "../presentation";
+import {
+  PRESENTATION_CHANNEL,
+  PRESENTATION_STORAGE_KEY,
+  buildPresentationSlides,
+  resolveLiveIndex,
+  type PresentationLiveState,
+} from "../presentation";
 
 interface MusicianLiveViewProps {
+  controlPlanId?: string | null;
+  onExit: () => void;
   plan: PlanDetail | null;
   songs: Song[];
 }
@@ -200,7 +209,7 @@ function MusicianChordLine({
   );
 }
 
-export function MusicianLiveView({ plan, songs }: MusicianLiveViewProps) {
+export function MusicianLiveView({ controlPlanId, onExit, plan, songs }: MusicianLiveViewProps) {
   const [liveState, setLiveState] = useState<PresentationLiveState | null>(null);
   const [showChords, setShowChords] = useState(true);
   const [displayMode, setDisplayMode] = useState<ChordDisplayMode>("capo");
@@ -210,7 +219,9 @@ export function MusicianLiveView({ plan, songs }: MusicianLiveViewProps) {
   const [message, setMessage] = useState<string | null>(null);
   const [stageSize, setStageSize] = useState({ height: 650, width: 1120 });
   const stageRef = useRef<HTMLDivElement | null>(null);
+  const channelRef = useRef<BroadcastChannel | null>(null);
   const pollingRef = useRef(false);
+  const liveSyncPlanId = controlPlanId ?? plan?.id ?? null;
 
   const worshipItems = useMemo(
     () =>
@@ -265,7 +276,19 @@ export function MusicianLiveView({ plan, songs }: MusicianLiveViewProps) {
     setLiveState(null);
     setLocalIndex(0);
     setMessage(null);
-  }, [plan?.id]);
+  }, [liveSyncPlanId, plan?.id]);
+
+  useEffect(() => {
+    if (typeof BroadcastChannel === "undefined") {
+      return undefined;
+    }
+    const channel = new BroadcastChannel(PRESENTATION_CHANNEL);
+    channelRef.current = channel;
+    return () => {
+      channel.close();
+      channelRef.current = null;
+    };
+  }, []);
 
   useEffect(() => {
     const nextCapo = normalizeCapo(chordChart.capo);
@@ -306,17 +329,17 @@ export function MusicianLiveView({ plan, songs }: MusicianLiveViewProps) {
   }, []);
 
   useEffect(() => {
-    if (!plan?.id) {
+    if (!liveSyncPlanId) {
       return undefined;
     }
 
     async function pullLiveState() {
-      if (!plan?.id || pollingRef.current) {
+      if (!liveSyncPlanId || pollingRef.current) {
         return;
       }
       pollingRef.current = true;
       try {
-        const remoteState = await getPresentationLiveState(plan.id);
+        const remoteState = await getPresentationLiveState(liveSyncPlanId);
         setLiveState(syncStateFromApi(remoteState));
         setMessage(null);
       } catch (error) {
@@ -329,11 +352,61 @@ export function MusicianLiveView({ plan, songs }: MusicianLiveViewProps) {
     void pullLiveState();
     const timer = window.setInterval(() => void pullLiveState(), 1800);
     return () => window.clearInterval(timer);
-  }, [plan?.id]);
+  }, [liveSyncPlanId]);
 
   function moveLive(delta: -1 | 1) {
-    setLocalIndex(boundedIndex(liveIndex + delta, slides.length));
-    setLiveState(null);
+    const nextIndex = boundedIndex(liveIndex + delta, slides.length);
+    setLocalIndex(nextIndex);
+    void publishWorshipSlide(nextIndex);
+  }
+
+  async function publishWorshipSlide(nextIndex: number) {
+    if (!liveSyncPlanId) {
+      return;
+    }
+    const slide = slides[nextIndex];
+    if (!slide) {
+      return;
+    }
+
+    const slideOffset = Math.max(
+      slides.filter((candidate) => candidate.planItemId === slide.planItemId).findIndex((candidate) => candidate.id === slide.id),
+      0,
+    );
+    const state: PresentationLiveState = {
+      planId: liveSyncPlanId,
+      index: nextIndex,
+      updatedAt: Date.now(),
+      planItemId: slide.planItemId,
+      slideOffset,
+      theme: liveState?.theme ?? "light",
+      blanked: false,
+      fullscreen: liveState?.fullscreen ?? false,
+      videoAction: null,
+    };
+
+    setLiveState(state);
+    localStorage.setItem(PRESENTATION_STORAGE_KEY, JSON.stringify(state));
+    channelRef.current?.postMessage(state);
+
+    try {
+      const synced = await updatePresentationLiveState(liveSyncPlanId, {
+        plan_id: liveSyncPlanId,
+        index: nextIndex,
+        plan_item_id: slide.planItemId,
+        slide_offset: slideOffset,
+        updated_at: state.updatedAt,
+        theme: state.theme ?? "light",
+        blanked: false,
+        fullscreen: Boolean(state.fullscreen),
+        video_action: null,
+        video_action_at: null,
+      });
+      setLiveState(syncStateFromApi(synced));
+      setMessage(null);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not sync the slideshow.");
+    }
   }
 
   useEffect(() => {
@@ -398,29 +471,6 @@ export function MusicianLiveView({ plan, songs }: MusicianLiveViewProps) {
     changeCapo(delta);
   }
 
-  async function toggleFullscreen() {
-    const root = document.documentElement as HTMLElement & {
-      webkitRequestFullscreen?: () => Promise<void> | void;
-    };
-    const exit = document.exitFullscreen?.bind(document) as (() => Promise<void>) | undefined;
-    const request = root.requestFullscreen?.bind(root) ?? root.webkitRequestFullscreen?.bind(root);
-
-    if (!request) {
-      setMessage("This browser does not support fullscreen here. Use the browser share/menu fullscreen option if available.");
-      return;
-    }
-
-    try {
-      if (document.fullscreenElement) {
-        await exit?.();
-        return;
-      }
-      await request();
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Use the browser fullscreen control for this display.");
-    }
-  }
-
   const lyricLinesForSlide = lyricLines(liveSlide?.text ?? "");
   const currentGuitarKey = guitarKey ?? chordChart.capoKey ?? (chordChart.absoluteKey ? deriveCapoKey(chordChart.absoluteKey, capo) : null);
   const currentAbsoluteKey = currentGuitarKey
@@ -461,14 +511,6 @@ export function MusicianLiveView({ plan, songs }: MusicianLiveViewProps) {
               Guitar
             </button>
           </div>
-          <div className="musician-pill-toggle" aria-label="Chord detail">
-            <button className={detailMode === "simple" ? "is-active" : ""} onClick={() => setDetailMode("simple")} type="button">
-              Easy
-            </button>
-            <button className={detailMode === "advanced" ? "is-active" : ""} disabled onClick={() => setDetailMode("advanced")} type="button">
-              Full
-            </button>
-          </div>
           <div className="musician-stepper" aria-label={keyControlTitle}>
             <span>{keyControlTitle}</span>
             <button onClick={() => changeActiveKeyControl(-1)} type="button" aria-label={`Lower ${keyControlTitle}`}>
@@ -479,8 +521,8 @@ export function MusicianLiveView({ plan, songs }: MusicianLiveViewProps) {
               +
             </button>
           </div>
-          <button className="musician-fullscreen-button" onClick={() => void toggleFullscreen()} type="button" aria-label="Toggle fullscreen">
-            <Maximize size={18} aria-hidden="true" />
+          <button className="musician-fullscreen-button" onClick={onExit} type="button" aria-label="Exit live worship">
+            <LogOut size={18} aria-hidden="true" />
           </button>
         </div>
       </div>
@@ -525,18 +567,13 @@ export function MusicianLiveView({ plan, songs }: MusicianLiveViewProps) {
       <div className="musician-live-transport">
         <button className="text-button" disabled={!slides.length || liveIndex <= 0} onClick={() => moveLive(-1)} type="button">
           <ChevronLeft size={16} aria-hidden="true" />
-          Previous
         </button>
-        <span>
-          {slides.length ? liveIndex + 1 : 0} / {slides.length}
-        </span>
         <button
           className="primary-button"
           disabled={!slides.length || liveIndex >= slides.length - 1}
           onClick={() => moveLive(1)}
           type="button"
         >
-          Next
           <ChevronRight size={16} aria-hidden="true" />
         </button>
       </div>

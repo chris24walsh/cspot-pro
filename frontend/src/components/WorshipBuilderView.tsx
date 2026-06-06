@@ -1414,15 +1414,10 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
   }
 
   if (viewMode === "live") {
+    const liveControlPlanId = plan ? servicePlansByDate.get(dateInputFromIso(plan.service_date))?.id ?? plan.id : null;
     return (
       <section className="worship-live-shell" aria-label="Musician live worship">
-        <div className="worship-live-topbar">
-          <span>{plan ? `${formatServiceDate(plan.service_date)} · ${plan.title}` : "No worship set selected"}</span>
-          <button className="text-button" onClick={() => setViewMode("builder")} type="button">
-            Back to builder
-          </button>
-        </div>
-        <MusicianLiveView plan={plan} songs={songs} />
+        <MusicianLiveView controlPlanId={liveControlPlanId} onExit={() => setViewMode("builder")} plan={plan} songs={songs} />
       </section>
     );
   }
