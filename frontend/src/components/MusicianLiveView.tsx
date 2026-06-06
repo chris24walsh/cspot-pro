@@ -100,8 +100,8 @@ function shiftKey(key: string | null, semitones: number) {
 }
 
 function wrapCharacterLimit(fontSize: number, stageWidth = 1120) {
-  const usableWidth = Math.max(stageWidth * 0.98, 180);
-  return Math.max(Math.floor(usableWidth / Math.max(fontSize * 0.62, 1)) - LEADING_CHORD_ANCHORS - TRAILING_CHORD_ANCHORS, 8);
+  const usableWidth = Math.max(stageWidth * 0.94, 180);
+  return Math.max(Math.floor(usableWidth / Math.max(fontSize * 0.6, 1)) - 2, 12);
 }
 
 function wrapLyricLine(line: string, maxCharacters: number) {
@@ -157,15 +157,15 @@ function wrappedLineCount(lines: string[], maxCharacters: number) {
   return lines.reduce((total, line) => total + wrapLyricLine(line, maxCharacters).length, 0);
 }
 
-function fitFontSizeForSlide(slideText: string, stageWidth: number, stageHeight: number) {
+function fitFontSizeForSlide(slideText: string, stageWidth: number, stageHeight: number, showChords: boolean) {
   const lines = lyricLines(slideText);
   if (!lines.length) {
     return 40;
   }
 
-  const usableHeight = Math.max(stageHeight * 0.94, 180);
+  const usableHeight = Math.max(stageHeight * 0.88, 160);
   let low = 13;
-  let high = 72;
+  let high = stageWidth < 640 ? 42 : 72;
   let best = low;
 
   while (low <= high) {
@@ -173,7 +173,7 @@ function fitFontSizeForSlide(slideText: string, stageWidth: number, stageHeight:
     const wrapCharacters = wrapCharacterLimit(candidate, stageWidth);
     const visualLineCount = wrappedLineCount(lines, wrapCharacters);
     const groupGapCount = Math.max(lines.length - 1, 0);
-    const estimatedHeight = visualLineCount * candidate * 1.2 + groupGapCount * candidate * 0.32;
+    const estimatedHeight = visualLineCount * candidate * (showChords ? 1.62 : 1.16) + groupGapCount * candidate * 0.42;
     if (estimatedHeight <= usableHeight) {
       best = candidate;
       low = candidate + 1;
@@ -326,8 +326,8 @@ export function MusicianLiveView({ controlPlanId, onExit, plan, songs }: Musicia
   const liveSong = liveItem?.song_id ? songs.find((song) => song.id === liveItem.song_id) ?? null : null;
   const chordChart = useMemo(() => parseChordChart(liveSong?.chords ?? null).document, [liveSong?.chords]);
   const liveFontSize = useMemo(
-    () => fitFontSizeForSlide(liveSlide?.itemType === "song" ? liveSlide.text : "", stageSize.width, stageSize.height),
-    [liveSlide?.itemType, liveSlide?.text, stageSize.height, stageSize.width],
+    () => fitFontSizeForSlide(liveSlide?.itemType === "song" ? liveSlide.text : "", stageSize.width, stageSize.height, showChords),
+    [liveSlide?.itemType, liveSlide?.text, showChords, stageSize.height, stageSize.width],
   );
   const liveWrapCharacters = useMemo(() => wrapCharacterLimit(liveFontSize, stageSize.width), [liveFontSize, stageSize.width]);
   const slideLineOffset = useMemo(
