@@ -1,4 +1,4 @@
-import { ChevronLeft, ChevronRight, LogOut, Music2 } from "lucide-react";
+import { ChevronLeft, ChevronRight, LogOut, Maximize2, Minimize2, Music2 } from "lucide-react";
 import type { CSSProperties } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
@@ -163,7 +163,7 @@ function fitFontSizeForSlide(slideText: string, stageWidth: number, stageHeight:
     return 40;
   }
 
-  const usableHeight = Math.max(stageHeight * 0.88, 160);
+  const usableHeight = Math.max(stageHeight * 0.91, 160);
   let low = 13;
   let high = stageWidth < 640 ? 42 : 72;
   let best = low;
@@ -173,7 +173,7 @@ function fitFontSizeForSlide(slideText: string, stageWidth: number, stageHeight:
     const wrapCharacters = wrapCharacterLimit(candidate, stageWidth);
     const visualLineCount = wrappedLineCount(lines, wrapCharacters);
     const groupGapCount = Math.max(lines.length - 1, 0);
-    const estimatedHeight = visualLineCount * candidate * 1.62 + groupGapCount * candidate * 0.42;
+    const estimatedHeight = visualLineCount * candidate * 1.66 + groupGapCount * candidate * 0.38;
     if (estimatedHeight <= usableHeight) {
       best = candidate;
       low = candidate + 1;
@@ -298,8 +298,10 @@ export function MusicianLiveView({ controlPlanId, onExit, plan, songs }: Musicia
   const [detailMode, setDetailMode] = useState<ChordDetailMode>("simple");
   const [capo, setCapo] = useState(0);
   const [guitarKey, setGuitarKey] = useState<string | null>(null);
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [stageSize, setStageSize] = useState({ height: 650, width: 1120 });
+  const liveViewRef = useRef<HTMLElement | null>(null);
   const stageRef = useRef<HTMLDivElement | null>(null);
   const channelRef = useRef<BroadcastChannel | null>(null);
   const pollingRef = useRef(false);
@@ -401,14 +403,38 @@ export function MusicianLiveView({ controlPlanId, onExit, plan, songs }: Musicia
     }
 
     updateStageSize();
+    window.visualViewport?.addEventListener("resize", updateStageSize);
     if (typeof ResizeObserver === "undefined") {
       window.addEventListener("resize", updateStageSize);
-      return () => window.removeEventListener("resize", updateStageSize);
+      return () => {
+        window.removeEventListener("resize", updateStageSize);
+        window.visualViewport?.removeEventListener("resize", updateStageSize);
+      };
     }
 
     const observer = new ResizeObserver(updateStageSize);
     observer.observe(element);
-    return () => observer.disconnect();
+    window.addEventListener("resize", updateStageSize);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", updateStageSize);
+      window.visualViewport?.removeEventListener("resize", updateStageSize);
+    };
+  }, []);
+
+  useEffect(() => {
+    function updateFullscreenState() {
+      const webkitDocument = document as Document & { webkitFullscreenElement?: Element | null };
+      setIsFullscreen(Boolean(document.fullscreenElement ?? webkitDocument.webkitFullscreenElement));
+    }
+
+    updateFullscreenState();
+    document.addEventListener("fullscreenchange", updateFullscreenState);
+    document.addEventListener("webkitfullscreenchange", updateFullscreenState);
+    return () => {
+      document.removeEventListener("fullscreenchange", updateFullscreenState);
+      document.removeEventListener("webkitfullscreenchange", updateFullscreenState);
+    };
   }, []);
 
   useEffect(() => {
@@ -554,6 +580,33 @@ export function MusicianLiveView({ controlPlanId, onExit, plan, songs }: Musicia
     changeCapo(delta);
   }
 
+  async function toggleFullscreen() {
+    const element = liveViewRef.current as (HTMLElement & { webkitRequestFullscreen?: () => Promise<void> | void }) | null;
+    const webkitDocument = document as Document & {
+      webkitExitFullscreen?: () => Promise<void> | void;
+      webkitFullscreenElement?: Element | null;
+    };
+    const fullscreenElement = document.fullscreenElement ?? webkitDocument.webkitFullscreenElement;
+
+    try {
+      if (fullscreenElement) {
+        if (document.exitFullscreen) {
+          await document.exitFullscreen();
+        } else {
+          await webkitDocument.webkitExitFullscreen?.();
+        }
+      } else if (element) {
+        if (element.requestFullscreen) {
+          await element.requestFullscreen();
+        } else {
+          await element.webkitRequestFullscreen?.();
+        }
+      }
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not enter fullscreen.");
+    }
+  }
+
   const lyricLinesForSlide = lyricLines(liveSlide?.text ?? "");
   const wrappedLyricLinesForSlide = useMemo(
     () => lyricLinesForSlide.map((line) => wrapLyricLine(line, liveWrapCharacters)),
@@ -574,7 +627,7 @@ export function MusicianLiveView({ controlPlanId, onExit, plan, songs }: Musicia
   const keyControlValue = displayMode === "absolute" ? (currentAbsoluteKey ?? "Unset") : String(capo);
 
   return (
-    <section className="musician-live-view" aria-label="Musician live view">
+    <section className={`musician-live-view ${isFullscreen ? "is-fullscreen" : ""}`} aria-label="Musician live view" ref={liveViewRef}>
       <div className="musician-live-toolbar">
         <div className="musician-live-title">
           <strong>{liveSong?.title ?? liveSlide?.sectionTitle ?? "Waiting for a song"}</strong>
@@ -608,6 +661,9 @@ export function MusicianLiveView({ controlPlanId, onExit, plan, songs }: Musicia
               +
             </button>
           </div>
+          <button className="musician-fullscreen-button" onClick={() => void toggleFullscreen()} type="button" aria-label={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"}>
+            {isFullscreen ? <Minimize2 size={18} aria-hidden="true" /> : <Maximize2 size={18} aria-hidden="true" />}
+          </button>
           <button className="musician-fullscreen-button" onClick={onExit} type="button" aria-label="Exit live worship">
             <LogOut size={18} aria-hidden="true" />
           </button>
