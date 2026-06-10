@@ -30,6 +30,7 @@ import {
   resolveLiveIndex,
   type PresentationLiveState,
 } from "../presentation";
+import { isEditableKeyboardTarget, slideKeyboardDirection, type SlideKeyboardDirection } from "../keyboardNavigation";
 
 interface MusicianLiveViewProps {
   controlPlanId?: string | null;
@@ -302,9 +303,12 @@ export function MusicianLiveView({ controlPlanId, onExit, plan, songs }: Musicia
   const [message, setMessage] = useState<string | null>(null);
   const [stageSize, setStageSize] = useState({ height: 650, width: 1120 });
   const liveViewRef = useRef<HTMLElement | null>(null);
+  const keyCaptureRef = useRef<HTMLInputElement | null>(null);
   const stageRef = useRef<HTMLDivElement | null>(null);
   const channelRef = useRef<BroadcastChannel | null>(null);
   const pollingRef = useRef(false);
+  const handledKeyboardEventsRef = useRef<WeakSet<KeyboardEvent>>(new WeakSet());
+  const lastKeyboardNavigationRef = useRef<{ direction: SlideKeyboardDirection; key: string; time: number } | null>(null);
   const liveSyncPlanId = controlPlanId ?? plan?.id ?? null;
 
   const worshipItems = useMemo(
@@ -362,6 +366,10 @@ export function MusicianLiveView({ controlPlanId, onExit, plan, songs }: Musicia
     setLocalIndex(0);
     setMessage(null);
   }, [liveSyncPlanId, plan?.id]);
+
+  useEffect(() => {
+    keyCaptureRef.current?.focus({ preventScroll: true });
+  }, [liveSyncPlanId]);
 
   useEffect(() => {
     if (typeof BroadcastChannel === "undefined") {
@@ -520,31 +528,44 @@ export function MusicianLiveView({ controlPlanId, onExit, plan, songs }: Musicia
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
-      const target = event.target;
-      const editing =
-        target instanceof HTMLInputElement ||
-        target instanceof HTMLTextAreaElement ||
-        target instanceof HTMLSelectElement ||
-        (target instanceof HTMLElement && target.isContentEditable);
-
-      if (editing) {
+      if (handledKeyboardEventsRef.current.has(event)) {
         return;
       }
 
-      if (event.key === "ArrowRight" || event.key === "ArrowDown" || event.key === "PageDown" || event.key === " ") {
-        event.preventDefault();
-        moveLive(1);
+      if (isEditableKeyboardTarget(event.target)) {
         return;
       }
 
-      if (event.key === "ArrowLeft" || event.key === "ArrowUp" || event.key === "PageUp") {
+      const direction = slideKeyboardDirection(event);
+      if (direction) {
+        const eventKey = `${event.key}:${event.code}:${event.keyCode || event.which}`;
+        const now = Date.now();
+        const lastNavigation = lastKeyboardNavigationRef.current;
+        if (
+          lastNavigation &&
+          lastNavigation.direction === direction &&
+          lastNavigation.key === eventKey &&
+          now - lastNavigation.time < 120
+        ) {
+          return;
+        }
+        lastKeyboardNavigationRef.current = { direction, key: eventKey, time: now };
+        handledKeyboardEventsRef.current.add(event);
         event.preventDefault();
-        moveLive(-1);
+        moveLive(direction);
       }
     }
 
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
+    window.addEventListener("keydown", onKeyDown, { capture: true });
+    window.addEventListener("keyup", onKeyDown, { capture: true });
+    document.addEventListener("keydown", onKeyDown, { capture: true });
+    document.addEventListener("keyup", onKeyDown, { capture: true });
+    return () => {
+      window.removeEventListener("keydown", onKeyDown, { capture: true });
+      window.removeEventListener("keyup", onKeyDown, { capture: true });
+      document.removeEventListener("keydown", onKeyDown, { capture: true });
+      document.removeEventListener("keyup", onKeyDown, { capture: true });
+    };
   }, [liveIndex, slides.length]);
 
   function changeRealKey(delta: -1 | 1) {
@@ -627,7 +648,26 @@ export function MusicianLiveView({ controlPlanId, onExit, plan, songs }: Musicia
   const keyControlValue = displayMode === "absolute" ? (currentAbsoluteKey ?? "Unset") : String(capo);
 
   return (
-    <section className={`musician-live-view ${isFullscreen ? "is-fullscreen" : ""}`} aria-label="Musician live view" ref={liveViewRef}>
+    <section
+      className={`musician-live-view ${isFullscreen ? "is-fullscreen" : ""}`}
+      aria-label="Musician live view"
+      onPointerDownCapture={() => keyCaptureRef.current?.focus({ preventScroll: true })}
+      ref={liveViewRef}
+      tabIndex={-1}
+    >
+      <input
+        aria-hidden="true"
+        autoCapitalize="off"
+        autoComplete="off"
+        autoCorrect="off"
+        className="slide-key-capture"
+        data-slide-key-capture="true"
+        inputMode="none"
+        onBlur={() => window.setTimeout(() => keyCaptureRef.current?.focus({ preventScroll: true }), 0)}
+        ref={keyCaptureRef}
+        spellCheck={false}
+        tabIndex={-1}
+      />
       <div className="musician-live-toolbar">
         <div className="musician-live-title">
           <strong>{liveSong?.title ?? liveSlide?.sectionTitle ?? "Waiting for a song"}</strong>

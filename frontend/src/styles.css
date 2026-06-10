@@ -1168,6 +1168,20 @@ h3 {
   padding: 0;
 }
 
+.slide-key-capture {
+  border: 0;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  height: 1px;
+  left: 0;
+  opacity: 0;
+  overflow: hidden;
+  pointer-events: none;
+  position: fixed;
+  top: 0;
+  width: 1px;
+}
+
 .musician-live-view:fullscreen,
 .musician-live-view.is-fullscreen {
   height: 100dvh;

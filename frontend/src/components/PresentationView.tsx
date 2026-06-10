@@ -66,6 +66,7 @@ import { AutoFitSlideText } from "./AutoFitSlideText";
 import { ScaledSlideImage } from "./ScaledSlideImage";
 import { SongEditorDialog } from "./SongEditorDialog";
 import { showToast } from "../toast";
+import { isEditableKeyboardTarget, slideKeyboardDirection, type SlideKeyboardDirection } from "../keyboardNavigation";
 import { analyzeWorshipText, buildLyricsFromSections, canonicalizeWorshipLyrics } from "../worshipText";
 import {
   WORSHIP_SET_ANCHOR_ITEM_TYPE,
@@ -631,6 +632,7 @@ export function PresentationView({
   const [slideNotesDraft, setSlideNotesDraft] = useState("");
   const [slideNotesSaving, setSlideNotesSaving] = useState(false);
   const searchInputRef = useRef<HTMLInputElement | null>(null);
+  const keyCaptureRef = useRef<HTMLInputElement | null>(null);
   const outputWindowRef = useRef<Window | null>(null);
   const channelRef = useRef<BroadcastChannel | null>(null);
   const slideGridRef = useRef<HTMLDivElement | null>(null);
@@ -644,6 +646,8 @@ export function PresentationView({
   const suppressNextOperatorScrollRef = useRef(false);
   const scrollOperatorToSelectedSlideRef = useRef(false);
   const activeDeckLoadsRef = useRef<Set<string>>(new Set());
+  const handledKeyboardEventsRef = useRef<WeakSet<KeyboardEvent>>(new WeakSet());
+  const lastKeyboardNavigationRef = useRef<{ direction: SlideKeyboardDirection; key: string; time: number } | null>(null);
 
   const servicePlans = useMemo(() => plans.filter((candidate) => !isWorshipSetPlan(candidate)), [plans]);
   const worshipSetPlans = useMemo(() => plans.filter(isWorshipSetPlan), [plans]);
@@ -2767,13 +2771,22 @@ export function PresentationView({
   }, [liveIndex, slides]);
 
   useEffect(() => {
+    if (!searchOverlayOpen && !servicePickerOpen && !editingSongId) {
+      keyCaptureRef.current?.focus({ preventScroll: true });
+    }
+  }, [editingSongId, plan?.id, searchOverlayOpen, servicePickerOpen]);
+
+  useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
-      const target = event.target;
-      const editing =
-        target instanceof HTMLInputElement ||
-        target instanceof HTMLTextAreaElement ||
-        target instanceof HTMLSelectElement ||
-        (target instanceof HTMLElement && target.isContentEditable);
+      if (handledKeyboardEventsRef.current.has(event)) {
+        return;
+      }
+
+      const direction = slideKeyboardDirection(event);
+      if (event.type === "keyup" && (!direction || editingSongId || searchOverlayOpen || servicePickerOpen)) {
+        return;
+      }
+      const editing = isEditableKeyboardTarget(event.target);
 
       if (event.key === "Escape" && editingSongId) {
         event.preventDefault();
@@ -2803,38 +2816,41 @@ export function PresentationView({
       if (editing || searchOverlayOpen || servicePickerOpen) {
         return;
       }
-      if (event.key === "ArrowRight" || event.key === "PageDown" || event.key === " ") {
+
+      const verticalNavigation =
+        event.key === "ArrowDown" ||
+        event.key === "ArrowUp" ||
+        event.code === "ArrowDown" ||
+        event.code === "ArrowUp" ||
+        event.keyCode === 40 ||
+        event.keyCode === 38 ||
+        event.which === 40 ||
+        event.which === 38;
+
+      if (direction) {
+        const eventKey = `${event.key}:${event.code}:${event.keyCode || event.which}`;
+        const now = Date.now();
+        const lastNavigation = lastKeyboardNavigationRef.current;
+        if (
+          lastNavigation &&
+          lastNavigation.direction === direction &&
+          lastNavigation.key === eventKey &&
+          now - lastNavigation.time < 120
+        ) {
+          return;
+        }
+        lastKeyboardNavigationRef.current = { direction, key: eventKey, time: now };
+        handledKeyboardEventsRef.current.add(event);
         event.preventDefault();
         clearHotkeyButtonFocus();
-        moveLive(1);
-        return;
-      }
-      if (event.key === "ArrowLeft" || event.key === "PageUp") {
-        event.preventDefault();
-        clearHotkeyButtonFocus();
-        moveLive(-1);
-        return;
-      }
-      if (event.key === "ArrowDown") {
-        event.preventDefault();
-        clearHotkeyButtonFocus();
-        if (currentPlanItem?.item_type === "reading" && canEditPlan) {
-          void navigateBibleReading("verse", 1);
+        if (verticalNavigation && currentPlanItem?.item_type === "reading" && canEditPlan) {
+          void navigateBibleReading("verse", direction);
         } else {
-          moveLive(1);
+          moveLive(direction);
         }
         return;
       }
-      if (event.key === "ArrowUp") {
-        event.preventDefault();
-        clearHotkeyButtonFocus();
-        if (currentPlanItem?.item_type === "reading" && canEditPlan) {
-          void navigateBibleReading("verse", -1);
-        } else {
-          moveLive(-1);
-        }
-        return;
-      }
+
       if (event.key === "F5") {
         event.preventDefault();
         clearHotkeyButtonFocus();
@@ -2869,8 +2885,16 @@ export function PresentationView({
       }
     }
 
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
+    window.addEventListener("keydown", onKeyDown, { capture: true });
+    window.addEventListener("keyup", onKeyDown, { capture: true });
+    document.addEventListener("keydown", onKeyDown, { capture: true });
+    document.addEventListener("keyup", onKeyDown, { capture: true });
+    return () => {
+      window.removeEventListener("keydown", onKeyDown, { capture: true });
+      window.removeEventListener("keyup", onKeyDown, { capture: true });
+      document.removeEventListener("keydown", onKeyDown, { capture: true });
+      document.removeEventListener("keyup", onKeyDown, { capture: true });
+    };
   }, [
     canEditPlan,
     currentPlanItem,
@@ -3000,7 +3024,27 @@ export function PresentationView({
   }, [googleDriveStatus?.connected, searchMode, searchOverlayOpen, searchQuery]);
 
   return (
-    <section className="presentation-workspace" aria-label="Presentation preview">
+    <section
+      className="presentation-workspace"
+      aria-label="Presentation preview"
+      onPointerDownCapture={(event) => {
+        if (!isEditableKeyboardTarget(event.target)) {
+          keyCaptureRef.current?.focus({ preventScroll: true });
+        }
+      }}
+    >
+      <input
+        aria-hidden="true"
+        autoCapitalize="off"
+        autoComplete="off"
+        autoCorrect="off"
+        className="slide-key-capture"
+        data-slide-key-capture="true"
+        inputMode="none"
+        ref={keyCaptureRef}
+        spellCheck={false}
+        tabIndex={-1}
+      />
       {topbarSlot
         ? createPortal(
             <div className="presentation-topbar-tools">
