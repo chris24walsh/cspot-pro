@@ -300,6 +300,7 @@ export function MusicianLiveView({ controlPlanId, onExit, plan, songs }: Musicia
   const [capo, setCapo] = useState(0);
   const [guitarKey, setGuitarKey] = useState<string | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [fullscreenFallbackActive, setFullscreenFallbackActive] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [stageSize, setStageSize] = useState({ height: 650, width: 1120 });
   const liveViewRef = useRef<HTMLElement | null>(null);
@@ -433,7 +434,7 @@ export function MusicianLiveView({ controlPlanId, onExit, plan, songs }: Musicia
   useEffect(() => {
     function updateFullscreenState() {
       const webkitDocument = document as Document & { webkitFullscreenElement?: Element | null };
-      setIsFullscreen(Boolean(document.fullscreenElement ?? webkitDocument.webkitFullscreenElement));
+      setIsFullscreen(Boolean(document.fullscreenElement ?? webkitDocument.webkitFullscreenElement ?? fullscreenFallbackActive));
     }
 
     updateFullscreenState();
@@ -443,7 +444,28 @@ export function MusicianLiveView({ controlPlanId, onExit, plan, songs }: Musicia
       document.removeEventListener("fullscreenchange", updateFullscreenState);
       document.removeEventListener("webkitfullscreenchange", updateFullscreenState);
     };
-  }, []);
+  }, [fullscreenFallbackActive]);
+
+  useEffect(() => {
+    if (!fullscreenFallbackActive) {
+      return undefined;
+    }
+
+    const originalOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setFullscreenFallbackActive(false);
+      }
+    }
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.body.style.overflow = originalOverflow;
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [fullscreenFallbackActive]);
 
   useEffect(() => {
     if (!liveSyncPlanId) {
@@ -610,20 +632,31 @@ export function MusicianLiveView({ controlPlanId, onExit, plan, songs }: Musicia
     const fullscreenElement = document.fullscreenElement ?? webkitDocument.webkitFullscreenElement;
 
     try {
-      if (fullscreenElement) {
+      if (fullscreenElement || fullscreenFallbackActive) {
+        setFullscreenFallbackActive(false);
         if (document.exitFullscreen) {
           await document.exitFullscreen();
-        } else {
+        } else if (fullscreenElement) {
           await webkitDocument.webkitExitFullscreen?.();
         }
       } else if (element) {
         if (element.requestFullscreen) {
           await element.requestFullscreen();
-        } else {
+          setMessage(null);
+        } else if (element.webkitRequestFullscreen) {
           await element.webkitRequestFullscreen?.();
+          setMessage(null);
+        } else {
+          setFullscreenFallbackActive(true);
+          setMessage(null);
         }
       }
     } catch (error) {
+      if (element) {
+        setFullscreenFallbackActive(true);
+        setMessage(null);
+        return;
+      }
       setMessage(error instanceof Error ? error.message : "Could not enter fullscreen.");
     }
   }

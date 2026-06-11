@@ -628,7 +628,6 @@ export function PresentationView({
   const [undoAction, setUndoAction] = useState<{ label: string; run: () => Promise<void> } | null>(null);
   const [sorterCatchUpDirection, setSorterCatchUpDirection] = useState<"up" | "down" | null>(null);
   const [railCatchUpDirection, setRailCatchUpDirection] = useState<"up" | "down" | null>(null);
-  const [catchUpControlsReady, setCatchUpControlsReady] = useState(true);
   const [slideNotesDraft, setSlideNotesDraft] = useState("");
   const [slideNotesSaving, setSlideNotesSaving] = useState(false);
   const searchInputRef = useRef<HTMLInputElement | null>(null);
@@ -645,6 +644,7 @@ export function PresentationView({
   const suppressPublishRef = useRef(false);
   const suppressNextOperatorScrollRef = useRef(false);
   const scrollOperatorToSelectedSlideRef = useRef(false);
+  const catchUpCheckTokenRef = useRef(0);
   const activeDeckLoadsRef = useRef<Set<string>>(new Set());
   const handledKeyboardEventsRef = useRef<WeakSet<KeyboardEvent>>(new WeakSet());
   const lastKeyboardNavigationRef = useRef<{ direction: SlideKeyboardDirection; key: string; time: number } | null>(null);
@@ -1020,6 +1020,7 @@ export function PresentationView({
 
   function selectSlideFromOperator(nextIndex: number) {
     const targetSlide = slides[Math.min(Math.max(nextIndex, 0), Math.max(slides.length - 1, 0))];
+    catchUpCheckTokenRef.current += 1;
     scrollOperatorToSelectedSlideRef.current = true;
     setSorterCatchUpDirection(null);
     setRailCatchUpDirection(null);
@@ -1032,12 +1033,18 @@ export function PresentationView({
     setLiveSlide(nextIndex);
   }
 
+  function updateCatchUpDirectionsForSlide(index: number) {
+    const activeSlide = slides[index];
+    setSorterCatchUpDirection(slideVisibilityDirection(slideGridRef.current, activeSlide ? thumbnailRefs.current[activeSlide.id] ?? null : null));
+    setRailCatchUpDirection(slideVisibilityDirection(sectionRailListRef.current, activeSlide ? sectionRailRefs.current[activeSlide.sectionId] ?? null : null));
+  }
+
   function catchOperatorUpToLiveSlide() {
     const activeSlide = slides[liveIndex];
     if (!activeSlide) {
       return;
     }
-    setCatchUpControlsReady(true);
+    catchUpCheckTokenRef.current += 1;
     scrollItemIntoOperatorView(slideGridRef.current, thumbnailRefs.current[activeSlide.id] ?? null);
     scrollItemIntoOperatorView(sectionRailListRef.current, sectionRailRefs.current[activeSlide.sectionId] ?? null);
     setSorterCatchUpDirection(null);
@@ -2730,12 +2737,16 @@ export function PresentationView({
   }, [liveBlanked, slideTheme]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    setCatchUpControlsReady(false);
+    const token = catchUpCheckTokenRef.current + 1;
+    catchUpCheckTokenRef.current = token;
     const timer = window.setTimeout(() => {
-      setCatchUpControlsReady(true);
+      if (catchUpCheckTokenRef.current !== token) {
+        return;
+      }
+      updateCatchUpDirectionsForSlide(liveIndex);
     }, 650);
     return () => window.clearTimeout(timer);
-  }, [liveIndex]);
+  }, [liveIndex, slides]);
 
   useEffect(() => {
     const activeSlide = slides[liveIndex];
@@ -2760,15 +2771,6 @@ export function PresentationView({
       }
     });
   }, [liveIndex, railCatchUpDirection, sections, slides, sorterCatchUpDirection]);
-
-  useEffect(() => {
-    const frame = window.requestAnimationFrame(() => {
-      const activeSlide = slides[liveIndex];
-      setSorterCatchUpDirection(slideVisibilityDirection(slideGridRef.current, activeSlide ? thumbnailRefs.current[activeSlide.id] ?? null : null));
-      setRailCatchUpDirection(slideVisibilityDirection(sectionRailListRef.current, activeSlide ? sectionRailRefs.current[activeSlide.sectionId] ?? null : null));
-    });
-    return () => window.cancelAnimationFrame(frame);
-  }, [liveIndex, slides]);
 
   useEffect(() => {
     if (!searchOverlayOpen && !servicePickerOpen && !editingSongId) {
@@ -3416,7 +3418,7 @@ export function PresentationView({
         </div>
 
         <aside className="presenter-sidebar" aria-label="Slide context">
-          {catchUpControlsReady && sorterCatchUpDirection ? (
+          {sorterCatchUpDirection ? (
             <button
               className={`sorter-catch-up sorter-catch-up-${sorterCatchUpDirection}`}
               aria-label="Catch slide sorter up to live slide"
@@ -3568,7 +3570,7 @@ export function PresentationView({
         </aside>
 
         <aside className="section-rail" aria-label="Sections">
-          {catchUpControlsReady && railCatchUpDirection ? (
+          {railCatchUpDirection ? (
             <button
               aria-label="Catch section rail up to live slide"
               className={`sorter-catch-up sorter-catch-up-${railCatchUpDirection}`}
