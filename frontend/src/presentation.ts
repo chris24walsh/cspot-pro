@@ -42,12 +42,6 @@ export interface PresentationSlide {
   sequence: string;
 }
 
-export const YOUTUBE_AUDIO_MARKER = "youtube-audio";
-
-export function planItemUsesYouTubeAudio(item: Pick<PlanItem, "key_signature"> | null | undefined) {
-  return Boolean(item?.key_signature?.split(/[;,\s]+/).includes(YOUTUBE_AUDIO_MARKER));
-}
-
 export interface PresentationSection {
   id: string;
   title: string;
@@ -335,7 +329,7 @@ export function buildPresentationSections(
     if (song?.lyrics) {
       const songSlides = expandWorshipSlides(song.lyrics, song.sequence).flatMap(splitOversizedLyricSlide);
       if (songSlides.length) {
-        const youtubeAudioId = planItemUsesYouTubeAudio(item) ? extractYouTubeId(song.youtube_id) : null;
+        const youtubeAudioId = extractYouTubeId(song.youtube_id);
         const titleSlide = {
           id: `${item.id}:title`,
           planItemId: item.id,

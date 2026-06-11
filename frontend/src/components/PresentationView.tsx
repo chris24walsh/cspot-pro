@@ -1,4 +1,4 @@
-import { CalendarDays, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, History, MonitorUp, Pencil, Plus, Search, Trash2, WandSparkles } from "lucide-react";
+import { CalendarDays, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, History, MonitorUp, Pause, Pencil, Play, Plus, Search, Trash2, WandSparkles } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
@@ -623,6 +623,7 @@ export function PresentationView({
   const [googleDriveError, setGoogleDriveError] = useState("");
   const [slideTheme, setSlideTheme] = useState<PresentationTheme>("light");
   const [liveBlanked, setLiveBlanked] = useState(false);
+  const [playingAudioSectionId, setPlayingAudioSectionId] = useState<string | null>(null);
   const [slideshowOpen, setSlideshowOpen] = useState(false);
   const [deckRenderRetryToken, setDeckRenderRetryToken] = useState(0);
   const [undoAction, setUndoAction] = useState<{ label: string; run: () => Promise<void> } | null>(null);
@@ -1096,12 +1097,35 @@ export function PresentationView({
   }
 
   function sendVideoCommand(action: "play" | "pause" | "stop") {
-    if (!liveSlide?.videoUrl && !liveSlide?.youtubeAudioUrl) {
-      setMessage("Select a video or YouTube audio slide before using media controls.");
+    if (!liveSlide?.videoUrl) {
+      setMessage("Select a video slide before using media controls.");
       return;
     }
     void publishLiveState(liveIndex, {
       videoAction: action,
+      videoActionAt: Date.now(),
+    });
+  }
+
+  function toggleSectionAudio(section: { id: string; slides: PresentationSlide[] }) {
+    const audioSlide = section.slides.find((slide) => slide.youtubeAudioUrl);
+    if (!audioSlide) {
+      return;
+    }
+    const audioIndex = slides.findIndex((slide) => slide.id === audioSlide.id);
+    if (audioIndex < 0) {
+      return;
+    }
+    const isPlaying = playingAudioSectionId === section.id;
+    const targetIndex = liveSlide?.sectionId === section.id ? liveIndex : audioIndex;
+    setPlayingAudioSectionId(isPlaying ? null : section.id);
+    if (!isPlaying) {
+      setLiveBlanked(false);
+      setLiveIndex(targetIndex);
+    }
+    void publishLiveState(targetIndex, {
+      blanked: false,
+      videoAction: isPlaying ? "pause" : "play",
       videoActionAt: Date.now(),
     });
   }
@@ -3439,7 +3463,7 @@ export function PresentationView({
                 <ChevronRight size={16} aria-hidden="true" />
               </button>
             </div>
-            {liveSlide?.videoUrl || liveSlide?.youtubeAudioUrl ? (
+            {liveSlide?.videoUrl ? (
               <div className="video-control-group" aria-label="Video controls">
                 <button className="text-button" onClick={() => sendVideoCommand("play")} type="button">
                   Play
@@ -3525,6 +3549,8 @@ export function PresentationView({
               const showSlideTiles =
                 !canCollapseSection ||
                 sectionExpanded;
+              const sectionAudioSlide = section.slides.find((slide) => slide.youtubeAudioUrl);
+              const sectionAudioPlaying = playingAudioSectionId === section.id;
               return (
                 <div className="section-slide-group" key={section.id}>
                   <div className="section-jump-row">
@@ -3546,6 +3572,18 @@ export function PresentationView({
                       ) : null}
                       {sectionRenderError ? <em className="error-badge">Render failed</em> : null}
                     </button>
+                    {sectionAudioSlide ? (
+                      <button
+                        aria-label={`${sectionAudioPlaying ? "Pause" : "Play"} YouTube audio for ${section.title}`}
+                        aria-pressed={sectionAudioPlaying}
+                        className={`section-icon-button section-audio-button ${sectionAudioPlaying ? "is-active" : ""}`}
+                        onClick={() => toggleSectionAudio(section)}
+                        title={`${sectionAudioPlaying ? "Pause" : "Play"} YouTube audio`}
+                        type="button"
+                      >
+                        {sectionAudioPlaying ? <Pause size={15} aria-hidden="true" /> : <Play size={15} aria-hidden="true" />}
+                      </button>
+                    ) : null}
                     {canCollapseSection ? (
                       <button
                         aria-expanded={showSlideTiles}
