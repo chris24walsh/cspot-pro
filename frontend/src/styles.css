@@ -1562,6 +1562,35 @@ h3 {
   white-space: nowrap;
 }
 
+.musician-key-select-label {
+  align-items: center;
+  display: inline-grid;
+  gap: 5px;
+  grid-template-columns: auto minmax(96px, 132px);
+  min-width: 0;
+}
+
+.musician-key-select-label span {
+  color: #234a40;
+  font-size: 13px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.musician-key-select-label select {
+  background: #fffefa;
+  border: 1px solid #cfc7b4;
+  border-radius: 8px;
+  color: #234a40;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 900;
+  min-height: 32px;
+  min-width: 0;
+  padding: 4px 7px;
+  width: 100%;
+}
+
 .musician-live-controls {
   align-items: center;
   display: flex;
@@ -1619,118 +1648,6 @@ h3 {
   transform: translateX(14px);
 }
 
-.musician-pill-toggle {
-  background: #fffefa;
-  border: 1px solid #cfc7b4;
-  border-radius: 8px;
-  display: inline-flex;
-  gap: 3px;
-  min-height: 32px;
-  padding: 3px;
-}
-
-.musician-pill-toggle button {
-  background: transparent;
-  border: 0;
-  border-radius: 6px;
-  color: #234a40;
-  cursor: pointer;
-  font: inherit;
-  font-size: 13px;
-  font-weight: 900;
-  min-width: 52px;
-  padding: 4px 9px;
-}
-
-.musician-pill-toggle button.is-active {
-  background: #eaf5ef;
-  color: #163f35;
-}
-
-.musician-pill-toggle button:disabled {
-  color: #8a8f88;
-  cursor: not-allowed;
-  opacity: 0.55;
-}
-
-.musician-stepper {
-  align-items: center;
-  background: #fffefa;
-  border: 1px solid #cfc7b4;
-  border-radius: 8px;
-  display: inline-grid;
-  gap: 3px;
-  grid-template-columns: auto 24px minmax(28px, auto) 24px;
-  min-height: 30px;
-  padding: 2px 4px 2px 7px;
-}
-
-.musician-stepper > span {
-  color: #3b4741;
-  font-size: 11px;
-  font-weight: 900;
-  text-transform: uppercase;
-}
-
-.musician-stepper strong {
-  color: #17201b;
-  font-size: 15px;
-  min-width: 24px;
-  text-align: center;
-}
-
-.musician-stepper button {
-  background: #f7f3e9;
-  border: 1px solid #d8d0bd;
-  border-radius: 6px;
-  color: #234a40;
-  cursor: pointer;
-  font: inherit;
-  font-size: 15px;
-  font-weight: 900;
-  height: 22px;
-  line-height: 1;
-  width: 22px;
-}
-
-.musician-stepper button:hover,
-.musician-stepper button:focus-visible {
-  background: #eaf5ef;
-  border-color: #8ebba9;
-}
-
-.musician-shape-presets {
-  align-items: center;
-  display: inline-flex;
-  gap: 4px;
-  min-width: 0;
-}
-
-.musician-shape-presets button {
-  background: #fffefa;
-  border: 1px solid #cfc7b4;
-  border-radius: 8px;
-  color: #234a40;
-  cursor: pointer;
-  font: inherit;
-  font-size: 13px;
-  font-weight: 900;
-  min-height: 32px;
-}
-
-.musician-shape-presets button {
-  min-width: 42px;
-  padding: 4px 8px;
-}
-
-.musician-shape-presets button.is-active,
-.musician-shape-presets button:hover,
-.musician-shape-presets button:focus-visible {
-  background: #eaf5ef;
-  border-color: #8ebba9;
-  outline: none;
-}
-
 .musician-fullscreen-button {
   align-items: center;
   background: #fffefa;
@@ -1739,10 +1656,10 @@ h3 {
   color: #234a40;
   cursor: pointer;
   display: inline-flex;
-  height: 32px;
+  height: 36px;
   justify-content: center;
   padding: 0;
-  width: 36px;
+  width: 40px;
 }
 
 .musician-fullscreen-button:hover,
@@ -1771,7 +1688,7 @@ h3 {
   justify-items: center;
   min-height: 0;
   overflow: hidden;
-  padding: clamp(8px, 2vw, 20px);
+  padding: clamp(8px, 2vw, 20px) clamp(8px, 2vw, 20px) clamp(14px, 3vw, 30px);
 }
 
 .musician-chord-sheet,
@@ -1802,6 +1719,13 @@ h3 {
   overflow: hidden;
   row-gap: 4px;
   white-space: pre;
+}
+
+.musician-chord-line::before {
+  content: "\00a0";
+  grid-column: 1;
+  grid-row: 1;
+  visibility: hidden;
 }
 
 .musician-chord-token {
@@ -1894,6 +1818,11 @@ h3 {
   min-height: 0;
   overflow: auto;
   padding-right: 2px;
+}
+
+.song-editor-scroll.is-chords-tab {
+  display: grid;
+  overflow: hidden;
 }
 
 .stack-list {
@@ -2189,6 +2118,7 @@ h3 {
   gap: 10px;
   grid-template-rows: auto minmax(0, 1fr);
   min-height: 0;
+  overflow: hidden;
   padding: 10px;
 }
 
@@ -2231,7 +2161,7 @@ h3 {
   border-radius: 8px;
   display: grid;
   gap: 8px;
-  grid-template-columns: minmax(120px, 1fr) minmax(72px, 96px) minmax(120px, auto);
+  grid-template-columns: minmax(92px, 128px) minmax(64px, 82px) auto;
   padding: 8px;
 }
 
@@ -2255,14 +2185,6 @@ h3 {
   width: 100%;
 }
 
-.musician-derived-key {
-  align-self: center;
-  min-height: 16px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 .musician-print-button {
   min-height: 36px;
 }
@@ -2270,7 +2192,7 @@ h3 {
 .musician-chart-panel {
   min-height: 0;
   min-width: 0;
-  overflow: hidden;
+  overflow: auto;
 }
 
 .musician-annotator {
@@ -2312,8 +2234,10 @@ h3 {
   border-radius: 8px;
   display: grid;
   gap: 18px;
-  overflow: auto;
+  overflow: visible;
   padding: 18px 20px 26px;
+  width: max-content;
+  min-width: 100%;
 }
 
 .musician-section-marker {
@@ -2461,6 +2385,7 @@ h3 {
   line-height: 1;
   min-height: 20px;
   min-width: 2ch;
+  max-width: 8ch;
   padding: 1px 2px;
   text-align: center;
 }
@@ -2866,6 +2791,12 @@ h3 {
   gap: 5px;
 }
 
+.song-editor-dialog {
+  grid-template-rows: auto minmax(0, 1fr);
+  max-height: min(860px, calc(100svh - 40px));
+  overflow: hidden;
+}
+
 .song-editor-action-button {
   min-height: 34px;
   min-width: 34px;
@@ -2889,6 +2820,13 @@ h3 {
   font-weight: 850;
   gap: 5px;
   min-width: 0;
+}
+
+.musician-copy-verse-button {
+  align-self: end;
+  min-height: 34px;
+  padding: 5px 10px;
+  white-space: nowrap;
 }
 
 .import-lyrics-dialog {
@@ -5933,16 +5871,49 @@ h3 {
     padding-bottom: 8px;
   }
 
+  .app-dialog-backdrop {
+    align-items: stretch;
+    padding: 6px;
+  }
+
+  .song-editor-dialog {
+    max-height: calc(100svh - 12px);
+    padding: 10px;
+  }
+
   .song-editor-dialog .musician-chord-summary {
     display: none;
   }
 
   .song-editor-dialog .musician-key-row {
-    grid-template-columns: minmax(0, 1fr) 64px;
+    gap: 5px;
+    grid-template-columns: minmax(74px, 96px) 58px minmax(0, 1fr);
+    padding: 6px;
   }
 
-  .song-editor-dialog .musician-derived-key {
-    grid-column: 1 / -1;
+  .song-editor-dialog .musician-copy-verse-button {
+    font-size: 12px;
+    min-height: 34px;
+    padding: 5px 7px;
+  }
+
+  .song-editor-dialog .musician-copy-verse-button svg {
+    height: 13px;
+    width: 13px;
+  }
+
+  .song-editor-dialog .compact-field input,
+  .song-editor-dialog .compact-field select {
+    min-height: 32px;
+    padding: 4px 6px;
+  }
+
+  .song-editor-dialog .musician-tools {
+    padding: 6px;
+  }
+
+  .song-editor-dialog .musician-preview {
+    padding: 12px 14px 18px;
   }
 
   .field-action-row {
@@ -6177,9 +6148,19 @@ h3 {
     display: none;
   }
 
-  .musician-live-title span {
+  .musician-key-select-label {
+    gap: 3px;
+    grid-template-columns: auto minmax(84px, 112px);
+  }
+
+  .musician-key-select-label span {
+    font-size: 10px;
+  }
+
+  .musician-key-select-label select {
     font-size: 11px;
-    max-width: 74px;
+    min-height: 30px;
+    padding: 3px 5px;
   }
 
   .musician-live-controls {
@@ -6212,60 +6193,14 @@ h3 {
     transform: translateX(12px);
   }
 
-  .musician-pill-toggle {
-    min-height: 26px;
-    padding: 2px;
-  }
-
-  .musician-pill-toggle button {
-    font-size: 11px;
-    min-width: 42px;
-    padding: 2px 6px;
-  }
-
-  .musician-stepper {
-    grid-template-columns: 18px minmax(20px, auto) 18px;
-    min-height: 24px;
-    padding: 1px 3px;
-  }
-
-  .musician-stepper > span {
-    display: none;
-  }
-
-  .musician-stepper strong {
-    font-size: 12px;
-    min-width: 20px;
-  }
-
-  .musician-stepper button {
-    border-radius: 5px;
-    height: 18px;
-    width: 18px;
-  }
-
-  .musician-shape-presets {
-    gap: 3px;
-  }
-
-  .musician-shape-presets button {
-    font-size: 11px;
-    min-height: 26px;
-  }
-
-  .musician-shape-presets button {
-    min-width: 34px;
-    padding: 2px 5px;
-  }
-
   .musician-fullscreen-button {
-    height: 26px;
-    width: 30px;
+    height: 34px;
+    width: 38px;
   }
 
   .musician-live-stage {
     align-items: center;
-    padding: 2px 2px 7px;
+    padding: 3px 2px 12px;
   }
 
   .musician-chord-sheet,
@@ -6276,7 +6211,8 @@ h3 {
 
   .musician-chord-line {
     font-size: min(var(--musician-live-font-size, 44px), clamp(13px, 9.5vw, 58px));
-    line-height: 1.1;
+    line-height: 1.16;
+    row-gap: 2px;
   }
 
   .musician-live-view:fullscreen .musician-live-toolbar,

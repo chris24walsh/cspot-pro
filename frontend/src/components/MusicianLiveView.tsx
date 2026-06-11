@@ -117,6 +117,10 @@ function playableSetups(targetKey: string | null) {
   );
 }
 
+function setupValue(setup: { capo: number; shapeKey: string }) {
+  return `${setup.shapeKey}:${setup.capo}`;
+}
+
 function wrapCharacterLimit(fontSize: number, stageWidth = 1120) {
   const usableWidth = Math.max(stageWidth * 0.94, 180);
   return Math.max(Math.floor(usableWidth / Math.max(fontSize * 0.6, 1)) - 2, 12);
@@ -608,22 +612,6 @@ export function MusicianLiveView({ controlPlanId, onExit, plan, songs }: Musicia
     };
   }, [liveIndex, slides.length]);
 
-  function changeCapo(delta: -1 | 1) {
-    setCapo((currentCapo) => {
-      const nextCapo = normalizeCapo(currentCapo + delta);
-      setGuitarKey((currentGuitarKey) => {
-        if (currentGuitarKey) {
-          return currentGuitarKey;
-        }
-        if (chordChart.capoKey) {
-          return chordChart.capoKey;
-        }
-        return chordChart.absoluteKey ? deriveCapoKey(chordChart.absoluteKey, currentCapo) : MUSICAL_KEYS[0];
-      });
-      return nextCapo;
-    });
-  }
-
   async function toggleFullscreen() {
     const element = liveViewRef.current as (HTMLElement & { webkitRequestFullscreen?: () => Promise<void> | void }) | null;
     const webkitDocument = document as Document & {
@@ -677,6 +665,8 @@ export function MusicianLiveView({ controlPlanId, onExit, plan, songs }: Musicia
     ? `${currentAbsoluteKey}${capo > 0 && currentGuitarKey ? `/${currentGuitarKey}c${capo}` : ""}`
     : "unset";
   const juniorSetups = playableSetups(currentAbsoluteKey);
+  const selectedSetupValue = currentGuitarKey ? setupValue({ shapeKey: currentGuitarKey, capo }) : "";
+  const setupOptions = juniorSetups.filter((setup) => setupValue(setup) !== selectedSetupValue);
 
   return (
     <section
@@ -702,7 +692,26 @@ export function MusicianLiveView({ controlPlanId, onExit, plan, songs }: Musicia
       <div className="musician-live-toolbar">
         <div className="musician-live-title">
           <strong>{liveSong?.title ?? liveSlide?.sectionTitle ?? "Waiting for a song"}</strong>
-          <span>Key: {activeKeyLabel}</span>
+          <label className="musician-key-select-label">
+            <span>Key</span>
+            <select
+              aria-label="Choose guitar key and capo"
+              onChange={(event) => {
+                const [shapeKey, capoValue] = event.target.value.split(":");
+                if (!shapeKey) return;
+                setGuitarKey(shapeKey);
+                setCapo(normalizeCapo(Number(capoValue || 0)));
+              }}
+              value={selectedSetupValue}
+            >
+              {currentGuitarKey ? <option value={selectedSetupValue}>{activeKeyLabel}</option> : <option value="">Key</option>}
+              {setupOptions.map((setup) => (
+                <option key={setupValue(setup)} value={setupValue(setup)}>
+                  {setup.absoluteKey}/{setup.shapeKey}{setup.capo > 0 ? `c${setup.capo}` : ""}
+                </option>
+              ))}
+            </select>
+          </label>
         </div>
         <div className="musician-live-controls" aria-label="Musician display controls">
           <button
@@ -714,32 +723,6 @@ export function MusicianLiveView({ controlPlanId, onExit, plan, songs }: Musicia
             <span aria-hidden="true" />
             Chords
           </button>
-          <div className="musician-stepper" aria-label="Capo">
-            <span>Capo</span>
-            <button onClick={() => changeCapo(-1)} type="button" aria-label="Lower capo">
-              -
-            </button>
-            <strong>{capo}</strong>
-            <button onClick={() => changeCapo(1)} type="button" aria-label="Raise capo">
-              +
-            </button>
-          </div>
-          <div className="musician-shape-presets" aria-label="Playable guitar shapes">
-            {juniorSetups.map((setup) => (
-              <button
-                className={currentGuitarKey === setup.shapeKey && capo === setup.capo ? "is-active" : ""}
-                key={`${setup.shapeKey}-${setup.capo}`}
-                onClick={() => {
-                  setGuitarKey(setup.shapeKey);
-                  setCapo(setup.capo);
-                }}
-                title={setup.distance === 0 ? `${setup.shapeKey} shapes in ${setup.absoluteKey}` : `${setup.shapeKey} shapes, sounds in ${setup.absoluteKey}`}
-                type="button"
-              >
-                {setup.shapeKey}{setup.capo > 0 ? `c${setup.capo}` : ""}
-              </button>
-            ))}
-          </div>
           <button className="musician-fullscreen-button" onClick={() => void toggleFullscreen()} type="button" aria-label={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"}>
             {isFullscreen ? <Minimize2 size={18} aria-hidden="true" /> : <Maximize2 size={18} aria-hidden="true" />}
           </button>

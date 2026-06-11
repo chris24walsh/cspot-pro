@@ -1,4 +1,4 @@
-import { Archive, Search, Save, X } from "lucide-react";
+import { Archive, Copy, Search, Save, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
 import { createSong, updateSong, type Song } from "../api";
@@ -165,6 +165,31 @@ function resolveGuitarShape(chordKey: string, shapeMode: GuitarShapeMode) {
   return GUITAR_CHORDS[chordKey] ?? null;
 }
 
+function sectionLabel(line: string) {
+  return line.trim().match(/^\[([^\]]+)\]$/)?.[1]?.trim() ?? null;
+}
+
+function isVerseLabel(label: string | null) {
+  return Boolean(label?.match(/^v(?:erse)?\s*\d*/i));
+}
+
+function verseSections(lines: string[]) {
+  const sections: Array<{ end: number; label: string; start: number }> = [];
+  lines.forEach((line, index) => {
+    const label = sectionLabel(line);
+    if (!isVerseLabel(label)) return;
+    let end = lines.length;
+    for (let nextIndex = index + 1; nextIndex < lines.length; nextIndex += 1) {
+      if (sectionLabel(lines[nextIndex])) {
+        end = nextIndex;
+        break;
+      }
+    }
+    sections.push({ end, label: label ?? "Verse", start: index + 1 });
+  });
+  return sections;
+}
+
 function diagramBaseFret(shape: GuitarChordShape) {
   if (shape.baseFret) return shape.baseFret;
   const fretted = shape.frets.filter((fret): fret is number => typeof fret === "number" && fret > 0);
@@ -254,7 +279,6 @@ export function SongEditorDialog({
   const displayMode: ChordDisplayMode = "absolute";
   const detailMode: ChordDetailMode = "advanced";
   const lines = useMemo(() => lyricLines(form.lyrics), [form.lyrics]);
-  const derivedCapoKey = chordChart.absoluteKey ? deriveCapoKey(chordChart.absoluteKey, chordChart.capo) : chordChart.capoKey;
   const lineAnnotations = chordChart.annotations
     .slice()
     .sort((left, right) => left.lineIndex - right.lineIndex || left.anchorIndex - right.anchorIndex);
@@ -396,6 +420,58 @@ export function SongEditorDialog({
     setLegacyChords(null);
   }
 
+  function copyVerseChords() {
+    const sections = verseSections(lines);
+    if (sections.length < 2) {
+      setMessage("Add at least two verse sections before copying chords.");
+      return;
+    }
+    const selectedSection = sections.find((section) => selectedLineIndex >= section.start && selectedLineIndex < section.end);
+    const sourceSection =
+      selectedSection ??
+      sections.find((section) =>
+        chordChart.annotations.some((annotation) => annotation.lineIndex >= section.start && annotation.lineIndex < section.end),
+      );
+    if (!sourceSection) {
+      setMessage("Add chords to one verse before copying them.");
+      return;
+    }
+    const sourceAnnotations = chordChart.annotations.filter(
+      (annotation) => annotation.lineIndex >= sourceSection.start && annotation.lineIndex < sourceSection.end,
+    );
+    if (!sourceAnnotations.length) {
+      setMessage("Add chords to the selected verse before copying them.");
+      return;
+    }
+    setChordChart((current) => {
+      const targetSections = sections.filter((section) => section !== sourceSection);
+      const targetLineIndexes = new Set<number>();
+      for (const section of targetSections) {
+        const lineCount = section.end - section.start;
+        for (let offset = 0; offset < lineCount; offset += 1) {
+          targetLineIndexes.add(section.start + offset);
+        }
+      }
+      const retained = current.annotations.filter((annotation) => !targetLineIndexes.has(annotation.lineIndex));
+      const copied = targetSections.flatMap((section) =>
+        sourceAnnotations.flatMap((annotation) => {
+          const offset = annotation.lineIndex - sourceSection.start;
+          const targetLineIndex = section.start + offset;
+          const targetLine = lines[targetLineIndex];
+          if (targetLine == null || targetLineIndex >= section.end) return [];
+          return [{
+            ...annotation,
+            id: `${targetLineIndex}-${annotation.anchorIndex}-${annotation.chord}-${Math.random().toString(36).slice(2, 7)}`,
+            lineIndex: targetLineIndex,
+          }];
+        }),
+      );
+      return { ...current, annotations: [...retained, ...copied] };
+    });
+    setLegacyChords(null);
+    setMessage("Verse chords copied.");
+  }
+
   async function saveSong() {
     if (!canEdit) return;
     if (chordChart.annotations.length && !chordChart.absoluteKey && !chordChart.capoKey) {
@@ -470,7 +546,7 @@ export function SongEditorDialog({
           </div>
         </div>
 
-        <div className="song-editor-scroll">
+        <div className={`song-editor-scroll ${tab === "chords" ? "is-chords-tab" : ""}`}>
           {tab === "details" ? (
             <div className="form-grid">
               <label>Title<input disabled={!canEdit} onChange={(event) => setForm({ ...form, title: event.target.value })} required value={form.title} /></label>
@@ -530,7 +606,10 @@ export function SongEditorDialog({
                       </select>
                     </label>
                     <label className="compact-field musician-capo-field">Capo<input disabled={!canEdit} min={0} onChange={(event) => updateCapo(Number(event.target.value || 0))} type="number" value={chordChart.capo} /></label>
-                    <span className="field-help musician-derived-key">{chordChart.absoluteKey ? `${chordChart.absoluteKey}${chordChart.capo > 0 && derivedCapoKey ? `/${derivedCapoKey}c${chordChart.capo}` : ""}` : "Set key before adding chords"}</span>
+                    <button className="text-button musician-copy-verse-button" disabled={!canEdit || lineAnnotations.length === 0} onClick={copyVerseChords} type="button">
+                      <Copy size={14} aria-hidden="true" />
+                      Copy Verse Chords
+                    </button>
                   </div>
                 </div>
               </div>
@@ -570,7 +649,7 @@ export function SongEditorDialog({
                                   }
                                 }}
                                 placeholder={detailMode === "advanced" ? "BbMAJ7/D" : "Bbm"}
-                                size={Math.max(1, chordInput.length || 1)}
+                                size={Math.min(8, Math.max(2, chordInput.length || 2))}
                                 value={chordInput}
                               />
                               {annotation ? <button className="musician-delete-button" disabled={!canEdit} onMouseDown={(event) => event.preventDefault()} onClick={() => { setChordChart((current) => removeChordAnnotation(current, annotation.id)); cancelInlineChordEdit(); }} type="button">x</button> : null}
