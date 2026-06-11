@@ -485,7 +485,7 @@ function describeDeckStatus(
 }
 
 function sorterSlidesForSection(slides: PresentationSlide[]) {
-  return slides.filter((slide) => !slide.imageUrl || (slide.buildIndex ?? 0) === 0);
+  return slides.filter((slide) => slide.slideKind !== "title" && (!slide.imageUrl || (slide.buildIndex ?? 0) === 0));
 }
 
 function deckBuildGroupKey(slide: PresentationSlide | null | undefined) {
@@ -1096,8 +1096,8 @@ export function PresentationView({
   }
 
   function sendVideoCommand(action: "play" | "pause" | "stop") {
-    if (!liveSlide?.videoUrl) {
-      setMessage("Select a video slide before using video controls.");
+    if (!liveSlide?.videoUrl && !liveSlide?.youtubeAudioUrl) {
+      setMessage("Select a video or YouTube audio slide before using media controls.");
       return;
     }
     void publishLiveState(liveIndex, {
@@ -3439,7 +3439,7 @@ export function PresentationView({
                 <ChevronRight size={16} aria-hidden="true" />
               </button>
             </div>
-            {liveSlide?.videoUrl ? (
+            {liveSlide?.videoUrl || liveSlide?.youtubeAudioUrl ? (
               <div className="video-control-group" aria-label="Video controls">
                 <button className="text-button" onClick={() => sendVideoCommand("play")} type="button">
                   Play

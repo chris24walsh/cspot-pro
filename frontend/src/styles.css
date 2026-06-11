@@ -1403,6 +1403,40 @@ h3 {
   box-shadow: inset 3px 0 0 #234a40;
 }
 
+.worship-set-item.song-library-row-missing-lyrics {
+  background: #fff2ee;
+  border-color: #e4b0a5;
+}
+
+.worship-set-item.song-library-row-missing-chords {
+  background: #fff8df;
+  border-color: #dfc775;
+}
+
+.worship-set-item.song-library-row-complete {
+  background: #eef8f3;
+  border-color: #a7cdbd;
+}
+
+.worship-set-item.song-library-row-missing-lyrics:hover,
+.worship-set-item.song-library-row-missing-lyrics:focus-visible {
+  background: #ffe8e2;
+  border-color: #c47d6d;
+}
+
+.worship-set-item.song-library-row-missing-chords:hover,
+.worship-set-item.song-library-row-missing-chords:focus-visible {
+  background: #fff1bf;
+  border-color: #bba34f;
+}
+
+.worship-set-item.song-library-row-complete:hover,
+.worship-set-item.song-library-row-complete:focus-visible,
+.worship-set-item.song-library-row-complete.is-selected {
+  background: #e3f3eb;
+  border-color: #75ae96;
+}
+
 .worship-set-item > span {
   color: #65716a;
   font-size: 12px;
@@ -1428,6 +1462,12 @@ h3 {
   min-height: 36px;
   min-width: 36px;
   padding: 0;
+}
+
+.youtube-audio-toggle.is-active {
+  background: #fff2e5;
+  border-color: #db8b47;
+  color: #a33b1f;
 }
 
 .worship-set-item-body {
@@ -1599,6 +1639,20 @@ h3 {
   justify-content: flex-end;
 }
 
+.musician-song-counter {
+  align-items: center;
+  background: #fffefa;
+  border: 1px solid #cfc7b4;
+  border-radius: 8px;
+  color: #234a40;
+  display: inline-flex;
+  font-size: 13px;
+  font-weight: 900;
+  min-height: 32px;
+  padding: 4px 9px;
+  white-space: nowrap;
+}
+
 .chord-toggle-button {
   align-items: center;
   background: #fffefa;
@@ -1689,6 +1743,15 @@ h3 {
   min-height: 0;
   overflow: hidden;
   padding: clamp(8px, 2vw, 20px) clamp(8px, 2vw, 20px) clamp(14px, 3vw, 30px);
+  position: relative;
+}
+
+.musician-live-view.is-song-end .musician-live-stage::after {
+  background: linear-gradient(90deg, rgba(255, 253, 247, 0), rgba(222, 143, 73, 0.2));
+  content: "";
+  inset: 0;
+  pointer-events: none;
+  position: absolute;
 }
 
 .musician-chord-sheet,
@@ -1823,6 +1886,15 @@ h3 {
 .song-editor-scroll.is-chords-tab {
   display: grid;
   overflow: hidden;
+}
+
+.song-editor-scroll .form-grid.single-column,
+.song-editor-scroll .field-block.wide-field {
+  min-height: 0;
+}
+
+#song-dialog-lyrics {
+  min-height: clamp(320px, 54svh, 620px);
 }
 
 .stack-list {
@@ -2855,21 +2927,21 @@ h3 {
 }
 
 .checkbox-pill-grid {
-  display: grid;
-  gap: 6px;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
 }
 
 .checkbox-pill {
   align-items: center;
   background: #fffdf7;
   border: 1px solid #cfc7b4;
-  border-radius: 8px;
+  border-radius: 999px;
   color: #243f37;
   display: inline-flex;
-  gap: 7px;
-  min-height: 36px;
-  padding: 6px 8px;
+  gap: 5px;
+  min-height: 28px;
+  padding: 4px 8px;
 }
 
 .checkbox-pill input {
@@ -2877,8 +2949,17 @@ h3 {
 }
 
 .checkbox-pill span {
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 850;
+}
+
+.youtube-audio-frame {
+  border: 0;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+  position: absolute;
+  width: 1px;
 }
 
 .app-dialog p {
@@ -4782,6 +4863,7 @@ h3 {
   min-height: 0;
   overflow: hidden;
   padding: 0;
+  position: relative;
   text-align: center;
   width: 100%;
 }

@@ -31,12 +31,21 @@ export interface PresentationSlide {
   videoUrl?: string;
   videoProvider?: "youtube" | "file";
   videoId?: string;
+  youtubeAudioUrl?: string;
+  youtubeAudioId?: string;
+  slideKind?: "title" | "content";
   renderedSlideIndex?: number;
   originalSlideIndex?: number | null;
   buildIndex?: number;
   buildCount?: number;
   itemType: string;
   sequence: string;
+}
+
+export const YOUTUBE_AUDIO_MARKER = "youtube-audio";
+
+export function planItemUsesYouTubeAudio(item: Pick<PlanItem, "key_signature"> | null | undefined) {
+  return Boolean(item?.key_signature?.split(/[;,\s]+/).includes(YOUTUBE_AUDIO_MARKER));
 }
 
 export interface PresentationSection {
@@ -326,9 +335,23 @@ export function buildPresentationSections(
     if (song?.lyrics) {
       const songSlides = expandWorshipSlides(song.lyrics, song.sequence).flatMap(splitOversizedLyricSlide);
       if (songSlides.length) {
+        const youtubeAudioId = planItemUsesYouTubeAudio(item) ? extractYouTubeId(song.youtube_id) : null;
+        const titleSlide = {
+          id: `${item.id}:title`,
+          planItemId: item.id,
+          sectionId: item.id,
+          sectionTitle,
+          title: sectionTitle,
+          text: sectionTitle,
+          itemType: item.item_type,
+          sequence: item.sequence,
+          slideKind: "title" as const,
+          youtubeAudioId: youtubeAudioId ?? undefined,
+          youtubeAudioUrl: youtubeAudioId ? youtubeEmbedUrl(youtubeAudioId) : undefined,
+        };
         const slides = songSlides.map((text, sectionIndex) => {
           return {
-            id: `${item.id}:${sectionIndex}`,
+            id: `${item.id}:${sectionIndex + 1}`,
             planItemId: item.id,
             sectionId: item.id,
             sectionTitle,
@@ -336,9 +359,12 @@ export function buildPresentationSections(
             text,
             itemType: item.item_type,
             sequence: item.sequence,
+            slideKind: "content" as const,
+            youtubeAudioId: youtubeAudioId ?? undefined,
+            youtubeAudioUrl: youtubeAudioId ? youtubeEmbedUrl(youtubeAudioId) : undefined,
           };
         });
-        return { id: item.id, title: sectionTitle, itemType: item.item_type, slides };
+        return { id: item.id, title: sectionTitle, itemType: item.item_type, slides: [titleSlide, ...slides] };
       }
     }
 

@@ -1,4 +1,4 @@
-import { CalendarDays, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, History, MonitorUp, Music2, Pencil, RefreshCw, Trash2, WandSparkles } from "lucide-react";
+import { CalendarDays, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, History, MonitorUp, Music2, Pencil, RefreshCw, Trash2, WandSparkles, Youtube } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
@@ -36,7 +36,7 @@ import {
   type Song,
   type WorshipSuggestedSong,
 } from "../api";
-import { buildPresentationSections, suggestSlideGroupFontCap } from "../presentation";
+import { YOUTUBE_AUDIO_MARKER, buildPresentationSections, planItemUsesYouTubeAudio, suggestSlideGroupFontCap } from "../presentation";
 import { showToast } from "../toast";
 import { analyzeImportedSongSlides, analyzeWorshipText, buildLyricsFromSections, canonicalizeWorshipLyrics } from "../worshipText";
 import { dateKey, isWorshipSetPlan, worshipSetType } from "../worshipSets";
@@ -172,6 +172,15 @@ function songLibraryStatusClass(song: Song) {
     return "song-library-row-missing-chords";
   }
   return "song-library-row-complete";
+}
+
+function nextYouTubeAudioKeySignature(value: string | null, enabled: boolean) {
+  const tokens = (value ?? "").split(/[;,\s]+/).map((token) => token.trim()).filter(Boolean);
+  const withoutMarker = tokens.filter((token) => token !== YOUTUBE_AUDIO_MARKER);
+  if (enabled) {
+    withoutMarker.push(YOUTUBE_AUDIO_MARKER);
+  }
+  return withoutMarker.length ? withoutMarker.join(";") : null;
 }
 
 function normalizedTitle(value: string) {
@@ -1413,6 +1422,22 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
     }
   }
 
+  async function toggleYouTubeAudio(item: PlanItem, song: Song | undefined) {
+    if (!canEditPlan || !song?.youtube_id) {
+      return;
+    }
+    const enabled = !planItemUsesYouTubeAudio(item);
+    try {
+      const updatedItem = await updatePlanItem(item.id, {
+        key_signature: nextYouTubeAudioKeySignature(item.key_signature, enabled),
+      });
+      setPlan((current) => current ? { ...current, items: current.items.map((candidate) => candidate.id === updatedItem.id ? updatedItem : candidate) } : current);
+      setMessage(enabled ? `YouTube audio enabled for "${song.title}".` : `YouTube audio disabled for "${song.title}".`);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not update YouTube audio option.");
+    }
+  }
+
   if (viewMode === "live") {
     const liveControlPlanId = plan ? servicePlansByDate.get(dateInputFromIso(plan.service_date))?.id ?? plan.id : null;
     return (
@@ -1598,7 +1623,7 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
                 const song = songs.find((candidate) => candidate.id === item.song_id);
                 return (
                   <article
-                    className={`worship-set-item ${selectedItemId === item.id ? "is-selected" : ""}`}
+                    className={`worship-set-item ${song ? songLibraryStatusClass(song) : ""} ${selectedItemId === item.id ? "is-selected" : ""}`}
                     key={item.id}
                     onClick={() => setSelectedItemId(item.id)}
                     onKeyDown={(event) => {
@@ -1620,6 +1645,17 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
                     </div>
                     <div className="worship-set-item-tools" onClick={(event) => event.stopPropagation()}>
                       <div className="worship-set-actions">
+                        <button
+                          aria-label={`${planItemUsesYouTubeAudio(item) ? "Disable" : "Enable"} YouTube audio for ${song ? song.title : item.title}`}
+                          aria-pressed={planItemUsesYouTubeAudio(item)}
+                          className={`section-icon-button youtube-audio-toggle ${planItemUsesYouTubeAudio(item) ? "is-active" : ""}`}
+                          disabled={!canEditPlan || !song?.youtube_id}
+                          onClick={() => void toggleYouTubeAudio(item, song)}
+                          title={song?.youtube_id ? "Use YouTube audio" : "Add a YouTube link to this song first"}
+                          type="button"
+                        >
+                          <Youtube size={14} aria-hidden="true" />
+                        </button>
                         <button
                           aria-label={`Edit ${song ? song.title : item.title}`}
                           className="section-icon-button"

@@ -69,6 +69,8 @@ export function PresentationOutput() {
     liveState?.planItemId && slides.length && !slides.some((slide) => slide.planItemId === liveState.planItemId),
   );
   const liveSlide = liveTargetMissing ? null : slides[resolvedIndex] ?? null;
+  const liveMediaUrl = liveSlide?.videoUrl ?? liveSlide?.youtubeAudioUrl;
+  const liveMediaProvider = liveSlide?.videoProvider ?? (liveSlide?.youtubeAudioUrl ? "youtube" : undefined);
   const liveTextFontCap = useMemo(
     () => suggestSlideGroupFontCap(slides.filter((slide) => !slide.imageUrl && slide.text.trim()).map((slide) => slide.text)),
     [slides],
@@ -236,7 +238,7 @@ export function PresentationOutput() {
   }, [liveState?.blanked]);
 
   useEffect(() => {
-    if (!liveState?.videoAction || !liveState.videoActionAt || !liveSlide?.videoUrl) {
+    if (!liveState?.videoAction || !liveState.videoActionAt || !liveMediaUrl) {
       return;
     }
     if (lastVideoActionRef.current === liveState.videoActionAt) {
@@ -245,7 +247,7 @@ export function PresentationOutput() {
 
     lastVideoActionRef.current = liveState.videoActionAt;
 
-    if (liveSlide.videoProvider === "file") {
+    if (liveMediaProvider === "file") {
       if (liveState.videoAction === "play") {
         void videoElementRef.current?.play().catch(() => {
           setMessage("This browser blocked remote video start. Click Play on the output once, then remote pause/stop will work.");
@@ -272,7 +274,7 @@ export function PresentationOutput() {
       JSON.stringify({ event: "command", func: command, args: [] }),
       "*",
     );
-  }, [liveSlide?.videoProvider, liveSlide?.videoUrl, liveState?.videoAction, liveState?.videoActionAt]);
+  }, [liveMediaProvider, liveMediaUrl, liveState?.videoAction, liveState?.videoActionAt]);
 
   useEffect(() => {
     if (!liveState?.planId) {
@@ -493,7 +495,30 @@ export function PresentationOutput() {
             )}
           </div>
         ) : (
-          <AutoFitSlideText maxFontSize={liveTextFontCap} text={liveSlide?.text ?? "Waiting for slideshow"} />
+          <>
+            {liveSlide?.youtubeAudioUrl ? (
+              <iframe
+                allow="autoplay; encrypted-media"
+                aria-hidden="true"
+                className="youtube-audio-frame"
+                onLoad={() => {
+                  if (liveState?.videoAction === "play" && liveState.videoActionAt) {
+                    window.setTimeout(() => {
+                      videoFrameRef.current?.contentWindow?.postMessage(
+                        JSON.stringify({ event: "command", func: "playVideo", args: [] }),
+                        "*",
+                      );
+                    }, 350);
+                  }
+                }}
+                ref={videoFrameRef}
+                src={liveSlide.youtubeAudioUrl}
+                tabIndex={-1}
+                title={`${liveSlide.title} audio`}
+              />
+            ) : null}
+            <AutoFitSlideText maxFontSize={liveTextFontCap} text={liveSlide?.text ?? "Waiting for slideshow"} />
+          </>
         )}
       </section>
     </main>

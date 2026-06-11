@@ -185,9 +185,9 @@ function fitFontSizeForSlide(slideText: string, stageWidth: number, stageHeight:
     return 40;
   }
 
-  const usableHeight = Math.max(stageHeight * 0.91, 160);
+  const usableHeight = Math.max(stageHeight * 0.82, 150);
   let low = 13;
-  let high = stageWidth < 640 ? 42 : 72;
+  let high = stageWidth < 640 ? 34 : 72;
   let best = low;
 
   while (low <= high) {
@@ -195,7 +195,7 @@ function fitFontSizeForSlide(slideText: string, stageWidth: number, stageHeight:
     const wrapCharacters = wrapCharacterLimit(candidate, stageWidth);
     const visualLineCount = wrappedLineCount(lines, wrapCharacters);
     const groupGapCount = Math.max(lines.length - 1, 0);
-    const estimatedHeight = visualLineCount * candidate * 1.66 + groupGapCount * candidate * 0.38;
+    const estimatedHeight = visualLineCount * candidate * 2.05 + groupGapCount * candidate * 0.42;
     if (estimatedHeight <= usableHeight) {
       best = candidate;
       low = candidate + 1;
@@ -661,18 +661,28 @@ export function MusicianLiveView({ controlPlanId, onExit, plan, songs }: Musicia
     : chordChart.absoluteKey ?? null;
   const baseAbsoluteKey =
     chordChart.absoluteKey ?? deriveAbsoluteKey(chordChart.capoKey ?? currentGuitarKey ?? MUSICAL_KEYS[0], chordChart.capo);
+  const originalAbsoluteKey = chordChart.absoluteKey ?? (chordChart.capoKey ? deriveAbsoluteKey(chordChart.capoKey, chordChart.capo) : currentAbsoluteKey);
   const activeKeyLabel = currentAbsoluteKey
     ? `${currentAbsoluteKey}${capo > 0 && currentGuitarKey ? `/${currentGuitarKey}c${capo}` : ""}`
     : "unset";
-  const juniorSetups = playableSetups(currentAbsoluteKey);
+  const juniorSetups = playableSetups(originalAbsoluteKey);
   const selectedSetupValue = currentGuitarKey ? setupValue({ shapeKey: currentGuitarKey, capo }) : "";
   const setupOptions = juniorSetups.filter((setup) => setupValue(setup) !== selectedSetupValue);
+  const currentSongSlides = liveSlide ? slides.filter((slide) => slide.planItemId === liveSlide.planItemId) : [];
+  const currentSongSlideIndex = liveSlide ? currentSongSlides.findIndex((slide) => slide.id === liveSlide.id) : -1;
+  const songCounter = currentSongSlideIndex >= 0 ? `${currentSongSlideIndex + 1} / ${currentSongSlides.length}` : slides.length ? `${liveIndex + 1} / ${slides.length}` : "0 / 0";
+  const isLastSongSlide = liveSlide?.itemType === "song" && currentSongSlideIndex >= 0 && currentSongSlideIndex === currentSongSlides.length - 1;
 
   return (
     <section
-      className={`musician-live-view ${isFullscreen ? "is-fullscreen" : ""}`}
+      className={`musician-live-view ${isFullscreen ? "is-fullscreen" : ""} ${isLastSongSlide ? "is-song-end" : ""}`}
       aria-label="Musician live view"
-      onPointerDownCapture={() => keyCaptureRef.current?.focus({ preventScroll: true })}
+      onPointerDownCapture={(event) => {
+        if (isEditableKeyboardTarget(event.target)) {
+          return;
+        }
+        keyCaptureRef.current?.focus({ preventScroll: true });
+      }}
       ref={liveViewRef}
       tabIndex={-1}
     >
@@ -714,6 +724,7 @@ export function MusicianLiveView({ controlPlanId, onExit, plan, songs }: Musicia
           </label>
         </div>
         <div className="musician-live-controls" aria-label="Musician display controls">
+          <span className="musician-song-counter">{songCounter}</span>
           <button
             aria-pressed={showChords}
             className={`chord-toggle-button ${showChords ? "is-active" : ""}`}
