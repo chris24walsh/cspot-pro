@@ -1,4 +1,4 @@
-import { Archive, Save, X } from "lucide-react";
+import { Archive, Search, Save, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
 import { createSong, updateSong, type Song } from "../api";
@@ -25,9 +25,8 @@ import {
   type ChordChartDocument,
   type ChordDetailMode,
   type ChordDisplayMode,
-  type KeyAnchorMode,
 } from "../chordSheet";
-import { analyzeWorshipText, buildLyricsFromSections, canonicalizeWorshipLyrics, sequenceFromWorshipLyrics } from "../worshipText";
+import { canonicalizeWorshipLyrics } from "../worshipText";
 
 type SongForm = Omit<Song, "id" | "lyrics_status">;
 type SongEditorTab = "lyrics" | "details" | "chords";
@@ -39,10 +38,6 @@ type GuitarChordShape = {
   label?: string;
 };
 
-const GUITAR_SHAPE_SETS = {
-  standard: { label: "Shapes", requiredKey: null },
-  "open-e": { label: "Open E", requiredKey: "E" },
-} as const satisfies Record<GuitarShapeMode, { label: string; requiredKey: string | null }>;
 const WORSHIP_SLOT_OPTIONS = [
   { value: "opener", label: "Opening" },
   { value: "middle", label: "Middle" },
@@ -251,20 +246,15 @@ export function SongEditorDialog({
   const [editingAnnotationId, setEditingAnnotationId] = useState<string | null>(null);
   const [inlineChordEditorOpen, setInlineChordEditorOpen] = useState(false);
   const [chordInput, setChordInput] = useState("");
-  const [displayMode, setDisplayMode] = useState<ChordDisplayMode>("absolute");
-  const [detailMode, setDetailMode] = useState<ChordDetailMode>("advanced");
-  const [shapeMode, setShapeMode] = useState<GuitarShapeMode>("standard");
   const [draggedAnnotationId, setDraggedAnnotationId] = useState<string | null>(null);
   const [hoveredAnchor, setHoveredAnchor] = useState<{ lineIndex: number; slotIndex: number } | null>(null);
   const [hoveredChordId, setHoveredChordId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const displayMode: ChordDisplayMode = "absolute";
+  const detailMode: ChordDetailMode = "advanced";
   const lines = useMemo(() => lyricLines(form.lyrics), [form.lyrics]);
-  const editableKey = chordChart.keyAnchor === "absolute" ? chordChart.absoluteKey : chordChart.capoKey;
-  const derivedKey = chordChart.keyAnchor === "absolute" ? chordChart.capoKey : chordChart.absoluteKey;
-  const currentShapeKey = displayMode === "capo" ? chordChart.capoKey : chordChart.absoluteKey;
-  const openEShapesAvailable = currentShapeKey === "E";
-  const activeShapeMode = openEShapesAvailable ? shapeMode : "standard";
+  const derivedCapoKey = chordChart.absoluteKey ? deriveCapoKey(chordChart.absoluteKey, chordChart.capo) : chordChart.capoKey;
   const lineAnnotations = chordChart.annotations
     .slice()
     .sort((left, right) => left.lineIndex - right.lineIndex || left.anchorIndex - right.anchorIndex);
@@ -299,29 +289,6 @@ export function SongEditorDialog({
     setSelectedLineIndex((current) => Math.min(current, Math.max(lines.length - 1, 0)));
   }, [lines]);
 
-  function cleanLyrics() {
-    const analysis = analyzeWorshipText(form.lyrics ?? "", { title: form.title, redetectSections: true });
-    setForm((current) => ({
-      ...current,
-      lyrics: canonicalizeWorshipLyrics(buildLyricsFromSections(analysis.sections) || analysis.lyrics, analysis.sequence),
-      sequence: analysis.sequence,
-    }));
-  }
-
-  function useLyricOrderAsSequence() {
-    const sequence = sequenceFromWorshipLyrics(form.lyrics);
-    if (!sequence) {
-      setMessage("Add section labels before setting sequence from lyric order.");
-      return;
-    }
-    setForm((current) => ({
-      ...current,
-      lyrics: canonicalizeWorshipLyrics(current.lyrics, sequence),
-      sequence,
-    }));
-    setMessage(`Sequence set to ${sequence}.`);
-  }
-
   function normalizeChordInput(value: string) {
     const input = normalizeChordSymbolInput(value);
     const validation = validateChordSymbol(input);
@@ -336,7 +303,7 @@ export function SongEditorDialog({
     const nextAbsoluteKey = normalizeKeySignature(nextValue);
     setChordChart((current) => {
       const linked = current.absoluteKey && current.capoKey && deriveAbsoluteKey(current.capoKey, current.capo) === current.absoluteKey;
-      const nextChart: ChordChartDocument = { ...current, absoluteKey: nextAbsoluteKey };
+      const nextChart: ChordChartDocument = { ...current, absoluteKey: nextAbsoluteKey, keyAnchor: "absolute" };
       if (nextAbsoluteKey && current.absoluteKey && linked && nextAbsoluteKey !== current.absoluteKey) {
         nextChart.annotations = transposeChordAnnotations(current.annotations, semitoneDistance(current.absoluteKey, nextAbsoluteKey), {
           preferFlats: nextAbsoluteKey.includes("b"),
@@ -358,54 +325,17 @@ export function SongEditorDialog({
   function updateCapo(nextCapoValue: number) {
     const nextCapo = Math.max(0, Math.trunc(nextCapoValue));
     setChordChart((current) => {
-      const capoDelta = nextCapo - current.capo;
-      const preserveCapoShapes = displayMode === "capo" || current.keyAnchor === "capo";
-      const nextChart: ChordChartDocument = { ...current, capo: nextCapo };
-      if (preserveCapoShapes && capoDelta !== 0) {
-        const targetKey = current.capoKey ? deriveAbsoluteKey(current.capoKey, nextCapo) : current.absoluteKey;
-        nextChart.annotations = transposeChordAnnotations(current.annotations, capoDelta, { preferFlats: targetKey?.includes("b") });
-      }
-      if (current.keyAnchor === "capo" && current.capoKey) nextChart.absoluteKey = deriveAbsoluteKey(current.capoKey, nextCapo);
-      else if (current.absoluteKey) nextChart.capoKey = deriveCapoKey(current.absoluteKey, nextCapo);
+      const nextChart: ChordChartDocument = { ...current, capo: nextCapo, keyAnchor: "absolute" };
+      if (current.absoluteKey) nextChart.capoKey = deriveCapoKey(current.absoluteKey, nextCapo);
       return nextChart;
     });
     setLegacyChords(null);
   }
 
-  function updateCapoKey(nextValue: string) {
-    const nextCapoKey = normalizeKeySignature(nextValue);
-    setChordChart((current) => {
-      const linked = current.absoluteKey && current.capoKey && deriveAbsoluteKey(current.capoKey, current.capo) === current.absoluteKey;
-      const nextChart: ChordChartDocument = { ...current, capoKey: nextCapoKey };
-      if (!nextCapoKey) return nextChart;
-      if (current.keyAnchor === "capo") {
-        const nextAbsoluteKey = deriveAbsoluteKey(nextCapoKey, current.capo);
-        if (current.absoluteKey && linked && current.absoluteKey !== nextAbsoluteKey) {
-          nextChart.annotations = transposeChordAnnotations(current.annotations, semitoneDistance(current.absoluteKey, nextAbsoluteKey), {
-            preferFlats: nextAbsoluteKey.includes("b"),
-          });
-        }
-        nextChart.absoluteKey = nextAbsoluteKey;
-      } else if (current.absoluteKey) {
-        nextChart.capo = semitoneDistance(nextCapoKey, current.absoluteKey);
-      }
-      return nextChart;
-    });
-    setLegacyChords(null);
-  }
-
-  function updateKeyAnchor(nextAnchor: KeyAnchorMode) {
-    setChordChart((current) => {
-      const nextChart: ChordChartDocument = { ...current, keyAnchor: nextAnchor };
-      if (nextAnchor === "absolute" && current.absoluteKey && !current.capoKey) nextChart.capoKey = deriveCapoKey(current.absoluteKey, current.capo);
-      if (nextAnchor === "capo" && current.capoKey && !current.absoluteKey) nextChart.absoluteKey = deriveAbsoluteKey(current.capoKey, current.capo);
-      return nextChart;
-    });
-  }
-
-  function updateEditableKey(nextValue: string) {
-    if (chordChart.keyAnchor === "absolute") updateAbsoluteKey(nextValue);
-    else updateCapoKey(nextValue);
+  function openYouTubeSearch() {
+    const query = (form.title || song.title).trim();
+    if (!query) return;
+    window.open(`https://www.youtube.com/results?search_query=${encodeURIComponent(query)}`, "_blank", "noopener,noreferrer");
   }
 
   function startInlineChordEdit(lineIndex: number, anchorIndex: number, annotation?: ChordAnnotation) {
@@ -544,8 +474,6 @@ export function SongEditorDialog({
           {tab === "details" ? (
             <div className="form-grid">
               <label>Title<input disabled={!canEdit} onChange={(event) => setForm({ ...form, title: event.target.value })} required value={form.title} /></label>
-              <label>Author<input disabled={!canEdit} onChange={(event) => setForm({ ...form, author: event.target.value })} value={form.author ?? ""} /></label>
-              <label>Sequence<input disabled={!canEdit} onChange={(event) => setForm({ ...form, sequence: event.target.value })} placeholder="V1 C V2 C B C" value={form.sequence ?? ""} /></label>
               <div className="field-block worship-slot-field">
                 <span>Worship Slot</span>
                 <div className="checkbox-pill-grid">
@@ -565,31 +493,22 @@ export function SongEditorDialog({
                   })}
                 </div>
               </div>
-              <label>Energy<input disabled={!canEdit} max={5} min={1} onChange={(event) => setForm({ ...form, energy: Number(event.target.value) })} type="number" value={form.energy ?? 3} /></label>
-              <label>
-                Tempo / Feel
-                <select disabled={!canEdit} onChange={(event) => setForm({ ...form, tempo: event.target.value || null })} value={form.tempo ?? ""}>
-                  <option value="">Unset</option>
-                  <option value="slow">Slow</option>
-                  <option value="medium">Medium</option>
-                  <option value="upbeat">Upbeat</option>
-                </select>
+              <label className="wide-field youtube-field">
+                <span>YouTube Link / ID</span>
+                <span className="inline-input-action">
+                  <input disabled={!canEdit} onBlur={(event) => setForm({ ...form, youtube_id: extractYouTubeId(event.target.value) })} onChange={(event) => setForm({ ...form, youtube_id: event.target.value })} value={form.youtube_id ?? ""} />
+                  <button aria-label="Search YouTube for this song" className="section-icon-button" onClick={openYouTubeSearch} title="Search YouTube" type="button">
+                    <Search size={15} aria-hidden="true" />
+                  </button>
+                </span>
               </label>
-              <label className="wide-field">Themes<input disabled={!canEdit} onChange={(event) => setForm({ ...form, theme_tags: event.target.value })} placeholder="praise, cross, surrender, mission" value={form.theme_tags ?? ""} /></label>
-              <label className="wide-field">Book Reference<input disabled={!canEdit} onChange={(event) => setForm({ ...form, book_reference: event.target.value })} value={form.book_reference ?? ""} /></label>
-              <label>YouTube Link / ID<input disabled={!canEdit} onBlur={(event) => setForm({ ...form, youtube_id: extractYouTubeId(event.target.value) })} onChange={(event) => setForm({ ...form, youtube_id: event.target.value })} value={form.youtube_id ?? ""} /></label>
-              <label>External Link<input disabled={!canEdit} onChange={(event) => setForm({ ...form, external_link: event.target.value })} type="url" value={form.external_link ?? ""} /></label>
             </div>
           ) : null}
 
           {tab === "lyrics" ? (
             <div className="form-grid single-column">
               <div className="field-block wide-field">
-                <label htmlFor="song-dialog-lyrics">Lyrics</label>
-                <div className="field-action-row">
-                  <button className="text-button" disabled={!canEdit} onClick={cleanLyrics} type="button">Clean & Detect</button>
-                  <button className="text-button" disabled={!canEdit} onClick={useLyricOrderAsSequence} type="button">Use Lyric Order</button>
-                </div>
+                <label htmlFor="song-dialog-sequence">Sequence<input disabled={!canEdit} id="song-dialog-sequence" onChange={(event) => setForm({ ...form, sequence: event.target.value })} placeholder="V1 C V2 C B C" value={form.sequence ?? ""} /></label>
                 <textarea id="song-dialog-lyrics" disabled={!canEdit} onChange={(event) => setForm({ ...form, lyrics: event.target.value })} rows={18} value={form.lyrics ?? ""} />
               </div>
             </div>
@@ -599,44 +518,19 @@ export function SongEditorDialog({
             <section className="musician-tools" aria-label="Chord editor">
               <div className="musician-chord-editor-bar">
                 <div className="musician-chord-summary">
-                  <GuitarChordDiagram chord={activeDisplayedChord} shapeMode={activeShapeMode} />
+                  <GuitarChordDiagram chord={activeDisplayedChord} shapeMode="standard" />
                 </div>
                 <div className="musician-toolbar">
-                  <div className="musician-control-row">
-                    <div className="segmented-control">
-                      <button className={displayMode === "absolute" ? "is-active" : ""} disabled={!canEdit} onClick={() => setDisplayMode("absolute")} type="button">Real Chords</button>
-                      <button className={displayMode === "capo" ? "is-active" : ""} disabled={!canEdit} onClick={() => setDisplayMode("capo")} type="button">Guitar Shapes</button>
-                    </div>
-                    <div className="segmented-control compact-toggle">
-                      <button className={detailMode === "simple" ? "is-active" : ""} disabled={!canEdit} onClick={() => setDetailMode("simple")} type="button">Easy</button>
-                      <button className={detailMode === "advanced" ? "is-active" : ""} disabled={!canEdit} onClick={() => setDetailMode("advanced")} type="button">Full</button>
-                    </div>
-                    <div className="segmented-control compact-toggle">
-                      {(Object.keys(GUITAR_SHAPE_SETS) as GuitarShapeMode[]).map((setKey) => {
-                        const shapeSet = GUITAR_SHAPE_SETS[setKey];
-                        const available = !shapeSet.requiredKey || shapeSet.requiredKey === currentShapeKey;
-                        return (
-                          <button className={activeShapeMode === setKey ? "is-active" : ""} disabled={!canEdit || !available} key={setKey} onClick={() => setShapeMode(setKey)} type="button">
-                            {shapeSet.label}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
                   <div className="musician-control-row musician-key-row">
-                    <div className="segmented-control compact-toggle">
-                      <button className={chordChart.keyAnchor === "absolute" ? "is-active" : ""} disabled={!canEdit} onClick={() => updateKeyAnchor("absolute")} type="button">Real Key</button>
-                      <button className={chordChart.keyAnchor === "capo" ? "is-active" : ""} disabled={!canEdit} onClick={() => updateKeyAnchor("capo")} type="button">Guitar Key</button>
-                    </div>
                     <label className="compact-field musician-key-field">
                       Key
-                      <select disabled={!canEdit} onChange={(event) => updateEditableKey(event.target.value)} value={editableKey ?? ""}>
+                      <select disabled={!canEdit} onChange={(event) => updateAbsoluteKey(event.target.value)} value={chordChart.absoluteKey ?? ""}>
                         <option value="">Unset</option>
                         {MUSICAL_KEYS.map((keyOption) => <option key={keyOption} value={keyOption}>{keyOption}</option>)}
                       </select>
-                      <span className="field-help musician-derived-key">{derivedKey ? `${chordChart.keyAnchor === "absolute" ? "Guitar" : "Sounds in"} ${derivedKey}` : "Required before adding chords"}</span>
                     </label>
                     <label className="compact-field musician-capo-field">Capo<input disabled={!canEdit} min={0} onChange={(event) => updateCapo(Number(event.target.value || 0))} type="number" value={chordChart.capo} /></label>
+                    <span className="field-help musician-derived-key">{chordChart.absoluteKey ? `${chordChart.absoluteKey}${chordChart.capo > 0 && derivedCapoKey ? `/${derivedCapoKey}c${chordChart.capo}` : ""}` : "Set key before adding chords"}</span>
                   </div>
                 </div>
               </div>

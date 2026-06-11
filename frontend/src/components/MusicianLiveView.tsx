@@ -86,18 +86,35 @@ function clampNumber(value: number, min: number, max: number) {
 }
 
 function normalizeCapo(value: number) {
-  return Math.min(Math.max(Math.trunc(value), 0), 11);
+  return Math.min(Math.max(Math.trunc(value), 0), 5);
 }
 
-function shiftKey(key: string | null, semitones: number) {
-  if (!key) {
-    return MUSICAL_KEYS[0];
+const PLAYABLE_SHAPE_KEYS = ["C", "G"] as const;
+
+function keyDistance(left: string, right: string) {
+  const upward = semitoneDistance(left, right);
+  return Math.min(upward, 12 - upward);
+}
+
+function bestPlayableSetup(targetKey: string | null, shapeKey: string) {
+  if (!targetKey) {
+    return { absoluteKey: shapeKey, capo: 0, distance: 0, shapeKey };
   }
-  const index = MUSICAL_KEYS.findIndex((candidate) => candidate === key);
-  if (index < 0) {
-    return key;
-  }
-  return MUSICAL_KEYS[(index + semitones + 120) % MUSICAL_KEYS.length];
+  return Array.from({ length: 6 }, (_, capoOption) => {
+    const absoluteKey = deriveAbsoluteKey(shapeKey, capoOption);
+    return {
+      absoluteKey,
+      capo: capoOption,
+      distance: keyDistance(absoluteKey, targetKey),
+      shapeKey,
+    };
+  }).sort((left, right) => left.distance - right.distance || left.capo - right.capo)[0];
+}
+
+function playableSetups(targetKey: string | null) {
+  return PLAYABLE_SHAPE_KEYS.map((shapeKey) => bestPlayableSetup(targetKey, shapeKey)).sort(
+    (left, right) => left.distance - right.distance || left.capo - right.capo || left.shapeKey.localeCompare(right.shapeKey),
+  );
 }
 
 function wrapCharacterLimit(fontSize: number, stageWidth = 1120) {
@@ -295,8 +312,6 @@ function annotationsForSegment(annotations: ChordAnnotation[], segmentStart: num
 export function MusicianLiveView({ controlPlanId, onExit, plan, songs }: MusicianLiveViewProps) {
   const [liveState, setLiveState] = useState<PresentationLiveState | null>(null);
   const [showChords, setShowChords] = useState(true);
-  const [displayMode, setDisplayMode] = useState<ChordDisplayMode>("capo");
-  const [detailMode, setDetailMode] = useState<ChordDetailMode>("simple");
   const [capo, setCapo] = useState(0);
   const [guitarKey, setGuitarKey] = useState<string | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -311,6 +326,8 @@ export function MusicianLiveView({ controlPlanId, onExit, plan, songs }: Musicia
   const handledKeyboardEventsRef = useRef<WeakSet<KeyboardEvent>>(new WeakSet());
   const lastKeyboardNavigationRef = useRef<{ direction: SlideKeyboardDirection; key: string; time: number } | null>(null);
   const liveSyncPlanId = controlPlanId ?? plan?.id ?? null;
+  const displayMode: ChordDisplayMode = "capo";
+  const detailMode: ChordDetailMode = "simple";
 
   const worshipItems = useMemo(
     () =>
@@ -590,15 +607,6 @@ export function MusicianLiveView({ controlPlanId, onExit, plan, songs }: Musicia
     };
   }, [liveIndex, slides.length]);
 
-  function changeRealKey(delta: -1 | 1) {
-    const currentRealKey =
-      guitarKey
-        ? deriveAbsoluteKey(guitarKey, capo)
-        : chordChart.absoluteKey ?? (chordChart.capoKey ? deriveAbsoluteKey(chordChart.capoKey, capo) : MUSICAL_KEYS[0]);
-    const nextAbsoluteKey = shiftKey(currentRealKey, delta);
-    setGuitarKey(deriveCapoKey(nextAbsoluteKey, capo));
-  }
-
   function changeCapo(delta: -1 | 1) {
     setCapo((currentCapo) => {
       const nextCapo = normalizeCapo(currentCapo + delta);
@@ -615,12 +623,10 @@ export function MusicianLiveView({ controlPlanId, onExit, plan, songs }: Musicia
     });
   }
 
-  function changeActiveKeyControl(delta: -1 | 1) {
-    if (displayMode === "absolute") {
-      changeRealKey(delta);
-      return;
-    }
-    changeCapo(delta);
+  function applyPlayableSetup(shapeKey: string) {
+    const setup = bestPlayableSetup(currentAbsoluteKey, shapeKey);
+    setGuitarKey(setup.shapeKey);
+    setCapo(setup.capo);
   }
 
   async function toggleFullscreen() {
@@ -673,12 +679,9 @@ export function MusicianLiveView({ controlPlanId, onExit, plan, songs }: Musicia
   const baseAbsoluteKey =
     chordChart.absoluteKey ?? deriveAbsoluteKey(chordChart.capoKey ?? currentGuitarKey ?? MUSICAL_KEYS[0], chordChart.capo);
   const activeKeyLabel = currentAbsoluteKey
-    ? capo > 0
-      ? `${currentAbsoluteKey} · Capo ${capo} · ${currentGuitarKey ?? deriveCapoKey(currentAbsoluteKey, capo)} shapes`
-      : currentAbsoluteKey
-    : "Unset";
-  const keyControlTitle = displayMode === "absolute" ? "Key" : "Capo";
-  const keyControlValue = displayMode === "absolute" ? (currentAbsoluteKey ?? "Unset") : String(capo);
+    ? `${currentAbsoluteKey}${capo > 0 && currentGuitarKey ? `/${currentGuitarKey}c${capo}` : ""}`
+    : "unset";
+  const juniorSetups = playableSetups(currentAbsoluteKey);
 
   return (
     <section
@@ -716,23 +719,35 @@ export function MusicianLiveView({ controlPlanId, onExit, plan, songs }: Musicia
             <span aria-hidden="true" />
             Chords
           </button>
-          <div className="musician-pill-toggle" aria-label="Chord display mode">
-            <button className={displayMode === "absolute" ? "is-active" : ""} onClick={() => setDisplayMode("absolute")} type="button">
-              Real
-            </button>
-            <button className={displayMode === "capo" ? "is-active" : ""} onClick={() => setDisplayMode("capo")} type="button">
-              Guitar
-            </button>
-          </div>
-          <div className="musician-stepper" aria-label={keyControlTitle}>
-            <span>{keyControlTitle}</span>
-            <button onClick={() => changeActiveKeyControl(-1)} type="button" aria-label={`Lower ${keyControlTitle}`}>
+          <div className="musician-stepper" aria-label="Capo">
+            <span>Capo</span>
+            <button onClick={() => changeCapo(-1)} type="button" aria-label="Lower capo">
               -
             </button>
-            <strong>{keyControlValue}</strong>
-            <button onClick={() => changeActiveKeyControl(1)} type="button" aria-label={`Raise ${keyControlTitle}`}>
+            <strong>{capo}</strong>
+            <button onClick={() => changeCapo(1)} type="button" aria-label="Raise capo">
               +
             </button>
+          </div>
+          <div className="musician-shape-presets" aria-label="Playable guitar shapes">
+            {juniorSetups.map((setup) => (
+              <button
+                className={currentGuitarKey === setup.shapeKey && capo === setup.capo ? "is-active" : ""}
+                key={`${setup.shapeKey}-${setup.capo}`}
+                onClick={() => {
+                  setGuitarKey(setup.shapeKey);
+                  setCapo(setup.capo);
+                }}
+                title={setup.distance === 0 ? `${setup.shapeKey} shapes in ${setup.absoluteKey}` : `${setup.shapeKey} shapes, sounds in ${setup.absoluteKey}`}
+                type="button"
+              >
+                {setup.shapeKey}{setup.capo > 0 ? `c${setup.capo}` : ""}
+              </button>
+            ))}
+            <select aria-label="Choose guitar shape" onChange={(event) => applyPlayableSetup(event.target.value)} value={currentGuitarKey ?? ""}>
+              <option value="">Shape</option>
+              {PLAYABLE_SHAPE_KEYS.map((shapeKey) => <option key={shapeKey} value={shapeKey}>{shapeKey}</option>)}
+            </select>
           </div>
           <button className="musician-fullscreen-button" onClick={() => void toggleFullscreen()} type="button" aria-label={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"}>
             {isFullscreen ? <Minimize2 size={18} aria-hidden="true" /> : <Maximize2 size={18} aria-hidden="true" />}

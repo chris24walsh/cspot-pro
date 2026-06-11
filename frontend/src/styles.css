@@ -1699,6 +1699,46 @@ h3 {
   border-color: #8ebba9;
 }
 
+.musician-shape-presets {
+  align-items: center;
+  display: inline-flex;
+  gap: 4px;
+  min-width: 0;
+}
+
+.musician-shape-presets button,
+.musician-shape-presets select {
+  background: #fffefa;
+  border: 1px solid #cfc7b4;
+  border-radius: 8px;
+  color: #234a40;
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 900;
+  min-height: 32px;
+}
+
+.musician-shape-presets button {
+  min-width: 42px;
+  padding: 4px 8px;
+}
+
+.musician-shape-presets select {
+  min-width: 64px;
+  padding: 4px 7px;
+}
+
+.musician-shape-presets button.is-active,
+.musician-shape-presets button:hover,
+.musician-shape-presets button:focus-visible,
+.musician-shape-presets select:hover,
+.musician-shape-presets select:focus-visible {
+  background: #eaf5ef;
+  border-color: #8ebba9;
+  outline: none;
+}
+
 .musician-fullscreen-button {
   align-items: center;
   background: #fffefa;
@@ -2022,6 +2062,19 @@ h3 {
   justify-content: flex-end;
 }
 
+.inline-input-action {
+  align-items: center;
+  display: grid;
+  gap: 6px;
+  grid-template-columns: minmax(0, 1fr) 36px;
+}
+
+.inline-input-action .section-icon-button {
+  min-height: 36px;
+  min-width: 36px;
+  padding: 0;
+}
+
 .subsection-panel {
   background: #fffdf7;
   border: 1px solid #e3dcc8;
@@ -2186,7 +2239,7 @@ h3 {
   border-radius: 8px;
   display: grid;
   gap: 8px;
-  grid-template-columns: auto minmax(180px, 1fr) minmax(86px, 112px) auto;
+  grid-template-columns: minmax(120px, 1fr) minmax(72px, 96px) minmax(120px, auto);
   padding: 8px;
 }
 
@@ -2211,7 +2264,10 @@ h3 {
 }
 
 .musician-derived-key {
+  align-self: center;
   min-height: 16px;
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
@@ -2482,7 +2538,7 @@ h3 {
   }
 
   .musician-key-row {
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: minmax(0, 1fr) 72px minmax(0, 1fr);
   }
 }
 
@@ -5885,6 +5941,18 @@ h3 {
     padding-bottom: 8px;
   }
 
+  .song-editor-dialog .musician-chord-summary {
+    display: none;
+  }
+
+  .song-editor-dialog .musician-key-row {
+    grid-template-columns: minmax(0, 1fr) 64px;
+  }
+
+  .song-editor-dialog .musician-derived-key {
+    grid-column: 1 / -1;
+  }
+
   .field-action-row {
     flex-wrap: wrap;
     justify-content: flex-start;
@@ -6119,6 +6187,7 @@ h3 {
 
   .musician-live-title span {
     font-size: 11px;
+    max-width: 74px;
   }
 
   .musician-live-controls {
@@ -6180,6 +6249,26 @@ h3 {
   .musician-stepper button {
     height: 20px;
     width: 20px;
+  }
+
+  .musician-shape-presets {
+    gap: 3px;
+  }
+
+  .musician-shape-presets button,
+  .musician-shape-presets select {
+    font-size: 11px;
+    min-height: 26px;
+  }
+
+  .musician-shape-presets button {
+    min-width: 34px;
+    padding: 2px 5px;
+  }
+
+  .musician-shape-presets select {
+    min-width: 52px;
+    padding: 2px 4px;
   }
 
   .musician-fullscreen-button {
