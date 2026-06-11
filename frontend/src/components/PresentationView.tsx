@@ -716,10 +716,11 @@ export function PresentationView({
     liveSectionSlideIndex >= 0 && currentPlanItemSlides.length > 1
       ? `${liveSectionSlideIndex + 1}/${currentPlanItemSlides.length}`
       : null;
-  const stageContextLabel =
+  const stageContextTitle =
     liveSlide?.itemType === "song" || liveSlide?.itemType === "reading"
-      ? [liveSlide.sectionTitle || liveSlide.title, liveSlide.itemType === "song" ? liveSectionCounter : null].filter(Boolean).join(" ")
+      ? liveSlide.sectionTitle || liveSlide.title
       : "";
+  const stageContextCounter = liveSlide?.itemType === "song" ? liveSectionCounter : null;
   const stageSlideCounter = liveSectionCounter ?? `${liveIndex + 1} / ${slides.length}`;
   const currentPlanItemAllowsNotes =
     currentPlanItem?.item_type === "message" ||
@@ -734,6 +735,7 @@ export function PresentationView({
     () => suggestSlideGroupFontCap(planTextSlides.map((slide) => slide.text)),
     [planTextSlides],
   );
+  const liveTextFontCap = liveSlide?.itemType === "reading" ? Math.min(planTextFontCap, 42) : planTextFontCap;
   const compactPlanTextFontCap = useMemo(
     () => suggestSlideGroupFontCap(planTextSlides.map((slide) => slide.text), true),
     [planTextSlides],
@@ -2771,16 +2773,15 @@ export function PresentationView({
     }
     const forceSync = scrollOperatorToSelectedSlideRef.current;
     scrollOperatorToSelectedSlideRef.current = false;
+    if (!forceSync) {
+      return;
+    }
 
     window.requestAnimationFrame(() => {
-      if (forceSync || !sorterCatchUpDirection) {
-        scrollItemIntoOperatorView(slideGridRef.current, thumbnailRefs.current[activeSlide.id] ?? null);
-      }
-      if (forceSync || !railCatchUpDirection) {
-        scrollItemIntoOperatorView(sectionRailListRef.current, sectionRailRefs.current[activeSlide.sectionId] ?? null);
-      }
+      scrollItemIntoOperatorView(slideGridRef.current, thumbnailRefs.current[activeSlide.id] ?? null);
+      scrollItemIntoOperatorView(sectionRailListRef.current, sectionRailRefs.current[activeSlide.sectionId] ?? null);
     });
-  }, [liveIndex, railCatchUpDirection, sections, slides, sorterCatchUpDirection]);
+  }, [liveIndex, sections, slides]);
 
   useEffect(() => {
     if (!searchOverlayOpen && !servicePickerOpen && !editingSongId) {
@@ -3320,7 +3321,12 @@ export function PresentationView({
                   </section>
                 ) : null}
               </div>
-              {stageContextLabel ? <span className="stage-context-label">{stageContextLabel}</span> : null}
+              {stageContextTitle ? (
+                <span className="stage-context-label">
+                  <span className="stage-context-title">{stageContextTitle}</span>
+                  {stageContextCounter ? <span className="stage-context-count">{stageContextCounter}</span> : null}
+                </span>
+              ) : null}
               <div className="stage-meta-actions">
                 <label className="stage-theme-switch stage-toggle-switch" title="Toggle slide theme">
                   <input
@@ -3365,7 +3371,7 @@ export function PresentationView({
                   )}
                 </div>
               ) : (
-                <SlideTextBlock maxFontSize={planTextFontCap} text={liveSlide?.text ?? "No live slide selected"} />
+                <SlideTextBlock maxFontSize={liveTextFontCap} text={liveSlide?.text ?? "No live slide selected"} />
               )}
             </div>
           </div>
@@ -3487,7 +3493,7 @@ export function PresentationView({
                       onClick={() => selectSlideFromOperator(sectionStart)}
                       type="button"
                     >
-                      {section.itemType === "song" ? null : <span>{section.itemType}</span>}
+                      {["song", "reading", "sermon"].includes(section.itemType) ? null : <span>{section.itemType}</span>}
                       <strong>{section.title}</strong>
                       {section.slides.some(
                         (slide) =>

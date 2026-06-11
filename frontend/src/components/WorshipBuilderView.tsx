@@ -374,7 +374,7 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
   const [editHistoryApplying, setEditHistoryApplying] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<"builder" | "live">("builder");
-  const [mobileBuilderPane, setMobileBuilderPane] = useState<"library" | "set">("library");
+  const [mobileBuilderPane, setMobileBuilderPane] = useState<"library" | "set">("set");
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
   const [topbarSlot, setTopbarSlot] = useState<HTMLElement | null>(null);
   const setListRef = useRef<HTMLDivElement | null>(null);

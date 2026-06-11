@@ -224,8 +224,8 @@ button {
 .worship-set-topbar-actions {
   align-items: center;
   display: grid;
-  grid-template-columns: minmax(150px, auto) auto;
-  gap: 8px;
+  grid-template-columns: auto auto;
+  gap: 6px;
   min-width: 0;
 }
 
@@ -376,7 +376,8 @@ button {
 .worship-topbar-tools {
   align-items: center;
   display: grid;
-  grid-template-columns: auto auto;
+  gap: 6px;
+  grid-template-columns: minmax(0, auto) auto;
 }
 
 .worship-topbar-tools .worship-set-picker-tools,
@@ -388,7 +389,8 @@ button {
 .worship-topbar-tools .worship-history-button,
 .worship-topbar-tools .topbar-action-button,
 .worship-topbar-tools .topbar-primary-button {
-  min-height: 48px;
+  min-height: 36px;
+  padding-block: 4px;
 }
 
 .compact-video-controls {
@@ -3785,7 +3787,7 @@ h3 {
 .section-jump {
   background: #fffefa;
   border-color: #cfc7b4;
-  grid-template-columns: minmax(0, 1fr) auto;
+  justify-items: start;
   min-height: 32px;
   padding: 6px 8px;
 }
@@ -3956,6 +3958,7 @@ h3 {
 .section-jump strong,
 .slide-tile strong {
   overflow-wrap: anywhere;
+  text-align: left;
 }
 
 .deck-preview {
@@ -4117,12 +4120,25 @@ h3 {
 }
 
 .stage-context-label {
+  align-items: center;
   flex: 1 1 auto;
+  gap: 6px;
   min-width: 0;
   overflow: hidden;
   padding: 0 10px;
-  text-align: center;
+}
+
+.stage-context-title {
+  min-width: 0;
+  overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.stage-context-count {
+  flex: 0 0 auto;
+  font-size: 11px;
+  font-weight: 950;
   white-space: nowrap;
 }
 
@@ -4232,23 +4248,39 @@ h3 {
 
 .stage-blank-switch span {
   align-items: center;
-  background: rgba(255, 253, 245, 0.14);
-  border: 1px solid rgba(255, 253, 245, 0.42);
+  background: rgba(255, 253, 245, 0.25);
+  border: 1px solid rgba(255, 253, 245, 0.45);
   border-radius: 999px;
   color: #fffdf5;
   display: inline-flex;
-  font-size: 12px;
+  font-size: 0;
   font-weight: 950;
-  height: 22px;
+  height: 18px;
   justify-content: center;
   line-height: 1;
-  width: 26px;
+  position: relative;
+  width: 34px;
+}
+
+.stage-blank-switch span::after {
+  background: #fffdf5;
+  border-radius: 999px;
+  content: "";
+  height: 12px;
+  left: 2px;
+  position: absolute;
+  top: 2px;
+  transition: transform 120ms ease;
+  width: 12px;
 }
 
 .stage-blank-switch input:checked + span {
-  background: #fffdf5;
-  border-color: #fffdf5;
-  color: #111816;
+  background: rgba(220, 186, 96, 0.42);
+  border-color: rgba(239, 199, 109, 0.68);
+}
+
+.stage-blank-switch input:checked + span::after {
+  transform: translateX(16px);
 }
 
 .stage-icon-button {
@@ -5039,10 +5071,20 @@ h3 {
     background: rgba(255, 255, 255, 0.9);
     border-color: rgba(16, 37, 31, 0.28);
     box-shadow: 0 2px 8px rgba(17, 24, 22, 0.14);
+    height: 30px;
+    width: 30px;
   }
 
   .stage-shell-live .stage-theme-slider::after {
     background: #10251f;
+    height: 18px;
+    left: 5px;
+    top: 5px;
+    width: 18px;
+  }
+
+  .stage-shell-live .stage-theme-switch input:checked + .stage-theme-slider::after {
+    transform: none;
   }
 
   .stage-shell-live .stage-meta-actions > span {
@@ -5060,9 +5102,17 @@ h3 {
 
   .stage-shell-live .stage-blank-switch span {
     background: rgba(255, 255, 255, 0.9);
+    border-radius: 9px;
     border-color: rgba(16, 37, 31, 0.24);
     box-shadow: 0 2px 8px rgba(17, 24, 22, 0.14);
     color: #10251f;
+    font-size: 12px;
+    height: 30px;
+    width: 30px;
+  }
+
+  .stage-shell-live .stage-blank-switch span::after {
+    content: none;
   }
 
   .stage-shell-live .stage-blank-switch input:checked + span {
@@ -5073,38 +5123,27 @@ h3 {
 
   .type-song.stage-shell-live .stage-meta,
   .type-reading.stage-shell-live .stage-meta {
-    align-items: center;
-    background: rgba(255, 255, 255, 0.78);
-    border-bottom: 1px solid rgba(16, 37, 31, 0.12);
-    box-shadow: 0 1px 8px rgba(17, 24, 22, 0.08);
-    bottom: auto;
-    min-height: 30px;
-    padding: 3px 6px;
-    pointer-events: auto;
-  }
-
-  .type-song.stage-shell-live .stage-service-tools,
-  .type-reading.stage-shell-live .stage-service-tools,
-  .type-song.stage-shell-live .stage-meta-actions,
-  .type-reading.stage-shell-live .stage-meta-actions {
-    flex-direction: row;
-    gap: 5px;
-    width: auto;
-  }
-
-  .type-song.stage-shell-live .stage-meta-actions,
-  .type-reading.stage-shell-live .stage-meta-actions {
-    align-self: center;
+    bottom: 8px;
   }
 
   .type-song.stage-shell-live .stage-context-label,
   .type-reading.stage-shell-live .stage-context-label {
+    background: rgba(255, 255, 255, 0.76);
+    border: 1px solid rgba(16, 37, 31, 0.1);
+    box-shadow: 0 1px 7px rgba(17, 24, 22, 0.08);
     color: #10251f;
-    display: block;
+    display: flex;
+    left: 46px;
     font-size: 12px;
     font-weight: 900;
-    line-height: 1.1;
-    padding: 0 5px;
+    justify-content: center;
+    line-height: 18px;
+    max-height: 20px;
+    min-height: 20px;
+    padding: 0 7px;
+    position: absolute;
+    right: 46px;
+    top: 0;
   }
 
   .type-song.stage-shell-live .stage-meta-actions > span,
@@ -5399,16 +5438,16 @@ h3 {
   }
 
   .type-song .presentation-stage {
-    padding: 34px 10px 8px;
+    padding: 25px 10px 8px;
   }
 
   .type-reading .presentation-stage {
     grid-template-rows: min-content minmax(0, 1fr);
-    padding: 34px 9px 8px;
+    padding: 25px 9px 8px;
   }
 
   .type-reading .fit-slide-box-live {
-    padding: 3% 7%;
+    padding: 2% 6% 3%;
   }
 
   .type-reading .fit-slide-text-live {
@@ -5558,7 +5597,8 @@ h3 {
 
   .worship-set-item {
     align-items: center;
-    grid-template-columns: 28px minmax(0, 1fr) 84px;
+    grid-template-columns: 24px minmax(0, 1fr) 66px;
+    min-height: 72px;
   }
 
   .worship-set-item > span {
@@ -5566,18 +5606,24 @@ h3 {
   }
 
   .worship-set-actions {
-    grid-template-columns: 38px;
+    grid-template-columns: 30px;
   }
 
   .worship-set-item-tools {
-    grid-template-columns: repeat(2, 38px);
-    width: 84px;
+    gap: 4px;
+    grid-template-columns: repeat(2, 30px);
+    width: 64px;
   }
 
   .worship-set-actions .section-icon-button {
-    border-radius: 10px;
-    min-height: 38px;
-    min-width: 38px;
+    border-radius: 8px;
+    min-height: 30px;
+    min-width: 30px;
+  }
+
+  .worship-set-actions .section-icon-button svg {
+    height: 13px;
+    width: 13px;
   }
 
   .song-library-row {
