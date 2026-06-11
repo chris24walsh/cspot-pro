@@ -16,7 +16,7 @@ export interface PresentationLiveState {
   theme?: PresentationTheme;
   blanked?: boolean;
   fullscreen?: boolean;
-  videoAction?: "play" | "pause" | "stop" | null;
+  videoAction?: "play" | "pause" | "stop" | "fade-stop" | null;
   videoActionAt?: number;
 }
 

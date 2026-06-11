@@ -249,17 +249,57 @@ export function PresentationOutput() {
 
     if (liveMediaProvider === "file") {
       if (liveState.videoAction === "play") {
+        if (videoElementRef.current) {
+          videoElementRef.current.volume = 1;
+        }
         void videoElementRef.current?.play().catch(() => {
           setMessage("This browser blocked remote video start. Click Play on the output once, then remote pause/stop will work.");
         });
       } else if (liveState.videoAction === "pause") {
         videoElementRef.current?.pause();
+      } else if (liveState.videoAction === "fade-stop") {
+        const video = videoElementRef.current;
+        if (!video) {
+          return;
+        }
+        const startVolume = video.volume || 1;
+        let step = 0;
+        const interval = window.setInterval(() => {
+          step += 1;
+          video.volume = Math.max(0, startVolume * (1 - step / 8));
+          if (step >= 8) {
+            window.clearInterval(interval);
+            video.pause();
+            video.currentTime = 0;
+            video.volume = startVolume;
+          }
+        }, 90);
       } else {
         videoElementRef.current?.pause();
         if (videoElementRef.current) {
           videoElementRef.current.currentTime = 0;
         }
       }
+      return;
+    }
+
+    if (liveState.videoAction === "fade-stop") {
+      let step = 0;
+      const interval = window.setInterval(() => {
+        step += 1;
+        const volume = Math.max(0, Math.round(100 * (1 - step / 8)));
+        videoFrameRef.current?.contentWindow?.postMessage(
+          JSON.stringify({ event: "command", func: "setVolume", args: [volume] }),
+          "*",
+        );
+        if (step >= 8) {
+          window.clearInterval(interval);
+          videoFrameRef.current?.contentWindow?.postMessage(
+            JSON.stringify({ event: "command", func: "pauseVideo", args: [] }),
+            "*",
+          );
+        }
+      }, 90);
       return;
     }
 
@@ -270,6 +310,12 @@ export function PresentationOutput() {
           ? "pauseVideo"
           : "stopVideo";
 
+    if (liveState.videoAction === "play") {
+      videoFrameRef.current?.contentWindow?.postMessage(
+        JSON.stringify({ event: "command", func: "setVolume", args: [100] }),
+        "*",
+      );
+    }
     videoFrameRef.current?.contentWindow?.postMessage(
       JSON.stringify({ event: "command", func: command, args: [] }),
       "*",
@@ -369,6 +415,9 @@ export function PresentationOutput() {
     }
 
     async function onKeyDown(event: KeyboardEvent) {
+      if (event.repeat) {
+        return;
+      }
       const target = event.target;
       const editing =
         target instanceof HTMLInputElement ||

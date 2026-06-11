@@ -52,7 +52,31 @@ function normalizeSectionHeading(line: string): string | null {
 }
 
 function compactSectionLabel(label: string) {
-  return label.replace(/^(Verse|Section)\s*(\d+)$/i, (_, section: string, number: string) => `${section}${number}`);
+  const trimmed = label.trim().replace(/\s+/g, "");
+  const match = trimmed.match(/^(Verse|Chorus|Bridge|PreChorus|Tag|Ending|Outro|Intro|Section)(\d+)?$/i);
+  if (!match) {
+    return label.replace(/\s+/g, "");
+  }
+  const base = match[1].toLowerCase();
+  const prefix =
+    base === "verse"
+      ? "V"
+      : base === "chorus"
+        ? "C"
+        : base === "bridge"
+          ? "B"
+          : base === "prechorus"
+            ? "PC"
+            : base === "tag"
+              ? "T"
+              : base === "ending"
+                ? "E"
+                : base === "outro"
+                  ? "O"
+                  : base === "intro"
+                    ? "I"
+                    : "S";
+  return `${prefix}${match[2] ?? ""}`;
 }
 
 function normalizeSectionToken(token: string): string | null {
@@ -97,6 +121,11 @@ function sequenceLabels(sequence: string | null | undefined) {
   }
 
   return labels;
+}
+
+export function normalizeWorshipSequence(sequence: string | null | undefined) {
+  const labels = sequenceLabels(sequence).map(compactSectionLabel);
+  return labels.length ? labels.join(" ") : null;
 }
 
 export function isWorshipSectionHeading(line: string): boolean {
@@ -311,10 +340,15 @@ export function expandWorshipSlides(value: string | null | undefined, sequence?:
 export function canonicalizeWorshipLyrics(value: string | null | undefined, sequence?: string | null) {
   const sections = parseWorshipSectionBlocks(value);
   const seenContentByLabel = new Map<string, string>();
+  let verseNumber = 1;
 
   const blocks = sections
     .map((section) => {
-      const label = normalizeSectionToken(section.label) ?? compactSectionLabel(section.label);
+      let label = normalizeSectionToken(section.label) ?? compactSectionLabel(section.label);
+      if (/^Verse\d*$/i.test(label)) {
+        label = `Verse${verseNumber}`;
+        verseNumber += 1;
+      }
       const previous = seenContentByLabel.get(label);
       if (section.content && !previous) {
         seenContentByLabel.set(label, blockKey(section.content));
@@ -347,6 +381,7 @@ export function canonicalizeWorshipLyrics(value: string | null | undefined, sequ
 export function sequenceFromWorshipLyrics(value: string | null | undefined) {
   const labels = parseWorshipSectionBlocks(value)
     .map((section) => normalizeSectionToken(section.label) ?? compactSectionLabel(section.label))
+    .map(compactSectionLabel)
     .filter(Boolean);
 
   return labels.filter((label, index) => index === 0 || label !== labels[index - 1]).join(" ");

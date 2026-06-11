@@ -185,9 +185,9 @@ function fitFontSizeForSlide(slideText: string, stageWidth: number, stageHeight:
     return 40;
   }
 
-  const usableHeight = Math.max(stageHeight * 0.82, 150);
+  const usableHeight = Math.max(stageHeight * 0.72, 130);
   let low = 13;
-  let high = stageWidth < 640 ? 34 : 72;
+  let high = stageWidth < 640 ? 30 : 56;
   let best = low;
 
   while (low <= high) {
@@ -195,7 +195,7 @@ function fitFontSizeForSlide(slideText: string, stageWidth: number, stageHeight:
     const wrapCharacters = wrapCharacterLimit(candidate, stageWidth);
     const visualLineCount = wrappedLineCount(lines, wrapCharacters);
     const groupGapCount = Math.max(lines.length - 1, 0);
-    const estimatedHeight = visualLineCount * candidate * 2.05 + groupGapCount * candidate * 0.42;
+    const estimatedHeight = visualLineCount * candidate * 2.35 + groupGapCount * candidate * 0.5;
     if (estimatedHeight <= usableHeight) {
       best = candidate;
       low = candidate + 1;
@@ -572,6 +572,9 @@ export function MusicianLiveView({ controlPlanId, onExit, plan, songs }: Musicia
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
+      if (event.type !== "keydown" || event.repeat) {
+        return;
+      }
       if (handledKeyboardEventsRef.current.has(event)) {
         return;
       }
@@ -601,14 +604,10 @@ export function MusicianLiveView({ controlPlanId, onExit, plan, songs }: Musicia
     }
 
     window.addEventListener("keydown", onKeyDown, { capture: true });
-    window.addEventListener("keyup", onKeyDown, { capture: true });
     document.addEventListener("keydown", onKeyDown, { capture: true });
-    document.addEventListener("keyup", onKeyDown, { capture: true });
     return () => {
       window.removeEventListener("keydown", onKeyDown, { capture: true });
-      window.removeEventListener("keyup", onKeyDown, { capture: true });
       document.removeEventListener("keydown", onKeyDown, { capture: true });
-      document.removeEventListener("keyup", onKeyDown, { capture: true });
     };
   }, [liveIndex, slides.length]);
 
@@ -694,7 +693,11 @@ export function MusicianLiveView({ controlPlanId, onExit, plan, songs }: Musicia
         className="slide-key-capture"
         data-slide-key-capture="true"
         inputMode="none"
-        onBlur={() => window.setTimeout(() => keyCaptureRef.current?.focus({ preventScroll: true }), 0)}
+        onBlur={() => window.setTimeout(() => {
+          if (!isEditableKeyboardTarget(document.activeElement)) {
+            keyCaptureRef.current?.focus({ preventScroll: true });
+          }
+        }, 0)}
         ref={keyCaptureRef}
         spellCheck={false}
         tabIndex={-1}

@@ -623,6 +623,7 @@ export function PresentationView({
   const [googleDriveError, setGoogleDriveError] = useState("");
   const [slideTheme, setSlideTheme] = useState<PresentationTheme>("light");
   const [liveBlanked, setLiveBlanked] = useState(false);
+  const [audioControlsEnabled, setAudioControlsEnabled] = useState(false);
   const [playingAudioSectionId, setPlayingAudioSectionId] = useState<string | null>(null);
   const [slideshowOpen, setSlideshowOpen] = useState(false);
   const [deckRenderRetryToken, setDeckRenderRetryToken] = useState(0);
@@ -1018,7 +1019,18 @@ export function PresentationView({
     }
   }
 
-  function setLiveSlide(nextIndex: number) {
+  function publishFadeOutAudio() {
+    if (!playingAudioSectionId) {
+      return;
+    }
+    setPlayingAudioSectionId(null);
+    void publishLiveState(liveIndex, {
+      videoAction: "fade-stop",
+      videoActionAt: Date.now(),
+    });
+  }
+
+  function guardedLiveNavigation(nextIndex: number, navigate: (boundedIndex: number) => void) {
     const slideCount = slides.length;
     if (!slideCount) {
       setLiveBlanked(false);
@@ -1028,9 +1040,41 @@ export function PresentationView({
     }
 
     const boundedIndex = Math.min(Math.max(nextIndex, 0), slideCount - 1);
-    setLiveBlanked(false);
-    setLiveIndex(boundedIndex);
-    void publishLiveState(boundedIndex, { blanked: false });
+    const targetSlide = slides[boundedIndex];
+    if (playingAudioSectionId && targetSlide?.sectionId !== playingAudioSectionId) {
+      const confirmed = window.confirm("This will fade out the playing YouTube audio. Continue?");
+      if (!confirmed) {
+        return;
+      }
+      publishFadeOutAudio();
+      window.setTimeout(() => navigate(boundedIndex), 800);
+      return;
+    }
+    navigate(boundedIndex);
+  }
+
+  function setLiveSlide(nextIndex: number) {
+    guardedLiveNavigation(nextIndex, (boundedIndex) => {
+      setLiveBlanked(false);
+      setLiveIndex(boundedIndex);
+      void publishLiveState(boundedIndex, { blanked: false });
+    });
+  }
+
+  function moveLive(delta: number) {
+    const slideCount = slides.length;
+    if (!slideCount) {
+      setLiveBlanked(false);
+      setLiveIndex(0);
+      void publishLiveState(0, { blanked: false });
+      return;
+    }
+    const nextIndex = Math.min(Math.max(liveIndex + delta, 0), slideCount - 1);
+    guardedLiveNavigation(nextIndex, (boundedIndex) => {
+      setLiveBlanked(false);
+      setLiveIndex(boundedIndex);
+      void publishLiveState(boundedIndex, { blanked: false });
+    });
   }
 
   function selectSlideFromOperator(nextIndex: number) {
@@ -1080,22 +1124,6 @@ export function PresentationView({
     void publishLiveState(liveIndex, { blanked: nextBlanked });
   }
 
-  function moveLive(delta: number) {
-    setLiveIndex((current) => {
-      const slideCount = slides.length;
-      if (!slideCount) {
-        setLiveBlanked(false);
-        void publishLiveState(0, { blanked: false });
-        return 0;
-      }
-
-      const nextIndex = Math.min(Math.max(current + delta, 0), slideCount - 1);
-      setLiveBlanked(false);
-      void publishLiveState(nextIndex, { blanked: false });
-      return nextIndex;
-    });
-  }
-
   function sendVideoCommand(action: "play" | "pause" | "stop") {
     if (!liveSlide?.videoUrl) {
       setMessage("Select a video slide before using media controls.");
@@ -1108,6 +1136,10 @@ export function PresentationView({
   }
 
   function toggleSectionAudio(section: { id: string; slides: PresentationSlide[] }) {
+    const isPlaying = playingAudioSectionId === section.id;
+    if (!audioControlsEnabled && !isPlaying) {
+      return;
+    }
     const audioSlide = section.slides.find((slide) => slide.youtubeAudioUrl);
     if (!audioSlide) {
       return;
@@ -1116,16 +1148,19 @@ export function PresentationView({
     if (audioIndex < 0) {
       return;
     }
-    const isPlaying = playingAudioSectionId === section.id;
     const targetIndex = liveSlide?.sectionId === section.id ? liveIndex : audioIndex;
-    setPlayingAudioSectionId(isPlaying ? null : section.id);
+    if (isPlaying) {
+      publishFadeOutAudio();
+      return;
+    }
+    setPlayingAudioSectionId(section.id);
     if (!isPlaying) {
       setLiveBlanked(false);
       setLiveIndex(targetIndex);
     }
     void publishLiveState(targetIndex, {
       blanked: false,
-      videoAction: isPlaying ? "pause" : "play",
+      videoAction: "play",
       videoActionAt: Date.now(),
     });
   }
@@ -2863,6 +2898,9 @@ export function PresentationView({
       if (event.type !== "keydown") {
         return;
       }
+      if (event.repeat) {
+        return;
+      }
       if (handledKeyboardEventsRef.current.has(event)) {
         return;
       }
@@ -3394,7 +3432,18 @@ export function PresentationView({
                 </span>
               ) : null}
               <div className="stage-meta-actions">
+                <label className="stage-audio-switch stage-toggle-switch" title="Enable YouTube audio buttons">
+                  <span className="stage-toggle-label">Audio</span>
+                  <input
+                    aria-label="Enable YouTube audio buttons"
+                    checked={audioControlsEnabled}
+                    onChange={(event) => setAudioControlsEnabled(event.target.checked)}
+                    type="checkbox"
+                  />
+                  <span className="stage-theme-slider" aria-hidden="true" />
+                </label>
                 <label className="stage-theme-switch stage-toggle-switch" title="Toggle slide theme">
+                  <span className="stage-toggle-label">Light</span>
                   <input
                     aria-label="Use light slide theme"
                     checked={slideTheme === "light"}
@@ -3404,6 +3453,7 @@ export function PresentationView({
                   <span className="stage-theme-slider" aria-hidden="true" />
                 </label>
                 <label className="stage-blank-switch stage-toggle-switch" title="Blank live output">
+                  <span className="stage-toggle-label">Blank</span>
                   <input
                     aria-label="Blank live output"
                     checked={liveBlanked}
@@ -3415,13 +3465,15 @@ export function PresentationView({
                 <span className="stage-slide-counter">{stageSlideCounter}</span>
               </div>
             </div>
-            <div className={`presentation-stage ${liveSlide?.imageUrl || liveSlide?.videoUrl ? "presentation-stage-image" : ""}`}>
-              {liveSlide?.imageUrl || liveSlide?.videoUrl || liveSlide?.itemType === "song" || liveSlide?.itemType === "reading" ? null : (
+            <div className={`presentation-stage ${liveSlide?.imageUrl || liveSlide?.videoUrl ? "presentation-stage-image" : ""} ${liveBlanked ? "stage-preview-blanked" : ""}`}>
+              {liveBlanked ? null : liveSlide?.imageUrl || liveSlide?.videoUrl || liveSlide?.itemType === "song" || liveSlide?.itemType === "reading" ? null : (
                 <div className="stage-title">
                   <span>{liveSlide?.title ?? "Ready"}</span>
                 </div>
               )}
-              {liveSlide?.imageUrl ? (
+              {liveBlanked ? (
+                <div className="blank-stage preview-blank-stage" aria-label="Blank preview" />
+              ) : liveSlide?.imageUrl ? (
                 <ScaledSlideImage alt={liveSlide.title} className="stage-image-frame-preview" src={liveSlide.imageUrl} />
               ) : liveSlide?.videoUrl ? (
                 <div className="stage-video-frame">
@@ -3549,8 +3601,6 @@ export function PresentationView({
               const showSlideTiles =
                 !canCollapseSection ||
                 sectionExpanded;
-              const sectionAudioSlide = section.slides.find((slide) => slide.youtubeAudioUrl);
-              const sectionAudioPlaying = playingAudioSectionId === section.id;
               return (
                 <div className="section-slide-group" key={section.id}>
                   <div className="section-jump-row">
@@ -3572,18 +3622,6 @@ export function PresentationView({
                       ) : null}
                       {sectionRenderError ? <em className="error-badge">Render failed</em> : null}
                     </button>
-                    {sectionAudioSlide ? (
-                      <button
-                        aria-label={`${sectionAudioPlaying ? "Pause" : "Play"} YouTube audio for ${section.title}`}
-                        aria-pressed={sectionAudioPlaying}
-                        className={`section-icon-button section-audio-button ${sectionAudioPlaying ? "is-active" : ""}`}
-                        onClick={() => toggleSectionAudio(section)}
-                        title={`${sectionAudioPlaying ? "Pause" : "Play"} YouTube audio`}
-                        type="button"
-                      >
-                        {sectionAudioPlaying ? <Pause size={15} aria-hidden="true" /> : <Play size={15} aria-hidden="true" />}
-                      </button>
-                    ) : null}
                     {canCollapseSection ? (
                       <button
                         aria-expanded={showSlideTiles}
@@ -3709,6 +3747,8 @@ export function PresentationView({
               const sectionStart = slides.findIndex((slide) => slide.sectionId === section.id);
               const ownerItems = sectionOwner(section.id) === "worship" ? orderedWorshipSetItems() : orderedPlanItemsWithWorshipAnchor();
               const ownerItemIndex = ownerItems.findIndex((item) => item.id === section.id);
+              const sectionAudioSlide = section.slides.find((slide) => slide.youtubeAudioUrl);
+              const sectionAudioPlaying = playingAudioSectionId === section.id;
               return (
                 <div
                   key={section.id}
@@ -3731,34 +3771,53 @@ export function PresentationView({
                       <span>{(sectionIndex + 1).toString().padStart(2, "0")}</span>
                       <strong>{section.title}</strong>
                     </button>
-                    {canEditPlan || canDeletePlan ? (
+                    {canEditPlan || canDeletePlan || sectionAudioSlide ? (
                       <div className="section-actions">
-                        <button
-                          aria-label={`Move ${section.title} up`}
-                          className="section-icon-button"
-                          disabled={ownerItemIndex <= 0}
-                          onClick={() => void moveSection(section.id, -1)}
-                          type="button"
-                        >
-                          <ChevronUp size={14} aria-hidden="true" />
-                        </button>
-                        <button
-                          aria-label={`Move ${section.title} down`}
-                          className="section-icon-button"
-                          disabled={ownerItemIndex < 0 || ownerItemIndex === ownerItems.length - 1}
-                          onClick={() => void moveSection(section.id, 1)}
-                          type="button"
-                        >
-                          <ChevronDown size={14} aria-hidden="true" />
-                        </button>
-                        <button
-                          aria-label={`Remove ${section.title}`}
-                          className="section-icon-button section-remove-button"
-                          onClick={() => void removeSection(section.id)}
-                          type="button"
-                        >
-                          <Trash2 size={14} aria-hidden="true" />
-                        </button>
+                        {sectionAudioSlide ? (
+                          <button
+                            aria-label={`${sectionAudioPlaying ? "Fade out" : "Play"} YouTube audio for ${section.title}`}
+                            aria-pressed={sectionAudioPlaying}
+                            className={`section-icon-button section-audio-button ${sectionAudioPlaying ? "is-active" : ""}`}
+                            disabled={!audioControlsEnabled && !sectionAudioPlaying}
+                            onClick={() => toggleSectionAudio(section)}
+                            title={audioControlsEnabled || sectionAudioPlaying ? `${sectionAudioPlaying ? "Fade out" : "Play"} YouTube audio` : "Enable audio on the preview first"}
+                            type="button"
+                          >
+                            {sectionAudioPlaying ? <Pause size={14} aria-hidden="true" /> : <Play size={14} aria-hidden="true" />}
+                          </button>
+                        ) : null}
+                        {canEditPlan ? (
+                          <>
+                            <button
+                              aria-label={`Move ${section.title} up`}
+                              className="section-icon-button"
+                              disabled={ownerItemIndex <= 0}
+                              onClick={() => void moveSection(section.id, -1)}
+                              type="button"
+                            >
+                              <ChevronUp size={14} aria-hidden="true" />
+                            </button>
+                            <button
+                              aria-label={`Move ${section.title} down`}
+                              className="section-icon-button"
+                              disabled={ownerItemIndex < 0 || ownerItemIndex === ownerItems.length - 1}
+                              onClick={() => void moveSection(section.id, 1)}
+                              type="button"
+                            >
+                              <ChevronDown size={14} aria-hidden="true" />
+                            </button>
+                          </>
+                        ) : null}
+                        {canDeletePlan ? (
+                          <button
+                            aria-label={`Remove ${section.title}`}
+                            className="section-icon-button section-remove-button"
+                            onClick={() => void removeSection(section.id)}
+                            type="button"
+                          >
+                            <Trash2 size={14} aria-hidden="true" />
+                          </button>
+                        ) : null}
                       </div>
                     ) : null}
                   </div>

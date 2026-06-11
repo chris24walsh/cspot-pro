@@ -26,7 +26,7 @@ import {
   type ChordDetailMode,
   type ChordDisplayMode,
 } from "../chordSheet";
-import { canonicalizeWorshipLyrics } from "../worshipText";
+import { canonicalizeWorshipLyrics, normalizeWorshipSequence } from "../worshipText";
 
 type SongForm = Omit<Song, "id" | "lyrics_status">;
 type SongEditorTab = "lyrics" | "details" | "chords";
@@ -99,16 +99,17 @@ function formFromSong(song: Song): SongForm {
 }
 
 function normalizeForm(form: SongForm, chords: string | null): SongForm {
+  const sequence = normalizeWorshipSequence(form.sequence);
   return {
     title: form.title.trim(),
     alternate_title: form.alternate_title || null,
     author: form.author || null,
-    lyrics: form.lyrics ? canonicalizeWorshipLyrics(form.lyrics, form.sequence) : null,
+    lyrics: form.lyrics ? canonicalizeWorshipLyrics(form.lyrics, sequence) : null,
     chords,
     ccli_number: form.ccli_number || null,
     book_reference: form.book_reference || null,
     license: form.license || null,
-    sequence: form.sequence || null,
+    sequence,
     youtube_id: form.youtube_id || null,
     external_link: form.external_link || null,
     worship_role: form.worship_role || "any",

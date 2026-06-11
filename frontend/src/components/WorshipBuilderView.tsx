@@ -670,6 +670,16 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
     await load(planId);
   }
 
+  async function stepWorshipSet(delta: number) {
+    const currentId = selectedPlanId || plan?.id;
+    const currentIndex = sortedPlans.findIndex((candidate) => candidate.id === currentId);
+    const nextPlan = sortedPlans[currentIndex + delta];
+    if (!nextPlan) {
+      return;
+    }
+    await selectPlan(nextPlan.id);
+  }
+
   function openSetPicker() {
     const draftDate = dateInputFromIso(plan?.service_date) || dateInputFromIso(new Date().toISOString());
     setSetDraftDate(draftDate);
@@ -1429,6 +1439,16 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
             <div className="presentation-topbar-tools worship-topbar-tools">
               <div className="worship-set-picker-tools">
                 <button
+                  aria-label="Previous worship set"
+                  className="section-icon-button worship-set-step-button"
+                  disabled={loading || sortedPlans.findIndex((candidate) => candidate.id === (selectedPlanId || plan?.id)) >= sortedPlans.length - 1}
+                  onClick={() => void stepWorshipSet(1)}
+                  title="Previous worship set"
+                  type="button"
+                >
+                  <ChevronLeft size={15} aria-hidden="true" />
+                </button>
+                <button
                   className="text-button topbar-service-button"
                   disabled={loading}
                   onClick={openSetPicker}
@@ -1437,6 +1457,16 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
                 >
                   <CalendarDays size={16} aria-hidden="true" />
                   <span>{plan ? formatServiceDate(plan.service_date) : "Choose worship set"}</span>
+                </button>
+                <button
+                  aria-label="Next worship set"
+                  className="section-icon-button worship-set-step-button"
+                  disabled={loading || sortedPlans.findIndex((candidate) => candidate.id === (selectedPlanId || plan?.id)) <= 0}
+                  onClick={() => void stepWorshipSet(-1)}
+                  title="Next worship set"
+                  type="button"
+                >
+                  <ChevronRight size={15} aria-hidden="true" />
                 </button>
                 <button
                   aria-expanded={editHistoryOpen}

@@ -257,7 +257,7 @@ export interface PresentationLiveSyncState {
   theme: "dark" | "light";
   blanked: boolean;
   fullscreen: boolean;
-  video_action: "play" | "pause" | "stop" | null;
+  video_action: "play" | "pause" | "stop" | "fade-stop" | null;
   video_action_at: number | null;
 }
 
@@ -795,7 +795,7 @@ export async function updatePresentationLiveState(
     theme: "dark" | "light";
     blanked: boolean;
     fullscreen: boolean;
-    video_action?: "play" | "pause" | "stop" | null;
+    video_action?: "play" | "pause" | "stop" | "fade-stop" | null;
     video_action_at?: number | null;
   },
 ): Promise<PresentationLiveSyncState> {

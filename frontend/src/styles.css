@@ -233,12 +233,13 @@ button {
   align-items: center;
   display: grid;
   gap: 6px;
-  grid-template-columns: auto auto;
+  grid-template-columns: auto minmax(0, auto) auto auto;
   min-width: 0;
   position: relative;
 }
 
-.worship-history-button {
+.worship-history-button,
+.worship-set-step-button {
   min-height: 44px;
   min-width: 44px;
 }
@@ -4166,7 +4167,7 @@ h3 {
 .section-jump-row {
   display: grid;
   gap: 6px;
-  grid-template-columns: minmax(0, 1fr) repeat(3, auto);
+  grid-template-columns: minmax(0, 1fr) repeat(2, auto);
 }
 
 .section-jump {
@@ -4181,6 +4182,10 @@ h3 {
   background: #fff2e5;
   border-color: #db8b47;
   color: #a33b1f;
+}
+
+.section-audio-button:disabled {
+  opacity: 0.45;
 }
 
 .section-actions {
@@ -4595,7 +4600,14 @@ h3 {
   align-items: center;
   cursor: pointer;
   display: inline-flex;
+  gap: 4px;
   position: relative;
+}
+
+.stage-toggle-label {
+  color: inherit;
+  font-size: 11px;
+  font-weight: 950;
 }
 
 .stage-toggle-switch input {
@@ -4633,11 +4645,20 @@ h3 {
   border-color: rgba(239, 199, 109, 0.68);
 }
 
+.stage-audio-switch input:checked + .stage-theme-slider {
+  background: rgba(128, 189, 159, 0.55);
+  border-color: rgba(190, 230, 208, 0.85);
+}
+
 .stage-theme-switch input:checked + .stage-theme-slider::after {
   transform: translateX(16px);
 }
 
-.stage-blank-switch span {
+.stage-audio-switch input:checked + .stage-theme-slider::after {
+  transform: translateX(16px);
+}
+
+.stage-blank-switch > span:not(.stage-toggle-label) {
   align-items: center;
   background: rgba(255, 253, 245, 0.25);
   border: 1px solid rgba(255, 253, 245, 0.45);
@@ -4653,7 +4674,7 @@ h3 {
   width: 34px;
 }
 
-.stage-blank-switch span::after {
+.stage-blank-switch > span:not(.stage-toggle-label)::after {
   background: #fffdf5;
   border-radius: 999px;
   content: "";
@@ -4902,6 +4923,10 @@ h3 {
 .blank-stage {
   height: 100%;
   width: 100%;
+}
+
+.preview-blank-stage {
+  background: #fff;
 }
 
 .stage-blanked .blank-stage {
@@ -5306,20 +5331,21 @@ h3 {
   }
 
   .worship-set-picker-tools {
-    grid-template-columns: auto auto;
+    grid-template-columns: auto auto auto auto;
     min-width: 0;
     width: auto;
   }
 
   .worship-topbar-tools .topbar-service-button {
     font-size: 12px;
-    max-width: 168px;
+    max-width: 136px;
     min-height: 44px;
     padding: 4px 10px;
     width: auto;
   }
 
-  .worship-topbar-tools .worship-history-button {
+  .worship-topbar-tools .worship-history-button,
+  .worship-topbar-tools .worship-set-step-button {
     min-height: 44px;
     min-width: 44px;
   }
@@ -5356,7 +5382,7 @@ h3 {
   }
 
   .worship-set-picker-tools .topbar-service-button {
-    max-width: 168px;
+    max-width: 136px;
     width: auto;
   }
 
@@ -5874,6 +5900,16 @@ h3 {
 
   .stage-meta-actions {
     margin-left: auto;
+  }
+
+  .stage-shell-live .stage-toggle-switch {
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .stage-shell-live .stage-toggle-label {
+    font-size: 9px;
+    line-height: 1;
   }
 
   .service-history-popover {
