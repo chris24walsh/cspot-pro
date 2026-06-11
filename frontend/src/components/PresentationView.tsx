@@ -3310,15 +3310,24 @@ export function PresentationView({
                   </section>
                 ) : null}
               </div>
-              <span className="stage-current-label">Current · {plan?.title ?? "Presentation"}</span>
               <div className="stage-meta-actions">
-                <label className="stage-theme-switch" title="Toggle slide theme">
+                <label className="stage-theme-switch stage-toggle-switch" title="Toggle slide theme">
                   <input
+                    aria-label="Use light slide theme"
                     checked={slideTheme === "light"}
                     onChange={(event) => setSlideTheme(event.target.checked ? "light" : "dark")}
                     type="checkbox"
                   />
                   <span className="stage-theme-slider" aria-hidden="true" />
+                </label>
+                <label className="stage-blank-switch stage-toggle-switch" title="Blank live output">
+                  <input
+                    aria-label="Blank live output"
+                    checked={liveBlanked}
+                    onChange={(event) => setLiveBlanked(event.target.checked)}
+                    type="checkbox"
+                  />
+                  <span aria-hidden="true">B</span>
                 </label>
                 <span>
                   {(liveIndex + 1).toString().padStart(2, "0")} / {slides.length.toString().padStart(2, "0")}
