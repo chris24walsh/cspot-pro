@@ -3332,7 +3332,7 @@ export function PresentationView({
                 </div>
               )}
               {liveSlide?.imageUrl ? (
-                <ScaledSlideImage alt={liveSlide.title} src={liveSlide.imageUrl} />
+                <ScaledSlideImage alt={liveSlide.title} className="stage-image-frame-preview" src={liveSlide.imageUrl} />
               ) : liveSlide?.videoUrl ? (
                 <div className="stage-video-frame">
                   {liveSlide.videoProvider === "file" ? (

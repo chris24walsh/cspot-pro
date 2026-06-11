@@ -4346,6 +4346,7 @@ h3 {
 
 .stage-image-frame {
   display: grid;
+  background: #050807;
   height: 100%;
   inset: 0;
   min-height: 0;
@@ -4354,6 +4355,23 @@ h3 {
   place-items: center;
   position: absolute;
   width: 100%;
+}
+
+.stage-image-frame-preview {
+  aspect-ratio: 16 / 9;
+  height: 100%;
+  max-height: 100%;
+  max-width: 100%;
+  place-self: center;
+  position: relative;
+  width: 100%;
+}
+
+.stage-image-frame-preview .rendered-slide-image {
+  height: auto;
+  max-height: 100%;
+  max-width: 100%;
+  width: auto;
 }
 
 .stage-video-frame {
