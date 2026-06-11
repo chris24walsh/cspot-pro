@@ -711,6 +711,16 @@ export function PresentationView({
     () => (currentPlanItem ? slides.filter((slide) => slide.planItemId === currentPlanItem.id) : []),
     [currentPlanItem?.id, slides],
   );
+  const liveSectionSlideIndex = liveSlide ? currentPlanItemSlides.findIndex((slide) => slide.id === liveSlide.id) : -1;
+  const liveSectionCounter =
+    liveSectionSlideIndex >= 0 && currentPlanItemSlides.length > 1
+      ? `${liveSectionSlideIndex + 1}/${currentPlanItemSlides.length}`
+      : null;
+  const stageContextLabel =
+    liveSlide?.itemType === "song" || liveSlide?.itemType === "reading"
+      ? [liveSlide.sectionTitle || liveSlide.title, liveSlide.itemType === "song" ? liveSectionCounter : null].filter(Boolean).join(" ")
+      : "";
+  const stageSlideCounter = liveSectionCounter ?? `${liveIndex + 1} / ${slides.length}`;
   const currentPlanItemAllowsNotes =
     currentPlanItem?.item_type === "message" ||
     currentPlanItem?.item_type === "sermon" ||
@@ -3310,6 +3320,7 @@ export function PresentationView({
                   </section>
                 ) : null}
               </div>
+              {stageContextLabel ? <span className="stage-context-label">{stageContextLabel}</span> : null}
               <div className="stage-meta-actions">
                 <label className="stage-theme-switch stage-toggle-switch" title="Toggle slide theme">
                   <input
@@ -3329,13 +3340,11 @@ export function PresentationView({
                   />
                   <span aria-hidden="true">B</span>
                 </label>
-                <span>
-                  {(liveIndex + 1).toString().padStart(2, "0")} / {slides.length.toString().padStart(2, "0")}
-                </span>
+                <span className="stage-slide-counter">{stageSlideCounter}</span>
               </div>
             </div>
             <div className={`presentation-stage ${liveSlide?.imageUrl || liveSlide?.videoUrl ? "presentation-stage-image" : ""}`}>
-              {liveSlide?.imageUrl || liveSlide?.videoUrl || liveSlide?.itemType === "song" ? null : (
+              {liveSlide?.imageUrl || liveSlide?.videoUrl || liveSlide?.itemType === "song" || liveSlide?.itemType === "reading" ? null : (
                 <div className="stage-title">
                   <span>{liveSlide?.title ?? "Ready"}</span>
                 </div>
