@@ -3,43 +3,55 @@
 ## Facts
 
 - Core priority: reliable live presentation for church services.
-- Current active work centers on presenter, worship live, mobile/tablet live view, slide preview, dialogs, history, notes, Bible search, and song search.
-- Imported decks must remain visually intact and be pillarboxed correctly in preview and live slideshow.
-- Mobile/tablet live use is operationally important, but starting the external slideshow from those devices may need to be blocked.
-- Worship live fullscreen uses the native Fullscreen API where available and a fixed-position mobile fallback when the API is missing or rejected.
-- Presenter catch-up arrows are recalculated after live-slide navigation settles, with stale delayed checks ignored.
-- Imported slide images must keep intrinsic sizing inside preview/output frames; avoid forcing rendered images to `width: 100%; height: 100%`.
-- Main presenter preview should show full imported slide content with contained/pillarboxed rendering; sorter thumbnails may stay compact for navigation.
-- Rendered slide images should be explicitly scaled from natural image dimensions to the available preview/live frame; bars should be white.
+- Repo: `/home/chwalsh/dev/cspot-modern`; prod host: `plex`; prod repo: `/home/chris/plex/cspot-pro`.
+- After user-facing code changes, commit/push, pull on prod, and rebuild `cspot-api`, `cspot-web`, `cspot-db`.
+- Deploy command:
+  `ssh -o BatchMode=yes -o ConnectTimeout=8 plex 'cd /home/chris/plex/cspot-pro && git pull --ff-only origin main && cd /home/chris/plex && docker compose up -d --build cspot-api cspot-web cspot-db && docker compose ps cspot-api cspot-web cspot-db'`
+- Presenter is the main service-control surface: preview, slide sorter, section rail, notes, search, and slideshow controls.
+- Imported sermon/deck slides must be preserved visually and shown fully in preview/live via proportional image scaling and white pillarbox/letterbox space.
+- Do not force rendered slide images to `width: 100%; height: 100%`; scale from natural image size into available frame.
+- Sermon/image previews need maximum vertical space; avoid headers/toolbars that reduce scaled content size.
+- Song and Bible text previews may use a faint, compact top label strip for context.
+- Mobile presenter controls should stay as small separate edge buttons, not grouped panels over slide content.
+- Mobile dark/blank controls are button-style with state color; desktop dark/blank controls are toggle-style.
+- Blank state, theme state, and live slide state sync through presentation live state, localStorage, BroadcastChannel, and backend polling.
+- Blank changes should publish the exact next value immediately to avoid stale cross-device sync.
+- Arrow-key presenter navigation should be keydown-only to avoid double-advancing.
+- Sorter/rail should auto-follow live slide when already in sync; if operator scrolls away, show catch-up arrow after delayed latest-slide check.
+- Worship builder mobile default tab is `Set`.
+- Worship set mobile song-item buttons must fit inside the card; use compact 2x2 controls.
+- Sorter section cards should not show `sermon` or `reading` type text; titles should align left.
+- Worship live fullscreen uses native Fullscreen API where available and a fixed-position mobile fallback when unavailable/rejected.
 - Remote control of the church display from mobile/tablet is a desired direction.
 - Longer-term feature areas: Sunday school, teacher scheduling, remote streaming view, and camera/OBS-style service overlay.
 
 ## Assumptions
 
-- Prioritize live-service bugs before new feature work.
+- Prioritize live-service reliability bugs before new feature work.
 - Prefer compact UI fixes that reduce wasted space without changing core workflows.
-- Treat mobile fullscreen, blanking, catch-up state, and history access as live-operation reliability issues.
-- Keep Sunday school, scheduling, streaming, and camera automation out of the immediate stage unless explicitly pulled forward.
+- Keep presenter UI dense and operational, not spacious or decorative.
+- Treat mobile/tablet behavior as production-critical, especially preview visibility, blanking, fullscreen, and navigation.
+- Keep sorter thumbnails compact unless full-content fidelity is explicitly required there.
+- Do not pull Sunday school, scheduling, streaming, or camera automation into current scope unless explicitly requested.
 
 ## Unknowns
 
 - Whether browser/device limits allow true one-click fullscreen on all target mobile/tablet devices.
-- Whether remote fullscreen control of the external display is possible without a dedicated display client.
-- Exact screens where imported slide pillarboxing still fails.
+- Whether remote fullscreen/control of the external display needs a dedicated display client.
 - Preferred policy for disabling slideshow start: device-based, role-based, or user setting.
-- Whether notes should autosave visibly, via explicit save, or both.
+- Whether notes should autosave visibly, use explicit save, or both.
+- Whether sorter thumbnails should eventually pillarbox fully despite smaller readable content.
 
-## Prioritized Stages
+## Current Priorities
 
-1. Stabilize live presentation controls and state.
-2. Fix preview/live rendering fidelity and responsive layouts.
-3. Tighten mobile/tablet workflows and dialogs.
-4. Improve search, history, and notes usability.
-5. Design remote display control path.
-6. Defer Sunday school, scheduling, streaming, and camera overlay until live-service basics are solid.
+1. Stabilize presenter live state: navigation, blanking, sync, catch-up, and fullscreen.
+2. Preserve imported sermon/deck slide fidelity in preview and live output.
+3. Tighten mobile/tablet presenter and worship workflows.
+4. Improve history, notes, Bible search, and song search.
+5. Define remote display-control architecture.
 
 ## Next 3 Tasks
 
-1. Decide and implement the policy for disabling slideshow start on tablet/mobile or by user role.
-2. Fix blank toggle reliability so the first `B` press consistently holds.
-3. Fix mobile history access and scrolling in worship/service live views.
+1. Decide and implement disabling slideshow start on tablet/mobile or by user role.
+2. Fix mobile history access and scrolling in worship/service live views.
+3. Fix Bible search for numbered books with chapter/verse queries.
