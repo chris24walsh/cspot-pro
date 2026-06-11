@@ -4951,6 +4951,7 @@ h3 {
   }
 
   .stage-shell-live .stage-meta {
+    align-items: center;
     background: transparent;
     color: #10251f;
     left: 8px;
@@ -4958,23 +4959,29 @@ h3 {
     pointer-events: none;
     position: absolute;
     right: 8px;
-    top: 8px;
+    top: 50%;
+    transform: translateY(-50%);
     z-index: 5;
   }
 
   .stage-shell-live .stage-service-tools,
   .stage-shell-live .stage-meta-actions {
+    align-items: center;
     background: rgba(255, 255, 255, 0.86);
     border: 1px solid rgba(16, 37, 31, 0.16);
-    border-radius: 999px;
+    border-radius: 12px;
     box-shadow: 0 2px 10px rgba(17, 24, 22, 0.13);
+    display: inline-flex;
+    flex-direction: column;
+    gap: 4px;
     pointer-events: auto;
-    padding: 2px;
+    padding: 4px;
+    width: 38px;
   }
 
   .stage-shell-live .stage-meta-actions {
     color: #10251f;
-    gap: 6px;
+    width: 42px;
   }
 
   .stage-shell-live .stage-header-button,
@@ -4982,6 +4989,22 @@ h3 {
     background: rgba(255, 255, 255, 0.92);
     border-color: rgba(16, 37, 31, 0.2);
     color: #10251f;
+  }
+
+  .stage-shell-live .stage-service-picker-button {
+    border-radius: 8px;
+    min-height: 28px;
+    padding: 0;
+    width: 28px;
+  }
+
+  .stage-shell-live .stage-service-picker-button span {
+    display: none;
+  }
+
+  .stage-shell-live .stage-header-icon-button {
+    height: 28px;
+    width: 28px;
   }
 
   .stage-shell-live .stage-header-button:hover:not(:disabled),
@@ -4999,6 +5022,13 @@ h3 {
 
   .stage-shell-live .stage-theme-slider::after {
     background: #10251f;
+  }
+
+  .stage-shell-live .stage-meta-actions > span {
+    font-size: 10px;
+    line-height: 1.1;
+    text-align: center;
+    white-space: nowrap;
   }
 
   .stage-shell-live .stage-blank-switch span {
