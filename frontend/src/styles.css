@@ -4347,7 +4347,7 @@ h3 {
 
 .stage-image-frame {
   display: grid;
-  background: #050807;
+  background: #fff;
   height: 100%;
   min-height: 0;
   min-width: 0;
@@ -4392,14 +4392,6 @@ h3 {
   object-fit: contain;
   object-position: center center;
   width: auto;
-}
-
-.stage-image-frame > .rendered-slide-image {
-  height: 100%;
-  max-height: none;
-  max-width: none;
-  object-fit: contain;
-  width: 100%;
 }
 
 .stage-shell-staging .presentation-stage {
@@ -4475,15 +4467,6 @@ h3 {
 .stage-blanked .presentation-stage,
 .stage-blanked.slideshow-stage {
   color: transparent;
-  width: 100%;
-}
-
-.slideshow-stage .rendered-slide-image {
-  height: 100%;
-  max-height: none;
-  max-width: none;
-  object-fit: contain;
-  object-position: center center;
   width: 100%;
 }
 

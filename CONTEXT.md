@@ -10,6 +10,7 @@
 - Presenter catch-up arrows are recalculated after live-slide navigation settles, with stale delayed checks ignored.
 - Imported slide images must keep intrinsic sizing inside preview/output frames; avoid forcing rendered images to `width: 100%; height: 100%`.
 - Main presenter preview should show full imported slide content with contained/pillarboxed rendering; sorter thumbnails may stay compact for navigation.
+- Rendered slide images should be explicitly scaled from natural image dimensions to the available preview/live frame; bars should be white.
 - Remote control of the church display from mobile/tablet is a desired direction.
 - Longer-term feature areas: Sunday school, teacher scheduling, remote streaming view, and camera/OBS-style service overlay.
 
