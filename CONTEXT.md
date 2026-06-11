@@ -21,9 +21,11 @@
 - Worship builder mobile default tab is `Set`.
 - Worship set mobile song-item buttons must fit inside the card; use compact 2x2 controls.
 - Sorter section cards should not show `sermon` or `reading` type text; titles should align left.
+- Sunday School is now an active module for date-based emergency-cover lesson preparation.
+- Sunday School lesson structure: theme, Bible reference/story, crafts, songs, games, source notes, cover notes.
 - Worship live fullscreen uses native Fullscreen API where available and a fixed-position mobile fallback when unavailable/rejected.
 - Remote control of the church display from mobile/tablet is a desired direction.
-- Longer-term feature areas: Sunday school, teacher scheduling, remote streaming view, and camera/OBS-style service overlay.
+- Longer-term feature areas: teacher scheduling, remote streaming view, and camera/OBS-style service overlay.
 
 ## Assumptions
 
@@ -32,7 +34,7 @@
 - Keep presenter UI dense and operational, not spacious or decorative.
 - Treat mobile/tablet behavior as production-critical, especially preview visibility, blanking, fullscreen, and navigation.
 - Keep sorter thumbnails compact unless full-content fidelity is explicitly required there.
-- Do not pull Sunday school, scheduling, streaming, or camera automation into current scope unless explicitly requested.
+- Do not pull scheduling, streaming, or camera automation into current scope unless explicitly requested.
 
 ## Unknowns
 
@@ -47,11 +49,11 @@
 1. Stabilize presenter live state: navigation, blanking, sync, catch-up, and fullscreen.
 2. Preserve imported sermon/deck slide fidelity in preview and live output.
 3. Tighten mobile/tablet presenter and worship workflows.
-4. Improve history, notes, Bible search, and song search.
-5. Define remote display-control architecture.
+4. Build out Sunday School resource import/print workflows.
+5. Improve history, notes, Bible search, and song search.
 
 ## Next 3 Tasks
 
-1. Decide and implement disabling slideshow start on tablet/mobile or by user role.
-2. Fix mobile history access and scrolling in worship/service live views.
-3. Fix Bible search for numbered books with chapter/verse queries.
+1. Add Google Drive-assisted Sunday School source import/selection.
+2. Decide and implement disabling slideshow start on tablet/mobile or by user role.
+3. Fix mobile history access and scrolling in worship/service live views.

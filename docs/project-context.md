@@ -33,6 +33,8 @@ In rough order:
    information density, workflow, and maintainability.
 6. Support real multi-user church operation with authentication and role-based
    permissions before public hosting.
+7. Support prepared Sunday School lesson material so a cover teacher can run
+   a lesson at short notice.
 
 ## Guiding Product Principles
 
@@ -142,6 +144,15 @@ These preferences have been made explicit and should guide future changes.
 - Keyword search should be possible.
 - Search should be available directly from the presenter workflow.
 - Bible slides should be navigable by verse and chapter without leaving Present.
+
+### Sunday School handling
+
+- Sunday School lessons should be stored by Sunday/date.
+- Each lesson should keep a compact, printable/readable structure: theme, Bible
+  reference/story, craft instructions, songs, games, source notes, and cover
+  notes.
+- Google Drive Sunday School resources are source material, but lessons should
+  be pared down into practical parts before use.
 
 ## Import Intent
 

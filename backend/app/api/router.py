@@ -12,6 +12,7 @@ from app.modules.people.routes import router as people_router
 from app.modules.planning.routes import router as planning_router
 from app.modules.presentation.routes import router as presentation_router
 from app.modules.site.routes import router as site_router
+from app.modules.sunday_school.routes import router as sunday_school_router
 
 api_router = APIRouter()
 
@@ -37,6 +38,7 @@ def app_info() -> dict[str, object]:
             "communication",
             "imports",
             "site",
+            "sunday_school",
         ],
     }
 
@@ -57,3 +59,4 @@ api_router.include_router(
 )
 api_router.include_router(imports_router, prefix="/api/v1/imports", tags=["imports"])
 api_router.include_router(site_router, prefix="/api/v1/site", tags=["site"])
+api_router.include_router(sunday_school_router, prefix="/api/v1/sunday-school", tags=["sunday-school"])

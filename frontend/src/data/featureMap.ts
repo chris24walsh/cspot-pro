@@ -2,6 +2,7 @@ export type ModuleId =
   | "planning"
   | "music"
   | "worship"
+  | "sunday_school"
   | "broadcast"
   | "people"
   | "presentation"
@@ -102,6 +103,31 @@ export const featureModules: FeatureModule[] = [
       {
         title: "Live",
         items: ["Musician view", "Chord overlay", "Transpose", "Capo shapes"],
+      },
+    ],
+  },
+  {
+    id: "sunday_school",
+    label: "Sunday School",
+    kicker: "Lessons and cover kit",
+    status: "Partial",
+    metrics: [
+      { label: "Mode", value: "Lessons" },
+      { label: "Age", value: "5-10" },
+      { label: "Source", value: "Drive" },
+    ],
+    lanes: [
+      {
+        title: "Plan",
+        items: ["Sunday calendar", "Weekly theme", "Bible story", "Cover notes"],
+      },
+      {
+        title: "Prepare",
+        items: ["Craft instructions", "Printable notes", "Song choices", "Games"],
+      },
+      {
+        title: "Fallback",
+        items: ["Emergency lesson", "Quick read-through", "Age range options", "Teacher handoff"],
       },
     ],
   },

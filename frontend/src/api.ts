@@ -562,6 +562,35 @@ export interface SiteContentBlockPayload {
   published?: boolean;
 }
 
+export interface SundaySchoolLesson {
+  id: string;
+  lesson_date: string;
+  status: string;
+  theme: string;
+  bible_reference: string;
+  bible_story: string;
+  crafts: string;
+  songs: string;
+  games: string;
+  source_notes: string;
+  teacher_notes: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SundaySchoolLessonPayload {
+  lesson_date: string;
+  status: string;
+  theme: string;
+  bible_reference: string;
+  bible_story: string;
+  crafts: string;
+  songs: string;
+  games: string;
+  source_notes: string;
+  teacher_notes: string;
+}
+
 export interface AuthActionToken {
   purpose: string;
   email: string;
@@ -961,6 +990,34 @@ export async function updateSiteContentBlock(
     payload,
     { suppressAuthEvent: true },
   );
+}
+
+export async function getSundaySchoolLessons(params?: {
+  from_date?: string;
+  to_date?: string;
+}): Promise<SundaySchoolLesson[]> {
+  const search = new URLSearchParams();
+  if (params?.from_date) {
+    search.set("from_date", params.from_date);
+  }
+  if (params?.to_date) {
+    search.set("to_date", params.to_date);
+  }
+  const suffix = search.toString() ? `?${search.toString()}` : "";
+  return getJson<SundaySchoolLesson[]>(`/api/v1/sunday-school/lessons${suffix}`);
+}
+
+export async function createSundaySchoolLesson(
+  payload: SundaySchoolLessonPayload,
+): Promise<SundaySchoolLesson> {
+  return sendJson<SundaySchoolLesson>("/api/v1/sunday-school/lessons", "POST", payload);
+}
+
+export async function updateSundaySchoolLesson(
+  lessonId: string,
+  payload: Partial<SundaySchoolLessonPayload>,
+): Promise<SundaySchoolLesson> {
+  return sendJson<SundaySchoolLesson>(`/api/v1/sunday-school/lessons/${lessonId}`, "PATCH", payload);
 }
 
 export async function getInstruments(): Promise<Instrument[]> {

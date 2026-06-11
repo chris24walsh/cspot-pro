@@ -84,6 +84,7 @@ Current modules:
 - `presentation`
 - `communication`
 - `imports`
+- `sunday_school`
 
 These modules share a common database and API process, but are intended to stay
 conceptually separate.
@@ -139,6 +140,12 @@ The deck-rendering path currently depends on:
 - `pdftoppm` for PDF-to-PNG rendering
 
 This works operationally, but may still differ visually from PowerPoint.
+
+### Sunday School lessons
+
+`sunday_school` owns date-based lesson records for emergency cover and lesson
+preparation. The first implementation stores structured text fields; Google
+Drive-assisted import can be layered on top of that shape later.
 
 ## Frontend Architecture
 

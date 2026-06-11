@@ -1,5 +1,6 @@
 import {
   CalendarDays,
+  BookOpen,
   Clapperboard,
   Globe2,
   ListMusic,
@@ -30,6 +31,7 @@ import { AuthScreen } from "./components/AuthScreen";
 import { BroadcastManager } from "./components/BroadcastManager";
 import { PresentationOutput } from "./components/PresentationOutput";
 import { PresentationView } from "./components/PresentationView";
+import { SundaySchoolView } from "./components/SundaySchoolView";
 import { UserManager } from "./components/UserManager";
 import { WorshipBuilderView } from "./components/WorshipBuilderView";
 import { featureModules, type FeatureModule, type ModuleId } from "./data/featureMap";
@@ -40,6 +42,7 @@ const iconMap = {
   planning: CalendarDays,
   music: ListMusic,
   worship: Music2,
+  sunday_school: BookOpen,
   broadcast: Radio,
   people: UsersRound,
   presentation: Clapperboard,
@@ -175,6 +178,9 @@ function App() {
         if (module.id === "worship") {
           return canUseWorshipTools;
         }
+        if (module.id === "sunday_school") {
+          return permissions.has("plans:read");
+        }
         if (module.id === "presentation") {
           return canUseServiceOperator;
         }
@@ -206,6 +212,13 @@ function App() {
       return [
         { label: "Services", value: String(workspace.plans.length) },
         { label: "Songs", value: String(workspace.songs.length) },
+      ];
+    }
+
+    if (activeModule.id === "sunday_school") {
+      return [
+        { label: "Mode", value: "Lessons" },
+        { label: "Source", value: "Drive" },
       ];
     }
 
@@ -321,6 +334,8 @@ function App() {
             canEditSong={canEditSongs}
             canEditPlan={canEditPlans}
           />
+        ) : activeModule.id === "sunday_school" ? (
+          <SundaySchoolView canEdit={canEditPlans || canCreatePlans} />
         ) : activeModule.id === "presentation" ? (
           <PresentationView
             canAttachDeck={canEditPlans && canCreateLibrary}

@@ -28,6 +28,7 @@ from app.modules.planning.models import (
     PlanType,
 )
 from app.modules.presentation.models import PresentationPosition, PresentationSession
+from app.modules.sunday_school.models import SundaySchoolLesson
 
 __all__ = [
     "BibleBook",
@@ -62,6 +63,7 @@ __all__ = [
     "Song",
     "SongPart",
     "StoredFile",
+    "SundaySchoolLesson",
     "TeamAssignment",
     "User",
     "UserInstrument",
