@@ -293,12 +293,13 @@ function MusicianChordLine({
   );
 }
 
-function annotationsForSegment(annotations: ChordAnnotation[], segmentStart: number, segmentLength: number) {
+function annotationsForSegment(annotations: ChordAnnotation[], segmentStart: number, segmentLength: number, isLastSegment: boolean) {
   const segmentEnd = segmentStart + segmentLength;
   return annotations
     .map((annotation) => {
       const lyricAnchor = annotation.anchorIndex >= LEADING_CHORD_ANCHORS ? annotation.anchorIndex - LEADING_CHORD_ANCHORS : annotation.anchorIndex;
-      if (lyricAnchor < segmentStart || lyricAnchor > segmentEnd + TRAILING_CHORD_ANCHORS) {
+      const lastAllowedAnchor = isLastSegment ? segmentEnd + TRAILING_CHORD_ANCHORS : segmentEnd - 1;
+      if (lyricAnchor < segmentStart || lyricAnchor > lastAllowedAnchor) {
         return null;
       }
       return {
@@ -623,12 +624,6 @@ export function MusicianLiveView({ controlPlanId, onExit, plan, songs }: Musicia
     });
   }
 
-  function applyPlayableSetup(shapeKey: string) {
-    const setup = bestPlayableSetup(currentAbsoluteKey, shapeKey);
-    setGuitarKey(setup.shapeKey);
-    setCapo(setup.capo);
-  }
-
   async function toggleFullscreen() {
     const element = liveViewRef.current as (HTMLElement & { webkitRequestFullscreen?: () => Promise<void> | void }) | null;
     const webkitDocument = document as Document & {
@@ -744,10 +739,6 @@ export function MusicianLiveView({ controlPlanId, onExit, plan, songs }: Musicia
                 {setup.shapeKey}{setup.capo > 0 ? `c${setup.capo}` : ""}
               </button>
             ))}
-            <select aria-label="Choose guitar shape" onChange={(event) => applyPlayableSetup(event.target.value)} value={currentGuitarKey ?? ""}>
-              <option value="">Shape</option>
-              {PLAYABLE_SHAPE_KEYS.map((shapeKey) => <option key={shapeKey} value={shapeKey}>{shapeKey}</option>)}
-            </select>
           </div>
           <button className="musician-fullscreen-button" onClick={() => void toggleFullscreen()} type="button" aria-label={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"}>
             {isFullscreen ? <Minimize2 size={18} aria-hidden="true" /> : <Maximize2 size={18} aria-hidden="true" />}
@@ -782,7 +773,12 @@ export function MusicianLiveView({ controlPlanId, onExit, plan, songs }: Musicia
               <div className="musician-lyric-line-group" key={`${lineIndex}-${lyricLinesForSlide[lineIndex]}`}>
                 {segments.map((segment, segmentIndex) => (
                   <MusicianChordLine
-                    annotations={annotationsForSegment(annotationsByLine.get(lineIndex) ?? [], segment.start, segment.line.length)}
+                    annotations={annotationsForSegment(
+                      annotationsByLine.get(lineIndex) ?? [],
+                      segment.start,
+                      segment.line.length,
+                      segmentIndex === segments.length - 1,
+                    )}
                     baseAbsoluteKey={baseAbsoluteKey}
                     capo={capo}
                     detailMode={detailMode}

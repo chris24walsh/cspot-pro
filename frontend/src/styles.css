@@ -1659,10 +1659,10 @@ h3 {
   border: 1px solid #cfc7b4;
   border-radius: 8px;
   display: inline-grid;
-  gap: 4px;
-  grid-template-columns: auto 28px minmax(46px, auto) 28px;
-  min-height: 32px;
-  padding: 3px 5px 3px 9px;
+  gap: 3px;
+  grid-template-columns: auto 24px minmax(28px, auto) 24px;
+  min-height: 30px;
+  padding: 2px 4px 2px 7px;
 }
 
 .musician-stepper > span {
@@ -1675,7 +1675,7 @@ h3 {
 .musician-stepper strong {
   color: #17201b;
   font-size: 15px;
-  min-width: 36px;
+  min-width: 24px;
   text-align: center;
 }
 
@@ -1686,11 +1686,11 @@ h3 {
   color: #234a40;
   cursor: pointer;
   font: inherit;
-  font-size: 17px;
+  font-size: 15px;
   font-weight: 900;
-  height: 24px;
+  height: 22px;
   line-height: 1;
-  width: 24px;
+  width: 22px;
 }
 
 .musician-stepper button:hover,
@@ -1706,8 +1706,7 @@ h3 {
   min-width: 0;
 }
 
-.musician-shape-presets button,
-.musician-shape-presets select {
+.musician-shape-presets button {
   background: #fffefa;
   border: 1px solid #cfc7b4;
   border-radius: 8px;
@@ -1724,16 +1723,9 @@ h3 {
   padding: 4px 8px;
 }
 
-.musician-shape-presets select {
-  min-width: 64px;
-  padding: 4px 7px;
-}
-
 .musician-shape-presets button.is-active,
 .musician-shape-presets button:hover,
-.musician-shape-presets button:focus-visible,
-.musician-shape-presets select:hover,
-.musician-shape-presets select:focus-visible {
+.musician-shape-presets button:focus-visible {
   background: #eaf5ef;
   border-color: #8ebba9;
   outline: none;
@@ -6232,9 +6224,9 @@ h3 {
   }
 
   .musician-stepper {
-    grid-template-columns: 22px minmax(28px, auto) 22px;
-    min-height: 26px;
-    padding: 2px 4px;
+    grid-template-columns: 18px minmax(20px, auto) 18px;
+    min-height: 24px;
+    padding: 1px 3px;
   }
 
   .musician-stepper > span {
@@ -6242,21 +6234,21 @@ h3 {
   }
 
   .musician-stepper strong {
-    font-size: 13px;
-    min-width: 28px;
+    font-size: 12px;
+    min-width: 20px;
   }
 
   .musician-stepper button {
-    height: 20px;
-    width: 20px;
+    border-radius: 5px;
+    height: 18px;
+    width: 18px;
   }
 
   .musician-shape-presets {
     gap: 3px;
   }
 
-  .musician-shape-presets button,
-  .musician-shape-presets select {
+  .musician-shape-presets button {
     font-size: 11px;
     min-height: 26px;
   }
@@ -6264,11 +6256,6 @@ h3 {
   .musician-shape-presets button {
     min-width: 34px;
     padding: 2px 5px;
-  }
-
-  .musician-shape-presets select {
-    min-width: 52px;
-    padding: 2px 4px;
   }
 
   .musician-fullscreen-button {
