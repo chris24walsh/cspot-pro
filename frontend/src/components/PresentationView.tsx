@@ -645,6 +645,8 @@ export function PresentationView({
   const suppressNextOperatorScrollRef = useRef(false);
   const scrollOperatorToSelectedSlideRef = useRef(false);
   const catchUpCheckTokenRef = useRef(0);
+  const sorterCatchUpDirectionRef = useRef<"up" | "down" | null>(null);
+  const railCatchUpDirectionRef = useRef<"up" | "down" | null>(null);
   const activeDeckLoadsRef = useRef<Set<string>>(new Set());
   const handledKeyboardEventsRef = useRef<WeakSet<KeyboardEvent>>(new WeakSet());
   const lastKeyboardNavigationRef = useRef<{ direction: SlideKeyboardDirection; key: string; time: number } | null>(null);
@@ -1034,6 +1036,8 @@ export function PresentationView({
     const targetSlide = slides[Math.min(Math.max(nextIndex, 0), Math.max(slides.length - 1, 0))];
     catchUpCheckTokenRef.current += 1;
     scrollOperatorToSelectedSlideRef.current = true;
+    sorterCatchUpDirectionRef.current = null;
+    railCatchUpDirectionRef.current = null;
     setSorterCatchUpDirection(null);
     setRailCatchUpDirection(null);
     if (targetSlide) {
@@ -1047,8 +1051,12 @@ export function PresentationView({
 
   function updateCatchUpDirectionsForSlide(index: number) {
     const activeSlide = slides[index];
-    setSorterCatchUpDirection(slideVisibilityDirection(slideGridRef.current, activeSlide ? thumbnailRefs.current[activeSlide.id] ?? null : null));
-    setRailCatchUpDirection(slideVisibilityDirection(sectionRailListRef.current, activeSlide ? sectionRailRefs.current[activeSlide.sectionId] ?? null : null));
+    const nextSorterDirection = slideVisibilityDirection(slideGridRef.current, activeSlide ? thumbnailRefs.current[activeSlide.id] ?? null : null);
+    const nextRailDirection = slideVisibilityDirection(sectionRailListRef.current, activeSlide ? sectionRailRefs.current[activeSlide.sectionId] ?? null : null);
+    sorterCatchUpDirectionRef.current = nextSorterDirection;
+    railCatchUpDirectionRef.current = nextRailDirection;
+    setSorterCatchUpDirection(nextSorterDirection);
+    setRailCatchUpDirection(nextRailDirection);
   }
 
   function catchOperatorUpToLiveSlide() {
@@ -1059,8 +1067,16 @@ export function PresentationView({
     catchUpCheckTokenRef.current += 1;
     scrollItemIntoOperatorView(slideGridRef.current, thumbnailRefs.current[activeSlide.id] ?? null);
     scrollItemIntoOperatorView(sectionRailListRef.current, sectionRailRefs.current[activeSlide.sectionId] ?? null);
+    sorterCatchUpDirectionRef.current = null;
+    railCatchUpDirectionRef.current = null;
     setSorterCatchUpDirection(null);
     setRailCatchUpDirection(null);
+  }
+
+  function setLiveBlankedAndPublish(nextBlanked: boolean) {
+    suppressPublishRef.current = true;
+    setLiveBlanked(nextBlanked);
+    void publishLiveState(liveIndex, { blanked: nextBlanked });
   }
 
   function moveLive(delta: number) {
@@ -2751,6 +2767,33 @@ export function PresentationView({
   useEffect(() => {
     const token = catchUpCheckTokenRef.current + 1;
     catchUpCheckTokenRef.current = token;
+    const shouldFollowSorter = !sorterCatchUpDirectionRef.current;
+    const shouldFollowRail = !railCatchUpDirectionRef.current;
+    const timer = window.setTimeout(() => {
+      if (catchUpCheckTokenRef.current !== token) {
+        return;
+      }
+      const activeSlide = slides[liveIndex];
+      if (activeSlide) {
+        if (shouldFollowSorter) {
+          scrollItemIntoOperatorView(slideGridRef.current, thumbnailRefs.current[activeSlide.id] ?? null);
+        }
+        if (shouldFollowRail) {
+          scrollItemIntoOperatorView(sectionRailListRef.current, sectionRailRefs.current[activeSlide.sectionId] ?? null);
+        }
+      }
+      window.requestAnimationFrame(() => {
+        if (catchUpCheckTokenRef.current === token) {
+          updateCatchUpDirectionsForSlide(liveIndex);
+        }
+      });
+    }, 180);
+    return () => window.clearTimeout(timer);
+  }, [liveIndex, slides]);
+
+  useEffect(() => {
+    const token = catchUpCheckTokenRef.current + 1;
+    catchUpCheckTokenRef.current = token;
     const timer = window.setTimeout(() => {
       if (catchUpCheckTokenRef.current !== token) {
         return;
@@ -2758,11 +2801,13 @@ export function PresentationView({
       updateCatchUpDirectionsForSlide(liveIndex);
     }, 650);
     return () => window.clearTimeout(timer);
-  }, [liveIndex, slides]);
+  }, [sections]);
 
   useEffect(() => {
     const activeSlide = slides[liveIndex];
     if (!activeSlide) {
+      sorterCatchUpDirectionRef.current = null;
+      railCatchUpDirectionRef.current = null;
       setSorterCatchUpDirection(null);
       setRailCatchUpDirection(null);
       return;
@@ -2791,14 +2836,14 @@ export function PresentationView({
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
+      if (event.type !== "keydown") {
+        return;
+      }
       if (handledKeyboardEventsRef.current.has(event)) {
         return;
       }
 
       const direction = slideKeyboardDirection(event);
-      if (event.type === "keyup" && (!direction || editingSongId || searchOverlayOpen || servicePickerOpen)) {
-        return;
-      }
       const editing = isEditableKeyboardTarget(event.target);
 
       if (event.key === "Escape" && editingSongId) {
@@ -2879,13 +2924,13 @@ export function PresentationView({
       if (event.key === "b" || event.key === "B") {
         event.preventDefault();
         clearHotkeyButtonFocus();
-        setLiveBlanked((current) => !current);
+        setLiveBlankedAndPublish(!liveBlanked);
         return;
       }
       if (event.key === "Escape") {
         event.preventDefault();
         clearHotkeyButtonFocus();
-        setLiveBlanked(false);
+        setLiveBlankedAndPublish(false);
         return;
       }
       if (/^[1-9]$/.test(event.key)) {
@@ -2899,19 +2944,16 @@ export function PresentationView({
     }
 
     window.addEventListener("keydown", onKeyDown, { capture: true });
-    window.addEventListener("keyup", onKeyDown, { capture: true });
     document.addEventListener("keydown", onKeyDown, { capture: true });
-    document.addEventListener("keyup", onKeyDown, { capture: true });
     return () => {
       window.removeEventListener("keydown", onKeyDown, { capture: true });
-      window.removeEventListener("keyup", onKeyDown, { capture: true });
       document.removeEventListener("keydown", onKeyDown, { capture: true });
-      document.removeEventListener("keyup", onKeyDown, { capture: true });
     };
   }, [
     canEditPlan,
     currentPlanItem,
     editingSongId,
+    liveBlanked,
     liveIndex,
     plan,
     screens,
@@ -3341,7 +3383,7 @@ export function PresentationView({
                   <input
                     aria-label="Blank live output"
                     checked={liveBlanked}
-                    onChange={(event) => setLiveBlanked(event.target.checked)}
+                    onChange={(event) => setLiveBlankedAndPublish(event.target.checked)}
                     type="checkbox"
                   />
                   <span aria-hidden="true">B</span>
@@ -3457,9 +3499,9 @@ export function PresentationView({
             aria-label="All slides"
             onScroll={() => {
               const activeSlide = slides[liveIndex];
-              setSorterCatchUpDirection(
-                slideVisibilityDirection(slideGridRef.current, activeSlide ? thumbnailRefs.current[activeSlide.id] ?? null : null),
-              );
+              const nextDirection = slideVisibilityDirection(slideGridRef.current, activeSlide ? thumbnailRefs.current[activeSlide.id] ?? null : null);
+              sorterCatchUpDirectionRef.current = nextDirection;
+              setSorterCatchUpDirection(nextDirection);
             }}
             ref={slideGridRef}
           >
@@ -3609,9 +3651,9 @@ export function PresentationView({
             className="section-rail-list"
             onScroll={() => {
               const activeSlide = slides[liveIndex];
-              setRailCatchUpDirection(
-                slideVisibilityDirection(sectionRailListRef.current, activeSlide ? sectionRailRefs.current[activeSlide.sectionId] ?? null : null),
-              );
+              const nextDirection = slideVisibilityDirection(sectionRailListRef.current, activeSlide ? sectionRailRefs.current[activeSlide.sectionId] ?? null : null);
+              railCatchUpDirectionRef.current = nextDirection;
+              setRailCatchUpDirection(nextDirection);
             }}
             ref={sectionRailListRef}
           >
