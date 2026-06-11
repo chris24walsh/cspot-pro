@@ -3208,6 +3208,7 @@ h3 {
   display: flex;
   flex-direction: column;
   gap: 8px;
+  height: 100%;
   min-height: 0;
 }
 
@@ -4069,6 +4070,10 @@ h3 {
 
 .presenter-current {
   align-self: start;
+  display: grid;
+  flex: 1 1 auto;
+  grid-template-rows: auto minmax(0, 1fr);
+  min-height: 0;
   width: 100%;
 }
 
@@ -4254,7 +4259,10 @@ h3 {
 }
 
 .presentation-stage-image {
+  aspect-ratio: auto;
   grid-template-rows: minmax(0, 1fr);
+  height: 100%;
+  min-height: 0;
   overflow: hidden;
   padding: 0;
   position: relative;
@@ -5250,7 +5258,7 @@ h3 {
   }
 
   .presentation-stage-image {
-    aspect-ratio: 16 / 9;
+    aspect-ratio: auto;
     padding: 0;
   }
 
