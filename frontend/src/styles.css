@@ -4378,10 +4378,12 @@ h3 {
 
 .rendered-slide-image {
   display: block;
-  height: 100%;
+  height: auto;
+  max-height: 100%;
+  max-width: 100%;
   object-fit: contain;
   object-position: center center;
-  width: 100%;
+  width: auto;
 }
 
 .stage-shell-staging .presentation-stage {
@@ -4461,10 +4463,12 @@ h3 {
 }
 
 .slideshow-stage .rendered-slide-image {
-  height: 100%;
+  height: auto;
+  max-height: 100%;
+  max-width: 100%;
   object-fit: contain;
   object-position: center center;
-  width: 100%;
+  width: auto;
 }
 
 .slideshow-fullscreen {

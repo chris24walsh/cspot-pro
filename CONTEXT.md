@@ -8,7 +8,7 @@
 - Mobile/tablet live use is operationally important, but starting the external slideshow from those devices may need to be blocked.
 - Worship live fullscreen uses the native Fullscreen API where available and a fixed-position mobile fallback when the API is missing or rejected.
 - Presenter catch-up arrows are recalculated after live-slide navigation settles, with stale delayed checks ignored.
-- Imported slide images fill their preview/output frame with `object-fit: contain`; mobile preview image stages keep a 16:9 canvas.
+- Imported slide images must keep intrinsic sizing inside preview/output frames; avoid forcing rendered images to `width: 100%; height: 100%`.
 - Remote control of the church display from mobile/tablet is a desired direction.
 - Longer-term feature areas: Sunday school, teacher scheduling, remote streaming view, and camera/OBS-style service overlay.
 
