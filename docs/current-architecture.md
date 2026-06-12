@@ -144,8 +144,10 @@ This works operationally, but may still differ visually from PowerPoint.
 ### Sunday School lessons
 
 `sunday_school` owns date-based lesson records for emergency cover and lesson
-preparation. The first implementation stores structured text fields; Google
-Drive-assisted import can be layered on top of that shape later.
+preparation. It stores structured lesson fields plus a lightweight resource
+catalog for purchased/local lesson files. Resource import stores metadata,
+classification, and file links rather than copying lesson packet body text into
+the database.
 
 ## Frontend Architecture
 

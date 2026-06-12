@@ -574,6 +574,7 @@ export interface SundaySchoolLesson {
   id: string;
   lesson_date: string;
   status: string;
+  teacher_name: string;
   theme: string;
   bible_reference: string;
   bible_story: string;
@@ -589,6 +590,7 @@ export interface SundaySchoolLesson {
 export interface SundaySchoolLessonPayload {
   lesson_date: string;
   status: string;
+  teacher_name: string;
   theme: string;
   bible_reference: string;
   bible_story: string;
@@ -597,6 +599,30 @@ export interface SundaySchoolLessonPayload {
   games: string;
   source_notes: string;
   teacher_notes: string;
+}
+
+export interface SundaySchoolResource {
+  id: string;
+  title: string;
+  resource_type: string;
+  age_group: string;
+  source_title: string;
+  theme: string;
+  bible_reference: string;
+  lesson_date: string | null;
+  week_number: number | null;
+  translation: string;
+  file_name: string;
+  file_path: string;
+  summary: string;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SundaySchoolImportResult {
+  scanned: number;
+  imported: number;
 }
 
 export interface AuthActionToken {
@@ -1041,6 +1067,41 @@ export async function updateSundaySchoolLesson(
   payload: Partial<SundaySchoolLessonPayload>,
 ): Promise<SundaySchoolLesson> {
   return sendJson<SundaySchoolLesson>(`/api/v1/sunday-school/lessons/${lessonId}`, "PATCH", payload);
+}
+
+export async function getSundaySchoolResources(params?: {
+  lesson_date?: string;
+  week_number?: number;
+  age_group?: string;
+  resource_type?: string;
+  query?: string;
+}): Promise<SundaySchoolResource[]> {
+  const search = new URLSearchParams();
+  if (params?.lesson_date) {
+    search.set("lesson_date", params.lesson_date);
+  }
+  if (params?.week_number) {
+    search.set("week_number", String(params.week_number));
+  }
+  if (params?.age_group) {
+    search.set("age_group", params.age_group);
+  }
+  if (params?.resource_type) {
+    search.set("resource_type", params.resource_type);
+  }
+  if (params?.query) {
+    search.set("query", params.query);
+  }
+  const suffix = search.toString() ? `?${search.toString()}` : "";
+  return getJson<SundaySchoolResource[]>(`/api/v1/sunday-school/resources${suffix}`);
+}
+
+export async function importSundaySchoolResources(): Promise<SundaySchoolImportResult> {
+  return sendJson<SundaySchoolImportResult>("/api/v1/sunday-school/resources/import-local", "POST", {});
+}
+
+export function sundaySchoolResourceFileUrl(resourceId: string): string {
+  return `/api/v1/sunday-school/resources/${encodeURIComponent(resourceId)}/file`;
 }
 
 export async function getInstruments(): Promise<Instrument[]> {

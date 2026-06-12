@@ -32,6 +32,8 @@
 - Copyrighted Bible versions such as ESV/NIV/NKJV need licensed source text or an approved API before DB import.
 - Sunday School is now an active module for date-based emergency-cover lesson preparation.
 - Sunday School lesson structure: theme, Bible reference/story, crafts, songs, games, source notes, cover notes.
+- Sunday School resources are imported as metadata/file links from local Spring 2026 folders, classified into packets, Bible, craft, game, coloring/activity, worksheet, and media.
+- Sunday School calendar shading is teacher-name based; no full roster/scheduling model exists yet.
 - Worship live fullscreen uses native Fullscreen API where available and a fixed-position mobile fallback when unavailable/rejected.
 - Remote control of the church display from mobile/tablet is a desired direction.
 - Longer-term feature areas: teacher scheduling, remote streaming view, and camera/OBS-style service overlay.
@@ -44,6 +46,7 @@
 - Treat mobile/tablet behavior as production-critical, especially preview visibility, blanking, fullscreen, and navigation.
 - Keep sorter thumbnails compact unless full-content fidelity is explicitly required there.
 - Do not pull scheduling, streaming, or camera automation into current scope unless explicitly requested.
+- Do not copy purchased lesson body text into DB; keep source files linked and store only concise metadata/summaries.
 
 ## Unknowns
 

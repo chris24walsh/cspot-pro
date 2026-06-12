@@ -352,7 +352,7 @@ button {
 .sunday-school-workspace {
   display: grid;
   gap: 8px;
-  grid-template-columns: minmax(220px, 0.8fr) minmax(0, 2.2fr) minmax(230px, 0.9fr);
+  grid-template-columns: minmax(220px, 0.76fr) minmax(0, 2.25fr) minmax(240px, 0.9fr);
   height: 100%;
   min-height: 0;
   padding: 8px;
@@ -394,6 +394,14 @@ button {
   text-align: center;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.sunday-school-calendar-tools .icon-button {
+  background: #fffdf7;
+  border-color: #cfc7b4;
+  color: #234a40;
+  height: 32px;
+  width: 32px;
 }
 
 .sunday-school-calendar-grid {
@@ -441,6 +449,53 @@ button {
   color: #143d33;
 }
 
+.sunday-school-day.teacher-a,
+.sunday-school-next-row.teacher-a,
+.sunday-school-teacher-list .teacher-a {
+  --teacher-accent: #4e9b7d;
+  --teacher-bg: #eaf5ef;
+}
+
+.sunday-school-day.teacher-b,
+.sunday-school-next-row.teacher-b,
+.sunday-school-teacher-list .teacher-b {
+  --teacher-accent: #8366b8;
+  --teacher-bg: #f0ebfa;
+}
+
+.sunday-school-day.teacher-c,
+.sunday-school-next-row.teacher-c,
+.sunday-school-teacher-list .teacher-c {
+  --teacher-accent: #be7550;
+  --teacher-bg: #faeee7;
+}
+
+.sunday-school-day.teacher-d,
+.sunday-school-next-row.teacher-d,
+.sunday-school-teacher-list .teacher-d {
+  --teacher-accent: #4d83b5;
+  --teacher-bg: #e9f2fb;
+}
+
+.sunday-school-day.teacher-e,
+.sunday-school-next-row.teacher-e,
+.sunday-school-teacher-list .teacher-e {
+  --teacher-accent: #9b8350;
+  --teacher-bg: #f7f0df;
+}
+
+.sunday-school-day.teacher-f,
+.sunday-school-next-row.teacher-f,
+.sunday-school-teacher-list .teacher-f {
+  --teacher-accent: #b35c75;
+  --teacher-bg: #f9e9ee;
+}
+
+.sunday-school-day[class*="teacher-"] {
+  background: var(--teacher-bg);
+  border-color: var(--teacher-accent);
+}
+
 .sunday-school-day.is-selected {
   background: #234a40;
   border-color: #234a40;
@@ -477,6 +532,12 @@ button {
   box-shadow: inset 3px 0 0 #234a40;
 }
 
+.sunday-school-next-row[class*="teacher-"] {
+  background: var(--teacher-bg);
+  border-color: color-mix(in srgb, var(--teacher-accent) 62%, #e3dcc8);
+  box-shadow: inset 3px 0 0 var(--teacher-accent);
+}
+
 .sunday-school-next-row span,
 .sunday-school-next-row small {
   color: #65716a;
@@ -495,7 +556,7 @@ button {
 .sunday-school-editor {
   display: grid;
   gap: 8px;
-  grid-template-rows: auto auto auto minmax(0, 1fr);
+  grid-template-rows: auto auto auto auto minmax(0, 1fr);
   overflow: hidden;
   padding: 10px;
 }
@@ -543,7 +604,7 @@ button {
 .sunday-school-core-fields {
   display: grid;
   gap: 8px;
-  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) 140px;
+  grid-template-columns: minmax(130px, 0.8fr) minmax(0, 1.2fr) minmax(0, 0.9fr) 112px;
 }
 
 .sunday-school-core-fields label,
@@ -608,6 +669,142 @@ button {
   resize: vertical;
 }
 
+.sunday-school-suggestion {
+  align-items: center;
+  background: #f9f6eb;
+  border: 1px solid #e3dcc8;
+  border-radius: 8px;
+  display: flex;
+  gap: 8px;
+  justify-content: space-between;
+  min-width: 0;
+  padding: 8px;
+}
+
+.sunday-school-suggestion div {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.sunday-school-suggestion strong {
+  color: #17201b;
+  font-size: 13px;
+  line-height: 1.15;
+}
+
+.sunday-school-suggestion span {
+  color: #65716a;
+  font-size: 12px;
+  font-weight: 750;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sunday-school-resource-panel {
+  display: grid;
+  gap: 8px;
+  grid-template-rows: auto minmax(0, 1fr);
+  min-height: 0;
+}
+
+.sunday-school-resource-toolbar {
+  display: grid;
+  gap: 6px;
+  grid-template-columns: minmax(160px, 1fr) 98px 112px auto;
+}
+
+.sunday-school-resource-toolbar label {
+  align-items: center;
+  background: #fffdf7;
+  border: 1px solid #cfc7b4;
+  border-radius: 8px;
+  display: grid;
+  gap: 5px;
+  grid-template-columns: auto minmax(0, 1fr);
+  min-width: 0;
+  padding: 0 8px;
+}
+
+.sunday-school-resource-toolbar input,
+.sunday-school-resource-toolbar select {
+  background: #fffdf7;
+  border: 1px solid #cfc7b4;
+  border-radius: 8px;
+  color: #17201b;
+  font: inherit;
+  min-height: 34px;
+  min-width: 0;
+}
+
+.sunday-school-resource-toolbar label input {
+  border: 0;
+  padding: 0;
+}
+
+.sunday-school-resource-toolbar select {
+  padding: 6px 8px;
+}
+
+.sunday-school-resource-list {
+  align-content: start;
+  display: grid;
+  gap: 7px;
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding-right: 2px;
+}
+
+.sunday-school-resource-card {
+  background: #fffefa;
+  border: 1px solid #ded8c7;
+  border-radius: 8px;
+  display: grid;
+  gap: 6px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  padding: 8px;
+}
+
+.sunday-school-resource-card div {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.sunday-school-resource-card span {
+  color: #65716a;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.sunday-school-resource-card strong {
+  color: #17201b;
+  font-size: 13px;
+  line-height: 1.15;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sunday-school-resource-card small {
+  color: #65716a;
+  font-size: 11px;
+  font-weight: 750;
+}
+
+.sunday-school-resource-card p {
+  color: #3b4741;
+  font-size: 12px;
+  font-weight: 650;
+  grid-column: 1 / -1;
+  line-height: 1.3;
+  margin: 0;
+}
+
 .sunday-school-kit {
   align-content: start;
   display: grid;
@@ -647,6 +844,48 @@ button {
 .sunday-school-song-list {
   display: grid;
   gap: 5px;
+}
+
+.sunday-school-mini-resource-list,
+.sunday-school-teacher-list {
+  display: grid;
+  gap: 5px;
+}
+
+.sunday-school-mini-resource-list a,
+.sunday-school-teacher-list span {
+  background: #f9f6eb;
+  border: 1px solid #e3dcc8;
+  border-radius: 8px;
+  color: #17201b;
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+  padding: 6px 7px;
+  text-decoration: none;
+}
+
+.sunday-school-mini-resource-list a span {
+  color: #65716a;
+  font-size: 10px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.sunday-school-mini-resource-list a strong {
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sunday-school-teacher-list span {
+  align-items: center;
+  background: var(--teacher-bg, #f9f6eb);
+  border-color: var(--teacher-accent, #e3dcc8);
+  font-size: 12px;
+  font-weight: 850;
+  grid-template-columns: auto minmax(0, 1fr);
 }
 
 .sunday-school-song-list button {
@@ -5652,8 +5891,12 @@ h3 {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .sunday-school-core-fields label:last-child {
+  .sunday-school-core-fields label:nth-child(2) {
     grid-column: 1 / -1;
+  }
+
+  .sunday-school-resource-toolbar {
+    grid-template-columns: minmax(0, 1fr) 94px 108px auto;
   }
 
   .song-manager-grid {
@@ -5827,6 +6070,23 @@ h3 {
   .sunday-school-section-grid,
   .sunday-school-kit {
     grid-template-columns: 1fr;
+  }
+
+  .sunday-school-resource-toolbar {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .sunday-school-resource-toolbar label {
+    grid-column: 1 / -1;
+  }
+
+  .sunday-school-resource-toolbar .text-button {
+    justify-content: center;
+    width: 100%;
+  }
+
+  .sunday-school-resource-card {
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .sunday-school-section {
