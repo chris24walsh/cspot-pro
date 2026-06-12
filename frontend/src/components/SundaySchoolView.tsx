@@ -1,6 +1,7 @@
 import {
   CalendarDays,
   CheckCircle2,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
   ExternalLink,
@@ -179,6 +180,10 @@ function resourceText(resources: SundaySchoolResource[], type: string) {
     .join("\n");
 }
 
+function ChevronDownIcon({ open }: { open: boolean }) {
+  return <ChevronDown className={open ? "is-open" : ""} size={16} aria-hidden="true" />;
+}
+
 export function SundaySchoolView({ canEdit }: { canEdit: boolean }) {
   const [lessons, setLessons] = useState<SundaySchoolLesson[]>([]);
   const [resources, setResources] = useState<SundaySchoolResource[]>([]);
@@ -187,6 +192,8 @@ export function SundaySchoolView({ canEdit }: { canEdit: boolean }) {
   const [calendarMonth, setCalendarMonth] = useState(monthInputFromDate(new Date()));
   const [draft, setDraft] = useState<SundaySchoolLessonPayload>(() => blankLesson(nextSundayDateInput()));
   const [activeTab, setActiveTab] = useState<SundaySchoolTab>("plan");
+  const [calendarOpen, setCalendarOpen] = useState(false);
+  const [openLessonField, setOpenLessonField] = useState<LessonField["key"]>("bible_story");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [importing, setImporting] = useState(false);
@@ -246,6 +253,16 @@ export function SundaySchoolView({ canEdit }: { canEdit: boolean }) {
   }, [songQuery, songs]);
   const readyCount = lessonReadiness(draft);
 
+  const resourcesByType = useMemo(() => {
+    const grouped = new Map<string, SundaySchoolResource[]>();
+    for (const resource of selectedResources) {
+      const current = grouped.get(resource.resource_type) ?? [];
+      current.push(resource);
+      grouped.set(resource.resource_type, current);
+    }
+    return grouped;
+  }, [selectedResources]);
+
   async function load() {
     setLoading(true);
     setMessage(null);
@@ -285,6 +302,7 @@ export function SundaySchoolView({ canEdit }: { canEdit: boolean }) {
   function chooseDate(date: string) {
     setSelectedDate(date);
     setCalendarMonth(date.slice(0, 7));
+    setCalendarOpen(false);
   }
 
   function appendSong(title: string) {
@@ -350,73 +368,31 @@ export function SundaySchoolView({ canEdit }: { canEdit: boolean }) {
     }
   }
 
+  function resourcesForField(fieldKey: LessonField["key"]) {
+    if (fieldKey === "bible_story") {
+      return [
+        ...(resourcesByType.get("bible_story") ?? []),
+        ...(resourcesByType.get("lesson_packet") ?? []),
+      ];
+    }
+    if (fieldKey === "crafts") {
+      return [
+        ...(resourcesByType.get("craft") ?? []),
+        ...(resourcesByType.get("coloring") ?? []),
+        ...(resourcesByType.get("worksheet") ?? []),
+      ];
+    }
+    if (fieldKey === "games") {
+      return resourcesByType.get("game") ?? [];
+    }
+    if (fieldKey === "source_notes") {
+      return selectedResources;
+    }
+    return [];
+  }
+
   return (
     <section className="sunday-school-workspace" aria-label="Sunday School lessons">
-      <aside className="sunday-school-sidebar" aria-label="Sunday School schedule">
-        <div className="sunday-school-calendar-tools">
-          <button
-            className="icon-button"
-            onClick={() => {
-              const [year, month] = calendarMonth.split("-").map(Number);
-              setCalendarMonth(monthInputFromDate(new Date(year, month - 2, 1)));
-            }}
-            type="button"
-          >
-            <ChevronLeft size={16} aria-hidden="true" />
-          </button>
-          <strong>{new Date(`${calendarMonth}-01T12:00:00`).toLocaleDateString(undefined, { month: "long", year: "numeric" })}</strong>
-          <button
-            className="icon-button"
-            onClick={() => {
-              const [year, month] = calendarMonth.split("-").map(Number);
-              setCalendarMonth(monthInputFromDate(new Date(year, month, 1)));
-            }}
-            type="button"
-          >
-            <ChevronRight size={16} aria-hidden="true" />
-          </button>
-        </div>
-        <div className="sunday-school-calendar-grid" aria-label="Sunday School calendar">
-          {["S", "M", "T", "W", "T", "F", "S"].map((day, index) => (
-            <span className="sunday-school-weekday" key={`${day}-${index}`}>{day}</span>
-          ))}
-          {calendarDays.map((day) => {
-            const lesson = lessonsByDate.get(day.date);
-            const date = new Date(`${day.date}T12:00:00`);
-            return (
-              <button
-                className={`sunday-school-day ${day.muted ? "is-muted" : ""} ${date.getDay() === 0 ? "is-sunday" : ""} ${
-                  selectedDate === day.date ? "is-selected" : ""
-                } ${lesson ? "has-lesson" : ""} ${teacherColor(lesson?.teacher_name || "")}`}
-                key={day.date}
-                onClick={() => chooseDate(day.date)}
-                title={lesson?.teacher_name || undefined}
-                type="button"
-              >
-                <span>{date.getDate()}</span>
-              </button>
-            );
-          })}
-        </div>
-        <div className="sunday-school-next-list" aria-label="Upcoming Sundays">
-          {upcomingSundays.map((date) => {
-            const lesson = lessonsByDate.get(date);
-            return (
-              <button
-                className={`sunday-school-next-row ${selectedDate === date ? "active" : ""} ${teacherColor(lesson?.teacher_name || "")}`}
-                key={date}
-                onClick={() => chooseDate(date)}
-                type="button"
-              >
-                <span>{shortDate(date)}</span>
-                <strong>{lesson?.theme || "Unplanned"}</strong>
-                <small>{lesson?.teacher_name || lesson?.status || "new"}</small>
-              </button>
-            );
-          })}
-        </div>
-      </aside>
-
       <main className="sunday-school-editor">
         <div className="sunday-school-header">
           <div>
@@ -424,6 +400,10 @@ export function SundaySchoolView({ canEdit }: { canEdit: boolean }) {
             <h2>{longDate(selectedDate)}</h2>
           </div>
           <div className="sunday-school-actions">
+            <button className="text-button" onClick={() => setCalendarOpen(true)} type="button">
+              <CalendarDays size={15} aria-hidden="true" />
+              {shortDate(selectedDate)}
+            </button>
             <div className="segmented-control compact-segmented" role="tablist" aria-label="Sunday School tabs">
               <button className={activeTab === "plan" ? "is-active" : ""} onClick={() => setActiveTab("plan")} type="button">Plan</button>
               <button className={activeTab === "resources" ? "is-active" : ""} onClick={() => setActiveTab("resources")} type="button">Resources</button>
@@ -438,6 +418,100 @@ export function SundaySchoolView({ canEdit }: { canEdit: boolean }) {
 
         {message ? <p className="status-message">{message}</p> : null}
         {loading ? <p className="empty-state">Loading lessons...</p> : null}
+
+        {calendarOpen ? (
+          <div className="app-dialog-backdrop" role="presentation" onMouseDown={() => setCalendarOpen(false)}>
+            <section
+              aria-labelledby="sunday-school-calendar-title"
+              className="app-dialog app-dialog-wide service-picker-dialog sunday-school-calendar-dialog"
+              onMouseDown={(event) => event.stopPropagation()}
+              role="dialog"
+            >
+              <div className="section-heading">
+                <div>
+                  <p className="eyebrow">Calendar</p>
+                  <h2 id="sunday-school-calendar-title">Sunday School</h2>
+                </div>
+                <button className="text-button" onClick={() => setCalendarOpen(false)} type="button">
+                  Close
+                </button>
+              </div>
+              <div className="service-picker-grid sunday-school-picker-grid">
+                <section className="service-picker-panel service-calendar-panel">
+                  <div className="service-calendar-heading">
+                    <button
+                      aria-label="Previous month"
+                      className="text-button"
+                      onClick={() => {
+                        const [year, month] = calendarMonth.split("-").map(Number);
+                        setCalendarMonth(monthInputFromDate(new Date(year, month - 2, 1)));
+                      }}
+                      type="button"
+                    >
+                      <ChevronLeft size={16} aria-hidden="true" />
+                    </button>
+                    <strong>{new Date(`${calendarMonth}-01T12:00:00`).toLocaleDateString(undefined, { month: "long", year: "numeric" })}</strong>
+                    <button
+                      aria-label="Next month"
+                      className="text-button"
+                      onClick={() => {
+                        const [year, month] = calendarMonth.split("-").map(Number);
+                        setCalendarMonth(monthInputFromDate(new Date(year, month, 1)));
+                      }}
+                      type="button"
+                    >
+                      <ChevronRight size={16} aria-hidden="true" />
+                    </button>
+                  </div>
+                  <div className="service-calendar-grid" aria-label="Sunday School calendar">
+                    {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day) => (
+                      <span className="service-calendar-weekday" key={day}>{day}</span>
+                    ))}
+                    {calendarDays.map((day) => {
+                      const lesson = lessonsByDate.get(day.date);
+                      const date = new Date(`${day.date}T12:00:00`);
+                      return (
+                        <button
+                          className={`service-calendar-day ${day.muted ? "is-muted" : ""} ${lesson ? "has-service" : ""} ${
+                            selectedDate === day.date ? "is-selected" : ""
+                          } ${teacherColor(lesson?.teacher_name || "")}`}
+                          key={day.date}
+                          onClick={() => chooseDate(day.date)}
+                          title={lesson?.teacher_name || lesson?.theme || undefined}
+                          type="button"
+                        >
+                          <span>{date.getDate()}</span>
+                          {lesson ? <small>{lesson.teacher_name || lesson.theme}</small> : null}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </section>
+                <section className="service-picker-panel service-list-panel">
+                  <div className="service-panel-heading">
+                    <h3>Upcoming</h3>
+                  </div>
+                  <div className="stack-list compact service-date-list">
+                    {upcomingSundays.map((date) => {
+                      const lesson = lessonsByDate.get(date);
+                      return (
+                        <button
+                          className={`stack-row ${selectedDate === date ? "selected" : ""} ${teacherColor(lesson?.teacher_name || "")}`}
+                          key={date}
+                          onClick={() => chooseDate(date)}
+                          type="button"
+                        >
+                          <strong>{shortDate(date)}</strong>
+                          <span>{lesson?.theme || "Unplanned"}{lesson?.teacher_name ? ` - ${lesson.teacher_name}` : ""}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </section>
+              </div>
+            </section>
+          </div>
+        ) : null}
 
         {activeTab === "plan" ? (
           <>
@@ -475,17 +549,74 @@ export function SundaySchoolView({ canEdit }: { canEdit: boolean }) {
               </button>
             </div>
 
-            <div className="sunday-school-section-grid">
+            <div className="sunday-school-accordion">
               {LESSON_FIELDS.map((field) => {
                 const Icon = field.icon;
+                const isOpen = openLessonField === field.key;
+                const fieldResources = resourcesForField(field.key);
+                const draftValue = draft[field.key].trim();
                 return (
-                  <label className="sunday-school-section" key={field.key}>
-                    <span>
-                      <Icon size={15} aria-hidden="true" />
-                      {field.label}
-                    </span>
-                    <textarea disabled={!canEdit} onChange={(event) => updateDraft(field.key, event.target.value)} value={draft[field.key]} />
-                  </label>
+                  <section className={`sunday-school-accordion-item ${isOpen ? "is-open" : ""}`} key={field.key}>
+                    <button
+                      aria-expanded={isOpen}
+                      className="sunday-school-accordion-trigger"
+                      onClick={() => setOpenLessonField((current) => (current === field.key ? field.key : field.key))}
+                      type="button"
+                    >
+                      <span>
+                        <Icon size={15} aria-hidden="true" />
+                        {field.label}
+                      </span>
+                      <small>
+                        {draftValue ? "Text" : ""}
+                        {draftValue && fieldResources.length ? " + " : ""}
+                        {fieldResources.length ? `${fieldResources.length} link${fieldResources.length === 1 ? "" : "s"}` : ""}
+                        {!draftValue && !fieldResources.length ? "Empty" : ""}
+                      </small>
+                      <ChevronDownIcon open={isOpen} />
+                    </button>
+                    {isOpen ? (
+                      <div className="sunday-school-accordion-panel">
+                        {field.key !== "songs" ? (
+                          <textarea
+                            disabled={!canEdit}
+                            onChange={(event) => updateDraft(field.key, event.target.value)}
+                            value={draft[field.key]}
+                          />
+                        ) : (
+                          <>
+                            <textarea
+                              disabled={!canEdit}
+                              onChange={(event) => updateDraft(field.key, event.target.value)}
+                              value={draft[field.key]}
+                            />
+                            <div className="sunday-school-inline-song-search">
+                              <input onChange={(event) => setSongQuery(event.target.value)} placeholder="Search songs" value={songQuery} />
+                              <div className="sunday-school-song-list">
+                                {filteredSongs.map((song) => (
+                                  <button disabled={!canEdit} key={song.id} onClick={() => appendSong(song.title)} type="button">
+                                    <Music2 size={13} aria-hidden="true" />
+                                    <span>{song.title}</span>
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                          </>
+                        )}
+                        {fieldResources.length ? (
+                          <div className="sunday-school-accordion-links">
+                            {fieldResources.map((resource) => (
+                              <a href={sundaySchoolResourceFileUrl(resource.id)} key={resource.id} rel="noreferrer" target="_blank">
+                                <span>{RESOURCE_LABELS[resource.resource_type] || resource.resource_type}</span>
+                                <strong>{resource.title}</strong>
+                                <small>{[resource.age_group, resource.bible_reference, resource.translation].filter(Boolean).join(" | ")}</small>
+                              </a>
+                            ))}
+                          </div>
+                        ) : null}
+                      </div>
+                    ) : null}
+                  </section>
                 );
               })}
             </div>

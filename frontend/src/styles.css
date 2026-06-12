@@ -352,7 +352,7 @@ button {
 .sunday-school-workspace {
   display: grid;
   gap: 8px;
-  grid-template-columns: minmax(220px, 0.76fr) minmax(0, 2.25fr) minmax(240px, 0.9fr);
+  grid-template-columns: minmax(0, 2fr) minmax(240px, 0.72fr);
   height: 100%;
   min-height: 0;
   padding: 8px;
@@ -451,6 +451,8 @@ button {
 
 .sunday-school-day.teacher-a,
 .sunday-school-next-row.teacher-a,
+.service-calendar-day.teacher-a,
+.stack-row.teacher-a,
 .sunday-school-teacher-list .teacher-a {
   --teacher-accent: #4e9b7d;
   --teacher-bg: #eaf5ef;
@@ -458,6 +460,8 @@ button {
 
 .sunday-school-day.teacher-b,
 .sunday-school-next-row.teacher-b,
+.service-calendar-day.teacher-b,
+.stack-row.teacher-b,
 .sunday-school-teacher-list .teacher-b {
   --teacher-accent: #8366b8;
   --teacher-bg: #f0ebfa;
@@ -465,6 +469,8 @@ button {
 
 .sunday-school-day.teacher-c,
 .sunday-school-next-row.teacher-c,
+.service-calendar-day.teacher-c,
+.stack-row.teacher-c,
 .sunday-school-teacher-list .teacher-c {
   --teacher-accent: #be7550;
   --teacher-bg: #faeee7;
@@ -472,6 +478,8 @@ button {
 
 .sunday-school-day.teacher-d,
 .sunday-school-next-row.teacher-d,
+.service-calendar-day.teacher-d,
+.stack-row.teacher-d,
 .sunday-school-teacher-list .teacher-d {
   --teacher-accent: #4d83b5;
   --teacher-bg: #e9f2fb;
@@ -479,6 +487,8 @@ button {
 
 .sunday-school-day.teacher-e,
 .sunday-school-next-row.teacher-e,
+.service-calendar-day.teacher-e,
+.stack-row.teacher-e,
 .sunday-school-teacher-list .teacher-e {
   --teacher-accent: #9b8350;
   --teacher-bg: #f7f0df;
@@ -486,6 +496,8 @@ button {
 
 .sunday-school-day.teacher-f,
 .sunday-school-next-row.teacher-f,
+.service-calendar-day.teacher-f,
+.stack-row.teacher-f,
 .sunday-school-teacher-list .teacher-f {
   --teacher-accent: #b35c75;
   --teacher-bg: #f9e9ee;
@@ -536,6 +548,12 @@ button {
   background: var(--teacher-bg);
   border-color: color-mix(in srgb, var(--teacher-accent) 62%, #e3dcc8);
   box-shadow: inset 3px 0 0 var(--teacher-accent);
+}
+
+.service-calendar-day[class*="teacher-"],
+.stack-row[class*="teacher-"] {
+  background: var(--teacher-bg);
+  border-color: color-mix(in srgb, var(--teacher-accent) 58%, #e3dcc8);
 }
 
 .sunday-school-next-row span,
@@ -667,6 +685,128 @@ button {
   min-height: 132px;
   padding: 8px;
   resize: vertical;
+}
+
+.sunday-school-accordion {
+  align-content: start;
+  display: grid;
+  gap: 7px;
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding-right: 2px;
+}
+
+.sunday-school-accordion-item {
+  background: #fffefa;
+  border: 1px solid #ded8c7;
+  border-radius: 8px;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.sunday-school-accordion-item.is-open {
+  border-color: #9cc4b2;
+  box-shadow: inset 3px 0 0 #2c6b58;
+}
+
+.sunday-school-accordion-trigger {
+  align-items: center;
+  background: #f9f6eb;
+  border: 0;
+  color: #17201b;
+  cursor: pointer;
+  display: grid;
+  font: inherit;
+  gap: 8px;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  min-height: 42px;
+  padding: 8px 10px;
+  text-align: left;
+  width: 100%;
+}
+
+.sunday-school-accordion-trigger > span {
+  align-items: center;
+  display: inline-flex;
+  font-size: 14px;
+  font-weight: 900;
+  gap: 7px;
+  min-width: 0;
+}
+
+.sunday-school-accordion-trigger small {
+  color: #65716a;
+  font-size: 11px;
+  font-weight: 850;
+  white-space: nowrap;
+}
+
+.sunday-school-accordion-trigger svg.is-open {
+  transform: rotate(180deg);
+}
+
+.sunday-school-accordion-panel {
+  display: grid;
+  gap: 8px;
+  padding: 8px;
+}
+
+.sunday-school-accordion-panel textarea {
+  background: #fffdf7;
+  border: 1px solid #cfc7b4;
+  border-radius: 8px;
+  color: #17201b;
+  font: inherit;
+  min-height: 168px;
+  padding: 8px 10px;
+  resize: vertical;
+  width: 100%;
+}
+
+.sunday-school-accordion-links,
+.sunday-school-inline-song-search {
+  display: grid;
+  gap: 6px;
+}
+
+.sunday-school-accordion-links a {
+  background: #f9f6eb;
+  border: 1px solid #e3dcc8;
+  border-radius: 8px;
+  color: #17201b;
+  display: grid;
+  gap: 3px;
+  padding: 7px 8px;
+  text-decoration: none;
+}
+
+.sunday-school-accordion-links a span,
+.sunday-school-accordion-links a small {
+  color: #65716a;
+  font-size: 11px;
+  font-weight: 850;
+}
+
+.sunday-school-accordion-links a strong {
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sunday-school-inline-song-search input {
+  background: #fffdf7;
+  border: 1px solid #cfc7b4;
+  border-radius: 8px;
+  color: #17201b;
+  font: inherit;
+  min-height: 34px;
+  padding: 6px 8px;
+}
+
+.sunday-school-picker-grid {
+  grid-template-columns: minmax(280px, 1fr) minmax(220px, 0.58fr);
 }
 
 .sunday-school-suggestion {
@@ -5890,7 +6030,7 @@ h3 {
   }
 
   .sunday-school-workspace {
-    grid-template-columns: minmax(180px, 0.8fr) minmax(0, 1.6fr);
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .sunday-school-kit {
@@ -6082,6 +6222,25 @@ h3 {
   .sunday-school-section-grid,
   .sunday-school-kit {
     grid-template-columns: 1fr;
+  }
+
+  .sunday-school-picker-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .sunday-school-accordion {
+    overflow: visible;
+  }
+
+  .sunday-school-accordion-trigger {
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    min-height: 44px;
+    padding: 8px;
+  }
+
+  .sunday-school-accordion-panel textarea {
+    min-height: 140px;
+    resize: vertical;
   }
 
   .sunday-school-resource-toolbar {
