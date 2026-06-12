@@ -18,6 +18,7 @@ DEFAULT_ROOTS = (
     Path("/home/chwalsh/Spring 2026 3-5 years-20260612T123514Z-3-001/Spring 2026 3-5 years"),
     Path("/home/chwalsh/Spring 2026 6-12 years-20260612T123828Z-3-001/Spring 2026 6-12 years"),
 )
+STORAGE_RESOURCE_ROOT = Path("/app/storage/sunday-school-resources")
 
 RESOURCE_LABELS = {
     "lesson_packet": "Lesson packet",
@@ -86,6 +87,8 @@ def configured_roots() -> list[Path]:
     raw = os.getenv("CSPOT_SUNDAY_SCHOOL_RESOURCE_ROOTS", "")
     roots = [Path(part).expanduser() for part in raw.split(os.pathsep) if part.strip()]
     roots.extend(DEFAULT_ROOTS)
+    if STORAGE_RESOURCE_ROOT.exists():
+        roots.extend(path for path in STORAGE_RESOURCE_ROOT.rglob("*") if path.is_dir() and any(path.glob("*.pdf")))
     seen: set[Path] = set()
     existing: list[Path] = []
     for root in roots:
