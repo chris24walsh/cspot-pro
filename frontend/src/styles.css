@@ -6959,3 +6959,395 @@ h3 {
   font-size: 0.72rem;
   color: #62736d;
 }
+
+.sunday-school-workspace {
+  grid-template-columns: minmax(240px, 0.58fr) minmax(0, 1.42fr);
+}
+
+.sunday-school-mobile-tabs {
+  display: none;
+}
+
+.sunday-school-schedule-pane,
+.sunday-school-lesson-pane {
+  background: #fffefa;
+  border: 1px solid #ded8c7;
+  border-radius: 8px;
+  min-height: 0;
+}
+
+.sunday-school-schedule-pane {
+  display: grid;
+  gap: 8px;
+  grid-template-rows: auto minmax(0, 1fr);
+  overflow: hidden;
+  padding: 10px;
+}
+
+.sunday-school-lesson-pane {
+  display: grid;
+  gap: 8px;
+  grid-template-rows: auto auto auto auto minmax(0, 1fr);
+  overflow: hidden;
+  padding: 10px;
+}
+
+.sunday-school-pane-heading {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+  justify-content: space-between;
+  min-width: 0;
+}
+
+.sunday-school-pane-heading h2 {
+  color: #17201b;
+  font-size: 18px;
+  line-height: 1.1;
+  margin: 0;
+}
+
+.sunday-school-schedule-list {
+  align-content: start;
+  display: grid;
+  gap: 6px;
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding-right: 2px;
+}
+
+.sunday-school-schedule-row {
+  align-items: center;
+  background: #f9f6eb;
+  border: 1px solid #e3dcc8;
+  border-radius: 8px;
+  color: #17201b;
+  cursor: pointer;
+  display: grid;
+  font: inherit;
+  gap: 3px 8px;
+  grid-template-columns: minmax(54px, auto) minmax(0, 1fr) auto;
+  min-height: 54px;
+  padding: 7px 8px;
+  text-align: left;
+}
+
+.sunday-school-schedule-row.is-active {
+  background: #eaf5ef;
+  border-color: #4e9b7d;
+  box-shadow: inset 3px 0 0 #234a40;
+}
+
+.sunday-school-schedule-row[class*="teacher-"] {
+  background: var(--teacher-bg);
+  border-color: color-mix(in srgb, var(--teacher-accent) 58%, #e3dcc8);
+  box-shadow: inset 3px 0 0 var(--teacher-accent);
+}
+
+.sunday-school-schedule-row strong,
+.sunday-school-schedule-row span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sunday-school-schedule-row strong {
+  font-size: 13px;
+  font-weight: 950;
+}
+
+.sunday-school-schedule-row span {
+  font-size: 13px;
+  font-weight: 850;
+}
+
+.sunday-school-schedule-row small {
+  align-items: center;
+  color: #65716a;
+  display: inline-flex;
+  font-size: 11px;
+  font-weight: 850;
+  gap: 4px;
+  grid-column: 2 / 3;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sunday-school-schedule-row em {
+  align-self: center;
+  background: #fffdf7;
+  border: 1px solid #d8d0bd;
+  border-radius: 999px;
+  color: #234a40;
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 900;
+  grid-column: 3;
+  grid-row: 1 / span 2;
+  min-width: 24px;
+  padding: 3px 6px;
+  text-align: center;
+}
+
+.sunday-school-lesson-elements {
+  align-content: start;
+  display: grid;
+  gap: 8px;
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding-right: 2px;
+}
+
+.sunday-school-element-card {
+  background: #fffefa;
+  border: 1px solid #ded8c7;
+  border-radius: 8px;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.sunday-school-element-card.is-open {
+  border-color: #9cc4b2;
+  box-shadow: inset 3px 0 0 #2c6b58;
+}
+
+.sunday-school-element-trigger {
+  align-items: center;
+  background: #f9f6eb;
+  border: 0;
+  color: #17201b;
+  cursor: pointer;
+  display: grid;
+  font: inherit;
+  gap: 5px 8px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  padding: 9px 10px;
+  text-align: left;
+  width: 100%;
+}
+
+.sunday-school-element-trigger > span {
+  align-items: center;
+  display: inline-flex;
+  font-size: 13px;
+  font-weight: 950;
+  gap: 7px;
+  min-width: 0;
+}
+
+.sunday-school-element-trigger strong {
+  color: #3b4741;
+  font-size: 12px;
+  font-weight: 750;
+  grid-column: 1 / 2;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sunday-school-element-trigger > svg {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+}
+
+.sunday-school-element-trigger svg.is-open {
+  transform: rotate(180deg);
+}
+
+.sunday-school-element-panel {
+  display: grid;
+  gap: 8px;
+  padding: 8px;
+}
+
+.sunday-school-element-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.sunday-school-element-links {
+  display: grid;
+  gap: 6px;
+}
+
+.sunday-school-element-links a {
+  background: #f9f6eb;
+  border: 1px solid #e3dcc8;
+  border-radius: 8px;
+  color: #17201b;
+  display: grid;
+  gap: 3px;
+  padding: 7px 8px;
+  text-decoration: none;
+}
+
+.sunday-school-element-links span,
+.sunday-school-element-links small {
+  color: #65716a;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.sunday-school-element-links strong {
+  font-size: 13px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sunday-school-element-links p {
+  color: #65716a;
+  font-size: 13px;
+  font-weight: 750;
+  margin: 0;
+}
+
+.sunday-school-alternative-dialog {
+  grid-template-rows: auto auto minmax(0, 1fr);
+}
+
+.sunday-school-alternative-search {
+  align-items: center;
+  background: #fffdf7;
+  border: 1px solid #cfc7b4;
+  border-radius: 8px;
+  display: grid;
+  gap: 6px;
+  grid-template-columns: auto minmax(0, 1fr);
+  padding: 0 9px;
+}
+
+.sunday-school-alternative-search input {
+  background: transparent;
+  border: 0;
+  color: #17201b;
+  font: inherit;
+  min-height: 38px;
+  min-width: 0;
+  outline: 0;
+}
+
+.sunday-school-alternative-list {
+  align-content: start;
+  display: grid;
+  gap: 7px;
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+
+.sunday-school-alternative-row {
+  align-items: center;
+  background: #fffefa;
+  border: 1px solid #ded8c7;
+  border-radius: 8px;
+  display: grid;
+  gap: 8px;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  padding: 8px;
+}
+
+.sunday-school-alternative-row div {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.sunday-school-alternative-row span,
+.sunday-school-alternative-row small {
+  color: #65716a;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.sunday-school-alternative-row strong {
+  color: #17201b;
+  font-size: 13px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 540px) {
+  .sunday-school-workspace {
+    gap: 6px;
+    grid-template-columns: 1fr;
+    grid-template-rows: auto minmax(0, 1fr);
+    height: auto;
+  }
+
+  .sunday-school-mobile-tabs {
+    display: flex;
+  }
+
+  .sunday-school-schedule-pane,
+  .sunday-school-lesson-pane {
+    display: none;
+    min-height: calc(100svh - 160px);
+  }
+
+  .sunday-school-pane-schedule .sunday-school-schedule-pane,
+  .sunday-school-pane-lesson .sunday-school-lesson-pane {
+    display: grid;
+  }
+
+  .sunday-school-lesson-pane {
+    grid-template-rows: auto auto auto auto minmax(0, 1fr);
+    overflow: visible;
+    padding: 8px;
+  }
+
+  .sunday-school-schedule-list,
+  .sunday-school-lesson-elements {
+    max-height: none;
+    overflow: visible;
+  }
+
+  .sunday-school-header {
+    gap: 7px;
+  }
+
+  .sunday-school-actions {
+    display: grid;
+    grid-template-columns: auto 1fr 1fr;
+    width: 100%;
+  }
+
+  .sunday-school-actions .text-button,
+  .sunday-school-actions .primary-button {
+    justify-content: center;
+    min-width: 0;
+    width: 100%;
+  }
+
+  .sunday-school-core-fields {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .sunday-school-core-fields label:nth-child(2),
+  .sunday-school-core-fields label:nth-child(3) {
+    grid-column: 1 / -1;
+  }
+
+  .sunday-school-suggestion {
+    align-items: stretch;
+    display: grid;
+  }
+
+  .sunday-school-element-trigger {
+    min-height: 52px;
+    padding: 8px;
+  }
+
+  .sunday-school-alternative-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

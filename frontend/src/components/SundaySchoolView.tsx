@@ -8,46 +8,49 @@ import {
   FileText,
   Gamepad2,
   Library,
-  Music2,
   Plus,
   RefreshCw,
   Save,
   Scissors,
   Search,
-  StickyNote,
+  UserRound,
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import {
   ApiError,
   createSundaySchoolLesson,
-  getSongs,
   getSundaySchoolLessons,
   getSundaySchoolResources,
   importSundaySchoolResources,
   sundaySchoolResourceFileUrl,
   updateSundaySchoolLesson,
-  type Song,
   type SundaySchoolLesson,
   type SundaySchoolLessonPayload,
   type SundaySchoolResource,
 } from "../api";
 
-type LessonField = {
-  key: keyof Pick<SundaySchoolLessonPayload, "bible_story" | "crafts" | "songs" | "games" | "source_notes" | "teacher_notes">;
+type SundaySchoolPane = "schedule" | "lesson";
+type LessonElementKey = "passage" | "craft" | "activity" | "game" | "resources";
+
+type LessonElement = {
+  key: LessonElementKey;
   label: string;
   icon: typeof FileText;
+  resourceTypes: string[];
 };
 
-type SundaySchoolTab = "plan" | "resources";
+type AlternativePicker = {
+  element: LessonElement;
+  query: string;
+} | null;
 
-const LESSON_FIELDS: LessonField[] = [
-  { key: "bible_story", label: "Bible Story", icon: FileText },
-  { key: "crafts", label: "Crafts / Printouts", icon: Scissors },
-  { key: "songs", label: "Songs", icon: Music2 },
-  { key: "games", label: "Games", icon: Gamepad2 },
-  { key: "source_notes", label: "Source Materials", icon: Library },
-  { key: "teacher_notes", label: "Cover Notes", icon: StickyNote },
+const LESSON_ELEMENTS: LessonElement[] = [
+  { key: "passage", label: "Passage / Story", icon: FileText, resourceTypes: ["bible_story", "lesson_packet"] },
+  { key: "craft", label: "Craft / Printout", icon: Scissors, resourceTypes: ["craft", "coloring", "worksheet"] },
+  { key: "activity", label: "Activity", icon: Library, resourceTypes: ["worksheet", "coloring", "media", "lesson_packet"] },
+  { key: "game", label: "Game", icon: Gamepad2, resourceTypes: ["game"] },
+  { key: "resources", label: "All Resources", icon: Library, resourceTypes: ["lesson_packet", "bible_story", "craft", "game", "coloring", "worksheet", "media"] },
 ];
 
 const RESOURCE_LABELS: Record<string, string> = {
@@ -147,16 +150,6 @@ function draftFromLesson(lesson: SundaySchoolLesson): SundaySchoolLessonPayload 
   };
 }
 
-function lessonReadiness(lesson: SundaySchoolLessonPayload) {
-  return [
-    lesson.theme.trim(),
-    lesson.bible_reference.trim() || lesson.bible_story.trim(),
-    lesson.crafts.trim(),
-    lesson.songs.trim(),
-    lesson.games.trim(),
-  ].filter(Boolean).length;
-}
-
 function teacherColor(name: string) {
   const value = name.trim().toLowerCase();
   if (!value) {
@@ -169,39 +162,52 @@ function teacherColor(name: string) {
   return TEACHER_COLORS[hash % TEACHER_COLORS.length];
 }
 
-function uniqueLines(values: string[]) {
-  return Array.from(new Set(values.map((value) => value.trim()).filter(Boolean)));
+function resourceMeta(resource: SundaySchoolResource) {
+  return [RESOURCE_LABELS[resource.resource_type] || resource.resource_type, resource.age_group, resource.bible_reference]
+    .filter(Boolean)
+    .join(" | ");
 }
 
-function resourceText(resources: SundaySchoolResource[], type: string) {
-  return resources
-    .filter((resource) => resource.resource_type === type)
-    .map((resource) => `${resource.title}${resource.summary ? ` - ${resource.summary}` : ""}`)
-    .join("\n");
+function resourceAssignment(resource: SundaySchoolResource) {
+  return [resource.title, resource.summary].filter(Boolean).join("\n");
 }
 
-function ChevronDownIcon({ open }: { open: boolean }) {
-  return <ChevronDown className={open ? "is-open" : ""} size={16} aria-hidden="true" />;
+function firstLine(value: string) {
+  return value
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .find(Boolean);
+}
+
+function lessonReadiness(lesson: SundaySchoolLessonPayload, resources: SundaySchoolResource[]) {
+  return [
+    lesson.theme.trim(),
+    lesson.bible_reference.trim() || lesson.bible_story.trim(),
+    lesson.crafts.trim(),
+    lesson.games.trim(),
+    resources.length ? "resources" : "",
+  ].filter(Boolean).length;
+}
+
+function readableResourceType(type: string) {
+  return RESOURCE_LABELS[type] || type.replace(/_/g, " ");
 }
 
 export function SundaySchoolView({ canEdit }: { canEdit: boolean }) {
   const [lessons, setLessons] = useState<SundaySchoolLesson[]>([]);
   const [resources, setResources] = useState<SundaySchoolResource[]>([]);
-  const [songs, setSongs] = useState<Song[]>([]);
   const [selectedDate, setSelectedDate] = useState(nextSundayDateInput());
   const [calendarMonth, setCalendarMonth] = useState(monthInputFromDate(new Date()));
   const [draft, setDraft] = useState<SundaySchoolLessonPayload>(() => blankLesson(nextSundayDateInput()));
-  const [activeTab, setActiveTab] = useState<SundaySchoolTab>("plan");
+  const [mobilePane, setMobilePane] = useState<SundaySchoolPane>("schedule");
   const [calendarOpen, setCalendarOpen] = useState(false);
-  const [openLessonField, setOpenLessonField] = useState<LessonField["key"]>("bible_story");
+  const [openElement, setOpenElement] = useState<LessonElementKey>("passage");
+  const [alternativePicker, setAlternativePicker] = useState<AlternativePicker>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [importing, setImporting] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
-  const [resourceQuery, setResourceQuery] = useState("");
-  const [resourceAge, setResourceAge] = useState("");
-  const [resourceType, setResourceType] = useState("");
-  const [songQuery, setSongQuery] = useState("");
+  const scheduleRefs = useRef<Record<string, HTMLButtonElement | null>>({});
 
   const lessonsByDate = useMemo(
     () => new Map(lessons.map((lesson) => [dateInputFromIso(lesson.lesson_date), lesson])),
@@ -209,11 +215,11 @@ export function SundaySchoolView({ canEdit }: { canEdit: boolean }) {
   );
   const selectedLesson = lessonsByDate.get(selectedDate) ?? null;
   const calendarDays = useMemo(() => calendarDaysForMonth(calendarMonth), [calendarMonth]);
-  const upcomingSundays = useMemo(() => {
-    const first = new Date(`${nextSundayDateInput()}T12:00:00`);
-    return Array.from({ length: 10 }, (_value, index) => {
-      const date = new Date(first);
-      date.setDate(first.getDate() + index * 7);
+  const scheduleDates = useMemo(() => {
+    const center = new Date(`${nextSundayDateInput()}T12:00:00`);
+    return Array.from({ length: 53 }, (_value, index) => {
+      const date = new Date(center);
+      date.setDate(center.getDate() + (index - 26) * 7);
       return dateInputFromDate(date);
     });
   }, []);
@@ -221,64 +227,22 @@ export function SundaySchoolView({ canEdit }: { canEdit: boolean }) {
     () => resources.filter((resource) => dateInputFromIso(resource.lesson_date) === selectedDate),
     [resources, selectedDate],
   );
-  const filteredResources = useMemo(() => {
-    const query = resourceQuery.trim().toLowerCase();
-    return resources.filter((resource) => {
-      const matchesQuery =
-        !query ||
-        [resource.title, resource.theme, resource.bible_reference, resource.summary, resource.file_name]
-          .join(" ")
-          .toLowerCase()
-          .includes(query);
-      return (
-        matchesQuery &&
-        (!resourceAge || resource.age_group === resourceAge) &&
-        (!resourceType || resource.resource_type === resourceType)
-      );
-    });
-  }, [resourceAge, resourceQuery, resourceType, resources]);
-  const filteredSongs = useMemo(() => {
-    const query = songQuery.trim().toLowerCase();
-    return songs
-      .filter(
-        (song) =>
-          !query ||
-          [song.title, song.alternate_title, song.theme_tags, song.lyrics]
-            .filter(Boolean)
-            .join(" ")
-            .toLowerCase()
-            .includes(query),
-      )
-      .slice(0, 8);
-  }, [songQuery, songs]);
-  const readyCount = lessonReadiness(draft);
-
-  const resourcesByType = useMemo(() => {
-    const grouped = new Map<string, SundaySchoolResource[]>();
-    for (const resource of selectedResources) {
-      const current = grouped.get(resource.resource_type) ?? [];
-      current.push(resource);
-      grouped.set(resource.resource_type, current);
-    }
-    return grouped;
-  }, [selectedResources]);
+  const readyCount = lessonReadiness(draft, selectedResources);
 
   async function load() {
     setLoading(true);
     setMessage(null);
     try {
       const from = new Date();
-      from.setDate(from.getDate() - 42);
+      from.setDate(from.getDate() - 210);
       const to = new Date();
-      to.setDate(to.getDate() + 180);
-      const [nextLessons, nextResources, nextSongs] = await Promise.all([
+      to.setDate(to.getDate() + 210);
+      const [nextLessons, nextResources] = await Promise.all([
         getSundaySchoolLessons({ from_date: dateInputFromDate(from), to_date: dateInputFromDate(to) }),
         getSundaySchoolResources(),
-        getSongs(),
       ]);
       setLessons(nextLessons);
       setResources(nextResources);
-      setSongs(nextSongs);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Could not load Sunday School.");
     } finally {
@@ -295,6 +259,12 @@ export function SundaySchoolView({ canEdit }: { canEdit: boolean }) {
     setDraft(lesson ? draftFromLesson(lesson) : blankLesson(selectedDate));
   }, [lessonsByDate, selectedDate]);
 
+  useEffect(() => {
+    window.setTimeout(() => {
+      scheduleRefs.current[selectedDate]?.scrollIntoView({ block: "center", behavior: "smooth" });
+    }, 60);
+  }, [selectedDate, scheduleDates.length]);
+
   function updateDraft<K extends keyof SundaySchoolLessonPayload>(key: K, value: SundaySchoolLessonPayload[K]) {
     setDraft((current) => ({ ...current, [key]: value }));
   }
@@ -303,29 +273,75 @@ export function SundaySchoolView({ canEdit }: { canEdit: boolean }) {
     setSelectedDate(date);
     setCalendarMonth(date.slice(0, 7));
     setCalendarOpen(false);
+    setMobilePane("lesson");
   }
 
-  function appendSong(title: string) {
-    const lines = uniqueLines([...draft.songs.split(/\r?\n/), title]);
-    updateDraft("songs", lines.join("\n"));
+  function resourcesForElement(element: LessonElement, includeAllDates = false) {
+    const source = includeAllDates ? resources : selectedResources;
+    return source
+      .filter((resource) => element.resourceTypes.includes(resource.resource_type))
+      .sort((left, right) => {
+        const leftDate = dateInputFromIso(left.lesson_date) || "";
+        const rightDate = dateInputFromIso(right.lesson_date) || "";
+        if (leftDate !== rightDate) {
+          return leftDate.localeCompare(rightDate);
+        }
+        return left.sort_order - right.sort_order || left.title.localeCompare(right.title);
+      });
+  }
+
+  function summaryForElement(element: LessonElement) {
+    if (element.key === "passage") {
+      return draft.bible_reference.trim() || firstLine(draft.bible_story) || resourcesForElement(element)[0]?.bible_reference || "No passage assigned";
+    }
+    if (element.key === "craft") {
+      return firstLine(draft.crafts) || firstLine(resourcesForElement(element)[0]?.title || "") || "No craft assigned";
+    }
+    if (element.key === "activity") {
+      return firstLine(draft.source_notes) || firstLine(resourcesForElement(element)[0]?.title || "") || "No activity assigned";
+    }
+    if (element.key === "game") {
+      return firstLine(draft.games) || firstLine(resourcesForElement(element)[0]?.title || "") || "No game assigned";
+    }
+    return selectedResources.length ? `${selectedResources.length} resources for this date` : "No resources matched";
   }
 
   function applySuggestedPlan() {
     const firstPacket = selectedResources.find((resource) => resource.resource_type === "lesson_packet");
-    const sourceLines = selectedResources
-      .filter((resource) => resource.resource_type === "lesson_packet")
-      .map((resource) => `${resource.age_group || "All"}: ${resource.file_name}`);
+    const passage = selectedResources.find((resource) => resource.resource_type === "bible_story") ?? firstPacket;
+    const craft = selectedResources.find((resource) => ["craft", "coloring", "worksheet"].includes(resource.resource_type));
+    const game = selectedResources.find((resource) => resource.resource_type === "game");
     setDraft((current) => ({
       ...current,
-      theme: current.theme || firstPacket?.theme || "",
-      bible_reference: current.bible_reference || firstPacket?.bible_reference || "",
-      bible_story: current.bible_story || resourceText(selectedResources, "bible_story"),
-      crafts: current.crafts || [resourceText(selectedResources, "craft"), resourceText(selectedResources, "coloring"), resourceText(selectedResources, "worksheet")]
-        .filter(Boolean)
-        .join("\n"),
-      games: current.games || resourceText(selectedResources, "game"),
-      source_notes: uniqueLines([...current.source_notes.split(/\r?\n/), ...sourceLines]).join("\n"),
+      theme: current.theme || firstPacket?.theme || passage?.theme || "",
+      bible_reference: current.bible_reference || passage?.bible_reference || "",
+      bible_story: current.bible_story || (passage ? resourceAssignment(passage) : ""),
+      crafts: current.crafts || (craft ? resourceAssignment(craft) : ""),
+      games: current.games || (game ? resourceAssignment(game) : ""),
+      source_notes: current.source_notes || selectedResources.map((resource) => resource.title).join("\n"),
     }));
+  }
+
+  function assignResource(element: LessonElement, resource: SundaySchoolResource) {
+    const assignment = resourceAssignment(resource);
+    setDraft((current) => {
+      if (element.key === "passage") {
+        return {
+          ...current,
+          theme: current.theme || resource.theme || "",
+          bible_reference: resource.bible_reference || current.bible_reference,
+          bible_story: assignment,
+        };
+      }
+      if (element.key === "craft") {
+        return { ...current, crafts: assignment };
+      }
+      if (element.key === "game") {
+        return { ...current, games: assignment };
+      }
+      return { ...current, source_notes: assignment };
+    });
+    setAlternativePicker(null);
   }
 
   async function saveLesson() {
@@ -368,47 +384,89 @@ export function SundaySchoolView({ canEdit }: { canEdit: boolean }) {
     }
   }
 
-  function resourcesForField(fieldKey: LessonField["key"]) {
-    if (fieldKey === "bible_story") {
-      return [
-        ...(resourcesByType.get("bible_story") ?? []),
-        ...(resourcesByType.get("lesson_packet") ?? []),
-      ];
+  const alternativeResources = useMemo(() => {
+    if (!alternativePicker) {
+      return [];
     }
-    if (fieldKey === "crafts") {
-      return [
-        ...(resourcesByType.get("craft") ?? []),
-        ...(resourcesByType.get("coloring") ?? []),
-        ...(resourcesByType.get("worksheet") ?? []),
-      ];
-    }
-    if (fieldKey === "games") {
-      return resourcesByType.get("game") ?? [];
-    }
-    if (fieldKey === "source_notes") {
-      return selectedResources;
-    }
-    return [];
-  }
+    const query = alternativePicker.query.trim().toLowerCase();
+    return resourcesForElement(alternativePicker.element, true)
+      .filter((resource) => {
+        if (!query) {
+          return true;
+        }
+        return [resource.title, resource.theme, resource.bible_reference, resource.summary, resource.file_name]
+          .join(" ")
+          .toLowerCase()
+          .includes(query);
+      })
+      .sort((left, right) => {
+        const leftDate = dateInputFromIso(left.lesson_date) === selectedDate ? 0 : 1;
+        const rightDate = dateInputFromIso(right.lesson_date) === selectedDate ? 0 : 1;
+        return leftDate - rightDate || left.title.localeCompare(right.title);
+      });
+  }, [alternativePicker, resources, selectedDate]);
 
   return (
-    <section className="sunday-school-workspace" aria-label="Sunday School lessons">
-      <main className="sunday-school-editor">
-        <div className="sunday-school-header">
+    <section className={`sunday-school-workspace sunday-school-pane-${mobilePane}`} aria-label="Sunday School lessons">
+      <div className="sunday-school-mobile-tabs segmented-control" role="tablist" aria-label="Sunday School view">
+        <button className={mobilePane === "schedule" ? "is-active" : ""} onClick={() => setMobilePane("schedule")} type="button">
+          Sundays
+        </button>
+        <button className={mobilePane === "lesson" ? "is-active" : ""} onClick={() => setMobilePane("lesson")} type="button">
+          Lesson
+        </button>
+      </div>
+
+      <aside className="sunday-school-schedule-pane">
+        <div className="sunday-school-pane-heading">
           <div>
             <p className="eyebrow">Sunday School</p>
+            <h2>Sundays</h2>
+          </div>
+          <button className="text-button" onClick={() => setCalendarOpen(true)} type="button">
+            <CalendarDays size={15} aria-hidden="true" />
+            {shortDate(selectedDate)}
+          </button>
+        </div>
+        <div className="sunday-school-schedule-list">
+          {scheduleDates.map((date) => {
+            const lesson = lessonsByDate.get(date);
+            const resourcesCount = resources.filter((resource) => dateInputFromIso(resource.lesson_date) === date).length;
+            return (
+              <button
+                className={`sunday-school-schedule-row ${selectedDate === date ? "is-active" : ""} ${teacherColor(lesson?.teacher_name || "")}`}
+                key={date}
+                onClick={() => chooseDate(date)}
+                ref={(node) => {
+                  scheduleRefs.current[date] = node;
+                }}
+                type="button"
+              >
+                <strong>{shortDate(date)}</strong>
+                <span>{lesson?.theme || "Unplanned"}</span>
+                <small>
+                  <UserRound size={12} aria-hidden="true" />
+                  {lesson?.teacher_name || "No teacher"}
+                </small>
+                {resourcesCount ? <em>{resourcesCount}</em> : null}
+              </button>
+            );
+          })}
+        </div>
+      </aside>
+
+      <main className="sunday-school-lesson-pane">
+        <div className="sunday-school-header">
+          <div>
+            <p className="eyebrow">Selected Lesson</p>
             <h2>{longDate(selectedDate)}</h2>
           </div>
           <div className="sunday-school-actions">
-            <button className="text-button" onClick={() => setCalendarOpen(true)} type="button">
-              <CalendarDays size={15} aria-hidden="true" />
-              {shortDate(selectedDate)}
-            </button>
-            <div className="segmented-control compact-segmented" role="tablist" aria-label="Sunday School tabs">
-              <button className={activeTab === "plan" ? "is-active" : ""} onClick={() => setActiveTab("plan")} type="button">Plan</button>
-              <button className={activeTab === "resources" ? "is-active" : ""} onClick={() => setActiveTab("resources")} type="button">Resources</button>
-            </div>
             <span className={`sunday-school-readiness readiness-${readyCount}`}>{readyCount}/5</span>
+            <button className="text-button" disabled={!canEdit || importing} onClick={() => void importResources()} type="button">
+              <RefreshCw size={14} aria-hidden="true" />
+              {importing ? "Importing..." : "Import"}
+            </button>
             <button className="primary-button" disabled={!canEdit || saving} onClick={() => void saveLesson()} type="button">
               {selectedLesson ? <Save size={16} aria-hidden="true" /> : <Plus size={16} aria-hidden="true" />}
               {saving ? "Saving..." : selectedLesson ? "Save" : "Create"}
@@ -419,291 +477,230 @@ export function SundaySchoolView({ canEdit }: { canEdit: boolean }) {
         {message ? <p className="status-message">{message}</p> : null}
         {loading ? <p className="empty-state">Loading lessons...</p> : null}
 
-        {calendarOpen ? (
-          <div className="app-dialog-backdrop" role="presentation" onMouseDown={() => setCalendarOpen(false)}>
-            <section
-              aria-labelledby="sunday-school-calendar-title"
-              className="app-dialog app-dialog-wide service-picker-dialog sunday-school-calendar-dialog"
-              onMouseDown={(event) => event.stopPropagation()}
-              role="dialog"
-            >
-              <div className="section-heading">
-                <div>
-                  <p className="eyebrow">Calendar</p>
-                  <h2 id="sunday-school-calendar-title">Sunday School</h2>
-                </div>
-                <button className="text-button" onClick={() => setCalendarOpen(false)} type="button">
-                  Close
-                </button>
-              </div>
-              <div className="service-picker-grid sunday-school-picker-grid">
-                <section className="service-picker-panel service-calendar-panel">
-                  <div className="service-calendar-heading">
-                    <button
-                      aria-label="Previous month"
-                      className="text-button"
-                      onClick={() => {
-                        const [year, month] = calendarMonth.split("-").map(Number);
-                        setCalendarMonth(monthInputFromDate(new Date(year, month - 2, 1)));
-                      }}
-                      type="button"
-                    >
-                      <ChevronLeft size={16} aria-hidden="true" />
-                    </button>
-                    <strong>{new Date(`${calendarMonth}-01T12:00:00`).toLocaleDateString(undefined, { month: "long", year: "numeric" })}</strong>
-                    <button
-                      aria-label="Next month"
-                      className="text-button"
-                      onClick={() => {
-                        const [year, month] = calendarMonth.split("-").map(Number);
-                        setCalendarMonth(monthInputFromDate(new Date(year, month, 1)));
-                      }}
-                      type="button"
-                    >
-                      <ChevronRight size={16} aria-hidden="true" />
-                    </button>
-                  </div>
-                  <div className="service-calendar-grid" aria-label="Sunday School calendar">
-                    {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day) => (
-                      <span className="service-calendar-weekday" key={day}>{day}</span>
-                    ))}
-                    {calendarDays.map((day) => {
-                      const lesson = lessonsByDate.get(day.date);
-                      const date = new Date(`${day.date}T12:00:00`);
-                      return (
-                        <button
-                          className={`service-calendar-day ${day.muted ? "is-muted" : ""} ${lesson ? "has-service" : ""} ${
-                            selectedDate === day.date ? "is-selected" : ""
-                          } ${teacherColor(lesson?.teacher_name || "")}`}
-                          key={day.date}
-                          onClick={() => chooseDate(day.date)}
-                          title={lesson?.teacher_name || lesson?.theme || undefined}
-                          type="button"
-                        >
-                          <span>{date.getDate()}</span>
-                          {lesson ? <small>{lesson.teacher_name || lesson.theme}</small> : null}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </section>
-                <section className="service-picker-panel service-list-panel">
-                  <div className="service-panel-heading">
-                    <h3>Upcoming</h3>
-                  </div>
-                  <div className="stack-list compact service-date-list">
-                    {upcomingSundays.map((date) => {
-                      const lesson = lessonsByDate.get(date);
-                      return (
-                        <button
-                          className={`stack-row ${selectedDate === date ? "selected" : ""} ${teacherColor(lesson?.teacher_name || "")}`}
-                          key={date}
-                          onClick={() => chooseDate(date)}
-                          type="button"
-                        >
-                          <strong>{shortDate(date)}</strong>
-                          <span>{lesson?.theme || "Unplanned"}{lesson?.teacher_name ? ` - ${lesson.teacher_name}` : ""}</span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </section>
-              </div>
-            </section>
+        <div className="sunday-school-core-fields">
+          <label>
+            <span>Teacher</span>
+            <input disabled={!canEdit} onChange={(event) => updateDraft("teacher_name", event.target.value)} placeholder="Scheduled teacher" value={draft.teacher_name} />
+          </label>
+          <label>
+            <span>Theme</span>
+            <input disabled={!canEdit} onChange={(event) => updateDraft("theme", event.target.value)} placeholder="Theme from plan" value={draft.theme} />
+          </label>
+          <label>
+            <span>Bible Reference</span>
+            <input disabled={!canEdit} onChange={(event) => updateDraft("bible_reference", event.target.value)} placeholder="e.g. John 6:56-69" value={draft.bible_reference} />
+          </label>
+          <label>
+            <span>Status</span>
+            <select disabled={!canEdit} onChange={(event) => updateDraft("status", event.target.value)} value={draft.status}>
+              <option value="draft">Draft</option>
+              <option value="ready">Ready</option>
+              <option value="printed">Printed</option>
+            </select>
+          </label>
+        </div>
+
+        <div className="sunday-school-suggestion">
+          <div>
+            <strong>{selectedResources.length ? `${selectedResources.length} resources for this Sunday` : "No dated resources matched"}</strong>
+            <span>{selectedResources.map((resource) => readableResourceType(resource.resource_type)).slice(0, 5).join(", ") || "Choose alternatives from the lesson boxes"}</span>
           </div>
-        ) : null}
+          <button className="text-button" disabled={!canEdit || !selectedResources.length} onClick={applySuggestedPlan} type="button">
+            <CheckCircle2 size={14} aria-hidden="true" />
+            Use matched
+          </button>
+        </div>
 
-        {activeTab === "plan" ? (
-          <>
-            <div className="sunday-school-core-fields">
-              <label>
-                <span>Teacher</span>
-                <input disabled={!canEdit} onChange={(event) => updateDraft("teacher_name", event.target.value)} placeholder="Scheduled teacher" value={draft.teacher_name} />
-              </label>
-              <label>
-                <span>Theme</span>
-                <input disabled={!canEdit} onChange={(event) => updateDraft("theme", event.target.value)} placeholder="Theme from the plan" value={draft.theme} />
-              </label>
-              <label>
-                <span>Bible Reference</span>
-                <input disabled={!canEdit} onChange={(event) => updateDraft("bible_reference", event.target.value)} placeholder="e.g. John 6:56-69" value={draft.bible_reference} />
-              </label>
-              <label>
-                <span>Status</span>
-                <select disabled={!canEdit} onChange={(event) => updateDraft("status", event.target.value)} value={draft.status}>
-                  <option value="draft">Draft</option>
-                  <option value="ready">Ready</option>
-                  <option value="printed">Printed</option>
-                </select>
-              </label>
-            </div>
-
-            <div className="sunday-school-suggestion">
-              <div>
-                <strong>Suggested lesson plan</strong>
-                <span>{selectedResources.length ? `${selectedResources.length} matched resources` : "No imported resources for this date yet"}</span>
-              </div>
-              <button className="text-button" disabled={!canEdit || !selectedResources.length} onClick={applySuggestedPlan} type="button">
-                <CheckCircle2 size={14} aria-hidden="true" />
-                Use suggestion
-              </button>
-            </div>
-
-            <div className="sunday-school-accordion">
-              {LESSON_FIELDS.map((field) => {
-                const Icon = field.icon;
-                const isOpen = openLessonField === field.key;
-                const fieldResources = resourcesForField(field.key);
-                const draftValue = draft[field.key].trim();
-                return (
-                  <section className={`sunday-school-accordion-item ${isOpen ? "is-open" : ""}`} key={field.key}>
-                    <button
-                      aria-expanded={isOpen}
-                      className="sunday-school-accordion-trigger"
-                      onClick={() => setOpenLessonField((current) => (current === field.key ? field.key : field.key))}
-                      type="button"
-                    >
-                      <span>
-                        <Icon size={15} aria-hidden="true" />
-                        {field.label}
-                      </span>
-                      <small>
-                        {draftValue ? "Text" : ""}
-                        {draftValue && fieldResources.length ? " + " : ""}
-                        {fieldResources.length ? `${fieldResources.length} link${fieldResources.length === 1 ? "" : "s"}` : ""}
-                        {!draftValue && !fieldResources.length ? "Empty" : ""}
-                      </small>
-                      <ChevronDownIcon open={isOpen} />
-                    </button>
-                    {isOpen ? (
-                      <div className="sunday-school-accordion-panel">
-                        {field.key !== "songs" ? (
-                          <textarea
-                            disabled={!canEdit}
-                            onChange={(event) => updateDraft(field.key, event.target.value)}
-                            value={draft[field.key]}
-                          />
-                        ) : (
-                          <>
-                            <textarea
-                              disabled={!canEdit}
-                              onChange={(event) => updateDraft(field.key, event.target.value)}
-                              value={draft[field.key]}
-                            />
-                            <div className="sunday-school-inline-song-search">
-                              <input onChange={(event) => setSongQuery(event.target.value)} placeholder="Search songs" value={songQuery} />
-                              <div className="sunday-school-song-list">
-                                {filteredSongs.map((song) => (
-                                  <button disabled={!canEdit} key={song.id} onClick={() => appendSong(song.title)} type="button">
-                                    <Music2 size={13} aria-hidden="true" />
-                                    <span>{song.title}</span>
-                                  </button>
-                                ))}
-                              </div>
-                            </div>
-                          </>
-                        )}
-                        {fieldResources.length ? (
-                          <div className="sunday-school-accordion-links">
-                            {fieldResources.map((resource) => (
-                              <a href={sundaySchoolResourceFileUrl(resource.id)} key={resource.id} rel="noreferrer" target="_blank">
-                                <span>{RESOURCE_LABELS[resource.resource_type] || resource.resource_type}</span>
-                                <strong>{resource.title}</strong>
-                                <small>{[resource.age_group, resource.bible_reference, resource.translation].filter(Boolean).join(" | ")}</small>
-                              </a>
-                            ))}
-                          </div>
-                        ) : null}
-                      </div>
-                    ) : null}
-                  </section>
-                );
-              })}
-            </div>
-          </>
-        ) : (
-          <div className="sunday-school-resource-panel">
-            <div className="sunday-school-resource-toolbar">
-              <label>
-                <Search size={14} aria-hidden="true" />
-                <input onChange={(event) => setResourceQuery(event.target.value)} placeholder="Search resources" value={resourceQuery} />
-              </label>
-              <select onChange={(event) => setResourceAge(event.target.value)} value={resourceAge}>
-                <option value="">All ages</option>
-                <option value="3-5">3-5</option>
-                <option value="6-12">6-12</option>
-              </select>
-              <select onChange={(event) => setResourceType(event.target.value)} value={resourceType}>
-                <option value="">All types</option>
-                {Object.entries(RESOURCE_LABELS).map(([key, label]) => (
-                  <option key={key} value={key}>{label}</option>
-                ))}
-              </select>
-              <button className="text-button" disabled={!canEdit || importing} onClick={() => void importResources()} type="button">
-                <RefreshCw size={14} aria-hidden="true" />
-                {importing ? "Importing..." : "Import"}
-              </button>
-            </div>
-            <div className="sunday-school-resource-list">
-              {filteredResources.map((resource) => (
-                <article className="sunday-school-resource-card" key={resource.id}>
-                  <div>
-                    <span>{RESOURCE_LABELS[resource.resource_type] || resource.resource_type}</span>
-                    <strong>{resource.title}</strong>
-                    <small>{[resource.age_group, resource.bible_reference, resource.translation].filter(Boolean).join(" | ")}</small>
+        <div className="sunday-school-lesson-elements">
+          {LESSON_ELEMENTS.map((element) => {
+            const Icon = element.icon;
+            const isOpen = openElement === element.key;
+            const elementResources = resourcesForElement(element);
+            return (
+              <section className={`sunday-school-element-card ${isOpen ? "is-open" : ""}`} key={element.key}>
+                <button
+                  aria-expanded={isOpen}
+                  className="sunday-school-element-trigger"
+                  onClick={() => setOpenElement(element.key)}
+                  type="button"
+                >
+                  <span>
+                    <Icon size={15} aria-hidden="true" />
+                    {element.label}
+                  </span>
+                  <strong>{summaryForElement(element)}</strong>
+                  <ChevronDown className={isOpen ? "is-open" : ""} size={16} aria-hidden="true" />
+                </button>
+                {isOpen ? (
+                  <div className="sunday-school-element-panel">
+                    <div className="sunday-school-element-actions">
+                      {canEdit && element.key !== "resources" ? (
+                        <button className="text-button" onClick={() => setAlternativePicker({ element, query: "" })} type="button">
+                          <Search size={14} aria-hidden="true" />
+                          Choose alternative
+                        </button>
+                      ) : null}
+                    </div>
+                    <div className="sunday-school-element-links">
+                      {elementResources.map((resource) => (
+                        <a href={sundaySchoolResourceFileUrl(resource.id)} key={resource.id} rel="noreferrer" target="_blank">
+                          <span>{resourceMeta(resource)}</span>
+                          <strong>{resource.title}</strong>
+                          <small>{resource.summary || resource.file_name}</small>
+                        </a>
+                      ))}
+                      {!elementResources.length ? <p>No linked resources for this Sunday.</p> : null}
+                    </div>
                   </div>
-                  <p>{resource.summary || resource.file_name}</p>
+                ) : null}
+              </section>
+            );
+          })}
+        </div>
+      </main>
+
+      {calendarOpen ? (
+        <div className="app-dialog-backdrop" role="presentation" onMouseDown={() => setCalendarOpen(false)}>
+          <section
+            aria-labelledby="sunday-school-calendar-title"
+            className="app-dialog app-dialog-wide service-picker-dialog sunday-school-calendar-dialog"
+            onMouseDown={(event) => event.stopPropagation()}
+            role="dialog"
+          >
+            <div className="section-heading">
+              <div>
+                <p className="eyebrow">Calendar</p>
+                <h2 id="sunday-school-calendar-title">Sunday School</h2>
+              </div>
+              <button className="text-button" onClick={() => setCalendarOpen(false)} type="button">
+                Close
+              </button>
+            </div>
+            <div className="service-picker-grid sunday-school-picker-grid">
+              <section className="service-picker-panel service-calendar-panel">
+                <div className="service-calendar-heading">
+                  <button
+                    aria-label="Previous month"
+                    className="text-button"
+                    onClick={() => {
+                      const [year, month] = calendarMonth.split("-").map(Number);
+                      setCalendarMonth(monthInputFromDate(new Date(year, month - 2, 1)));
+                    }}
+                    type="button"
+                  >
+                    <ChevronLeft size={16} aria-hidden="true" />
+                  </button>
+                  <strong>{new Date(`${calendarMonth}-01T12:00:00`).toLocaleDateString(undefined, { month: "long", year: "numeric" })}</strong>
+                  <button
+                    aria-label="Next month"
+                    className="text-button"
+                    onClick={() => {
+                      const [year, month] = calendarMonth.split("-").map(Number);
+                      setCalendarMonth(monthInputFromDate(new Date(year, month, 1)));
+                    }}
+                    type="button"
+                  >
+                    <ChevronRight size={16} aria-hidden="true" />
+                  </button>
+                </div>
+                <div className="service-calendar-grid" aria-label="Sunday School calendar">
+                  {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day) => (
+                    <span className="service-calendar-weekday" key={day}>{day}</span>
+                  ))}
+                  {calendarDays.map((day) => {
+                    const lesson = lessonsByDate.get(day.date);
+                    const date = new Date(`${day.date}T12:00:00`);
+                    return (
+                      <button
+                        className={`service-calendar-day ${day.muted ? "is-muted" : ""} ${lesson ? "has-service" : ""} ${
+                          selectedDate === day.date ? "is-selected" : ""
+                        } ${teacherColor(lesson?.teacher_name || "")}`}
+                        key={day.date}
+                        onClick={() => chooseDate(day.date)}
+                        title={lesson?.teacher_name || lesson?.theme || undefined}
+                        type="button"
+                      >
+                        <span>{date.getDate()}</span>
+                        {lesson ? <small>{lesson.teacher_name || lesson.theme}</small> : null}
+                      </button>
+                    );
+                  })}
+                </div>
+              </section>
+              <section className="service-picker-panel service-list-panel">
+                <div className="service-panel-heading">
+                  <h3>Nearby Sundays</h3>
+                </div>
+                <div className="stack-list compact service-date-list">
+                  {scheduleDates.slice(20, 34).map((date) => {
+                    const lesson = lessonsByDate.get(date);
+                    return (
+                      <button
+                        className={`stack-row ${selectedDate === date ? "selected" : ""} ${teacherColor(lesson?.teacher_name || "")}`}
+                        key={date}
+                        onClick={() => chooseDate(date)}
+                        type="button"
+                      >
+                        <strong>{shortDate(date)}</strong>
+                        <span>{lesson?.theme || "Unplanned"}{lesson?.teacher_name ? ` - ${lesson.teacher_name}` : ""}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </section>
+            </div>
+          </section>
+        </div>
+      ) : null}
+
+      {alternativePicker ? (
+        <div className="app-dialog-backdrop" role="presentation" onMouseDown={() => setAlternativePicker(null)}>
+          <section
+            aria-labelledby="sunday-school-alternative-title"
+            className="app-dialog app-dialog-wide sunday-school-alternative-dialog"
+            onMouseDown={(event) => event.stopPropagation()}
+            role="dialog"
+          >
+            <div className="section-heading">
+              <div>
+                <p className="eyebrow">Choose Alternative</p>
+                <h2 id="sunday-school-alternative-title">{alternativePicker.element.label}</h2>
+              </div>
+              <button className="text-button" onClick={() => setAlternativePicker(null)} type="button">
+                Close
+              </button>
+            </div>
+            <label className="sunday-school-alternative-search">
+              <Search size={15} aria-hidden="true" />
+              <input
+                autoFocus
+                onChange={(event) => setAlternativePicker((current) => current ? { ...current, query: event.target.value } : current)}
+                placeholder="Search resources"
+                value={alternativePicker.query}
+              />
+            </label>
+            <div className="sunday-school-alternative-list">
+              {alternativeResources.map((resource) => (
+                <article className="sunday-school-alternative-row" key={resource.id}>
+                  <div>
+                    <span>{resourceMeta(resource)}</span>
+                    <strong>{resource.title}</strong>
+                    <small>{resource.summary || resource.file_name}</small>
+                  </div>
                   <a className="text-button" href={sundaySchoolResourceFileUrl(resource.id)} rel="noreferrer" target="_blank">
                     <ExternalLink size={14} aria-hidden="true" />
                     Open
                   </a>
+                  <button className="primary-button" disabled={!canEdit} onClick={() => assignResource(alternativePicker.element, resource)} type="button">
+                    Use
+                  </button>
                 </article>
               ))}
-              {!filteredResources.length ? <p className="empty-state">No matching resources.</p> : null}
+              {!alternativeResources.length ? <p className="empty-state">No matching resources.</p> : null}
             </div>
-          </div>
-        )}
-      </main>
-
-      <aside className="sunday-school-kit" aria-label="Lesson resources">
-        <div className="sunday-school-kit-panel">
-          <h3>For This Date</h3>
-          <div className="sunday-school-mini-resource-list">
-            {selectedResources.slice(0, 8).map((resource) => (
-              <a href={sundaySchoolResourceFileUrl(resource.id)} key={resource.id} rel="noreferrer" target="_blank">
-                <span>{RESOURCE_LABELS[resource.resource_type] || resource.resource_type}</span>
-                <strong>{resource.title}</strong>
-              </a>
-            ))}
-            {!selectedResources.length ? <p>No resources matched yet.</p> : null}
-          </div>
+          </section>
         </div>
-        <div className="sunday-school-kit-panel">
-          <h3>Song Catalog</h3>
-          <input onChange={(event) => setSongQuery(event.target.value)} placeholder="Search songs" value={songQuery} />
-          <div className="sunday-school-song-list">
-            {filteredSongs.map((song) => (
-              <button disabled={!canEdit} key={song.id} onClick={() => appendSong(song.title)} type="button">
-                <Music2 size={13} aria-hidden="true" />
-                <span>{song.title}</span>
-              </button>
-            ))}
-            {!filteredSongs.length ? <p className="search-empty">No matching songs.</p> : null}
-          </div>
-        </div>
-        <div className="sunday-school-kit-panel">
-          <h3>Teacher Overview</h3>
-          <div className="sunday-school-teacher-list">
-            {Array.from(new Set(lessons.map((lesson) => lesson.teacher_name.trim()).filter(Boolean))).map((teacher) => (
-              <span className={teacherColor(teacher)} key={teacher}>
-                <CalendarDays size={13} aria-hidden="true" />
-                {teacher}
-              </span>
-            ))}
-            {!lessons.some((lesson) => lesson.teacher_name.trim()) ? <p>Add teachers to lessons to shade the calendar.</p> : null}
-          </div>
-        </div>
-      </aside>
+      ) : null}
     </section>
   );
 }

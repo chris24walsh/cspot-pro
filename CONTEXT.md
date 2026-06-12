@@ -34,9 +34,11 @@
 - Bible import supports KJV JSON and eBible VPL zip; ASV is public domain and preferred default when available.
 - Copyrighted Bible versions such as ESV/NIV/NKJV need licensed source text or an approved API before DB import.
 - Sunday School is now an active module for date-based emergency-cover lesson preparation.
-- Sunday School lesson structure: theme, Bible reference/story, crafts, songs, games, source notes, cover notes.
-- Sunday School plan view is accordion-first, especially for mobile: opening one lesson element closes the others.
-- Sunday School date/calendar selection is hidden behind a compact calendar/date button.
+- Sunday School is for teacher scheduling and resource/idea access, not writing full lesson plans.
+- Sunday School uses a worship-like two-pane/two-tab flow: left list of Sundays, right selected lesson resource boxes.
+- Sunday School lesson boxes cover passage/story, craft/printout, activity, game, and all resources; each can open a chooser for alternatives.
+- Sunday School does not use a songs panel.
+- Sunday School date/calendar selection is hidden behind a compact calendar/date button for jumping dates.
 - Sunday School resources are imported as metadata/file links from local Spring 2026 folders, classified into packets, Bible, craft, game, coloring/activity, worksheet, and media.
 - Sunday School calendar shading is teacher-name based; no full roster/scheduling model exists yet.
 - Worship live fullscreen uses native Fullscreen API where available and a fixed-position mobile fallback when unavailable/rejected.
