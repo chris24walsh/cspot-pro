@@ -273,7 +273,7 @@ button {
 .worship-history-list {
   display: grid;
   align-content: start;
-  grid-auto-rows: 58px;
+  grid-auto-rows: minmax(58px, auto);
   gap: 5px;
   min-height: 0;
   overflow: auto;
@@ -4831,6 +4831,7 @@ h3 {
 .service-history-popover {
   color: #10251f;
   left: 0;
+  pointer-events: auto;
   right: auto;
   top: calc(100% + 8px);
 }
@@ -5844,6 +5845,7 @@ h3 {
     max-height: calc(100dvh - 12px);
     overflow: auto;
     padding: 10px;
+    width: calc(100vw - 12px);
   }
 
   .service-picker-panel {
@@ -5851,10 +5853,20 @@ h3 {
     overflow: visible;
   }
 
+  .service-picker-panel + .service-picker-panel {
+    margin-top: 8px;
+  }
+
   .service-list-panel .service-date-list,
   .search-results-list {
     max-height: none;
     overflow: visible;
+  }
+
+  input,
+  select,
+  textarea {
+    font-size: 16px !important;
   }
 
   .service-calendar-grid {

@@ -345,27 +345,32 @@ function normalizeBibleReferenceSearchQuery(raw: string, books: BibleBook[]) {
   }
 
   const parts = compact.split(" ");
-  const firstNumberIndex = parts.findIndex((part) => /^\d+$/.test(part));
-  if (firstNumberIndex <= 0) {
+  const match = parts
+    .map((_part, index) => {
+      if (index <= 0 || !/^\d+$/.test(parts[index])) {
+        return null;
+      }
+      const book = findBibleBookForQuery(parts.slice(0, index).join(" "), books);
+      return book ? { book, chapterIndex: index } : null;
+    })
+    .filter((candidate): candidate is { book: BibleBook; chapterIndex: number } => Boolean(candidate))
+    .sort((left, right) => right.chapterIndex - left.chapterIndex)[0];
+  if (!match) {
     return raw;
   }
 
-  const book = findBibleBookForQuery(parts.slice(0, firstNumberIndex).join(" "), books);
-  if (!book) {
-    return raw;
-  }
-
-  const chapter = parts[firstNumberIndex];
-  const verseFrom = parts[firstNumberIndex + 1];
+  const { book, chapterIndex } = match;
+  const chapter = parts[chapterIndex];
+  const verseFrom = parts[chapterIndex + 1];
   if (!verseFrom || !/^\d+$/.test(verseFrom)) {
     return `${book.name} ${chapter}`;
   }
 
   let verseTo = "";
-  if (parts[firstNumberIndex + 2] === "-" && /^\d+$/.test(parts[firstNumberIndex + 3] ?? "")) {
-    verseTo = parts[firstNumberIndex + 3];
-  } else if (/^\d+$/.test(parts[firstNumberIndex + 2] ?? "")) {
-    verseTo = parts[firstNumberIndex + 2];
+  if (parts[chapterIndex + 2] === "-" && /^\d+$/.test(parts[chapterIndex + 3] ?? "")) {
+    verseTo = parts[chapterIndex + 3];
+  } else if (/^\d+$/.test(parts[chapterIndex + 2] ?? "")) {
+    verseTo = parts[chapterIndex + 2];
   }
 
   return `${book.name} ${chapter}:${verseFrom}${verseTo ? `-${verseTo}` : ""}`;
@@ -743,6 +748,8 @@ export function PresentationView({
     currentPlanItem?.item_type === "sermon" ||
     currentPlanItem?.item_type === "slide_deck" ||
     Boolean(currentPlanItem?.files.length);
+  const currentSlideSavedNotes = slideNoteFor(currentPlanItem?.teacher_notes, liveSlide, currentPlanItemSlides);
+  const slideNotesDirty = slideNotesDraft.trim() !== currentSlideSavedNotes;
   const planTextSlides = useMemo(
     () => slides.filter((slide) => !slide.imageUrl && slide.text.trim()),
     [slides],
@@ -762,7 +769,9 @@ export function PresentationView({
         .filter((song) =>
           !searchQuery.trim()
             ? true
-            : `${song.title} ${song.author ?? ""}`.toLowerCase().includes(searchQuery.trim().toLowerCase()),
+            : `${song.title} ${song.author ?? ""} ${song.alternate_title ?? ""} ${song.theme_tags ?? ""} ${song.lyrics ?? ""}`
+                .toLowerCase()
+                .includes(searchQuery.trim().toLowerCase()),
         )
         .slice(0, 20),
     [searchQuery, songs],
@@ -3439,7 +3448,7 @@ export function PresentationView({
                     <div className="worship-history-list">
                       {serviceHistoryLoading ? <p className="search-empty">Loading history...</p> : null}
                       {!serviceHistoryLoading && !serviceHistory.length ? <p className="search-empty">No service edits recorded yet.</p> : null}
-                      {serviceHistory.map((entry) => {
+                      {[...serviceHistory].reverse().map((entry) => {
                         const meta = [entry.restorable ? "Service" : "Audit", entry.actor_name, formatHistoryTime(entry.created_at)].filter(Boolean).join(" · ");
                         return (
                           <button
@@ -3581,6 +3590,17 @@ export function PresentationView({
 
           {canEditSlideNotes && currentPlanItemAllowsNotes ? (
             <div className="slide-notes-panel">
+              <div className="slide-notes-heading">
+                <span>{slideNotesSaving ? "Saving..." : slideNotesDirty ? "Unsaved" : "Saved"}</span>
+                <button
+                  className="text-button compact-button"
+                  disabled={!currentPlanItem || slideNotesSaving || !slideNotesDirty}
+                  onClick={() => void saveSlideNotes()}
+                  type="button"
+                >
+                  Save
+                </button>
+              </div>
               <textarea
                 disabled={!currentPlanItem || slideNotesSaving}
                 onBlur={() => void saveSlideNotes()}

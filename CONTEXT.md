@@ -21,13 +21,16 @@
 - Arrow-key presenter navigation should be keydown-only to avoid double-advancing.
 - Sorter/rail should auto-follow live slide when already in sync; if operator scrolls away, show catch-up arrow after delayed latest-slide check.
 - Only one slideshow/output window should be active across devices; block starting another while one device already owns the output.
-- Mobile dialogs/overlays must fit and remain scrollable; service calendar, service search, and worship set picker currently have squashed/overlapping content.
-- Mobile text inputs should not trigger disruptive browser auto-zoom.
+- Mobile dialogs/overlays must fit and remain scrollable.
+- Mobile service calendar/search and worship set picker use single-column scrollable dialogs on small screens.
+- Mobile text inputs use 16px font sizing to avoid disruptive browser auto-zoom.
 - Worship builder mobile default tab is `Set`.
 - Worship set mobile song-item buttons must fit inside the card; use compact 2x2 controls.
-- Worship history should show newest entries first.
-- Sorter section cards should not show `sermon` or `reading` type text; titles should align left.
-- Worship live key dropdown needs persistent original-key/chord option after alternatives are chosen; if original key is capoed, also offer the absolute key and visually mark the original.
+- Service and worship edit history lists show newest entries first.
+- Sorter section cards do not show `sermon` or `reading` type text; titles align left.
+- Worship live key dropdown keeps the current, original, and open absolute-key options available after alternatives are chosen.
+- Service and Sunday School song search match lyrics as well as titles/metadata.
+- Bible reference search supports numbered books and compact references, e.g. `1Kings3:5` and `2Tim1:7`.
 - Bible import supports KJV JSON and eBible VPL zip; ASV is public domain and preferred default when available.
 - Copyrighted Bible versions such as ESV/NIV/NKJV need licensed source text or an approved API before DB import.
 - Sunday School is now an active module for date-based emergency-cover lesson preparation.
@@ -61,13 +64,13 @@
 ## Current Priorities
 
 1. Stabilize presenter live state: navigation, blanking, sync, catch-up, fullscreen, and single-output ownership.
-2. Fix mobile service overlays and controls: preview toggles, history, calendar, search, scrolling, and input zoom.
-3. Tighten mobile/tablet worship workflows: history order, set picker scrolling, and live key selection.
+2. Verify mobile service overlays and controls on device: preview toggles, history, calendar, search, scrolling, and input zoom.
+3. Verify mobile/tablet worship workflows on device: history order, set picker scrolling, and live key selection.
 4. Build out Sunday School resource import/print workflows.
-5. Improve history, notes, Bible search, and song search.
+5. Improve notes UX and remaining search/history edge cases found during device testing.
 
 ## Next 3 Tasks
 
-1. Verify mobile service fixes on device: icon preview buttons, fluid sorter/rail follow, audio routing, Drive-only deck import, and single-output blocking.
-2. Fix worship mobile items: newest-first history and original-key options in live key dropdown.
+1. Verify mobile service fixes on device: icon preview buttons, fluid sorter/rail follow, history, dialogs, audio routing, Drive-only deck import, and single-output blocking.
+2. Verify worship mobile fixes on device: newest-first history, set picker scrolling, and original/open key options in live key dropdown.
 3. Decide licensed Bible source/provider for ESV/NIV/NKJV/NLT before importing copyrighted versions.

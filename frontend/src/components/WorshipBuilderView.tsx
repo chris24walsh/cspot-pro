@@ -1499,8 +1499,15 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
                       </button>
                       {(() => {
                         let restorableEntryIndex = 0;
-                        return editHistory.map((entry) => {
-                          const entryIndex = entry.restorable ? ++restorableEntryIndex : null;
+                        const entryIndexes = new Map<string, number>();
+                        editHistory.forEach((entry) => {
+                          if (entry.restorable) {
+                            restorableEntryIndex += 1;
+                            entryIndexes.set(entry.id, restorableEntryIndex);
+                          }
+                        });
+                        return [...editHistory].reverse().map((entry) => {
+                          const entryIndex = entryIndexes.get(entry.id) ?? null;
                           const relation =
                             entryIndex === null
                               ? "Audit"

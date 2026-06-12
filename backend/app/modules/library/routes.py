@@ -663,19 +663,25 @@ def _render_slides_locked(stored: StoredFile) -> list[Path]:
 
 
 def _parse_reference_query(raw: str) -> tuple[str, int, int, int | None] | None:
-    compact = " ".join(raw.replace(":", " ").replace("-", " - ").split())
+    compact = raw.replace(":", " ").replace("-", " - ")
+    compact = re.sub(r"([A-Za-z])(\d)", r"\1 \2", compact)
+    compact = re.sub(r"(\d)([A-Za-z])", r"\1 \2", compact)
+    compact = " ".join(compact.split())
     if not compact:
         return None
 
     parts = compact.split()
-    split_index = next((index for index, part in enumerate(parts) if part.isdigit()), None)
-    if split_index is None or split_index == 0:
+    candidates: list[tuple[str, int]] = []
+    for index, part in enumerate(parts):
+        if index <= 0 or not part.isdigit():
+            continue
+        book_name = normalize_book_name(" ".join(parts[:index]))
+        if book_name is not None:
+            candidates.append((book_name, index))
+    if not candidates:
         return None
 
-    book_raw = " ".join(parts[:split_index])
-    book_name = normalize_book_name(book_raw)
-    if book_name is None:
-        return None
+    book_name, split_index = max(candidates, key=lambda candidate: candidate[1])
 
     chapter = int(parts[split_index])
     if len(parts) == split_index + 1:
@@ -688,7 +694,11 @@ def _parse_reference_query(raw: str) -> tuple[str, int, int, int | None] | None:
 
     verse_to: int | None = None
     if len(parts) > split_index + 2:
-        if parts[split_index + 2] == "-" and len(parts) > split_index + 3 and parts[split_index + 3].isdigit():
+        if (
+            parts[split_index + 2] == "-"
+            and len(parts) > split_index + 3
+            and parts[split_index + 3].isdigit()
+        ):
             verse_to = int(parts[split_index + 3])
         elif parts[split_index + 2].isdigit():
             verse_to = int(parts[split_index + 2])

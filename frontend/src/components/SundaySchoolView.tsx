@@ -233,7 +233,15 @@ export function SundaySchoolView({ canEdit }: { canEdit: boolean }) {
   const filteredSongs = useMemo(() => {
     const query = songQuery.trim().toLowerCase();
     return songs
-      .filter((song) => !query || [song.title, song.alternate_title, song.theme_tags].filter(Boolean).join(" ").toLowerCase().includes(query))
+      .filter(
+        (song) =>
+          !query ||
+          [song.title, song.alternate_title, song.theme_tags, song.lyrics]
+            .filter(Boolean)
+            .join(" ")
+            .toLowerCase()
+            .includes(query),
+      )
       .slice(0, 8);
   }, [songQuery, songs]);
   const readyCount = lessonReadiness(draft);

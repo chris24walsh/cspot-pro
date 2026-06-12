@@ -121,6 +121,18 @@ function setupValue(setup: { capo: number; shapeKey: string }) {
   return `${setup.shapeKey}:${setup.capo}`;
 }
 
+function uniqueKeySetups<T extends { capo: number; shapeKey: string }>(setups: T[]) {
+  const seen = new Set<string>();
+  return setups.filter((setup) => {
+    const value = setupValue(setup);
+    if (seen.has(value)) {
+      return false;
+    }
+    seen.add(value);
+    return true;
+  });
+}
+
 function wrapCharacterLimit(fontSize: number, stageWidth = 1120) {
   const usableWidth = Math.max(stageWidth * 0.94, 180);
   return Math.max(Math.floor(usableWidth / Math.max(fontSize * 0.6, 1)) - 2, 12);
@@ -664,9 +676,48 @@ export function MusicianLiveView({ controlPlanId, onExit, plan, songs }: Musicia
   const activeKeyLabel = currentAbsoluteKey
     ? `${currentAbsoluteKey}${capo > 0 && currentGuitarKey ? `/${currentGuitarKey}c${capo}` : ""}`
     : "unset";
+  const originalCapo = normalizeCapo(chordChart.capo);
+  const originalShapeKey =
+    chordChart.capoKey ?? (originalAbsoluteKey ? deriveCapoKey(originalAbsoluteKey, originalCapo) : null);
+  const originalSetup =
+    originalShapeKey && originalAbsoluteKey
+      ? {
+          absoluteKey: originalAbsoluteKey,
+          capo: originalCapo,
+          distance: 0,
+          isOriginal: true,
+          shapeKey: originalShapeKey,
+        }
+      : null;
+  const absoluteOriginalSetup =
+    originalAbsoluteKey && originalCapo > 0
+      ? {
+          absoluteKey: originalAbsoluteKey,
+          capo: 0,
+          distance: 0,
+          isAbsolute: true,
+          shapeKey: originalAbsoluteKey,
+        }
+      : null;
   const juniorSetups = playableSetups(originalAbsoluteKey);
   const selectedSetupValue = currentGuitarKey ? setupValue({ shapeKey: currentGuitarKey, capo }) : "";
-  const setupOptions = juniorSetups.filter((setup) => setupValue(setup) !== selectedSetupValue);
+  const currentSetup =
+    currentGuitarKey && currentAbsoluteKey
+      ? { absoluteKey: currentAbsoluteKey, capo, distance: 0, isCurrent: true, shapeKey: currentGuitarKey }
+      : null;
+  const keySetupOptions = uniqueKeySetups(
+    [currentSetup, originalSetup, absoluteOriginalSetup, ...juniorSetups].filter(
+      (setup): setup is {
+        absoluteKey: string;
+        capo: number;
+        distance: number;
+        isAbsolute?: boolean;
+        isCurrent?: boolean;
+        isOriginal?: boolean;
+        shapeKey: string;
+      } => Boolean(setup),
+    ),
+  );
   const currentSongSlides = liveSlide ? slides.filter((slide) => slide.planItemId === liveSlide.planItemId) : [];
   const currentSongSlideIndex = liveSlide ? currentSongSlides.findIndex((slide) => slide.id === liveSlide.id) : -1;
   const songCounter = currentSongSlideIndex >= 0 ? `${currentSongSlideIndex + 1} / ${currentSongSlides.length}` : slides.length ? `${liveIndex + 1} / ${slides.length}` : "0 / 0";
@@ -717,10 +768,14 @@ export function MusicianLiveView({ controlPlanId, onExit, plan, songs }: Musicia
               }}
               value={selectedSetupValue}
             >
-              {currentGuitarKey ? <option value={selectedSetupValue}>{activeKeyLabel}</option> : <option value="">Key</option>}
-              {setupOptions.map((setup) => (
+              {!currentGuitarKey ? <option value="">Key</option> : null}
+              {keySetupOptions.map((setup) => (
                 <option key={setupValue(setup)} value={setupValue(setup)}>
-                  {setup.absoluteKey}/{setup.shapeKey}{setup.capo > 0 ? `c${setup.capo}` : ""}
+                  {setup.isCurrent
+                    ? activeKeyLabel
+                    : `${setup.absoluteKey}/${setup.shapeKey}${setup.capo > 0 ? `c${setup.capo}` : ""}${
+                        setup.isOriginal ? " original" : setup.isAbsolute ? " open" : ""
+                      }`}
                 </option>
               ))}
             </select>
