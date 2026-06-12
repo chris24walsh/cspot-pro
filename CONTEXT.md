@@ -39,6 +39,7 @@
 - Sunday School lesson elements cover passage/story, craft/printout, activity, game, and all resources; selected elements show resources in the right pane on desktop and expand inline on mobile.
 - Worship set items also expand inline on mobile to show song slides; desktop keeps the list stable and changes the slide review pane.
 - Sunday School does not use a songs panel.
+- Sunday School printout-style resources should open clipped page-range PDFs where possible, not whole lesson packets.
 - Sunday School date/calendar selection is hidden behind a compact calendar/date button for jumping dates.
 - Sunday School resources are imported as metadata/file links from local Spring 2026 folders, classified into packets, Bible, craft, game, coloring/activity, worksheet, and media.
 - Sunday School calendar shading is teacher-name based; no full roster/scheduling model exists yet.

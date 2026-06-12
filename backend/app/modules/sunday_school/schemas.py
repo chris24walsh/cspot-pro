@@ -54,6 +54,8 @@ class SundaySchoolResourceRead(BaseModel):
     translation: str
     file_name: str
     file_path: str
+    page_start: int | None = None
+    page_end: int | None = None
     summary: str
     sort_order: int
     created_at: datetime

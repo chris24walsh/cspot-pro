@@ -76,6 +76,8 @@ class ResourceCandidate:
     translation: str
     file_name: str
     file_path: str
+    page_start: int | None
+    page_end: int | None
     summary: str
     sort_order: int
 
@@ -99,12 +101,17 @@ def compact_text(value: str) -> str:
     return re.sub(r"\s+", " ", value).strip()
 
 
-def read_pdf_text(path: Path, page_limit: int = 6) -> str:
+def read_pdf_page_texts(path: Path, page_limit: int | None = 80) -> list[str]:
     try:
         reader = PdfReader(str(path))
-        return "\n".join((page.extract_text() or "") for page in reader.pages[:page_limit])
+        pages = reader.pages if page_limit is None else reader.pages[:page_limit]
+        return [page.extract_text() or "" for page in pages]
     except Exception:
-        return ""
+        return []
+
+
+def read_pdf_text(path: Path, page_limit: int = 6) -> str:
+    return "\n".join(read_pdf_page_texts(path, page_limit))
 
 
 def read_docx_lines(path: Path) -> list[str]:
@@ -205,6 +212,38 @@ def detected_types(text: str) -> list[str]:
     return types
 
 
+PAGE_KEYWORDS = {
+    "bible_story": ("bible story", "passage:"),
+    "craft": ("craft",),
+    "game": ("game", "guided play"),
+    "coloring": ("coloring", "activity sheet"),
+    "worksheet": ("worksheet", "word search", "wordsearch"),
+    "media": ("more resources online", "watch the video"),
+}
+
+
+def page_range_for(resource_type: str, page_texts: list[str]) -> tuple[int | None, int | None]:
+    if resource_type == "lesson_packet":
+        return None, None
+
+    keywords = PAGE_KEYWORDS.get(resource_type, ())
+    if not keywords:
+        return None, None
+
+    matches = [
+        index + 1
+        for index, text in enumerate(page_texts)
+        if any(keyword in text.lower() for keyword in keywords)
+    ]
+    if not matches:
+        return None, None
+
+    start = matches[0]
+    if resource_type in {"craft", "coloring", "worksheet"}:
+        return start, min(start + 1, len(page_texts))
+    return start, start
+
+
 def summary_for(resource_type: str, text: str, overview_note: str) -> str:
     if resource_type == "lesson_packet":
         first_lines = [compact_text(line) for line in text.splitlines() if compact_text(line)]
@@ -229,7 +268,8 @@ def candidates_from_pdf(
     path: Path,
     overview: dict[int, tuple[str, str, str]],
 ) -> list[ResourceCandidate]:
-    text = read_pdf_text(path)
+    page_texts = read_pdf_page_texts(path)
+    text = "\n".join(page_texts[:6])
     week = week_from_path(path)
     overview_theme, overview_reference, overview_note = overview.get(week or 0, ("", "", ""))
     title = title_from_pdf(path, text)
@@ -243,6 +283,7 @@ def candidates_from_pdf(
     for resource_type in detected_types(text):
         label = RESOURCE_LABELS[resource_type]
         resource_title = title if resource_type == "lesson_packet" else f"{label}: {title}"
+        page_start, page_end = page_range_for(resource_type, page_texts)
         candidates.append(
             ResourceCandidate(
                 title=resource_title[:220],
@@ -256,6 +297,8 @@ def candidates_from_pdf(
                 translation=translation,
                 file_name=path.name,
                 file_path=str(path),
+                page_start=page_start,
+                page_end=page_end,
                 summary=summary_for(resource_type, text, overview_note),
                 sort_order=RESOURCE_SORT[resource_type],
             )

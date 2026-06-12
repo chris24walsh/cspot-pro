@@ -40,9 +40,9 @@ type LessonElement = {
 };
 
 const LESSON_ELEMENTS: LessonElement[] = [
-  { key: "passage", label: "Passage / Story", icon: FileText, resourceTypes: ["bible_story", "lesson_packet"] },
-  { key: "craft", label: "Craft / Printout", icon: Scissors, resourceTypes: ["craft", "coloring", "worksheet"] },
-  { key: "activity", label: "Activity", icon: Library, resourceTypes: ["worksheet", "coloring", "media", "lesson_packet"] },
+  { key: "passage", label: "Passage / Story", icon: FileText, resourceTypes: ["bible_story"] },
+  { key: "craft", label: "Craft", icon: Scissors, resourceTypes: ["craft"] },
+  { key: "activity", label: "Printout / Activity", icon: Library, resourceTypes: ["coloring", "worksheet", "media"] },
   { key: "game", label: "Game", icon: Gamepad2, resourceTypes: ["game"] },
   { key: "resources", label: "All Resources", icon: Library, resourceTypes: ["lesson_packet", "bible_story", "craft", "game", "coloring", "worksheet", "media"] },
 ];
@@ -151,7 +151,12 @@ function teacherColor(name: string) {
 }
 
 function resourceMeta(resource: SundaySchoolResource) {
-  return [RESOURCE_LABELS[resource.resource_type] || resource.resource_type, resource.age_group, resource.bible_reference]
+  const pages = resource.page_start
+    ? resource.page_start === resource.page_end
+      ? `p${resource.page_start}`
+      : `p${resource.page_start}-${resource.page_end}`
+    : "";
+  return [RESOURCE_LABELS[resource.resource_type] || resource.resource_type, resource.age_group, resource.bible_reference, pages]
     .filter(Boolean)
     .join(" | ");
 }
@@ -529,7 +534,7 @@ export function SundaySchoolView({ canEdit }: { canEdit: boolean }) {
                   </div>
                   <a className="text-button" href={sundaySchoolResourceFileUrl(resource.id)} rel="noreferrer" target="_blank">
                     <ExternalLink size={14} aria-hidden="true" />
-                    Open
+                    {resource.page_start ? "Open pages" : "Open"}
                   </a>
                 </article>
               ))}
@@ -628,7 +633,7 @@ export function SundaySchoolView({ canEdit }: { canEdit: boolean }) {
                   </div>
                   <a className="text-button" href={sundaySchoolResourceFileUrl(resource.id)} rel="noreferrer" target="_blank">
                     <ExternalLink size={14} aria-hidden="true" />
-                    Open
+                    {resource.page_start ? "Open pages" : "Open"}
                   </a>
                   <button className="primary-button" disabled={!canEdit} onClick={() => assignResource(resource)} type="button">Use</button>
                 </article>

@@ -45,5 +45,7 @@ class SundaySchoolResource(IdMixin, TimestampMixin, Base):
     translation: Mapped[str] = mapped_column(String(20), default="")
     file_name: Mapped[str] = mapped_column(String(255))
     file_path: Mapped[str] = mapped_column(Text)
+    page_start: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    page_end: Mapped[int | None] = mapped_column(Integer, nullable=True)
     summary: Mapped[str] = mapped_column(Text, default="")
     sort_order: Mapped[int] = mapped_column(Integer, default=0)

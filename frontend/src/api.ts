@@ -614,6 +614,8 @@ export interface SundaySchoolResource {
   translation: string;
   file_name: string;
   file_path: string;
+  page_start: number | null;
+  page_end: number | null;
   summary: string;
   sort_order: number;
   created_at: string;

@@ -1,8 +1,10 @@
 from datetime import date
+from io import BytesIO
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, StreamingResponse
+from pypdf import PdfReader, PdfWriter
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -65,6 +67,8 @@ def resource_to_read(resource: SundaySchoolResource) -> SundaySchoolResourceRead
         translation=resource.translation,
         file_name=resource.file_name,
         file_path=resource.file_path,
+        page_start=resource.page_start,
+        page_end=resource.page_end,
         summary=resource.summary,
         sort_order=resource.sort_order,
         created_at=resource.created_at,
@@ -162,7 +166,7 @@ def open_resource_file(
     resource_id: str,
     _current_user: User = Depends(require_permission("plans:read")),
     session: Session = Depends(get_session),
-) -> FileResponse:
+):
     resource = session.get(SundaySchoolResource, resource_id)
     if resource is None:
         raise HTTPException(
@@ -175,6 +179,27 @@ def open_resource_file(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Resource file is not available",
         )
+    if resource.page_start and resource.page_end:
+        try:
+            reader = PdfReader(str(path))
+            page_start = max(resource.page_start, 1)
+            page_end = min(resource.page_end, len(reader.pages))
+            if page_start <= page_end:
+                writer = PdfWriter()
+                for page_index in range(page_start - 1, page_end):
+                    writer.add_page(reader.pages[page_index])
+                output = BytesIO()
+                writer.write(output)
+                output.seek(0)
+                suffix = f"p{page_start}" if page_start == page_end else f"p{page_start}-{page_end}"
+                filename = f"{path.stem}-{suffix}.pdf"
+                return StreamingResponse(
+                    output,
+                    media_type="application/pdf",
+                    headers={"Content-Disposition": f'inline; filename="{filename}"'},
+                )
+        except Exception:
+            pass
     return FileResponse(path, filename=resource.file_name, media_type="application/pdf")
 
 
