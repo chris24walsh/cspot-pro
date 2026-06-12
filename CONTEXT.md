@@ -35,8 +35,9 @@
 - Copyrighted Bible versions such as ESV/NIV/NKJV need licensed source text or an approved API before DB import.
 - Sunday School is now an active module for date-based emergency-cover lesson preparation.
 - Sunday School is for teacher scheduling and resource/idea access, not writing full lesson plans.
-- Sunday School uses a worship-like two-pane/two-tab flow: left list of Sundays, right selected lesson resource boxes.
-- Sunday School lesson boxes cover passage/story, craft/printout, activity, game, and all resources; each can open a chooser for alternatives.
+- Sunday School copies the worship builder pattern: Lessons tab/list on the left, Elements tab/list on the right.
+- Sunday School lesson elements cover passage/story, craft/printout, activity, game, and all resources; selected elements show resources in the right pane on desktop and expand inline on mobile.
+- Worship set items also expand inline on mobile to show song slides; desktop keeps the list stable and changes the slide review pane.
 - Sunday School does not use a songs panel.
 - Sunday School date/calendar selection is hidden behind a compact calendar/date button for jumping dates.
 - Sunday School resources are imported as metadata/file links from local Spring 2026 folders, classified into packets, Bible, craft, game, coloring/activity, worksheet, and media.

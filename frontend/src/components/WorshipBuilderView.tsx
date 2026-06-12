@@ -429,6 +429,10 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
     () => buildPresentationSections(worshipItems, songs),
     [songs, worshipItems],
   );
+  const selectedWorshipSection = useMemo(
+    () => worshipSections.find((section) => section.id === selectedItemId) ?? worshipSections[0] ?? null,
+    [selectedItemId, worshipSections],
+  );
 
   const compactFontCap = useMemo(
     () =>
@@ -1633,9 +1637,11 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
             <div className="worship-section-list" ref={setListRef}>
               {worshipItems.map((item, index) => {
                 const song = songs.find((candidate) => candidate.id === item.song_id);
+                const itemSection = worshipSections.find((section) => section.id === item.id);
+                const isSelected = selectedItemId === item.id;
                 return (
                   <article
-                    className={`worship-set-item ${song ? songLibraryStatusClass(song) : ""} ${selectedItemId === item.id ? "is-selected" : ""}`}
+                    className={`worship-set-item ${song ? songLibraryStatusClass(song) : ""} ${isSelected ? "is-selected" : ""}`}
                     key={item.id}
                     onClick={() => setSelectedItemId(item.id)}
                     onKeyDown={(event) => {
@@ -1653,7 +1659,7 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
                     <span>{String(index + 1).padStart(2, "0")}</span>
                     <div className="worship-set-item-body">
                       <strong>{song ? compactSongTitle(song) : item.title}</strong>
-                      {selectedItemId === item.id ? <small>insert next song after this</small> : null}
+                      {isSelected ? <small>insert next song after this</small> : null}
                     </div>
                     <div className="worship-set-item-tools" onClick={(event) => event.stopPropagation()}>
                       <div className="worship-set-actions">
@@ -1701,6 +1707,27 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
                         </button>
                       </div>
                     </div>
+                    {isSelected && itemSection ? (
+                      <div className="worship-set-item-slides" aria-label={`${itemSection.title} slides`}>
+                        {itemSection.slides.map((slide, slideIndex) => (
+                          <button
+                            className="slide-tile preview-tile type-song readonly"
+                            key={slide.id}
+                            onClick={() => setSelectedItemId(item.id)}
+                            type="button"
+                          >
+                            <span>{String(slideIndex + 1).padStart(2, "0")}</span>
+                            <div className="mini-slide-surface stage-theme-light">
+                              <AutoFitSlideText
+                                className="fit-slide-text-compact"
+                                maxFontSize={compactFontCap}
+                                text={slide.text || "No lyrics"}
+                              />
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    ) : null}
                   </article>
                 );
               })}
@@ -1714,7 +1741,7 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
           </section>
 
           <section className="worship-slide-review" aria-label="Worship song slides" ref={slideReviewRef}>
-            {worshipSections.map((section) => {
+            {selectedWorshipSection ? [selectedWorshipSection].map((section) => {
               const sectionItem = worshipItems.find((item) => item.id === section.id);
               const sectionSong = songs.find((song) => song.id === sectionItem?.song_id);
               return (
@@ -1762,7 +1789,7 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
                   </div>
                 </div>
               );
-            })}
+            }) : <p className="empty-state compact-empty">Select a song to review its slides.</p>}
           </section>
         </div>
       </main>

@@ -7351,3 +7351,202 @@ h3 {
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+.worship-set-item-slides {
+  display: none;
+  gap: 6px;
+  grid-column: 1 / -1;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  padding-top: 4px;
+}
+
+.worship-set-item-slides .slide-tile {
+  min-height: 92px;
+}
+
+.sunday-school-as-worship .worship-song-browser,
+.sunday-school-as-worship .worship-set-builder {
+  padding: 10px;
+}
+
+.sunday-school-as-worship .worship-library-search-row {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.sunday-school-as-worship .worship-set-builder {
+  grid-template-rows: auto auto auto minmax(0, 1fr);
+}
+
+.sunday-school-as-worship .worship-set-toolbar {
+  display: flex;
+}
+
+.sunday-school-as-worship .worship-set-toolbar-actions {
+  display: inline-flex;
+  gap: 6px;
+}
+
+.sunday-school-element-layout {
+  grid-template-columns: minmax(280px, 0.48fr) minmax(0, 1fr);
+}
+
+.sunday-school-element-item {
+  grid-template-columns: 26px minmax(0, 1fr) 34px;
+}
+
+.sunday-school-element-item .worship-set-item-body strong {
+  align-items: center;
+  display: inline-flex;
+  gap: 6px;
+}
+
+.sunday-school-element-item em {
+  align-self: center;
+  background: #fffdf7;
+  border: 1px solid #d8d0bd;
+  border-radius: 999px;
+  color: #234a40;
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 900;
+  justify-self: end;
+  min-width: 25px;
+  padding: 3px 6px;
+  text-align: center;
+}
+
+.sunday-school-mobile-resource-panel {
+  display: none;
+}
+
+.sunday-school-resource-review {
+  grid-template-rows: auto minmax(0, 1fr);
+}
+
+.sunday-school-resource-review-list {
+  align-content: start;
+  display: grid;
+  gap: 7px;
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+
+.sunday-school-resource-review-card {
+  align-items: center;
+  background: #fffefa;
+  border: 1px solid #ded8c7;
+  border-radius: 8px;
+  display: grid;
+  gap: 8px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  padding: 8px;
+}
+
+.sunday-school-resource-review-card div {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.sunday-school-resource-review-card span {
+  color: #65716a;
+  font-size: 11px;
+  font-weight: 850;
+}
+
+.sunday-school-resource-review-card strong {
+  color: #17201b;
+  font-size: 13px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sunday-school-resource-review-card p {
+  color: #3b4741;
+  font-size: 12px;
+  font-weight: 650;
+  line-height: 1.28;
+  margin: 0;
+}
+
+.sunday-school-lesson-list .song-library-row[class*="teacher-"] {
+  background: var(--teacher-bg);
+  border-color: color-mix(in srgb, var(--teacher-accent) 58%, #e3dcc8);
+}
+
+@media (max-width: 540px) {
+  .worship-set-item.is-selected .worship-set-item-slides,
+  .sunday-school-element-item.is-selected .sunday-school-mobile-resource-panel {
+    display: grid;
+  }
+
+  .worship-slide-review {
+    display: none;
+  }
+
+  .sunday-school-as-worship {
+    height: auto;
+  }
+
+  .sunday-school-as-worship .worship-set-builder {
+    grid-template-rows: auto auto auto minmax(0, 1fr);
+    overflow: visible;
+  }
+
+  .sunday-school-as-worship .worship-set-toolbar {
+    align-items: stretch;
+    display: grid;
+  }
+
+  .sunday-school-as-worship .worship-set-toolbar-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .sunday-school-element-layout {
+    display: block;
+  }
+
+  .sunday-school-as-worship .worship-set-list {
+    padding: 8px;
+  }
+
+  .sunday-school-element-item {
+    grid-template-columns: 24px minmax(0, 1fr) 30px;
+  }
+
+  .sunday-school-mobile-resource-panel {
+    gap: 6px;
+    grid-column: 1 / -1;
+    padding-top: 4px;
+  }
+
+  .sunday-school-mobile-resource-panel a {
+    background: #fffefa;
+    border: 1px solid #ded8c7;
+    border-radius: 8px;
+    color: #17201b;
+    display: grid;
+    gap: 3px;
+    padding: 7px 8px;
+    text-decoration: none;
+  }
+
+  .sunday-school-mobile-resource-panel a span,
+  .sunday-school-mobile-resource-panel p {
+    color: #65716a;
+    font-size: 11px;
+    font-weight: 800;
+    margin: 0;
+  }
+
+  .sunday-school-mobile-resource-panel a strong {
+    font-size: 13px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
