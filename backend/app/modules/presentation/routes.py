@@ -42,19 +42,40 @@ class PresentationLiveStateWrite(BaseModel):
     video_action_at: int | None = None
 
 
+class PresentationOutputStatusRead(BaseModel):
+    plan_id: str
+    active: bool = False
+    owner_id: str | None = None
+    heartbeat_at: int | None = None
+    claimed: bool = False
+
+
+class PresentationOutputStatusWrite(BaseModel):
+    owner_id: str
+    heartbeat_at: int
+    release: bool = False
+
+
+OUTPUT_STALE_MS = 7000
+
+
+def _position_payload(position: PresentationPosition | None) -> dict[str, object]:
+    if position and position.payload_json:
+        try:
+            parsed = json.loads(position.payload_json)
+            if isinstance(parsed, dict):
+                return parsed
+        except json.JSONDecodeError:
+            return {}
+    return {}
+
+
 def _serialize_live_state(
     presentation_session: PresentationSession | None,
     position: PresentationPosition | None,
     plan_id: str,
 ) -> PresentationLiveStateRead:
-    payload: dict[str, object] = {}
-    if position and position.payload_json:
-        try:
-            parsed = json.loads(position.payload_json)
-            if isinstance(parsed, dict):
-                payload = parsed
-        except json.JSONDecodeError:
-            payload = {}
+    payload = _position_payload(position)
 
     return PresentationLiveStateRead(
         plan_id=plan_id,
@@ -86,6 +107,19 @@ def _latest_position(session: Session, session_id: str) -> PresentationPosition 
         select(PresentationPosition)
         .where(PresentationPosition.session_id == session_id)
         .order_by(PresentationPosition.updated_at.desc())
+    )
+
+
+def _serialize_output_status(plan_id: str, position: PresentationPosition | None, now: int | None = None) -> PresentationOutputStatusRead:
+    payload = _position_payload(position)
+    owner_id = payload.get("output_owner_id") if isinstance(payload.get("output_owner_id"), str) else None
+    heartbeat_at = int(payload["output_heartbeat_at"]) if payload.get("output_heartbeat_at") is not None else None
+    active = bool(owner_id and heartbeat_at and now is not None and now - heartbeat_at < OUTPUT_STALE_MS)
+    return PresentationOutputStatusRead(
+        plan_id=plan_id,
+        active=active,
+        owner_id=owner_id if active else None,
+        heartbeat_at=heartbeat_at if active else None,
     )
 
 
@@ -127,11 +161,69 @@ def update_presentation_live_state(
 
     position.plan_item_id = payload.plan_item_id
     position.slide_index = payload.index
-    position.payload_json = json.dumps(payload.model_dump())
+    existing_payload = _position_payload(position)
+    position.payload_json = json.dumps({**existing_payload, **payload.model_dump()})
     session.commit()
     session.refresh(presentation_session)
     session.refresh(position)
     return _serialize_live_state(presentation_session, position, plan_id)
+
+
+@router.get("/output/{plan_id}", response_model=PresentationOutputStatusRead)
+def get_presentation_output_status(
+    plan_id: str,
+    now: int,
+    _current_user: User = Depends(require_permission("presentation:use")),
+    session: Session = Depends(get_session),
+) -> PresentationOutputStatusRead:
+    presentation_session = _latest_session(session, plan_id)
+    position = _latest_position(session, presentation_session.id) if presentation_session else None
+    return _serialize_output_status(plan_id, position, now)
+
+
+@router.patch("/output/{plan_id}", response_model=PresentationOutputStatusRead)
+def update_presentation_output_status(
+    plan_id: str,
+    payload: PresentationOutputStatusWrite,
+    current_user: CurrentUser,
+    session: Session = Depends(get_session),
+) -> PresentationOutputStatusRead:
+    presentation_session = _latest_session(session, plan_id)
+    if presentation_session is None:
+        presentation_session = PresentationSession(
+            plan_id=plan_id,
+            presenter_id=current_user.id,
+            status="live",
+        )
+        session.add(presentation_session)
+        session.flush()
+
+    position = _latest_position(session, presentation_session.id)
+    if position is None:
+        position = PresentationPosition(session_id=presentation_session.id)
+        session.add(position)
+        session.flush()
+
+    existing = _serialize_output_status(plan_id, position, payload.heartbeat_at)
+    current_owner = existing.owner_id if existing.active else None
+    if current_owner and current_owner != payload.owner_id:
+        return existing
+
+    next_payload = _position_payload(position)
+    if payload.release:
+        if next_payload.get("output_owner_id") == payload.owner_id:
+            next_payload.pop("output_owner_id", None)
+            next_payload.pop("output_heartbeat_at", None)
+    else:
+        next_payload["output_owner_id"] = payload.owner_id
+        next_payload["output_heartbeat_at"] = payload.heartbeat_at
+
+    position.payload_json = json.dumps(next_payload)
+    session.commit()
+    session.refresh(position)
+    status = _serialize_output_status(plan_id, position, payload.heartbeat_at)
+    status.claimed = not payload.release and status.owner_id == payload.owner_id
+    return status
 
 
 @router.get("/status", response_model=PresentationLiveStateRead)

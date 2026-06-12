@@ -7,6 +7,7 @@ import {
   getPlans,
   getPresentationLiveState,
   getSongs,
+  updatePresentationOutputStatus,
   updatePresentationLiveState,
   type PlanDetail,
   type RenderedSlide,
@@ -40,6 +41,10 @@ function readLiveState(): PresentationLiveState | null {
 }
 
 export function PresentationOutput() {
+  const outputOwnerId = useMemo(() => {
+    const params = new URLSearchParams(window.location.search);
+    return params.get("outputId") || "standalone-output";
+  }, []);
   const [plan, setPlan] = useState<PlanDetail | null>(null);
   const [worshipSetPlan, setWorshipSetPlan] = useState<PlanDetail | null>(null);
   const [songs, setSongs] = useState<Song[]>([]);
@@ -80,11 +85,20 @@ export function PresentationOutput() {
     if (!liveState?.planId) {
       return;
     }
+    const heartbeatAt = Date.now();
     localStorage.setItem(
       PRESENTATION_OUTPUT_STATUS_KEY,
-      JSON.stringify({ planId: liveState.planId, heartbeatAt: Date.now() }),
+      JSON.stringify({ planId: liveState.planId, heartbeatAt, ownerId: outputOwnerId }),
     );
-  }, [liveState?.planId]);
+    void updatePresentationOutputStatus(liveState.planId, {
+      owner_id: outputOwnerId,
+      heartbeat_at: heartbeatAt,
+    }).then((status) => {
+      if (status.active && status.owner_id && status.owner_id !== outputOwnerId) {
+        setMessage("Another slideshow output is already active.");
+      }
+    }).catch(() => undefined);
+  }, [liveState?.planId, outputOwnerId]);
 
   function applyLiveState(state: PresentationLiveState) {
     lastLiveStateRef.current = state.updatedAt;
@@ -222,6 +236,13 @@ export function PresentationOutput() {
     const timer = window.setInterval(writeOutputHeartbeat, 1500);
 
     function clearHeartbeat() {
+      if (liveState?.planId) {
+        void updatePresentationOutputStatus(liveState.planId, {
+          owner_id: outputOwnerId,
+          heartbeat_at: Date.now(),
+          release: true,
+        }).catch(() => undefined);
+      }
       localStorage.removeItem(PRESENTATION_OUTPUT_STATUS_KEY);
     }
 
@@ -231,7 +252,7 @@ export function PresentationOutput() {
       window.removeEventListener("beforeunload", clearHeartbeat);
       clearHeartbeat();
     };
-  }, [writeOutputHeartbeat]);
+  }, [liveState?.planId, outputOwnerId, writeOutputHeartbeat]);
 
   useEffect(() => {
     setBlanked(Boolean(liveState?.blanked));

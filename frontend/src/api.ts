@@ -261,6 +261,14 @@ export interface PresentationLiveSyncState {
   video_action_at: number | null;
 }
 
+export interface PresentationOutputStatus {
+  plan_id: string;
+  active: boolean;
+  owner_id: string | null;
+  heartbeat_at: number | null;
+  claimed: boolean;
+}
+
 export interface BibleVersion {
   id: string;
   code: string;
@@ -800,6 +808,21 @@ export async function updatePresentationLiveState(
   },
 ): Promise<PresentationLiveSyncState> {
   return sendJson<PresentationLiveSyncState>(`/api/v1/presentation/live/${planId}`, "PATCH", payload, {
+    timeoutMs: LIVE_SYNC_TIMEOUT_MS,
+  });
+}
+
+export async function getPresentationOutputStatus(planId: string, now = Date.now()): Promise<PresentationOutputStatus> {
+  return getJson<PresentationOutputStatus>(`/api/v1/presentation/output/${planId}?now=${now}`, {
+    timeoutMs: LIVE_SYNC_TIMEOUT_MS,
+  });
+}
+
+export async function updatePresentationOutputStatus(
+  planId: string,
+  payload: { owner_id: string; heartbeat_at: number; release?: boolean },
+): Promise<PresentationOutputStatus> {
+  return sendJson<PresentationOutputStatus>(`/api/v1/presentation/output/${planId}`, "PATCH", payload, {
     timeoutMs: LIVE_SYNC_TIMEOUT_MS,
   });
 }

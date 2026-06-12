@@ -5435,6 +5435,37 @@ h3 {
     width: 30px;
   }
 
+  .stage-shell-live .stage-toggle-switch {
+    align-items: center;
+    background: rgba(255, 255, 255, 0.9);
+    border: 1px solid rgba(16, 37, 31, 0.24);
+    border-radius: 9px;
+    box-shadow: 0 2px 8px rgba(17, 24, 22, 0.14);
+    color: #10251f;
+    display: inline-flex;
+    flex-direction: row;
+    height: 30px;
+    justify-content: center;
+    width: 30px;
+  }
+
+  .stage-shell-live .stage-toggle-switch:has(input:checked) {
+    background: #10251f;
+    border-color: #10251f;
+    color: #fffdf5;
+  }
+
+  .stage-shell-live .stage-toggle-label {
+    font-size: 0;
+    line-height: 1;
+  }
+
+  .stage-shell-live .stage-toggle-label::after {
+    content: attr(data-short);
+    font-size: 12px;
+    font-weight: 950;
+  }
+
   .stage-shell-live .stage-service-tools {
     align-self: flex-start;
   }
@@ -5485,24 +5516,20 @@ h3 {
     border-color: rgba(16, 37, 31, 0.36);
   }
 
-  .stage-shell-live .stage-theme-slider {
-    background: rgba(255, 255, 255, 0.9);
-    border-color: rgba(16, 37, 31, 0.28);
-    box-shadow: 0 2px 8px rgba(17, 24, 22, 0.14);
-    height: 30px;
-    width: 30px;
+  .stage-shell-live .service-history-popover {
+    left: 8px;
+    max-height: calc(100dvh - 132px);
+    max-width: calc(100vw - 16px);
+    position: fixed;
+    right: auto;
+    top: 112px;
+    width: min(360px, calc(100vw - 16px));
+    z-index: 70;
   }
 
-  .stage-shell-live .stage-theme-slider::after {
-    background: #10251f;
-    height: 18px;
-    left: 5px;
-    top: 5px;
-    width: 18px;
-  }
-
-  .stage-shell-live .stage-theme-switch input:checked + .stage-theme-slider::after {
-    transform: none;
+  .stage-shell-live .stage-theme-slider,
+  .stage-shell-live .stage-blank-switch > span:not(.stage-toggle-label) {
+    display: none;
   }
 
   .stage-shell-live .stage-meta-actions > span {
@@ -5516,27 +5543,6 @@ h3 {
     padding: 3px 4px;
     text-align: center;
     white-space: nowrap;
-  }
-
-  .stage-shell-live .stage-blank-switch span {
-    background: rgba(255, 255, 255, 0.9);
-    border-radius: 9px;
-    border-color: rgba(16, 37, 31, 0.24);
-    box-shadow: 0 2px 8px rgba(17, 24, 22, 0.14);
-    color: #10251f;
-    font-size: 12px;
-    height: 30px;
-    width: 30px;
-  }
-
-  .stage-shell-live .stage-blank-switch span::after {
-    content: none;
-  }
-
-  .stage-shell-live .stage-blank-switch input:checked + span {
-    background: #10251f;
-    border-color: #10251f;
-    color: #fffdf5;
   }
 
   .type-song.stage-shell-live .stage-meta,
@@ -5577,10 +5583,50 @@ h3 {
   .service-picker-grid {
     grid-template-columns: 1fr;
     grid-template-rows: none;
+    overflow: visible;
   }
 
   .service-calendar-panel {
     grid-row: auto;
+  }
+
+  .service-picker-dialog,
+  .search-dialog {
+    align-content: start;
+    max-height: calc(100dvh - 12px);
+    overflow: auto;
+    padding: 10px;
+  }
+
+  .service-picker-panel {
+    max-height: none;
+    overflow: visible;
+  }
+
+  .service-list-panel .service-date-list,
+  .search-results-list {
+    max-height: none;
+    overflow: visible;
+  }
+
+  .service-calendar-grid {
+    gap: 3px;
+  }
+
+  .service-calendar-day {
+    height: 42px;
+    min-height: 42px;
+    padding: 4px;
+  }
+
+  .service-calendar-day small {
+    display: none;
+  }
+
+  input,
+  select,
+  textarea {
+    font-size: 16px !important;
   }
 
   .sunday-school-workspace {
@@ -5900,16 +5946,6 @@ h3 {
 
   .stage-meta-actions {
     margin-left: auto;
-  }
-
-  .stage-shell-live .stage-toggle-switch {
-    flex-direction: column;
-    gap: 2px;
-  }
-
-  .stage-shell-live .stage-toggle-label {
-    font-size: 9px;
-    line-height: 1;
   }
 
   .service-history-popover {

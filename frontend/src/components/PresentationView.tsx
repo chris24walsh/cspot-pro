@@ -15,6 +15,7 @@ import {
   getFileSlides,
   getBibleBooks,
   getBiblePassage,
+  getPresentationOutputStatus,
   searchBible,
   getBibleVersions,
   getPlan,
@@ -29,6 +30,7 @@ import {
   selectCustomProviderMatch,
   uploadStoredFile,
   updatePlan,
+  updatePresentationOutputStatus,
   updatePresentationLiveState,
   updatePlanItem,
   type BibleBook,
@@ -77,6 +79,13 @@ import {
 } from "../worshipSets";
 
 const SELECTED_SERVICE_SESSION_KEY = "cspot.selectedServicePlanId";
+
+function outputOwnerId() {
+  if (crypto.randomUUID) {
+    return crypto.randomUUID();
+  }
+  return `output-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
 
 interface PresentationScreen {
   label: string;
@@ -228,7 +237,7 @@ function isTransientApiError(error: unknown) {
   return error instanceof ApiError && [408, 502, 503, 504].includes(error.status);
 }
 
-function scrollItemIntoOperatorView(container: HTMLElement | null, item: HTMLElement | null) {
+function scrollItemIntoOperatorView(container: HTMLElement | null, item: HTMLElement | null, behavior: ScrollBehavior = "smooth") {
   if (!container || !item) {
     return;
   }
@@ -246,7 +255,7 @@ function scrollItemIntoOperatorView(container: HTMLElement | null, item: HTMLEle
     return;
   }
 
-  container.scrollTo({ top: targetTop, behavior: "smooth" });
+  container.scrollTo({ top: targetTop, behavior });
 }
 
 function slideVisibilityDirection(container: HTMLElement | null, item: HTMLElement | null) {
@@ -635,6 +644,7 @@ export function PresentationView({
   const searchInputRef = useRef<HTMLInputElement | null>(null);
   const keyCaptureRef = useRef<HTMLInputElement | null>(null);
   const outputWindowRef = useRef<Window | null>(null);
+  const outputOwnerIdRef = useRef<string | null>(null);
   const channelRef = useRef<BroadcastChannel | null>(null);
   const slideGridRef = useRef<HTMLDivElement | null>(null);
   const sectionRailListRef = useRef<HTMLDivElement | null>(null);
@@ -1240,7 +1250,15 @@ export function PresentationView({
     if (outputWindowRef.current && !outputWindowRef.current.closed) {
       outputWindowRef.current.close();
     }
+    if (plan?.id && outputOwnerIdRef.current) {
+      void updatePresentationOutputStatus(plan.id, {
+        owner_id: outputOwnerIdRef.current,
+        heartbeat_at: Date.now(),
+        release: true,
+      }).catch(() => undefined);
+    }
     outputWindowRef.current = null;
+    outputOwnerIdRef.current = null;
     localStorage.removeItem(PRESENTATION_OUTPUT_STATUS_KEY);
     setSlideshowOpen(false);
   }
@@ -1253,6 +1271,24 @@ export function PresentationView({
 
     if (outputWindowRef.current && !outputWindowRef.current.closed) {
       closeSlideshowWindow();
+      return;
+    }
+
+    const currentOutputStatus = await getPresentationOutputStatus(plan.id).catch(() => null);
+    if (currentOutputStatus?.active) {
+      setMessage("A slideshow is already open on another device. Close it before starting a new one.");
+      setSlideshowOpen(true);
+      return;
+    }
+
+    const ownerId = outputOwnerId();
+    const claimed = await updatePresentationOutputStatus(plan.id, {
+      owner_id: ownerId,
+      heartbeat_at: Date.now(),
+    }).catch(() => null);
+    if (claimed?.active && claimed.owner_id !== ownerId) {
+      setMessage("A slideshow is already open on another device. Close it before starting a new one.");
+      setSlideshowOpen(true);
       return;
     }
 
@@ -1271,6 +1307,7 @@ export function PresentationView({
     url.searchParams.set("presentation", "output");
     url.searchParams.set("planId", plan.id);
     url.searchParams.set("index", String(liveIndex));
+    url.searchParams.set("outputId", ownerId);
 
     const features = [
       "popup=yes",
@@ -1289,14 +1326,20 @@ export function PresentationView({
 
     const outputWindow = window.open(url.toString(), "cspot-pro-live-output", features);
     if (!outputWindow) {
+      void updatePresentationOutputStatus(plan.id, {
+        owner_id: ownerId,
+        heartbeat_at: Date.now(),
+        release: true,
+      }).catch(() => undefined);
       setMessage("The browser blocked the live output window. Allow pop-ups for this app and try again.");
       return;
     }
 
     outputWindowRef.current = outputWindow;
+    outputOwnerIdRef.current = ownerId;
     localStorage.setItem(
       PRESENTATION_OUTPUT_STATUS_KEY,
-      JSON.stringify({ planId: plan.id, heartbeatAt: Date.now() }),
+      JSON.stringify({ planId: plan.id, heartbeatAt: Date.now(), ownerId }),
     );
     setSlideshowOpen(true);
     outputWindow.focus();
@@ -2796,7 +2839,15 @@ export function PresentationView({
     const timer = window.setInterval(() => {
       syncSlideshowStatusFromStorage();
       if (outputWindowRef.current && outputWindowRef.current.closed) {
+        if (plan?.id && outputOwnerIdRef.current) {
+          void updatePresentationOutputStatus(plan.id, {
+            owner_id: outputOwnerIdRef.current,
+            heartbeat_at: Date.now(),
+            release: true,
+          }).catch(() => undefined);
+        }
         outputWindowRef.current = null;
+        outputOwnerIdRef.current = null;
         localStorage.removeItem(PRESENTATION_OUTPUT_STATUS_KEY);
         setSlideshowOpen(false);
       }
@@ -2835,10 +2886,14 @@ export function PresentationView({
       const activeSlide = slides[liveIndex];
       if (activeSlide) {
         if (shouldFollowSorter) {
-          scrollItemIntoOperatorView(slideGridRef.current, thumbnailRefs.current[activeSlide.id] ?? null);
+          scrollItemIntoOperatorView(slideGridRef.current, thumbnailRefs.current[activeSlide.id] ?? null, "auto");
+          sorterCatchUpDirectionRef.current = null;
+          setSorterCatchUpDirection(null);
         }
         if (shouldFollowRail) {
-          scrollItemIntoOperatorView(sectionRailListRef.current, sectionRailRefs.current[activeSlide.sectionId] ?? null);
+          scrollItemIntoOperatorView(sectionRailListRef.current, sectionRailRefs.current[activeSlide.sectionId] ?? null, "auto");
+          railCatchUpDirectionRef.current = null;
+          setRailCatchUpDirection(null);
         }
       }
       window.requestAnimationFrame(() => {
@@ -3433,7 +3488,7 @@ export function PresentationView({
               ) : null}
               <div className="stage-meta-actions">
                 <label className="stage-audio-switch stage-toggle-switch" title="Enable YouTube audio buttons">
-                  <span className="stage-toggle-label">Audio</span>
+                  <span className="stage-toggle-label" data-short="A">Audio</span>
                   <input
                     aria-label="Enable YouTube audio buttons"
                     checked={audioControlsEnabled}
@@ -3443,7 +3498,7 @@ export function PresentationView({
                   <span className="stage-theme-slider" aria-hidden="true" />
                 </label>
                 <label className="stage-theme-switch stage-toggle-switch" title="Toggle slide theme">
-                  <span className="stage-toggle-label">Light</span>
+                  <span className="stage-toggle-label" data-short="L">Light</span>
                   <input
                     aria-label="Use light slide theme"
                     checked={slideTheme === "light"}
@@ -3453,7 +3508,7 @@ export function PresentationView({
                   <span className="stage-theme-slider" aria-hidden="true" />
                 </label>
                 <label className="stage-blank-switch stage-toggle-switch" title="Blank live output">
-                  <span className="stage-toggle-label">Blank</span>
+                  <span className="stage-toggle-label" data-short="B">Blank</span>
                   <input
                     aria-label="Blank live output"
                     checked={liveBlanked}
@@ -3840,7 +3895,7 @@ export function PresentationView({
 
       {searchOverlayOpen ? (
         <div className="app-dialog-backdrop" role="presentation">
-          <div aria-labelledby="search-overlay-title" aria-modal="true" className="app-dialog app-dialog-wide" role="dialog">
+          <div aria-labelledby="search-overlay-title" aria-modal="true" className="app-dialog app-dialog-wide search-dialog" role="dialog">
             <div>
               <h2 id="search-overlay-title">Search And Add</h2>
               <p>Find songs, Bible passages, or upload a slide deck.</p>
