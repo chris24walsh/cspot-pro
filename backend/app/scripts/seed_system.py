@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from app.core.database import SessionLocal
 from app.modules.identity.models import Role
 from app.modules.identity.permissions import ROLE_DEFINITIONS
-from app.scripts.import_bible import autoload_kjv_if_missing
+from app.scripts.import_bible import autoload_asv_if_missing, autoload_kjv_if_missing
 from app.scripts.seed_demo import get_or_create, seed_reference_data
 
 
@@ -23,6 +23,7 @@ def main() -> None:
         seed_reference_data(session)
         session.commit()
         try:
+            autoload_asv_if_missing(session)
             autoload_kjv_if_missing(session)
         except Exception:
             session.rollback()

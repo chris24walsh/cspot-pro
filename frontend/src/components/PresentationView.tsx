@@ -1,4 +1,4 @@
-import { CalendarDays, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, History, MonitorUp, Pause, Pencil, Play, Plus, Search, Trash2, WandSparkles } from "lucide-react";
+import { CalendarDays, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, EyeOff, History, MonitorUp, Pause, Pencil, Play, Plus, Search, Sun, Trash2, Volume2, WandSparkles } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
@@ -588,9 +588,8 @@ export function PresentationView({
   const [screens, setScreens] = useState<PresentationScreen[]>([]);
   const [selectedScreenIndex, setSelectedScreenIndex] = useState(0);
   const [deckTitle, setDeckTitle] = useState("");
-  const [deckTitleTouched, setDeckTitleTouched] = useState(false);
-  const [deckFile, setDeckFile] = useState<File | null>(null);
   const [deckFlattenBuilds, setDeckFlattenBuilds] = useState(false);
+  const [importingDriveFileId, setImportingDriveFileId] = useState<string | null>(null);
   const [videoTitle, setVideoTitle] = useState("");
   const [videoFile, setVideoFile] = useState<File | null>(null);
   const [renderedSlidesByFileId, setRenderedSlidesByFileId] = useState<Record<string, RenderedSlide[]>>({});
@@ -599,7 +598,7 @@ export function PresentationView({
   const [expandedSorterSectionIds, setExpandedSorterSectionIds] = useState<Set<string>>(() => new Set());
   const [bibleVersions, setBibleVersions] = useState<BibleVersion[]>([]);
   const [bibleBooks, setBibleBooks] = useState<BibleBook[]>([]);
-  const [bibleVersion, setBibleVersion] = useState("KJV");
+  const [bibleVersion, setBibleVersion] = useState("ASV");
   const [bibleBook, setBibleBook] = useState("John");
   const [bibleChapter, setBibleChapter] = useState("3");
   const [bibleVerseFrom, setBibleVerseFrom] = useState("16");
@@ -634,6 +633,7 @@ export function PresentationView({
   const [liveBlanked, setLiveBlanked] = useState(false);
   const [audioControlsEnabled, setAudioControlsEnabled] = useState(false);
   const [playingAudioSectionId, setPlayingAudioSectionId] = useState<string | null>(null);
+  const [localAudioUrl, setLocalAudioUrl] = useState<string | null>(null);
   const [slideshowOpen, setSlideshowOpen] = useState(false);
   const [deckRenderRetryToken, setDeckRenderRetryToken] = useState(0);
   const [undoAction, setUndoAction] = useState<{ label: string; run: () => Promise<void> } | null>(null);
@@ -645,10 +645,12 @@ export function PresentationView({
   const keyCaptureRef = useRef<HTMLInputElement | null>(null);
   const outputWindowRef = useRef<Window | null>(null);
   const outputOwnerIdRef = useRef<string | null>(null);
+  const localAudioFrameRef = useRef<HTMLIFrameElement | null>(null);
   const channelRef = useRef<BroadcastChannel | null>(null);
   const slideGridRef = useRef<HTMLDivElement | null>(null);
   const sectionRailListRef = useRef<HTMLDivElement | null>(null);
   const thumbnailRefs = useRef<Record<string, HTMLButtonElement | null>>({});
+  const sorterSectionRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const sectionRailRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const currentLiveStateRef = useRef<PresentationLiveState | null>(null);
   const lastLiveStateRef = useRef<number>(0);
@@ -1034,6 +1036,11 @@ export function PresentationView({
       return;
     }
     setPlayingAudioSectionId(null);
+    localAudioFrameRef.current?.contentWindow?.postMessage(
+      JSON.stringify({ event: "command", func: "pauseVideo", args: [] }),
+      "*",
+    );
+    setLocalAudioUrl(null);
     void publishLiveState(liveIndex, {
       videoAction: "fade-stop",
       videoActionAt: Date.now(),
@@ -1097,7 +1104,10 @@ export function PresentationView({
     setRailCatchUpDirection(null);
     if (targetSlide) {
       window.requestAnimationFrame(() => {
-        scrollItemIntoOperatorView(slideGridRef.current, thumbnailRefs.current[targetSlide.id] ?? null);
+        scrollItemIntoOperatorView(
+          slideGridRef.current,
+          thumbnailRefs.current[targetSlide.id] ?? sorterSectionRefs.current[targetSlide.sectionId] ?? null,
+        );
         scrollItemIntoOperatorView(sectionRailListRef.current, sectionRailRefs.current[targetSlide.sectionId] ?? null);
       });
     }
@@ -1145,7 +1155,7 @@ export function PresentationView({
     });
   }
 
-  function toggleSectionAudio(section: { id: string; slides: PresentationSlide[] }) {
+  async function toggleSectionAudio(section: { id: string; slides: PresentationSlide[] }) {
     const isPlaying = playingAudioSectionId === section.id;
     if (!audioControlsEnabled && !isPlaying) {
       return;
@@ -1164,15 +1174,28 @@ export function PresentationView({
       return;
     }
     setPlayingAudioSectionId(section.id);
+    const outputStatus = plan?.id ? await getPresentationOutputStatus(plan.id).catch(() => null) : null;
+    const shouldPlayLocally = !outputStatus?.active;
     if (!isPlaying) {
       setLiveBlanked(false);
       setLiveIndex(targetIndex);
     }
-    void publishLiveState(targetIndex, {
-      blanked: false,
-      videoAction: "play",
-      videoActionAt: Date.now(),
-    });
+    if (shouldPlayLocally) {
+      setLocalAudioUrl(audioSlide.youtubeAudioUrl ?? null);
+      window.setTimeout(() => {
+        localAudioFrameRef.current?.contentWindow?.postMessage(
+          JSON.stringify({ event: "command", func: "playVideo", args: [] }),
+          "*",
+        );
+      }, 350);
+    } else {
+      setLocalAudioUrl(null);
+      void publishLiveState(targetIndex, {
+        blanked: false,
+        videoAction: "play",
+        videoActionAt: Date.now(),
+      });
+    }
   }
 
   async function publishLiveStateForSlides(
@@ -1933,10 +1956,9 @@ export function PresentationView({
     setSearchQuery("");
     setSearchInsertIndex(null);
     setSearchSelectInserted(false);
-    setDeckFile(null);
     setDeckFlattenBuilds(false);
     setDeckTitle("");
-    setDeckTitleTouched(false);
+    setImportingDriveFileId(null);
     setVideoTitle("");
     setVideoFile(null);
   }
@@ -2207,10 +2229,6 @@ export function PresentationView({
       return;
     }
     if (searchMode === "deck") {
-      if (deckFile) {
-        await attachDeckToPlan();
-        return;
-      }
       const firstFile = googleDriveFiles[0];
       if (firstFile) {
         await attachImportedDriveDeck(firstFile);
@@ -2248,7 +2266,7 @@ export function PresentationView({
     const currentReference = parsed;
 
     const span = Math.max(currentReference.verseTo - currentReference.verseFrom, 0);
-    const versionCode = currentPlanItem.key_signature || bibleVersion || "KJV";
+    const versionCode = currentPlanItem.key_signature || bibleVersion || "ASV";
     const currentSlideOffset = Math.max(
       slides.findIndex((slide) => slide.id === liveSlide?.id) -
         slides.findIndex((slide) => slide.planItemId === currentPlanItem.id),
@@ -2353,58 +2371,6 @@ export function PresentationView({
     }
   }
 
-  async function attachDeckToPlan() {
-    if (!plan) {
-      setMessage("Select a plan before attaching a deck.");
-      return;
-    }
-    if (!canEditPlan || !canAttachDeck) {
-      setMessage("Adding slide decks requires plan editing and library upload access.");
-      return;
-    }
-
-    if (!deckFile) {
-      setMessage("Choose a sermon or slide deck file first.");
-      return;
-    }
-
-    try {
-      const resolvedDeckTitle = deckTitle.trim() || "Sermon";
-      if (plan.items.some((item) => item.item_type === "sermon" && item.title.trim().toLowerCase() === resolvedDeckTitle.toLowerCase())) {
-        setMessage(`"${resolvedDeckTitle}" is already in this service.`);
-        return;
-      }
-      const stored = await uploadStoredFile({
-        file: deckFile,
-        display_name: resolvedDeckTitle,
-        flatten_builds: deckFlattenBuilds,
-      });
-      const item = await createPlanItem(plan.id, {
-        item_type: "sermon",
-        sequence: sequenceForInsert(searchInsertIndex ?? sections.length - 1),
-        title: resolvedDeckTitle,
-        comment: `Attached slide deck: ${stored.display_name}`,
-        key_signature: null,
-        song_id: null,
-      });
-      await attachItemFile(item.id, { file_id: stored.id, sort_order: 0 });
-      void recordServiceHistory(`adding "${resolvedDeckTitle}"`, "Service", "slide_deck");
-      setDeckFile(null);
-      await reloadAfterInsertedItem(item);
-      closeSearchOverlay();
-    } catch (error) {
-      if (error instanceof ApiError && error.status === 413) {
-        setMessage(
-          googleDriveStatus?.connected
-            ? "This upload was blocked before it reached cspot. Use Google Drive import for this deck, or try a smaller PDF."
-            : "This upload was blocked before it reached cspot. If this keeps happening on the hosted site, import from Google Drive or try a smaller PDF.",
-        );
-        return;
-      }
-      setMessage(error instanceof Error ? error.message : "Could not attach slide deck.");
-    }
-  }
-
   async function attachImportedDriveDeck(file: GoogleDriveFile) {
     if (!plan) {
       setMessage("Select a plan before attaching a deck.");
@@ -2414,8 +2380,12 @@ export function PresentationView({
       setMessage("Adding slide decks requires plan editing and library upload access.");
       return;
     }
+    if (importingDriveFileId) {
+      return;
+    }
 
     try {
+      setImportingDriveFileId(file.id);
       const resolvedDeckTitle = deckTitle.trim() || file.name.replace(/\.[^.]+$/, "") || "Sermon";
       if (
         plan.items.some(
@@ -2447,6 +2417,8 @@ export function PresentationView({
       closeSearchOverlay();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Could not import this Google Drive deck.");
+    } finally {
+      setImportingDriveFileId(null);
     }
   }
 
@@ -2637,7 +2609,7 @@ export function PresentationView({
           if (versions.some((version) => version.code === current)) {
             return current;
           }
-          return versions.find((version) => version.code === "KJV")?.code || versions[0]?.code || "";
+          return versions.find((version) => version.code === "ASV")?.code || versions.find((version) => version.code === "KJV")?.code || versions[0]?.code || "";
         });
         setBibleBook((current) =>
           books.some((book) => book.name === current) ? current : books[0]?.name || "",
@@ -2762,16 +2734,6 @@ export function PresentationView({
   }, [searchMode, searchOverlayOpen]);
 
   useEffect(() => {
-    if (!deckFile || deckTitleTouched) {
-      return;
-    }
-
-    const trimmedName = deckFile.name.replace(/\.[^.]+$/, "");
-    const nextTitle = trimmedName.length > 42 ? `${trimmedName.slice(0, 39).trimEnd()}...` : trimmedName;
-    setDeckTitle(nextTitle);
-  }, [deckFile, deckTitleTouched]);
-
-  useEffect(() => {
     if (!selectedPlanId) {
       return;
     }
@@ -2886,21 +2848,21 @@ export function PresentationView({
       const activeSlide = slides[liveIndex];
       if (activeSlide) {
         if (shouldFollowSorter) {
-          scrollItemIntoOperatorView(slideGridRef.current, thumbnailRefs.current[activeSlide.id] ?? null, "auto");
+          scrollItemIntoOperatorView(slideGridRef.current, thumbnailRefs.current[activeSlide.id] ?? null);
           sorterCatchUpDirectionRef.current = null;
           setSorterCatchUpDirection(null);
         }
         if (shouldFollowRail) {
-          scrollItemIntoOperatorView(sectionRailListRef.current, sectionRailRefs.current[activeSlide.sectionId] ?? null, "auto");
+          scrollItemIntoOperatorView(sectionRailListRef.current, sectionRailRefs.current[activeSlide.sectionId] ?? null);
           railCatchUpDirectionRef.current = null;
           setRailCatchUpDirection(null);
         }
       }
-      window.requestAnimationFrame(() => {
+      window.setTimeout(() => {
         if (catchUpCheckTokenRef.current === token) {
           updateCatchUpDirectionsForSlide(liveIndex);
         }
-      });
+      }, 480);
     }, 180);
     return () => window.clearTimeout(timer);
   }, [liveIndex, slides]);
@@ -3084,7 +3046,6 @@ export function PresentationView({
     songSearchResults,
     bibleSearchResults,
     googleDriveFiles,
-    deckFile,
     selectedScreenIndex,
     servicePickerOpen,
     slides,
@@ -3103,13 +3064,13 @@ export function PresentationView({
       const [referenceMatches, keywordMatches] = await Promise.all([
         searchBible({
           q: referenceQuery,
-          version_code: bibleVersion || "KJV",
+          version_code: bibleVersion || "ASV",
           search_type: "reference",
           limit: 8,
         }).catch(() => []),
         searchBible({
           q: query,
-          version_code: bibleVersion || "KJV",
+          version_code: bibleVersion || "ASV",
           search_type: "keyword",
           limit: 20,
         }).catch(() => []),
@@ -3419,6 +3380,23 @@ export function PresentationView({
           Presenter mode is live, but this account is read-only for plan changes.
         </p>
       ) : null}
+      {localAudioUrl ? (
+        <iframe
+          allow="autoplay; encrypted-media"
+          aria-hidden="true"
+          className="youtube-audio-frame"
+          onLoad={() => {
+            localAudioFrameRef.current?.contentWindow?.postMessage(
+              JSON.stringify({ event: "command", func: "playVideo", args: [] }),
+              "*",
+            );
+          }}
+          ref={localAudioFrameRef}
+          src={localAudioUrl}
+          tabIndex={-1}
+          title="Local YouTube audio"
+        />
+      ) : null}
 
       <div className="presenter-console">
         <div className="presenter-stage-column">
@@ -3488,7 +3466,7 @@ export function PresentationView({
               ) : null}
               <div className="stage-meta-actions">
                 <label className="stage-audio-switch stage-toggle-switch" title="Enable YouTube audio buttons">
-                  <span className="stage-toggle-label" data-short="A">Audio</span>
+                  <span className="stage-toggle-label" data-short="A"><Volume2 size={13} aria-hidden="true" />Audio</span>
                   <input
                     aria-label="Enable YouTube audio buttons"
                     checked={audioControlsEnabled}
@@ -3498,7 +3476,7 @@ export function PresentationView({
                   <span className="stage-theme-slider" aria-hidden="true" />
                 </label>
                 <label className="stage-theme-switch stage-toggle-switch" title="Toggle slide theme">
-                  <span className="stage-toggle-label" data-short="L">Light</span>
+                  <span className="stage-toggle-label" data-short="L"><Sun size={13} aria-hidden="true" />Light</span>
                   <input
                     aria-label="Use light slide theme"
                     checked={slideTheme === "light"}
@@ -3508,7 +3486,7 @@ export function PresentationView({
                   <span className="stage-theme-slider" aria-hidden="true" />
                 </label>
                 <label className="stage-blank-switch stage-toggle-switch" title="Blank live output">
-                  <span className="stage-toggle-label" data-short="B">Blank</span>
+                  <span className="stage-toggle-label" data-short="B"><EyeOff size={13} aria-hidden="true" />Blank</span>
                   <input
                     aria-label="Blank live output"
                     checked={liveBlanked}
@@ -3657,7 +3635,13 @@ export function PresentationView({
                 !canCollapseSection ||
                 sectionExpanded;
               return (
-                <div className="section-slide-group" key={section.id}>
+                <div
+                  className="section-slide-group"
+                  key={section.id}
+                  ref={(element) => {
+                    sorterSectionRefs.current[section.id] = element;
+                  }}
+                >
                   <div className="section-jump-row">
                     <button
                       className={`section-jump ${presentationTypeClass(section.itemType)} ${
@@ -4021,51 +4005,10 @@ export function PresentationView({
             {searchMode === "deck" ? (
               <>
                 <div className="dialog-form-grid">
-                  <label>
-                    Deck File
-                    <input
-                      disabled={!canAttachDeck}
-                      accept=".ppt,.pptx,.odp,.pdf,.key"
-                      onChange={(event) => {
-                        setDeckFile(event.target.files?.[0] ?? null);
-                      }}
-                      type="file"
-                    />
-                  </label>
-                  <label>
-                    Deck Name
-                    <input
-                      disabled={!canAttachDeck}
-                      onChange={(event) => {
-                        setDeckTitle(event.target.value);
-                        setDeckTitleTouched(true);
-                      }}
-                      onKeyDown={handleSearchEnter}
-                      placeholder="Sermon"
-                      value={deckTitle}
-                    />
-                  </label>
-                </div>
-                <label className="checkbox-label">
-                  <input
-                    checked={deckFlattenBuilds}
-                    disabled={!canAttachDeck}
-                    onChange={(event) => setDeckFlattenBuilds(event.target.checked)}
-                    type="checkbox"
-                  />
-                  Import click builds as slides
-                </label>
-                <p className="field-help">Best effort for PowerPoint appear/fade bullet and overlay builds.</p>
-
-                <div className="search-deck-divider">
-                  <span>or import from Google Drive</span>
-                </div>
-
-                <div className="dialog-form-grid">
                   <label className="wide-field">
                     Drive Search
                     <input
-                      disabled={!googleDriveStatus?.connected}
+                      disabled={!googleDriveStatus?.connected || Boolean(importingDriveFileId)}
                       onChange={(event) => setSearchQuery(event.target.value)}
                       onKeyDown={handleSearchEnter}
                       placeholder={
@@ -4077,7 +4020,27 @@ export function PresentationView({
                       value={searchQuery}
                     />
                   </label>
+                  <label>
+                    Deck Name
+                    <input
+                      disabled={!canAttachDeck || Boolean(importingDriveFileId)}
+                      onChange={(event) => setDeckTitle(event.target.value)}
+                      onKeyDown={handleSearchEnter}
+                      placeholder="Optional override"
+                      value={deckTitle}
+                    />
+                  </label>
                 </div>
+                <label className="checkbox-label">
+                  <input
+                    checked={deckFlattenBuilds}
+                    disabled={!canAttachDeck || Boolean(importingDriveFileId)}
+                    onChange={(event) => setDeckFlattenBuilds(event.target.checked)}
+                    type="checkbox"
+                  />
+                  Import click builds as slides
+                </label>
+                <p className="field-help">Best effort for PowerPoint appear/fade bullet and overlay builds.</p>
                 {searchMode === "deck" ? (
                   <p className={`search-empty ${googleDriveError ? "error-text" : ""}`}>
                     {googleDriveError
@@ -4096,11 +4059,6 @@ export function PresentationView({
               <button className="text-button" onClick={closeSearchOverlay} type="button">
                 Close
               </button>
-              {searchMode === "deck" ? (
-                <button className="primary-button" disabled={!canAttachDeck || !deckFile} onClick={() => void attachDeckToPlan()} type="button">
-                  Add Deck
-                </button>
-              ) : null}
               {searchMode === "video" ? (
                 <button
                   className="primary-button"
@@ -4251,20 +4209,23 @@ export function PresentationView({
                 )
               ) : null}
               {!googleDriveLoading && searchMode === "deck" && googleDriveStatus?.connected
-                ? googleDriveFiles.map((file) => (
+                ? googleDriveFiles.map((file) => {
+                    const importingThisFile = importingDriveFileId === file.id;
+                    return (
                     <button
-                      className="search-result-card"
-                      disabled={!canEditPlan || !canAttachDeck}
+                      className={`search-result-card ${importingThisFile ? "active-import-match" : ""}`}
+                      disabled={!canEditPlan || !canAttachDeck || Boolean(importingDriveFileId)}
                       key={file.id}
                       onClick={() => {
                         void attachImportedDriveDeck(file);
                       }}
                       type="button"
                     >
-                      <strong>{file.name}</strong>
-                      <span>{file.source_kind === "google_slides" ? "Google Slides" : file.mime_type}</span>
+                      <strong>{importingThisFile ? "Importing..." : file.name}</strong>
+                      <span>{importingThisFile ? "Please wait; this can take a moment." : file.source_kind === "google_slides" ? "Google Slides" : file.mime_type}</span>
                     </button>
-                  ))
+                    );
+                  })
                 : null}
               {!searchLoading &&
               ((searchMode === "songs" &&

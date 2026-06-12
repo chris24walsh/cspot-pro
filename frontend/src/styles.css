@@ -4605,9 +4605,12 @@ h3 {
 }
 
 .stage-toggle-label {
+  align-items: center;
   color: inherit;
+  display: inline-flex;
   font-size: 11px;
   font-weight: 950;
+  gap: 3px;
 }
 
 .stage-toggle-switch input {
@@ -5461,9 +5464,15 @@ h3 {
   }
 
   .stage-shell-live .stage-toggle-label::after {
-    content: attr(data-short);
+    content: none;
     font-size: 12px;
     font-weight: 950;
+  }
+
+  .stage-shell-live .stage-toggle-label svg {
+    display: block;
+    height: 15px;
+    width: 15px;
   }
 
   .stage-shell-live .stage-service-tools {

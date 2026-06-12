@@ -15,6 +15,7 @@
 - Mobile presenter controls should stay as small separate edge buttons, not grouped panels over slide content.
 - Mobile dark/blank controls are button-style with state color; desktop dark/blank controls are toggle-style.
 - Mobile service preview `Audio`, `Light`, and `Blank` controls should be button-style like calendar/history controls, with active state shown by reversed color contrast.
+- Service preview toggle buttons should use icons rather than initial letters.
 - Blank state, theme state, and live slide state sync through presentation live state, localStorage, BroadcastChannel, and backend polling.
 - Blank changes should publish the exact next value immediately to avoid stale cross-device sync.
 - Arrow-key presenter navigation should be keydown-only to avoid double-advancing.
@@ -27,6 +28,8 @@
 - Worship history should show newest entries first.
 - Sorter section cards should not show `sermon` or `reading` type text; titles should align left.
 - Worship live key dropdown needs persistent original-key/chord option after alternatives are chosen; if original key is capoed, also offer the absolute key and visually mark the original.
+- Bible import supports KJV JSON and eBible VPL zip; ASV is public domain and preferred default when available.
+- Copyrighted Bible versions such as ESV/NIV/NKJV need licensed source text or an approved API before DB import.
 - Sunday School is now an active module for date-based emergency-cover lesson preparation.
 - Sunday School lesson structure: theme, Bible reference/story, crafts, songs, games, source notes, cover notes.
 - Worship live fullscreen uses native Fullscreen API where available and a fixed-position mobile fallback when unavailable/rejected.
@@ -50,6 +53,7 @@
 - Whether notes should autosave visibly, use explicit save, or both.
 - Whether sorter thumbnails should eventually pillarbox fully despite smaller readable content.
 - Exact ownership/release rule for single active slideshow across devices.
+- Which licensed Bible source/provider to use for ESV, NIV, NKJV, NLT, and other popular copyrighted versions.
 
 ## Current Priorities
 
@@ -61,6 +65,6 @@
 
 ## Next 3 Tasks
 
-1. Verify mobile service fixes on device: preview buttons, history popover, calendar/search scrolling, input zoom, sorter auto-follow, and single-output blocking.
+1. Verify mobile service fixes on device: icon preview buttons, fluid sorter/rail follow, audio routing, Drive-only deck import, and single-output blocking.
 2. Fix worship mobile items: newest-first history and original-key options in live key dropdown.
-3. Add Google Drive-assisted Sunday School source import/selection.
+3. Decide licensed Bible source/provider for ESV/NIV/NKJV/NLT before importing copyrighted versions.

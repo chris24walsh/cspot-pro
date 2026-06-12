@@ -1116,7 +1116,7 @@ def get_bible_passage(
 @router.get("/bible/search", response_model=list[BibleSearchHitRead])
 def search_bible(
     q: str,
-    version_code: str = "KJV",
+    version_code: str = "ASV",
     search_type: str = "auto",
     limit: int = 20,
     _current_user: User = Depends(require_permission("library:read")),

@@ -15,7 +15,7 @@ from app.modules.music.models import Song, SongPart
 from app.modules.identity.security import hash_password
 from app.modules.people.models import Instrument, TeamAssignment
 from app.modules.planning.models import Plan, PlanItem, PlanType
-from app.scripts.import_bible import autoload_kjv_if_missing
+from app.scripts.import_bible import autoload_asv_if_missing, autoload_kjv_if_missing
 
 
 def get_or_create(session: Session, model: type, defaults: dict | None = None, **filters):
@@ -289,6 +289,7 @@ def main() -> None:
         seed_messages(session, admin)
         session.commit()
         try:
+            autoload_asv_if_missing(session)
             autoload_kjv_if_missing(session)
         except Exception:
             session.rollback()
