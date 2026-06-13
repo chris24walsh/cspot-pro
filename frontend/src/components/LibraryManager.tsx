@@ -22,12 +22,14 @@ import {
   type Resource,
   type ResourcePayload,
 } from "../api";
+import { useConfirmationDialog } from "./ConfirmationDialog";
 
 function blankResource(): ResourcePayload {
   return { name: "", description: null, resource_type: "equipment" };
 }
 
 export function LibraryManager() {
+  const { confirm, confirmationDialog } = useConfirmationDialog();
   const [plans, setPlans] = useState<PlanSummary[]>([]);
   const [resources, setResources] = useState<Resource[]>([]);
   const [planResources, setPlanResources] = useState<PlanResource[]>([]);
@@ -126,7 +128,12 @@ export function LibraryManager() {
       return;
     }
 
-    const confirmed = window.confirm(`Remove resource "${selectedResource.name}"?`);
+    const confirmed = await confirm({
+      confirmLabel: "Remove",
+      message: `Remove resource "${selectedResource.name}"?`,
+      title: "Remove Resource",
+      tone: "danger",
+    });
     if (!confirmed) {
       return;
     }
@@ -176,7 +183,12 @@ export function LibraryManager() {
   }
 
   async function removeAssignment(row: PlanResource) {
-    const confirmed = window.confirm(`Remove "${row.resource_name}" from this plan?`);
+    const confirmed = await confirm({
+      confirmLabel: "Remove",
+      message: `Remove "${row.resource_name}" from this plan?`,
+      title: "Remove From Plan",
+      tone: "danger",
+    });
     if (!confirmed) {
       return;
     }
@@ -216,6 +228,7 @@ export function LibraryManager() {
 
   return (
     <section className="manager-grid" aria-label="Library management">
+      {confirmationDialog}
       <aside className="manager-list">
         <div className="section-heading">
           <h2>Resources</h2>

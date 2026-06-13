@@ -18,6 +18,7 @@ import {
   type UserInvitePayload,
   type UserInviteResponse,
 } from "../api";
+import { useConfirmationDialog } from "./ConfirmationDialog";
 
 interface UserFormState {
   name: string;
@@ -68,6 +69,7 @@ function formatUserStatus(user: User) {
 }
 
 export function UserManager() {
+  const { confirm, confirmationDialog } = useConfirmationDialog();
   const [users, setUsers] = useState<User[]>([]);
   const [roles, setRoles] = useState<Role[]>([]);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
@@ -239,7 +241,12 @@ export function UserManager() {
       return;
     }
 
-    const confirmed = window.confirm(`Deactivate user "${selectedUser.name}"?`);
+    const confirmed = await confirm({
+      confirmLabel: "Deactivate",
+      message: `Deactivate user "${selectedUser.name}"?`,
+      title: "Deactivate User",
+      tone: "danger",
+    });
     if (!confirmed) {
       return;
     }
@@ -280,7 +287,12 @@ export function UserManager() {
   }, [selectedUser?.id]);
 
   async function disconnectDrive() {
-    const confirmed = window.confirm("Disconnect the shared Google Drive account?");
+    const confirmed = await confirm({
+      confirmLabel: "Disconnect",
+      message: "Disconnect the shared Google Drive account?",
+      title: "Disconnect Google Drive",
+      tone: "danger",
+    });
     if (!confirmed) {
       return;
     }
@@ -301,6 +313,7 @@ export function UserManager() {
 
   return (
     <section className="manager-grid" aria-label="User management">
+      {confirmationDialog}
       <aside className="manager-list">
         <div className="section-heading">
           <h2>Users</h2>

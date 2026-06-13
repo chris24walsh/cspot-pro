@@ -1,0 +1,66 @@
+import { describe, expect, it } from "vitest";
+
+import type { PlanDetail, PlanItem, PlanSummary } from "./api";
+import { WORSHIP_SET_ANCHOR_ITEM_TYPE, dateKey, matchingWorshipSetForService, mergeWorshipSetIntoService } from "./worshipSets";
+
+function item(id: string, sequence: string, itemType: string, songId: string | null = null): PlanItem {
+  return {
+    comment: null,
+    files: [],
+    id,
+    item_type: itemType,
+    key_signature: null,
+    plan_id: "plan-1",
+    sequence,
+    song_id: songId,
+    teacher_notes: null,
+    title: id,
+  };
+}
+
+function summary(id: string, serviceDate: string, planType = "Service"): PlanSummary {
+  return {
+    id,
+    item_count: 0,
+    plan_type: planType,
+    service_date: serviceDate,
+    status: "draft",
+    subtitle: null,
+    title: id,
+  };
+}
+
+describe("worship set merge", () => {
+  it("uses local date keys when matching service and worship set days", () => {
+    const service = { service_date: "2026-02-01T10:30:00.000Z" } as PlanDetail;
+    const matching = summary("set-1", "2026-02-01T09:00:00.000Z", "Worship Set");
+    const other = summary("set-2", "2026-02-08T09:00:00.000Z", "Worship Set");
+
+    expect(dateKey(service.service_date)).toBe("2026-02-01");
+    expect(matchingWorshipSetForService(service, [other, matching])).toBe(matching);
+  });
+
+  it("replaces service placeholder with sorted worship set songs", () => {
+    const merged = mergeWorshipSetIntoService(
+      [
+        item("welcome", "10.00", "welcome"),
+        item("anchor", "20.00", WORSHIP_SET_ANCHOR_ITEM_TYPE),
+        item("sermon", "30.00", "sermon"),
+      ],
+      [item("song-b", "20.00", "song", "song-b"), item("song-a", "10.00", "song", "song-a")],
+    );
+
+    expect(merged.map((entry) => entry.id)).toEqual(["welcome", "song-a", "song-b", "sermon"]);
+    expect(merged[1].sequence).toBe("20.0001");
+    expect(merged[2].sequence).toBe("20.0002");
+  });
+
+  it("falls back to service items without anchors when no worship songs exist", () => {
+    const merged = mergeWorshipSetIntoService(
+      [item("welcome", "10.00", "welcome"), item("anchor", "20.00", WORSHIP_SET_ANCHOR_ITEM_TYPE)],
+      [item("note", "10.00", "custom")],
+    );
+
+    expect(merged.map((entry) => entry.id)).toEqual(["welcome"]);
+  });
+});

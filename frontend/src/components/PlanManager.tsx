@@ -19,6 +19,7 @@ import {
   type PlanType,
   type Song,
 } from "../api";
+import { useConfirmationDialog } from "./ConfirmationDialog";
 
 interface PlanFormState {
   title: string;
@@ -122,6 +123,7 @@ function blankItemForm(plan: PlanDetail | null): ItemFormState {
 }
 
 export function PlanManager({ canCreate, canEdit, onDataChange }: PlanManagerProps) {
+  const { confirm, confirmationDialog } = useConfirmationDialog();
   const [plans, setPlans] = useState<PlanSummary[]>([]);
   const [planTypes, setPlanTypes] = useState<PlanType[]>([]);
   const [songs, setSongs] = useState<Song[]>([]);
@@ -252,7 +254,12 @@ export function PlanManager({ canCreate, canEdit, onDataChange }: PlanManagerPro
       return;
     }
 
-    const confirmed = window.confirm(`Archive plan "${selectedPlan.title}"?`);
+    const confirmed = await confirm({
+      confirmLabel: "Archive",
+      message: `Archive plan "${selectedPlan.title}"?`,
+      title: "Archive Plan",
+      tone: "danger",
+    });
     if (!confirmed) {
       return;
     }
@@ -364,7 +371,12 @@ export function PlanManager({ canCreate, canEdit, onDataChange }: PlanManagerPro
       return;
     }
 
-    const confirmed = window.confirm(`Remove item "${selectedItem.title}" from this plan?`);
+    const confirmed = await confirm({
+      confirmLabel: "Remove",
+      message: `Remove item "${selectedItem.title}" from this plan?`,
+      title: "Remove Plan Item",
+      tone: "danger",
+    });
     if (!confirmed) {
       return;
     }
@@ -391,6 +403,7 @@ export function PlanManager({ canCreate, canEdit, onDataChange }: PlanManagerPro
 
   return (
     <section className="manager-grid" aria-label="Plan management">
+      {confirmationDialog}
       <aside className="manager-list">
         <div className="section-heading">
           <h2>Plans</h2>

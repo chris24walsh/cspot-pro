@@ -11,8 +11,10 @@ import {
   type MessageThread,
   type MessageThreadDetail,
 } from "../api";
+import { useConfirmationDialog } from "./ConfirmationDialog";
 
 export function MessageManager({ canWrite }: { canWrite: boolean }) {
+  const { confirm, confirmationDialog } = useConfirmationDialog();
   const [threads, setThreads] = useState<MessageThread[]>([]);
   const [thread, setThread] = useState<MessageThreadDetail | null>(null);
   const [users, setUsers] = useState<Member[]>([]);
@@ -108,7 +110,12 @@ export function MessageManager({ canWrite }: { canWrite: boolean }) {
       return;
     }
 
-    const confirmed = window.confirm(`Delete message thread "${thread.subject}"?`);
+    const confirmed = await confirm({
+      confirmLabel: "Delete",
+      message: `Delete message thread "${thread.subject}"?`,
+      title: "Delete Message Thread",
+      tone: "danger",
+    });
     if (!confirmed) {
       return;
     }
@@ -128,6 +135,7 @@ export function MessageManager({ canWrite }: { canWrite: boolean }) {
 
   return (
     <section className="manager-grid" aria-label="Messages">
+      {confirmationDialog}
       <aside className="manager-list">
         <div className="section-heading">
           <h2>Messages</h2>

@@ -65,6 +65,7 @@ import {
   type PresentationTheme,
 } from "../presentation";
 import { AutoFitSlideText } from "./AutoFitSlideText";
+import { useConfirmationDialog } from "./ConfirmationDialog";
 import { ScaledSlideImage } from "./ScaledSlideImage";
 import { SongEditorDialog } from "./SongEditorDialog";
 import { showToast } from "../toast";
@@ -581,6 +582,7 @@ export function PresentationView({
   canCreateSong: boolean;
   canEditSong: boolean;
 }) {
+  const { confirm, confirmationDialog } = useConfirmationDialog();
   const [plans, setPlans] = useState<PlanSummary[]>([]);
   const [planTypes, setPlanTypes] = useState<PlanType[]>([]);
   const [songs, setSongs] = useState<Song[]>([]);
@@ -1056,7 +1058,7 @@ export function PresentationView({
     });
   }
 
-  function guardedLiveNavigation(nextIndex: number, navigate: (boundedIndex: number) => void) {
+  async function guardedLiveNavigation(nextIndex: number, navigate: (boundedIndex: number) => void) {
     const slideCount = slides.length;
     if (!slideCount) {
       setLiveBlanked(false);
@@ -1068,7 +1070,11 @@ export function PresentationView({
     const boundedIndex = Math.min(Math.max(nextIndex, 0), slideCount - 1);
     const targetSlide = slides[boundedIndex];
     if (playingAudioSectionId && targetSlide?.sectionId !== playingAudioSectionId) {
-      const confirmed = window.confirm("This will fade out the playing YouTube audio. Continue?");
+      const confirmed = await confirm({
+        confirmLabel: "Fade Out",
+        message: "This will fade out the playing YouTube audio. Continue?",
+        title: "Fade Playing Audio",
+      });
       if (!confirmed) {
         return;
       }
@@ -1080,7 +1086,7 @@ export function PresentationView({
   }
 
   function setLiveSlide(nextIndex: number) {
-    guardedLiveNavigation(nextIndex, (boundedIndex) => {
+    void guardedLiveNavigation(nextIndex, (boundedIndex) => {
       setLiveBlanked(false);
       setLiveIndex(boundedIndex);
       void publishLiveState(boundedIndex, { blanked: false });
@@ -1096,7 +1102,7 @@ export function PresentationView({
       return;
     }
     const nextIndex = Math.min(Math.max(liveIndex + delta, 0), slideCount - 1);
-    guardedLiveNavigation(nextIndex, (boundedIndex) => {
+    void guardedLiveNavigation(nextIndex, (boundedIndex) => {
       setLiveBlanked(false);
       setLiveIndex(boundedIndex);
       void publishLiveState(boundedIndex, { blanked: false });
@@ -1612,7 +1618,12 @@ export function PresentationView({
       return;
     }
 
-    const confirmed = window.confirm(`Archive service "${plan.title}"?`);
+    const confirmed = await confirm({
+      confirmLabel: "Archive",
+      message: `Archive service "${plan.title}"?`,
+      title: "Archive Service",
+      tone: "danger",
+    });
     if (!confirmed) {
       return;
     }
@@ -3175,6 +3186,7 @@ export function PresentationView({
         }
       }}
     >
+      {confirmationDialog}
       <input
         aria-hidden="true"
         autoCapitalize="off"

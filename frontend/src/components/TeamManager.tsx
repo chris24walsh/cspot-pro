@@ -14,6 +14,7 @@ import {
   type TeamAssignment,
   type TeamAssignmentPayload,
 } from "../api";
+import { useConfirmationDialog } from "./ConfirmationDialog";
 
 interface TeamFormState {
   user_id: string;
@@ -55,6 +56,7 @@ function payloadFromForm(planId: string, form: TeamFormState): TeamAssignmentPay
 }
 
 export function TeamManager({ canEdit }: { canEdit: boolean }) {
+  const { confirm, confirmationDialog } = useConfirmationDialog();
   const [plans, setPlans] = useState<PlanSummary[]>([]);
   const [users, setUsers] = useState<Member[]>([]);
   const [instruments, setInstruments] = useState<Instrument[]>([]);
@@ -161,7 +163,12 @@ export function TeamManager({ canEdit }: { canEdit: boolean }) {
       return;
     }
 
-    const confirmed = window.confirm(`Remove ${selectedAssignment.user_name ?? "this team member"}?`);
+    const confirmed = await confirm({
+      confirmLabel: "Remove",
+      message: `Remove ${selectedAssignment.user_name ?? "this team member"}?`,
+      title: "Remove Team Member",
+      tone: "danger",
+    });
     if (!confirmed) {
       return;
     }
@@ -183,6 +190,7 @@ export function TeamManager({ canEdit }: { canEdit: boolean }) {
 
   return (
     <section className="manager-grid" aria-label="Team assignments">
+      {confirmationDialog}
       <aside className="manager-list">
         <div className="section-heading">
           <h2>Plan Team</h2>
