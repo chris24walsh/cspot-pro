@@ -80,6 +80,9 @@ import {
 } from "../worshipSets";
 
 const SELECTED_SERVICE_SESSION_KEY = "cspot.selectedServicePlanId";
+const AUDIO_FADE_DURATION_MS = 2000;
+const AUDIO_FADE_STEPS = 20;
+const AUDIO_FADE_INTERVAL_MS = AUDIO_FADE_DURATION_MS / AUDIO_FADE_STEPS;
 
 function outputOwnerId() {
   if (crypto.randomUUID) {
@@ -1047,11 +1050,25 @@ export function PresentationView({
       return;
     }
     setPlayingAudioSectionId(null);
-    localAudioFrameRef.current?.contentWindow?.postMessage(
-      JSON.stringify({ event: "command", func: "pauseVideo", args: [] }),
-      "*",
-    );
-    setLocalAudioUrl(null);
+    if (localAudioUrl) {
+      let step = 0;
+      const interval = window.setInterval(() => {
+        step += 1;
+        const volume = Math.max(0, Math.round(100 * (1 - step / AUDIO_FADE_STEPS)));
+        localAudioFrameRef.current?.contentWindow?.postMessage(
+          JSON.stringify({ event: "command", func: "setVolume", args: [volume] }),
+          "*",
+        );
+        if (step >= AUDIO_FADE_STEPS) {
+          window.clearInterval(interval);
+          localAudioFrameRef.current?.contentWindow?.postMessage(
+            JSON.stringify({ event: "command", func: "pauseVideo", args: [] }),
+            "*",
+          );
+          setLocalAudioUrl(null);
+        }
+      }, AUDIO_FADE_INTERVAL_MS);
+    }
     void publishLiveState(liveIndex, {
       videoAction: "fade-stop",
       videoActionAt: Date.now(),
@@ -1079,7 +1096,7 @@ export function PresentationView({
         return;
       }
       publishFadeOutAudio();
-      window.setTimeout(() => navigate(boundedIndex), 800);
+      window.setTimeout(() => navigate(boundedIndex), AUDIO_FADE_DURATION_MS);
       return;
     }
     navigate(boundedIndex);

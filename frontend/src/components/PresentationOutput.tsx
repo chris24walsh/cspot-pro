@@ -27,6 +27,10 @@ import { isWorshipSetPlan, matchingWorshipSetForService, mergeWorshipSetIntoServ
 import { AutoFitSlideText } from "./AutoFitSlideText";
 import { ScaledSlideImage } from "./ScaledSlideImage";
 
+const AUDIO_FADE_DURATION_MS = 2000;
+const AUDIO_FADE_STEPS = 20;
+const AUDIO_FADE_INTERVAL_MS = AUDIO_FADE_DURATION_MS / AUDIO_FADE_STEPS;
+
 function readLiveState(): PresentationLiveState | null {
   const value = localStorage.getItem(PRESENTATION_STORAGE_KEY);
   if (!value) {
@@ -287,14 +291,14 @@ export function PresentationOutput() {
         let step = 0;
         const interval = window.setInterval(() => {
           step += 1;
-          video.volume = Math.max(0, startVolume * (1 - step / 8));
-          if (step >= 8) {
+          video.volume = Math.max(0, startVolume * (1 - step / AUDIO_FADE_STEPS));
+          if (step >= AUDIO_FADE_STEPS) {
             window.clearInterval(interval);
             video.pause();
             video.currentTime = 0;
             video.volume = startVolume;
           }
-        }, 90);
+        }, AUDIO_FADE_INTERVAL_MS);
       } else {
         videoElementRef.current?.pause();
         if (videoElementRef.current) {
@@ -308,19 +312,19 @@ export function PresentationOutput() {
       let step = 0;
       const interval = window.setInterval(() => {
         step += 1;
-        const volume = Math.max(0, Math.round(100 * (1 - step / 8)));
+        const volume = Math.max(0, Math.round(100 * (1 - step / AUDIO_FADE_STEPS)));
         videoFrameRef.current?.contentWindow?.postMessage(
           JSON.stringify({ event: "command", func: "setVolume", args: [volume] }),
           "*",
         );
-        if (step >= 8) {
+        if (step >= AUDIO_FADE_STEPS) {
           window.clearInterval(interval);
           videoFrameRef.current?.contentWindow?.postMessage(
             JSON.stringify({ event: "command", func: "pauseVideo", args: [] }),
             "*",
           );
         }
-      }, 90);
+      }, AUDIO_FADE_INTERVAL_MS);
       return;
     }
 

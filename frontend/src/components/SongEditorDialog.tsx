@@ -410,8 +410,15 @@ export function SongEditorDialog({
   }
 
   function saveOrCloseInlineEditor() {
-    if (chordInput.trim()) saveAnnotation();
-    else cancelInlineChordEdit();
+    if (chordInput.trim()) {
+      saveAnnotation();
+    } else if (editingAnnotationId) {
+      setChordChart((current) => removeChordAnnotation(current, editingAnnotationId));
+      setLegacyChords(null);
+      cancelInlineChordEdit();
+    } else {
+      cancelInlineChordEdit();
+    }
   }
 
   function moveAnnotation(annotationId: string, lineIndex: number, anchorIndex: number) {
@@ -653,7 +660,7 @@ export function SongEditorDialog({
                                 size={Math.min(8, Math.max(2, chordInput.length || 2))}
                                 value={chordInput}
                               />
-                              {annotation ? <button className="musician-delete-button" disabled={!canEdit} onMouseDown={(event) => event.preventDefault()} onClick={() => { setChordChart((current) => removeChordAnnotation(current, annotation.id)); cancelInlineChordEdit(); }} type="button">x</button> : null}
+                              {annotation ? <button className="musician-delete-button" disabled={!canEdit} onMouseDown={(event) => event.preventDefault()} onClick={() => { setChordChart((current) => removeChordAnnotation(current, annotation.id)); setLegacyChords(null); cancelInlineChordEdit(); }} type="button">x</button> : null}
                             </span>
                           );
                         }

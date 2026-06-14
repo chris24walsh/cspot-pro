@@ -4,15 +4,21 @@ import {
   ChevronDown,
   ChevronLeft,
   ChevronRight,
+  ChevronUp,
   ExternalLink,
   FileText,
   Gamepad2,
+  History,
   Library,
   Plus,
+  Printer,
   RefreshCw,
   Save,
   Scissors,
   Search,
+  Shuffle,
+  UserPlus,
+  WandSparkles,
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
@@ -42,7 +48,7 @@ type LessonElement = {
 const LESSON_ELEMENTS: LessonElement[] = [
   { key: "passage", label: "Passage / Story", icon: FileText, resourceTypes: ["bible_story"] },
   { key: "craft", label: "Craft", icon: Scissors, resourceTypes: ["craft"] },
-  { key: "activity", label: "Printout / Activity", icon: Library, resourceTypes: ["coloring", "worksheet", "media"] },
+  { key: "activity", label: "Printout / Activity", icon: Library, resourceTypes: ["coloring", "worksheet", "puzzle", "media"] },
   { key: "game", label: "Game", icon: Gamepad2, resourceTypes: ["game"] },
   { key: "resources", label: "All Resources", icon: Library, resourceTypes: ["lesson_packet", "bible_story", "craft", "game", "coloring", "worksheet", "media"] },
 ];
@@ -54,6 +60,7 @@ const RESOURCE_LABELS: Record<string, string> = {
   game: "Game",
   coloring: "Coloring",
   worksheet: "Sheet",
+  puzzle: "Puzzle",
   media: "Video",
 };
 
@@ -150,6 +157,16 @@ function teacherColor(name: string) {
   return TEACHER_COLORS[hash % TEACHER_COLORS.length];
 }
 
+function teacherInitials(name: string) {
+  const initials = name
+    .trim()
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase())
+    .join("");
+  return initials || "?";
+}
+
 function resourceMeta(resource: SundaySchoolResource) {
   const pages = resource.page_start
     ? resource.page_start === resource.page_end
@@ -163,6 +180,33 @@ function resourceMeta(resource: SundaySchoolResource) {
 
 function resourceAssignment(resource: SundaySchoolResource) {
   return [resource.title, resource.summary].filter(Boolean).join("\n");
+}
+
+function isPrintableResource(resource: SundaySchoolResource) {
+  return Boolean(resource.page_start && ["coloring", "worksheet", "puzzle", "craft"].includes(resource.resource_type));
+}
+
+function generatedLessonContent(theme: string, reference: string) {
+  const nextTheme = theme.trim() || "Love in Action";
+  const nextReference = reference.trim() || "1 John 3:16-18";
+  const mainIdea = "God loves us first and helps us show love with our actions.";
+  return {
+    theme: nextTheme,
+    bible_reference: nextReference,
+    bible_story: [
+      `${nextTheme} (${nextReference})`,
+      `Main idea: ${mainIdea}`,
+      "Younger story (3-5): Jesus loves us and shows us what love looks like. Love is not only something we say. We can show love by sharing, helping, using gentle hands, and being kind.",
+      "Older story (6-12): The Bible teaches that real love shows up in what we do. Jesus gave himself for us, so we can look for people who need help and choose actions that show God's love.",
+      "Questions for younger children:\n1. Who loves us first?\n2. What is one kind thing we can do today?\n3. How can our hands show love?",
+      "Questions for older children:\n1. Why do actions matter as well as words?\n2. What might stop us from helping someone?\n3. Who could we encourage or serve this week?",
+      "Prayer:\nDear God, thank you for loving us first. Thank you for Jesus. Help us love with kind words and helpful actions. Show us someone we can help today. Amen.",
+    ].join("\n\n"),
+    crafts: "Kindness coupon card: children make a small card with 2-3 coupons for helpful actions, such as tidy up, share a toy, make a drink, or pray for someone.\n\nSimple heart plate: decorate a paper plate with hearts and draw three ways to show love this week.",
+    games: "Love in action charades: children act out kind actions such as sharing, helping, listening, welcoming, or praying, while the group guesses.\n\nPass the kindness: pass a soft item around the circle; whoever holds it names one kind action they can do.",
+    source_notes: "Printable ideas:\n- Colouring page: Jesus helping and welcoming children.\n- Word search: love, help, share, kind, Jesus, truth, action.\n- Younger activity: match kind actions to pictures.\n- Older activity: write one real action beside three people they can encourage.",
+    teacher_notes: "Generated starter plan. Review wording, choose one craft, and add/print any PDF activity pages before Sunday.",
+  };
 }
 
 function firstLine(value: string) {
@@ -181,6 +225,9 @@ export function SundaySchoolView({ canEdit }: { canEdit: boolean }) {
   const [mobilePane, setMobilePane] = useState<SundaySchoolPane>("library");
   const [calendarOpen, setCalendarOpen] = useState(false);
   const [selectedElementKey, setSelectedElementKey] = useState<LessonElementKey>("passage");
+  const [expandedElementKey, setExpandedElementKey] = useState<LessonElementKey | null>(null);
+  const [teacherPickerDate, setTeacherPickerDate] = useState<string | null>(null);
+  const [newTeacherName, setNewTeacherName] = useState("");
   const [resourcePickerOpen, setResourcePickerOpen] = useState(false);
   const [resourceQuery, setResourceQuery] = useState("");
   const [loading, setLoading] = useState(true);
@@ -194,6 +241,11 @@ export function SundaySchoolView({ canEdit }: { canEdit: boolean }) {
     [lessons],
   );
   const selectedLesson = lessonsByDate.get(selectedDate) ?? null;
+  const teacherNames = useMemo(
+    () => Array.from(new Set(lessons.map((lesson) => lesson.teacher_name.trim()).filter(Boolean))).sort((left, right) => left.localeCompare(right)),
+    [lessons],
+  );
+  const teacherPickerLesson = teacherPickerDate ? lessonsByDate.get(teacherPickerDate) ?? null : null;
   const selectedElement = LESSON_ELEMENTS.find((element) => element.key === selectedElementKey) ?? LESSON_ELEMENTS[0];
   const calendarDays = useMemo(() => calendarDaysForMonth(calendarMonth), [calendarMonth]);
   const scheduleDates = useMemo(() => {
@@ -277,6 +329,73 @@ export function SundaySchoolView({ canEdit }: { canEdit: boolean }) {
     setMobilePane("set");
   }
 
+  function shiftSelectedDate(weeks: number) {
+    const date = new Date(`${selectedDate}T12:00:00`);
+    if (Number.isNaN(date.getTime())) {
+      return;
+    }
+    date.setDate(date.getDate() + weeks * 7);
+    chooseDate(dateInputFromDate(date));
+  }
+
+  async function saveLessonDraft(nextDraft: SundaySchoolLessonPayload, date = selectedDate) {
+    if (!canEdit) {
+      setMessage("You do not have permission to edit Sunday School lessons.");
+      return null;
+    }
+    const existingLesson = lessonsByDate.get(date) ?? null;
+    const payload = { ...nextDraft, lesson_date: date };
+    const saved = existingLesson ? await updateSundaySchoolLesson(existingLesson.id, payload) : await createSundaySchoolLesson(payload);
+    setLessons((current) => {
+      const withoutSaved = current.filter((lesson) => lesson.id !== saved.id);
+      return [...withoutSaved, saved].sort((left, right) => left.lesson_date.localeCompare(right.lesson_date));
+    });
+    return saved;
+  }
+
+  async function assignTeacher(date: string, teacherName: string) {
+    const name = teacherName.trim();
+    const lesson = lessonsByDate.get(date);
+    const nextDraft = lesson ? draftFromLesson(lesson) : blankLesson(date);
+    nextDraft.teacher_name = name;
+    try {
+      const saved = await saveLessonDraft(nextDraft, date);
+      if (saved && date === selectedDate) {
+        setDraft(draftFromLesson(saved));
+      }
+      setTeacherPickerDate(null);
+      setNewTeacherName("");
+      setMessage(name ? `Teacher set to ${name}.` : "Teacher cleared.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not assign teacher.");
+    }
+  }
+
+  async function swapTeacherWith(date: string) {
+    if (!teacherPickerDate || date === teacherPickerDate) {
+      return;
+    }
+    const sourceLesson = lessonsByDate.get(teacherPickerDate);
+    const targetLesson = lessonsByDate.get(date);
+    const sourceDraft = sourceLesson ? draftFromLesson(sourceLesson) : blankLesson(teacherPickerDate);
+    const targetDraft = targetLesson ? draftFromLesson(targetLesson) : blankLesson(date);
+    const sourceTeacher = sourceDraft.teacher_name;
+    sourceDraft.teacher_name = targetDraft.teacher_name;
+    targetDraft.teacher_name = sourceTeacher;
+    try {
+      const [sourceSaved, targetSaved] = await Promise.all([
+        saveLessonDraft(sourceDraft, teacherPickerDate),
+        saveLessonDraft(targetDraft, date),
+      ]);
+      if (sourceSaved && teacherPickerDate === selectedDate) setDraft(draftFromLesson(sourceSaved));
+      if (targetSaved && date === selectedDate) setDraft(draftFromLesson(targetSaved));
+      setTeacherPickerDate(null);
+      setMessage("Teachers swapped.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not swap teachers.");
+    }
+  }
+
   function elementSummary(element: LessonElement) {
     if (element.key === "passage") {
       return draft.bible_reference || firstLine(draft.bible_story) || "Choose passage";
@@ -291,6 +410,42 @@ export function SundaySchoolView({ canEdit }: { canEdit: boolean }) {
       return firstLine(draft.games) || "Choose game";
     }
     return selectedResources.length ? `${selectedResources.length} resources` : "No dated resources";
+  }
+
+  function elementDraftField(element: LessonElement): keyof SundaySchoolLessonPayload | null {
+    if (element.key === "passage") return "bible_story";
+    if (element.key === "craft") return "crafts";
+    if (element.key === "activity") return "source_notes";
+    if (element.key === "game") return "games";
+    return null;
+  }
+
+  function elementTextValue(element: LessonElement) {
+    const field = elementDraftField(element);
+    return field ? draft[field] : "";
+  }
+
+  function updateElementText(element: LessonElement, value: string) {
+    const field = elementDraftField(element);
+    if (field) {
+      updateDraft(field, value);
+    }
+  }
+
+  function printResource(resource: SundaySchoolResource) {
+    const url = sundaySchoolResourceFileUrl(resource.id);
+    const printWindow = window.open(url, "_blank", "noopener,noreferrer");
+    if (!printWindow) {
+      setMessage("Could not open the printable page.");
+      return;
+    }
+    window.setTimeout(() => {
+      try {
+        printWindow.print();
+      } catch {
+        // The browser may block script access to the PDF viewer; the page is still open for native print.
+      }
+    }, 900);
   }
 
   function assignResource(resource: SundaySchoolResource) {
@@ -320,15 +475,31 @@ export function SundaySchoolView({ canEdit }: { canEdit: boolean }) {
     const passage = selectedResources.find((resource) => resource.resource_type === "bible_story") ?? packet;
     const craft = selectedResources.find((resource) => ["craft", "coloring", "worksheet"].includes(resource.resource_type));
     const game = selectedResources.find((resource) => resource.resource_type === "game");
+    const printables = selectedResources.filter(isPrintableResource);
     setDraft((current) => ({
       ...current,
       theme: current.theme || packet?.theme || passage?.theme || "",
       bible_reference: current.bible_reference || passage?.bible_reference || "",
-      bible_story: current.bible_story || (passage ? resourceAssignment(passage) : ""),
+      bible_story: current.bible_story || packet?.summary || (passage ? resourceAssignment(passage) : ""),
       crafts: current.crafts || (craft ? resourceAssignment(craft) : ""),
       games: current.games || (game ? resourceAssignment(game) : ""),
-      source_notes: current.source_notes || selectedResources.map((resource) => resource.title).join("\n"),
+      source_notes: current.source_notes || printables.map((resource) => `${resourceMeta(resource)}\n${resource.title}`).join("\n\n"),
     }));
+  }
+
+  function generateLesson() {
+    const generated = generatedLessonContent(draft.theme, draft.bible_reference);
+    setDraft((current) => ({
+      ...current,
+      theme: current.theme || generated.theme,
+      bible_reference: current.bible_reference || generated.bible_reference,
+      bible_story: current.bible_story || generated.bible_story,
+      crafts: current.crafts || generated.crafts,
+      games: current.games || generated.games,
+      source_notes: current.source_notes || generated.source_notes,
+      teacher_notes: current.teacher_notes || generated.teacher_notes,
+    }));
+    setMessage("Generated a starter lesson plan.");
   }
 
   async function saveLesson() {
@@ -339,11 +510,8 @@ export function SundaySchoolView({ canEdit }: { canEdit: boolean }) {
     setSaving(true);
     setMessage(null);
     try {
-      const saved = selectedLesson ? await updateSundaySchoolLesson(selectedLesson.id, draft) : await createSundaySchoolLesson(draft);
-      setLessons((current) => {
-        const withoutSaved = current.filter((lesson) => lesson.id !== saved.id);
-        return [...withoutSaved, saved].sort((left, right) => left.lesson_date.localeCompare(right.lesson_date));
-      });
+      const saved = await saveLessonDraft(draft);
+      if (!saved) return;
       setSelectedDate(dateInputFromIso(saved.lesson_date));
       setMessage("Lesson saved.");
     } catch (error) {
@@ -382,10 +550,19 @@ export function SundaySchoolView({ canEdit }: { canEdit: boolean }) {
       </div>
 
       <aside className={`worship-song-browser ${mobilePane === "library" ? "is-mobile-active" : ""}`}>
-        <div className="worship-library-search-row">
+        <div className="worship-library-search-row sunday-school-date-row">
+          <button aria-label="Previous Sunday" className="section-icon-button worship-set-step-button" onClick={() => shiftSelectedDate(-1)} type="button">
+            <ChevronLeft size={15} aria-hidden="true" />
+          </button>
           <button className="text-button topbar-service-button" onClick={() => setCalendarOpen(true)} type="button">
             <CalendarDays size={16} aria-hidden="true" />
             <span>{shortDate(selectedDate)}</span>
+          </button>
+          <button aria-label="Next Sunday" className="section-icon-button worship-set-step-button" onClick={() => shiftSelectedDate(1)} type="button">
+            <ChevronRight size={15} aria-hidden="true" />
+          </button>
+          <button aria-label="Open Sunday School history" className="section-icon-button worship-history-button" onClick={() => setCalendarOpen(true)} type="button">
+            <History size={15} aria-hidden="true" />
           </button>
           <button className="text-button" disabled={!canEdit || importing} onClick={() => void importResources()} type="button">
             <RefreshCw size={14} aria-hidden="true" />
@@ -415,6 +592,16 @@ export function SundaySchoolView({ canEdit }: { canEdit: boolean }) {
                     </small>
                   </span>
                 </button>
+                <button
+                  aria-label={`Assign teacher for ${shortDate(date)}`}
+                  className="section-icon-button sunday-school-teacher-button"
+                  disabled={!canEdit}
+                  onClick={() => setTeacherPickerDate(date)}
+                  title="Assign teacher"
+                  type="button"
+                >
+                  {lesson?.teacher_name ? teacherInitials(lesson.teacher_name) : <UserPlus size={14} aria-hidden="true" />}
+                </button>
               </div>
             );
           })}
@@ -428,9 +615,26 @@ export function SundaySchoolView({ canEdit }: { canEdit: boolean }) {
             <h2>{longDate(selectedDate)}</h2>
           </div>
           <div className="worship-set-toolbar-actions sunday-school-toolbar-actions">
-            <button className="text-button" disabled={!canEdit || !selectedResources.length} onClick={applyMatchedResources} type="button">
+            <select
+              aria-label="Teacher"
+              disabled={!canEdit}
+              onChange={(event) => updateDraft("teacher_name", event.target.value)}
+              value={draft.teacher_name}
+            >
+              <option value="">No teacher</option>
+              {teacherNames.map((teacher) => <option key={teacher} value={teacher}>{teacher}</option>)}
+            </select>
+            <button className="text-button" disabled={!canEdit} onClick={() => setTeacherPickerDate(selectedDate)} type="button">
+              <UserPlus size={14} aria-hidden="true" />
+              Teacher
+            </button>
+            <button className="text-button sunday-school-use-matched-button" disabled={!canEdit || !selectedResources.length} onClick={applyMatchedResources} type="button">
               <CheckCircle2 size={14} aria-hidden="true" />
               Use matched
+            </button>
+            <button className="text-button" disabled={!canEdit} onClick={generateLesson} type="button">
+              <WandSparkles size={14} aria-hidden="true" />
+              Generate
             </button>
             <button className="primary-button" disabled={!canEdit || saving} onClick={() => void saveLesson()} type="button">
               {selectedLesson ? <Save size={16} aria-hidden="true" /> : <Plus size={16} aria-hidden="true" />}
@@ -442,24 +646,12 @@ export function SundaySchoolView({ canEdit }: { canEdit: boolean }) {
         {loading ? <p className="empty-state">Loading lessons...</p> : null}
         <div className="sunday-school-core-fields">
           <label>
-            <span>Teacher</span>
-            <input disabled={!canEdit} onChange={(event) => updateDraft("teacher_name", event.target.value)} placeholder="Scheduled teacher" value={draft.teacher_name} />
-          </label>
-          <label>
             <span>Theme</span>
             <input disabled={!canEdit} onChange={(event) => updateDraft("theme", event.target.value)} placeholder="Theme from plan" value={draft.theme} />
           </label>
           <label>
             <span>Bible Reference</span>
             <input disabled={!canEdit} onChange={(event) => updateDraft("bible_reference", event.target.value)} placeholder="e.g. John 6:56-69" value={draft.bible_reference} />
-          </label>
-          <label>
-            <span>Status</span>
-            <select disabled={!canEdit} onChange={(event) => updateDraft("status", event.target.value)} value={draft.status}>
-              <option value="draft">Draft</option>
-              <option value="ready">Ready</option>
-              <option value="printed">Printed</option>
-            </select>
           </label>
         </div>
         <div className="worship-set-layout sunday-school-element-layout">
@@ -468,12 +660,16 @@ export function SundaySchoolView({ canEdit }: { canEdit: boolean }) {
               {LESSON_ELEMENTS.map((element, index) => {
                 const Icon = element.icon;
                 const isSelected = selectedElementKey === element.key;
+                const isExpanded = expandedElementKey === element.key;
                 const count = selectedResources.filter((resource) => element.resourceTypes.includes(resource.resource_type)).length;
                 return (
                   <article
-                    className={`worship-set-item sunday-school-element-item ${isSelected ? "is-selected" : ""}`}
+                    className={`worship-set-item sunday-school-element-item ${isSelected ? "is-selected" : ""} ${isExpanded ? "slides-expanded" : ""}`}
                     key={element.key}
-                    onClick={() => setSelectedElementKey(element.key)}
+                    onClick={() => {
+                      setSelectedElementKey(element.key);
+                      setExpandedElementKey((current) => (current === element.key ? null : element.key));
+                    }}
                     role="button"
                     tabIndex={0}
                   >
@@ -486,17 +682,46 @@ export function SundaySchoolView({ canEdit }: { canEdit: boolean }) {
                       <small>{elementSummary(element)}</small>
                     </div>
                     <em>{count}</em>
-                    {isSelected ? (
+                    <button
+                      aria-expanded={isExpanded}
+                      aria-label={`${isExpanded ? "Hide" : "Show"} ${element.label}`}
+                      className="section-icon-button worship-set-slide-toggle sunday-school-element-toggle"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        setSelectedElementKey(element.key);
+                        setExpandedElementKey((current) => (current === element.key ? null : element.key));
+                      }}
+                      type="button"
+                    >
+                      {isExpanded ? <ChevronUp size={14} aria-hidden="true" /> : <ChevronDown size={14} aria-hidden="true" />}
+                    </button>
+                    {isExpanded ? (
                       <div className="sunday-school-mobile-resource-panel">
+                        {elementDraftField(element) ? (
+                          <textarea
+                            disabled={!canEdit}
+                            onClick={(event) => event.stopPropagation()}
+                            onChange={(event) => updateElementText(element, event.target.value)}
+                            placeholder={`${element.label} notes`}
+                            value={elementTextValue(element)}
+                          />
+                        ) : null}
                         <button className="text-button" disabled={!canEdit || element.key === "resources"} onClick={() => setResourcePickerOpen(true)} type="button">
                           <Search size={14} aria-hidden="true" />
                           Choose alternative
                         </button>
                         {elementResources.slice(0, 5).map((resource) => (
-                          <a href={sundaySchoolResourceFileUrl(resource.id)} key={resource.id} rel="noreferrer" target="_blank">
-                            <span>{resourceMeta(resource)}</span>
-                            <strong>{resource.title}</strong>
-                          </a>
+                          <div className="sunday-school-mobile-resource-row" key={resource.id}>
+                            <a href={sundaySchoolResourceFileUrl(resource.id)} rel="noreferrer" target="_blank">
+                              <span>{resourceMeta(resource)}</span>
+                              <strong>{resource.title}</strong>
+                            </a>
+                            {isPrintableResource(resource) ? (
+                              <button className="section-icon-button" onClick={(event) => { event.stopPropagation(); printResource(resource); }} type="button" aria-label={`Print ${resource.title}`}>
+                                <Printer size={14} aria-hidden="true" />
+                              </button>
+                            ) : null}
+                          </div>
                         ))}
                         {!elementResources.length ? <p>No linked resources for this Sunday.</p> : null}
                       </div>
@@ -524,6 +749,15 @@ export function SundaySchoolView({ canEdit }: { canEdit: boolean }) {
                 </button>
               ) : null}
             </div>
+            {elementDraftField(selectedElement) ? (
+              <textarea
+                className="sunday-school-element-textarea"
+                disabled={!canEdit}
+                onChange={(event) => updateElementText(selectedElement, event.target.value)}
+                placeholder={`${selectedElement.label} notes`}
+                value={elementTextValue(selectedElement)}
+              />
+            ) : null}
             <div className="sunday-school-resource-review-list">
               {elementResources.map((resource) => (
                 <article className="sunday-school-resource-review-card" key={resource.id}>
@@ -536,6 +770,12 @@ export function SundaySchoolView({ canEdit }: { canEdit: boolean }) {
                     <ExternalLink size={14} aria-hidden="true" />
                     {resource.page_start ? "Open pages" : "Open"}
                   </a>
+                  {isPrintableResource(resource) ? (
+                    <button className="text-button" onClick={() => printResource(resource)} type="button">
+                      <Printer size={14} aria-hidden="true" />
+                      Print
+                    </button>
+                  ) : null}
                 </article>
               ))}
               {!elementResources.length ? <p className="empty-state compact-empty">No linked resources for this Sunday.</p> : null}
@@ -639,6 +879,54 @@ export function SundaySchoolView({ canEdit }: { canEdit: boolean }) {
                 </article>
               ))}
               {!pickerResources.length ? <p className="empty-state">No matching resources.</p> : null}
+            </div>
+          </section>
+        </div>
+      ) : null}
+
+      {teacherPickerDate ? (
+        <div className="app-dialog-backdrop" role="presentation" onMouseDown={() => setTeacherPickerDate(null)}>
+          <section className="app-dialog sunday-school-teacher-dialog" onMouseDown={(event) => event.stopPropagation()} role="dialog">
+            <div className="section-heading">
+              <div>
+                <p className="eyebrow">Teacher</p>
+                <h2>{shortDate(teacherPickerDate)}</h2>
+              </div>
+              <button className="text-button" onClick={() => setTeacherPickerDate(null)} type="button">Close</button>
+            </div>
+            <div className="sunday-school-teacher-picker-list">
+              <button className={!teacherPickerLesson?.teacher_name ? "selected" : ""} disabled={!canEdit} onClick={() => void assignTeacher(teacherPickerDate, "")} type="button">
+                <span className="teacher-avatar">?</span>
+                <strong>Unassigned</strong>
+              </button>
+              {teacherNames.map((teacher) => (
+                <button className={`${teacherColor(teacher)} ${teacherPickerLesson?.teacher_name === teacher ? "selected" : ""}`} disabled={!canEdit} key={teacher} onClick={() => void assignTeacher(teacherPickerDate, teacher)} type="button">
+                  <span className="teacher-avatar">{teacherInitials(teacher)}</span>
+                  <strong>{teacher}</strong>
+                </button>
+              ))}
+            </div>
+            <div className="inline-input-action">
+              <input onChange={(event) => setNewTeacherName(event.target.value)} placeholder="Add teacher" value={newTeacherName} />
+              <button className="primary-button" disabled={!canEdit || !newTeacherName.trim()} onClick={() => void assignTeacher(teacherPickerDate, newTeacherName)} type="button">
+                Add
+              </button>
+            </div>
+            <div className="sunday-school-swap-list">
+              <h3>Swap With</h3>
+              {scheduleDates
+                .filter((date) => date !== teacherPickerDate)
+                .slice(20, 34)
+                .map((date) => {
+                  const lesson = lessonsByDate.get(date);
+                  return (
+                    <button className={`stack-row ${teacherColor(lesson?.teacher_name || "")}`} disabled={!canEdit} key={date} onClick={() => void swapTeacherWith(date)} type="button">
+                      <Shuffle size={14} aria-hidden="true" />
+                      <strong>{shortDate(date)}</strong>
+                      <span>{lesson?.teacher_name || "Unassigned"}</span>
+                    </button>
+                  );
+                })}
             </div>
           </section>
         </div>

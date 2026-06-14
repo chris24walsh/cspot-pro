@@ -376,6 +376,7 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
   const [viewMode, setViewMode] = useState<"builder" | "live">("builder");
   const [mobileBuilderPane, setMobileBuilderPane] = useState<"library" | "set">("set");
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
+  const [expandedMobileSlideItemId, setExpandedMobileSlideItemId] = useState<string | null>(null);
   const [topbarSlot, setTopbarSlot] = useState<HTMLElement | null>(null);
   const setListRef = useRef<HTMLDivElement | null>(null);
   const slideReviewRef = useRef<HTMLElement | null>(null);
@@ -1639,9 +1640,10 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
                 const song = songs.find((candidate) => candidate.id === item.song_id);
                 const itemSection = worshipSections.find((section) => section.id === item.id);
                 const isSelected = selectedItemId === item.id;
+                const slidesExpanded = expandedMobileSlideItemId === item.id;
                 return (
                   <article
-                    className={`worship-set-item ${song ? songLibraryStatusClass(song) : ""} ${isSelected ? "is-selected" : ""}`}
+                    className={`worship-set-item ${song ? songLibraryStatusClass(song) : ""} ${isSelected ? "is-selected" : ""} ${slidesExpanded ? "slides-expanded" : ""}`}
                     key={item.id}
                     onClick={() => setSelectedItemId(item.id)}
                     onKeyDown={(event) => {
@@ -1662,6 +1664,16 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
                       {isSelected ? <small>insert next song after this</small> : null}
                     </div>
                     <div className="worship-set-item-tools" onClick={(event) => event.stopPropagation()}>
+                      <button
+                        aria-expanded={slidesExpanded}
+                        aria-label={`${slidesExpanded ? "Hide" : "Show"} slides for ${song ? song.title : item.title}`}
+                        className="section-icon-button worship-set-slide-toggle"
+                        disabled={!itemSection?.slides.length}
+                        onClick={() => setExpandedMobileSlideItemId((current) => (current === item.id ? null : item.id))}
+                        type="button"
+                      >
+                        {slidesExpanded ? <ChevronUp size={14} aria-hidden="true" /> : <ChevronDown size={14} aria-hidden="true" />}
+                      </button>
                       <div className="worship-set-actions">
                         <button
                           aria-label={`Edit ${song ? song.title : item.title}`}
@@ -1707,7 +1719,7 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
                         </button>
                       </div>
                     </div>
-                    {isSelected && itemSection ? (
+                    {slidesExpanded && itemSection ? (
                       <div className="worship-set-item-slides" aria-label={`${itemSection.title} slides`}>
                         {itemSection.slides.map((slide, slideIndex) => (
                           <button
