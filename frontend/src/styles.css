@@ -3756,6 +3756,15 @@ h3 {
   width: 100%;
 }
 
+.broadcast-mode-switch {
+  align-self: start;
+  margin: 0 0 10px;
+}
+
+.broadcast-mode-switch button {
+  background: #f7f2e5;
+}
+
 .broadcast-player audio {
   min-width: 220px;
   width: min(100%, 460px);

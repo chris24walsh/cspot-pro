@@ -82,6 +82,9 @@ function App() {
     selectedPlan: null,
     songs: [],
   });
+  const [broadcastMode, setBroadcastMode] = useState<"control" | "viewer">(
+    forceBroadcastViewer ? "viewer" : "control",
+  );
 
   const permissions = useMemo(() => new Set(sessionUser?.permissions ?? []), [sessionUser]);
   const canManageUsers = permissions.has("users:manage");
@@ -231,11 +234,11 @@ function App() {
     }
 
     if (activeModule.id === "broadcast") {
-      return [{ label: "Mode", value: canUseBroadcast ? "OBS" : "Viewer" }];
+      return [{ label: "Mode", value: canUseBroadcast && broadcastMode === "control" ? "OBS" : "Viewer" }];
     }
 
     return [];
-  }, [activeModule, canUseBroadcast, workspace]);
+  }, [activeModule, broadcastMode, canUseBroadcast, workspace]);
   const compactWorkspace = true;
 
   useEffect(() => {
@@ -249,6 +252,12 @@ function App() {
       setActiveModuleId("broadcast");
     }
   }, [canUsePresentation, canWatchBroadcast, modules, sessionUser]);
+
+  useEffect(() => {
+    if (forceBroadcastViewer) {
+      setBroadcastMode("viewer");
+    }
+  }, [forceBroadcastViewer]);
 
   useEffect(() => {
     if (!sessionUser || !canManageUsers || !modules.some((module) => module.id === "admin")) {
@@ -335,6 +344,25 @@ function App() {
           </div>
         </header>
 
+        {activeModule.id === "broadcast" && canUseBroadcast && canWatchBroadcast ? (
+          <div className="broadcast-mode-switch segmented-control" role="tablist" aria-label="Broadcast mode">
+            <button
+              className={broadcastMode === "control" ? "is-active" : ""}
+              onClick={() => setBroadcastMode("control")}
+              type="button"
+            >
+              Control
+            </button>
+            <button
+              className={broadcastMode === "viewer" ? "is-active" : ""}
+              onClick={() => setBroadcastMode("viewer")}
+              type="button"
+            >
+              Viewer
+            </button>
+          </div>
+        ) : null}
+
         {activeModule.id === "worship" ? (
           <WorshipBuilderView
             canAccessAdminTools={canManageUsers}
@@ -357,7 +385,7 @@ function App() {
             canEditSlideNotes={canEditSlideNotes}
           />
         ) : activeModule.id === "broadcast" ? (
-          canUseBroadcast && !forceBroadcastViewer ? <BroadcastManager /> : <ServiceBroadcastView />
+          canUseBroadcast && broadcastMode === "control" ? <BroadcastManager /> : <ServiceBroadcastView />
         ) : activeModule.id === "admin" ? (
           <UserManager />
         ) : (
