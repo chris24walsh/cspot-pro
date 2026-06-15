@@ -1,13 +1,15 @@
 import json
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.core.database import get_session
 from app.modules.identity.auth import CurrentUser, require_any_permission, require_permission
 from app.modules.identity.models import User
+from app.modules.planning.models import Plan, PlanItem, PlanType
 from app.modules.presentation.models import PresentationPosition, PresentationSession
 
 router = APIRouter()
@@ -54,6 +56,23 @@ class PresentationOutputStatusWrite(BaseModel):
     owner_id: str
     heartbeat_at: int
     release: bool = False
+
+
+class PresentationLiveServiceRead(BaseModel):
+    plan_id: str
+    title: str
+    subtitle: str | None = None
+    service_date: datetime
+    plan_type: str
+    item_count: int
+    session_id: str
+    status: str
+    index: int = 0
+    plan_item_id: str | None = None
+    slide_offset: int = 0
+    updated_at: int = 0
+    output_owner_id: str
+    output_heartbeat_at: int
 
 
 OUTPUT_STALE_MS = 7000
@@ -121,6 +140,65 @@ def _serialize_output_status(plan_id: str, position: PresentationPosition | None
         owner_id=owner_id if active else None,
         heartbeat_at=heartbeat_at if active else None,
     )
+
+
+@router.get("/live", response_model=list[PresentationLiveServiceRead])
+def list_live_presentation_services(
+    _current_user: User = Depends(require_permission("plans:read")),
+    session: Session = Depends(get_session),
+) -> list[PresentationLiveServiceRead]:
+    now = int(datetime.now(UTC).timestamp() * 1000)
+    presentation_sessions = session.scalars(
+        select(PresentationSession)
+        .where(
+            PresentationSession.status == "live",
+            PresentationSession.ended_at.is_(None),
+        )
+        .order_by(PresentationSession.updated_at.desc())
+    ).all()
+
+    live_services: list[PresentationLiveServiceRead] = []
+    seen_plan_ids: set[str] = set()
+    for presentation_session in presentation_sessions:
+        if presentation_session.plan_id in seen_plan_ids:
+            continue
+        plan = session.get(Plan, presentation_session.plan_id)
+        if plan is None or plan.deleted_at is not None:
+            continue
+        position = _latest_position(session, presentation_session.id)
+        output_status = _serialize_output_status(plan.id, position, now)
+        if not output_status.active or not output_status.owner_id or output_status.heartbeat_at is None:
+            continue
+        payload = _position_payload(position)
+        plan_type = session.get(PlanType, plan.plan_type_id)
+        item_count = session.scalar(
+            select(func.count(PlanItem.id)).where(
+                PlanItem.plan_id == plan.id,
+                PlanItem.deleted_at.is_(None),
+                PlanItem.item_type != "worship_set",
+            )
+        )
+        live_services.append(
+            PresentationLiveServiceRead(
+                plan_id=plan.id,
+                title=plan.title,
+                subtitle=plan.subtitle,
+                service_date=plan.service_date,
+                plan_type=plan_type.name if plan_type else "Unknown",
+                item_count=item_count or 0,
+                session_id=presentation_session.id,
+                status=presentation_session.status,
+                index=int(payload.get("index", position.slide_index if position else 0)),
+                plan_item_id=payload.get("plan_item_id", position.plan_item_id if position else None),
+                slide_offset=int(payload.get("slide_offset", 0)),
+                updated_at=int(payload.get("updated_at", 0)),
+                output_owner_id=output_status.owner_id,
+                output_heartbeat_at=output_status.heartbeat_at,
+            )
+        )
+        seen_plan_ids.add(plan.id)
+
+    return live_services
 
 
 @router.get("/live/{plan_id}", response_model=PresentationLiveStateRead)

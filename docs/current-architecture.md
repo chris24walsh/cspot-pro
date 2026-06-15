@@ -196,7 +196,8 @@ environment without requiring a server push channel yet.
 ### Remote service viewer
 
 The Broadcast area now has a viewer-facing proof of concept for remote church
-members. Viewer-role users can read the current presentation live state and see:
+members. Viewer-role users can see active services with a current slideshow
+output heartbeat and watch:
 
 - the active service slideshow
 - one externally configured camera or stream URL

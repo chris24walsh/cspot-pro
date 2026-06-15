@@ -2927,6 +2927,14 @@ h3 {
     grid-template-columns: 1fr;
   }
 
+  .service-broadcast-slide-pane {
+    order: 1;
+  }
+
+  .service-broadcast-camera-pane {
+    order: 2;
+  }
+
   .service-broadcast-slide-pane,
   .service-broadcast-camera-pane {
     aspect-ratio: 16 / 9;
@@ -3827,6 +3835,44 @@ h3 {
 
 .service-broadcast-message {
   margin: 0;
+}
+
+.service-broadcast-service-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.service-broadcast-service-list button {
+  background: #17251f;
+  border: 1px solid #31483f;
+  border-radius: 8px;
+  color: #e8f3ed;
+  cursor: pointer;
+  display: grid;
+  gap: 2px;
+  min-height: 42px;
+  min-width: min(100%, 220px);
+  padding: 7px 10px;
+  text-align: left;
+}
+
+.service-broadcast-service-list button.is-active {
+  background: #203d34;
+  border-color: #5ea890;
+}
+
+.service-broadcast-service-list strong,
+.service-broadcast-service-list span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.service-broadcast-service-list span {
+  color: #b7c8c0;
+  font-size: 12px;
+  font-weight: 750;
 }
 
 .service-broadcast-grid {

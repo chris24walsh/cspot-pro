@@ -18,8 +18,11 @@ CSpot now has an initial **Broadcast** tab that can control OBS over OBS WebSock
 The Broadcast tab also has a lightweight remote-viewer proof of concept for
 viewer-role users:
 
+- It only shows services with an active slideshow output heartbeat.
 - It shows the live service slideshow from CSpot presentation state.
-- It embeds one camera or stream URL configured by `VITE_SERVICE_CAMERA_URL`.
+- It embeds one camera or stream URL configured by `VITE_SERVICE_CAMERA_URL`;
+  when unset, the viewer uses a public HLS test stream so the layout can be
+  tested before a church camera is configured.
 - It does not proxy camera/video media through the CSpot API, so viewer traffic
   can be handled by an IP camera, restreamer, CDN, or other separate service.
 

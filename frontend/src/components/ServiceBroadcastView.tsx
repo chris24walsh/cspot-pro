@@ -3,10 +3,12 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 import {
   getFileSlides,
+  getLivePresentationServices,
   getPlan,
   getPlans,
   getPresentationLiveState,
   getSongs,
+  type PresentationLiveService,
   type PlanDetail,
   type RenderedSlide,
   type Song,
@@ -23,6 +25,7 @@ import { AutoFitSlideText } from "./AutoFitSlideText";
 import { ScaledSlideImage } from "./ScaledSlideImage";
 
 const POLL_INTERVAL_MS = 3000;
+const DEFAULT_TEST_CAMERA_URL = "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8";
 
 function liveStateFromApi(state: Awaited<ReturnType<typeof getPresentationLiveState>>): PresentationLiveState {
   return {
@@ -51,6 +54,35 @@ function cameraKind(url: string) {
 }
 
 function CameraPane({ url }: { url: string }) {
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const kind = url ? cameraKind(url) : "frame";
+  const isHls = url.toLowerCase().includes(".m3u8");
+
+  useEffect(() => {
+    if (kind !== "video" || !isHls || !videoRef.current) {
+      return undefined;
+    }
+    const video = videoRef.current;
+    if (video.canPlayType("application/vnd.apple.mpegurl")) {
+      video.src = url;
+      return undefined;
+    }
+    let cancelled = false;
+    let hls: InstanceType<typeof import("hls.js").default> | null = null;
+    void import("hls.js").then(({ default: Hls }) => {
+      if (cancelled || !Hls.isSupported()) {
+        return;
+      }
+      hls = new Hls();
+      hls.loadSource(url);
+      hls.attachMedia(video);
+    });
+    return () => {
+      cancelled = true;
+      hls?.destroy();
+    };
+  }, [isHls, kind, url]);
+
   if (!url) {
     return (
       <div className="service-broadcast-camera-placeholder">
@@ -60,19 +92,17 @@ function CameraPane({ url }: { url: string }) {
     );
   }
 
-  const kind = cameraKind(url);
   if (kind === "mjpeg") {
     return <img alt="Live service camera" className="service-broadcast-camera-media" src={url} />;
   }
   if (kind === "video") {
     return (
       <video
-        autoPlay
         className="service-broadcast-camera-media"
         controls
-        muted
         playsInline
-        src={url}
+        ref={videoRef}
+        src={isHls ? undefined : url}
       />
     );
   }
@@ -87,9 +117,11 @@ function CameraPane({ url }: { url: string }) {
 }
 
 export function ServiceBroadcastView() {
-  const cameraUrl = import.meta.env.VITE_SERVICE_CAMERA_URL || "";
+  const cameraUrl = import.meta.env.VITE_SERVICE_CAMERA_URL || DEFAULT_TEST_CAMERA_URL;
   const shellRef = useRef<HTMLElement | null>(null);
   const pollInFlightRef = useRef(false);
+  const [liveServices, setLiveServices] = useState<PresentationLiveService[]>([]);
+  const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null);
   const [plan, setPlan] = useState<PlanDetail | null>(null);
   const [worshipSetPlan, setWorshipSetPlan] = useState<PlanDetail | null>(null);
   const [songs, setSongs] = useState<Song[]>([]);
@@ -116,27 +148,33 @@ export function ServiceBroadcastView() {
     }
     pollInFlightRef.current = true;
     try {
-      const [plans, nextSongs] = await Promise.all([getPlans(), getSongs()]);
-      const servicePlans = plans.filter((candidate) => !isWorshipSetPlan(candidate));
-      const targetPlan = plan
-        ? servicePlans.find((candidate) => candidate.id === plan.id) ?? servicePlans[0]
-        : servicePlans[0];
-      if (!targetPlan) {
-        setMessage("No service is available.");
+      const [nextLiveServices, plans, nextSongs] = await Promise.all([
+        getLivePresentationServices(),
+        getPlans(),
+        getSongs(),
+      ]);
+      setLiveServices(nextLiveServices);
+      const targetService =
+        nextLiveServices.find((service) => service.plan_id === selectedPlanId) ?? nextLiveServices[0] ?? null;
+      if (!targetService) {
+        setMessage("No service is live right now.");
         setPlan(null);
         setWorshipSetPlan(null);
+        setLiveState(null);
+        setSelectedPlanId(null);
         setSongs(nextSongs);
         return;
       }
 
       const [nextPlan, remoteState] = await Promise.all([
-        getPlan(targetPlan.id),
-        getPresentationLiveState(targetPlan.id).catch(() => null),
+        getPlan(targetService.plan_id),
+        getPresentationLiveState(targetService.plan_id).catch(() => null),
       ]);
       const matchingWorshipSet = matchingWorshipSetForService(nextPlan, plans.filter(isWorshipSetPlan));
       const nextWorshipSetPlan = matchingWorshipSet ? await getPlan(matchingWorshipSet.id) : null;
 
       setPlan(nextPlan);
+      setSelectedPlanId(nextPlan.id);
       setWorshipSetPlan(nextWorshipSetPlan);
       setSongs(nextSongs);
       setLiveState(remoteState ? liveStateFromApi(remoteState) : { planId: nextPlan.id, index: 0, updatedAt: Date.now(), theme: "dark" });
@@ -153,7 +191,7 @@ export function ServiceBroadcastView() {
     const timer = window.setInterval(() => void loadBroadcast(), POLL_INTERVAL_MS);
     return () => window.clearInterval(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [plan?.id]);
+  }, [selectedPlanId]);
 
   useEffect(() => {
     const files = mergeWorshipSetIntoService(plan?.items ?? [], worshipSetPlan?.items ?? []).flatMap((item) => item.files ?? []);
@@ -202,8 +240,8 @@ export function ServiceBroadcastView() {
     <section className={`service-broadcast-view ${fullscreen ? "is-fullscreen" : ""}`} ref={shellRef} aria-label="Remote service broadcast">
       <header className="service-broadcast-toolbar">
         <div className="service-broadcast-title">
-          <strong>{plan?.title ?? "Service"}</strong>
-          <span>{liveSlide?.sectionTitle ?? "Waiting for slides"}</span>
+          <strong>{plan?.title ?? "Waiting for a live service"}</strong>
+          <span>{liveSlide?.sectionTitle ?? (liveServices.length ? "Preparing slides" : "Start the slideshow to publish this view")}</span>
         </div>
         <div className="service-broadcast-actions">
           <button className="text-button icon-text-button" onClick={() => void loadBroadcast()} type="button">
@@ -218,6 +256,22 @@ export function ServiceBroadcastView() {
       </header>
 
       {message ? <p className="form-message service-broadcast-message">{message}</p> : null}
+
+      {liveServices.length > 1 ? (
+        <div className="service-broadcast-service-list" aria-label="Live services">
+          {liveServices.map((service) => (
+            <button
+              className={service.plan_id === selectedPlanId ? "is-active" : ""}
+              key={service.plan_id}
+              onClick={() => setSelectedPlanId(service.plan_id)}
+              type="button"
+            >
+              <strong>{service.title}</strong>
+              <span>{service.subtitle ?? service.plan_type}</span>
+            </button>
+          ))}
+        </div>
+      ) : null}
 
       <div className="service-broadcast-grid">
         <div className="service-broadcast-slide-pane">

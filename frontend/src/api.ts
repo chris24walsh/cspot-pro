@@ -261,6 +261,23 @@ export interface PresentationLiveSyncState {
   video_action_at: number | null;
 }
 
+export interface PresentationLiveService {
+  plan_id: string;
+  title: string;
+  subtitle: string | null;
+  service_date: string;
+  plan_type: string;
+  item_count: number;
+  session_id: string;
+  status: string;
+  index: number;
+  plan_item_id: string | null;
+  slide_offset: number;
+  updated_at: number;
+  output_owner_id: string;
+  output_heartbeat_at: number;
+}
+
 export interface PresentationOutputStatus {
   plan_id: string;
   active: boolean;
@@ -814,6 +831,10 @@ export async function getPlan(planId: string): Promise<PlanDetail> {
 
 export async function getPlanHistory(planId: string): Promise<PlanHistoryEntry[]> {
   return getJson<PlanHistoryEntry[]>(`/api/v1/planning/plans/${planId}/history`);
+}
+
+export async function getLivePresentationServices(): Promise<PresentationLiveService[]> {
+  return getJson<PresentationLiveService[]>("/api/v1/presentation/live");
 }
 
 export async function getPresentationLiveState(planId: string): Promise<PresentationLiveSyncState> {
