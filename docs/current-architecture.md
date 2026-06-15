@@ -193,6 +193,19 @@ The current live output model uses:
 This keeps the control window and output window in sync inside one browser
 environment without requiring a server push channel yet.
 
+### Remote service viewer
+
+The Broadcast area now has a viewer-facing proof of concept for remote church
+members. Viewer-role users can read the current presentation live state and see:
+
+- the active service slideshow
+- one externally configured camera or stream URL
+
+The camera feed is intentionally loaded by the browser from
+`VITE_SERVICE_CAMERA_URL`; the API does not proxy or fan out camera media. This
+keeps remote viewing from adding video-streaming load to the core service
+planning and presentation process.
+
 ## Presenter Information Architecture
 
 The current intended presenter layout has three roles:

@@ -1,6 +1,6 @@
 # Broadcast and Recording Roadmap
 
-Last updated: 2026-05-19
+Last updated: 2026-06-15
 
 ## Current State
 
@@ -15,6 +15,14 @@ CSpot now has an initial **Broadcast** tab that can control OBS over OBS WebSock
 - Play or download full recordings from the web app.
 - Extract and serve MP3 audio from a recording using `ffmpeg`.
 
+The Broadcast tab also has a lightweight remote-viewer proof of concept for
+viewer-role users:
+
+- It shows the live service slideshow from CSpot presentation state.
+- It embeds one camera or stream URL configured by `VITE_SERVICE_CAMERA_URL`.
+- It does not proxy camera/video media through the CSpot API, so viewer traffic
+  can be handled by an IP camera, restreamer, CDN, or other separate service.
+
 Relevant settings:
 
 ```env
@@ -24,6 +32,7 @@ OBS_WEBSOCKET_PASSWORD=
 OBS_RECORDINGS_DIR=/app/storage/recordings
 OBS_AUDIO_CACHE_DIR=/app/storage/recording-audio
 FFMPEG_PATH=ffmpeg
+VITE_SERVICE_CAMERA_URL=
 ```
 
 The app currently assumes recording files are visible to the API container under `OBS_RECORDINGS_DIR`.
