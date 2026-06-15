@@ -152,7 +152,7 @@ export const featureModules: FeatureModule[] = [
       },
       {
         title: "Remote Viewers",
-        items: ["Zoom virtual camera", "OBS stream", "YouTube later", "Attendance notes"],
+        items: ["Live slides", "Network camera", "External stream source", "Attendance notes"],
       },
     ],
   },

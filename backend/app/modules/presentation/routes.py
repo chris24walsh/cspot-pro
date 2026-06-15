@@ -6,7 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.database import get_session
-from app.modules.identity.auth import CurrentUser, require_permission
+from app.modules.identity.auth import CurrentUser, require_any_permission, require_permission
 from app.modules.identity.models import User
 from app.modules.presentation.models import PresentationPosition, PresentationSession
 
@@ -126,7 +126,7 @@ def _serialize_output_status(plan_id: str, position: PresentationPosition | None
 @router.get("/live/{plan_id}", response_model=PresentationLiveStateRead)
 def get_presentation_live_state(
     plan_id: str,
-    _current_user: User = Depends(require_permission("presentation:use")),
+    _current_user: User = Depends(require_any_permission("plans:read", "presentation:use")),
     session: Session = Depends(get_session),
 ) -> PresentationLiveStateRead:
     presentation_session = _latest_session(session, plan_id)

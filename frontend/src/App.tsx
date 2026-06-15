@@ -31,6 +31,7 @@ import { AuthScreen } from "./components/AuthScreen";
 import { BroadcastManager } from "./components/BroadcastManager";
 import { PresentationOutput } from "./components/PresentationOutput";
 import { PresentationView } from "./components/PresentationView";
+import { ServiceBroadcastView } from "./components/ServiceBroadcastView";
 import { SundaySchoolView } from "./components/SundaySchoolView";
 import { UserManager } from "./components/UserManager";
 import { WorshipBuilderView } from "./components/WorshipBuilderView";
@@ -91,6 +92,7 @@ function App() {
   const canEditSongs = canCreateSongs || permissions.has("songs:edit");
   const canUsePresentation = permissions.has("presentation:use");
   const canUseBroadcast = permissions.has("broadcast:use");
+  const canWatchBroadcast = permissions.has("plans:read");
   const canCreateLibrary = permissions.has("library:create");
   const roleNames = useMemo(() => new Set(sessionUser?.roles ?? []), [sessionUser?.roles]);
   const canUseServiceOperator =
@@ -185,14 +187,14 @@ function App() {
           return canUseServiceOperator;
         }
         if (module.id === "broadcast") {
-          return canUseBroadcast;
+          return canUseBroadcast || canWatchBroadcast;
         }
         if (module.id === "admin") {
           return canManageUsers;
         }
         return true;
       }),
-    [canManageUsers, canUseBroadcast, canUseServiceOperator, canUseWorshipTools, workspace],
+    [canManageUsers, canUseBroadcast, canUseServiceOperator, canUseWorshipTools, canWatchBroadcast, workspace],
   );
 
   const activeModule = useMemo(
@@ -227,11 +229,11 @@ function App() {
     }
 
     if (activeModule.id === "broadcast") {
-      return [{ label: "Mode", value: "OBS" }];
+      return [{ label: "Mode", value: canUseBroadcast ? "OBS" : "Viewer" }];
     }
 
     return [];
-  }, [activeModule, workspace]);
+  }, [activeModule, canUseBroadcast, workspace]);
   const compactWorkspace = true;
 
   useEffect(() => {
@@ -239,6 +241,12 @@ function App() {
       setActiveModuleId(modules[0].id);
     }
   }, [activeModuleId, modules]);
+
+  useEffect(() => {
+    if (sessionUser && canWatchBroadcast && !canUsePresentation && modules.some((module) => module.id === "broadcast")) {
+      setActiveModuleId("broadcast");
+    }
+  }, [canUsePresentation, canWatchBroadcast, modules, sessionUser]);
 
   useEffect(() => {
     if (!sessionUser || !canManageUsers || !modules.some((module) => module.id === "admin")) {
@@ -347,7 +355,7 @@ function App() {
             canEditSlideNotes={canEditSlideNotes}
           />
         ) : activeModule.id === "broadcast" ? (
-          <BroadcastManager />
+          canUseBroadcast ? <BroadcastManager /> : <ServiceBroadcastView />
         ) : activeModule.id === "admin" ? (
           <UserManager />
         ) : (
