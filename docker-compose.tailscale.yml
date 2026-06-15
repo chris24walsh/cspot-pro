@@ -19,6 +19,7 @@ services:
       args:
         VITE_API_BASE_URL: /api
         VITE_APP_BASE_PATH: /
+        VITE_SERVICE_CAMERA_URL: ${VITE_SERVICE_CAMERA_URL:-}
     env_file:
       - .env.tailscale
     depends_on:

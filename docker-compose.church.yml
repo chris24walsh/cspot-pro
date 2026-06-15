@@ -21,6 +21,7 @@ services:
       dockerfile: frontend/Dockerfile.prod
       args:
         VITE_API_BASE_URL: /api
+        VITE_SERVICE_CAMERA_URL: ${VITE_SERVICE_CAMERA_URL:-}
     depends_on:
       - api
     ports:
