@@ -68,7 +68,9 @@ function isTransientApiError(error: unknown) {
 }
 
 function App() {
-  const isPresentationOutput = new URLSearchParams(window.location.search).get("presentation") === "output";
+  const initialParams = new URLSearchParams(window.location.search);
+  const isPresentationOutput = initialParams.get("presentation") === "output";
+  const forceBroadcastViewer = initialParams.get("broadcast") === "viewer";
   const publicWebsiteUrl = import.meta.env.VITE_PUBLIC_WEBSITE_URL || "/";
   const [activeModuleId, setActiveModuleId] = useState<ModuleId>("presentation");
   const [sessionUser, setSessionUser] = useState<SessionUser | null>(null);
@@ -355,7 +357,7 @@ function App() {
             canEditSlideNotes={canEditSlideNotes}
           />
         ) : activeModule.id === "broadcast" ? (
-          canUseBroadcast ? <BroadcastManager /> : <ServiceBroadcastView />
+          canUseBroadcast && !forceBroadcastViewer ? <BroadcastManager /> : <ServiceBroadcastView />
         ) : activeModule.id === "admin" ? (
           <UserManager />
         ) : (
