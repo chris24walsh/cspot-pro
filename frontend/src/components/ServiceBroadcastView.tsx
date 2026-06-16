@@ -27,6 +27,18 @@ import { ScaledSlideImage } from "./ScaledSlideImage";
 const POLL_INTERVAL_MS = 3000;
 const DEFAULT_TEST_CAMERA_URL = "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8";
 
+function formatServiceDate(value: string | null | undefined) {
+  if (!value) {
+    return "Live service";
+  }
+  return new Intl.DateTimeFormat(undefined, {
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+  }).format(new Date(value));
+}
+
 function liveStateFromApi(state: Awaited<ReturnType<typeof getPresentationLiveState>>): PresentationLiveState {
   return {
     planId: state.plan_id,
@@ -137,6 +149,7 @@ export function ServiceBroadcastView() {
   const resolvedIndex = resolveLiveIndex(slides, liveState);
   const liveSlide = liveState?.blanked ? null : slides[resolvedIndex] ?? null;
   const theme = liveState?.theme ?? "dark";
+  const hasLiveService = Boolean(plan && liveState);
   const textFontCap = useMemo(
     () => suggestSlideGroupFontCap(slides.filter((slide) => !slide.imageUrl && slide.text.trim()).map((slide) => slide.text)),
     [slides],
@@ -240,8 +253,14 @@ export function ServiceBroadcastView() {
     <section className={`service-broadcast-view ${fullscreen ? "is-fullscreen" : ""}`} ref={shellRef} aria-label="Remote service broadcast">
       <header className="service-broadcast-toolbar">
         <div className="service-broadcast-title">
-          <strong>{plan?.title ?? "Waiting for a live service"}</strong>
-          <span>{liveSlide?.sectionTitle ?? (liveServices.length ? "Preparing slides" : "Start the slideshow to publish this view")}</span>
+          <div className="service-broadcast-kicker-row">
+            <span className={`service-broadcast-status-pill ${hasLiveService ? "is-live" : "is-idle"}`}>
+              {hasLiveService ? "Live" : "Standby"}
+            </span>
+            <span className="service-broadcast-date">{formatServiceDate(plan?.service_date)}</span>
+          </div>
+          <strong>{plan?.title ?? "Service will begin shortly"}</strong>
+          <span>{liveSlide?.sectionTitle ?? (liveServices.length ? "Preparing slideshow output" : "Start the slideshow to publish this stream")}</span>
         </div>
         <div className="service-broadcast-actions">
           <button className="text-button icon-text-button" onClick={() => void loadBroadcast()} type="button">
@@ -275,9 +294,23 @@ export function ServiceBroadcastView() {
 
       <div className="service-broadcast-grid">
         <div className="service-broadcast-slide-pane">
+          <div className="service-broadcast-panel-header">
+            <span>Slides</span>
+            <small>{hasLiveService ? "Live program output" : "Waiting screen"}</small>
+          </div>
           <div className={`service-broadcast-slide ${presentationTypeClass(liveSlide?.itemType ?? "generic")} stage-theme-${theme}`}>
-            {!liveSlide ? (
-              <div className="blank-stage" />
+            {!hasLiveService ? (
+              <div className="service-broadcast-holding-slide">
+                <div className="service-broadcast-holding-mark">Church livestream</div>
+                <strong>Service will begin shortly</strong>
+                <p>The slideshow is not live yet. This page will update automatically once presentation starts.</p>
+              </div>
+            ) : !liveSlide ? (
+              <div className="service-broadcast-holding-slide">
+                <div className="service-broadcast-holding-mark">Live service</div>
+                <strong>Preparing current slide</strong>
+                <p>The presenter output is active. Slides will appear here as soon as the next item is published.</p>
+              </div>
             ) : liveSlide.imageUrl ? (
               <ScaledSlideImage alt={liveSlide.title} src={liveSlide.imageUrl} />
             ) : liveSlide.videoUrl ? (
@@ -303,8 +336,17 @@ export function ServiceBroadcastView() {
         </div>
 
         <aside className="service-broadcast-camera-pane">
+          <div className="service-broadcast-panel-header">
+            <span>Camera + audio</span>
+            <small>{cameraUrl === DEFAULT_TEST_CAMERA_URL ? "Test stream" : "Room feed"}</small>
+          </div>
           <CameraPane url={cameraUrl} />
         </aside>
+      </div>
+
+      <div className="service-broadcast-footer-note">
+        <span>{cameraUrl === DEFAULT_TEST_CAMERA_URL ? "Using public test video while camera setup is pending." : "Camera feed is provided by an external stream source."}</span>
+        <span>Tap play on mobile browsers if audio does not begin automatically.</span>
       </div>
     </section>
   );
