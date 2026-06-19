@@ -20,6 +20,7 @@ from app.modules.music.schemas import (
     WorshipSongUsageRead,
     WorshipSuggestedSongRead,
 )
+from app.modules.music.text import normalize_song_sequence
 from app.modules.planning.models import HistoryEntry, Plan, PlanItem, PlanType
 
 router = APIRouter()
@@ -349,7 +350,9 @@ def create_song(
     current_user: User = Depends(require_permission("songs:create")),
     session: Session = Depends(get_session),
 ) -> SongRead:
-    song = Song(**payload.model_dump())
+    values = payload.model_dump()
+    values["sequence"] = normalize_song_sequence(values.get("sequence"))
+    song = Song(**values)
     session.add(song)
     session.flush()
     session.add(
@@ -394,7 +397,10 @@ def update_song(
 ) -> SongRead:
     song = get_song_or_404(session, song_id)
     changes: list[str] = []
-    for field, value in payload.model_dump(exclude_unset=True).items():
+    values = payload.model_dump(exclude_unset=True)
+    if "sequence" in values:
+        values["sequence"] = normalize_song_sequence(values["sequence"])
+    for field, value in values.items():
         before = getattr(song, field)
         if before != value:
             changes.append(_song_change_summary(field, before, value))
