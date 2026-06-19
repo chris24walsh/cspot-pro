@@ -111,6 +111,8 @@ function sequenceLabels(sequence: string | null | undefined) {
     .replace(/([A-Za-z]+)(\d+)?x(\d+)/gi, (_match, part: string, number: string = "", count: string) =>
       Array.from({ length: Number(count) || 1 }, () => `${part}${number}`).join(" "),
     )
+    .replace(/\bpre[-\s]?chorus\s*(\d+)?\b/gi, (_match, number: string = "") => `PreChorus${number}`)
+    .replace(/\b(verse|chorus|bridge|tag|ending|outro|intro|section)\s+(\d+)\b/gi, "$1$2")
     .replace(/\bC(?=V\d)/gi, "C ");
 
   for (const token of normalized.split(/[\s,>/|-]+/)) {
@@ -123,8 +125,38 @@ function sequenceLabels(sequence: string | null | undefined) {
   return labels;
 }
 
-export function normalizeWorshipSequence(sequence: string | null | undefined) {
-  const labels = sequenceLabels(sequence).map(compactSectionLabel);
+function canonicalVerseLabelMap(value: string | null | undefined) {
+  const labels = new Map<string, string>();
+  let verseNumber = 1;
+
+  for (const section of parseWorshipSectionBlocks(value)) {
+    const label = normalizeSectionToken(section.label) ?? compactSectionLabel(section.label);
+    const match = label.match(/^Verse(\d+)$/i);
+    if (match && !labels.has(label)) {
+      labels.set(label, `Verse${verseNumber}`);
+      verseNumber += 1;
+    }
+  }
+
+  return labels;
+}
+
+export function normalizeWorshipSequence(sequence: string | null | undefined, lyrics?: string | null) {
+  const verseLabels = canonicalVerseLabelMap(lyrics);
+  const resolvedLabels = sequenceLabels(sequence).map((label) => verseLabels.get(label) ?? label);
+  const verseNumbers = Array.from(
+    new Set(
+      resolvedLabels.flatMap((label) => {
+        const match = label.match(/^Verse(\d+)$/i);
+        return match ? [Number(match[1])] : [];
+      }),
+    ),
+  ).sort((left, right) => left - right);
+  const compactVerseNumber = new Map(verseNumbers.map((number, index) => [number, index + 1]));
+  const labels = resolvedLabels.map((label) => {
+    const match = label.match(/^Verse(\d+)$/i);
+    return compactSectionLabel(match ? `Verse${compactVerseNumber.get(Number(match[1]))}` : label);
+  });
   return labels.length ? labels.join(" ") : null;
 }
 
@@ -308,14 +340,19 @@ export function expandWorshipSlides(value: string | null | undefined, sequence?:
 export function canonicalizeWorshipLyrics(value: string | null | undefined, sequence?: string | null) {
   const sections = parseWorshipSectionBlocks(value);
   const seenContentByLabel = new Map<string, string>();
+  const verseLabels = canonicalVerseLabelMap(value);
   let verseNumber = 1;
 
   const blocks = sections
     .map((section) => {
       let label = normalizeSectionToken(section.label) ?? compactSectionLabel(section.label);
-      if (/^Verse\d*$/i.test(label)) {
+      if (verseLabels.has(label)) {
+        label = verseLabels.get(label)!;
+      } else if (/^Verse\d*$/i.test(label)) {
         label = `Verse${verseNumber}`;
-        verseNumber += 1;
+      }
+      if (/^Verse\d+$/i.test(label)) {
+        verseNumber = Math.max(verseNumber, Number(label.match(/\d+$/)?.[0] ?? 0) + 1);
       }
       const previous = seenContentByLabel.get(label);
       if (section.content && !previous) {

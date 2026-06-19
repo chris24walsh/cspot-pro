@@ -99,7 +99,7 @@ function formFromSong(song: Song): SongForm {
 }
 
 function normalizeForm(form: SongForm, chords: string | null): SongForm {
-  const sequence = normalizeWorshipSequence(form.sequence);
+  const sequence = normalizeWorshipSequence(form.sequence, form.lyrics);
   return {
     title: form.title.trim(),
     alternate_title: form.alternate_title || null,
