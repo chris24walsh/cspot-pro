@@ -228,13 +228,6 @@ function App() {
       ];
     }
 
-    if (activeModule.id === "sunday_school") {
-      return [
-        { label: "Mode", value: "Lessons" },
-        { label: "Source", value: "Drive" },
-      ];
-    }
-
     if (activeModule.id === "admin") {
       return [{ label: "Scope", value: "Users & access" }];
     }
