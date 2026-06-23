@@ -1124,8 +1124,8 @@ button {
   gap: 12px;
   max-height: min(820px, calc(100svh - 24px));
   max-width: calc(100vw - 36px);
-  overflow: hidden;
-  padding: 14px;
+  overflow: auto;
+  padding: 10px;
   width: min(900px, calc(100vw - 36px));
 }
 
@@ -1301,16 +1301,22 @@ button {
 
 /* Calendar Popup Consolidation */
 .calendar-popup-grid {
+  align-items: start;
   grid-template-columns: minmax(280px, 1fr) auto;
   grid-template-rows: minmax(0, 1fr);
+  overflow: visible;
 }
 
 .service-buttons-panel {
+  display: flex;
   flex-direction: column;
   gap: 12px;
+  max-height: calc(100svh - 140px);
+  overflow-y: auto;
 }
 
 .service-picker-buttons {
+  align-content: start;
   display: grid;
   gap: 8px;
   grid-template-columns: repeat(1, minmax(0, 1fr));
@@ -1318,6 +1324,8 @@ button {
 
 .calendar-popup-footer {
   border-bottom: 1px solid #e3dcc8;
+  display: grid;
+  gap: 10px;
   padding-bottom: 8px;
 }
 

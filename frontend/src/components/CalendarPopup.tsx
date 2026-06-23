@@ -24,7 +24,7 @@ interface CalendarPopupProps {
   onDateSelect: (date: string) => void;
   dayContent: (day: CalendarDay) => ReactNode;
   footerContent?: ReactNode;
-  actionButtons: ReactNode;
+  actionButtons?: ReactNode;
   leaderColors?: LeaderColor[];
 }
 
@@ -51,19 +51,10 @@ export function CalendarPopup({
     <div className="app-dialog-backdrop" role="presentation" onMouseDown={onClose}>
       <section
         className="app-dialog app-dialog-wide service-picker-dialog"
+        aria-label={eyebrow ? `${eyebrow} ${title}` : title}
         onMouseDown={(event) => event.stopPropagation()}
         role="dialog"
       >
-        <div className="section-heading">
-          <div>
-            {eyebrow ? <p className="eyebrow">{eyebrow}</p> : null}
-            <h2>{title}</h2>
-          </div>
-          <button className="text-button" onClick={onClose} type="button">
-            Close
-          </button>
-        </div>
-
         <div className="service-picker-grid calendar-popup-grid">
           <section className="service-picker-panel service-calendar-panel">
             <div className="service-calendar-heading">
@@ -138,7 +129,12 @@ export function CalendarPopup({
           <section className="service-picker-panel service-buttons-panel">
             {footerContent ? <div className="calendar-popup-footer">{footerContent}</div> : null}
 
-            <div className="service-picker-buttons">{actionButtons}</div>
+            <div className="service-picker-buttons">
+              {actionButtons}
+              <button className="text-button" onClick={onClose} type="button">
+                Close
+              </button>
+            </div>
           </section>
         </div>
       </section>

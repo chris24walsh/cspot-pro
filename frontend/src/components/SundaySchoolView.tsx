@@ -869,13 +869,7 @@ export function SundaySchoolView({ canEdit }: { canEdit: boolean }) {
               className: `teacher-${String.fromCharCode(97 + (index % 6))}`,
             }))
         }
-        actionButtons={
-          <>
-            <button className="text-button" onClick={() => chooseDate(selectedDate)} type="button">
-              Close
-            </button>
-          </>
-        }
+        actionButtons={null}
       />
 
       {resourcePickerOpen ? (
