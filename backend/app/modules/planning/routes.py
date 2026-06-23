@@ -164,6 +164,7 @@ def list_plans(
                 service_date=plan.service_date,
                 status=plan.status,
                 plan_type=plan_type.name if plan_type else "Unknown",
+                leader_id=plan.leader_id,
                 item_count=item_count or 0,
             )
         )

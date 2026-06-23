@@ -49,6 +49,7 @@ export interface PlanSummary {
   service_date: string;
   status: string;
   plan_type: string;
+  leader_id: string | null;
   item_count: number;
 }
 

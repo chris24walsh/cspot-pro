@@ -22,6 +22,7 @@ function summary(id: string, serviceDate: string, planType = "Service"): PlanSum
   return {
     id,
     item_count: 0,
+    leader_id: null,
     plan_type: planType,
     service_date: serviceDate,
     status: "draft",

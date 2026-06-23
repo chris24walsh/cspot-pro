@@ -869,6 +869,7 @@ export function SundaySchoolView({ canEdit }: { canEdit: boolean }) {
               className: `teacher-${String.fromCharCode(97 + (index % 6))}`,
             }))
         }
+        legendLabel="Teacher colours"
         actionButtons={null}
       />
 

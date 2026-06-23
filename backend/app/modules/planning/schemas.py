@@ -110,6 +110,7 @@ class PlanSummary(BaseModel):
     status: str
     plan_type: str
     subtitle: str | None = None
+    leader_id: str | None = None
     item_count: int
 
 

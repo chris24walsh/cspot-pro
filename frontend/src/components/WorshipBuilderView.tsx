@@ -404,6 +404,23 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
     () => new Map(worshipSetPlans.map((worshipSet) => [dateInputFromIso(worshipSet.service_date), worshipSet])),
     [worshipSetPlans],
   );
+  const worshipLeaders = useMemo(
+    () =>
+      users
+        .filter((user) => user.active && user.roles.includes("worship_leader"))
+        .sort((left, right) => left.name.localeCompare(right.name)),
+    [users],
+  );
+  const worshipLeaderColors = useMemo(
+    () =>
+      new Map(
+        worshipLeaders.map((user, index) => [
+          user.id,
+          `teacher-${String.fromCharCode(97 + (index % 6))}`,
+        ]),
+      ),
+    [worshipLeaders],
+  );
   const servicePlansByDate = useMemo(
     () => new Map(plans.filter((candidate) => !isWorshipSetPlan(candidate)).map((servicePlan) => [dateInputFromIso(servicePlan.service_date), servicePlan])),
     [plans],
@@ -701,6 +718,7 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
     setSetDraftDate(draftDate);
     setSetDraftPlanId(plan?.id ?? null);
     setSetDraftTitle(plan?.title ?? suggestedWorshipSetTitle(draftDate));
+    setSelectedLeaderId(plan?.leader_id ?? null);
     setSetCalendarMonth(draftDate.slice(0, 7) || monthInputFromDate(new Date()));
     setSetPickerOpen(true);
   }
@@ -712,10 +730,12 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
     if (existing) {
       setSetDraftPlanId(existing.id);
       setSetDraftTitle(existing.title);
+      setSelectedLeaderId(existing.leader_id);
       return;
     }
     setSetDraftPlanId(null);
     setSetDraftTitle(suggestedWorshipSetTitle(dateInput));
+    setSelectedLeaderId(null);
   }
 
   async function openSetDate(dateInput: string) {
@@ -745,7 +765,7 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
         service_date: isoFromDateInput(setDraftDate),
         title: setDraftTitle.trim() || suggestedWorshipSetTitle(setDraftDate),
         subtitle: null,
-        leader_id: null,
+        leader_id: selectedLeaderId,
         teacher_id: null,
         status: "draft",
         info: null,
@@ -2054,7 +2074,13 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
         calendarDays={calendarDays.map((day) => ({
           date: day.key,
           muted: day.muted,
-          className: `${worshipSetsByDate.get(day.key) ? "has-service" : ""}`.trim(),
+          className: (() => {
+            const existing = worshipSetsByDate.get(day.key);
+            const leaderId = day.key === setDraftDate ? selectedLeaderId : existing?.leader_id;
+            return `${existing ? "has-service" : ""} ${
+              leaderId ? worshipLeaderColors.get(leaderId) ?? "" : ""
+            }`.trim();
+          })(),
         }))}
         selectedDate={setDraftDate}
         onDateSelect={(dateInput) => chooseSetDate(dateInput)}
@@ -2069,25 +2095,22 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
           );
         }}
         footerContent={
-          <div>
-            <label className="form-grid single-column">
+          <div className="calendar-popup-fields">
+            <label className="field-block">
               Leader
               <select
                 value={selectedLeaderId || ""}
                 onChange={(event) => setSelectedLeaderId(event.target.value || null)}
               >
                 <option value="">None</option>
-                {users
-                  .filter((user) => user.active && user.roles.includes("worship_leader"))
-                  .sort((a, b) => a.name.localeCompare(b.name))
-                  .map((user) => (
-                    <option key={user.id} value={user.id}>
-                      {user.name}
-                    </option>
-                  ))}
+                {worshipLeaders.map((user) => (
+                  <option key={user.id} value={user.id}>
+                    {user.name}
+                  </option>
+                ))}
               </select>
             </label>
-            <label className="form-grid single-column">
+            <label className="field-block">
               Title
               <input
                 onChange={(event) => setSetDraftTitle(event.target.value)}
@@ -2099,13 +2122,12 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
           </div>
         }
         leaderColors={
-          users
-            .filter((user) => user.active && user.roles.includes("worship_leader"))
-            .map((user, index) => ({
-              name: user.name,
-              className: `teacher-${String.fromCharCode(97 + (index % 6))}`,
-            }))
+          worshipLeaders.map((user) => ({
+            name: user.name,
+            className: worshipLeaderColors.get(user.id) ?? "teacher-a",
+          }))
         }
+        legendLabel="Leader colours"
         actionButtons={
           <>
             <button className="primary-button" disabled={!canEditPlan} onClick={() => void openDraftWorshipSet()} type="button">

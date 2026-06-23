@@ -26,6 +26,7 @@ interface CalendarPopupProps {
   footerContent?: ReactNode;
   actionButtons?: ReactNode;
   leaderColors?: LeaderColor[];
+  legendLabel?: string;
 }
 
 export function CalendarPopup({
@@ -42,6 +43,7 @@ export function CalendarPopup({
   footerContent,
   actionButtons,
   leaderColors,
+  legendLabel = "People",
 }: CalendarPopupProps) {
   if (!isOpen) {
     return null;
@@ -114,8 +116,9 @@ export function CalendarPopup({
               ))}
             </div>
 
-            {leaderColors ? (
-              <div className="calendar-popup-legend">
+            {leaderColors?.length ? (
+              <div aria-label={`${legendLabel} legend`} className="calendar-popup-legend">
+                <strong className="calendar-legend-heading">{legendLabel}</strong>
                 {leaderColors.map((color) => (
                   <div className="calendar-legend-item" key={color.name}>
                     <span className={`calendar-legend-color ${color.className}`} />

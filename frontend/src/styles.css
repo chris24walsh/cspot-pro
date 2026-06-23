@@ -452,6 +452,7 @@ button {
 .sunday-school-day.teacher-a,
 .sunday-school-next-row.teacher-a,
 .service-calendar-day.teacher-a,
+.calendar-legend-color.teacher-a,
 .stack-row.teacher-a,
 .sunday-school-teacher-list .teacher-a,
 .sunday-school-teacher-picker-list .teacher-a,
@@ -463,6 +464,7 @@ button {
 .sunday-school-day.teacher-b,
 .sunday-school-next-row.teacher-b,
 .service-calendar-day.teacher-b,
+.calendar-legend-color.teacher-b,
 .stack-row.teacher-b,
 .sunday-school-teacher-list .teacher-b,
 .sunday-school-teacher-picker-list .teacher-b,
@@ -474,6 +476,7 @@ button {
 .sunday-school-day.teacher-c,
 .sunday-school-next-row.teacher-c,
 .service-calendar-day.teacher-c,
+.calendar-legend-color.teacher-c,
 .stack-row.teacher-c,
 .sunday-school-teacher-list .teacher-c,
 .sunday-school-teacher-picker-list .teacher-c,
@@ -485,6 +488,7 @@ button {
 .sunday-school-day.teacher-d,
 .sunday-school-next-row.teacher-d,
 .service-calendar-day.teacher-d,
+.calendar-legend-color.teacher-d,
 .stack-row.teacher-d,
 .sunday-school-teacher-list .teacher-d,
 .sunday-school-teacher-picker-list .teacher-d,
@@ -496,6 +500,7 @@ button {
 .sunday-school-day.teacher-e,
 .sunday-school-next-row.teacher-e,
 .service-calendar-day.teacher-e,
+.calendar-legend-color.teacher-e,
 .stack-row.teacher-e,
 .sunday-school-teacher-list .teacher-e,
 .sunday-school-teacher-picker-list .teacher-e,
@@ -507,6 +512,7 @@ button {
 .sunday-school-day.teacher-f,
 .sunday-school-next-row.teacher-f,
 .service-calendar-day.teacher-f,
+.calendar-legend-color.teacher-f,
 .stack-row.teacher-f,
 .sunday-school-teacher-list .teacher-f,
 .sunday-school-teacher-picker-list .teacher-f,
@@ -564,8 +570,12 @@ button {
 
 .service-calendar-day[class*="teacher-"],
 .stack-row[class*="teacher-"] {
-  background: var(--teacher-bg);
-  border-color: color-mix(in srgb, var(--teacher-accent) 58%, #e3dcc8);
+  background: color-mix(in srgb, var(--teacher-accent) 22%, #fffefa);
+  border-color: var(--teacher-accent);
+}
+
+.service-calendar-day[class*="teacher-"] {
+  box-shadow: inset 4px 0 0 var(--teacher-accent);
 }
 
 .sunday-school-next-row span,
@@ -1275,8 +1285,20 @@ button {
   border-color: #9cc8af;
 }
 
+.service-calendar-day.has-service[class*="teacher-"],
+.service-calendar-day.is-selected[class*="teacher-"] {
+  background: color-mix(in srgb, var(--teacher-accent) 34%, #fffefa);
+  border-color: var(--teacher-accent);
+}
+
 .service-calendar-day.is-selected {
   box-shadow: 0 0 0 2px #234a40 inset;
+}
+
+.service-calendar-day.is-selected[class*="teacher-"] {
+  box-shadow:
+    inset 0 0 0 2px #234a40,
+    inset 6px 0 0 var(--teacher-accent);
 }
 
 .service-calendar-day.is-today span {
@@ -1329,49 +1351,49 @@ button {
   padding-bottom: 8px;
 }
 
-.calendar-popup-legend {
-  border-top: 1px solid #e3dcc8;
+.calendar-popup-fields {
   display: grid;
-  gap: 8px;
+  gap: 10px;
+  min-width: 0;
+}
+
+.calendar-popup-legend {
+  background: #f7f3e8;
+  border: 1px solid #ded6c3;
+  border-radius: 7px;
+  display: grid;
+  gap: 6px 12px;
+  grid-template-columns: repeat(auto-fit, minmax(112px, 1fr));
   margin-top: 8px;
-  padding-top: 8px;
+  padding: 8px;
+}
+
+.calendar-legend-heading {
+  color: #53635b;
+  font-size: 10px;
+  font-weight: 900;
+  grid-column: 1 / -1;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
 }
 
 .calendar-legend-item {
   align-items: center;
   display: flex;
   gap: 6px;
+  color: #26372f;
   font-size: 12px;
+  font-weight: 850;
+  min-width: 0;
 }
 
 .calendar-legend-color {
-  flex: 0 0 12px;
-  height: 12px;
-  border-radius: 2px;
-}
-
-.calendar-legend-color.teacher-a {
-  background: #a8d5c4;
-}
-
-.calendar-legend-color.teacher-b {
-  background: #a8cad5;
-}
-
-.calendar-legend-color.teacher-c {
-  background: #d5a8c4;
-}
-
-.calendar-legend-color.teacher-d {
-  background: #d5c4a8;
-}
-
-.calendar-legend-color.teacher-e {
-  background: #c4a8d5;
-}
-
-.calendar-legend-color.teacher-f {
-  background: #c4d5a8;
+  background: var(--teacher-accent, #8e988f);
+  border: 2px solid #fffdf7;
+  border-radius: 4px;
+  box-shadow: 0 0 0 1px var(--teacher-accent, #8e988f);
+  flex: 0 0 16px;
+  height: 16px;
 }
 
 .topbar-stat {
@@ -6449,6 +6471,15 @@ h3 {
 
   .calendar-popup-grid {
     grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
+  .calendar-popup-fields {
+    gap: 8px;
+  }
+
+  .calendar-popup-legend {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .service-calendar-panel {
