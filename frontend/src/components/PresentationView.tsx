@@ -1,4 +1,4 @@
-import { CalendarDays, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, EyeOff, History, MonitorUp, Pause, Pencil, Play, Plus, Search, Sun, Trash2, Volume2, WandSparkles } from "lucide-react";
+import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp, EyeOff, MonitorUp, Pause, Pencil, Play, Plus, Search, Sun, Trash2, Volume2, WandSparkles } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
@@ -67,6 +67,7 @@ import {
 import { AutoFitSlideText } from "./AutoFitSlideText";
 import { useConfirmationDialog } from "./ConfirmationDialog";
 import { CalendarPopup } from "./CalendarPopup";
+import { DateNavigator } from "./DateNavigator";
 import { ScaledSlideImage } from "./ScaledSlideImage";
 import { SongEditorDialog } from "./SongEditorDialog";
 import { showToast } from "../toast";
@@ -1481,6 +1482,44 @@ export function PresentationView({
     } finally {
       setServiceHistoryLoading(false);
     }
+  }
+
+  async function stepService(offset: number) {
+    const currentIndex = sortedPlans.findIndex((candidate) => candidate.id === plan?.id);
+    const target = sortedPlans[currentIndex + offset];
+    if (target) {
+      await selectPlan(target.id);
+    }
+  }
+
+  function serviceHistoryContent() {
+    if (!serviceHistoryOpen) {
+      return null;
+    }
+    return (
+      <section className="worship-history-popover service-history-popover" aria-label="Service edit history">
+        <div className="worship-history-popover-heading">
+          <strong>Edit History</strong>
+          <button className="section-icon-button" onClick={() => setServiceHistoryOpen(false)} type="button" aria-label="Close edit history">
+            x
+          </button>
+        </div>
+        <div className="worship-history-list">
+          {serviceHistoryLoading ? <p className="search-empty">Loading history...</p> : null}
+          {!serviceHistoryLoading && !serviceHistory.length ? <p className="search-empty">No service edits recorded yet.</p> : null}
+          {[...serviceHistory].reverse().map((entry) => {
+            const meta = [entry.restorable ? "Service" : "Audit", entry.actor_name, formatHistoryTime(entry.created_at)].filter(Boolean).join(" · ");
+            return (
+              <button className={`worship-history-row ${entry.restorable ? "" : "is-audit"}`} disabled key={entry.id} type="button">
+                <span>{entry.label}</span>
+                {entry.affected ? <em>{entry.affected}</em> : null}
+                <small>{meta}</small>
+              </button>
+            );
+          })}
+        </div>
+      </section>
+    );
   }
 
   async function recordServiceHistory(label: string, affected: string, changeType: string) {
@@ -3326,16 +3365,23 @@ export function PresentationView({
       {topbarSlot
         ? createPortal(
             <div className="presentation-topbar-tools">
-              <button
-                className="text-button topbar-service-button"
-                disabled={loading}
-                onClick={openServicePicker}
-                title="Choose or create a service"
-                type="button"
-              >
-                <CalendarDays size={16} aria-hidden="true" />
-                <span>{plan ? `${formatServiceDate(plan.service_date)} · ${plan.title}` : "Choose service"}</span>
-              </button>
+              <DateNavigator
+                historyContent={serviceHistoryContent()}
+                historyDisabled={!plan || serviceHistoryLoading}
+                historyExpanded={serviceHistoryOpen}
+                historyLabel="Service edit history"
+                label={plan ? formatServiceDate(plan.service_date) : "Choose service"}
+                nextDisabled={loading || !plan || sortedPlans.findIndex((candidate) => candidate.id === plan.id) <= 0}
+                nextLabel="Next service"
+                onHistory={() => void openServiceHistory()}
+                onNext={() => void stepService(-1)}
+                onOpenPicker={openServicePicker}
+                onPrevious={() => void stepService(1)}
+                pickerLabel="Choose or create a service"
+                pickerDisabled={loading}
+                previousDisabled={loading || !plan || sortedPlans.findIndex((candidate) => candidate.id === plan.id) >= sortedPlans.length - 1}
+                previousLabel="Previous service"
+              />
             </div>,
             topbarSlot,
           )
@@ -3446,58 +3492,6 @@ export function PresentationView({
             }`}
           >
             <div className="stage-meta">
-              <div className="stage-service-tools">
-                <button
-                  className="stage-header-button stage-service-picker-button"
-                  disabled={loading}
-                  onClick={openServicePicker}
-                  title="Choose or create a service"
-                  type="button"
-                >
-                  <CalendarDays size={14} aria-hidden="true" />
-                  <span>{plan ? formatServiceDate(plan.service_date) : "Service"}</span>
-                </button>
-                <button
-                  aria-expanded={serviceHistoryOpen}
-                  aria-label="Open service edit history"
-                  className="stage-header-icon-button"
-                  disabled={!plan || serviceHistoryLoading}
-                  onClick={() => void openServiceHistory()}
-                  title="Service edit history"
-                  type="button"
-                >
-                  <History size={14} aria-hidden="true" />
-                </button>
-                {serviceHistoryOpen ? (
-                  <section className="worship-history-popover service-history-popover" aria-label="Service edit history">
-                    <div className="worship-history-popover-heading">
-                      <strong>Edit History</strong>
-                      <button className="section-icon-button" onClick={() => setServiceHistoryOpen(false)} type="button" aria-label="Close edit history">
-                        x
-                      </button>
-                    </div>
-                    <div className="worship-history-list">
-                      {serviceHistoryLoading ? <p className="search-empty">Loading history...</p> : null}
-                      {!serviceHistoryLoading && !serviceHistory.length ? <p className="search-empty">No service edits recorded yet.</p> : null}
-                      {[...serviceHistory].reverse().map((entry) => {
-                        const meta = [entry.restorable ? "Service" : "Audit", entry.actor_name, formatHistoryTime(entry.created_at)].filter(Boolean).join(" · ");
-                        return (
-                          <button
-                            className={`worship-history-row ${entry.restorable ? "" : "is-audit"}`}
-                            disabled
-                            key={entry.id}
-                            type="button"
-                          >
-                            <span>{entry.label}</span>
-                            {entry.affected ? <em>{entry.affected}</em> : null}
-                            <small>{meta}</small>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </section>
-                ) : null}
-              </div>
               {stageContextTitle ? (
                 <span className="stage-context-label">
                   <span className="stage-context-title">{stageContextTitle}</span>
@@ -3621,24 +3615,23 @@ export function PresentationView({
 
           {canEditSlideNotes && currentPlanItemAllowsNotes ? (
             <div className="slide-notes-panel">
-              <div className="slide-notes-heading">
-                <span>{slideNotesSaving ? "Saving..." : slideNotesDirty ? "Unsaved" : "Saved"}</span>
+              <div className="slide-notes-editor">
+                <textarea
+                  disabled={!currentPlanItem || slideNotesSaving}
+                  onBlur={() => void saveSlideNotes()}
+                  onChange={(event) => setSlideNotesDraft(event.target.value)}
+                  placeholder={currentPlanItem ? "Notes for this sermon slide..." : "Select a sermon slide to add notes."}
+                  value={slideNotesDraft}
+                />
                 <button
                   className="text-button compact-button"
                   disabled={!currentPlanItem || slideNotesSaving || !slideNotesDirty}
                   onClick={() => void saveSlideNotes()}
                   type="button"
                 >
-                  Save
+                  {slideNotesSaving ? "Saving…" : slideNotesDirty ? "Save" : "Saved"}
                 </button>
               </div>
-              <textarea
-                disabled={!currentPlanItem || slideNotesSaving}
-                onBlur={() => void saveSlideNotes()}
-                onChange={(event) => setSlideNotesDraft(event.target.value)}
-                placeholder={currentPlanItem ? "Notes for this sermon slide..." : "Select a sermon slide to add notes."}
-                value={slideNotesDraft}
-              />
             </div>
           ) : null}
         </div>

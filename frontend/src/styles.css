@@ -231,11 +231,45 @@ button {
 
 .worship-set-picker-tools {
   align-items: center;
-  display: grid;
-  gap: 6px;
-  grid-template-columns: auto minmax(0, auto) auto auto;
+  display: block;
   min-width: 0;
   position: relative;
+}
+
+.date-navigator {
+  align-items: center;
+  display: grid;
+  gap: 3px;
+  grid-template-columns: 30px minmax(72px, auto) 30px 30px;
+  min-width: 0;
+  position: relative;
+}
+
+.date-navigator > .section-icon-button,
+.date-navigator > .text-button {
+  height: 30px;
+  min-height: 30px;
+}
+
+.date-navigator > .section-icon-button {
+  min-width: 30px;
+  padding: 0;
+  width: 30px;
+}
+
+.date-navigator-date {
+  background: #fffdf7;
+  font-size: 12px;
+  gap: 5px;
+  max-width: 172px;
+  min-width: 0;
+  padding: 3px 7px;
+}
+
+.date-navigator-date span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .worship-history-button,
@@ -4622,6 +4656,18 @@ h3 {
   padding: 8px;
 }
 
+.slide-notes-editor {
+  align-items: stretch;
+  display: grid;
+  gap: 6px;
+  grid-template-columns: minmax(0, 1fr) 62px;
+}
+
+.slide-notes-editor .compact-button {
+  min-height: 0;
+  padding-inline: 6px;
+}
+
 .slide-notes-heading {
   align-items: center;
   color: #3b473f;
@@ -8089,7 +8135,7 @@ h3 {
 }
 
 .sunday-school-date-row {
-  grid-template-columns: 34px minmax(0, 1fr) 34px 34px auto;
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .sunday-school-toolbar-actions select {
@@ -8213,11 +8259,7 @@ h3 {
   }
 
   .sunday-school-date-row {
-    grid-template-columns: 34px minmax(0, 1fr) 34px 34px;
-  }
-
-  .sunday-school-date-row > .text-button:last-child {
-    grid-column: 1 / -1;
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .sunday-school-toolbar-actions {

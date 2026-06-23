@@ -1,4 +1,4 @@
-import { CalendarDays, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, History, MonitorUp, Music2, Pencil, RefreshCw, Trash2, WandSparkles } from "lucide-react";
+import { ChevronDown, ChevronUp, MonitorUp, Music2, Pencil, RefreshCw, Trash2, WandSparkles } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
@@ -45,6 +45,7 @@ import { dateKey, isWorshipSetPlan, worshipSetType } from "../worshipSets";
 import { calendarColor, calendarMarkers } from "../userCalendarStyle";
 import { AutoFitSlideText } from "./AutoFitSlideText";
 import { CalendarPopup } from "./CalendarPopup";
+import { DateNavigator } from "./DateNavigator";
 import { MusicianLiveView } from "./MusicianLiveView";
 import { SongEditorDialog } from "./SongEditorDialog";
 
@@ -1466,48 +1467,22 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
           ? createPortal(
             <div className="presentation-topbar-tools worship-topbar-tools">
               <div className="worship-set-picker-tools">
-                <button
-                  aria-label="Previous worship set"
-                  className="section-icon-button worship-set-step-button"
-                  disabled={loading || sortedPlans.findIndex((candidate) => candidate.id === (selectedPlanId || plan?.id)) >= sortedPlans.length - 1}
-                  onClick={() => void stepWorshipSet(1)}
-                  title="Previous worship set"
-                  type="button"
-                >
-                  <ChevronLeft size={15} aria-hidden="true" />
-                </button>
-                <button
-                  className="text-button topbar-service-button"
-                  disabled={loading}
-                  onClick={openSetPicker}
-                  title="Choose or create a worship set"
-                  type="button"
-                >
-                  <CalendarDays size={16} aria-hidden="true" />
-                  <span>{plan ? formatServiceDate(plan.service_date) : "Choose worship set"}</span>
-                </button>
-                <button
-                  aria-label="Next worship set"
-                  className="section-icon-button worship-set-step-button"
-                  disabled={loading || sortedPlans.findIndex((candidate) => candidate.id === (selectedPlanId || plan?.id)) <= 0}
-                  onClick={() => void stepWorshipSet(-1)}
-                  title="Next worship set"
-                  type="button"
-                >
-                  <ChevronRight size={15} aria-hidden="true" />
-                </button>
-                <button
-                  aria-expanded={editHistoryOpen}
-                  aria-label="Open worship set edit history"
-                  className="section-icon-button worship-history-button"
-                  disabled={!plan || editHistoryApplying}
-                  onClick={() => void openEditHistory()}
-                  title="Worship set edit history"
-                  type="button"
-                >
-                  <History size={15} aria-hidden="true" />
-                </button>
-                {editHistoryOpen ? (
+                <DateNavigator
+                  historyDisabled={!plan || editHistoryApplying}
+                  historyExpanded={editHistoryOpen}
+                  historyLabel="Worship set edit history"
+                  label={plan ? formatServiceDate(plan.service_date) : "Choose worship set"}
+                  nextDisabled={loading || sortedPlans.findIndex((candidate) => candidate.id === (selectedPlanId || plan?.id)) <= 0}
+                  nextLabel="Next worship set"
+                  onHistory={() => void openEditHistory()}
+                  onNext={() => void stepWorshipSet(-1)}
+                  onOpenPicker={openSetPicker}
+                  onPrevious={() => void stepWorshipSet(1)}
+                  pickerLabel="Choose or create a worship set"
+                  pickerDisabled={loading}
+                  previousDisabled={loading || sortedPlans.findIndex((candidate) => candidate.id === (selectedPlanId || plan?.id)) >= sortedPlans.length - 1}
+                  previousLabel="Previous worship set"
+                  historyContent={editHistoryOpen ? (
                   <section className="worship-history-popover" aria-label="Worship set edit history">
                     <div className="worship-history-popover-heading">
                       <strong>Edit History</strong>
@@ -1568,7 +1543,8 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
                       })()}
                     </div>
                   </section>
-                ) : null}
+                  ) : null}
+                />
               </div>
               <div className="worship-set-topbar-actions">
                 <button className="text-button topbar-action-button" disabled={!plan || !canEditPlan || suggesting} onClick={() => void suggestWorshipSet()} type="button">

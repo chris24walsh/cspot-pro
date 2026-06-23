@@ -1,14 +1,10 @@
 import {
-  CalendarDays,
   CheckCircle2,
   ChevronDown,
-  ChevronLeft,
-  ChevronRight,
   ChevronUp,
   ExternalLink,
   FileText,
   Gamepad2,
-  History,
   Library,
   Plus,
   Printer,
@@ -21,6 +17,7 @@ import {
   WandSparkles,
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 
 import {
   ApiError,
@@ -38,6 +35,7 @@ import {
 } from "../api";
 import { calendarColor, calendarMarkers } from "../userCalendarStyle";
 import { CalendarPopup } from "./CalendarPopup";
+import { DateNavigator } from "./DateNavigator";
 
 type SundaySchoolPane = "library" | "set";
 type LessonElementKey = "passage" | "craft" | "activity" | "game" | "resources";
@@ -224,6 +222,7 @@ export function SundaySchoolView({ canEdit }: { canEdit: boolean }) {
   const [lessons, setLessons] = useState<SundaySchoolLesson[]>([]);
   const [resources, setResources] = useState<SundaySchoolResource[]>([]);
   const [users, setUsers] = useState<User[]>([]);
+  const [topbarSlot, setTopbarSlot] = useState<HTMLElement | null>(null);
   const [selectedDate, setSelectedDate] = useState(nextSundayDateInput());
   const [calendarMonth, setCalendarMonth] = useState(monthInputFromDate(new Date()));
   const [draft, setDraft] = useState<SundaySchoolLessonPayload>(() => blankLesson(nextSundayDateInput()));
@@ -328,6 +327,10 @@ export function SundaySchoolView({ canEdit }: { canEdit: boolean }) {
 
   useEffect(() => {
     void load();
+  }, []);
+
+  useEffect(() => {
+    setTopbarSlot(document.getElementById("workspace-topbar-slot"));
   }, []);
 
   useEffect(() => {
@@ -574,6 +577,24 @@ export function SundaySchoolView({ canEdit }: { canEdit: boolean }) {
 
   return (
     <section className={`worship-builder sunday-school-as-worship worship-builder-pane-${mobilePane}`} aria-label="Sunday School lessons">
+      {topbarSlot
+        ? createPortal(
+            <div className="presentation-topbar-tools">
+              <DateNavigator
+                historyLabel="Open Sunday School calendar history"
+                label={shortDate(selectedDate)}
+                nextLabel="Next Sunday"
+                onHistory={() => setCalendarOpen(true)}
+                onNext={() => shiftSelectedDate(1)}
+                onOpenPicker={() => setCalendarOpen(true)}
+                onPrevious={() => shiftSelectedDate(-1)}
+                pickerLabel="Choose Sunday School lesson"
+                previousLabel="Previous Sunday"
+              />
+            </div>,
+            topbarSlot,
+          )
+        : null}
       <div className="worship-mobile-pane-tabs" aria-label="Sunday School panels">
         <button className={mobilePane === "library" ? "active" : ""} onClick={() => setMobilePane("library")} type="button">
           Lessons <span>{scheduleDates.length}</span>
@@ -585,19 +606,6 @@ export function SundaySchoolView({ canEdit }: { canEdit: boolean }) {
 
       <aside className={`worship-song-browser ${mobilePane === "library" ? "is-mobile-active" : ""}`}>
         <div className="worship-library-search-row sunday-school-date-row">
-          <button aria-label="Previous Sunday" className="section-icon-button worship-set-step-button" onClick={() => shiftSelectedDate(-1)} type="button">
-            <ChevronLeft size={15} aria-hidden="true" />
-          </button>
-          <button className="text-button topbar-service-button" onClick={() => setCalendarOpen(true)} type="button">
-            <CalendarDays size={16} aria-hidden="true" />
-            <span>{shortDate(selectedDate)}</span>
-          </button>
-          <button aria-label="Next Sunday" className="section-icon-button worship-set-step-button" onClick={() => shiftSelectedDate(1)} type="button">
-            <ChevronRight size={15} aria-hidden="true" />
-          </button>
-          <button aria-label="Open Sunday School history" className="section-icon-button worship-history-button" onClick={() => setCalendarOpen(true)} type="button">
-            <History size={15} aria-hidden="true" />
-          </button>
           <button className="text-button" disabled={!canEdit || importing} onClick={() => void importResources()} type="button">
             <RefreshCw size={14} aria-hidden="true" />
             {importing ? "Importing..." : "Import"}
