@@ -421,6 +421,44 @@ function SlideTextBlock({
   return <AutoFitSlideText compact={compact} maxFontSize={maxFontSize} text={text} />;
 }
 
+function DeferredMiniSlideImage({ src }: { src: string }) {
+  const imageRef = useRef<HTMLImageElement | null>(null);
+  const [shouldLoad, setShouldLoad] = useState(false);
+
+  useEffect(() => {
+    const image = imageRef.current;
+    if (!image || shouldLoad) {
+      return undefined;
+    }
+    if (!("IntersectionObserver" in window)) {
+      setShouldLoad(true);
+      return undefined;
+    }
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) {
+          setShouldLoad(true);
+          observer.disconnect();
+        }
+      },
+      { rootMargin: "300px" },
+    );
+    observer.observe(image);
+    return () => observer.disconnect();
+  }, [shouldLoad]);
+
+  return (
+    <img
+      alt=""
+      decoding="async"
+      loading="lazy"
+      ref={imageRef}
+      src={shouldLoad ? src : undefined}
+    />
+  );
+}
+
 function renderMiniSlide(
   slide: PresentationSlide | null,
   fallback: string,
@@ -438,7 +476,7 @@ function renderMiniSlide(
   return (
     <div className={`mini-slide-surface stage-theme-${theme} ${presentationTypeClass(slide.itemType)}`}>
       {slide.imageUrl ? (
-        <img alt="" src={slide.imageUrl} />
+        <DeferredMiniSlideImage src={slide.imageUrl} />
       ) : slide.videoUrl ? (
         <div className="mini-video-slide">
           <span>Video</span>

@@ -929,11 +929,20 @@ def download_file(
     session: Session = Depends(get_session),
 ) -> FileResponse:
     stored = _stored_file_or_404(session, file_id)
+    storage_path = stored.storage_path
+    display_name = stored.display_name
+    content_type = stored.content_type or "application/octet-stream"
+
+    # Yield-based dependencies are finalized after the response body is sent.  A
+    # FileResponse can therefore retain its database connection for the whole
+    # download unless we release it explicitly.  This is especially important
+    # for slide decks, whose images are requested in parallel by the presenter.
+    session.close()
 
     return FileResponse(
-        stored.storage_path,
-        filename=stored.display_name,
-        media_type=stored.content_type or "application/octet-stream",
+        storage_path,
+        filename=display_name,
+        media_type=content_type,
     )
 
 
@@ -944,6 +953,9 @@ def list_rendered_slides(
     session: Session = Depends(get_session),
 ) -> list[RenderedSlideRead]:
     stored = _stored_file_or_404(session, file_id)
+    # Rendering can take minutes on a cold cache and does not need the database
+    # after the StoredFile row has been loaded.
+    session.close()
     try:
         slides = _render_slides(stored)
     except FileNotFoundError as error:
@@ -989,10 +1001,21 @@ def get_rendered_slide(
     session: Session = Depends(get_session),
 ) -> FileResponse:
     stored = _stored_file_or_404(session, file_id)
+    # Release the pooled connection before either a cold render or file transfer.
+    session.close()
     slides = _render_slides(stored)
     if slide_index < 1 or slide_index > len(slides):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Rendered slide not found")
-    return FileResponse(slides[slide_index - 1], media_type="image/png")
+    slide_path = slides[slide_index - 1]
+
+    # Do not hold one pooled database connection per image while the browser is
+    # downloading a deck.  A single sermon can contain more images than the
+    # entire SQLAlchemy pool has connections.
+    return FileResponse(
+        slide_path,
+        media_type="image/png",
+        headers={"Cache-Control": "private, max-age=3600"},
+    )
 
 
 @router.get("/items/{plan_item_id}/files", response_model=list[ItemFileRead])
