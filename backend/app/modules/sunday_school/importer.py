@@ -118,6 +118,10 @@ def compact_page_text(value: str) -> str:
     return compact_text(value).lower()
 
 
+def squashed_page_text(value: str) -> str:
+    return re.sub(r"\s+", "", value).lower()
+
+
 def read_pdf_page_texts(path: Path, page_limit: int | None = 80) -> list[str]:
     try:
         reader = PdfReader(str(path))
@@ -190,12 +194,25 @@ def translation_from_name(path: Path) -> str:
     return match.group(1).upper() if match else ""
 
 
+def title_from_path(path: Path) -> str:
+    stem = path.stem.replace("_", " ")
+    if " - " in stem:
+        title = stem.rsplit(" - ", 1)[-1]
+    else:
+        title = stem
+    title = re.sub(r"\b(?:ESV|KJV|NIV|NKJV|ASV)\b", "", title, flags=re.IGNORECASE)
+    title = re.sub(r"^\s*(?:[1-3]\s*)?[A-Z][A-Za-z]+\s+\d+\s*", "", title)
+    return compact_text(title) or path.parent.name
+
+
 def title_from_pdf(path: Path, text: str) -> str:
     for line in text.splitlines():
         line = compact_text(line)
+        if line and len(line) > 12 and " " not in line:
+            return title_from_path(path)
         if line and "copyright" not in line.lower():
             return line
-    return path.stem
+    return title_from_path(path)
 
 
 def bible_reference_from_text(text: str) -> str:
@@ -238,10 +255,23 @@ def extract_lesson_front_matter(page_texts: list[str]) -> dict[str, str]:
 
 
 def strip_resource_footer(value: str) -> str:
-    value = re.sub(r"\bFoundations\s+\(Preschool\).*", "", value, flags=re.IGNORECASE | re.DOTALL)
-    value = re.sub(r"\bLove\s*in\s*Action.*?Page\d+.*", "", value, flags=re.IGNORECASE | re.DOTALL)
+    value = re.sub(
+        r"\bFoundations\s+\(Preschool\).*",
+        "",
+        value,
+        flags=re.IGNORECASE | re.DOTALL,
+    )
+    value = re.sub(r"\bPage\s*\d+\b.*", "", value, flags=re.IGNORECASE | re.DOTALL)
+    value = re.sub(r"\bCopyright\s*©?.*", "", value, flags=re.IGNORECASE | re.DOTALL)
     value = re.sub(r"\bWritten\s+by\b.*", "", value, flags=re.IGNORECASE | re.DOTALL)
     return compact_text(value)
+
+
+def is_unreadably_compact(value: str) -> bool:
+    compacted = compact_text(value)
+    if len(compacted) < 40:
+        return False
+    return compacted.count(" ") / max(len(compacted), 1) < 0.08
 
 
 def extract_prayer_text(page_texts: list[str]) -> str:
@@ -253,7 +283,8 @@ def extract_prayer_text(page_texts: list[str]) -> str:
             flags=re.IGNORECASE | re.DOTALL,
         )
         if match:
-            return strip_resource_footer(match.group(1))
+            prayer = strip_resource_footer(match.group(1))
+            return "" if is_unreadably_compact(prayer) else prayer
     return ""
 
 
@@ -287,6 +318,10 @@ def generated_story_text(theme: str, reference: str, main_idea: str, summary: st
                 "Questions for older children:\n1. What does this story show us about "
                 "God?\n2. Why do actions matter as well as words?\n3. Who could we help "
                 "or encourage this week?"
+            ),
+            (
+                "Prayer:\nDear God, thank you for loving us first. Help us listen to "
+                "Jesus and show your love with kind words and helpful actions. Amen."
             ),
         ]
     )
@@ -324,20 +359,21 @@ def lesson_packet_summary(
 def detected_types(text: str) -> list[str]:
     lowered = text.lower()
     compact = compact_page_text(text)
+    squashed = squashed_page_text(text)
     types = ["lesson_packet"]
-    if "bible story" in compact or "passage:" in lowered:
+    if "bible story" in compact or "biblestory" in squashed or "passage:" in lowered:
         types.append("bible_story")
-    if "craft" in compact:
+    if "craft" in compact or "craft" in squashed:
         types.append("craft")
-    if "game" in compact or "guided play" in compact:
+    if "game" in compact or "game" in squashed or "guided play" in compact:
         types.append("game")
-    if "coloring" in compact or "activity sheet" in compact:
+    if "coloring" in compact or "coloring" in squashed or "activity sheet" in compact:
         types.append("coloring")
-    if "worksheet" in compact or "activity sheet" in compact:
+    if "worksheet" in compact or "worksheet" in squashed or "activity sheet" in compact:
         types.append("worksheet")
     if any(
-        keyword in lowered
-        for keyword in ("word search", "wordsearch", "crossword", "jigsaw", "maze")
+        keyword in squashed
+        for keyword in ("wordsearch", "crossword", "jigsaw", "maze")
     ):
         types.append("puzzle")
     if "more resources online" in lowered or "watch the video" in lowered:
@@ -364,9 +400,12 @@ def page_range_for(resource_type: str, page_texts: list[str]) -> tuple[int | Non
     for index, text in enumerate(page_texts):
         lowered = text.lower()
         compact = compact_page_text(text)
+        squashed = squashed_page_text(text)
         if resource_type == "bible_story":
             matched = re.search(r"bible\s+story\s*\(", lowered) is not None or (
-                "main bible teaching" in compact or "mainbibleteaching" in compact
+                "main bible teaching" in compact
+                or "mainbibleteaching" in compact
+                or "mainbibleteaching" in squashed
             )
         elif resource_type == "craft":
             matched = (
@@ -374,6 +413,8 @@ def page_range_for(resource_type: str, page_texts: list[str]) -> tuple[int | Non
                 or "craftactivities" in compact
                 or "craft activities" in compact
                 or "craftone" in compact
+                or "craftactivities" in squashed
+                or "craftone" in squashed
                 or "craft one" in lowered
             )
         elif resource_type == "game":
@@ -381,12 +422,25 @@ def page_range_for(resource_type: str, page_texts: list[str]) -> tuple[int | Non
                 re.search(r"group\s+game\s*\(", lowered) is not None
                 or "game&activitiessuggestions" in compact
                 or "game & activities suggestions" in compact
+                or "game&activitiessuggestions" in squashed
             )
         elif resource_type == "puzzle":
             matched = any(
-                keyword in lowered
-                for keyword in ("word search", "wordsearch", "crossword", "jigsaw", "maze")
-            ) and "answer" not in lowered
+                keyword in squashed
+                for keyword in ("wordsearch", "crossword", "jigsaw", "maze")
+            ) and not any(
+                answer_marker in squashed
+                for answer_marker in ("wordsearchanswers", "answerkey", "answersheet")
+            )
+        elif resource_type == "coloring":
+            matched = "coloring" in compact or "coloring" in squashed
+        elif resource_type == "worksheet":
+            matched = (
+                "worksheet" in compact
+                or "activity sheet" in compact
+                or "worksheet" in squashed
+                or "activitysheet" in squashed
+            )
         else:
             keywords = PAGE_KEYWORDS.get(resource_type, ())
             matched = any(keyword in lowered for keyword in keywords)
@@ -422,6 +476,20 @@ def page_range_for(resource_type: str, page_texts: list[str]) -> tuple[int | Non
     return start, start
 
 
+def summary_from_page_range(
+    page_texts: list[str],
+    page_start: int | None,
+    page_end: int | None,
+) -> str:
+    if not page_start or not page_end:
+        return ""
+    selected = "\n".join(page_texts[page_start - 1 : page_end])
+    cleaned = strip_resource_footer(clean_extracted_text(selected))
+    if is_unreadably_compact(cleaned):
+        return ""
+    return cleaned[:1600]
+
+
 def summary_for(
     resource_type: str,
     text: str,
@@ -429,15 +497,23 @@ def summary_for(
     page_texts: list[str],
     theme: str,
     reference: str,
+    page_start: int | None,
+    page_end: int | None,
 ) -> str:
     if resource_type == "lesson_packet":
         return lesson_packet_summary(page_texts, theme, reference, overview_note)
     if resource_type == "bible_story":
-        return "Bible reading/story section detected in the source packet."
+        return summary_from_page_range(page_texts, page_start, page_end) or (
+            "Bible reading/story section detected in the source packet."
+        )
     if resource_type == "craft":
-        return "Craft or printable craft instructions detected in the source packet."
+        return summary_from_page_range(page_texts, page_start, page_end) or (
+            "Craft or printable craft instructions detected in the source packet."
+        )
     if resource_type == "game":
-        return "Game, guided play, or movement activity detected in the source packet."
+        return summary_from_page_range(page_texts, page_start, page_end) or (
+            "Game, guided play, or movement activity detected in the source packet."
+        )
     if resource_type == "coloring":
         return "Coloring page or activity sheet detected in the source packet."
     if resource_type == "worksheet":
@@ -493,6 +569,8 @@ def candidates_from_pdf(
                     page_texts,
                     theme,
                     reference,
+                    page_start,
+                    page_end,
                 ),
                 sort_order=RESOURCE_SORT[resource_type],
             )

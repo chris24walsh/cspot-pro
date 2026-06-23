@@ -8,82 +8,125 @@ class RoleDefinition(TypedDict):
     description: str
     permissions: set[PermissionName]
 
-VIEWER_PERMISSIONS: set[PermissionName] = {
+
+READ_PERMISSIONS: set[PermissionName] = {
     "plans:read",
     "songs:read",
     "library:read",
     "messages:read",
 }
 
-PARTICIPANT_PERMISSIONS: set[PermissionName] = VIEWER_PERMISSIONS | {
+TEAM_READ_PERMISSIONS: set[PermissionName] = {
     "team:read",
-    "presentation:use",
 }
 
-READ_PERMISSIONS: set[PermissionName] = PARTICIPANT_PERMISSIONS
-
-EDIT_PERMISSIONS: set[PermissionName] = {
-    "plans:edit",
-    "songs:edit",
-    "team:edit",
-    "library:edit",
-    "messages:write",
-}
-
-CREATE_PERMISSIONS: set[PermissionName] = {
+SERVICE_PLANNING_PERMISSIONS: set[PermissionName] = {
     "plans:create",
-    "songs:create",
-    "library:create",
+    "plans:edit",
 }
 
-DELETE_PERMISSIONS: set[PermissionName] = {
+SERVICE_ARCHIVE_PERMISSIONS: set[PermissionName] = {
     "plans:delete",
+}
+
+SONG_EDIT_PERMISSIONS: set[PermissionName] = {
+    "songs:create",
+    "songs:edit",
     "songs:delete",
+}
+
+LIBRARY_EDIT_PERMISSIONS: set[PermissionName] = {
+    "library:create",
+    "library:edit",
     "library:delete",
+}
+
+TEAM_EDIT_PERMISSIONS: set[PermissionName] = {
+    "team:edit",
     "team:delete",
+}
+
+COMMUNICATION_EDIT_PERMISSIONS: set[PermissionName] = {
+    "messages:write",
     "messages:delete",
 }
 
-ALL_PERMISSIONS: set[PermissionName] = READ_PERMISSIONS | EDIT_PERMISSIONS | CREATE_PERMISSIONS | {
+PRESENTATION_CONTROL_PERMISSIONS: set[PermissionName] = {
+    "presentation:use",
+}
+
+BROADCAST_CONTROL_PERMISSIONS: set[PermissionName] = {
     "broadcast:use",
+}
+
+ADMIN_PERMISSIONS: set[PermissionName] = {
     "users:manage",
-} | DELETE_PERMISSIONS
+    "site:edit",
+}
+
+ALL_PERMISSIONS: set[PermissionName] = (
+    READ_PERMISSIONS
+    | TEAM_READ_PERMISSIONS
+    | SERVICE_PLANNING_PERMISSIONS
+    | SERVICE_ARCHIVE_PERMISSIONS
+    | SONG_EDIT_PERMISSIONS
+    | LIBRARY_EDIT_PERMISSIONS
+    | TEAM_EDIT_PERMISSIONS
+    | COMMUNICATION_EDIT_PERMISSIONS
+    | PRESENTATION_CONTROL_PERMISSIONS
+    | BROADCAST_CONTROL_PERMISSIONS
+    | ADMIN_PERMISSIONS
+)
 
 ROLE_DEFINITIONS: dict[str, RoleDefinition] = {
     "viewer": {
-        "description": "Read-only library and song access. Cannot control slides or make changes.",
-        "permissions": VIEWER_PERMISSIONS,
+        "description": "Church member remote-viewer access for the livestream broadcast.",
+        "permissions": READ_PERMISSIONS,
     },
     "musician": {
-        "description": "Use worship song, chord, team, and live musician tools. Cannot edit or delete content.",
-        "permissions": PARTICIPANT_PERMISSIONS,
-    },
-    "worship_team": {
-        "description": "Add/edit songs and create dated worship sets. Cannot archive/delete songs, services, users, or integrations.",
-        "permissions": PARTICIPANT_PERMISSIONS | {"plans:create", "plans:edit", "songs:edit", "songs:create"},
-    },
-    "service_leader": {
-        "description": "Own service plans and team assignments. Cannot archive/delete songs, users, or integrations.",
-        "permissions": PARTICIPANT_PERMISSIONS | {"broadcast:use", "plans:edit", "plans:create", "plans:delete", "team:edit", "team:delete", "messages:write"},
+        "description": "Read-only worship access for musicians who need the worship plan and live musician view.",
+        "permissions": READ_PERMISSIONS | TEAM_READ_PERMISSIONS,
     },
     "worship_leader": {
-        "description": "Own worship songs, files, and service flow. Cannot manage users or disconnect integrations.",
-        "permissions": PARTICIPANT_PERMISSIONS
-        | EDIT_PERMISSIONS
-        | {"broadcast:use", "plans:create", "plans:delete", "songs:create", "songs:delete", "library:create", "library:delete"},
+        "description": "Manage worship songs, files, and worship set planning.",
+        "permissions": READ_PERMISSIONS
+        | TEAM_READ_PERMISSIONS
+        | SERVICE_PLANNING_PERMISSIONS
+        | SERVICE_ARCHIVE_PERMISSIONS
+        | SONG_EDIT_PERMISSIONS
+        | LIBRARY_EDIT_PERMISSIONS
+        | TEAM_EDIT_PERMISSIONS
+        | COMMUNICATION_EDIT_PERMISSIONS,
+    },
+    "sunday_school_teacher": {
+        "description": "Read Sunday school lessons and resources without changing them.",
+        "permissions": READ_PERMISSIONS,
+    },
+    "sunday_school_leader": {
+        "description": "Manage Sunday school lessons and imported classroom resources.",
+        "permissions": READ_PERMISSIONS | SERVICE_PLANNING_PERMISSIONS,
+    },
+    "teacher": {
+        "description": "Prepare upcoming services and update service content without managing songs or users.",
+        "permissions": READ_PERMISSIONS | SERVICE_PLANNING_PERMISSIONS | PRESENTATION_CONTROL_PERMISSIONS,
+    },
+    "presenter": {
+        "description": "Operate the live service computer and presentation flow.",
+        "permissions": READ_PERMISSIONS | SERVICE_PLANNING_PERMISSIONS | PRESENTATION_CONTROL_PERMISSIONS,
     },
     "administrator": {
-        "description": "Manage users, roles, website content, and all planning, music, library, and presentation content.",
-        "permissions": ALL_PERMISSIONS | {"site:edit"},
+        "description": "Full access across users, planning, worship, Sunday school, broadcast, and site settings.",
+        "permissions": ALL_PERMISSIONS,
     },
 }
 
 LEGACY_ROLE_ALIASES: dict[str, str] = {
     "user": "viewer",
-    "leader": "service_leader",
-    "teacher": "service_leader",
-    "author": "worship_team",
-    "editor": "worship_team",
+    "leader": "teacher",
+    "service_leader": "teacher",
+    "worship_team": "worship_leader",
+    "author": "worship_leader",
+    "editor": "worship_leader",
     "creator": "worship_leader",
 }
 

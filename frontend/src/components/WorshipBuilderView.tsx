@@ -15,6 +15,7 @@ import {
   getPlanTypes,
   getPlans,
   getSongs,
+  getUsers,
   getWorshipSetSuggestion,
   parseGoogleDriveDeck,
   runCustomProviderSearch,
@@ -34,6 +35,7 @@ import {
   type PlanSummary,
   type PlanType,
   type Song,
+  type User,
   type WorshipSuggestedSong,
 } from "../api";
 import { buildPresentationSections, suggestSlideGroupFontCap } from "../presentation";
@@ -41,6 +43,7 @@ import { showToast } from "../toast";
 import { analyzeImportedSongSlides, analyzeWorshipText, buildLyricsFromSections, canonicalizeWorshipLyrics } from "../worshipText";
 import { dateKey, isWorshipSetPlan, worshipSetType } from "../worshipSets";
 import { AutoFitSlideText } from "./AutoFitSlideText";
+import { CalendarPopup } from "./CalendarPopup";
 import { MusicianLiveView } from "./MusicianLiveView";
 import { SongEditorDialog } from "./SongEditorDialog";
 
@@ -337,6 +340,7 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
   const [plans, setPlans] = useState<PlanSummary[]>([]);
   const [planTypes, setPlanTypes] = useState<PlanType[]>([]);
   const [songs, setSongs] = useState<Song[]>([]);
+  const [users, setUsers] = useState<User[]>([]);
   const [plan, setPlan] = useState<PlanDetail | null>(null);
   const [selectedPlanId, setSelectedPlanId] = useState("");
   const [setPickerOpen, setSetPickerOpen] = useState(false);
@@ -344,6 +348,7 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
   const [setDraftPlanId, setSetDraftPlanId] = useState<string | null>(null);
   const [setDraftDate, setSetDraftDate] = useState(dateInputFromIso(new Date().toISOString()));
   const [setDraftTitle, setSetDraftTitle] = useState(suggestedWorshipSetTitle(dateInputFromIso(new Date().toISOString())));
+  const [selectedLeaderId, setSelectedLeaderId] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(true);
   const [suggesting, setSuggesting] = useState(false);
@@ -606,7 +611,12 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
   async function load(targetPlanId?: string) {
     setLoading(true);
     try {
-      const [nextPlans, nextSongs, nextPlanTypes] = await Promise.all([getPlans(), getSongs(), getPlanTypes()]);
+      const [nextPlans, nextSongs, nextPlanTypes, nextUsers] = await Promise.all([
+        getPlans(),
+        getSongs(),
+        getPlanTypes(),
+        getUsers(),
+      ]);
       const nextWorshipPlans = nextPlans.filter(isWorshipSetPlan);
       const requestedPlanId =
         targetPlanId !== undefined
@@ -623,6 +633,7 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
       const nextWorshipItems = sortedWorshipItems(nextPlan?.items ?? []);
       setPlans(nextPlans);
       setSongs(nextSongs);
+      setUsers(nextUsers);
       setPlanTypes(nextPlanTypes);
       setSelectedPlanId(resolvedPlanId);
       if (resolvedPlanId) {
@@ -2033,175 +2044,96 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
         />
       ) : null}
 
-      {setPickerOpen ? (
-        <div className="app-dialog-backdrop" role="presentation" onMouseDown={() => setSetPickerOpen(false)}>
-          <section
-            className="app-dialog app-dialog-wide service-picker-dialog worship-set-picker-dialog"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="worship-set-picker-title"
-            onMouseDown={(event) => event.stopPropagation()}
-          >
-            <div className="section-heading">
-              <div>
-                <p className="eyebrow">Calendar</p>
-                <h2 id="worship-set-picker-title">Worship Sets</h2>
-              </div>
-              <button className="text-button" onClick={() => setSetPickerOpen(false)} type="button">
-                Close
+      <CalendarPopup
+        isOpen={setPickerOpen}
+        onClose={() => setSetPickerOpen(false)}
+        title="Worship Sets"
+        eyebrow="Calendar"
+        calendarMonth={setCalendarMonth}
+        onMonthChange={setSetCalendarMonth}
+        calendarDays={calendarDays.map((day) => ({
+          date: day.key,
+          muted: day.muted,
+          className: `${worshipSetsByDate.get(day.key) ? "has-service" : ""}`.trim(),
+        }))}
+        selectedDate={setDraftDate}
+        onDateSelect={(dateInput) => chooseSetDate(dateInput)}
+        dayContent={(day) => {
+          const existing = worshipSetsByDate.get(day.date);
+          const date = new Date(`${day.date}T12:00:00`);
+          return (
+            <>
+              <span>{date.getDate()}</span>
+              {existing ? <small>{existing.title}</small> : null}
+            </>
+          );
+        }}
+        footerContent={
+          <div>
+            <label className="form-grid single-column">
+              Leader
+              <select
+                value={selectedLeaderId || ""}
+                onChange={(event) => setSelectedLeaderId(event.target.value || null)}
+              >
+                <option value="">None</option>
+                {users
+                  .filter((user) => user.active && user.roles.includes("worship_leader"))
+                  .sort((a, b) => a.name.localeCompare(b.name))
+                  .map((user) => (
+                    <option key={user.id} value={user.id}>
+                      {user.name}
+                    </option>
+                  ))}
+              </select>
+            </label>
+            <label className="form-grid single-column">
+              Title
+              <input
+                onChange={(event) => setSetDraftTitle(event.target.value)}
+                placeholder={suggestedWorshipSetTitle(setDraftDate)}
+                type="text"
+                value={setDraftTitle}
+              />
+            </label>
+          </div>
+        }
+        leaderColors={
+          users
+            .filter((user) => user.active && user.roles.includes("worship_leader"))
+            .map((user, index) => ({
+              name: user.name,
+              className: `teacher-${String.fromCharCode(97 + (index % 6))}`,
+            }))
+        }
+        actionButtons={
+          <>
+            <button className="primary-button" disabled={!canEditPlan} onClick={() => void openDraftWorshipSet()} type="button">
+              {setDraftPlanId ? "Open Set" : "Create & Open"}
+            </button>
+            <button className="text-button" disabled={!canEditPlan} onClick={() => void saveWorshipSetDraft(false)} type="button">
+              {setDraftPlanId ? "Save Changes" : "Create Set"}
+            </button>
+            {setDraftPlanId ? (
+              <button
+                className="text-button"
+                onClick={() => {
+                  setSetDraftPlanId(null);
+                  setSetDraftTitle(suggestedWorshipSetTitle(setDraftDate));
+                }}
+                type="button"
+              >
+                Deselect
               </button>
-            </div>
-
-            <div className="service-picker-grid">
-              <section className="service-picker-panel service-calendar-panel" aria-label="Worship set calendar">
-                <div className="service-calendar-heading">
-                  <button
-                    className="text-button"
-                    onClick={() => {
-                      const [year, month] = setCalendarMonth.split("-").map(Number);
-                      setSetCalendarMonth(monthInputFromDate(new Date(year, month - 2, 1)));
-                    }}
-                    type="button"
-                    aria-label="Previous month"
-                  >
-                    <ChevronLeft size={16} aria-hidden="true" />
-                  </button>
-                  <strong>
-                    {new Date(`${setCalendarMonth}-01T00:00:00`).toLocaleDateString(undefined, {
-                      month: "long",
-                      year: "numeric",
-                    })}
-                  </strong>
-                  <button
-                    className="text-button"
-                    onClick={() => {
-                      const [year, month] = setCalendarMonth.split("-").map(Number);
-                      setSetCalendarMonth(monthInputFromDate(new Date(year, month, 1)));
-                    }}
-                    type="button"
-                    aria-label="Next month"
-                  >
-                    <ChevronRight size={16} aria-hidden="true" />
-                  </button>
-                </div>
-                <div className="service-calendar-grid">
-                  {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day) => (
-                    <span className="service-calendar-weekday" key={day}>{day}</span>
-                  ))}
-                  {calendarDays.map((day) => {
-                    const existing = worshipSetsByDate.get(day.key);
-                    return (
-                      <button
-                        className={`service-calendar-day ${existing ? "has-service" : ""} ${setDraftDate === day.key ? "is-selected" : ""} ${
-                          day.muted ? "is-muted" : ""
-                        }`}
-                        key={day.key}
-                        onClick={() => chooseSetDate(day.key)}
-                        onDoubleClick={() => void openSetDate(day.key)}
-                        title={existing ? `Open ${existing.title}` : `Create ${suggestedWorshipSetTitle(day.key)}`}
-                        type="button"
-                      >
-                        <span>{day.date.getDate()}</span>
-                        {existing ? <small>{existing.title}</small> : null}
-                      </button>
-                    );
-                  })}
-                </div>
-              </section>
-
-              <section className="service-picker-panel service-list-panel" aria-label="Existing worship sets">
-                <div className="service-panel-heading">
-                  <h3>Existing Sets</h3>
-                  <button className="text-button compact-button" onClick={() => chooseSetDate(dateInputFromIso(new Date().toISOString()))} type="button">
-                    New
-                  </button>
-                </div>
-                <div className="stack-list compact service-date-list">
-                  {sortedPlans.map((worshipSet) => (
-                    <button
-                      className={`stack-row ${setDraftPlanId === worshipSet.id ? "selected" : ""}`}
-                      key={worshipSet.id}
-                      onClick={() => {
-                        setSetDraftPlanId(worshipSet.id);
-                        setSetDraftDate(dateInputFromIso(worshipSet.service_date));
-                        setSetDraftTitle(worshipSet.title);
-                        setSetCalendarMonth(dateInputFromIso(worshipSet.service_date).slice(0, 7));
-                      }}
-                      onDoubleClick={() => {
-                        void selectPlan(worshipSet.id).then(() => setSetPickerOpen(false));
-                      }}
-                      type="button"
-                    >
-                      <strong>{formatServiceDate(worshipSet.service_date)}</strong>
-                      <span>
-                        {worshipSet.title} · {worshipSet.item_count} song{worshipSet.item_count === 1 ? "" : "s"}
-                      </span>
-                    </button>
-                  ))}
-                  {!sortedPlans.length ? <p className="search-empty">No worship sets yet.</p> : null}
-                </div>
-              </section>
-
-              <section className="service-picker-panel service-edit-panel" aria-label="Selected worship set">
-                <div className="service-panel-heading">
-                  <h3>{setDraftPlanId ? "Edit Set" : "New Set"}</h3>
-                  {setDraftPlanId ? (
-                    <button
-                      className="text-button compact-button"
-                      onClick={() => {
-                        setSetDraftPlanId(null);
-                        setSetDraftTitle(suggestedWorshipSetTitle(setDraftDate));
-                      }}
-                      type="button"
-                    >
-                      Deselect
-                    </button>
-                  ) : null}
-                </div>
-                <div className="form-grid single-column">
-                  <label>
-                    Date
-                    <input
-                      onChange={(event) => {
-                        const nextDate = event.target.value;
-                        setSetDraftDate(nextDate);
-                        setSetCalendarMonth(nextDate.slice(0, 7) || setCalendarMonth);
-                      }}
-                      type="date"
-                      value={setDraftDate}
-                    />
-                  </label>
-                  <label>
-                    Title
-                    <input
-                      onChange={(event) => setSetDraftTitle(event.target.value)}
-                      placeholder={suggestedWorshipSetTitle(setDraftDate)}
-                      type="text"
-                      value={setDraftTitle}
-                    />
-                  </label>
-                </div>
-                <div className="action-row">
-                  <button className="primary-button" disabled={!canEditPlan} onClick={() => void openDraftWorshipSet()} type="button">
-                    {setDraftPlanId ? "Open Set" : "Create & Open"}
-                  </button>
-                  <button className="text-button" disabled={!canEditPlan} onClick={() => void saveWorshipSetDraft(false)} type="button">
-                    {setDraftPlanId ? "Save Changes" : "Create Set"}
-                  </button>
-                </div>
-                {setDraftPlanId && canDeletePlan ? (
-                  <div className="service-picker-danger">
-                    <p className="muted-copy">Archive this worship set if it was created by mistake.</p>
-                    <button className="danger-button" onClick={() => void archiveSelectedWorshipSet()} type="button">
-                      Archive Set
-                    </button>
-                  </div>
-                ) : null}
-              </section>
-            </div>
-          </section>
-        </div>
-      ) : null}
+            ) : null}
+            {setDraftPlanId && canDeletePlan ? (
+              <button className="danger-button" onClick={() => void archiveSelectedWorshipSet()} type="button">
+                Archive Set
+              </button>
+            ) : null}
+          </>
+        }
+      />
       {historyImportOpen ? (
         <div className="app-dialog-backdrop" role="presentation" onMouseDown={() => setHistoryImportOpen(false)}>
           <section

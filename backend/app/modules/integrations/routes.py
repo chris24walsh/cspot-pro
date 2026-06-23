@@ -105,11 +105,17 @@ def disconnect_google_drive(
 def search_google_drive_files(
     q: str = Query(default="", max_length=120),
     folder_path: str | None = Query(default=None, max_length=500),
+    kind: str = Query(default="deck", pattern="^(deck|video)$"),
     _current_user: User = Depends(require_permission("library:create")),
     session: Session = Depends(get_session),
 ) -> list[GoogleDriveFileRead]:
     try:
-        return list_google_drive_decks(session, query=q.strip(), folder_path=folder_path.strip() if folder_path else None)
+        return list_google_drive_decks(
+            session,
+            query=q.strip(),
+            folder_path=folder_path.strip() if folder_path else None,
+            file_kind=kind,
+        )
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 

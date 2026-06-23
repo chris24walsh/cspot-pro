@@ -46,6 +46,14 @@ GOOGLE_DECK_MIME_TYPES = {
     "application/vnd.openxmlformats-officedocument.presentationml.presentation",
     GOOGLE_SLIDES_MIME_TYPE,
 }
+GOOGLE_VIDEO_MIME_TYPES = {
+    "video/mp4",
+    "video/quicktime",
+    "video/webm",
+    "video/x-m4v",
+    "video/x-msvideo",
+    "video/x-matroska",
+}
 STATE_LIFETIME_MINUTES = 15
 STATE_ALGORITHM = "HS256"
 
@@ -365,11 +373,13 @@ def list_google_drive_decks(
     query: str,
     limit: int = 20,
     folder_path: str | None = None,
+    file_kind: str = "deck",
 ) -> list[GoogleDriveFileRead]:
     access_token = get_valid_google_drive_access_token(session)
     escaped = _escape_drive_query(query)
-    mime_filters = " or ".join([f"mimeType='{mime_type}'" for mime_type in sorted(GOOGLE_DECK_MIME_TYPES)])
-    query_parts = [f"trashed=false", f"({mime_filters})"]
+    mime_types = GOOGLE_VIDEO_MIME_TYPES if file_kind == "video" else GOOGLE_DECK_MIME_TYPES
+    mime_filters = " or ".join([f"mimeType='{mime_type}'" for mime_type in sorted(mime_types)])
+    query_parts = ["trashed=false", f"({mime_filters})"]
     if escaped:
         query_parts.append(f"name contains '{escaped}'")
     if folder_path:
@@ -415,7 +425,13 @@ def list_google_drive_decks(
                 if isinstance(modified_time, str)
                 else None,
                 web_view_link=item.get("webViewLink") if isinstance(item.get("webViewLink"), str) else None,
-                source_kind="google_slides" if mime_type == GOOGLE_SLIDES_MIME_TYPE else "drive_file",
+                source_kind=(
+                    "google_slides"
+                    if mime_type == GOOGLE_SLIDES_MIME_TYPE
+                    else "video"
+                    if mime_type in GOOGLE_VIDEO_MIME_TYPES
+                    else "drive_file"
+                ),
             )
         )
     return results
@@ -452,9 +468,13 @@ def import_google_drive_file(
             if payload.get("modifiedTime")
             else None,
             web_view_link=str(payload.get("webViewLink")) if payload.get("webViewLink") else None,
-            source_kind="google_slides"
-            if payload.get("mimeType") == GOOGLE_SLIDES_MIME_TYPE
-            else "drive_file",
+            source_kind=(
+                "google_slides"
+                if payload.get("mimeType") == GOOGLE_SLIDES_MIME_TYPE
+                else "video"
+                if payload.get("mimeType") in GOOGLE_VIDEO_MIME_TYPES
+                else "drive_file"
+            ),
         )
 
     access_token = get_valid_google_drive_access_token(session)
@@ -474,6 +494,12 @@ def import_google_drive_file(
         suffix = Path(selected.name).suffix
         target_name = f"{display_name or Path(selected.name).stem}{suffix or ''}"
 
+    stored_content_type = content_type
+    if selected.mime_type in GOOGLE_VIDEO_MIME_TYPES and (
+        not stored_content_type or stored_content_type == "application/octet-stream"
+    ):
+        stored_content_type = selected.mime_type
+
     upload_root.mkdir(parents=True, exist_ok=True)
     storage_name = f"{uuid4()}-{Path(target_name).name}"
     storage_path = upload_root / storage_name
@@ -483,7 +509,7 @@ def import_google_drive_file(
     stored = StoredFile(
         display_name=display_name or Path(target_name).stem,
         storage_path=str(storage_path),
-        content_type=content_type or selected.mime_type,
+        content_type=stored_content_type or selected.mime_type,
         checksum=checksum,
         uploaded_by_id=uploaded_by_user_id,
         flatten_builds=flatten_builds,

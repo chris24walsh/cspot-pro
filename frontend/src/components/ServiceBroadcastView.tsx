@@ -67,33 +67,84 @@ function cameraKind(url: string) {
 
 function CameraPane({ url }: { url: string }) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
+  const [playbackBlocked, setPlaybackBlocked] = useState(false);
   const kind = url ? cameraKind(url) : "frame";
   const isHls = url.toLowerCase().includes(".m3u8");
 
   useEffect(() => {
-    if (kind !== "video" || !isHls || !videoRef.current) {
+    if (kind !== "video" || !videoRef.current) {
       return undefined;
     }
+
     const video = videoRef.current;
-    if (video.canPlayType("application/vnd.apple.mpegurl")) {
-      video.src = url;
-      return undefined;
-    }
     let cancelled = false;
     let hls: InstanceType<typeof import("hls.js").default> | null = null;
+
+    const attemptPlayback = async () => {
+      try {
+        await video.play();
+        if (!cancelled) {
+          setPlaybackBlocked(false);
+        }
+      } catch {
+        if (!cancelled) {
+          setPlaybackBlocked(true);
+        }
+      }
+    };
+
+    video.muted = true;
+    video.defaultMuted = true;
+    video.autoplay = true;
+    video.playsInline = true;
+
+    if (!isHls) {
+      video.src = url;
+      void attemptPlayback();
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    if (video.canPlayType("application/vnd.apple.mpegurl")) {
+      video.src = url;
+      void attemptPlayback();
+      return () => {
+        cancelled = true;
+      };
+    }
+
     void import("hls.js").then(({ default: Hls }) => {
       if (cancelled || !Hls.isSupported()) {
         return;
       }
-      hls = new Hls();
+      hls = new Hls({
+        enableWorker: true,
+        lowLatencyMode: true,
+      });
+      hls.on(Hls.Events.MANIFEST_PARSED, () => {
+        void attemptPlayback();
+      });
       hls.loadSource(url);
       hls.attachMedia(video);
     });
+
     return () => {
       cancelled = true;
       hls?.destroy();
     };
   }, [isHls, kind, url]);
+
+  function handleStartPlayback() {
+    const video = videoRef.current;
+    if (!video) {
+      return;
+    }
+    video.muted = false;
+    void video.play()
+      .then(() => setPlaybackBlocked(false))
+      .catch(() => setPlaybackBlocked(true));
+  }
 
   if (!url) {
     return (
@@ -109,13 +160,22 @@ function CameraPane({ url }: { url: string }) {
   }
   if (kind === "video") {
     return (
-      <video
-        className="service-broadcast-camera-media"
-        controls
-        playsInline
-        ref={videoRef}
-        src={isHls ? undefined : url}
-      />
+      <div className="service-broadcast-camera-player">
+        <video
+          autoPlay
+          className="service-broadcast-camera-media"
+          controls
+          muted
+          playsInline
+          ref={videoRef}
+          src={isHls ? undefined : url}
+        />
+        {playbackBlocked ? (
+          <button className="service-broadcast-camera-overlay" onClick={handleStartPlayback} type="button">
+            Start camera audio
+          </button>
+        ) : null}
+      </div>
     );
   }
   return (

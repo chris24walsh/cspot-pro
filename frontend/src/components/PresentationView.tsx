@@ -66,6 +66,7 @@ import {
 } from "../presentation";
 import { AutoFitSlideText } from "./AutoFitSlideText";
 import { useConfirmationDialog } from "./ConfirmationDialog";
+import { CalendarPopup } from "./CalendarPopup";
 import { ScaledSlideImage } from "./ScaledSlideImage";
 import { SongEditorDialog } from "./SongEditorDialog";
 import { showToast } from "../toast";
@@ -1546,7 +1547,7 @@ export function PresentationView({
       return;
     }
     if (!canCreatePlan) {
-      setMessage("Only service leaders, worship leaders, and administrators can create services.");
+      setMessage("Only teachers and administrators can create services.");
       return;
     }
 
@@ -1595,7 +1596,7 @@ export function PresentationView({
       return;
     }
     if (!canEditPlan) {
-      setMessage("Only service leaders, worship leaders, and administrators can edit services.");
+      setMessage("Only teachers, presenters, and administrators can edit services.");
       return;
     }
 
@@ -1631,7 +1632,7 @@ export function PresentationView({
       return;
     }
     if (!canDeletePlan) {
-      setMessage("Only service leaders, worship leaders, and administrators can archive services.");
+      setMessage("Only administrators can archive services.");
       return;
     }
 
@@ -2273,6 +2274,10 @@ export function PresentationView({
       return;
     }
     if (searchMode === "video") {
+      if (!videoFile && !extractYouTubeId(searchQuery) && googleDriveFiles[0]) {
+        await attachImportedDriveVideo(googleDriveFiles[0]);
+        return;
+      }
       await addVideoSearchResult();
     }
   }
@@ -2454,6 +2459,64 @@ export function PresentationView({
       closeSearchOverlay();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Could not import this Google Drive deck.");
+    } finally {
+      setImportingDriveFileId(null);
+    }
+  }
+
+  async function attachImportedDriveVideo(file: GoogleDriveFile) {
+    if (!plan) {
+      setMessage("Select a plan before attaching a video.");
+      return;
+    }
+    if (!canEditPlan || !canAttachDeck) {
+      setMessage("Adding Google Drive videos requires plan editing and library upload access.");
+      return;
+    }
+    if (importingDriveFileId) {
+      return;
+    }
+
+    try {
+      setImportingDriveFileId(file.id);
+      const resolvedTitle = videoTitle.trim() || file.name.replace(/\.[^.]+$/, "") || "Video";
+      if (
+        plan.items.some(
+          (item) =>
+            item.item_type === "video" &&
+            (item.title.trim().toLowerCase() === resolvedTitle.toLowerCase() ||
+              item.comment?.trim().toLowerCase() === `imported from google drive: ${file.name}`.toLowerCase()),
+        )
+      ) {
+        setMessage(`"${resolvedTitle}" is already in this service.`);
+        return;
+      }
+      const imported = await importGoogleDriveDeck({
+        file_id: file.id,
+        display_name: resolvedTitle,
+        flatten_builds: false,
+      });
+      const item = await createPlanItem(plan.id, {
+        item_type: "video",
+        sequence: sequenceForInsert(searchInsertIndex ?? activeSectionInsertIndex()),
+        title: resolvedTitle,
+        comment: `Imported from Google Drive: ${file.name}`,
+        key_signature: "video-file",
+        song_id: null,
+      });
+      await attachItemFile(item.id, { file_id: imported.file.id, sort_order: 0 });
+      void recordServiceHistory(`importing "${resolvedTitle}"`, "Service", "video");
+      setUndoAction({
+        label: `importing "${resolvedTitle}"`,
+        run: async () => {
+          await deletePlanItem(item.id);
+          await load(plan.id);
+        },
+      });
+      await reloadAfterInsertedItem(item);
+      closeSearchOverlay();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not import this Google Drive video.");
     } finally {
       setImportingDriveFileId(null);
     }
@@ -3152,7 +3215,7 @@ export function PresentationView({
   }, [bibleVersion, searchMode, searchOverlayOpen, searchQuery]);
 
   useEffect(() => {
-    if (!searchOverlayOpen || searchMode !== "deck") {
+    if (!searchOverlayOpen || (searchMode !== "deck" && searchMode !== "video")) {
       return;
     }
 
@@ -3168,14 +3231,20 @@ export function PresentationView({
   }, [searchMode, searchOverlayOpen]);
 
   useEffect(() => {
-    if (!searchOverlayOpen || searchMode !== "deck" || !googleDriveStatus?.connected) {
+    if (!searchOverlayOpen || (searchMode !== "deck" && searchMode !== "video") || !googleDriveStatus?.connected) {
+      return;
+    }
+
+    if (searchMode === "video" && extractYouTubeId(searchQuery)) {
+      setGoogleDriveFiles([]);
+      setGoogleDriveLoading(false);
       return;
     }
 
     const timer = window.setTimeout(() => {
       setGoogleDriveLoading(true);
       setGoogleDriveError("");
-      void searchGoogleDriveFiles(searchQuery.trim())
+      void searchGoogleDriveFiles(searchQuery.trim(), undefined, searchMode === "video" ? "video" : "deck")
         .then((files) => {
           setGoogleDriveFiles(files);
         })
@@ -3233,186 +3302,81 @@ export function PresentationView({
             topbarSlot,
           )
         : null}
-      {servicePickerOpen ? (
-        <div className="app-dialog-backdrop" role="presentation" onMouseDown={() => setServicePickerOpen(false)}>
-          <section
-            aria-labelledby="service-picker-title"
-            className="app-dialog app-dialog-wide service-picker-dialog"
-            onMouseDown={(event) => event.stopPropagation()}
-            role="dialog"
-          >
-            <div className="section-heading">
-              <div>
-                <p className="eyebrow">Calendar</p>
-                <h2 id="service-picker-title">Services</h2>
-              </div>
-              <button className="text-button" onClick={() => setServicePickerOpen(false)} type="button">
-                Close
+      <CalendarPopup
+        isOpen={servicePickerOpen}
+        onClose={() => setServicePickerOpen(false)}
+        title="Services"
+        eyebrow="Calendar"
+        calendarMonth={serviceCalendarMonth}
+        onMonthChange={setServiceCalendarMonth}
+        calendarDays={calendarDays.map((day) => {
+          const dateInput = dateInputFromDate(day);
+          const existing = plansByDate.get(dateInput);
+          const isToday = dateInput === dateInputFromDate(new Date());
+          return {
+            date: dateInput,
+            muted: !dateInput.startsWith(serviceCalendarMonth),
+            className: `${existing ? "has-service" : ""} ${isToday ? "is-today" : ""}`.trim(),
+          };
+        })}
+        selectedDate={serviceDraftDate}
+        onDateSelect={(dateInput) => void chooseServiceDate(dateInput)}
+        dayContent={(day) => {
+          const date = new Date(`${day.date}T12:00:00`);
+          const existing = plansByDate.get(day.date);
+          return (
+            <>
+              <span>{date.getDate()}</span>
+              {existing ? <small>{existing.title}</small> : null}
+            </>
+          );
+        }}
+        footerContent={
+          <label className="form-grid single-column">
+            Title
+            <input
+              onChange={(event) => setServiceDraftTitle(event.target.value)}
+              placeholder={suggestedServiceTitle(serviceDraftDate)}
+              value={serviceDraftTitle}
+            />
+          </label>
+        }
+        actionButtons={
+          <>
+            <button
+              className="primary-button"
+              disabled={!serviceDraftDate || (!serviceDraftPlanId && !canCreatePlan)}
+              onClick={() => void openDraftService()}
+              type="button"
+            >
+              {serviceDraftPlanId ? "Open Service" : "Create & Open"}
+            </button>
+            <button
+              className="text-button"
+              disabled={!serviceDraftDate || (!serviceDraftPlanId && !canCreatePlan) || (Boolean(serviceDraftPlanId) && !canEditPlan)}
+              onClick={() => void saveDraftService()}
+              type="button"
+            >
+              {serviceDraftPlanId ? "Save Changes" : "Create Service"}
+            </button>
+            {serviceDraftPlanId ? (
+              <button
+                className="text-button"
+                disabled={!canCreatePlan}
+                onClick={() => startNewServiceDraft(serviceDraftDate)}
+                type="button"
+              >
+                Deselect
               </button>
-            </div>
-
-            <div className="service-picker-grid">
-              <section className="service-picker-panel service-calendar-panel">
-                <div className="service-calendar-heading">
-                  <button
-                    aria-label="Previous month"
-                    className="text-button"
-                    onClick={() => {
-                      const month = monthDateFromInput(serviceCalendarMonth);
-                      month.setMonth(month.getMonth() - 1);
-                      setServiceCalendarMonth(monthInputFromDate(month));
-                    }}
-                    type="button"
-                  >
-                    <ChevronLeft size={16} aria-hidden="true" />
-                  </button>
-                  <strong>{SERVICE_MONTH_FORMATTER.format(monthDateFromInput(serviceCalendarMonth))}</strong>
-                  <button
-                    aria-label="Next month"
-                    className="text-button"
-                    onClick={() => {
-                      const month = monthDateFromInput(serviceCalendarMonth);
-                      month.setMonth(month.getMonth() + 1);
-                      setServiceCalendarMonth(monthInputFromDate(month));
-                    }}
-                    type="button"
-                  >
-                    <ChevronRight size={16} aria-hidden="true" />
-                  </button>
-                </div>
-                <div className="service-calendar-grid" aria-label="Service calendar">
-                  {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day) => (
-                    <span className="service-calendar-weekday" key={day}>{day}</span>
-                  ))}
-                  {calendarDays.map((day) => {
-                    const dateInput = dateInputFromDate(day);
-                    const existing = plansByDate.get(dateInput);
-                    const inMonth = dateInput.startsWith(serviceCalendarMonth);
-                    const isSelected = dateInput === dateInputFromIso(plan?.service_date);
-                    const isToday = dateInput === dateInputFromDate(new Date());
-                    return (
-                      <button
-                        className={`service-calendar-day ${inMonth ? "" : "is-muted"} ${existing ? "has-service" : ""} ${isSelected ? "is-selected" : ""} ${isToday ? "is-today" : ""}`}
-                        disabled={!existing && !canCreatePlan}
-                        key={dateInput}
-                        onClick={() => void chooseServiceDate(dateInput)}
-                        onDoubleClick={() => void openServiceDate(dateInput)}
-                        title={existing ? `Open ${existing.title}` : `Create ${suggestedServiceTitle(dateInput)}`}
-                        type="button"
-                      >
-                        <span>{day.getDate()}</span>
-                        {existing ? <small>{existing.title}</small> : null}
-                      </button>
-                    );
-                  })}
-                </div>
-              </section>
-
-              <section className="service-picker-panel service-list-panel">
-                <div className="service-panel-heading">
-                  <h3>Existing Services</h3>
-                  <button
-                    className="text-button compact-button"
-                    disabled={!canCreatePlan}
-                    onClick={() => startNewServiceDraft()}
-                    type="button"
-                  >
-                    New
-                  </button>
-                </div>
-                <div className="stack-list compact service-date-list">
-                  {sortedPlans.map((planSummary) => (
-                    <button
-                      className={`stack-row ${planSummary.id === serviceDraftPlanId ? "selected" : ""}`}
-                      key={planSummary.id}
-                      onClick={() => {
-                        const dateInput = dateInputFromIso(planSummary.service_date);
-                        setServiceDraftPlanId(planSummary.id);
-                        setServiceDraftDate(dateInput);
-                        setServiceDraftTitle(planSummary.title);
-                        setServiceCalendarMonth(dateInput.slice(0, 7) || serviceCalendarMonth);
-                      }}
-                      onDoubleClick={() => {
-                        setServicePickerOpen(false);
-                        void selectPlan(planSummary.id);
-                      }}
-                      type="button"
-                    >
-                      <strong>{formatServiceDate(planSummary.service_date)}</strong>
-                      <span>
-                        {planSummary.title} · {planSummary.item_count} item{planSummary.item_count === 1 ? "" : "s"}
-                      </span>
-                    </button>
-                  ))}
-                  {!plans.length ? <p className="search-empty">No services yet.</p> : null}
-                </div>
-              </section>
-
-              <section className="service-picker-panel service-edit-panel">
-                <div className="service-panel-heading">
-                  <h3>{serviceDraftPlanId ? "Edit Service" : "New Service"}</h3>
-                  {serviceDraftPlanId ? (
-                    <button
-                      className="text-button compact-button"
-                      disabled={!canCreatePlan}
-                      onClick={() => startNewServiceDraft(serviceDraftDate)}
-                      type="button"
-                    >
-                      Deselect
-                    </button>
-                  ) : null}
-                </div>
-                <div className="form-grid single-column">
-                  <label>
-                    Date
-                    <input
-                      onChange={(event) => {
-                        updateServiceDraftDate(event.target.value);
-                      }}
-                      type="date"
-                      value={serviceDraftDate}
-                    />
-                  </label>
-                  <label>
-                    Title
-                    <input
-                      onChange={(event) => setServiceDraftTitle(event.target.value)}
-                      placeholder={suggestedServiceTitle(serviceDraftDate)}
-                      value={serviceDraftTitle}
-                    />
-                  </label>
-                </div>
-                <div className="action-row">
-                  <button
-                    className="primary-button"
-                    disabled={!serviceDraftDate || (!serviceDraftPlanId && !canCreatePlan)}
-                    onClick={() => void openDraftService()}
-                    type="button"
-                  >
-                    {serviceDraftPlanId ? "Open Service" : "Create & Open"}
-                  </button>
-                  <button
-                    className="text-button"
-                    disabled={!serviceDraftDate || (!serviceDraftPlanId && !canCreatePlan) || (Boolean(serviceDraftPlanId) && !canEditPlan)}
-                    onClick={() => void saveDraftService()}
-                    type="button"
-                  >
-                    {serviceDraftPlanId ? "Save Changes" : "Create Service"}
-                  </button>
-                </div>
-                {plan && canDeletePlan ? (
-                  <div className="service-picker-danger">
-                    <p className="muted-copy">Archive the current service if it was created by mistake.</p>
-                    <button className="danger-button" onClick={() => void archiveCurrentPlan()} type="button">
-                      Archive Current
-                    </button>
-                  </div>
-                ) : null}
-              </section>
-            </div>
-          </section>
-        </div>
-      ) : null}
+            ) : null}
+            {plan && canDeletePlan ? (
+              <button className="danger-button" onClick={() => void archiveCurrentPlan()} type="button">
+                Archive Current
+              </button>
+            ) : null}
+          </>
+        }
+      />
       {!canEditPlan ? (
         <p className="empty-state presentation-readonly-note">
           Presenter mode is live, but this account is read-only for plan changes.
@@ -4017,7 +3981,7 @@ export function PresentationView({
                       searchMode === "bible"
                         ? "John 3 16 or shepherd"
                         : searchMode === "video"
-                          ? "Paste YouTube link or video ID"
+                          ? "YouTube link, video ID, or Drive video name"
                           : "Amazing Grace"
                     }
                     value={searchQuery}
@@ -4048,6 +4012,15 @@ export function PresentationView({
                     type="file"
                   />
                 </label>
+                <p className={`search-empty ${googleDriveError ? "error-text" : ""}`}>
+                  {googleDriveError
+                    ? googleDriveError
+                    : googleDriveStatus?.connected
+                      ? `Drive videos available from ${googleDriveStatus.account_name || googleDriveStatus.account_email || "Google Drive"}.`
+                      : googleDriveStatus?.configured
+                        ? "Connect Google Drive in Admin to import MP4 files."
+                        : "Google Drive is not configured on this server."}
+                </p>
               </div>
             ) : null}
 
@@ -4111,8 +4084,13 @@ export function PresentationView({
               {searchMode === "video" ? (
                 <button
                   className="primary-button"
-                  disabled={!canEditPlan || (!extractYouTubeId(searchQuery) && !videoFile)}
-                  onClick={() => void addVideoSearchResult()}
+                  disabled={
+                    !canEditPlan ||
+                    (!extractYouTubeId(searchQuery) &&
+                      !videoFile &&
+                      !(googleDriveStatus?.connected && googleDriveFiles.length > 0))
+                  }
+                  onClick={() => void selectTopSearchResult()}
                   type="button"
                 >
                   Add Video
@@ -4122,7 +4100,7 @@ export function PresentationView({
 
             <div className="search-results-list">
               {searchLoading ? <p className="search-empty">Searching…</p> : null}
-              {searchMode === "deck" && googleDriveLoading ? <p className="search-empty">Searching Google Drive…</p> : null}
+              {(searchMode === "deck" || searchMode === "video") && googleDriveLoading ? <p className="search-empty">Searching Google Drive…</p> : null}
               {!searchLoading && searchMode === "songs"
                 ? songSearchResults.map((song) => (
                       <button
@@ -4253,10 +4231,29 @@ export function PresentationView({
                     <strong>{videoTitle.trim() || "YouTube Video"}</strong>
                     <span>{extractYouTubeId(searchQuery)}</span>
                   </button>
-                ) : (
+                ) : !googleDriveStatus?.connected && !googleDriveLoading ? (
                   <p className="search-empty">Paste a valid YouTube link or 11-character video ID.</p>
-                )
+                ) : null
               ) : null}
+              {!googleDriveLoading && searchMode === "video" && googleDriveStatus?.connected && !extractYouTubeId(searchQuery)
+                ? googleDriveFiles.map((file) => {
+                    const importingThisFile = importingDriveFileId === file.id;
+                    return (
+                      <button
+                        className={`search-result-card ${importingThisFile ? "active-import-match" : ""}`}
+                        disabled={!canEditPlan || !canAttachDeck || Boolean(importingDriveFileId)}
+                        key={file.id}
+                        onClick={() => {
+                          void attachImportedDriveVideo(file);
+                        }}
+                        type="button"
+                      >
+                        <strong>{importingThisFile ? "Importing..." : file.name}</strong>
+                        <span>{importingThisFile ? "Downloading MP4 from Google Drive." : "Google Drive video"}</span>
+                      </button>
+                    );
+                  })
+                : null}
               {!googleDriveLoading && searchMode === "deck" && googleDriveStatus?.connected
                 ? googleDriveFiles.map((file) => {
                     const importingThisFile = importingDriveFileId === file.id;
@@ -4286,7 +4283,10 @@ export function PresentationView({
                   searchQuery.trim() &&
                   googleDriveFiles.length === 0 &&
                   !googleDriveLoading) ||
-                (searchMode === "video" && !searchQuery.trim() && !videoFile)) ? (
+                (searchMode === "video" &&
+                  !searchQuery.trim() &&
+                  !videoFile &&
+                  (!googleDriveStatus?.connected || (googleDriveFiles.length === 0 && !googleDriveLoading)))) ? (
                 <p className="search-empty">No matches yet.</p>
               ) : null}
             </div>

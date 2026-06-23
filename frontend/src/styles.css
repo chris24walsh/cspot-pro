@@ -1299,6 +1299,73 @@ button {
   padding-top: 12px;
 }
 
+/* Calendar Popup Consolidation */
+.calendar-popup-grid {
+  grid-template-columns: minmax(280px, 1fr) auto;
+  grid-template-rows: minmax(0, 1fr);
+}
+
+.service-buttons-panel {
+  flex-direction: column;
+  gap: 12px;
+}
+
+.service-picker-buttons {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(1, minmax(0, 1fr));
+}
+
+.calendar-popup-footer {
+  border-bottom: 1px solid #e3dcc8;
+  padding-bottom: 8px;
+}
+
+.calendar-popup-legend {
+  border-top: 1px solid #e3dcc8;
+  display: grid;
+  gap: 8px;
+  margin-top: 8px;
+  padding-top: 8px;
+}
+
+.calendar-legend-item {
+  align-items: center;
+  display: flex;
+  gap: 6px;
+  font-size: 12px;
+}
+
+.calendar-legend-color {
+  flex: 0 0 12px;
+  height: 12px;
+  border-radius: 2px;
+}
+
+.calendar-legend-color.teacher-a {
+  background: #a8d5c4;
+}
+
+.calendar-legend-color.teacher-b {
+  background: #a8cad5;
+}
+
+.calendar-legend-color.teacher-c {
+  background: #d5a8c4;
+}
+
+.calendar-legend-color.teacher-d {
+  background: #d5c4a8;
+}
+
+.calendar-legend-color.teacher-e {
+  background: #c4a8d5;
+}
+
+.calendar-legend-color.teacher-f {
+  background: #c4d5a8;
+}
+
 .topbar-stat {
   align-items: center;
   background: #f6f2e6;
@@ -4001,6 +4068,12 @@ h3 {
   place-items: stretch;
 }
 
+.service-broadcast-camera-player {
+  display: grid;
+  margin: 14px;
+  position: relative;
+}
+
 .service-broadcast-camera-media {
   background: #050807;
   border: 0;
@@ -4030,8 +4103,33 @@ h3 {
 .service-broadcast-camera-pane .service-broadcast-camera-media {
   aspect-ratio: 16 / 9;
   border-radius: 8px;
-  margin: 14px;
-  width: calc(100% - 28px);
+  margin: 0;
+  width: 100%;
+}
+
+.service-broadcast-camera-overlay {
+  align-self: end;
+  background: rgba(8, 13, 11, 0.82);
+  border: 1px solid rgba(206, 225, 217, 0.28);
+  border-radius: 999px;
+  bottom: 16px;
+  color: #f5fbf8;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 850;
+  justify-self: center;
+  padding: 10px 16px;
+  position: absolute;
+  transition:
+    background 140ms ease,
+    border-color 140ms ease,
+    transform 140ms ease;
+}
+
+.service-broadcast-camera-overlay:hover {
+  background: rgba(18, 27, 23, 0.94);
+  border-color: rgba(206, 225, 217, 0.48);
+  transform: translateY(-1px);
 }
 
 .service-broadcast-holding-slide {
@@ -6341,6 +6439,10 @@ h3 {
     overflow: visible;
   }
 
+  .calendar-popup-grid {
+    grid-template-columns: 1fr;
+  }
+
   .service-calendar-panel {
     grid-row: auto;
   }
@@ -6387,6 +6489,10 @@ h3 {
 
   .service-calendar-day small {
     display: none;
+  }
+
+  .service-picker-buttons {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   input,

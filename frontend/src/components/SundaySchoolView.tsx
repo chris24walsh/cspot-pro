@@ -27,13 +27,16 @@ import {
   createSundaySchoolLesson,
   getSundaySchoolLessons,
   getSundaySchoolResources,
+  getUsers,
   importSundaySchoolResources,
   sundaySchoolResourceFileUrl,
   updateSundaySchoolLesson,
   type SundaySchoolLesson,
   type SundaySchoolLessonPayload,
   type SundaySchoolResource,
+  type User,
 } from "../api";
+import { CalendarPopup } from "./CalendarPopup";
 
 type SundaySchoolPane = "library" | "set";
 type LessonElementKey = "passage" | "craft" | "activity" | "game" | "resources";
@@ -50,7 +53,7 @@ const LESSON_ELEMENTS: LessonElement[] = [
   { key: "craft", label: "Craft", icon: Scissors, resourceTypes: ["craft"] },
   { key: "activity", label: "Printout / Activity", icon: Library, resourceTypes: ["coloring", "worksheet", "puzzle", "media"] },
   { key: "game", label: "Game", icon: Gamepad2, resourceTypes: ["game"] },
-  { key: "resources", label: "All Resources", icon: Library, resourceTypes: ["lesson_packet", "bible_story", "craft", "game", "coloring", "worksheet", "media"] },
+  { key: "resources", label: "All Resources", icon: Library, resourceTypes: ["lesson_packet", "bible_story", "craft", "game", "coloring", "worksheet", "puzzle", "media"] },
 ];
 
 const RESOURCE_LABELS: Record<string, string> = {
@@ -219,6 +222,7 @@ function firstLine(value: string) {
 export function SundaySchoolView({ canEdit }: { canEdit: boolean }) {
   const [lessons, setLessons] = useState<SundaySchoolLesson[]>([]);
   const [resources, setResources] = useState<SundaySchoolResource[]>([]);
+  const [users, setUsers] = useState<User[]>([]);
   const [selectedDate, setSelectedDate] = useState(nextSundayDateInput());
   const [calendarMonth, setCalendarMonth] = useState(monthInputFromDate(new Date()));
   const [draft, setDraft] = useState<SundaySchoolLessonPayload>(() => blankLesson(nextSundayDateInput()));
@@ -228,6 +232,7 @@ export function SundaySchoolView({ canEdit }: { canEdit: boolean }) {
   const [expandedElementKey, setExpandedElementKey] = useState<LessonElementKey | null>(null);
   const [teacherPickerDate, setTeacherPickerDate] = useState<string | null>(null);
   const [newTeacherName, setNewTeacherName] = useState("");
+  const [selectedTeacherId, setSelectedTeacherId] = useState<string | null>(null);
   const [resourcePickerOpen, setResourcePickerOpen] = useState(false);
   const [resourceQuery, setResourceQuery] = useState("");
   const [loading, setLoading] = useState(true);
@@ -264,6 +269,10 @@ export function SundaySchoolView({ canEdit }: { canEdit: boolean }) {
     () => selectedResources.filter((resource) => selectedElement.resourceTypes.includes(resource.resource_type)),
     [selectedElement, selectedResources],
   );
+  const elementPrintableResources = useMemo(
+    () => elementResources.filter(isPrintableResource),
+    [elementResources],
+  );
   const pickerResources = useMemo(() => {
     const query = resourceQuery.trim().toLowerCase();
     return resources
@@ -292,12 +301,14 @@ export function SundaySchoolView({ canEdit }: { canEdit: boolean }) {
       from.setDate(from.getDate() - 210);
       const to = new Date();
       to.setDate(to.getDate() + 210);
-      const [nextLessons, nextResources] = await Promise.all([
+      const [nextLessons, nextResources, nextUsers] = await Promise.all([
         getSundaySchoolLessons({ from_date: dateInputFromDate(from), to_date: dateInputFromDate(to) }),
         getSundaySchoolResources(),
+        getUsers(),
       ]);
       setLessons(nextLessons);
       setResources(nextResources);
+      setUsers(nextUsers);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Could not load Sunday School.");
     } finally {
@@ -404,7 +415,10 @@ export function SundaySchoolView({ canEdit }: { canEdit: boolean }) {
       return firstLine(draft.crafts) || "Choose craft";
     }
     if (element.key === "activity") {
-      return firstLine(draft.source_notes) || "Choose activity";
+      const printableCount = selectedResources.filter(
+        (resource) => element.resourceTypes.includes(resource.resource_type) && isPrintableResource(resource),
+      ).length;
+      return firstLine(draft.source_notes) || (printableCount ? `${printableCount} printables` : "Choose activity");
     }
     if (element.key === "game") {
       return firstLine(draft.games) || "Choose game";
@@ -446,6 +460,16 @@ export function SundaySchoolView({ canEdit }: { canEdit: boolean }) {
         // The browser may block script access to the PDF viewer; the page is still open for native print.
       }
     }, 900);
+  }
+
+  function printElementResources() {
+    if (!elementPrintableResources.length) {
+      setMessage("No printable pages for this element.");
+      return;
+    }
+    for (const [index, resource] of elementPrintableResources.entries()) {
+      window.setTimeout(() => printResource(resource), index * 650);
+    }
   }
 
   function assignResource(resource: SundaySchoolResource) {
@@ -748,6 +772,16 @@ export function SundaySchoolView({ canEdit }: { canEdit: boolean }) {
                   <Search size={14} aria-hidden="true" />
                 </button>
               ) : null}
+              {elementPrintableResources.length ? (
+                <button
+                  aria-label={`Print ${elementPrintableResources.length} printable pages`}
+                  className="section-icon-button"
+                  onClick={printElementResources}
+                  type="button"
+                >
+                  <Printer size={14} aria-hidden="true" />
+                </button>
+              ) : null}
             </div>
             {elementDraftField(selectedElement) ? (
               <textarea
@@ -784,70 +818,65 @@ export function SundaySchoolView({ canEdit }: { canEdit: boolean }) {
         </div>
       </main>
 
-      {calendarOpen ? (
-        <div className="app-dialog-backdrop" role="presentation" onMouseDown={() => setCalendarOpen(false)}>
-          <section className="app-dialog app-dialog-wide service-picker-dialog sunday-school-calendar-dialog" onMouseDown={(event) => event.stopPropagation()} role="dialog">
-            <div className="section-heading">
-              <div>
-                <p className="eyebrow">Calendar</p>
-                <h2>Sunday School</h2>
-              </div>
-              <button className="text-button" onClick={() => setCalendarOpen(false)} type="button">Close</button>
-            </div>
-            <div className="service-picker-grid sunday-school-picker-grid">
-              <section className="service-picker-panel service-calendar-panel">
-                <div className="service-calendar-heading">
-                  <button aria-label="Previous month" className="text-button" onClick={() => {
-                    const [year, month] = calendarMonth.split("-").map(Number);
-                    setCalendarMonth(monthInputFromDate(new Date(year, month - 2, 1)));
-                  }} type="button">
-                    <ChevronLeft size={16} aria-hidden="true" />
-                  </button>
-                  <strong>{new Date(`${calendarMonth}-01T12:00:00`).toLocaleDateString(undefined, { month: "long", year: "numeric" })}</strong>
-                  <button aria-label="Next month" className="text-button" onClick={() => {
-                    const [year, month] = calendarMonth.split("-").map(Number);
-                    setCalendarMonth(monthInputFromDate(new Date(year, month, 1)));
-                  }} type="button">
-                    <ChevronRight size={16} aria-hidden="true" />
-                  </button>
-                </div>
-                <div className="service-calendar-grid" aria-label="Sunday School calendar">
-                  {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day) => <span className="service-calendar-weekday" key={day}>{day}</span>)}
-                  {calendarDays.map((day) => {
-                    const lesson = lessonsByDate.get(day.date);
-                    const date = new Date(`${day.date}T12:00:00`);
-                    return (
-                      <button
-                        className={`service-calendar-day ${day.muted ? "is-muted" : ""} ${lesson ? "has-service" : ""} ${selectedDate === day.date ? "is-selected" : ""} ${teacherColor(lesson?.teacher_name || "")}`}
-                        key={day.date}
-                        onClick={() => chooseDate(day.date)}
-                        type="button"
-                      >
-                        <span>{date.getDate()}</span>
-                        {lesson ? <small>{lesson.teacher_name || lesson.theme}</small> : null}
-                      </button>
-                    );
-                  })}
-                </div>
-              </section>
-              <section className="service-picker-panel service-list-panel">
-                <div className="service-panel-heading"><h3>Nearby Sundays</h3></div>
-                <div className="stack-list compact service-date-list">
-                  {scheduleDates.slice(20, 34).map((date) => {
-                    const lesson = lessonsByDate.get(date);
-                    return (
-                      <button className={`stack-row ${selectedDate === date ? "selected" : ""} ${teacherColor(lesson?.teacher_name || "")}`} key={date} onClick={() => chooseDate(date)} type="button">
-                        <strong>{shortDate(date)}</strong>
-                        <span>{lesson?.theme || "Unplanned"}{lesson?.teacher_name ? ` - ${lesson.teacher_name}` : ""}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </section>
-            </div>
-          </section>
-        </div>
-      ) : null}
+      <CalendarPopup
+        isOpen={calendarOpen}
+        onClose={() => setCalendarOpen(false)}
+        title="Sunday School"
+        eyebrow="Calendar"
+        calendarMonth={calendarMonth}
+        onMonthChange={setCalendarMonth}
+        calendarDays={calendarDays.map((day) => ({
+          date: day.date,
+          muted: day.muted,
+          className: `${lessonsByDate.get(day.date) ? "has-service" : ""} ${teacherColor(lessonsByDate.get(day.date)?.teacher_name || "")}`.trim(),
+        }))}
+        selectedDate={selectedDate}
+        onDateSelect={(dateInput) => chooseDate(dateInput)}
+        dayContent={(day) => {
+          const lesson = lessonsByDate.get(day.date);
+          const date = new Date(`${day.date}T12:00:00`);
+          return (
+            <>
+              <span>{date.getDate()}</span>
+              {lesson ? <small>{lesson.teacher_name || lesson.theme}</small> : null}
+            </>
+          );
+        }}
+        footerContent={
+          <label className="form-grid single-column">
+            Teacher
+            <select
+              value={selectedTeacherId || ""}
+              onChange={(event) => setSelectedTeacherId(event.target.value || null)}
+            >
+              <option value="">None</option>
+              {users
+                .filter((user) => user.active && user.roles.includes("sunday_school_teacher"))
+                .sort((a, b) => a.name.localeCompare(b.name))
+                .map((user) => (
+                  <option key={user.id} value={user.id}>
+                    {user.name}
+                  </option>
+                ))}
+            </select>
+          </label>
+        }
+        leaderColors={
+          users
+            .filter((user) => user.active && user.roles.includes("sunday_school_teacher"))
+            .map((user, index) => ({
+              name: user.name,
+              className: `teacher-${String.fromCharCode(97 + (index % 6))}`,
+            }))
+        }
+        actionButtons={
+          <>
+            <button className="text-button" onClick={() => chooseDate(selectedDate)} type="button">
+              Close
+            </button>
+          </>
+        }
+      />
 
       {resourcePickerOpen ? (
         <div className="app-dialog-backdrop" role="presentation" onMouseDown={() => setResourcePickerOpen(false)}>

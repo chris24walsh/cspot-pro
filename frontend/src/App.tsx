@@ -87,6 +87,15 @@ function App() {
   );
 
   const permissions = useMemo(() => new Set(sessionUser?.permissions ?? []), [sessionUser]);
+  const roleNames = useMemo(() => new Set(sessionUser?.roles ?? []), [sessionUser?.roles]);
+  const isAdmin = roleNames.has("administrator");
+  const isViewer = roleNames.has("viewer");
+  const isMusician = roleNames.has("musician");
+  const isWorshipLeader = roleNames.has("worship_leader");
+  const isSundaySchoolTeacher = roleNames.has("sunday_school_teacher");
+  const isSundaySchoolLeader = roleNames.has("sunday_school_leader");
+  const isTeacher = roleNames.has("teacher");
+  const isPresenter = roleNames.has("presenter");
   const canManageUsers = permissions.has("users:manage");
   const canCreatePlans = permissions.has("plans:create");
   const canDeletePlans = permissions.has("plans:delete");
@@ -97,15 +106,12 @@ function App() {
   const canEditSongs = canCreateSongs || permissions.has("songs:edit");
   const canUsePresentation = permissions.has("presentation:use");
   const canUseBroadcast = permissions.has("broadcast:use");
-  const canWatchBroadcast = permissions.has("plans:read");
+  const canWatchBroadcast = isViewer || isAdmin;
   const canCreateLibrary = permissions.has("library:create");
-  const roleNames = useMemo(() => new Set(sessionUser?.roles ?? []), [sessionUser?.roles]);
-  const canUseServiceOperator =
-    canUsePresentation &&
-    (roleNames.has("administrator") || roleNames.has("service_leader") || roleNames.has("worship_leader"));
-  const canUseWorshipTools = canReadSongs && permissions.has("plans:read");
-  const canEditSlideNotes =
-    roleNames.has("administrator") || roleNames.has("service_leader") || roleNames.has("teacher");
+  const canUseServiceOperator = canUsePresentation && (isAdmin || isTeacher || isPresenter);
+  const canUseWorshipTools = canReadSongs && (isAdmin || isMusician || isWorshipLeader);
+  const canUseSundaySchool = isAdmin || isSundaySchoolTeacher || isSundaySchoolLeader;
+  const canEditSlideNotes = isAdmin || isTeacher;
 
   const loadAuth = useCallback(async () => {
     setAuthLoading(true);
@@ -186,20 +192,20 @@ function App() {
           return canUseWorshipTools;
         }
         if (module.id === "sunday_school") {
-          return permissions.has("plans:read");
+          return canUseSundaySchool;
         }
         if (module.id === "presentation") {
           return canUseServiceOperator;
         }
         if (module.id === "broadcast") {
-          return canUseBroadcast || canWatchBroadcast;
+          return canWatchBroadcast;
         }
         if (module.id === "admin") {
           return canManageUsers;
         }
         return true;
       }),
-    [canManageUsers, canUseBroadcast, canUseServiceOperator, canUseWorshipTools, canWatchBroadcast, workspace],
+    [canManageUsers, canUseServiceOperator, canUseSundaySchool, canUseWorshipTools, canWatchBroadcast, workspace],
   );
 
   const activeModule = useMemo(
@@ -254,10 +260,16 @@ function App() {
   }, [canUsePresentation, canWatchBroadcast, modules, sessionUser]);
 
   useEffect(() => {
-    if (forceBroadcastViewer) {
+    if (forceBroadcastViewer && canWatchBroadcast) {
       setBroadcastMode("viewer");
     }
-  }, [forceBroadcastViewer]);
+  }, [canWatchBroadcast, forceBroadcastViewer]);
+
+  useEffect(() => {
+    if (!canWatchBroadcast && broadcastMode === "viewer") {
+      setBroadcastMode("control");
+    }
+  }, [broadcastMode, canWatchBroadcast]);
 
   useEffect(() => {
     if (!sessionUser || !canManageUsers || !modules.some((module) => module.id === "admin")) {
@@ -385,7 +397,16 @@ function App() {
             canEditSlideNotes={canEditSlideNotes}
           />
         ) : activeModule.id === "broadcast" ? (
-          canUseBroadcast && broadcastMode === "control" ? <BroadcastManager /> : <ServiceBroadcastView />
+          canUseBroadcast && broadcastMode === "control" ? (
+            <BroadcastManager />
+          ) : canWatchBroadcast ? (
+            <ServiceBroadcastView />
+          ) : (
+            <section className="empty-state" aria-label="Broadcast access restricted">
+              <h2>Broadcast viewer access is restricted</h2>
+              <p>This remote service view is temporarily limited to accounts with the viewer role.</p>
+            </section>
+          )
         ) : activeModule.id === "admin" ? (
           <UserManager />
         ) : (
