@@ -411,6 +411,8 @@ export interface User {
   email: string;
   name: string;
   start_page: string | null;
+  calendar_color: string | null;
+  calendar_avatar: string | null;
   email_confirmed: boolean;
   active: boolean;
   roles: string[];
@@ -467,6 +469,8 @@ export interface UserPayload {
   email: string;
   name: string;
   start_page: string | null;
+  calendar_color: string | null;
+  calendar_avatar: string | null;
   email_confirmed: boolean;
   active: boolean;
   role_names: string[];
@@ -477,6 +481,8 @@ export interface UserInvitePayload {
   email: string;
   name: string;
   start_page: string | null;
+  calendar_color: string | null;
+  calendar_avatar: string | null;
   email_confirmed: boolean;
   active: boolean;
   role_names: string[];

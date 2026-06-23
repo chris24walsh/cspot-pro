@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel
 
@@ -14,6 +15,8 @@ class UserBase(BaseModel):
     email: str
     name: str
     start_page: str | None = None
+    calendar_color: Literal["teacher-a", "teacher-b", "teacher-c", "teacher-d", "teacher-e", "teacher-f"] | None = None
+    calendar_avatar: Literal["👤", "🎤", "🎸", "🎹", "🎶", "📖", "🌟", "🌿"] | None = None
     email_confirmed: bool = False
     active: bool = True
 
@@ -27,6 +30,8 @@ class UserUpdate(BaseModel):
     email: str | None = None
     name: str | None = None
     start_page: str | None = None
+    calendar_color: Literal["teacher-a", "teacher-b", "teacher-c", "teacher-d", "teacher-e", "teacher-f"] | None = None
+    calendar_avatar: Literal["👤", "🎤", "🎸", "🎹", "🎶", "📖", "🌟", "🌿"] | None = None
     email_confirmed: bool | None = None
     active: bool | None = None
     role_names: list[str] | None = None

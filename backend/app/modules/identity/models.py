@@ -14,6 +14,8 @@ class User(IdMixin, TimestampMixin, Base):
     name: Mapped[str] = mapped_column(String(160))
     password_hash: Mapped[str | None] = mapped_column(String(255))
     start_page: Mapped[str | None] = mapped_column(String(255))
+    calendar_color: Mapped[str | None] = mapped_column(String(24))
+    calendar_avatar: Mapped[str | None] = mapped_column(String(16))
     email_confirmed: Mapped[bool] = mapped_column(Boolean, default=False)
     active: Mapped[bool] = mapped_column(Boolean, default=True)
 

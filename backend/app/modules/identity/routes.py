@@ -47,6 +47,11 @@ from app.modules.identity.security import (
 )
 
 router = APIRouter()
+CALENDAR_COLORS = ("teacher-a", "teacher-b", "teacher-c", "teacher-d", "teacher-e", "teacher-f")
+
+
+def stable_calendar_color(user_id: str) -> str:
+    return CALENDAR_COLORS[sum(user_id.encode("utf-8")) % len(CALENDAR_COLORS)]
 
 
 def ensure_system_roles(session: Session) -> None:
@@ -72,6 +77,8 @@ def user_to_read(session: Session, user: User) -> UserRead:
         email=user.email,
         name=user.name,
         start_page=user.start_page,
+        calendar_color=user.calendar_color or stable_calendar_color(user.id),
+        calendar_avatar=user.calendar_avatar,
         email_confirmed=user.email_confirmed,
         active=user.active,
         roles=list_role_names(session, user.id),
@@ -243,6 +250,7 @@ def bootstrap_admin(
         )
         session.add(user)
         session.flush()
+        user.calendar_color = stable_calendar_color(user.id)
     else:
         user.name = payload.name
         user.active = True
@@ -427,9 +435,12 @@ def create_user(
             email_confirmed=payload.email_confirmed,
             active=payload.active,
             password_hash=hash_password(payload.password) if payload.password else None,
+            calendar_color=payload.calendar_color,
+            calendar_avatar=payload.calendar_avatar,
         )
         session.add(user)
         session.flush()
+        user.calendar_color = user.calendar_color or stable_calendar_color(user.id)
         set_user_roles(session, user, payload.role_names)
         session.commit()
     except IntegrityError as exc:
@@ -458,9 +469,12 @@ def invite_user(
             email_confirmed=False,
             active=payload.active,
             password_hash=None,
+            calendar_color=payload.calendar_color,
+            calendar_avatar=payload.calendar_avatar,
         )
         session.add(user)
         session.flush()
+        user.calendar_color = user.calendar_color or stable_calendar_color(user.id)
         set_user_roles(session, user, payload.role_names)
         auth_token, raw_token = issue_auth_token(
             session,

@@ -18,12 +18,15 @@ import {
   type UserInvitePayload,
   type UserInviteResponse,
 } from "../api";
+import { CALENDAR_AVATARS, CALENDAR_COLORS } from "../userCalendarStyle";
 import { useConfirmationDialog } from "./ConfirmationDialog";
 
 interface UserFormState {
   name: string;
   email: string;
   start_page: string;
+  calendar_color: string;
+  calendar_avatar: string;
   email_confirmed: boolean;
   active: boolean;
   role_names: string[];
@@ -34,6 +37,8 @@ function formFromUser(user: User): UserFormState {
     name: user.name,
     email: user.email,
     start_page: user.start_page ?? "",
+    calendar_color: user.calendar_color || "teacher-a",
+    calendar_avatar: user.calendar_avatar || "",
     email_confirmed: user.email_confirmed,
     active: user.active,
     role_names: user.roles,
@@ -45,6 +50,8 @@ function payloadFromForm(form: UserFormState): UserInvitePayload {
     name: form.name,
     email: form.email,
     start_page: form.start_page || null,
+    calendar_color: form.calendar_color || null,
+    calendar_avatar: form.calendar_avatar || null,
     email_confirmed: form.email_confirmed,
     active: form.active,
     role_names: form.role_names.length ? form.role_names : ["viewer"],
@@ -78,6 +85,8 @@ export function UserManager() {
     name: "",
     email: "",
     start_page: "",
+    calendar_color: "teacher-a",
+    calendar_avatar: "",
     email_confirmed: false,
     active: true,
     role_names: ["viewer"],
@@ -127,6 +136,8 @@ export function UserManager() {
       name: "",
       email: "",
       start_page: "",
+      calendar_color: "teacher-a",
+      calendar_avatar: "",
       email_confirmed: false,
       active: true,
       role_names: ["viewer"],
@@ -427,6 +438,52 @@ export function UserManager() {
                     type="checkbox"
                   />
                   <span>{formatRoleName(role.name)}</span>
+                </label>
+              ))}
+            </div>
+          </fieldset>
+
+          <fieldset className="wide-field role-fieldset calendar-identity-fieldset">
+            <legend>Calendar identity</legend>
+            <p className="muted-copy">Choose a fixed colour and initial, or use an avatar instead.</p>
+            <div className="calendar-identity-preview">
+              <span className={form.calendar_avatar ? "calendar-admin-avatar" : `calendar-admin-avatar ${form.calendar_color}`}>
+                {form.calendar_avatar || form.name.trim().charAt(0).toUpperCase() || "?"}
+              </span>
+              <span>{form.calendar_avatar ? "Avatar" : "Colour and initial"}</span>
+            </div>
+            <div className="calendar-color-options" aria-label="Calendar colour">
+              {CALENDAR_COLORS.map((color) => (
+                <label className={`${color} ${form.calendar_color === color ? "selected" : ""}`} key={color}>
+                  <input
+                    checked={form.calendar_color === color}
+                    name="calendar-color"
+                    onChange={() => setForm({ ...form, calendar_color: color, calendar_avatar: "" })}
+                    type="radio"
+                  />
+                  <span aria-hidden="true" />
+                </label>
+              ))}
+            </div>
+            <div className="calendar-avatar-options" aria-label="Calendar avatar">
+              <label className={!form.calendar_avatar ? "selected" : ""}>
+                <input
+                  checked={!form.calendar_avatar}
+                  name="calendar-avatar"
+                  onChange={() => setForm({ ...form, calendar_avatar: "" })}
+                  type="radio"
+                />
+                <span>Initial</span>
+              </label>
+              {CALENDAR_AVATARS.map((avatar) => (
+                <label className={form.calendar_avatar === avatar ? "selected" : ""} key={avatar}>
+                  <input
+                    checked={form.calendar_avatar === avatar}
+                    name="calendar-avatar"
+                    onChange={() => setForm({ ...form, calendar_avatar: avatar })}
+                    type="radio"
+                  />
+                  <span aria-hidden="true">{avatar}</span>
                 </label>
               ))}
             </div>

@@ -7,11 +7,6 @@ interface CalendarDay {
   className?: string;
 }
 
-interface LeaderColor {
-  name: string;
-  className: string;
-}
-
 interface CalendarPopupProps {
   isOpen: boolean;
   onClose: () => void;
@@ -25,8 +20,6 @@ interface CalendarPopupProps {
   dayContent: (day: CalendarDay) => ReactNode;
   footerContent?: ReactNode;
   actionButtons?: ReactNode;
-  leaderColors?: LeaderColor[];
-  legendLabel?: string;
 }
 
 export function CalendarPopup({
@@ -42,8 +35,6 @@ export function CalendarPopup({
   dayContent,
   footerContent,
   actionButtons,
-  leaderColors,
-  legendLabel = "People",
 }: CalendarPopupProps) {
   if (!isOpen) {
     return null;
@@ -116,17 +107,6 @@ export function CalendarPopup({
               ))}
             </div>
 
-            {leaderColors?.length ? (
-              <div aria-label={`${legendLabel} legend`} className="calendar-popup-legend">
-                <strong className="calendar-legend-heading">{legendLabel}</strong>
-                {leaderColors.map((color) => (
-                  <div className="calendar-legend-item" key={color.name}>
-                    <span className={`calendar-legend-color ${color.className}`} />
-                    <span>{color.name}</span>
-                  </div>
-                ))}
-              </div>
-            ) : null}
           </section>
 
           <section className="service-picker-panel service-buttons-panel">

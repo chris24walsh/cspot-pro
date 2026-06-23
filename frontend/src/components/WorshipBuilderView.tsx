@@ -42,6 +42,7 @@ import { buildPresentationSections, suggestSlideGroupFontCap } from "../presenta
 import { showToast } from "../toast";
 import { analyzeImportedSongSlides, analyzeWorshipText, buildLyricsFromSections, canonicalizeWorshipLyrics } from "../worshipText";
 import { dateKey, isWorshipSetPlan, worshipSetType } from "../worshipSets";
+import { calendarColor, calendarMarkers } from "../userCalendarStyle";
 import { AutoFitSlideText } from "./AutoFitSlideText";
 import { CalendarPopup } from "./CalendarPopup";
 import { MusicianLiveView } from "./MusicianLiveView";
@@ -411,16 +412,7 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
         .sort((left, right) => left.name.localeCompare(right.name)),
     [users],
   );
-  const worshipLeaderColors = useMemo(
-    () =>
-      new Map(
-        worshipLeaders.map((user, index) => [
-          user.id,
-          `teacher-${String.fromCharCode(97 + (index % 6))}`,
-        ]),
-      ),
-    [worshipLeaders],
-  );
+  const worshipLeaderMarkers = useMemo(() => calendarMarkers(worshipLeaders), [worshipLeaders]);
   const servicePlansByDate = useMemo(
     () => new Map(plans.filter((candidate) => !isWorshipSetPlan(candidate)).map((servicePlan) => [dateInputFromIso(servicePlan.service_date), servicePlan])),
     [plans],
@@ -2078,7 +2070,7 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
             const existing = worshipSetsByDate.get(day.key);
             const leaderId = day.key === setDraftDate ? selectedLeaderId : existing?.leader_id;
             return `${existing ? "has-service" : ""} ${
-              leaderId ? worshipLeaderColors.get(leaderId) ?? "" : ""
+              leaderId ? calendarColor(users.find((user) => user.id === leaderId)) : ""
             }`.trim();
           })(),
         }))}
@@ -2086,11 +2078,17 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
         onDateSelect={(dateInput) => chooseSetDate(dateInput)}
         dayContent={(day) => {
           const existing = worshipSetsByDate.get(day.date);
+          const leaderId = day.date === setDraftDate ? selectedLeaderId : existing?.leader_id;
+          const leader = users.find((user) => user.id === leaderId);
           const date = new Date(`${day.date}T12:00:00`);
           return (
             <>
               <span>{date.getDate()}</span>
-              {existing ? <small>{existing.title}</small> : null}
+              {leader ? (
+                <span className={`calendar-user-marker ${leader.calendar_avatar ? "is-avatar" : ""}`} aria-label={leader.name}>
+                  {worshipLeaderMarkers.get(leader.id)}
+                </span>
+              ) : null}
             </>
           );
         }}
@@ -2121,13 +2119,6 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
             </label>
           </div>
         }
-        leaderColors={
-          worshipLeaders.map((user) => ({
-            name: user.name,
-            className: worshipLeaderColors.get(user.id) ?? "teacher-a",
-          }))
-        }
-        legendLabel="Leader colours"
         actionButtons={
           <>
             <button className="primary-button" disabled={!canEditPlan} onClick={() => void openDraftWorshipSet()} type="button">

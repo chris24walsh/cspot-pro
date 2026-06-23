@@ -36,6 +36,7 @@ import {
   type SundaySchoolResource,
   type User,
 } from "../api";
+import { calendarColor, calendarMarkers } from "../userCalendarStyle";
 import { CalendarPopup } from "./CalendarPopup";
 
 type SundaySchoolPane = "library" | "set";
@@ -246,6 +247,15 @@ export function SundaySchoolView({ canEdit }: { canEdit: boolean }) {
     [lessons],
   );
   const selectedLesson = lessonsByDate.get(selectedDate) ?? null;
+  const sundaySchoolTeachers = useMemo(
+    () => users.filter((user) => user.active && user.roles.includes("sunday_school_teacher")),
+    [users],
+  );
+  const sundaySchoolTeacherByName = useMemo(
+    () => new Map(sundaySchoolTeachers.map((user) => [user.name.trim().toLocaleLowerCase(), user])),
+    [sundaySchoolTeachers],
+  );
+  const sundaySchoolTeacherMarkers = useMemo(() => calendarMarkers(sundaySchoolTeachers), [sundaySchoolTeachers]);
   const teacherNames = useMemo(
     () => Array.from(new Set(lessons.map((lesson) => lesson.teacher_name.trim()).filter(Boolean))).sort((left, right) => left.localeCompare(right)),
     [lessons],
@@ -828,17 +838,30 @@ export function SundaySchoolView({ canEdit }: { canEdit: boolean }) {
         calendarDays={calendarDays.map((day) => ({
           date: day.date,
           muted: day.muted,
-          className: `${lessonsByDate.get(day.date) ? "has-service" : ""} ${teacherColor(lessonsByDate.get(day.date)?.teacher_name || "")}`.trim(),
+          className: (() => {
+            const lesson = lessonsByDate.get(day.date);
+            const teacher = sundaySchoolTeacherByName.get(lesson?.teacher_name.trim().toLocaleLowerCase() || "");
+            return `${lesson ? "has-service" : ""} ${teacher ? calendarColor(teacher) : teacherColor(lesson?.teacher_name || "")}`.trim();
+          })(),
         }))}
         selectedDate={selectedDate}
         onDateSelect={(dateInput) => chooseDate(dateInput)}
         dayContent={(day) => {
           const lesson = lessonsByDate.get(day.date);
+          const teacher = sundaySchoolTeacherByName.get(lesson?.teacher_name.trim().toLocaleLowerCase() || "");
           const date = new Date(`${day.date}T12:00:00`);
           return (
             <>
               <span>{date.getDate()}</span>
-              {lesson ? <small>{lesson.teacher_name || lesson.theme}</small> : null}
+              {teacher ? (
+                <span className={`calendar-user-marker ${teacher.calendar_avatar ? "is-avatar" : ""}`} aria-label={teacher.name}>
+                  {sundaySchoolTeacherMarkers.get(teacher.id)}
+                </span>
+              ) : lesson?.teacher_name ? (
+                <span className="calendar-user-marker" aria-label={lesson.teacher_name}>
+                  {lesson.teacher_name.charAt(0).toUpperCase()}
+                </span>
+              ) : null}
             </>
           );
         }}
@@ -850,8 +873,7 @@ export function SundaySchoolView({ canEdit }: { canEdit: boolean }) {
               onChange={(event) => setSelectedTeacherId(event.target.value || null)}
             >
               <option value="">None</option>
-              {users
-                .filter((user) => user.active && user.roles.includes("sunday_school_teacher"))
+              {[...sundaySchoolTeachers]
                 .sort((a, b) => a.name.localeCompare(b.name))
                 .map((user) => (
                   <option key={user.id} value={user.id}>
@@ -861,15 +883,6 @@ export function SundaySchoolView({ canEdit }: { canEdit: boolean }) {
             </select>
           </label>
         }
-        leaderColors={
-          users
-            .filter((user) => user.active && user.roles.includes("sunday_school_teacher"))
-            .map((user, index) => ({
-              name: user.name,
-              className: `teacher-${String.fromCharCode(97 + (index % 6))}`,
-            }))
-        }
-        legendLabel="Teacher colours"
         actionButtons={null}
       />
 
