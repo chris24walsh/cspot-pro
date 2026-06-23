@@ -45,7 +45,7 @@ import { dateKey, isWorshipSetPlan, worshipSetType } from "../worshipSets";
 import { calendarColor, calendarMarkers } from "../userCalendarStyle";
 import { AutoFitSlideText } from "./AutoFitSlideText";
 import { CalendarPopup } from "./CalendarPopup";
-import { DateNavigator } from "./DateNavigator";
+import { DateNavigator, formatNavigatorDate } from "./DateNavigator";
 import { MusicianLiveView } from "./MusicianLiveView";
 import { SongEditorDialog } from "./SongEditorDialog";
 
@@ -1471,7 +1471,7 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
                   historyDisabled={!plan || editHistoryApplying}
                   historyExpanded={editHistoryOpen}
                   historyLabel="Worship set edit history"
-                  label={plan ? formatServiceDate(plan.service_date) : "Choose worship set"}
+                  label={plan ? formatNavigatorDate(plan.service_date) : "Choose worship set"}
                   nextDisabled={loading || sortedPlans.findIndex((candidate) => candidate.id === (selectedPlanId || plan?.id)) <= 0}
                   nextLabel="Next worship set"
                   onHistory={() => void openEditHistory()}

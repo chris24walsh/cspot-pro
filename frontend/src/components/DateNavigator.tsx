@@ -1,6 +1,17 @@
 import { CalendarDays, ChevronLeft, ChevronRight, History } from "lucide-react";
 import type { ReactNode } from "react";
 
+export function formatNavigatorDate(value: string | null | undefined) {
+  if (!value) {
+    return "Choose date";
+  }
+  const normalized = /^\d{4}-\d{2}-\d{2}$/.test(value) ? `${value}T12:00:00` : value;
+  const date = new Date(normalized);
+  return Number.isNaN(date.getTime())
+    ? "Choose date"
+    : date.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "2-digit" });
+}
+
 interface DateNavigatorProps {
   label: string;
   pickerLabel: string;

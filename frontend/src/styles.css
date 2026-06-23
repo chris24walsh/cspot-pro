@@ -148,7 +148,7 @@ button {
   border-bottom: 1px solid #ddd9ca;
   display: grid;
   gap: 12px;
-  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
   min-height: 72px;
   padding: 14px 24px;
 }
@@ -181,7 +181,7 @@ button {
 }
 
 .topbar-presentation {
-  display: none;
+  display: grid;
 }
 
 .topbar-actions {

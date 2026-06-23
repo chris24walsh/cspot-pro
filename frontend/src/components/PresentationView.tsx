@@ -67,7 +67,7 @@ import {
 import { AutoFitSlideText } from "./AutoFitSlideText";
 import { useConfirmationDialog } from "./ConfirmationDialog";
 import { CalendarPopup } from "./CalendarPopup";
-import { DateNavigator } from "./DateNavigator";
+import { DateNavigator, formatNavigatorDate } from "./DateNavigator";
 import { ScaledSlideImage } from "./ScaledSlideImage";
 import { SongEditorDialog } from "./SongEditorDialog";
 import { showToast } from "../toast";
@@ -138,11 +138,6 @@ type SlideNotesPayload = {
 
 const SLIDE_NOTES_KIND = "cspot.slideNotes";
 
-const SERVICE_DATE_FORMATTER = new Intl.DateTimeFormat(undefined, {
-  day: "numeric",
-  month: "short",
-  weekday: "short",
-});
 const SERVICE_LONG_DATE_FORMATTER = new Intl.DateTimeFormat(undefined, {
   day: "numeric",
   month: "long",
@@ -171,14 +166,6 @@ function dateInputFromIso(value: string | null | undefined) {
 function serviceIsoFromDateInput(value: string) {
   const [year, month, day] = value.split("-").map(Number);
   return new Date(year, (month || 1) - 1, day || 1, 10, 30, 0, 0).toISOString();
-}
-
-function formatServiceDate(value: string | null | undefined) {
-  if (!value) {
-    return "No date";
-  }
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? "No date" : SERVICE_DATE_FORMATTER.format(date);
 }
 
 function serviceTitleForDate(value: string) {
@@ -3370,7 +3357,7 @@ export function PresentationView({
                 historyDisabled={!plan || serviceHistoryLoading}
                 historyExpanded={serviceHistoryOpen}
                 historyLabel="Service edit history"
-                label={plan ? formatServiceDate(plan.service_date) : "Choose service"}
+                label={plan ? formatNavigatorDate(plan.service_date) : "Choose service"}
                 nextDisabled={loading || !plan || sortedPlans.findIndex((candidate) => candidate.id === plan.id) <= 0}
                 nextLabel="Next service"
                 onHistory={() => void openServiceHistory()}

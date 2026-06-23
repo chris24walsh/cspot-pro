@@ -35,7 +35,7 @@ import {
 } from "../api";
 import { calendarColor, calendarMarkers } from "../userCalendarStyle";
 import { CalendarPopup } from "./CalendarPopup";
-import { DateNavigator } from "./DateNavigator";
+import { DateNavigator, formatNavigatorDate } from "./DateNavigator";
 
 type SundaySchoolPane = "library" | "set";
 type LessonElementKey = "passage" | "craft" | "activity" | "game" | "resources";
@@ -582,7 +582,7 @@ export function SundaySchoolView({ canEdit }: { canEdit: boolean }) {
             <div className="presentation-topbar-tools">
               <DateNavigator
                 historyLabel="Open Sunday School calendar history"
-                label={shortDate(selectedDate)}
+                label={formatNavigatorDate(selectedDate)}
                 nextLabel="Next Sunday"
                 onHistory={() => setCalendarOpen(true)}
                 onNext={() => shiftSelectedDate(1)}
