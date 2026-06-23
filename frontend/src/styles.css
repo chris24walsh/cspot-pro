@@ -4511,7 +4511,7 @@ h3 {
   grid-template-rows: minmax(0, 1fr);
   min-height: 0;
   overflow: hidden;
-  padding: 8px 12px;
+  padding: 4px 12px 8px;
   position: relative;
 }
 
@@ -6405,7 +6405,7 @@ h3 {
 
   .presentation-workspace {
     overflow: hidden;
-    padding: 6px;
+    padding: 3px 6px 6px;
   }
 
   .slide-grid,
@@ -8016,6 +8016,10 @@ h3 {
 .sunday-school-as-worship .worship-song-browser,
 .sunday-school-as-worship .worship-set-builder {
   padding: 10px;
+}
+
+.sunday-school-as-worship {
+  padding-top: 6px;
 }
 
 .sunday-school-as-worship .worship-library-search-row {
