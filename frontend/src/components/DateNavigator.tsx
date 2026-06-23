@@ -1,4 +1,4 @@
-import { CalendarDays, ChevronLeft, ChevronRight, History } from "lucide-react";
+import { CalendarDays, ChevronLeft, ChevronRight, History, UserRound } from "lucide-react";
 import type { ReactNode } from "react";
 
 export function formatNavigatorDate(value: string | null | undefined) {
@@ -28,6 +28,10 @@ interface DateNavigatorProps {
   pickerDisabled?: boolean;
   historyExpanded?: boolean;
   historyContent?: ReactNode;
+  assignmentLabel?: string;
+  assignmentTitle?: string;
+  onAssignment?: () => void;
+  assignmentDisabled?: boolean;
 }
 
 export function DateNavigator({
@@ -46,9 +50,13 @@ export function DateNavigator({
   pickerDisabled = false,
   historyExpanded = false,
   historyContent,
+  assignmentLabel,
+  assignmentTitle = "Leader",
+  onAssignment,
+  assignmentDisabled = false,
 }: DateNavigatorProps) {
   return (
-    <div className="date-navigator">
+    <div className={`date-navigator ${onAssignment ? "has-assignment" : ""}`}>
       <button aria-label={previousLabel} className="section-icon-button" disabled={previousDisabled} onClick={onPrevious} title={previousLabel} type="button">
         <ChevronLeft size={14} aria-hidden="true" />
       </button>
@@ -70,6 +78,19 @@ export function DateNavigator({
       >
         <History size={14} aria-hidden="true" />
       </button>
+      {onAssignment ? (
+        <button
+          aria-label={assignmentTitle}
+          className="text-button date-navigator-assignment"
+          disabled={assignmentDisabled}
+          onClick={onAssignment}
+          title={assignmentTitle}
+          type="button"
+        >
+          <UserRound size={13} aria-hidden="true" />
+          <span>{assignmentLabel || "Leader"}</span>
+        </button>
+      ) : null}
       {historyContent}
     </div>
   );

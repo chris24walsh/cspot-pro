@@ -414,6 +414,7 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
     [users],
   );
   const worshipLeaderMarkers = useMemo(() => calendarMarkers(worshipLeaders), [worshipLeaders]);
+  const selectedWorshipLeader = worshipLeaders.find((user) => user.id === plan?.leader_id) ?? null;
   const servicePlansByDate = useMemo(
     () => new Map(plans.filter((candidate) => !isWorshipSetPlan(candidate)).map((servicePlan) => [dateInputFromIso(servicePlan.service_date), servicePlan])),
     [plans],
@@ -1468,6 +1469,9 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
             <div className="presentation-topbar-tools worship-topbar-tools">
               <div className="worship-set-picker-tools">
                 <DateNavigator
+                  assignmentDisabled={!plan || !canEditPlan}
+                  assignmentLabel={selectedWorshipLeader?.name || "Leader"}
+                  assignmentTitle={selectedWorshipLeader ? `Leader: ${selectedWorshipLeader.name}` : "Assign leader"}
                   historyDisabled={!plan || editHistoryApplying}
                   historyExpanded={editHistoryOpen}
                   historyLabel="Worship set edit history"
@@ -1475,6 +1479,7 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
                   nextDisabled={loading || sortedPlans.findIndex((candidate) => candidate.id === (selectedPlanId || plan?.id)) <= 0}
                   nextLabel="Next worship set"
                   onHistory={() => void openEditHistory()}
+                  onAssignment={openSetPicker}
                   onNext={() => void stepWorshipSet(-1)}
                   onOpenPicker={openSetPicker}
                   onPrevious={() => void stepWorshipSet(1)}

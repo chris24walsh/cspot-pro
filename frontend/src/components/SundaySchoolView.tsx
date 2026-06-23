@@ -13,7 +13,6 @@ import {
   Scissors,
   Search,
   Shuffle,
-  UserPlus,
   WandSparkles,
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -232,7 +231,6 @@ export function SundaySchoolView({ canEdit }: { canEdit: boolean }) {
   const [expandedElementKey, setExpandedElementKey] = useState<LessonElementKey | null>(null);
   const [teacherPickerDate, setTeacherPickerDate] = useState<string | null>(null);
   const [newTeacherName, setNewTeacherName] = useState("");
-  const [selectedTeacherId, setSelectedTeacherId] = useState<string | null>(null);
   const [resourcePickerOpen, setResourcePickerOpen] = useState(false);
   const [resourceQuery, setResourceQuery] = useState("");
   const [loading, setLoading] = useState(true);
@@ -581,10 +579,14 @@ export function SundaySchoolView({ canEdit }: { canEdit: boolean }) {
         ? createPortal(
             <div className="presentation-topbar-tools">
               <DateNavigator
+                assignmentDisabled={!canEdit}
+                assignmentLabel={draft.teacher_name || "Leader"}
+                assignmentTitle={draft.teacher_name ? `Leader: ${draft.teacher_name}` : "Assign leader"}
                 historyLabel="Open Sunday School calendar history"
                 label={formatNavigatorDate(selectedDate)}
                 nextLabel="Next Sunday"
                 onHistory={() => setCalendarOpen(true)}
+                onAssignment={() => setTeacherPickerDate(selectedDate)}
                 onNext={() => shiftSelectedDate(1)}
                 onOpenPicker={() => setCalendarOpen(true)}
                 onPrevious={() => shiftSelectedDate(-1)}
@@ -634,16 +636,6 @@ export function SundaySchoolView({ canEdit }: { canEdit: boolean }) {
                     </small>
                   </span>
                 </button>
-                <button
-                  aria-label={`Assign teacher for ${shortDate(date)}`}
-                  className="section-icon-button sunday-school-teacher-button"
-                  disabled={!canEdit}
-                  onClick={() => setTeacherPickerDate(date)}
-                  title="Assign teacher"
-                  type="button"
-                >
-                  {lesson?.teacher_name ? teacherInitials(lesson.teacher_name) : <UserPlus size={14} aria-hidden="true" />}
-                </button>
               </div>
             );
           })}
@@ -657,19 +649,6 @@ export function SundaySchoolView({ canEdit }: { canEdit: boolean }) {
             <h2>{longDate(selectedDate)}</h2>
           </div>
           <div className="worship-set-toolbar-actions sunday-school-toolbar-actions">
-            <select
-              aria-label="Teacher"
-              disabled={!canEdit}
-              onChange={(event) => updateDraft("teacher_name", event.target.value)}
-              value={draft.teacher_name}
-            >
-              <option value="">No teacher</option>
-              {teacherNames.map((teacher) => <option key={teacher} value={teacher}>{teacher}</option>)}
-            </select>
-            <button className="text-button" disabled={!canEdit} onClick={() => setTeacherPickerDate(selectedDate)} type="button">
-              <UserPlus size={14} aria-hidden="true" />
-              Teacher
-            </button>
             <button className="text-button sunday-school-use-matched-button" disabled={!canEdit || !selectedResources.length} onClick={applyMatchedResources} type="button">
               <CheckCircle2 size={14} aria-hidden="true" />
               Use matched
@@ -873,24 +852,6 @@ export function SundaySchoolView({ canEdit }: { canEdit: boolean }) {
             </>
           );
         }}
-        footerContent={
-          <label className="form-grid single-column">
-            Teacher
-            <select
-              value={selectedTeacherId || ""}
-              onChange={(event) => setSelectedTeacherId(event.target.value || null)}
-            >
-              <option value="">None</option>
-              {[...sundaySchoolTeachers]
-                .sort((a, b) => a.name.localeCompare(b.name))
-                .map((user) => (
-                  <option key={user.id} value={user.id}>
-                    {user.name}
-                  </option>
-                ))}
-            </select>
-          </label>
-        }
         actionButtons={null}
       />
 
