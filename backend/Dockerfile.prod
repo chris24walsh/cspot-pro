@@ -24,7 +24,7 @@ COPY backend/migrations ./migrations
 RUN pip install --no-cache-dir --upgrade pip \
     && pip install --no-cache-dir -e .
 
-RUN mkdir -p /app/storage/uploads /app/storage/rendered /app/storage/recordings /app/storage/recording-audio
+RUN mkdir -p /app/storage/uploads /app/storage/rendered
 
 EXPOSE 8000
 
