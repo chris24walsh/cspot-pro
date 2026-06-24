@@ -70,7 +70,6 @@ function isTransientApiError(error: unknown) {
 function App() {
   const initialParams = new URLSearchParams(window.location.search);
   const isPresentationOutput = initialParams.get("presentation") === "output";
-  const forceBroadcastViewer = initialParams.get("broadcast") === "viewer";
   const publicWebsiteUrl = import.meta.env.VITE_PUBLIC_WEBSITE_URL || "/";
   const [activeModuleId, setActiveModuleId] = useState<ModuleId>("presentation");
   const [sessionUser, setSessionUser] = useState<SessionUser | null>(null);
@@ -82,9 +81,7 @@ function App() {
     selectedPlan: null,
     songs: [],
   });
-  const [broadcastMode, setBroadcastMode] = useState<"control" | "viewer">(
-    forceBroadcastViewer ? "viewer" : "control",
-  );
+  const [broadcastMode, setBroadcastMode] = useState<"control" | "viewer">("viewer");
 
   const permissions = useMemo(() => new Set(sessionUser?.permissions ?? []), [sessionUser]);
   const roleNames = useMemo(() => new Set(sessionUser?.roles ?? []), [sessionUser?.roles]);
@@ -106,7 +103,7 @@ function App() {
   const canEditSongs = canCreateSongs || permissions.has("songs:edit");
   const canUsePresentation = permissions.has("presentation:use");
   const canUseBroadcast = permissions.has("broadcast:use");
-  const canWatchBroadcast = isViewer || isAdmin;
+  const canWatchBroadcast = isViewer || isAdmin || canUseBroadcast;
   const canCreateLibrary = permissions.has("library:create");
   const canUseServiceOperator = canUsePresentation && (isAdmin || isTeacher || isPresenter);
   const canUseWorshipTools = canReadSongs && (isAdmin || isMusician || isWorshipLeader);
@@ -232,12 +229,8 @@ function App() {
       return [{ label: "Scope", value: "Users & access" }];
     }
 
-    if (activeModule.id === "broadcast") {
-      return [{ label: "Mode", value: canUseBroadcast && broadcastMode === "control" ? "OBS" : "Viewer" }];
-    }
-
     return [];
-  }, [activeModule, broadcastMode, canUseBroadcast, workspace]);
+  }, [activeModule, workspace]);
   const compactWorkspace = true;
 
   useEffect(() => {
@@ -251,18 +244,6 @@ function App() {
       setActiveModuleId("broadcast");
     }
   }, [canUsePresentation, canWatchBroadcast, modules, sessionUser]);
-
-  useEffect(() => {
-    if (forceBroadcastViewer && canWatchBroadcast) {
-      setBroadcastMode("viewer");
-    }
-  }, [canWatchBroadcast, forceBroadcastViewer]);
-
-  useEffect(() => {
-    if (!canWatchBroadcast && broadcastMode === "viewer") {
-      setBroadcastMode("control");
-    }
-  }, [broadcastMode, canWatchBroadcast]);
 
   useEffect(() => {
     if (!sessionUser || !canManageUsers || !modules.some((module) => module.id === "admin")) {
@@ -352,18 +333,18 @@ function App() {
         {activeModule.id === "broadcast" && canUseBroadcast && canWatchBroadcast ? (
           <div className="broadcast-mode-switch segmented-control" role="tablist" aria-label="Broadcast mode">
             <button
-              className={broadcastMode === "control" ? "is-active" : ""}
-              onClick={() => setBroadcastMode("control")}
-              type="button"
-            >
-              Control
-            </button>
-            <button
               className={broadcastMode === "viewer" ? "is-active" : ""}
               onClick={() => setBroadcastMode("viewer")}
               type="button"
             >
               Viewer
+            </button>
+            <button
+              className={broadcastMode === "control" ? "is-active" : ""}
+              onClick={() => setBroadcastMode("control")}
+              type="button"
+            >
+              Settings
             </button>
           </div>
         ) : null}

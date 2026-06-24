@@ -134,25 +134,21 @@ export const featureModules: FeatureModule[] = [
   {
     id: "broadcast",
     label: "Broadcast",
-    kicker: "Recording and stream",
+    kicker: "Remote service stream",
     status: "Partial",
     metrics: [
-      { label: "OBS", value: "Next" },
-      { label: "Record", value: "Ready" },
-      { label: "Stream", value: "Ready" },
+      { label: "Viewer", value: "Ready" },
+      { label: "Slides", value: "Live" },
+      { label: "Camera", value: "External" },
     ],
     lanes: [
       {
-        title: "OBS",
-        items: ["Connection status", "Start recording", "Stop recording", "Virtual camera"],
-      },
-      {
-        title: "Sermons",
-        items: ["Record audio/video", "Save file path", "Link to service", "Publish later"],
+        title: "Viewer Settings",
+        items: ["Stream details", "Camera URL", "Pre-service audio", "Holding messages"],
       },
       {
         title: "Remote Viewers",
-        items: ["Live slides", "Network camera", "External stream source", "Attendance notes"],
+        items: ["Live slides", "Network camera", "Starting soon", "Offline state"],
       },
     ],
   },

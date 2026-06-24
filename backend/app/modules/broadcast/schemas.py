@@ -1,48 +1,21 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
-class ObsStatusRead(BaseModel):
-    configured: bool
-    connected: bool
-    host: str | None = None
-    port: int | None = None
-    obs_version: str | None = None
-    websocket_version: str | None = None
-    recording: bool = False
-    recording_paused: bool = False
-    recording_timecode: str | None = None
-    recording_path: str | None = None
-    streaming: bool = False
-    streaming_timecode: str | None = None
-    virtual_camera: bool = False
-    error: str | None = None
+class BroadcastViewerSettingsRead(BaseModel):
+    stream_title: str
+    stream_description: str | None = None
+    camera_url: str | None = None
+    pre_service_audio_url: str | None = None
+    pre_service_minutes: int
+    starting_soon_message: str
+    offline_message: str
 
 
-class ObsActionRead(BaseModel):
-    ok: bool
-    action: str
-    status: ObsStatusRead
-    output_path: str | None = None
-
-
-class BroadcastRecordingRead(BaseModel):
-    id: str
-    plan_id: str | None
-    plan_item_id: str | None
-    title: str
-    source: str
-    media_kind: str
-    status: str
-    file_name: str
-    content_type: str | None
-    size_bytes: int | None
-    duration_seconds: int | None
-    has_audio: bool
-    recorded_at: str | None
-    created_at: str
-    updated_at: str
-
-
-class RecordingScanRead(BaseModel):
-    added: int
-    recordings: list[BroadcastRecordingRead]
+class BroadcastViewerSettingsUpdate(BaseModel):
+    stream_title: str | None = Field(default=None, max_length=180)
+    stream_description: str | None = None
+    camera_url: str | None = None
+    pre_service_audio_url: str | None = None
+    pre_service_minutes: int | None = Field(default=None, ge=0, le=180)
+    starting_soon_message: str | None = Field(default=None, max_length=240)
+    offline_message: str | None = Field(default=None, max_length=240)

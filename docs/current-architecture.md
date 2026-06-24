@@ -195,17 +195,21 @@ environment without requiring a server push channel yet.
 
 ### Remote service viewer
 
-The Broadcast area now has a viewer-facing proof of concept for remote church
-members. Viewer-role users can see active services with a current slideshow
-output heartbeat and watch:
+The Broadcast area is viewer-first. Eligible users land on the viewer even when
+they can edit its settings. A current slideshow output heartbeat is the gate for:
 
 - the active service slideshow
 - one externally configured camera or stream URL
 
-The camera feed is intentionally loaded by the browser from
-`VITE_SERVICE_CAMERA_URL`; the API does not proxy or fan out camera media. This
-keeps remote viewing from adding video-streaming load to the core service
-planning and presentation process.
+When the heartbeat is absent, both panels remain disabled. During the configured
+window before the next planned service, the page shows a starting-soon state and
+can offer configured worship audio. Outside that window it clearly shows that no
+service is streaming.
+
+Viewer settings are stored in the database and edited from Broadcast Settings.
+The camera and optional pre-service audio are loaded directly by the browser;
+the API does not proxy or fan out media. This keeps viewer traffic from adding
+video-streaming load to the core service planning and presentation process.
 
 ## Presenter Information Architecture
 

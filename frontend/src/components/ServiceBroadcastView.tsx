@@ -1,15 +1,18 @@
-import { Maximize2, RefreshCw } from "lucide-react";
+import { Maximize2 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import {
+  getBroadcastViewerSettings,
   getFileSlides,
   getLivePresentationServices,
   getPlan,
   getPlans,
   getPresentationLiveState,
   getSongs,
-  type PresentationLiveService,
+  type BroadcastViewerSettings,
   type PlanDetail,
+  type PlanSummary,
+  type PresentationLiveService,
   type RenderedSlide,
   type Song,
 } from "../api";
@@ -20,35 +23,46 @@ import {
   suggestSlideGroupFontCap,
   type PresentationLiveState,
 } from "../presentation";
+import { isBroadcastStartingSoon } from "../broadcastTiming";
 import { isWorshipSetPlan, matchingWorshipSetForService, mergeWorshipSetIntoService } from "../worshipSets";
 import { AutoFitSlideText } from "./AutoFitSlideText";
 import { ScaledSlideImage } from "./ScaledSlideImage";
 
 const POLL_INTERVAL_MS = 3000;
-const DEFAULT_TEST_CAMERA_URL = "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8";
+const DEFAULT_SETTINGS: BroadcastViewerSettings = {
+  camera_url: null,
+  offline_message: "No service is streaming right now",
+  pre_service_audio_url: null,
+  pre_service_minutes: 60,
+  starting_soon_message: "Our service will begin shortly",
+  stream_description: null,
+  stream_title: "Sunday Service",
+};
 
 function formatServiceDate(value: string | null | undefined) {
-  if (!value) {
-    return "Live service";
-  }
-  return new Intl.DateTimeFormat(undefined, {
-    weekday: "long",
-    month: "long",
-    day: "numeric",
-    year: "numeric",
-  }).format(new Date(value));
+  if (!value) return "";
+  const date = new Date(value);
+  return Number.isNaN(date.getTime())
+    ? ""
+    : new Intl.DateTimeFormat("en-GB", {
+        day: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+        month: "long",
+        weekday: "long",
+      }).format(date);
 }
 
 function liveStateFromApi(state: Awaited<ReturnType<typeof getPresentationLiveState>>): PresentationLiveState {
   return {
-    planId: state.plan_id,
+    blanked: state.blanked,
+    fullscreen: state.fullscreen,
     index: state.index,
-    updatedAt: state.updated_at,
+    planId: state.plan_id,
     planItemId: state.plan_item_id,
     slideOffset: state.slide_offset,
     theme: state.theme,
-    blanked: state.blanked,
-    fullscreen: state.fullscreen,
+    updatedAt: state.updated_at,
     videoAction: state.video_action,
     videoActionAt: state.video_action_at ?? undefined,
   };
@@ -56,144 +70,95 @@ function liveStateFromApi(state: Awaited<ReturnType<typeof getPresentationLiveSt
 
 function cameraKind(url: string) {
   const lower = url.toLowerCase();
-  if (/\.(mjpg|mjpeg)(?:[?#]|$)/.test(lower) || lower.includes("mjpeg") || lower.includes("mjpg")) {
-    return "mjpeg";
-  }
-  if (/\.(mp4|webm|ogg|m3u8)(?:[?#]|$)/.test(lower)) {
-    return "video";
-  }
+  if (/\.(mjpg|mjpeg)(?:[?#]|$)/.test(lower) || lower.includes("mjpeg") || lower.includes("mjpg")) return "mjpeg";
+  if (/\.(mp4|webm|ogg|m3u8)(?:[?#]|$)/.test(lower)) return "video";
   return "frame";
 }
 
 function CameraPane({ url }: { url: string }) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const [playbackBlocked, setPlaybackBlocked] = useState(false);
-  const kind = url ? cameraKind(url) : "frame";
+  const kind = cameraKind(url);
   const isHls = url.toLowerCase().includes(".m3u8");
 
   useEffect(() => {
-    if (kind !== "video" || !videoRef.current) {
-      return undefined;
-    }
-
+    if (kind !== "video" || !videoRef.current) return undefined;
     const video = videoRef.current;
     let cancelled = false;
     let hls: InstanceType<typeof import("hls.js").default> | null = null;
-
-    const attemptPlayback = async () => {
+    const play = async () => {
       try {
         await video.play();
-        if (!cancelled) {
-          setPlaybackBlocked(false);
-        }
+        if (!cancelled) setPlaybackBlocked(false);
       } catch {
-        if (!cancelled) {
-          setPlaybackBlocked(true);
-        }
+        if (!cancelled) setPlaybackBlocked(true);
       }
     };
-
     video.muted = true;
     video.defaultMuted = true;
     video.autoplay = true;
     video.playsInline = true;
 
-    if (!isHls) {
+    if (!isHls || video.canPlayType("application/vnd.apple.mpegurl")) {
       video.src = url;
-      void attemptPlayback();
-      return () => {
-        cancelled = true;
-      };
-    }
-
-    if (video.canPlayType("application/vnd.apple.mpegurl")) {
-      video.src = url;
-      void attemptPlayback();
-      return () => {
-        cancelled = true;
-      };
-    }
-
-    void import("hls.js").then(({ default: Hls }) => {
-      if (cancelled || !Hls.isSupported()) {
-        return;
-      }
-      hls = new Hls({
-        enableWorker: true,
-        lowLatencyMode: true,
+      void play();
+    } else {
+      void import("hls.js").then(({ default: Hls }) => {
+        if (cancelled || !Hls.isSupported()) return;
+        hls = new Hls({ enableWorker: true, lowLatencyMode: true });
+        hls.on(Hls.Events.MANIFEST_PARSED, () => void play());
+        hls.loadSource(url);
+        hls.attachMedia(video);
       });
-      hls.on(Hls.Events.MANIFEST_PARSED, () => {
-        void attemptPlayback();
-      });
-      hls.loadSource(url);
-      hls.attachMedia(video);
-    });
-
+    }
     return () => {
       cancelled = true;
       hls?.destroy();
     };
   }, [isHls, kind, url]);
 
-  function handleStartPlayback() {
-    const video = videoRef.current;
-    if (!video) {
-      return;
-    }
-    video.muted = false;
-    void video.play()
-      .then(() => setPlaybackBlocked(false))
-      .catch(() => setPlaybackBlocked(true));
-  }
-
-  if (!url) {
-    return (
-      <div className="service-broadcast-camera-placeholder">
-        <strong>Camera unavailable</strong>
-        <span>Set VITE_SERVICE_CAMERA_URL for the remote service view.</span>
-      </div>
-    );
-  }
-
-  if (kind === "mjpeg") {
-    return <img alt="Live service camera" className="service-broadcast-camera-media" src={url} />;
-  }
+  if (kind === "mjpeg") return <img alt="Live service camera" className="service-broadcast-camera-media" src={url} />;
   if (kind === "video") {
     return (
       <div className="service-broadcast-camera-player">
-        <video
-          autoPlay
-          className="service-broadcast-camera-media"
-          controls
-          muted
-          playsInline
-          ref={videoRef}
-          src={isHls ? undefined : url}
-        />
+        <video autoPlay className="service-broadcast-camera-media" controls muted playsInline ref={videoRef} src={isHls ? undefined : url} />
         {playbackBlocked ? (
-          <button className="service-broadcast-camera-overlay" onClick={handleStartPlayback} type="button">
+          <button
+            className="service-broadcast-camera-overlay"
+            onClick={() => {
+              if (videoRef.current) {
+                videoRef.current.muted = false;
+                void videoRef.current.play().then(() => setPlaybackBlocked(false)).catch(() => setPlaybackBlocked(true));
+              }
+            }}
+            type="button"
+          >
             Start camera audio
           </button>
         ) : null}
       </div>
     );
   }
+  return <iframe allow="autoplay; fullscreen; picture-in-picture" className="service-broadcast-camera-media" src={url} title="Live service camera" />;
+}
+
+function HoldingPane({ message, startingSoon }: { message: string; startingSoon: boolean }) {
   return (
-    <iframe
-      allow="autoplay; fullscreen; picture-in-picture"
-      className="service-broadcast-camera-media"
-      src={url}
-      title="Live service camera"
-    />
+    <div className={`service-broadcast-holding-slide ${startingSoon ? "is-starting-soon" : "is-offline"}`}>
+      <span className="service-broadcast-holding-mark">{startingSoon ? "Starting soon" : "Offline"}</span>
+      <strong>{message}</strong>
+      <p>{startingSoon ? "The live camera and presentation will appear here automatically." : "Please check back for the next scheduled service."}</p>
+    </div>
   );
 }
 
 export function ServiceBroadcastView() {
-  const cameraUrl = import.meta.env.VITE_SERVICE_CAMERA_URL || DEFAULT_TEST_CAMERA_URL;
   const shellRef = useRef<HTMLElement | null>(null);
   const pollInFlightRef = useRef(false);
+  const [settings, setSettings] = useState(DEFAULT_SETTINGS);
   const [liveServices, setLiveServices] = useState<PresentationLiveService[]>([]);
   const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null);
+  const [nextService, setNextService] = useState<PlanSummary | null>(null);
   const [plan, setPlan] = useState<PlanDetail | null>(null);
   const [worshipSetPlan, setWorshipSetPlan] = useState<PlanDetail | null>(null);
   const [songs, setSongs] = useState<Song[]>([]);
@@ -206,54 +171,57 @@ export function ServiceBroadcastView() {
     () => buildPresentationSlides(mergeWorshipSetIntoService(plan?.items ?? [], worshipSetPlan?.items ?? []), songs, renderedSlidesByFileId),
     [plan, worshipSetPlan, renderedSlidesByFileId, songs],
   );
-  const resolvedIndex = resolveLiveIndex(slides, liveState);
-  const liveSlide = liveState?.blanked ? null : slides[resolvedIndex] ?? null;
-  const theme = liveState?.theme ?? "dark";
+  const liveSlide = liveState?.blanked ? null : slides[resolveLiveIndex(slides, liveState)] ?? null;
   const hasLiveService = Boolean(plan && liveState);
+  const upcomingService = plan ?? nextService;
+  const startingSoon = !hasLiveService && isBroadcastStartingSoon(upcomingService?.service_date, Date.now(), settings.pre_service_minutes);
+  const holdingMessage = startingSoon ? settings.starting_soon_message : settings.offline_message;
   const textFontCap = useMemo(
     () => suggestSlideGroupFontCap(slides.filter((slide) => !slide.imageUrl && slide.text.trim()).map((slide) => slide.text)),
     [slides],
   );
 
   async function loadBroadcast() {
-    if (pollInFlightRef.current) {
-      return;
-    }
+    if (pollInFlightRef.current) return;
     pollInFlightRef.current = true;
     try {
-      const [nextLiveServices, plans, nextSongs] = await Promise.all([
+      const [nextLiveServices, plans, nextSongs, nextSettings] = await Promise.all([
         getLivePresentationServices(),
         getPlans(),
         getSongs(),
+        getBroadcastViewerSettings(),
       ]);
+      const servicePlans = plans.filter((candidate) => !isWorshipSetPlan(candidate));
+      const nextPlanned = servicePlans
+        .filter((candidate) => new Date(candidate.service_date).getTime() >= Date.now() - 30 * 60000)
+        .sort((left, right) => new Date(left.service_date).getTime() - new Date(right.service_date).getTime())[0] ?? null;
+      setSettings(nextSettings);
       setLiveServices(nextLiveServices);
-      const targetService =
-        nextLiveServices.find((service) => service.plan_id === selectedPlanId) ?? nextLiveServices[0] ?? null;
-      if (!targetService) {
-        setMessage("No service is live right now.");
+      setNextService(nextPlanned);
+      setSongs(nextSongs);
+
+      const target = nextLiveServices.find((service) => service.plan_id === selectedPlanId) ?? nextLiveServices[0] ?? null;
+      if (!target) {
         setPlan(null);
         setWorshipSetPlan(null);
         setLiveState(null);
         setSelectedPlanId(null);
-        setSongs(nextSongs);
+        setMessage(null);
         return;
       }
 
       const [nextPlan, remoteState] = await Promise.all([
-        getPlan(targetService.plan_id),
-        getPresentationLiveState(targetService.plan_id).catch(() => null),
+        getPlan(target.plan_id),
+        getPresentationLiveState(target.plan_id).catch(() => null),
       ]);
       const matchingWorshipSet = matchingWorshipSetForService(nextPlan, plans.filter(isWorshipSetPlan));
-      const nextWorshipSetPlan = matchingWorshipSet ? await getPlan(matchingWorshipSet.id) : null;
-
       setPlan(nextPlan);
       setSelectedPlanId(nextPlan.id);
-      setWorshipSetPlan(nextWorshipSetPlan);
-      setSongs(nextSongs);
-      setLiveState(remoteState ? liveStateFromApi(remoteState) : { planId: nextPlan.id, index: 0, updatedAt: Date.now(), theme: "dark" });
+      setWorshipSetPlan(matchingWorshipSet ? await getPlan(matchingWorshipSet.id) : null);
+      setLiveState(remoteState ? liveStateFromApi(remoteState) : null);
       setMessage(null);
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Could not load the live service.");
+      setMessage(error instanceof Error ? error.message : "Could not load the service stream.");
     } finally {
       pollInFlightRef.current = false;
     }
@@ -273,20 +241,9 @@ export function ServiceBroadcastView() {
       setRenderedSlidesByFileId({});
       return;
     }
-
     let cancelled = false;
-    void Promise.all(
-      deckFiles.map(async (file) => {
-        try {
-          return [file.file_id, await getFileSlides(file.file_id)] as const;
-        } catch {
-          return [file.file_id, []] as const;
-        }
-      }),
-    ).then((entries) => {
-      if (!cancelled) {
-        setRenderedSlidesByFileId(Object.fromEntries(entries));
-      }
+    void Promise.all(deckFiles.map(async (file) => [file.file_id, await getFileSlides(file.file_id).catch(() => [])] as const)).then((entries) => {
+      if (!cancelled) setRenderedSlidesByFileId(Object.fromEntries(entries));
     });
     return () => {
       cancelled = true;
@@ -294,44 +251,32 @@ export function ServiceBroadcastView() {
   }, [plan?.items, worshipSetPlan?.items]);
 
   useEffect(() => {
-    function handleFullscreenChange() {
-      setFullscreen(Boolean(document.fullscreenElement));
-    }
-    document.addEventListener("fullscreenchange", handleFullscreenChange);
-    return () => document.removeEventListener("fullscreenchange", handleFullscreenChange);
+    const handler = () => setFullscreen(Boolean(document.fullscreenElement));
+    document.addEventListener("fullscreenchange", handler);
+    return () => document.removeEventListener("fullscreenchange", handler);
   }, []);
 
-  function toggleFullscreen() {
-    if (document.fullscreenElement) {
-      void document.exitFullscreen();
-      return;
-    }
-    void shellRef.current?.requestFullscreen();
-  }
-
   return (
-    <section className={`service-broadcast-view ${fullscreen ? "is-fullscreen" : ""}`} ref={shellRef} aria-label="Remote service broadcast">
+    <section className={`service-broadcast-view ${fullscreen ? "is-fullscreen" : ""}`} ref={shellRef} aria-label="Service broadcast">
       <header className="service-broadcast-toolbar">
         <div className="service-broadcast-title">
           <div className="service-broadcast-kicker-row">
-            <span className={`service-broadcast-status-pill ${hasLiveService ? "is-live" : "is-idle"}`}>
-              {hasLiveService ? "Live" : "Standby"}
+            <span className={`service-broadcast-status-pill ${hasLiveService ? "is-live" : startingSoon ? "is-soon" : "is-idle"}`}>
+              {hasLiveService ? "Live" : startingSoon ? "Starting soon" : "Offline"}
             </span>
-            <span className="service-broadcast-date">{formatServiceDate(plan?.service_date)}</span>
+            {upcomingService ? <span className="service-broadcast-date">{formatServiceDate(upcomingService.service_date)}</span> : null}
           </div>
-          <strong>{plan?.title ?? "Service will begin shortly"}</strong>
-          <span>{liveSlide?.sectionTitle ?? (liveServices.length ? "Preparing slideshow output" : "Start the slideshow to publish this stream")}</span>
+          <strong>{hasLiveService ? plan?.title : settings.stream_title}</strong>
+          {settings.stream_description ? <span>{settings.stream_description}</span> : null}
         </div>
-        <div className="service-broadcast-actions">
-          <button className="text-button icon-text-button" onClick={() => void loadBroadcast()} type="button">
-            <RefreshCw size={16} aria-hidden="true" />
-            Refresh
-          </button>
-          <button className="primary-button icon-text-button" onClick={toggleFullscreen} type="button">
-            <Maximize2 size={16} aria-hidden="true" />
-            Fullscreen
-          </button>
-        </div>
+        <button
+          className="text-button icon-text-button"
+          onClick={() => (document.fullscreenElement ? void document.exitFullscreen() : void shellRef.current?.requestFullscreen())}
+          type="button"
+        >
+          <Maximize2 size={15} aria-hidden="true" />
+          Fullscreen
+        </button>
       </header>
 
       {message ? <p className="form-message service-broadcast-message">{message}</p> : null}
@@ -339,52 +284,26 @@ export function ServiceBroadcastView() {
       {liveServices.length > 1 ? (
         <div className="service-broadcast-service-list" aria-label="Live services">
           {liveServices.map((service) => (
-            <button
-              className={service.plan_id === selectedPlanId ? "is-active" : ""}
-              key={service.plan_id}
-              onClick={() => setSelectedPlanId(service.plan_id)}
-              type="button"
-            >
-              <strong>{service.title}</strong>
-              <span>{service.subtitle ?? service.plan_type}</span>
+            <button className={service.plan_id === selectedPlanId ? "is-active" : ""} key={service.plan_id} onClick={() => setSelectedPlanId(service.plan_id)} type="button">
+              {service.title}
             </button>
           ))}
         </div>
       ) : null}
 
       <div className="service-broadcast-grid">
-        <div className="service-broadcast-slide-pane">
-          <div className="service-broadcast-panel-header">
-            <span>Slides</span>
-            <small>{hasLiveService ? "Live program output" : "Waiting screen"}</small>
-          </div>
-          <div className={`service-broadcast-slide ${presentationTypeClass(liveSlide?.itemType ?? "generic")} stage-theme-${theme}`}>
+        <section className="service-broadcast-slide-pane" aria-label="Live presentation">
+          <div className="service-broadcast-panel-header"><span>Presentation</span></div>
+          <div className={`service-broadcast-slide ${presentationTypeClass(liveSlide?.itemType ?? "generic")} stage-theme-${liveState?.theme ?? "dark"}`}>
             {!hasLiveService ? (
-              <div className="service-broadcast-holding-slide">
-                <div className="service-broadcast-holding-mark">Church livestream</div>
-                <strong>Service will begin shortly</strong>
-                <p>The slideshow is not live yet. This page will update automatically once presentation starts.</p>
-              </div>
+              <HoldingPane message={holdingMessage} startingSoon={startingSoon} />
             ) : !liveSlide ? (
-              <div className="service-broadcast-holding-slide">
-                <div className="service-broadcast-holding-mark">Live service</div>
-                <strong>Preparing current slide</strong>
-                <p>The presenter output is active. Slides will appear here as soon as the next item is published.</p>
-              </div>
+              <HoldingPane message="The presentation is live" startingSoon />
             ) : liveSlide.imageUrl ? (
               <ScaledSlideImage alt={liveSlide.title} src={liveSlide.imageUrl} />
             ) : liveSlide.videoUrl ? (
               <div className="stage-video-frame">
-                {liveSlide.videoProvider === "file" ? (
-                  <video controls src={liveSlide.videoUrl} title={liveSlide.title} />
-                ) : (
-                  <iframe
-                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                    allowFullScreen
-                    src={liveSlide.videoUrl}
-                    title={liveSlide.title}
-                  />
-                )}
+                {liveSlide.videoProvider === "file" ? <video controls src={liveSlide.videoUrl} /> : <iframe allow="autoplay; encrypted-media; picture-in-picture" allowFullScreen src={liveSlide.videoUrl} title={liveSlide.title} />}
               </div>
             ) : (
               <div className="presentation-stage">
@@ -393,21 +312,26 @@ export function ServiceBroadcastView() {
               </div>
             )}
           </div>
+        </section>
+
+        <section className="service-broadcast-camera-pane" aria-label="Live camera">
+          <div className="service-broadcast-panel-header"><span>Camera</span></div>
+          {hasLiveService && settings.camera_url ? (
+            <CameraPane url={settings.camera_url} />
+          ) : hasLiveService ? (
+            <HoldingPane message="Camera stream is not configured" startingSoon={false} />
+          ) : (
+            <HoldingPane message={holdingMessage} startingSoon={startingSoon} />
+          )}
+        </section>
+      </div>
+
+      {startingSoon && settings.pre_service_audio_url ? (
+        <div className="service-broadcast-preservice-audio">
+          <span>Pre-service worship</span>
+          <audio autoPlay controls loop src={settings.pre_service_audio_url} />
         </div>
-
-        <aside className="service-broadcast-camera-pane">
-          <div className="service-broadcast-panel-header">
-            <span>Camera + audio</span>
-            <small>{cameraUrl === DEFAULT_TEST_CAMERA_URL ? "Test stream" : "Room feed"}</small>
-          </div>
-          <CameraPane url={cameraUrl} />
-        </aside>
-      </div>
-
-      <div className="service-broadcast-footer-note">
-        <span>{cameraUrl === DEFAULT_TEST_CAMERA_URL ? "Using public test video while camera setup is pending." : "Camera feed is provided by an external stream source."}</span>
-        <span>Tap play on mobile browsers if audio does not begin automatically.</span>
-      </div>
+      ) : null}
     </section>
   );
 }

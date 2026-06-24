@@ -11,7 +11,9 @@ class BroadcastRecording(IdMixin, TimestampMixin, Base):
     __tablename__ = "broadcast_recordings"
     __table_args__ = (UniqueConstraint("file_path", name="uq_broadcast_recordings_file_path"),)
 
-    plan_id: Mapped[str | None] = mapped_column(ForeignKey("plans.id", ondelete="SET NULL"), index=True)
+    plan_id: Mapped[str | None] = mapped_column(
+        ForeignKey("plans.id", ondelete="SET NULL"), index=True
+    )
     plan_item_id: Mapped[str | None] = mapped_column(
         ForeignKey("plan_items.id", ondelete="SET NULL"),
         index=True,
@@ -31,3 +33,19 @@ class BroadcastRecording(IdMixin, TimestampMixin, Base):
     duration_seconds: Mapped[int | None] = mapped_column(Integer)
     audio_file_path: Mapped[str | None] = mapped_column(Text)
     recorded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)
+
+
+class BroadcastViewerSettings(IdMixin, TimestampMixin, Base):
+    __tablename__ = "broadcast_viewer_settings"
+
+    stream_title: Mapped[str] = mapped_column(String(180), default="Sunday Service")
+    stream_description: Mapped[str | None] = mapped_column(Text)
+    camera_url: Mapped[str | None] = mapped_column(Text)
+    pre_service_audio_url: Mapped[str | None] = mapped_column(Text)
+    pre_service_minutes: Mapped[int] = mapped_column(Integer, default=60)
+    starting_soon_message: Mapped[str] = mapped_column(
+        String(240), default="Our service will begin shortly"
+    )
+    offline_message: Mapped[str] = mapped_column(
+        String(240), default="No service is streaming right now"
+    )

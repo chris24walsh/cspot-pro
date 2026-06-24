@@ -506,51 +506,14 @@ export interface EmailTestResponse {
   recipient: string;
 }
 
-export interface ObsStatus {
-  configured: boolean;
-  connected: boolean;
-  host: string | null;
-  port: number | null;
-  obs_version: string | null;
-  websocket_version: string | null;
-  recording: boolean;
-  recording_paused: boolean;
-  recording_timecode: string | null;
-  recording_path: string | null;
-  streaming: boolean;
-  streaming_timecode: string | null;
-  virtual_camera: boolean;
-  error: string | null;
-}
-
-export interface ObsActionResponse {
-  ok: boolean;
-  action: string;
-  status: ObsStatus;
-  output_path: string | null;
-}
-
-export interface BroadcastRecording {
-  id: string;
-  plan_id: string | null;
-  plan_item_id: string | null;
-  title: string;
-  source: string;
-  media_kind: string;
-  status: string;
-  file_name: string;
-  content_type: string | null;
-  size_bytes: number | null;
-  duration_seconds: number | null;
-  has_audio: boolean;
-  recorded_at: string | null;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface BroadcastRecordingScan {
-  added: number;
-  recordings: BroadcastRecording[];
+export interface BroadcastViewerSettings {
+  stream_title: string;
+  stream_description: string | null;
+  camera_url: string | null;
+  pre_service_audio_url: string | null;
+  pre_service_minutes: number;
+  starting_soon_message: string;
+  offline_message: string;
 }
 
 export interface GoogleDriveStatus {
@@ -977,44 +940,14 @@ export async function sendTestEmail(payload: { email: string }): Promise<EmailTe
   return sendJson<EmailTestResponse>("/api/v1/identity/email/test", "POST", payload);
 }
 
-export async function getObsStatus(): Promise<ObsStatus> {
-  return getJson<ObsStatus>("/api/v1/broadcast/obs/status");
+export async function getBroadcastViewerSettings(): Promise<BroadcastViewerSettings> {
+  return getJson<BroadcastViewerSettings>("/api/v1/broadcast/viewer-settings");
 }
 
-export async function runObsAction(action: "start-recording" | "stop-recording" | "start-streaming" | "stop-streaming" | "start-virtual-camera" | "stop-virtual-camera"): Promise<ObsActionResponse> {
-  const paths = {
-    "start-recording": "/api/v1/broadcast/obs/recording/start",
-    "stop-recording": "/api/v1/broadcast/obs/recording/stop",
-    "start-streaming": "/api/v1/broadcast/obs/streaming/start",
-    "stop-streaming": "/api/v1/broadcast/obs/streaming/stop",
-    "start-virtual-camera": "/api/v1/broadcast/obs/virtual-camera/start",
-    "stop-virtual-camera": "/api/v1/broadcast/obs/virtual-camera/stop",
-  } satisfies Record<typeof action, string>;
-  return sendJson<ObsActionResponse>(paths[action], "POST", {}, { timeoutMs: 15000 });
-}
-
-export async function getBroadcastRecordings(): Promise<BroadcastRecording[]> {
-  return getJson<BroadcastRecording[]>("/api/v1/broadcast/recordings");
-}
-
-export async function scanBroadcastRecordings(): Promise<BroadcastRecordingScan> {
-  return sendJson<BroadcastRecordingScan>("/api/v1/broadcast/recordings/scan", "POST", {}, { timeoutMs: 30000 });
-}
-
-export async function createBroadcastRecordingAudio(recordingId: string): Promise<BroadcastRecording> {
-  return sendJson<BroadcastRecording>(`/api/v1/broadcast/recordings/${recordingId}/audio`, "POST", {}, { timeoutMs: 600000 });
-}
-
-export function broadcastRecordingVideoUrl(recordingId: string) {
-  return buildAbsoluteApiUrl(`/api/v1/broadcast/recordings/${recordingId}/video`);
-}
-
-export function broadcastRecordingDownloadUrl(recordingId: string) {
-  return buildAbsoluteApiUrl(`/api/v1/broadcast/recordings/${recordingId}/download`);
-}
-
-export function broadcastRecordingAudioUrl(recordingId: string) {
-  return buildAbsoluteApiUrl(`/api/v1/broadcast/recordings/${recordingId}/audio`);
+export async function updateBroadcastViewerSettings(
+  payload: Partial<BroadcastViewerSettings>,
+): Promise<BroadcastViewerSettings> {
+  return sendJson<BroadcastViewerSettings>("/api/v1/broadcast/viewer-settings", "PATCH", payload);
 }
 
 export async function getGoogleDriveStatus(): Promise<GoogleDriveStatus> {
