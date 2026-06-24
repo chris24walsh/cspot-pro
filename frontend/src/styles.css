@@ -3129,66 +3129,6 @@ h3 {
 }
 
 @media (max-width: 900px) {
-  .service-broadcast-view {
-    height: auto;
-    min-height: calc(100vh - 96px);
-    overflow: visible;
-    padding: 12px;
-  }
-
-  .service-broadcast-toolbar {
-    align-items: stretch;
-    flex-direction: column;
-    gap: 10px;
-  }
-
-  .service-broadcast-actions {
-    justify-content: flex-start;
-  }
-
-  .service-broadcast-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .service-broadcast-slide-pane {
-    order: 1;
-  }
-
-  .service-broadcast-camera-pane {
-    order: 2;
-  }
-
-  .service-broadcast-slide-pane,
-  .service-broadcast-camera-pane {
-    aspect-ratio: 16 / 9;
-  }
-
-  .service-broadcast-slide {
-    padding: 10px;
-  }
-
-  .service-broadcast-camera-pane .service-broadcast-camera-media,
-  .service-broadcast-camera-placeholder {
-    margin: 10px;
-    width: calc(100% - 20px);
-  }
-
-  .service-broadcast-title strong {
-    font-size: 28px;
-  }
-
-  .service-broadcast-title span {
-    font-size: 14px;
-  }
-
-  .service-broadcast-panel-header {
-    padding: 10px 12px 8px;
-  }
-
-  .service-broadcast-holding-slide {
-    padding: 22px 18px;
-  }
-
   .musician-chord-editor-bar {
     grid-template-columns: 1fr;
   }
@@ -7441,6 +7381,74 @@ h3 {
   .musician-live-transport .primary-button {
     min-height: 32px;
     padding: 3px;
+  }
+}
+
+/* Keep responsive broadcast rules after the desktop broadcast declarations so
+   the single-column mobile layout wins the cascade. */
+@media (max-width: 900px) {
+  .service-broadcast-view {
+    height: auto;
+    min-height: calc(100vh - 96px);
+    overflow: visible;
+    padding: 12px;
+  }
+
+  .service-broadcast-toolbar {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .service-broadcast-actions {
+    justify-content: flex-start;
+  }
+
+  .service-broadcast-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .service-broadcast-slide-pane {
+    order: 1;
+  }
+
+  .service-broadcast-camera-pane {
+    order: 2;
+  }
+
+  .service-broadcast-slide-pane,
+  .service-broadcast-camera-pane {
+    aspect-ratio: 16 / 9;
+  }
+
+  .service-broadcast-slide {
+    padding: 10px;
+  }
+
+  .service-broadcast-camera-pane .service-broadcast-camera-media,
+  .service-broadcast-camera-placeholder {
+    margin: 10px;
+    width: calc(100% - 20px);
+  }
+
+  .service-broadcast-title strong {
+    font-size: 28px;
+  }
+
+  .service-broadcast-title span {
+    font-size: 14px;
+  }
+
+  .service-broadcast-panel-header {
+    padding: 10px 12px 8px;
+  }
+
+  .service-broadcast-holding-slide {
+    padding: 22px 18px;
+  }
+
+  .broadcast-settings-grid {
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 .auth-shell {
