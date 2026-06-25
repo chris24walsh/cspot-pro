@@ -3,7 +3,7 @@ import json
 import math
 import secrets
 
-from fastapi import APIRouter, Depends, HTTPException, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
@@ -95,6 +95,7 @@ def song_to_read(song: Song) -> SongRead:
 
 
 _suggestion_random = secrets.SystemRandom()
+_SUGGESTION_SLOTS = {"opener", "middle", "closer"}
 
 
 def _song_usage(session: Session) -> dict[str, dict[str, object]]:
@@ -271,6 +272,21 @@ def _weighted_pick(candidates: list[tuple[float, str, Song, dict[str, object]]])
     return candidates[-1]
 
 
+def _suggestion_slots(limit: int, slots: list[str] | None = None) -> list[str]:
+    if slots:
+        normalized_slots = [slot.strip().lower() for slot in slots if slot.strip()]
+        invalid_slots = [slot for slot in normalized_slots if slot not in _SUGGESTION_SLOTS]
+        if invalid_slots:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Unsupported worship suggestion slot: {invalid_slots[0]}",
+            )
+        return normalized_slots[:8]
+
+    safe_limit = max(min(limit, 8), 1)
+    return (["opener"] + ["middle"] * max(safe_limit - 2, 0) + ["closer"])[:safe_limit]
+
+
 def get_song_or_404(session: Session, song_id: str) -> Song:
     song = session.get(Song, song_id)
     if song is None or song.deleted_at is not None:
@@ -296,18 +312,18 @@ def suggest_worship_set(
     _current_user: User = Depends(require_permission("songs:read")),
     session: Session = Depends(get_session),
     limit: int = 5,
+    slots: list[str] | None = Query(default=None),
 ) -> WorshipSetSuggestionRead:
     songs = session.scalars(
         select(Song).where(Song.deleted_at.is_(None), Song.lyrics.is_not(None)).order_by(Song.title)
     ).all()
     usage = _song_usage(session)
     now = datetime.now(UTC)
-    safe_limit = max(min(limit, 8), 1)
-    slots = (["opener"] + ["middle"] * max(safe_limit - 2, 0) + ["closer"])[:safe_limit]
+    requested_slots = _suggestion_slots(limit, slots)
     selected_ids: set[str] = set()
     suggested: list[WorshipSuggestedSongRead] = []
 
-    for slot in slots:
+    for slot in requested_slots:
         candidates = []
         for song in songs:
             if song.id in selected_ids:

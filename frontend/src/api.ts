@@ -881,8 +881,10 @@ export async function getSongs(): Promise<Song[]> {
   return getJson<Song[]>("/api/v1/music/songs");
 }
 
-export async function getWorshipSetSuggestion(limit = 5): Promise<WorshipSetSuggestion> {
-  return getJson<WorshipSetSuggestion>(`/api/v1/music/worship-suggestions?limit=${encodeURIComponent(String(limit))}`);
+export async function getWorshipSetSuggestion(limit = 5, slots: string[] = []): Promise<WorshipSetSuggestion> {
+  const search = new URLSearchParams({ limit: String(limit) });
+  slots.forEach((slot) => search.append("slots", slot));
+  return getJson<WorshipSetSuggestion>(`/api/v1/music/worship-suggestions?${search.toString()}`);
 }
 
 export async function createSong(payload: Omit<Song, "id" | "lyrics_status">): Promise<Song> {

@@ -881,22 +881,27 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
     }
   }
 
-  async function suggestionReplacements(limit: number, blockedSongIds: Set<string>) {
-    const replacements: WorshipSuggestedSong[] = [];
+  async function suggestionReplacementForSlot(slot: string, blockedSongIds: Set<string>) {
     let attempts = 0;
-    while (replacements.length < limit && attempts < 4) {
+    while (attempts < 4) {
       attempts += 1;
-      const suggestion = await getWorshipSetSuggestion(Math.max(8, limit + blockedSongIds.size));
+      const suggestion = await getWorshipSetSuggestion(8, Array.from({ length: 8 }, () => slot));
       for (const entry of suggestion.songs) {
-        if (blockedSongIds.has(entry.song.id) || replacements.some((candidate) => candidate.song.id === entry.song.id)) {
+        if (blockedSongIds.has(entry.song.id)) {
           continue;
         }
-        replacements.push(entry);
         blockedSongIds.add(entry.song.id);
-        if (replacements.length >= limit) {
-          break;
-        }
+        return entry;
       }
+    }
+    return null;
+  }
+
+  async function suggestionReplacements(slots: string[], blockedSongIds: Set<string>) {
+    const replacements: Array<WorshipSuggestedSong | null> = [];
+    for (const slot of slots) {
+      const replacement = await suggestionReplacementForSlot(slot, blockedSongIds);
+      replacements.push(replacement);
     }
     return replacements;
   }
@@ -924,8 +929,10 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
           .filter((_entry, index) => !indexesToReplace.includes(index))
           .map((entry) => entry.song.id),
       );
-      const replacements = await suggestionReplacements(indexesToReplace.length, new Set([...existingSongIds, ...keptSongIds]));
-      if (!replacements.length) {
+      const replacementSlots = indexesToReplace.map((index) => suggestedSongs[index]?.slot ?? "middle");
+      const replacements = await suggestionReplacements(replacementSlots, new Set([...existingSongIds, ...keptSongIds]));
+      const replacementCount = replacements.filter(Boolean).length;
+      if (!replacementCount) {
         setMessage("No fresh suggestions found outside the current list.");
         return;
       }
@@ -933,8 +940,9 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
       setSuggestedSongs((current) => {
         const next = [...current];
         indexesToReplace.forEach((targetIndex, replacementIndex) => {
-          if (replacements[replacementIndex]) {
-            next[targetIndex] = replacements[replacementIndex];
+          const replacement = replacements[replacementIndex];
+          if (replacement) {
+            next[targetIndex] = replacement;
           }
         });
         return next;
@@ -947,10 +955,14 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
             next.delete(oldEntry.song.id);
           }
         });
-        replacements.forEach((entry) => next.add(entry.song.id));
+        replacements.forEach((entry) => {
+          if (entry) {
+            next.add(entry.song.id);
+          }
+        });
         return next;
       });
-      setMessage(`Regenerated ${replacements.length} suggestion${replacements.length === 1 ? "" : "s"}.`);
+      setMessage(`Regenerated ${replacementCount} suggestion${replacementCount === 1 ? "" : "s"}.`);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Could not regenerate suggestions.");
     } finally {
@@ -967,7 +979,7 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
     try {
       const existingSongIds = new Set(worshipItems.flatMap((item) => (item.song_id ? [item.song_id] : [])));
       const otherSuggestedIds = new Set(suggestedSongs.filter((_entry, entryIndex) => entryIndex !== index).map((entry) => entry.song.id));
-      const replacements = await suggestionReplacements(1, new Set([...existingSongIds, ...otherSuggestedIds]));
+      const replacements = await suggestionReplacements([suggestedSongs[index]?.slot ?? "middle"], new Set([...existingSongIds, ...otherSuggestedIds]));
       const replacement = replacements[0];
       if (!replacement) {
         setMessage("No fresh swap found for that row.");
