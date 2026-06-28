@@ -15,6 +15,7 @@ from app.modules.imports.custom_provider_stub import (
     run_custom_lyrics_provider_search,
 )
 from app.modules.music.models import Song
+from app.modules.music.text import normalize_song_text
 
 router = APIRouter()
 
@@ -291,12 +292,13 @@ def save_lyrics_import(
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Song not found")
         song.title = payload.title
         song.author = payload.author
-        song.lyrics = payload.lyrics
+        song.lyrics, song.sequence = normalize_song_text(payload.lyrics, song.sequence)
     else:
+        normalized_lyrics, _sequence = normalize_song_text(payload.lyrics, None)
         song = Song(
             title=payload.title,
             author=payload.author,
-            lyrics=payload.lyrics,
+            lyrics=normalized_lyrics,
             license="Unknown",
         )
         session.add(song)

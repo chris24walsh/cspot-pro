@@ -123,6 +123,10 @@ These preferences have been made explicit and should guide future changes.
 
 - New songs should support paste-in lyrics and formatting assistance.
 - Worship songs should be normalized into a consistent slide structure.
+- Every song save should prune invalid or deprecated part labels and renumber
+  lyric and sequence verses together without gaps.
+- A sequence longer than the lyric label list may encode deliberate repeats and
+  should be preserved, with newly introduced lyric labels merged into it.
 - Worship-song lyrics should store each distinct song part once where possible.
   Repeated parts belong in the song sequence, or as bare section labels when
   preserving imported lyric order.

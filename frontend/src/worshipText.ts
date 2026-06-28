@@ -9,9 +9,12 @@ const SECTION_ALIASES = new Map<string, string>([
   ["pre chorus", "PreChorus"],
   ["pre-chorus", "PreChorus"],
   ["prechorus", "PreChorus"],
+  ["p", "PreChorus"],
   ["tag", "Tag"],
+  ["t", "Tag"],
   ["ending", "Ending"],
   ["outro", "Outro"],
+  ["o", "Outro"],
   ["intro", "Intro"],
 ]);
 
@@ -38,7 +41,7 @@ const WEB_CLUTTER_PATTERNS = [
 
 function normalizeSectionHeading(line: string): string | null {
   const trimmed = line.trim().replace(/^\[|\]$/g, "").replace(/:$/, "");
-  const match = trimmed.match(/^(verse|v|chorus|c|refrain|bridge|b|pre[-\s]?chorus|tag|ending|outro|intro)\s*(\d+)?$/i);
+  const match = trimmed.match(/^(verse|v|chorus|c|refrain|bridge|b|pre[-\s]?chorus|p|tag|t|ending|outro|o|intro)\s*(\d+)?$/i);
   if (!match) {
     return null;
   }
@@ -51,9 +54,14 @@ function normalizeSectionHeading(line: string): string | null {
   return match[2] ? `${label}${match[2]}` : label;
 }
 
+function isInvalidSectionLabel(line: string) {
+  const trimmed = line.trim();
+  return /^\[[^\]]+\]:?$/.test(trimmed) && !normalizeSectionHeading(trimmed);
+}
+
 function compactSectionLabel(label: string) {
   const trimmed = label.trim().replace(/\s+/g, "");
-  const match = trimmed.match(/^(Verse|Chorus|Bridge|PreChorus|Tag|Ending|Outro|Intro|Section)(\d+)?$/i);
+  const match = trimmed.match(/^(Verse|Chorus|Bridge|PreChorus|Tag|Ending|Outro|Intro)(\d+)?$/i);
   if (!match) {
     return label.replace(/\s+/g, "");
   }
@@ -66,7 +74,7 @@ function compactSectionLabel(label: string) {
         : base === "bridge"
           ? "B"
           : base === "prechorus"
-            ? "PC"
+            ? "P"
             : base === "tag"
               ? "T"
               : base === "ending"
@@ -75,14 +83,14 @@ function compactSectionLabel(label: string) {
                   ? "O"
                   : base === "intro"
                     ? "I"
-                    : "S";
+                    : "";
   return `${prefix}${match[2] ?? ""}`;
 }
 
 function normalizeSectionToken(token: string): string | null {
   const trimmed = token.trim().replace(/^\[|\]$/g, "").replace(/:$/, "");
   const compact = trimmed.replace(/\s+/g, "");
-  const match = compact.match(/^(v|verse|c|chorus|b|bridge|pc|prechorus|pre-chorus|tag|ending|outro|intro|section)(\d+)?$/i);
+  const match = compact.match(/^(v|verse|c|chorus|b|bridge|p|pc|prechorus|pre-chorus|t|tag|ending|o|outro|intro)(\d+)?$/i);
   if (!match) {
     return normalizeSectionHeading(trimmed);
   }
@@ -96,11 +104,13 @@ function normalizeSectionToken(token: string): string | null {
         ? "Chorus"
         : base === "b" || base === "bridge"
           ? "Bridge"
-          : base === "pc" || base === "prechorus" || base === "pre-chorus"
+          : base === "p" || base === "pc" || base === "prechorus" || base === "pre-chorus"
             ? "PreChorus"
-            : base === "section"
-              ? "Section"
-              : base[0].toUpperCase() + base.slice(1);
+            : base === "t"
+              ? "Tag"
+              : base === "o"
+                ? "Outro"
+                : base[0].toUpperCase() + base.slice(1);
 
   return number ? `${label}${number}` : label;
 }
@@ -111,8 +121,8 @@ function sequenceLabels(sequence: string | null | undefined) {
     .replace(/([A-Za-z]+)(\d+)?x(\d+)/gi, (_match, part: string, number: string = "", count: string) =>
       Array.from({ length: Number(count) || 1 }, () => `${part}${number}`).join(" "),
     )
-    .replace(/\bpre[-\s]?chorus\s*(\d+)?\b/gi, (_match, number: string = "") => `PreChorus${number}`)
-    .replace(/\b(verse|chorus|bridge|tag|ending|outro|intro|section)\s+(\d+)\b/gi, "$1$2")
+    .replace(/\bpre[-\s]?chorus(?:\s*(\d+))?\b/gi, (_match, number: string = "") => `PreChorus${number}`)
+    .replace(/\b(verse|chorus|bridge|tag|ending|outro|intro)\s+(\d+)\b/gi, "$1$2")
     .replace(/\bC(?=V\d)/gi, "C ");
 
   for (const token of normalized.split(/[\s,>/|-]+/)) {
@@ -141,6 +151,29 @@ function canonicalVerseLabelMap(value: string | null | undefined) {
   return labels;
 }
 
+function insertMissingLyricLabels(sequence: string[], lyricLabels: string[]) {
+  const result = [...sequence];
+  lyricLabels.forEach((label, lyricIndex) => {
+    if (result.includes(label)) {
+      return;
+    }
+
+    const nextLabel = lyricLabels.slice(lyricIndex + 1).find((candidate) => result.includes(candidate));
+    if (nextLabel) {
+      result.splice(result.indexOf(nextLabel), 0, label);
+      return;
+    }
+
+    const previousLabel = lyricLabels.slice(0, lyricIndex).reverse().find((candidate) => result.includes(candidate));
+    if (previousLabel) {
+      result.splice(result.lastIndexOf(previousLabel) + 1, 0, label);
+    } else {
+      result.push(label);
+    }
+  });
+  return result;
+}
+
 export function normalizeWorshipSequence(sequence: string | null | undefined, lyrics?: string | null) {
   const verseLabels = canonicalVerseLabelMap(lyrics);
   const resolvedLabels = sequenceLabels(sequence).map((label) => verseLabels.get(label) ?? label);
@@ -157,7 +190,22 @@ export function normalizeWorshipSequence(sequence: string | null | undefined, ly
     const match = label.match(/^Verse(\d+)$/i);
     return compactSectionLabel(match ? `Verse${compactVerseNumber.get(Number(match[1]))}` : label);
   });
-  return labels.length ? labels.join(" ") : null;
+  const lyricLabels = parseWorshipSectionBlocks(lyrics)
+    .map((section) => normalizeSectionToken(section.label))
+    .filter((label): label is string => Boolean(label))
+    .map((label) => verseLabels.get(label) ?? label)
+    .map(compactSectionLabel);
+
+  if (!lyricLabels.length) {
+    return labels.length ? labels.join(" ") : null;
+  }
+  if (labels.length <= lyricLabels.length) {
+    return lyricLabels.join(" ");
+  }
+
+  const knownLabels = new Set(lyricLabels);
+  const preservedLabels = labels.filter((label) => knownLabels.has(label));
+  return insertMissingLyricLabels(preservedLabels, lyricLabels).join(" ");
 }
 
 export function isWorshipSectionHeading(line: string): boolean {
@@ -219,7 +267,7 @@ export function formatWorshipText(value: string, options: { removeChordLines?: b
       const line = rawLine.replace(/\s+$/g, "").replace(/^\s+/g, "");
       const heading = normalizeSectionHeading(line);
 
-      if (!line || isWebClutter(line) || (options.removeChordLines && isLikelyChordLine(line))) {
+      if (!line || isInvalidSectionLabel(line) || isWebClutter(line) || (options.removeChordLines && isLikelyChordLine(line))) {
         if (!previousBlank && output.length) {
           output.push("");
           previousBlank = true;
@@ -284,16 +332,14 @@ function parseWorshipSectionBlocks(value: string | null | undefined) {
     return [] as WorshipStructureSection[];
   }
 
-  return formatted
-    .split(/\n{2,}/)
-    .map((block, index) => {
+  return mergeStandaloneSectionHeadings(formatted)
+    .map((block) => {
       const lines = block
         .split(/\r?\n/)
         .map((line) => line.trim())
         .filter(Boolean);
       const heading = normalizeSectionHeading(lines[0] ?? "");
-      const fallbackLabel = `Section${index + 1}`;
-      const label = compactSectionLabel(heading ?? fallbackLabel);
+      const label = heading ? compactSectionLabel(heading) : "";
       const content = (heading ? lines.slice(1) : lines).join("\n").trim();
       return {
         content,
@@ -302,6 +348,31 @@ function parseWorshipSectionBlocks(value: string | null | undefined) {
       };
     })
     .filter((section) => section.content || section.label);
+}
+
+function mergeStandaloneSectionHeadings(formatted: string) {
+  const blocks = formatted
+    .split(/\n{2,}/)
+    .map((block) => block.trim())
+    .filter(Boolean);
+  const merged: string[] = [];
+
+  for (let index = 0; index < blocks.length; index += 1) {
+    const block = blocks[index];
+    const lines = block.split(/\r?\n/).filter((line) => line.trim());
+    const heading = normalizeSectionHeading(lines[0] ?? "");
+    const nextBlock = blocks[index + 1];
+    const nextHeading = nextBlock ? normalizeSectionHeading(nextBlock.split(/\r?\n/, 1)[0] ?? "") : null;
+
+    if (heading && lines.length === 1 && nextBlock && !nextHeading) {
+      merged.push(`${block}\n${nextBlock}`);
+      index += 1;
+    } else {
+      merged.push(block);
+    }
+  }
+
+  return merged;
 }
 
 export function expandWorshipSlides(value: string | null | undefined, sequence?: string | null) {
@@ -346,6 +417,9 @@ export function canonicalizeWorshipLyrics(value: string | null | undefined, sequ
   const blocks = sections
     .map((section) => {
       let label = normalizeSectionToken(section.label) ?? compactSectionLabel(section.label);
+      if (!label) {
+        return section.content;
+      }
       if (verseLabels.has(label)) {
         label = verseLabels.get(label)!;
       } else if (/^Verse\d*$/i.test(label)) {
@@ -625,10 +699,7 @@ function looksLikeRefrainLanguage(index: number, blocks: string[], title?: strin
 }
 
 function parseExplicitSections(formatted: string) {
-  const blocks = formatted
-    .split(/\n{2,}/)
-    .map((block) => block.trim())
-    .filter(Boolean);
+  const blocks = mergeStandaloneSectionHeadings(formatted);
   const sections: WorshipStructureSection[] = [];
 
   for (const block of blocks) {
@@ -652,7 +723,7 @@ function parseExplicitSections(formatted: string) {
 function renumberVerseSections(sections: WorshipStructureSection[]) {
   let verseNumber = 1;
   return sections.map((section) => {
-    if (/^(Verse|Section)\d*$/i.test(section.label)) {
+    if (/^Verse\d*$/i.test(section.label)) {
       const label = `Verse${verseNumber}`;
       verseNumber += 1;
       return { ...section, label };
@@ -780,7 +851,7 @@ function inferSectionsFromBlocks(blocks: string[], title?: string | null) {
       return {
         content: block,
         key,
-        label: labels.get(key) ?? `Section${firstIndex.get(key)! + 1}`,
+        label: labels.get(key) ?? "",
       };
     })),
   };

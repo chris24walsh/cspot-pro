@@ -1856,7 +1856,7 @@ export function PresentationView({
 
     const setType = worshipSetType(planTypes);
     if (!setType) {
-      setMessage("The Worship Set plan type has not been installed yet. Run migrations and rebuild the API.");
+      setMessage("Worship Sets are temporarily unavailable. Ask an administrator to update and restart the app.");
       return null;
     }
 

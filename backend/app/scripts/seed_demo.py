@@ -5,16 +5,17 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.database import SessionLocal
-from app.modules.library.bible_data import BIBLE_BOOKS
 from app.modules.communication.models import Message, MessageParticipant, MessageThread
 from app.modules.identity.models import Role, User, UserRole
-from app.modules.imports.models import ImportProvider
 from app.modules.identity.permissions import ROLE_DEFINITIONS
+from app.modules.identity.security import hash_password
+from app.modules.imports.models import ImportProvider
+from app.modules.library.bible_data import BIBLE_BOOKS
 from app.modules.library.models import BibleBook, BibleVerse, BibleVersion, FileCategory, Resource
 from app.modules.music.models import Song, SongPart
-from app.modules.identity.security import hash_password
 from app.modules.people.models import Instrument, TeamAssignment
 from app.modules.planning.models import Plan, PlanItem, PlanType
+from app.modules.planning.reference_data import ensure_worship_set_plan_type
 from app.scripts.import_bible import autoload_asv_if_missing, autoload_kjv_if_missing
 
 
@@ -71,7 +72,6 @@ def seed_reference_data(session: Session) -> PlanType:
         ("Midweek Meeting", "19:30"),
         ("Prayer Night", "20:00"),
         ("Youth Event", "19:00"),
-        ("Worship Set", "10:30"),
     ]:
         get_or_create(
             session,
@@ -79,6 +79,7 @@ def seed_reference_data(session: Session) -> PlanType:
             name=name,
             defaults={"description": None, "starts_at": starts_at, "default_duration_minutes": 75},
         )
+    ensure_worship_set_plan_type(session)
 
     for index, (name, abbreviation) in enumerate(
         [
@@ -98,7 +99,8 @@ def seed_reference_data(session: Session) -> PlanType:
             defaults={"abbreviation": abbreviation, "sort_order": index},
         )
 
-    for index, name in enumerate(["Piano", "Acoustic Guitar", "Electric Guitar", "Bass", "Drums", "Vocals"]):
+    instruments = ["Piano", "Acoustic Guitar", "Electric Guitar", "Bass", "Drums", "Vocals"]
+    for index, name in enumerate(instruments):
         get_or_create(session, Instrument, name=name, defaults={"sort_order": index})
 
     for name, resource_type in [("Projector", "equipment"), ("Main Hall", "room")]:

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { canonicalizeWorshipLyrics, normalizeWorshipSequence } from "./worshipText";
+import { canonicalizeWorshipLyrics, normalizeWorshipSequence, sequenceFromWorshipLyrics } from "./worshipText";
 
 describe("worship text normalization", () => {
   it("keeps a sequence aligned when lyric verses are renumbered", () => {
@@ -18,7 +18,48 @@ describe("worship text normalization", () => {
   });
 
   it("normalizes long sequence labels that contain spaces", () => {
-    expect(normalizeWorshipSequence("Verse 1 Chorus Verse 2 Pre-Chorus 2")).toBe("V1 C V2 PC2");
+    expect(normalizeWorshipSequence("Verse 1 Chorus Verse 2 Pre-Chorus 2")).toBe("V1 C V2 P2");
+  });
+
+  it("uses P and T for pre-chorus and tag labels", () => {
+    const lyrics = "[Prechorus]\n\nBuild\n\n[Tag]\nRepeat";
+
+    expect(canonicalizeWorshipLyrics(lyrics)).toBe("[P]\nBuild\n\n[T]\nRepeat");
+    expect(normalizeWorshipSequence("PreChorus PC P Tag T", lyrics)).toBe("P P P T T");
+    expect(sequenceFromWorshipLyrics(lyrics)).toBe("P T");
+  });
+
+  it("uses O for outro labels", () => {
+    const lyrics = "[Outro]\nFinal line\n\n[O]\nFinal repeat";
+
+    expect(canonicalizeWorshipLyrics(lyrics)).toBe("[O]\nFinal line\n\n[O]\nFinal repeat");
+    expect(normalizeWorshipSequence("Outro O", lyrics)).toBe("O O");
+    expect(sequenceFromWorshipLyrics(lyrics)).toBe("O");
+  });
+
+  it("does not invent Section labels for unlabelled lyrics", () => {
+    expect(canonicalizeWorshipLyrics("First block\n\nSecond block")).toBe("First block\n\nSecond block");
+  });
+
+  it("prunes deprecated labels and keeps verse numbering contiguous", () => {
+    const lyrics = "[V1]\nFirst\n\n[Section2]\n\n[V3]\nThird\n\n[V4]\nFourth";
+
+    expect(canonicalizeWorshipLyrics(lyrics)).toBe("[V1]\nFirst\n\n[V2]\nThird\n\n[V3]\nFourth");
+    expect(normalizeWorshipSequence("V1 S2 V3 Broken V4", lyrics)).toBe("V1 V2 V3");
+  });
+
+  it("replaces a stale like-for-like sequence from the lyric structure", () => {
+    const lyrics = "[V1]\nFirst\n\n[C]\nSing together\n\n[V2]\nSecond";
+
+    expect(normalizeWorshipSequence("V1 V2 V3", lyrics)).toBe("V1 C V2");
+  });
+
+  it("preserves longer arranged sequences and inserts missing lyric labels", () => {
+    const lyrics = "[V1]\nFirst\n\n[C]\nSing together\n\n[V2]\nSecond";
+    const lyricsWithBridge = `${lyrics}\n\n[B]\nBuild again`;
+
+    expect(normalizeWorshipSequence("V1 C V2 C V1 C", lyrics)).toBe("V1 C V2 C V1 C");
+    expect(normalizeWorshipSequence("V1 C V2 C V1 C", lyricsWithBridge)).toBe("V1 C V2 B C V1 C");
   });
 
   it("closes gaps in sequence verse numbering", () => {

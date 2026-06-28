@@ -248,6 +248,10 @@ Search modes:
 - Song lyrics are treated as canonical labelled parts. The presenter can expand
   slides from `Song.sequence`, so repeated choruses/verses do not need duplicated
   lyric text.
+- Song saves canonicalize supported part labels, discard invalid or deprecated
+  labels, and keep lyric and sequence verse numbers contiguous and aligned.
+  Longer sequences retain their deliberate repeated-section arrangement, while
+  shorter stale sequences are rebuilt from the current lyric structure.
 
 ### Keyboard behavior
 
@@ -258,6 +262,8 @@ Search modes:
 
 ## Architectural Strengths Right Now
 
+- API startup repairs the required `Worship Set` reference plan type after
+  migrations, protecting upgraded installations from incomplete seed data.
 - coherent modular monolith shape
 - container-first local development
 - real end-to-end vertical slices already exist
