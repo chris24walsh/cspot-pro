@@ -50,6 +50,9 @@ class MemberRead(BaseModel):
     email: str
     name: str
     active: bool
+    roles: list[str]
+    calendar_color: str | None = None
+    calendar_avatar: str | None = None
 
 
 class SessionUserRead(UserRead):

@@ -15,7 +15,7 @@ import {
   getPlanTypes,
   getPlans,
   getSongs,
-  getUsers,
+  getMembers,
   getWorshipSetSuggestion,
   parseGoogleDriveDeck,
   runCustomProviderSearch,
@@ -27,6 +27,7 @@ import {
   type CustomProviderSearchResult,
   type CustomProviderSelectResult,
   type GoogleDriveFile,
+  type Member,
   type PlanHistoryEntry,
   type PlanHistorySnapshotItem,
   type ParsedSlideDeck,
@@ -35,7 +36,6 @@ import {
   type PlanSummary,
   type PlanType,
   type Song,
-  type User,
   type WorshipSuggestedSong,
 } from "../api";
 import { buildPresentationSections, suggestSlideGroupFontCap } from "../presentation";
@@ -342,7 +342,7 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
   const [plans, setPlans] = useState<PlanSummary[]>([]);
   const [planTypes, setPlanTypes] = useState<PlanType[]>([]);
   const [songs, setSongs] = useState<Song[]>([]);
-  const [users, setUsers] = useState<User[]>([]);
+  const [users, setUsers] = useState<Member[]>([]);
   const [plan, setPlan] = useState<PlanDetail | null>(null);
   const [selectedPlanId, setSelectedPlanId] = useState("");
   const [setPickerOpen, setSetPickerOpen] = useState(false);
@@ -626,7 +626,7 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
         getPlans(),
         getSongs(),
         getPlanTypes(),
-        getUsers(),
+        getMembers(),
       ]);
       const nextWorshipPlans = nextPlans.filter(isWorshipSetPlan);
       const requestedPlanId =

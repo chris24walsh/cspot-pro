@@ -122,8 +122,16 @@ def user_to_session_read(session: Session, user: User) -> SessionUserRead:
     return SessionUserRead(**base.model_dump(), permissions=list_permissions(session, user.id))
 
 
-def user_to_member_read(user: User) -> MemberRead:
-    return MemberRead(id=user.id, email=user.email, name=user.name, active=user.active)
+def user_to_member_read(session: Session, user: User) -> MemberRead:
+    return MemberRead(
+        id=user.id,
+        email=user.email,
+        name=user.name,
+        active=user.active,
+        roles=list_role_names(session, user.id),
+        calendar_color=user.calendar_color or stable_calendar_color(user.id),
+        calendar_avatar=user.calendar_avatar,
+    )
 
 
 def build_public_app_url() -> str:
@@ -412,7 +420,7 @@ def list_members(
     session: Session = Depends(get_session),
 ) -> list[MemberRead]:
     users = session.scalars(select(User).where(User.active.is_(True)).order_by(User.name)).all()
-    return [user_to_member_read(user) for user in users]
+    return [user_to_member_read(session, user) for user in users]
 
 
 @router.post("/users", response_model=UserRead, status_code=status.HTTP_201_CREATED)

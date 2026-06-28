@@ -23,14 +23,14 @@ import {
   createSundaySchoolLesson,
   getSundaySchoolLessons,
   getSundaySchoolResources,
-  getUsers,
+  getMembers,
   importSundaySchoolResources,
   sundaySchoolResourceFileUrl,
   updateSundaySchoolLesson,
+  type Member,
   type SundaySchoolLesson,
   type SundaySchoolLessonPayload,
   type SundaySchoolResource,
-  type User,
 } from "../api";
 import { calendarColor, calendarMarkers } from "../userCalendarStyle";
 import { CalendarPopup } from "./CalendarPopup";
@@ -220,7 +220,7 @@ function firstLine(value: string) {
 export function SundaySchoolView({ canEdit }: { canEdit: boolean }) {
   const [lessons, setLessons] = useState<SundaySchoolLesson[]>([]);
   const [resources, setResources] = useState<SundaySchoolResource[]>([]);
-  const [users, setUsers] = useState<User[]>([]);
+  const [users, setUsers] = useState<Member[]>([]);
   const [topbarSlot, setTopbarSlot] = useState<HTMLElement | null>(null);
   const [selectedDate, setSelectedDate] = useState(nextSundayDateInput());
   const [calendarMonth, setCalendarMonth] = useState(monthInputFromDate(new Date()));
@@ -311,7 +311,7 @@ export function SundaySchoolView({ canEdit }: { canEdit: boolean }) {
       const [nextLessons, nextResources, nextUsers] = await Promise.all([
         getSundaySchoolLessons({ from_date: dateInputFromDate(from), to_date: dateInputFromDate(to) }),
         getSundaySchoolResources(),
-        getUsers(),
+        getMembers(),
       ]);
       setLessons(nextLessons);
       setResources(nextResources);

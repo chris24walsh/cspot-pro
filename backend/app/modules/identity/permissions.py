@@ -100,11 +100,11 @@ ROLE_DEFINITIONS: dict[str, RoleDefinition] = {
     },
     "sunday_school_teacher": {
         "description": "Read Sunday school lessons and resources without changing them.",
-        "permissions": READ_PERMISSIONS,
+        "permissions": READ_PERMISSIONS | TEAM_READ_PERMISSIONS,
     },
     "sunday_school_leader": {
         "description": "Manage Sunday school lessons and imported classroom resources.",
-        "permissions": READ_PERMISSIONS | SERVICE_PLANNING_PERMISSIONS,
+        "permissions": READ_PERMISSIONS | TEAM_READ_PERMISSIONS | SERVICE_PLANNING_PERMISSIONS,
     },
     "teacher": {
         "description": "Prepare upcoming services and update service content without managing songs or users.",

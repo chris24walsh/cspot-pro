@@ -425,6 +425,9 @@ export interface Member {
   email: string;
   name: string;
   active: boolean;
+  roles: string[];
+  calendar_color: string | null;
+  calendar_avatar: string | null;
 }
 
 export interface SessionUser extends User {

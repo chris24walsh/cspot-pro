@@ -1,15 +1,20 @@
-import type { User } from "./api";
-
 export const CALENDAR_COLORS = ["teacher-a", "teacher-b", "teacher-c", "teacher-d", "teacher-e", "teacher-f"] as const;
 export const CALENDAR_AVATARS = ["👤", "🎤", "🎸", "🎹", "🎶", "📖", "🌟", "🌿"] as const;
 
-export function calendarColor(user: User | null | undefined) {
+interface CalendarUser {
+  calendar_avatar: string | null;
+  calendar_color: string | null;
+  id: string;
+  name: string;
+}
+
+export function calendarColor(user: CalendarUser | null | undefined) {
   return user?.calendar_avatar ? "" : user?.calendar_color || "teacher-a";
 }
 
-export function calendarMarkers(users: User[]) {
+export function calendarMarkers(users: CalendarUser[]) {
   const markers = new Map<string, string>();
-  const groups = new Map<string, User[]>();
+  const groups = new Map<string, CalendarUser[]>();
 
   for (const user of users) {
     if (user.calendar_avatar) {
