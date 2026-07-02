@@ -264,6 +264,9 @@ Search modes:
 
 - API startup repairs the required `Worship Set` reference plan type after
   migrations, protecting upgraded installations from incomplete seed data.
+- Worship leader assignments are stored by service date independently of
+  worship-set plans, allowing the calendar to schedule future leaders before
+  any song set is created.
 - coherent modular monolith shape
 - container-first local development
 - real end-to-end vertical slices already exist

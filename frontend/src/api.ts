@@ -53,6 +53,11 @@ export interface PlanSummary {
   item_count: number;
 }
 
+export interface WorshipLeaderAssignment {
+  service_date: string;
+  leader_id: string;
+}
+
 export interface PlanType {
   id: string;
   name: string;
@@ -796,6 +801,16 @@ export async function getPlanTypes(): Promise<PlanType[]> {
 
 export async function getPlans(): Promise<PlanSummary[]> {
   return getJson<PlanSummary[]>("/api/v1/planning/plans");
+}
+
+export async function getWorshipLeaderAssignments(): Promise<WorshipLeaderAssignment[]> {
+  return getJson<WorshipLeaderAssignment[]>("/api/v1/planning/worship-leader-assignments");
+}
+
+export async function setWorshipLeaderAssignment(serviceDate: string, leaderId: string | null): Promise<WorshipLeaderAssignment | null> {
+  return sendJson<WorshipLeaderAssignment | null>(`/api/v1/planning/worship-leader-assignments/${serviceDate}`, "PATCH", {
+    leader_id: leaderId,
+  });
 }
 
 export async function getPlan(planId: string): Promise<PlanDetail> {

@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal
 
 from pydantic import BaseModel, Field
@@ -117,3 +117,12 @@ class PlanSummary(BaseModel):
 class PlanDetail(PlanBase):
     id: str
     items: list[PlanItemRead]
+
+
+class WorshipLeaderAssignmentRead(BaseModel):
+    service_date: date
+    leader_id: str
+
+
+class WorshipLeaderAssignmentUpdate(BaseModel):
+    leader_id: str | None

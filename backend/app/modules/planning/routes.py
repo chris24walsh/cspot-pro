@@ -1,4 +1,4 @@
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 import json
 
 from fastapi import APIRouter, Depends, HTTPException, Response, status
@@ -9,7 +9,14 @@ from app.core.database import get_session
 from app.modules.identity.models import User
 from app.modules.identity.auth import require_any_permission, require_permission
 from app.modules.library.models import ItemFile, StoredFile
-from app.modules.planning.models import HistoryEntry, ItemNote, Plan, PlanItem, PlanType
+from app.modules.planning.models import (
+    HistoryEntry,
+    ItemNote,
+    Plan,
+    PlanItem,
+    PlanType,
+    WorshipLeaderAssignment,
+)
 from app.modules.planning.schemas import (
     PlanHistoryCreate,
     PlanHistoryRead,
@@ -21,12 +28,57 @@ from app.modules.planning.schemas import (
     PlanSummary,
     PlanTypeRead,
     PlanUpdate,
+    WorshipLeaderAssignmentRead,
+    WorshipLeaderAssignmentUpdate,
 )
 
 router = APIRouter()
 PLAN_HISTORY_ACTION = "item_snapshot"
 PLAN_HISTORY_ENTITY_TYPE = "plan"
 PLAN_HISTORY_LIMIT = 80
+
+
+@router.get("/worship-leader-assignments", response_model=list[WorshipLeaderAssignmentRead])
+def list_worship_leader_assignments(
+    _current_user: User = Depends(require_permission("plans:read")),
+    session: Session = Depends(get_session),
+) -> list[WorshipLeaderAssignment]:
+    return list(
+        session.scalars(
+            select(WorshipLeaderAssignment).order_by(WorshipLeaderAssignment.service_date)
+        ).all()
+    )
+
+
+@router.patch(
+    "/worship-leader-assignments/{service_date}", response_model=WorshipLeaderAssignmentRead | None
+)
+def set_worship_leader_assignment(
+    service_date: date,
+    payload: WorshipLeaderAssignmentUpdate,
+    _current_user: User = Depends(require_any_permission("plans:edit", "plans:create")),
+    session: Session = Depends(get_session),
+) -> WorshipLeaderAssignment | None:
+    assignment = session.scalar(
+        select(WorshipLeaderAssignment).where(WorshipLeaderAssignment.service_date == service_date)
+    )
+    if payload.leader_id is None:
+        if assignment is not None:
+            session.delete(assignment)
+            session.commit()
+        return None
+    if session.get(User, payload.leader_id) is None:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Invalid worship leader"
+        )
+    if assignment is None:
+        assignment = WorshipLeaderAssignment(service_date=service_date, leader_id=payload.leader_id)
+        session.add(assignment)
+    else:
+        assignment.leader_id = payload.leader_id
+    session.commit()
+    session.refresh(assignment)
+    return assignment
 
 
 def plan_item_to_read(session: Session, item: PlanItem) -> PlanItemRead:
@@ -179,7 +231,9 @@ def create_plan(
     session: Session = Depends(get_session),
 ) -> PlanDetail:
     if session.get(PlanType, payload.plan_type_id) is None:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Invalid plan type")
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Invalid plan type"
+        )
 
     plan = Plan(**payload.model_dump())
     session.add(plan)
@@ -196,7 +250,9 @@ def get_plan(
 ) -> PlanDetail:
     plan = get_plan_or_404(session, plan_id)
     items = session.scalars(
-        select(PlanItem).where(PlanItem.plan_id == plan.id, PlanItem.deleted_at.is_(None)).order_by(
+        select(PlanItem)
+        .where(PlanItem.plan_id == plan.id, PlanItem.deleted_at.is_(None))
+        .order_by(
             PlanItem.sequence,
             PlanItem.created_at,
         )
@@ -223,7 +279,9 @@ def list_plan_history(
         & (HistoryEntry.entity_id == plan_id),
     ]
     if song_ids:
-        history_filters.append((HistoryEntry.entity_type == "song") & HistoryEntry.entity_id.in_(song_ids))
+        history_filters.append(
+            (HistoryEntry.entity_type == "song") & HistoryEntry.entity_id.in_(song_ids)
+        )
     entries = session.scalars(
         select(HistoryEntry)
         .where(
@@ -233,11 +291,15 @@ def list_plan_history(
         .order_by(HistoryEntry.created_at.desc())
         .limit(PLAN_HISTORY_LIMIT)
     ).all()
-    history = [entry for entry in (history_entry_to_read(session, entry) for entry in entries) if entry]
+    history = [
+        entry for entry in (history_entry_to_read(session, entry) for entry in entries) if entry
+    ]
     return list(reversed(history))
 
 
-@router.post("/plans/{plan_id}/history", response_model=PlanHistoryRead, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/plans/{plan_id}/history", response_model=PlanHistoryRead, status_code=status.HTTP_201_CREATED
+)
 def create_plan_history(
     plan_id: str,
     payload: PlanHistoryCreate,
@@ -258,7 +320,10 @@ def create_plan_history(
     session.refresh(entry)
     read_entry = history_entry_to_read(session, entry)
     if read_entry is None:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Could not create plan history")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Could not create plan history",
+        )
     return read_entry
 
 
@@ -276,7 +341,9 @@ def update_plan(
     session.commit()
     session.refresh(plan)
     items = session.scalars(
-        select(PlanItem).where(PlanItem.plan_id == plan.id, PlanItem.deleted_at.is_(None)).order_by(
+        select(PlanItem)
+        .where(PlanItem.plan_id == plan.id, PlanItem.deleted_at.is_(None))
+        .order_by(
             PlanItem.sequence,
             PlanItem.created_at,
         )

@@ -16,6 +16,7 @@ import {
   getPlans,
   getSongs,
   getMembers,
+  getWorshipLeaderAssignments,
   getWorshipSetSuggestion,
   parseGoogleDriveDeck,
   runCustomProviderSearch,
@@ -23,6 +24,7 @@ import {
   selectCustomProviderMatch,
   updatePlan,
   updatePlanItem,
+  setWorshipLeaderAssignment,
   type CustomProviderMatch,
   type CustomProviderSearchResult,
   type CustomProviderSelectResult,
@@ -37,6 +39,7 @@ import {
   type PlanType,
   type Song,
   type WorshipSuggestedSong,
+  type WorshipLeaderAssignment,
 } from "../api";
 import { buildPresentationSections, suggestSlideGroupFontCap } from "../presentation";
 import { showToast } from "../toast";
@@ -351,6 +354,7 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
   const [setDraftDate, setSetDraftDate] = useState(dateInputFromIso(new Date().toISOString()));
   const [setDraftTitle, setSetDraftTitle] = useState(suggestedWorshipSetTitle(dateInputFromIso(new Date().toISOString())));
   const [selectedLeaderId, setSelectedLeaderId] = useState<string | null>(null);
+  const [leaderAssignments, setLeaderAssignments] = useState<WorshipLeaderAssignment[]>([]);
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(true);
   const [suggesting, setSuggesting] = useState(false);
@@ -405,6 +409,10 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
   const worshipSetsByDate = useMemo(
     () => new Map(worshipSetPlans.map((worshipSet) => [dateInputFromIso(worshipSet.service_date), worshipSet])),
     [worshipSetPlans],
+  );
+  const leaderAssignmentsByDate = useMemo(
+    () => new Map(leaderAssignments.map((assignment) => [assignment.service_date, assignment.leader_id])),
+    [leaderAssignments],
   );
   const worshipLeaders = useMemo(
     () =>
@@ -622,11 +630,12 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
   async function load(targetPlanId?: string) {
     setLoading(true);
     try {
-      const [nextPlans, nextSongs, nextPlanTypes, nextUsers] = await Promise.all([
+      const [nextPlans, nextSongs, nextPlanTypes, nextUsers, nextLeaderAssignments] = await Promise.all([
         getPlans(),
         getSongs(),
         getPlanTypes(),
         getMembers(),
+        getWorshipLeaderAssignments(),
       ]);
       const nextWorshipPlans = nextPlans.filter(isWorshipSetPlan);
       const requestedPlanId =
@@ -646,6 +655,7 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
       setSongs(nextSongs);
       setUsers(nextUsers);
       setPlanTypes(nextPlanTypes);
+      setLeaderAssignments(nextLeaderAssignments);
       setSelectedPlanId(resolvedPlanId);
       if (resolvedPlanId) {
         sessionStorage.setItem(SELECTED_WORSHIP_SET_SESSION_KEY, resolvedPlanId);
@@ -712,7 +722,7 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
     setSetDraftDate(draftDate);
     setSetDraftPlanId(plan?.id ?? null);
     setSetDraftTitle(plan?.title ?? suggestedWorshipSetTitle(draftDate));
-    setSelectedLeaderId(plan?.leader_id ?? null);
+    setSelectedLeaderId(plan?.leader_id ?? leaderAssignmentsByDate.get(draftDate) ?? null);
     setSetCalendarMonth(draftDate.slice(0, 7) || monthInputFromDate(new Date()));
     setSetPickerOpen(true);
   }
@@ -724,12 +734,29 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
     if (existing) {
       setSetDraftPlanId(existing.id);
       setSetDraftTitle(existing.title);
-      setSelectedLeaderId(existing.leader_id);
+      setSelectedLeaderId(leaderAssignmentsByDate.get(dateInput) ?? existing.leader_id);
       return;
     }
     setSetDraftPlanId(null);
     setSetDraftTitle(suggestedWorshipSetTitle(dateInput));
-    setSelectedLeaderId(null);
+    setSelectedLeaderId(leaderAssignmentsByDate.get(dateInput) ?? null);
+  }
+
+  async function saveLeaderAssignment() {
+    if (!canEditPlan) {
+      setMessage("Only worship team members and leaders can assign worship leaders.");
+      return;
+    }
+    try {
+      await setWorshipLeaderAssignment(setDraftDate, selectedLeaderId);
+      if (setDraftPlanId) {
+        await updatePlan(setDraftPlanId, { leader_id: selectedLeaderId });
+      }
+      setLeaderAssignments(await getWorshipLeaderAssignments());
+      setMessage(selectedLeaderId ? "Worship leader assigned." : "Worship leader assignment cleared.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not save worship leader assignment.");
+    }
   }
 
   async function openSetDate(dateInput: string) {
@@ -765,6 +792,7 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
         info: null,
       };
       const saved = setDraftPlanId ? await updatePlan(setDraftPlanId, payload) : await createPlan(payload);
+      await setWorshipLeaderAssignment(setDraftDate, selectedLeaderId);
       await absorbServiceSongsIntoWorshipSet(saved, setDraftDate);
       await load(openAfterSave ? saved.id : selectedPlanId || saved.id);
       setSetDraftPlanId(saved.id);
@@ -2061,7 +2089,9 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
           muted: day.muted,
           className: (() => {
             const existing = worshipSetsByDate.get(day.key);
-            const leaderId = day.key === setDraftDate ? selectedLeaderId : existing?.leader_id;
+            const leaderId = day.key === setDraftDate
+              ? selectedLeaderId
+              : leaderAssignmentsByDate.get(day.key) ?? existing?.leader_id;
             return `${existing ? "has-service" : ""} ${
               leaderId ? calendarColor(users.find((user) => user.id === leaderId)) : ""
             }`.trim();
@@ -2071,7 +2101,9 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
         onDateSelect={(dateInput) => chooseSetDate(dateInput)}
         dayContent={(day) => {
           const existing = worshipSetsByDate.get(day.date);
-          const leaderId = day.date === setDraftDate ? selectedLeaderId : existing?.leader_id;
+          const leaderId = day.date === setDraftDate
+            ? selectedLeaderId
+            : leaderAssignmentsByDate.get(day.date) ?? existing?.leader_id;
           const leader = users.find((user) => user.id === leaderId);
           const date = new Date(`${day.date}T12:00:00`);
           return (
@@ -2114,6 +2146,9 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
         }
         actionButtons={
           <>
+            <button className="primary-button" disabled={!canEditPlan} onClick={() => void saveLeaderAssignment()} type="button">
+              Save Leader
+            </button>
             <button className="primary-button" disabled={!canEditPlan} onClick={() => void openDraftWorshipSet()} type="button">
               {setDraftPlanId ? "Open Set" : "Create & Open"}
             </button>

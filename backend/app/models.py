@@ -26,6 +26,7 @@ from app.modules.planning.models import (
     PlanItem,
     PlanNote,
     PlanType,
+    WorshipLeaderAssignment,
 )
 from app.modules.presentation.models import PresentationPosition, PresentationSession
 from app.modules.sunday_school.models import SundaySchoolLesson, SundaySchoolResource
@@ -56,6 +57,7 @@ __all__ = [
     "PlanNote",
     "PlanResource",
     "PlanType",
+    "WorshipLeaderAssignment",
     "PresentationPosition",
     "PresentationSession",
     "Resource",

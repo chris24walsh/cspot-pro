@@ -1,7 +1,7 @@
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Numeric, String, Text
+from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Numeric, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.database import Base
@@ -30,6 +30,13 @@ class Plan(IdMixin, TimestampMixin, Base):
     status: Mapped[str] = mapped_column(String(40), default="draft")
     info: Mapped[str | None] = mapped_column(Text)
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class WorshipLeaderAssignment(IdMixin, TimestampMixin, Base):
+    __tablename__ = "worship_leader_assignments"
+
+    service_date: Mapped[date] = mapped_column(Date, unique=True, index=True)
+    leader_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
 
 
 class PlanItem(IdMixin, TimestampMixin, Base):
