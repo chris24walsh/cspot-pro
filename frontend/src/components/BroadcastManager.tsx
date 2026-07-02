@@ -84,7 +84,15 @@ export function BroadcastManager() {
         </label>
         <label className="wide-field">
           Camera or livestream URL
-          <input disabled={loading} onChange={(event) => setForm({ ...form, camera_url: event.target.value || null })} placeholder="https://…" type="url" value={form.camera_url || ""} />
+          <input
+            disabled={loading}
+            inputMode="url"
+            onChange={(event) => setForm({ ...form, camera_url: event.target.value || null })}
+            placeholder="/app/camera/api/stream.m3u8?src=…"
+            type="text"
+            value={form.camera_url || ""}
+          />
+          <small>Use an HTTPS URL or an app-relative camera proxy path.</small>
         </label>
         <label className="wide-field">
           Pre-service worship audio or stream URL
