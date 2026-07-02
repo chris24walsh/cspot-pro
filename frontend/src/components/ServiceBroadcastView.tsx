@@ -61,9 +61,23 @@ function cameraKind(url: string) {
   return "frame";
 }
 
+function cameraMjpegFallback(url: string) {
+  try {
+    const parsed = new URL(url, window.location.origin);
+    const source = parsed.searchParams.get("src");
+    if (!source || !parsed.pathname.endsWith("/api/stream.m3u8")) return null;
+    parsed.pathname = parsed.pathname.replace(/\/api\/stream\.m3u8$/, "/api/stream.mjpeg");
+    parsed.search = new URLSearchParams({ src: source }).toString();
+    return `${parsed.pathname}?${parsed.search}`;
+  } catch {
+    return null;
+  }
+}
+
 function CameraPane({ url }: { url: string }) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const [playbackBlocked, setPlaybackBlocked] = useState(false);
+  const [fallbackUrl, setFallbackUrl] = useState<string | null>(null);
   const kind = cameraKind(url);
   const isHls = url.toLowerCase().includes(".m3u8");
 
@@ -71,7 +85,18 @@ function CameraPane({ url }: { url: string }) {
     if (kind !== "video" || !videoRef.current) return undefined;
     const video = videoRef.current;
     let cancelled = false;
+    let fallbackSelected = false;
     let hls: InstanceType<typeof import("hls.js").default> | null = null;
+    const mjpegUrl = cameraMjpegFallback(url);
+    const useFallback = () => {
+      if (!cancelled && !fallbackSelected && mjpegUrl) {
+        fallbackSelected = true;
+        hls?.destroy();
+        video.pause();
+        setFallbackUrl(mjpegUrl);
+      }
+    };
+    setFallbackUrl(null);
     const play = async () => {
       try {
         await video.play();
@@ -93,16 +118,30 @@ function CameraPane({ url }: { url: string }) {
         if (cancelled || !Hls.isSupported()) return;
         hls = new Hls({ enableWorker: true, lowLatencyMode: true });
         hls.on(Hls.Events.MANIFEST_PARSED, () => void play());
+        hls.on(Hls.Events.ERROR, (_event, data) => {
+          if (data.fatal) useFallback();
+        });
         hls.loadSource(url);
         hls.attachMedia(video);
       });
     }
+    video.addEventListener("error", useFallback);
+    const decodeTimer = window.setTimeout(() => {
+      if (video.videoWidth === 0 || video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) {
+        useFallback();
+      }
+    }, 6000);
     return () => {
       cancelled = true;
+      window.clearTimeout(decodeTimer);
+      video.removeEventListener("error", useFallback);
       hls?.destroy();
     };
   }, [isHls, kind, url]);
 
+  if (fallbackUrl) {
+    return <img alt="Live service camera" className="service-broadcast-camera-media" src={fallbackUrl} />;
+  }
   if (kind === "mjpeg") return <img alt="Live service camera" className="service-broadcast-camera-media" src={url} />;
   if (kind === "video") {
     return (
