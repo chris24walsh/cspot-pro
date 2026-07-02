@@ -68,7 +68,7 @@ function cameraMjpegFallback(url: string) {
     if (!source || !parsed.pathname.endsWith("/api/stream.m3u8")) return null;
     parsed.pathname = parsed.pathname.replace(/\/api\/stream\.m3u8$/, "/api/stream.mjpeg");
     parsed.search = new URLSearchParams({ src: source }).toString();
-    return `${parsed.pathname}?${parsed.search}`;
+    return `${parsed.pathname}${parsed.search}`;
   } catch {
     return null;
   }
