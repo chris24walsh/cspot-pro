@@ -39,20 +39,6 @@ const DEFAULT_SETTINGS: BroadcastViewerSettings = {
   stream_title: "Sunday Service",
 };
 
-function formatServiceDate(value: string | null | undefined) {
-  if (!value) return "";
-  const date = new Date(value);
-  return Number.isNaN(date.getTime())
-    ? ""
-    : new Intl.DateTimeFormat("en-GB", {
-        day: "numeric",
-        hour: "2-digit",
-        minute: "2-digit",
-        month: "long",
-        weekday: "long",
-      }).format(date);
-}
-
 function liveStateFromApi(state: Awaited<ReturnType<typeof getPresentationLiveState>>): PresentationLiveState {
   return {
     blanked: state.blanked,
@@ -144,10 +130,12 @@ function CameraPane({ url }: { url: string }) {
 
 function HoldingPane({ message, startingSoon }: { message: string; startingSoon: boolean }) {
   return (
-    <div className={`service-broadcast-holding-slide ${startingSoon ? "is-starting-soon" : "is-offline"}`}>
+    <div
+      aria-label={message}
+      className={`service-broadcast-holding-slide ${startingSoon ? "is-starting-soon" : "is-offline"}`}
+      title={message}
+    >
       <span className="service-broadcast-holding-mark">{startingSoon ? "Starting soon" : "Offline"}</span>
-      <strong>{message}</strong>
-      <p>{startingSoon ? "The live camera and presentation will appear here automatically." : "Please check back for the next scheduled service."}</p>
     </div>
   );
 }
@@ -259,23 +247,14 @@ export function ServiceBroadcastView() {
   return (
     <section className={`service-broadcast-view ${fullscreen ? "is-fullscreen" : ""}`} ref={shellRef} aria-label="Service broadcast">
       <header className="service-broadcast-toolbar">
-        <div className="service-broadcast-title">
-          <div className="service-broadcast-kicker-row">
-            <span className={`service-broadcast-status-pill ${hasLiveService ? "is-live" : startingSoon ? "is-soon" : "is-idle"}`}>
-              {hasLiveService ? "Live" : startingSoon ? "Starting soon" : "Offline"}
-            </span>
-            {upcomingService ? <span className="service-broadcast-date">{formatServiceDate(upcomingService.service_date)}</span> : null}
-          </div>
-          <strong>{hasLiveService ? plan?.title : settings.stream_title}</strong>
-          {settings.stream_description ? <span>{settings.stream_description}</span> : null}
-        </div>
         <button
-          className="text-button icon-text-button"
+          aria-label={fullscreen ? "Exit fullscreen" : "Enter fullscreen"}
+          className="service-broadcast-fullscreen-button"
           onClick={() => (document.fullscreenElement ? void document.exitFullscreen() : void shellRef.current?.requestFullscreen())}
+          title={fullscreen ? "Exit fullscreen" : "Enter fullscreen"}
           type="button"
         >
-          <Maximize2 size={15} aria-hidden="true" />
-          Fullscreen
+          <Maximize2 size={18} aria-hidden="true" />
         </button>
       </header>
 
@@ -293,7 +272,6 @@ export function ServiceBroadcastView() {
 
       <div className="service-broadcast-grid">
         <section className="service-broadcast-slide-pane" aria-label="Live presentation">
-          <div className="service-broadcast-panel-header"><span>Presentation</span></div>
           <div className={`service-broadcast-slide ${presentationTypeClass(liveSlide?.itemType ?? "generic")} stage-theme-${liveState?.theme ?? "dark"}`}>
             {!hasLiveService ? (
               <HoldingPane message={holdingMessage} startingSoon={startingSoon} />
@@ -315,7 +293,6 @@ export function ServiceBroadcastView() {
         </section>
 
         <section className="service-broadcast-camera-pane" aria-label="Live camera">
-          <div className="service-broadcast-panel-header"><span>Camera</span></div>
           {hasLiveService && settings.camera_url ? (
             <CameraPane url={settings.camera_url} />
           ) : hasLiveService ? (

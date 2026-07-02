@@ -3858,24 +3858,38 @@ h3 {
     linear-gradient(180deg, #0f1814 0%, #111d18 100%);
   color: #fffdf5;
   display: grid;
-  gap: 14px;
-  grid-template-rows: auto auto minmax(0, 1fr) auto;
+  gap: 8px;
+  grid-template-rows: auto minmax(0, 1fr) auto;
   min-height: calc(100vh - 96px);
-  overflow: auto;
-  padding: 16px;
+  overflow: hidden;
+  padding: 8px;
+  position: relative;
 }
 
 .service-broadcast-view.is-fullscreen {
   height: 100vh;
-  padding: 20px;
+  padding: 8px;
 }
 
 .service-broadcast-toolbar {
+  position: absolute;
+  right: 14px;
+  top: 14px;
+  z-index: 5;
+}
+
+.service-broadcast-fullscreen-button {
   align-items: center;
-  display: flex;
-  gap: 16px;
-  justify-content: space-between;
-  min-height: 56px;
+  background: rgba(8, 16, 12, 0.72);
+  border: 1px solid rgba(220, 239, 230, 0.28);
+  border-radius: 999px;
+  color: #f4faf6;
+  cursor: pointer;
+  display: inline-flex;
+  height: 38px;
+  justify-content: center;
+  padding: 0;
+  width: 38px;
 }
 
 .service-broadcast-title {
@@ -4016,35 +4030,35 @@ h3 {
 
 .service-broadcast-grid {
   display: grid;
-  gap: 14px;
+  gap: 8px;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   min-height: 0;
 }
 
 .service-broadcast-slide-pane,
 .service-broadcast-camera-pane {
-  background: linear-gradient(180deg, rgba(18, 29, 24, 0.94), rgba(10, 16, 13, 0.98));
-  border: 1px solid #2e433a;
-  border-radius: 8px;
+  background: #050807;
+  border-radius: 6px;
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
   min-height: 0;
   overflow: hidden;
-  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.26);
+  place-items: center;
 }
 
 .service-broadcast-slide {
   display: grid;
+  height: 100%;
   min-height: 0;
-  padding: 14px;
+  place-items: center;
+  width: 100%;
 }
 
 .service-broadcast-slide .presentation-stage,
 .service-broadcast-slide .stage-image-frame,
 .service-broadcast-slide .stage-video-frame {
   aspect-ratio: 16 / 9;
-  border-radius: 8px;
-  height: 100%;
+  max-height: 100%;
+  object-fit: contain;
   width: 100%;
 }
 
@@ -4054,15 +4068,18 @@ h3 {
 
 .service-broadcast-camera-player {
   display: grid;
-  margin: 14px;
+  height: 100%;
+  max-height: 100%;
+  max-width: 100%;
   position: relative;
+  width: 100%;
 }
 
 .service-broadcast-camera-media {
   background: #050807;
   border: 0;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
   width: 100%;
 }
 
@@ -4086,15 +4103,17 @@ h3 {
 
 .service-broadcast-camera-pane .service-broadcast-camera-media {
   aspect-ratio: 16 / 9;
-  border-radius: 8px;
+  max-height: 100%;
   margin: 0;
+  object-fit: contain;
   width: 100%;
 }
 
 .service-broadcast-camera-pane > .service-broadcast-camera-media,
 .service-broadcast-camera-pane > .service-broadcast-holding-slide {
-  margin: 14px;
-  width: calc(100% - 28px);
+  margin: 0;
+  max-height: 100%;
+  width: 100%;
 }
 
 .service-broadcast-camera-overlay {
@@ -4125,16 +4144,14 @@ h3 {
 .service-broadcast-holding-slide {
   align-content: center;
   aspect-ratio: 16 / 9;
-  background:
-    radial-gradient(circle at top, rgba(75, 120, 103, 0.18), transparent 45%),
-    linear-gradient(180deg, #f6f2e6 0%, #ece6d6 100%);
-  border-radius: 8px;
-  color: #1a221e;
+  background: #0a100d;
+  color: #dfe8e2;
   display: grid;
-  gap: 12px;
   justify-items: center;
-  padding: 28px;
+  max-height: 100%;
+  padding: 12px;
   text-align: center;
+  width: 100%;
 }
 
 .service-broadcast-holding-slide.is-offline {
@@ -4142,9 +4159,9 @@ h3 {
 }
 
 .service-broadcast-holding-mark {
-  border: 1px solid #ccb98f;
+  border: 1px solid #4f5c56;
   border-radius: 999px;
-  color: #7a6127;
+  color: #aebbb5;
   font-size: 11px;
   font-weight: 900;
   letter-spacing: 0.04em;
@@ -4208,7 +4225,6 @@ h3 {
 
   .service-broadcast-slide-pane,
   .service-broadcast-camera-pane {
-    aspect-ratio: auto;
     min-height: 0;
   }
 
@@ -4216,7 +4232,7 @@ h3 {
   .service-broadcast-camera-player,
   .service-broadcast-camera-pane > .service-broadcast-camera-media,
   .service-broadcast-camera-pane > .service-broadcast-holding-slide {
-    aspect-ratio: 16 / 9;
+    aspect-ratio: auto;
   }
 
   .service-broadcast-preservice-audio {
@@ -7388,16 +7404,15 @@ h3 {
    the single-column mobile layout wins the cascade. */
 @media (max-width: 900px) {
   .service-broadcast-view {
-    height: auto;
+    height: calc(100dvh - 96px);
     min-height: calc(100vh - 96px);
-    overflow: visible;
-    padding: 12px;
+    overflow: hidden;
+    padding: 6px;
   }
 
   .service-broadcast-toolbar {
-    align-items: stretch;
-    flex-direction: column;
-    gap: 10px;
+    right: 10px;
+    top: 10px;
   }
 
   .service-broadcast-actions {
@@ -7405,7 +7420,9 @@ h3 {
   }
 
   .service-broadcast-grid {
+    gap: 6px;
     grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: repeat(2, minmax(0, 1fr));
   }
 
   .service-broadcast-slide-pane {
@@ -7418,17 +7435,18 @@ h3 {
 
   .service-broadcast-slide-pane,
   .service-broadcast-camera-pane {
-    aspect-ratio: 16 / 9;
+    aspect-ratio: auto;
+    height: 100%;
   }
 
   .service-broadcast-slide {
-    padding: 10px;
+    padding: 0;
   }
 
   .service-broadcast-camera-pane .service-broadcast-camera-media,
   .service-broadcast-camera-placeholder {
-    margin: 10px;
-    width: calc(100% - 20px);
+    margin: 0;
+    width: 100%;
   }
 
   .service-broadcast-title strong {
@@ -7439,12 +7457,8 @@ h3 {
     font-size: 14px;
   }
 
-  .service-broadcast-panel-header {
-    padding: 10px 12px 8px;
-  }
-
   .service-broadcast-holding-slide {
-    padding: 22px 18px;
+    padding: 12px;
   }
 
   .broadcast-settings-grid {
