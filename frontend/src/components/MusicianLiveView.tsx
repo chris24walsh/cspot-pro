@@ -14,7 +14,6 @@ import {
   MUSICAL_KEYS,
   TRAILING_CHORD_ANCHORS,
   deriveAbsoluteKey,
-  deriveCapoKey,
   lyricLines,
   parseChordChart,
   semitoneDistance,
@@ -343,7 +342,7 @@ export function MusicianLiveView({ controlPlanId, onExit, plan, songs }: Musicia
   const handledKeyboardEventsRef = useRef<WeakSet<KeyboardEvent>>(new WeakSet());
   const lastKeyboardNavigationRef = useRef<{ direction: SlideKeyboardDirection; key: string; time: number } | null>(null);
   const liveSyncPlanId = controlPlanId ?? plan?.id ?? null;
-  const displayMode: ChordDisplayMode = "capo";
+  const displayMode: ChordDisplayMode = "absolute";
   const detailMode: ChordDetailMode = "simple";
 
   const worshipItems = useMemo(
@@ -420,12 +419,8 @@ export function MusicianLiveView({ controlPlanId, onExit, plan, songs }: Musicia
 
   useEffect(() => {
     const nextCapo = normalizeCapo(chordChart.capo);
-    const nextAbsoluteKey =
-      chordChart.absoluteKey ?? (chordChart.capoKey ? deriveAbsoluteKey(chordChart.capoKey, nextCapo) : null);
-    const nextCapoKey =
-      chordChart.capoKey ?? (nextAbsoluteKey ? deriveCapoKey(nextAbsoluteKey, nextCapo) : null);
     setCapo(nextCapo);
-    setGuitarKey(nextCapoKey);
+    setGuitarKey(chordChart.absoluteKey ?? chordChart.capoKey ?? null);
   }, [chordChart.absoluteKey, chordChart.capo, chordChart.capoKey, liveSong?.id]);
 
   useEffect(() => {
@@ -666,19 +661,16 @@ export function MusicianLiveView({ controlPlanId, onExit, plan, songs }: Musicia
     () => lyricLinesForSlide.map((line) => wrapLyricLine(line, liveWrapCharacters)),
     [liveWrapCharacters, lyricLinesForSlide],
   );
-  const currentGuitarKey = guitarKey ?? chordChart.capoKey ?? (chordChart.absoluteKey ? deriveCapoKey(chordChart.absoluteKey, capo) : null);
-  const currentAbsoluteKey = currentGuitarKey
-    ? deriveAbsoluteKey(currentGuitarKey, capo)
-    : chordChart.absoluteKey ?? null;
+  const currentGuitarKey = guitarKey ?? chordChart.absoluteKey ?? chordChart.capoKey ?? null;
+  const currentAbsoluteKey = currentGuitarKey ?? chordChart.absoluteKey ?? null;
   const baseAbsoluteKey =
     chordChart.absoluteKey ?? deriveAbsoluteKey(chordChart.capoKey ?? currentGuitarKey ?? MUSICAL_KEYS[0], chordChart.capo);
   const originalAbsoluteKey = chordChart.absoluteKey ?? (chordChart.capoKey ? deriveAbsoluteKey(chordChart.capoKey, chordChart.capo) : currentAbsoluteKey);
-  const activeKeyLabel = currentAbsoluteKey
-    ? `${currentAbsoluteKey}${capo > 0 && currentGuitarKey ? `/${currentGuitarKey}c${capo}` : ""}`
+  const activeKeyLabel = currentGuitarKey
+    ? `${currentGuitarKey}${capo > 0 ? `c${capo}` : ""}`
     : "unset";
   const originalCapo = normalizeCapo(chordChart.capo);
-  const originalShapeKey =
-    chordChart.capoKey ?? (originalAbsoluteKey ? deriveCapoKey(originalAbsoluteKey, originalCapo) : null);
+  const originalShapeKey = chordChart.absoluteKey ?? chordChart.capoKey ?? null;
   const originalSetup =
     originalShapeKey && originalAbsoluteKey
       ? {

@@ -16,5 +16,6 @@ describe("setChordChartAbsoluteKey", () => {
     expect(changed.annotations[0]?.chord).toBe("D");
     expect(changed.capo).toBe(2);
     expect(changed.capoKey).toBe("C");
+    expect(changed.absoluteKey).toBe("D");
   });
 });
