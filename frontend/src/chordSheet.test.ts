@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { createEmptyChordChart, setChordChartAbsoluteKey } from "./chordSheet";
+import { cappedCapoForKeys, createEmptyChordChart, setChordChartAbsoluteKey } from "./chordSheet";
 
 describe("setChordChartAbsoluteKey", () => {
   it("permanently transposes stored chords without changing capo", () => {
@@ -17,5 +17,12 @@ describe("setChordChartAbsoluteKey", () => {
     expect(changed.capo).toBe(2);
     expect(changed.capoKey).toBe("C");
     expect(changed.absoluteKey).toBe("D");
+  });
+});
+
+describe("cappedCapoForKeys", () => {
+  it("clamps an exact upward capo to five instead of choosing capo zero", () => {
+    expect(cappedCapoForKeys("G", "E")).toBe(5);
+    expect(cappedCapoForKeys("C", "E")).toBe(4);
   });
 });

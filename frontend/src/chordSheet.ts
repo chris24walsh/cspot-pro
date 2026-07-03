@@ -234,6 +234,10 @@ export function semitoneDistance(fromKey: string, toKey: string) {
   return (to - from + 120) % 12;
 }
 
+export function cappedCapoForKeys(shapeKey: string, targetKey: string, maximum = 5) {
+  return Math.min(semitoneDistance(shapeKey, targetKey), maximum);
+}
+
 export function deriveCapoKey(absoluteKey: string, capo: number) {
   return transposeNote(absoluteKey, -capo, absoluteKey.includes("b"));
 }

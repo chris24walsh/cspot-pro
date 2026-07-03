@@ -13,6 +13,7 @@ import {
   LEADING_CHORD_ANCHORS,
   MUSICAL_KEYS,
   TRAILING_CHORD_ANCHORS,
+  cappedCapoForKeys,
   deriveAbsoluteKey,
   lyricLines,
   parseChordChart,
@@ -85,7 +86,7 @@ function clampNumber(value: number, min: number, max: number) {
 }
 
 function normalizeCapo(value: number) {
-  return Math.min(Math.max(Math.trunc(value), 0), 11);
+  return Math.min(Math.max(Math.trunc(value), 0), 5);
 }
 
 const PLAYABLE_SHAPE_KEYS = ["C", "G"] as const;
@@ -99,15 +100,14 @@ function bestPlayableSetup(targetKey: string | null, shapeKey: string) {
   if (!targetKey) {
     return { absoluteKey: shapeKey, capo: 0, distance: 0, shapeKey };
   }
-  return Array.from({ length: 12 }, (_, capoOption) => {
-    const absoluteKey = deriveAbsoluteKey(shapeKey, capoOption);
-    return {
-      absoluteKey,
-      capo: capoOption,
-      distance: keyDistance(absoluteKey, targetKey),
-      shapeKey,
-    };
-  }).sort((left, right) => left.distance - right.distance || left.capo - right.capo)[0];
+  const capo = cappedCapoForKeys(shapeKey, targetKey);
+  const absoluteKey = deriveAbsoluteKey(shapeKey, capo);
+  return {
+    absoluteKey,
+    capo,
+    distance: keyDistance(absoluteKey, targetKey),
+    shapeKey,
+  };
 }
 
 function playableSetups(targetKey: string | null) {
