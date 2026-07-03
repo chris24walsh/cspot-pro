@@ -1,8 +1,9 @@
-import { CircleStop, Mic, Play, Save } from "lucide-react";
+import { CircleStop, Mic, Play, Save, Trash2 } from "lucide-react";
 import { type FormEvent, useEffect, useState } from "react";
 
 import {
   getBroadcastViewerSettings,
+  deleteBroadcastRecording,
   getBroadcastRecordings,
   getLivePresentationServices,
   startBroadcastRecording,
@@ -12,7 +13,8 @@ import {
   type BroadcastRecording,
   type PresentationLiveService,
 } from "../api";
-import { SermonRecordingPlayer } from "./SermonRecordingPlayer";
+import { recordingTimestampTitle, SermonRecordingPlayer } from "./SermonRecordingPlayer";
+import { useConfirmationDialog } from "./ConfirmationDialog";
 
 const EMPTY_SETTINGS: BroadcastViewerSettings = {
   camera_url: null,
@@ -24,7 +26,14 @@ const EMPTY_SETTINGS: BroadcastViewerSettings = {
   stream_title: "Sunday Service",
 };
 
+export function formatRecordingSize(sizeBytes: number | null) {
+  if (!sizeBytes) return null;
+  if (sizeBytes < 1024 * 1024) return `${Math.max(1, Math.round(sizeBytes / 1024))} KB`;
+  return `${(sizeBytes / 1024 / 1024).toFixed(1)} MB`;
+}
+
 export function BroadcastManager() {
+  const { confirm, confirmationDialog } = useConfirmationDialog();
   const [form, setForm] = useState<BroadcastViewerSettings>(EMPTY_SETTINGS);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -56,7 +65,7 @@ export function BroadcastManager() {
     return () => window.clearInterval(timer);
   }, []);
 
-  const activeRecording = recordings.find((recording) => recording.status === "recording") ?? null;
+  const activeRecording = recordings.find((recording) => recording.status === "recording" || recording.status === "paused") ?? null;
 
   async function startRecording() {
     if (!liveService) return;
@@ -85,6 +94,23 @@ export function BroadcastManager() {
       setMessage(error instanceof Error ? error.message : "Could not stop recording.");
     } finally {
       setRecordingAction(false);
+    }
+  }
+
+  async function removeRecording(recording: BroadcastRecording) {
+    const confirmed = await confirm({
+      confirmLabel: "Delete recording",
+      message: `Permanently delete the recording from ${recordingTimestampTitle(recording)}?`,
+      title: "Delete sermon recording",
+      tone: "danger",
+    });
+    if (!confirmed) return;
+    try {
+      await deleteBroadcastRecording(recording.id);
+      await loadRecordings();
+      setMessage("Recording deleted.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not delete recording.");
     }
   }
 
@@ -192,21 +218,34 @@ export function BroadcastManager() {
           {recordings.length ? recordings.map((recording) => (
             <article className="broadcast-recording-row" key={recording.id}>
               <div>
-                <strong>{recording.title}</strong>
-                <span>
-                  {recording.status === "recording" ? "Recording now" : `${Math.round((recording.duration_seconds ?? 0) / 60)} min · ${Math.round((recording.size_bytes ?? 0) / 1024 / 1024)} MB · ${recording.timeline.length} slide changes`}
+                <strong>{recordingTimestampTitle(recording)}</strong>
+                <span>{recording.status === "recording" || recording.status === "paused"
+                  ? recording.status === "paused" ? "Recording paused" : "Recording now"
+                  : [
+                      `${Math.round((recording.duration_seconds ?? 0) / 60)} min`,
+                      formatRecordingSize(recording.size_bytes),
+                      `${recording.timeline.length} slide changes`,
+                    ].filter(Boolean).join(" · ")}
                 </span>
               </div>
-              {recording.status === "ready" ? (
-                <button className="text-button icon-text-button" onClick={() => setPlayingRecording(recording)} type="button">
-                  <Play size={15} aria-hidden="true" /> Play sermon
-                </button>
-              ) : <span className={`status-badge ${recording.status}`}>{recording.status}</span>}
+              <div className="broadcast-recording-actions">
+                {recording.status === "ready" ? (
+                  <button className="text-button icon-text-button" onClick={() => setPlayingRecording(recording)} type="button">
+                    <Play size={15} aria-hidden="true" /> Play sermon
+                  </button>
+                ) : <span className={`status-badge ${recording.status}`}>{recording.status}</span>}
+                {recording.status !== "recording" && recording.status !== "paused" ? (
+                  <button aria-label="Delete recording" className="danger-button" onClick={() => void removeRecording(recording)} title="Delete recording" type="button">
+                    <Trash2 size={15} aria-hidden="true" />
+                  </button>
+                ) : null}
+              </div>
             </article>
           )) : <p className="muted-copy">No sermon recordings yet.</p>}
         </div>
       </section>
       {playingRecording ? <SermonRecordingPlayer onClose={() => setPlayingRecording(null)} recording={playingRecording} /> : null}
+      {confirmationDialog}
     </form>
   );
 }

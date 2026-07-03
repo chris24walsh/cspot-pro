@@ -98,6 +98,10 @@ export function PresentationOutput() {
       owner_id: outputOwnerId,
       heartbeat_at: heartbeatAt,
     }).then((status) => {
+      if (!status.active && !status.claimed) {
+        window.close();
+        return;
+      }
       if (status.active && status.owner_id && status.owner_id !== outputOwnerId) {
         setMessage("Another slideshow output is already active.");
       }

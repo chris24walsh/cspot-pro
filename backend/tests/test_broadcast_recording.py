@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.core.database import Base
 from app.modules.broadcast.models import BroadcastViewerSettings
-from app.modules.broadcast.recording import _source_url
+from app.modules.broadcast.recording import _source_has_audio, _source_url
 
 
 def test_camera_proxy_path_resolves_to_internal_recording_source() -> None:
@@ -28,3 +28,15 @@ def test_camera_proxy_path_resolves_to_internal_recording_source() -> None:
             assert _source_url(session) == "http://camera-proxy:1984/api/stream.m3u8?src=church"
     finally:
         settings.camera_proxy_upstream = previous
+
+
+def test_recording_source_requires_an_audio_track(monkeypatch) -> None:
+    class Probe:
+        returncode = 0
+        stdout = b"video\n"
+
+    monkeypatch.setattr(
+        "app.modules.broadcast.recording.subprocess.run", lambda *args, **kwargs: Probe()
+    )
+
+    assert _source_has_audio("http://camera/stream.m3u8") is False

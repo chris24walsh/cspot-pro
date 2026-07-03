@@ -24,6 +24,21 @@ interface SermonRecordingPlayerProps {
   onClose: () => void;
 }
 
+export function recordingTimestampTitle(recording: BroadcastRecording) {
+  if (!recording.recorded_at) return recording.title;
+  const recordedAt = new Date(recording.recorded_at);
+  return Number.isNaN(recordedAt.getTime())
+    ? recording.title
+    : recordedAt.toLocaleString(undefined, {
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+        month: "short",
+        second: "2-digit",
+        year: "numeric",
+      });
+}
+
 export function recordingTimelineEventAt(
   timeline: BroadcastRecording["timeline"],
   currentTime: number,
@@ -85,7 +100,7 @@ export function SermonRecordingPlayer({ recording, onClose }: SermonRecordingPla
   return (
     <div className="app-dialog-backdrop" onMouseDown={onClose} role="presentation">
       <section
-        aria-label={`Play ${recording.title}`}
+        aria-label={`Play ${recordingTimestampTitle(recording)}`}
         aria-modal="true"
         className="sermon-recording-player"
         onMouseDown={(event) => event.stopPropagation()}
@@ -94,7 +109,7 @@ export function SermonRecordingPlayer({ recording, onClose }: SermonRecordingPla
         <header>
           <div>
             <span>Recorded sermon</span>
-            <strong>{recording.title}</strong>
+            <strong>{recordingTimestampTitle(recording)}</strong>
           </div>
           <button aria-label="Close recording" className="section-icon-button" onClick={onClose} type="button">
             <X size={18} aria-hidden="true" />

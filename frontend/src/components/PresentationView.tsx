@@ -1,4 +1,4 @@
-import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp, EyeOff, MonitorUp, Pause, Pencil, Play, Plus, Search, Sun, Trash2, Volume2, WandSparkles } from "lucide-react";
+import { CircleStop, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, EyeOff, Mic, MonitorUp, Pause, Pencil, Play, Plus, Search, Sun, Trash2, Volume2, WandSparkles } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
@@ -22,12 +22,17 @@ import {
   getPlans,
   getPlanTypes,
   getPresentationLiveState,
+  getBroadcastRecordings,
   getPlanHistory,
   getSongs,
   importGoogleDriveDeck,
   runCustomProviderSearch,
   searchGoogleDriveFiles,
+  pauseBroadcastRecording,
+  resumeBroadcastRecording,
   selectCustomProviderMatch,
+  startBroadcastRecording,
+  stopBroadcastRecording,
   uploadStoredFile,
   updatePlan,
   updatePresentationOutputStatus,
@@ -36,6 +41,7 @@ import {
   type BibleBook,
   type BibleSearchHit,
   type BibleVersion,
+  type BroadcastRecording,
   type CustomProviderMatch,
   type CustomProviderSearchResult,
   type CustomProviderSelectResult,
@@ -672,6 +678,8 @@ export function PresentationView({
   const [playingAudioSectionId, setPlayingAudioSectionId] = useState<string | null>(null);
   const [localAudioUrl, setLocalAudioUrl] = useState<string | null>(null);
   const [slideshowOpen, setSlideshowOpen] = useState(false);
+  const [broadcastRecordings, setBroadcastRecordings] = useState<BroadcastRecording[]>([]);
+  const [recordingAction, setRecordingAction] = useState(false);
   const [deckRenderRetryToken, setDeckRenderRetryToken] = useState(0);
   const [undoAction, setUndoAction] = useState<{ label: string; run: () => Promise<void> } | null>(null);
   const [sorterCatchUpDirection, setSorterCatchUpDirection] = useState<"up" | "down" | null>(null);
@@ -760,6 +768,9 @@ export function PresentationView({
   );
   const liveSlide = slides[liveIndex] ?? null;
   const currentPlanItem = effectivePlanItems.find((item) => item.id === liveSlide?.planItemId) ?? null;
+  const activeSermonRecording = broadcastRecordings.find(
+    (recording) => recording.plan_id === plan?.id && (recording.status === "recording" || recording.status === "paused"),
+  ) ?? null;
   const currentPlanItemSlides = useMemo(
     () => (currentPlanItem ? slides.filter((slide) => slide.planItemId === currentPlanItem.id) : []),
     [currentPlanItem?.id, slides],
@@ -895,6 +906,57 @@ export function PresentationView({
   useEffect(() => {
     setSlideNotesDraft(slideNoteFor(currentPlanItem?.teacher_notes, liveSlide, currentPlanItemSlides));
   }, [currentPlanItem?.id, currentPlanItem?.teacher_notes, currentPlanItemSlides, liveSlide?.id]);
+
+  useEffect(() => {
+    if (!plan?.id) {
+      setBroadcastRecordings([]);
+      return;
+    }
+    let cancelled = false;
+    const refresh = async () => {
+      try {
+        const recordings = await getBroadcastRecordings();
+        if (!cancelled) {
+          setBroadcastRecordings(recordings);
+        }
+      } catch {
+        // Presentation remains usable when recording status is temporarily unavailable.
+      }
+    };
+    void refresh();
+    const timer = window.setInterval(() => void refresh(), 3000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [plan?.id]);
+
+  async function runRecordingAction(action: "start" | "stop" | "pause" | "resume") {
+    if (recordingAction || !plan) {
+      return;
+    }
+    setRecordingAction(true);
+    try {
+      if (action === "start") {
+        if (!slideshowOpen || currentPlanItem?.item_type !== "sermon") {
+          setMessage("Open the slideshow on a sermon slide before starting the recording.");
+          return;
+        }
+        await startBroadcastRecording({ plan_id: plan.id, plan_item_id: currentPlanItem.id });
+      } else if (action === "stop") {
+        await stopBroadcastRecording();
+      } else if (action === "pause") {
+        await pauseBroadcastRecording();
+      } else {
+        await resumeBroadcastRecording();
+      }
+      setBroadcastRecordings(await getBroadcastRecordings());
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : `Could not ${action} the sermon recording.`);
+    } finally {
+      setRecordingAction(false);
+    }
+  }
 
   function toggleSorterSection(sectionId: string) {
     setExpandedSorterSectionIds((current) => {
@@ -1345,14 +1407,49 @@ export function PresentationView({
     setSlideshowOpen(false);
   }
 
+  async function closeActiveSlideshow() {
+    if (!plan) {
+      return;
+    }
+    const status = await getPresentationOutputStatus(plan.id).catch(() => null);
+    const ownerId = status?.owner_id ?? outputOwnerIdRef.current;
+    closeSlideshowWindow();
+    if (ownerId) {
+      await updatePresentationOutputStatus(plan.id, {
+        owner_id: ownerId,
+        heartbeat_at: Date.now(),
+        release: true,
+      }).catch(() => undefined);
+    }
+    setMessage(null);
+  }
+
+  async function toggleOutputFullscreen() {
+    const outputWindow = outputWindowRef.current;
+    if (!outputWindow || outputWindow.closed) {
+      await startSlideshow();
+      return;
+    }
+    try {
+      if (outputWindow.document.fullscreenElement) {
+        await outputWindow.document.exitFullscreen();
+      } else {
+        await outputWindow.document.documentElement.requestFullscreen();
+      }
+      outputWindow.focus();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not change slideshow fullscreen mode.");
+    }
+  }
+
   async function startSlideshow() {
     if (!plan) {
       setMessage("Select a plan before starting the slideshow.");
       return;
     }
 
-    if (outputWindowRef.current && !outputWindowRef.current.closed) {
-      closeSlideshowWindow();
+    if (slideshowOpen || (outputWindowRef.current && !outputWindowRef.current.closed)) {
+      await closeActiveSlideshow();
       return;
     }
 
@@ -2962,8 +3059,22 @@ export function PresentationView({
   useEffect(() => {
     syncSlideshowStatusFromStorage();
 
+    const refreshOutputStatus = async () => {
+      if (!selectedPlanId) {
+        setSlideshowOpen(false);
+        return;
+      }
+      const status = await getPresentationOutputStatus(selectedPlanId).catch(() => null);
+      if (status) {
+        setSlideshowOpen(status.active);
+        if (!status.active) {
+          localStorage.removeItem(PRESENTATION_OUTPUT_STATUS_KEY);
+        }
+      }
+    };
+    void refreshOutputStatus();
     const timer = window.setInterval(() => {
-      syncSlideshowStatusFromStorage();
+      void refreshOutputStatus();
       if (outputWindowRef.current && outputWindowRef.current.closed) {
         if (plan?.id && outputOwnerIdRef.current) {
           void updatePresentationOutputStatus(plan.id, {
@@ -2977,7 +3088,7 @@ export function PresentationView({
         localStorage.removeItem(PRESENTATION_OUTPUT_STATUS_KEY);
         setSlideshowOpen(false);
       }
-    }, 500);
+    }, 1000);
 
     function onStorage(event: StorageEvent) {
       if (event.key === PRESENTATION_OUTPUT_STATUS_KEY) {
@@ -3161,7 +3272,7 @@ export function PresentationView({
       if (event.key === "f" || event.key === "F") {
         event.preventDefault();
         clearHotkeyButtonFocus();
-        void startSlideshow();
+        void toggleOutputFullscreen();
         return;
       }
       if (event.key === "b" || event.key === "B") {
@@ -3187,10 +3298,8 @@ export function PresentationView({
     }
 
     window.addEventListener("keydown", onKeyDown, { capture: true });
-    document.addEventListener("keydown", onKeyDown, { capture: true });
     return () => {
       window.removeEventListener("keydown", onKeyDown, { capture: true });
-      document.removeEventListener("keydown", onKeyDown, { capture: true });
     };
   }, [
     canEditPlan,
@@ -3204,6 +3313,7 @@ export function PresentationView({
     searchMode,
     searchQuery,
     searchLoading,
+    slideshowOpen,
     googleDriveLoading,
     customProviderLoading,
     customProviderSelectionLoading,
@@ -3550,7 +3660,7 @@ export function PresentationView({
 
           <div className="presenter-controls" aria-label="Slide controls">
             <div className="action-row presenter-mobile-command-row">
-              <button className="primary-button" disabled={loading || !plan} onClick={() => void startSlideshow()} title={slideshowOpen ? "Close slides" : "Start slides"} type="button">
+              <button className={slideshowOpen ? "primary-button" : "text-button"} disabled={loading || !plan} onClick={() => void startSlideshow()} title={slideshowOpen ? "Close slides" : "Start slides"} type="button">
                 <MonitorUp size={16} aria-hidden="true" />
                 <span className="mobile-button-label">{slideshowOpen ? "Close Slides" : "Start Slides"}</span>
               </button>
@@ -3569,6 +3679,38 @@ export function PresentationView({
                 <ChevronRight size={16} aria-hidden="true" />
               </button>
             </div>
+            {currentPlanItem?.item_type === "sermon" || activeSermonRecording ? (
+              <div className="action-row sermon-recording-controls is-open" aria-label="Sermon recording controls">
+                {!activeSermonRecording ? (
+                  <button
+                    className="text-button"
+                    disabled={recordingAction || !slideshowOpen || currentPlanItem?.item_type !== "sermon"}
+                    onClick={() => void runRecordingAction("start")}
+                    title="Start sermon recording"
+                    type="button"
+                  >
+                    <Mic size={16} aria-hidden="true" />
+                    Start recording
+                  </button>
+                ) : (
+                  <>
+                    <button
+                      className="text-button"
+                      disabled={recordingAction}
+                      onClick={() => void runRecordingAction(activeSermonRecording.status === "paused" ? "resume" : "pause")}
+                      type="button"
+                    >
+                      {activeSermonRecording.status === "paused" ? <Play size={16} aria-hidden="true" /> : <Pause size={16} aria-hidden="true" />}
+                      {activeSermonRecording.status === "paused" ? "Resume" : "Pause"}
+                    </button>
+                    <button className="text-button" disabled={recordingAction} onClick={() => void runRecordingAction("stop")} type="button">
+                      <CircleStop size={16} aria-hidden="true" />
+                      Stop recording
+                    </button>
+                  </>
+                )}
+              </div>
+            ) : null}
             {liveSlide?.videoUrl ? (
               <div className="video-control-group" aria-label="Video controls">
                 <button className="text-button" onClick={() => sendVideoCommand("play")} type="button">

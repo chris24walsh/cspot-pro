@@ -1,21 +1,26 @@
 import json
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Response, status
 from fastapi.responses import FileResponse
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.database import get_session
 from app.modules.broadcast.models import BroadcastRecording, BroadcastViewerSettings
-from app.modules.broadcast.recording import start_recording, stop_recording
+from app.modules.broadcast.recording import (
+    pause_recording,
+    resume_recording,
+    start_recording,
+    stop_recording,
+)
 from app.modules.broadcast.schemas import (
     BroadcastRecordingRead,
     BroadcastRecordingStart,
     BroadcastViewerSettingsRead,
     BroadcastViewerSettingsUpdate,
 )
-from app.modules.identity.auth import CurrentUser, require_permission
+from app.modules.identity.auth import CurrentUser, require_any_permission, require_permission
 from app.modules.identity.models import User
 
 router = APIRouter()
@@ -45,7 +50,7 @@ def recording_read(recording: BroadcastRecording) -> BroadcastRecordingRead:
 
 @router.get("/recordings", response_model=list[BroadcastRecordingRead])
 def list_recordings(
-    _current_user: User = Depends(require_permission("broadcast:use")),
+    _current_user: User = Depends(require_any_permission("broadcast:use", "presentation:use")),
     session: Session = Depends(get_session),
 ) -> list[BroadcastRecordingRead]:
     recordings = session.scalars(
@@ -57,7 +62,7 @@ def list_recordings(
 @router.post("/recordings/start", response_model=BroadcastRecordingRead)
 def manually_start_recording(
     payload: BroadcastRecordingStart,
-    current_user: User = Depends(require_permission("broadcast:use")),
+    current_user: User = Depends(require_any_permission("broadcast:use", "presentation:use")),
     session: Session = Depends(get_session),
 ) -> BroadcastRecordingRead:
     try:
@@ -69,11 +74,49 @@ def manually_start_recording(
 
 @router.post("/recordings/stop", response_model=BroadcastRecordingRead | None)
 def manually_stop_recording(
-    _current_user: User = Depends(require_permission("broadcast:use")),
+    _current_user: User = Depends(require_any_permission("broadcast:use", "presentation:use")),
     session: Session = Depends(get_session),
 ) -> BroadcastRecordingRead | None:
     recording = stop_recording(session)
     return recording_read(recording) if recording else None
+
+
+@router.post("/recordings/pause", response_model=BroadcastRecordingRead | None)
+def manually_pause_recording(
+    _current_user: User = Depends(require_any_permission("broadcast:use", "presentation:use")),
+    session: Session = Depends(get_session),
+) -> BroadcastRecordingRead | None:
+    recording = pause_recording(session)
+    return recording_read(recording) if recording else None
+
+
+@router.post("/recordings/resume", response_model=BroadcastRecordingRead | None)
+def manually_resume_recording(
+    _current_user: User = Depends(require_any_permission("broadcast:use", "presentation:use")),
+    session: Session = Depends(get_session),
+) -> BroadcastRecordingRead | None:
+    recording = resume_recording(session)
+    return recording_read(recording) if recording else None
+
+
+@router.delete("/recordings/{recording_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_recording(
+    recording_id: str,
+    _current_user: User = Depends(require_permission("broadcast:use")),
+    session: Session = Depends(get_session),
+) -> Response:
+    recording = session.get(BroadcastRecording, recording_id)
+    if not recording:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Recording not found")
+    if recording.status in {"recording", "paused"}:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Stop recording first")
+    paths = {recording.file_path, recording.audio_file_path}
+    session.delete(recording)
+    session.commit()
+    for value in paths:
+        if value:
+            Path(value).unlink(missing_ok=True)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.get("/recordings/{recording_id}/audio")

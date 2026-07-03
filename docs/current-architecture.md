@@ -268,9 +268,17 @@ Search modes:
   worship-set plans, allowing the calendar to schedule future leaders before
   any song set is created.
 - Sermon recording stores compact Opus audio plus timestamped presentation
-  transitions, starting automatically on sermon items and stopping when the
-  presenter leaves the sermon or closes the output. Archive playback rebuilds
-  the original plan slides and follows those timestamps as audio plays or seeks.
+  transitions, starting automatically only when a sermon item and fresh live
+  presentation-output heartbeat coincide. It stops when the presenter leaves
+  the sermon or closes the output. Archive playback rebuilds the original plan
+  slides and follows those timestamps as audio plays or seeks.
+- Every service receives a final End slide. Presenter controls can start, pause,
+  resume, and stop recording; moving to a new slide resumes a paused recorder.
+  Broadcast settings can permanently remove completed archive entries and files.
+- Presentation output ownership is server-authoritative and polled by the service
+  view. An authorized close works across devices and leaves a close marker so the
+  former output cannot reclaim itself with a late heartbeat. Service-view `B`
+  controls blanking and `F` toggles its locally opened output fullscreen.
 - coherent modular monolith shape
 - container-first local development
 - real end-to-end vertical slices already exist

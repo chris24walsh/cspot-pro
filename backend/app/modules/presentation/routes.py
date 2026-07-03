@@ -265,13 +265,17 @@ def update_presentation_live_state(
     session.commit()
     session.refresh(presentation_session)
     session.refresh(position)
-    sync_sermon_recording(
-        session,
-        plan_id,
-        payload.plan_item_id,
-        payload.slide_offset,
-        current_user.id,
-    )
+    now = int(datetime.now(UTC).timestamp() * 1000)
+    if _serialize_output_status(plan_id, position, now).active:
+        sync_sermon_recording(
+            session,
+            plan_id,
+            payload.plan_item_id,
+            payload.slide_offset,
+            current_user.id,
+        )
+    else:
+        stop_recording(session, plan_id)
     return _serialize_live_state(presentation_session, position, plan_id)
 
 
@@ -312,15 +316,19 @@ def update_presentation_output_status(
 
     existing = _serialize_output_status(plan_id, position, payload.heartbeat_at)
     current_owner = existing.owner_id if existing.active else None
-    if current_owner and current_owner != payload.owner_id:
-        return existing
-
     next_payload = _position_payload(position)
     if payload.release:
-        if next_payload.get("output_owner_id") == payload.owner_id:
-            next_payload.pop("output_owner_id", None)
-            next_payload.pop("output_heartbeat_at", None)
+        closed_owner = current_owner or next_payload.get("output_owner_id")
+        if isinstance(closed_owner, str):
+            next_payload["output_closed_owner_id"] = closed_owner
+        next_payload.pop("output_owner_id", None)
+        next_payload.pop("output_heartbeat_at", None)
+    elif next_payload.get("output_closed_owner_id") == payload.owner_id:
+        return PresentationOutputStatusRead(plan_id=plan_id)
+    elif current_owner and current_owner != payload.owner_id:
+        return existing
     else:
+        next_payload.pop("output_closed_owner_id", None)
         next_payload["output_owner_id"] = payload.owner_id
         next_payload["output_heartbeat_at"] = payload.heartbeat_at
 

@@ -9,6 +9,7 @@ class Settings(BaseSettings):
 
     app_env: str = "local"
     app_name: str = "cspot-pro"
+    app_timezone: str = "Europe/Dublin"
     public_app_url: str | None = None
     api_cors_origins: str = Field(default="http://localhost:5173")
     database_url: str = "postgresql+psycopg://cspot:cspot@db:5432/cspot"

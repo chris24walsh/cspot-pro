@@ -3905,6 +3905,20 @@ h3 {
   width: 100%;
 }
 
+.broadcast-recording-actions {
+  align-items: center;
+  display: flex !important;
+  flex-direction: row;
+  gap: 6px !important;
+  justify-content: flex-end;
+}
+
+.broadcast-recording-actions .danger-button {
+  min-height: 34px;
+  min-width: 36px;
+  padding: 5px 8px;
+}
+
 .sermon-recording-player {
   background: #111915;
   border: 1px solid #496056;
@@ -4681,6 +4695,12 @@ h3 {
 
 .bible-nav-row.is-open {
   display: grid;
+}
+
+.presenter-controls .sermon-recording-controls {
+  border-top: 1px solid #e3dcc8;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  padding-top: 8px;
 }
 
 .presenter-controls .text-button,

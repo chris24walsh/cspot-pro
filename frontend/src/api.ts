@@ -529,7 +529,7 @@ export interface BroadcastRecording {
   plan_id: string | null;
   plan_item_id: string | null;
   title: string;
-  status: "recording" | "ready" | "failed";
+  status: "recording" | "paused" | "ready" | "failed";
   media_kind: string;
   content_type: string | null;
   size_bytes: number | null;
@@ -999,6 +999,18 @@ export async function startBroadcastRecording(payload: {
 
 export async function stopBroadcastRecording(): Promise<BroadcastRecording | null> {
   return sendJson<BroadcastRecording | null>("/api/v1/broadcast/recordings/stop", "POST", {});
+}
+
+export async function pauseBroadcastRecording(): Promise<BroadcastRecording | null> {
+  return sendJson<BroadcastRecording | null>("/api/v1/broadcast/recordings/pause", "POST", {});
+}
+
+export async function resumeBroadcastRecording(): Promise<BroadcastRecording | null> {
+  return sendJson<BroadcastRecording | null>("/api/v1/broadcast/recordings/resume", "POST", {});
+}
+
+export async function deleteBroadcastRecording(recordingId: string): Promise<void> {
+  return deleteRequest(`/api/v1/broadcast/recordings/${recordingId}`);
 }
 
 export function broadcastRecordingAudioUrl(recordingId: string) {

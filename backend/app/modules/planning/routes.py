@@ -1,13 +1,14 @@
-from datetime import UTC, date, datetime
 import json
+from datetime import UTC, date, datetime
+from decimal import Decimal
 
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from app.core.database import get_session
-from app.modules.identity.models import User
 from app.modules.identity.auth import require_any_permission, require_permission
+from app.modules.identity.models import User
 from app.modules.library.models import ItemFile, StoredFile
 from app.modules.planning.models import (
     HistoryEntry,
@@ -18,10 +19,10 @@ from app.modules.planning.models import (
     WorshipLeaderAssignment,
 )
 from app.modules.planning.schemas import (
-    PlanHistoryCreate,
-    PlanHistoryRead,
     PlanCreate,
     PlanDetail,
+    PlanHistoryCreate,
+    PlanHistoryRead,
     PlanItemCreate,
     PlanItemRead,
     PlanItemUpdate,
@@ -230,16 +231,29 @@ def create_plan(
     _current_user: User = Depends(require_permission("plans:create")),
     session: Session = Depends(get_session),
 ) -> PlanDetail:
-    if session.get(PlanType, payload.plan_type_id) is None:
+    plan_type = session.get(PlanType, payload.plan_type_id)
+    if plan_type is None:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Invalid plan type"
         )
 
     plan = Plan(**payload.model_dump())
     session.add(plan)
+    session.flush()
+    items: list[PlanItem] = []
+    if plan_type.name.strip().casefold() != "worship set":
+        end_item = PlanItem(
+            plan_id=plan.id,
+            item_type="end",
+            sequence=Decimal("999.00"),
+            title="End",
+            comment="End of service",
+        )
+        session.add(end_item)
+        items.append(end_item)
     session.commit()
     session.refresh(plan)
-    return plan_to_detail(session, plan, [])
+    return plan_to_detail(session, plan, items)
 
 
 @router.get("/plans/{plan_id}", response_model=PlanDetail)

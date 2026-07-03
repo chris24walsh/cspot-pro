@@ -1,7 +1,15 @@
+from types import SimpleNamespace
+
+from sqlalchemy import create_engine
+from sqlalchemy.orm import Session
+
+from app.core.database import Base
 from app.modules.presentation.models import PresentationPosition, PresentationSession
 from app.modules.presentation.routes import (
+    PresentationOutputStatusWrite,
     _serialize_live_state,
     _serialize_output_status,
+    update_presentation_output_status,
 )
 
 
@@ -78,3 +86,43 @@ def test_output_status_ignores_stale_owner() -> None:
     assert status.active is False
     assert status.owner_id is None
     assert status.heartbeat_at is None
+
+
+def test_remote_release_prevents_the_closed_output_from_reclaiming() -> None:
+    engine = create_engine("sqlite://")
+    Base.metadata.create_all(
+        engine,
+        tables=[PresentationSession.__table__, PresentationPosition.__table__],
+    )
+    with Session(engine) as session:
+        presentation_session = PresentationSession(plan_id="plan-1", status="live")
+        session.add(presentation_session)
+        session.flush()
+        session.add(
+            PresentationPosition(
+                session_id=presentation_session.id,
+                payload_json=(
+                    '{"output_owner_id": "output-1", "output_heartbeat_at": 10000}'
+                ),
+            )
+        )
+        session.commit()
+
+        released = update_presentation_output_status(
+            "plan-1",
+            PresentationOutputStatusWrite(
+                owner_id="controller-on-another-device", heartbeat_at=11000, release=True
+            ),
+            SimpleNamespace(id="user-1"),  # type: ignore[arg-type]
+            session,
+        )
+        reclaimed = update_presentation_output_status(
+            "plan-1",
+            PresentationOutputStatusWrite(owner_id="output-1", heartbeat_at=12000),
+            SimpleNamespace(id="user-1"),  # type: ignore[arg-type]
+            session,
+        )
+
+    assert released.active is False
+    assert reclaimed.active is False
+    assert reclaimed.claimed is False
