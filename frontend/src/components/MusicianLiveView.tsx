@@ -770,7 +770,9 @@ export function MusicianLiveView({ controlPlanId, onExit, plan, songs }: Musicia
                     ? activeKeyLabel
                     : setup.isAbsolute
                       ? setup.absoluteKey
-                      : `${setup.absoluteKey}/${setup.shapeKey}${setup.capo > 0 ? `c${setup.capo}` : ""}${setup.isOriginal ? " original" : ""}`}
+                      : setup.capo > 0
+                        ? `${setup.shapeKey}c${setup.capo} (${setup.absoluteKey})`
+                        : setup.shapeKey}
                 </option>
               ))}
             </select>
