@@ -1,10 +1,17 @@
-import { Save } from "lucide-react";
+import { CircleStop, Mic, Save } from "lucide-react";
 import { type FormEvent, useEffect, useState } from "react";
 
 import {
   getBroadcastViewerSettings,
+  getBroadcastRecordings,
+  getLivePresentationServices,
+  broadcastRecordingAudioUrl,
+  startBroadcastRecording,
+  stopBroadcastRecording,
   updateBroadcastViewerSettings,
   type BroadcastViewerSettings,
+  type BroadcastRecording,
+  type PresentationLiveService,
 } from "../api";
 
 const EMPTY_SETTINGS: BroadcastViewerSettings = {
@@ -22,6 +29,9 @@ export function BroadcastManager() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [recordings, setRecordings] = useState<BroadcastRecording[]>([]);
+  const [liveService, setLiveService] = useState<PresentationLiveService | null>(null);
+  const [recordingAction, setRecordingAction] = useState(false);
 
   useEffect(() => {
     void getBroadcastViewerSettings()
@@ -29,6 +39,53 @@ export function BroadcastManager() {
       .catch((error) => setMessage(error instanceof Error ? error.message : "Could not load viewer settings."))
       .finally(() => setLoading(false));
   }, []);
+
+  async function loadRecordings() {
+    const [nextRecordings, liveServices] = await Promise.all([
+      getBroadcastRecordings(),
+      getLivePresentationServices(),
+    ]);
+    setRecordings(nextRecordings);
+    setLiveService(liveServices[0] ?? null);
+  }
+
+  useEffect(() => {
+    void loadRecordings().catch(() => undefined);
+    const timer = window.setInterval(() => void loadRecordings().catch(() => undefined), 5000);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  const activeRecording = recordings.find((recording) => recording.status === "recording") ?? null;
+
+  async function startRecording() {
+    if (!liveService) return;
+    setRecordingAction(true);
+    try {
+      await startBroadcastRecording({
+        plan_id: liveService.plan_id,
+        plan_item_id: liveService.plan_item_id,
+      });
+      await loadRecordings();
+      setMessage("Sermon recording started.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not start recording.");
+    } finally {
+      setRecordingAction(false);
+    }
+  }
+
+  async function stopRecording() {
+    setRecordingAction(true);
+    try {
+      await stopBroadcastRecording();
+      await loadRecordings();
+      setMessage("Sermon recording saved.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not stop recording.");
+    } finally {
+      setRecordingAction(false);
+    }
+  }
 
   async function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -110,6 +167,40 @@ export function BroadcastManager() {
       <p className="muted-copy broadcast-settings-note">
         The camera and slideshow appear only while the presenter slideshow is running. Pre-service audio is offered during the configured window before the next scheduled service.
       </p>
+
+      <section className="broadcast-recordings" aria-label="Sermon recordings">
+        <div className="section-heading">
+          <div>
+            <p className="eyebrow">Audio + slides</p>
+            <h2>Sermon recordings</h2>
+          </div>
+          {activeRecording ? (
+            <button className="danger-button icon-text-button" disabled={recordingAction} onClick={() => void stopRecording()} type="button">
+              <CircleStop size={15} aria-hidden="true" /> Stop recording
+            </button>
+          ) : (
+            <button className="primary-button icon-text-button" disabled={!liveService || recordingAction} onClick={() => void startRecording()} type="button">
+              <Mic size={15} aria-hidden="true" /> Record now
+            </button>
+          )}
+        </div>
+        <p className="muted-copy">
+          Recording starts automatically on sermon sections and stores compact mono audio with synchronized slide timings.
+        </p>
+        <div className="broadcast-recording-list">
+          {recordings.length ? recordings.map((recording) => (
+            <article className="broadcast-recording-row" key={recording.id}>
+              <div>
+                <strong>{recording.title}</strong>
+                <span>
+                  {recording.status === "recording" ? "Recording now" : `${Math.round((recording.duration_seconds ?? 0) / 60)} min · ${Math.round((recording.size_bytes ?? 0) / 1024 / 1024)} MB · ${recording.timeline.length} slide changes`}
+                </span>
+              </div>
+              {recording.status === "ready" ? <audio controls preload="none" src={broadcastRecordingAudioUrl(recording.id)} /> : <span className={`status-badge ${recording.status}`}>{recording.status}</span>}
+            </article>
+          )) : <p className="muted-copy">No sermon recordings yet.</p>}
+        </div>
+      </section>
     </form>
   );
 }

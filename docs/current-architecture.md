@@ -267,6 +267,9 @@ Search modes:
 - Worship leader assignments are stored by service date independently of
   worship-set plans, allowing the calendar to schedule future leaders before
   any song set is created.
+- Sermon recording stores compact Opus audio plus timestamped presentation
+  transitions, starting automatically on sermon items and stopping when the
+  presenter leaves the sermon or closes the output.
 - coherent modular monolith shape
 - container-first local development
 - real end-to-end vertical slices already exist

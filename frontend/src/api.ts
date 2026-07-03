@@ -524,6 +524,22 @@ export interface BroadcastViewerSettings {
   offline_message: string;
 }
 
+export interface BroadcastRecording {
+  id: string;
+  plan_id: string | null;
+  plan_item_id: string | null;
+  title: string;
+  status: "recording" | "ready" | "failed";
+  media_kind: string;
+  content_type: string | null;
+  size_bytes: number | null;
+  duration_seconds: number | null;
+  recorded_at: string | null;
+  started_at: string | null;
+  ended_at: string | null;
+  timeline: Array<{ at: number; plan_item_id: string; slide_offset: number }>;
+}
+
 export interface GoogleDriveStatus {
   configured: boolean;
   connected: boolean;
@@ -968,6 +984,25 @@ export async function updateBroadcastViewerSettings(
   payload: Partial<BroadcastViewerSettings>,
 ): Promise<BroadcastViewerSettings> {
   return sendJson<BroadcastViewerSettings>("/api/v1/broadcast/viewer-settings", "PATCH", payload);
+}
+
+export async function getBroadcastRecordings(): Promise<BroadcastRecording[]> {
+  return getJson<BroadcastRecording[]>("/api/v1/broadcast/recordings");
+}
+
+export async function startBroadcastRecording(payload: {
+  plan_id: string;
+  plan_item_id: string | null;
+}): Promise<BroadcastRecording> {
+  return sendJson<BroadcastRecording>("/api/v1/broadcast/recordings/start", "POST", payload);
+}
+
+export async function stopBroadcastRecording(): Promise<BroadcastRecording | null> {
+  return sendJson<BroadcastRecording | null>("/api/v1/broadcast/recordings/stop", "POST", {});
+}
+
+export function broadcastRecordingAudioUrl(recordingId: string) {
+  return buildApiUrl(`/api/v1/broadcast/recordings/${recordingId}/audio`);
 }
 
 export async function getGoogleDriveStatus(): Promise<GoogleDriveStatus> {

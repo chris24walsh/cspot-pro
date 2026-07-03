@@ -1,10 +1,10 @@
 # Broadcast Viewer Direction
 
-Last updated: 2026-06-24
+Last updated: 2026-07-03
 
 ## Current State
 
-Broadcast is a remote service viewer, not an OBS controller or media recorder.
+Broadcast is a remote service viewer with compact sermon recording.
 
 - All eligible users land on Viewer by default.
 - Trusted users can open Settings to configure the stream title and description,
@@ -14,20 +14,23 @@ Broadcast is a remote service viewer, not an OBS controller or media recorder.
 - Before the next planned service, a configurable starting-soon window can offer
   light worship audio or an external audio stream.
 - At other times, both panels clearly show that no service is currently streaming.
+- Entering a sermon section automatically records mono Opus audio from the
+  configured camera stream and timestamps presentation slide changes. Leaving
+  the sermon or closing the presentation output finalizes the recording.
+- Trusted users can manually start or stop recording and play archived audio
+  from Broadcast settings. A synchronized audio-and-slide replay surface is
+  the next step; the timing data is already retained with each recording.
 
 ## Media Architecture
 
-Camera and audio URLs are loaded directly by each viewer browser. CSpot stores
-configuration and supplies live presentation state, but it does not proxy or
-transcode the external media. The configured provider therefore owns bandwidth,
-availability, access control, and browser-compatible stream delivery.
+Viewer media is delivered through the configured stream or camera proxy. The
+API uses FFmpeg only during sermon recording to extract 48 kbps mono Opus audio;
+it does not retain a large composite video. Recording files live in the durable
+application storage volume and slide timing is stored in the database.
 
 ## Retired Direction
 
-The former OBS WebSocket controls, recording library, virtual-camera controls,
-and related server configuration are no longer part of the active product.
-Historical database recording rows may remain for data preservation, but no
-current UI or API workflow depends on them.
+The former OBS WebSocket controls and virtual-camera controls remain retired.
 
 ## Possible Future Work
 

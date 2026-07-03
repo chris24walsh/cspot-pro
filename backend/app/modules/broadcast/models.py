@@ -32,6 +32,9 @@ class BroadcastRecording(IdMixin, TimestampMixin, Base):
     size_bytes: Mapped[int | None] = mapped_column(Integer)
     duration_seconds: Mapped[int | None] = mapped_column(Integer)
     audio_file_path: Mapped[str | None] = mapped_column(Text)
+    timeline_json: Mapped[str | None] = mapped_column(Text)
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    ended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     recorded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)
 
 

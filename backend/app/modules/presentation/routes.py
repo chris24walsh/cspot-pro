@@ -7,6 +7,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.core.database import get_session
+from app.modules.broadcast.recording import stop_recording, sync_sermon_recording
 from app.modules.identity.auth import CurrentUser, require_any_permission, require_permission
 from app.modules.identity.models import User
 from app.modules.planning.models import Plan, PlanItem, PlanType
@@ -108,8 +109,12 @@ def _serialize_live_state(
         theme=str(payload.get("theme", "light")),
         blanked=bool(payload.get("blanked", False)),
         fullscreen=bool(payload.get("fullscreen", False)),
-        video_action=payload.get("video_action") if isinstance(payload.get("video_action"), str) else None,
-        video_action_at=int(payload["video_action_at"]) if payload.get("video_action_at") is not None else None,
+        video_action=payload.get("video_action")
+        if isinstance(payload.get("video_action"), str)
+        else None,
+        video_action_at=int(payload["video_action_at"])
+        if payload.get("video_action_at") is not None
+        else None,
     )
 
 
@@ -129,11 +134,21 @@ def _latest_position(session: Session, session_id: str) -> PresentationPosition 
     )
 
 
-def _serialize_output_status(plan_id: str, position: PresentationPosition | None, now: int | None = None) -> PresentationOutputStatusRead:
+def _serialize_output_status(
+    plan_id: str, position: PresentationPosition | None, now: int | None = None
+) -> PresentationOutputStatusRead:
     payload = _position_payload(position)
-    owner_id = payload.get("output_owner_id") if isinstance(payload.get("output_owner_id"), str) else None
-    heartbeat_at = int(payload["output_heartbeat_at"]) if payload.get("output_heartbeat_at") is not None else None
-    active = bool(owner_id and heartbeat_at and now is not None and now - heartbeat_at < OUTPUT_STALE_MS)
+    owner_id = (
+        payload.get("output_owner_id") if isinstance(payload.get("output_owner_id"), str) else None
+    )
+    heartbeat_at = (
+        int(payload["output_heartbeat_at"])
+        if payload.get("output_heartbeat_at") is not None
+        else None
+    )
+    active = bool(
+        owner_id and heartbeat_at and now is not None and now - heartbeat_at < OUTPUT_STALE_MS
+    )
     return PresentationOutputStatusRead(
         plan_id=plan_id,
         active=active,
@@ -167,7 +182,11 @@ def list_live_presentation_services(
             continue
         position = _latest_position(session, presentation_session.id)
         output_status = _serialize_output_status(plan.id, position, now)
-        if not output_status.active or not output_status.owner_id or output_status.heartbeat_at is None:
+        if (
+            not output_status.active
+            or not output_status.owner_id
+            or output_status.heartbeat_at is None
+        ):
             continue
         payload = _position_payload(position)
         plan_type = session.get(PlanType, plan.plan_type_id)
@@ -189,7 +208,9 @@ def list_live_presentation_services(
                 session_id=presentation_session.id,
                 status=presentation_session.status,
                 index=int(payload.get("index", position.slide_index if position else 0)),
-                plan_item_id=payload.get("plan_item_id", position.plan_item_id if position else None),
+                plan_item_id=payload.get(
+                    "plan_item_id", position.plan_item_id if position else None
+                ),
                 slide_offset=int(payload.get("slide_offset", 0)),
                 updated_at=int(payload.get("updated_at", 0)),
                 output_owner_id=output_status.owner_id,
@@ -244,6 +265,13 @@ def update_presentation_live_state(
     session.commit()
     session.refresh(presentation_session)
     session.refresh(position)
+    sync_sermon_recording(
+        session,
+        plan_id,
+        payload.plan_item_id,
+        payload.slide_offset,
+        current_user.id,
+    )
     return _serialize_live_state(presentation_session, position, plan_id)
 
 
@@ -299,6 +327,8 @@ def update_presentation_output_status(
     position.payload_json = json.dumps(next_payload)
     session.commit()
     session.refresh(position)
+    if payload.release:
+        stop_recording(session, plan_id)
     status = _serialize_output_status(plan_id, position, payload.heartbeat_at)
     status.claimed = not payload.release and status.owner_id == payload.owner_id
     return status
