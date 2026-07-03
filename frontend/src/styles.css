@@ -5710,7 +5710,8 @@ h3 {
   border-color: rgba(239, 199, 109, 0.68);
 }
 
-.stage-audio-switch input:checked + .stage-theme-slider {
+.stage-audio-switch input:checked + .stage-theme-slider,
+.stage-recording-switch input:checked + .stage-theme-slider {
   background: rgba(128, 189, 159, 0.55);
   border-color: rgba(190, 230, 208, 0.85);
 }
@@ -5719,7 +5720,8 @@ h3 {
   transform: translateX(16px);
 }
 
-.stage-audio-switch input:checked + .stage-theme-slider::after {
+.stage-audio-switch input:checked + .stage-theme-slider::after,
+.stage-recording-switch input:checked + .stage-theme-slider::after {
   transform: translateX(16px);
 }
 

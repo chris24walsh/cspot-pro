@@ -258,18 +258,26 @@ def update_presentation_live_state(
         position = PresentationPosition(session_id=presentation_session.id)
         session.add(position)
 
+    existing_payload = _position_payload(position)
+    previous_live_item_id = existing_payload.get("output_recording_item_id")
+    now = int(datetime.now(UTC).timestamp() * 1000)
+    output_active = _serialize_output_status(plan_id, position, now).active
+    next_payload = {**existing_payload, **payload.model_dump()}
+    if output_active:
+        next_payload["output_recording_item_id"] = payload.plan_item_id
+    else:
+        next_payload.pop("output_recording_item_id", None)
     position.plan_item_id = payload.plan_item_id
     position.slide_index = payload.index
-    existing_payload = _position_payload(position)
-    position.payload_json = json.dumps({**existing_payload, **payload.model_dump()})
+    position.payload_json = json.dumps(next_payload)
     session.commit()
     session.refresh(presentation_session)
     session.refresh(position)
-    now = int(datetime.now(UTC).timestamp() * 1000)
-    if _serialize_output_status(plan_id, position, now).active:
+    if output_active:
         sync_sermon_recording(
             session,
             plan_id,
+            previous_live_item_id if isinstance(previous_live_item_id, str) else None,
             payload.plan_item_id,
             payload.slide_offset,
             current_user.id,
@@ -323,14 +331,18 @@ def update_presentation_output_status(
             next_payload["output_closed_owner_id"] = closed_owner
         next_payload.pop("output_owner_id", None)
         next_payload.pop("output_heartbeat_at", None)
+        next_payload.pop("output_recording_item_id", None)
     elif next_payload.get("output_closed_owner_id") == payload.owner_id:
         return PresentationOutputStatusRead(plan_id=plan_id)
     elif current_owner and current_owner != payload.owner_id:
         return existing
     else:
+        new_output = current_owner is None
         next_payload.pop("output_closed_owner_id", None)
         next_payload["output_owner_id"] = payload.owner_id
         next_payload["output_heartbeat_at"] = payload.heartbeat_at
+        if new_output:
+            next_payload["output_recording_item_id"] = next_payload.get("plan_item_id")
 
     position.payload_json = json.dumps(next_payload)
     session.commit()

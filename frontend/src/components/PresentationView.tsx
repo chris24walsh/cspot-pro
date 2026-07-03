@@ -1,4 +1,4 @@
-import { CircleStop, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, EyeOff, Mic, MonitorUp, Pause, Pencil, Play, Plus, Search, Sun, Trash2, Volume2, WandSparkles } from "lucide-react";
+import { CircleStop, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, EyeOff, Mic, MonitorUp, Moon, Pause, Pencil, Play, Plus, Search, Trash2, Volume2, WandSparkles } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
@@ -675,6 +675,7 @@ export function PresentationView({
   const [slideTheme, setSlideTheme] = useState<PresentationTheme>("light");
   const [liveBlanked, setLiveBlanked] = useState(false);
   const [audioControlsEnabled, setAudioControlsEnabled] = useState(false);
+  const [recordingControlsEnabled, setRecordingControlsEnabled] = useState(false);
   const [playingAudioSectionId, setPlayingAudioSectionId] = useState<string | null>(null);
   const [localAudioUrl, setLocalAudioUrl] = useState<string | null>(null);
   const [slideshowOpen, setSlideshowOpen] = useState(false);
@@ -938,8 +939,8 @@ export function PresentationView({
     setRecordingAction(true);
     try {
       if (action === "start") {
-        if (!slideshowOpen || currentPlanItem?.item_type !== "sermon") {
-          setMessage("Open the slideshow on a sermon slide before starting the recording.");
+        if (currentPlanItem?.item_type !== "sermon") {
+          setMessage("Select a sermon slide before starting the recording.");
           return;
         }
         await startBroadcastRecording({ plan_id: plan.id, plan_item_id: currentPlanItem.id });
@@ -3607,11 +3608,21 @@ export function PresentationView({
                   <span className="stage-theme-slider" aria-hidden="true" />
                 </label>
                 <label className="stage-theme-switch stage-toggle-switch" title="Toggle slide theme">
-                  <span className="stage-toggle-label" data-short="L"><Sun size={13} aria-hidden="true" />Light</span>
+                  <span className="stage-toggle-label" data-short="D"><Moon size={13} aria-hidden="true" />Dark</span>
                   <input
-                    aria-label="Use light slide theme"
-                    checked={slideTheme === "light"}
-                    onChange={(event) => setSlideTheme(event.target.checked ? "light" : "dark")}
+                    aria-label="Use dark slide theme"
+                    checked={slideTheme === "dark"}
+                    onChange={(event) => setSlideTheme(event.target.checked ? "dark" : "light")}
+                    type="checkbox"
+                  />
+                  <span className="stage-theme-slider" aria-hidden="true" />
+                </label>
+                <label className="stage-recording-switch stage-toggle-switch" title="Show sermon recording controls">
+                  <span className="stage-toggle-label" data-short="R"><Mic size={13} aria-hidden="true" />Recording</span>
+                  <input
+                    aria-label="Show sermon recording controls"
+                    checked={recordingControlsEnabled}
+                    onChange={(event) => setRecordingControlsEnabled(event.target.checked)}
                     type="checkbox"
                   />
                   <span className="stage-theme-slider" aria-hidden="true" />
@@ -3679,12 +3690,12 @@ export function PresentationView({
                 <ChevronRight size={16} aria-hidden="true" />
               </button>
             </div>
-            {currentPlanItem?.item_type === "sermon" || activeSermonRecording ? (
+            {recordingControlsEnabled && (currentPlanItem?.item_type === "sermon" || activeSermonRecording) ? (
               <div className="action-row sermon-recording-controls is-open" aria-label="Sermon recording controls">
                 {!activeSermonRecording ? (
                   <button
                     className="text-button"
-                    disabled={recordingAction || !slideshowOpen || currentPlanItem?.item_type !== "sermon"}
+                    disabled={recordingAction || currentPlanItem?.item_type !== "sermon"}
                     onClick={() => void runRecordingAction("start")}
                     title="Start sermon recording"
                     type="button"

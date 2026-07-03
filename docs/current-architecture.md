@@ -268,10 +268,11 @@ Search modes:
   worship-set plans, allowing the calendar to schedule future leaders before
   any song set is created.
 - Sermon recording stores compact Opus audio plus timestamped presentation
-  transitions, starting automatically only when a sermon item and fresh live
-  presentation-output heartbeat coincide. It stops when the presenter leaves
-  the sermon or closes the output. Archive playback rebuilds the original plan
-  slides and follows those timestamps as audio plays or seeks.
+  transitions. Automatic start is edge-triggered by a non-sermon-to-sermon move
+  while the output heartbeat is live; it does not restart a manually stopped
+  recording on later sermon slides. A paused recording resumes on the next sermon
+  slide, and leaving the sermon or closing output always stops it. Recording
+  controls are hidden behind an off-by-default presenter toggle.
 - Every service receives a final End slide. Presenter controls can start, pause,
   resume, and stop recording; moving to a new slide resumes a paused recorder.
   Broadcast settings can permanently remove completed archive entries and files.
