@@ -3798,14 +3798,20 @@ h3 {
 }
 
 .broadcast-settings {
+  align-content: start;
   background: #fffefa;
   border: 1px solid #ded8c7;
   border-radius: 8px;
   display: grid;
+  flex: 1 1 auto;
   gap: 12px;
   margin: 0 12px 12px;
   max-width: 980px;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
   padding: 16px;
+  width: calc(100% - 24px);
 }
 
 .broadcast-settings-grid {
@@ -4264,9 +4270,15 @@ h3 {
   .broadcast-settings {
     margin: 0 8px 8px;
     padding: 12px;
+    width: calc(100% - 16px);
   }
 
   .broadcast-settings-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .broadcast-recording-row {
+    align-items: stretch;
     grid-template-columns: minmax(0, 1fr);
   }
 
