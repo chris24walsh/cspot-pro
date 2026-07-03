@@ -1,11 +1,10 @@
-import { CircleStop, Mic, Save } from "lucide-react";
+import { CircleStop, Mic, Play, Save } from "lucide-react";
 import { type FormEvent, useEffect, useState } from "react";
 
 import {
   getBroadcastViewerSettings,
   getBroadcastRecordings,
   getLivePresentationServices,
-  broadcastRecordingAudioUrl,
   startBroadcastRecording,
   stopBroadcastRecording,
   updateBroadcastViewerSettings,
@@ -13,6 +12,7 @@ import {
   type BroadcastRecording,
   type PresentationLiveService,
 } from "../api";
+import { SermonRecordingPlayer } from "./SermonRecordingPlayer";
 
 const EMPTY_SETTINGS: BroadcastViewerSettings = {
   camera_url: null,
@@ -32,6 +32,7 @@ export function BroadcastManager() {
   const [recordings, setRecordings] = useState<BroadcastRecording[]>([]);
   const [liveService, setLiveService] = useState<PresentationLiveService | null>(null);
   const [recordingAction, setRecordingAction] = useState(false);
+  const [playingRecording, setPlayingRecording] = useState<BroadcastRecording | null>(null);
 
   useEffect(() => {
     void getBroadcastViewerSettings()
@@ -196,11 +197,16 @@ export function BroadcastManager() {
                   {recording.status === "recording" ? "Recording now" : `${Math.round((recording.duration_seconds ?? 0) / 60)} min · ${Math.round((recording.size_bytes ?? 0) / 1024 / 1024)} MB · ${recording.timeline.length} slide changes`}
                 </span>
               </div>
-              {recording.status === "ready" ? <audio controls preload="none" src={broadcastRecordingAudioUrl(recording.id)} /> : <span className={`status-badge ${recording.status}`}>{recording.status}</span>}
+              {recording.status === "ready" ? (
+                <button className="text-button icon-text-button" onClick={() => setPlayingRecording(recording)} type="button">
+                  <Play size={15} aria-hidden="true" /> Play sermon
+                </button>
+              ) : <span className={`status-badge ${recording.status}`}>{recording.status}</span>}
             </article>
           )) : <p className="muted-copy">No sermon recordings yet.</p>}
         </div>
       </section>
+      {playingRecording ? <SermonRecordingPlayer onClose={() => setPlayingRecording(null)} recording={playingRecording} /> : null}
     </form>
   );
 }

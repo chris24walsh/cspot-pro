@@ -269,7 +269,8 @@ Search modes:
   any song set is created.
 - Sermon recording stores compact Opus audio plus timestamped presentation
   transitions, starting automatically on sermon items and stopping when the
-  presenter leaves the sermon or closes the output.
+  presenter leaves the sermon or closes the output. Archive playback rebuilds
+  the original plan slides and follows those timestamps as audio plays or seeks.
 - coherent modular monolith shape
 - container-first local development
 - real end-to-end vertical slices already exist

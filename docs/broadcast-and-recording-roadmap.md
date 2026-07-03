@@ -17,9 +17,9 @@ Broadcast is a remote service viewer with compact sermon recording.
 - Entering a sermon section automatically records mono Opus audio from the
   configured camera stream and timestamps presentation slide changes. Leaving
   the sermon or closing the presentation output finalizes the recording.
-- Trusted users can manually start or stop recording and play archived audio
-  from Broadcast settings. A synchronized audio-and-slide replay surface is
-  the next step; the timing data is already retained with each recording.
+- Trusted users can manually start or stop recording and open archived sermons
+  from Broadcast settings. Archive playback synchronizes the retained audio
+  with the original presentation slides and follows seeking correctly.
 
 ## Media Architecture
 

@@ -3905,6 +3905,67 @@ h3 {
   width: 100%;
 }
 
+.sermon-recording-player {
+  background: #111915;
+  border: 1px solid #496056;
+  border-radius: 10px;
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.42);
+  color: #f8fbf9;
+  display: grid;
+  gap: 10px;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  height: min(86dvh, 820px);
+  max-width: 1120px;
+  overflow: hidden;
+  padding: 10px;
+  width: min(92vw, 1120px);
+}
+
+.sermon-recording-player > header {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+}
+
+.sermon-recording-player > header > div {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.sermon-recording-player > header span {
+  color: #aebdb5;
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.sermon-recording-player > header strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sermon-recording-stage {
+  background: #050807;
+  display: grid;
+  min-height: 0;
+  overflow: hidden;
+  place-items: center;
+}
+
+.sermon-recording-stage .presentation-stage,
+.sermon-recording-stage .stage-image-frame {
+  aspect-ratio: 16 / 9;
+  max-height: 100%;
+  width: 100%;
+}
+
+.sermon-recording-player > audio {
+  height: 40px;
+  width: 100%;
+}
+
 .service-broadcast-view {
   background:
     radial-gradient(circle at top left, rgba(37, 84, 69, 0.22), transparent 28%),
@@ -4280,6 +4341,12 @@ h3 {
   .broadcast-recording-row {
     align-items: stretch;
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  .sermon-recording-player {
+    height: min(88dvh, 760px);
+    padding: 7px;
+    width: calc(100vw - 12px);
   }
 
   .service-broadcast-slide-pane,
