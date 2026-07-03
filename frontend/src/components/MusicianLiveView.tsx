@@ -116,11 +116,11 @@ function playableSetups(targetKey: string | null) {
   );
 }
 
-function setupValue(setup: { capo: number; shapeKey: string }) {
-  return `${setup.shapeKey}:${setup.capo}`;
+function setupValue(setup: { capo: number; optionValue?: string; shapeKey: string }) {
+  return setup.optionValue ?? `${setup.shapeKey}:${setup.capo}`;
 }
 
-function uniqueKeySetups<T extends { capo: number; shapeKey: string }>(setups: T[]) {
+function uniqueKeySetups<T extends { capo: number; optionValue?: string; shapeKey: string }>(setups: T[]) {
   const seen = new Set<string>();
   return setups.filter((setup) => {
     const value = setupValue(setup);
@@ -662,15 +662,14 @@ export function MusicianLiveView({ controlPlanId, onExit, plan, songs }: Musicia
     [liveWrapCharacters, lyricLinesForSlide],
   );
   const currentGuitarKey = guitarKey ?? chordChart.absoluteKey ?? chordChart.capoKey ?? null;
-  const currentAbsoluteKey = currentGuitarKey ?? chordChart.absoluteKey ?? null;
-  const baseAbsoluteKey =
-    chordChart.absoluteKey ?? deriveAbsoluteKey(chordChart.capoKey ?? currentGuitarKey ?? MUSICAL_KEYS[0], chordChart.capo);
-  const originalAbsoluteKey = chordChart.absoluteKey ?? (chordChart.capoKey ? deriveAbsoluteKey(chordChart.capoKey, chordChart.capo) : currentAbsoluteKey);
+  const currentAbsoluteKey = currentGuitarKey ? deriveAbsoluteKey(currentGuitarKey, capo) : null;
+  const baseAbsoluteKey = chordChart.absoluteKey ?? chordChart.capoKey ?? currentGuitarKey ?? MUSICAL_KEYS[0];
   const activeKeyLabel = currentGuitarKey
     ? `${currentGuitarKey}${capo > 0 ? `c${capo}` : ""}`
     : "unset";
   const originalCapo = normalizeCapo(chordChart.capo);
   const originalShapeKey = chordChart.absoluteKey ?? chordChart.capoKey ?? null;
+  const originalAbsoluteKey = originalShapeKey ? deriveAbsoluteKey(originalShapeKey, originalCapo) : currentAbsoluteKey;
   const originalSetup =
     originalShapeKey && originalAbsoluteKey
       ? {
@@ -678,6 +677,7 @@ export function MusicianLiveView({ controlPlanId, onExit, plan, songs }: Musicia
           capo: originalCapo,
           distance: 0,
           isOriginal: true,
+          optionValue: `original:${originalShapeKey}:${originalCapo}`,
           shapeKey: originalShapeKey,
         }
       : null;
@@ -706,6 +706,7 @@ export function MusicianLiveView({ controlPlanId, onExit, plan, songs }: Musicia
         isAbsolute?: boolean;
         isCurrent?: boolean;
         isOriginal?: boolean;
+        optionValue?: string;
         shapeKey: string;
       } => Boolean(setup),
     ),
@@ -753,7 +754,9 @@ export function MusicianLiveView({ controlPlanId, onExit, plan, songs }: Musicia
             <select
               aria-label="Choose guitar key and capo"
               onChange={(event) => {
-                const [shapeKey, capoValue] = event.target.value.split(":");
+                const parts = event.target.value.split(":");
+                if (parts[0] === "original") parts.shift();
+                const [shapeKey, capoValue] = parts;
                 if (!shapeKey) return;
                 setGuitarKey(shapeKey);
                 setCapo(normalizeCapo(Number(capoValue || 0)));
@@ -765,9 +768,9 @@ export function MusicianLiveView({ controlPlanId, onExit, plan, songs }: Musicia
                 <option key={setupValue(setup)} value={setupValue(setup)}>
                   {setup.isCurrent
                     ? activeKeyLabel
-                    : `${setup.absoluteKey}/${setup.shapeKey}${setup.capo > 0 ? `c${setup.capo}` : ""}${
-                        setup.isOriginal ? " original" : setup.isAbsolute ? " open" : ""
-                      }`}
+                    : setup.isAbsolute
+                      ? setup.absoluteKey
+                      : `${setup.absoluteKey}/${setup.shapeKey}${setup.capo > 0 ? `c${setup.capo}` : ""}${setup.isOriginal ? " original" : ""}`}
                 </option>
               ))}
             </select>
@@ -830,7 +833,7 @@ export function MusicianLiveView({ controlPlanId, onExit, plan, songs }: Musicia
                     key={`${lineIndex}-${segmentIndex}-${segment.line}`}
                     line={segment.line}
                     showChords={showChords}
-                    targetAbsoluteKey={currentAbsoluteKey}
+                    targetAbsoluteKey={currentGuitarKey}
                   />
                 ))}
               </div>
