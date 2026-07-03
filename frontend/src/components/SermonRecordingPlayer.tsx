@@ -42,9 +42,11 @@ export function recordingTimestampTitle(recording: BroadcastRecording) {
 export function recordingTimelineEventAt(
   timeline: BroadcastRecording["timeline"],
   currentTime: number,
+  slideDelaySeconds = 1.5,
 ) {
   const ordered = [...timeline].sort((left, right) => left.at - right.at);
-  return [...ordered].reverse().find((candidate) => candidate.at <= currentTime) ?? ordered[0] ?? null;
+  const synchronizedTime = Math.max(0, currentTime - slideDelaySeconds);
+  return [...ordered].reverse().find((candidate) => candidate.at <= synchronizedTime) ?? ordered[0] ?? null;
 }
 
 export function SermonRecordingPlayer({ recording, onClose }: SermonRecordingPlayerProps) {

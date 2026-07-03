@@ -18,6 +18,11 @@ describe("sermon recording timeline", () => {
     expect(recordingTimelineEventAt(timeline, 40)?.slide_offset).toBe(2);
   });
 
+  it("delays slide changes to match camera audio latency", () => {
+    expect(recordingTimelineEventAt(timeline, 12.5)?.slide_offset).toBe(0);
+    expect(recordingTimelineEventAt(timeline, 13.6)?.slide_offset).toBe(1);
+  });
+
   it("labels recordings by their timestamp instead of the sermon item title", () => {
     const title = recordingTimestampTitle({
       recorded_at: "2026-07-03T12:03:02.000Z",

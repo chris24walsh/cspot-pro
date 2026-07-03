@@ -105,8 +105,8 @@ function CameraPane({ url }: { url: string }) {
         if (!cancelled) setPlaybackBlocked(true);
       }
     };
-    video.muted = true;
-    video.defaultMuted = true;
+    video.muted = false;
+    video.defaultMuted = false;
     video.autoplay = true;
     video.playsInline = true;
 
@@ -146,7 +146,7 @@ function CameraPane({ url }: { url: string }) {
   if (kind === "video") {
     return (
       <div className="service-broadcast-camera-player">
-        <video autoPlay className="service-broadcast-camera-media" controls muted playsInline ref={videoRef} src={isHls ? undefined : url} />
+        <video autoPlay className="service-broadcast-camera-media" controls playsInline ref={videoRef} src={isHls ? undefined : url} />
         {playbackBlocked ? (
           <button
             className="service-broadcast-camera-overlay"

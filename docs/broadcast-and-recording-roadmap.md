@@ -24,7 +24,9 @@ Broadcast is a remote service viewer with compact sermon recording.
   service has an End slide, giving the presenter a deliberate finish action.
 - Trusted users can open or permanently delete archived sermons from Broadcast
   settings. Archive playback synchronizes the retained audio with the original
-  presentation slides and follows seeking correctly.
+  presentation slides, compensates for camera audio pipeline latency, and follows
+  seeking correctly. Livestream camera audio requests unmuted playback by default;
+  browsers that block audible autoplay show the existing start-audio action.
 
 ## Media Architecture
 
