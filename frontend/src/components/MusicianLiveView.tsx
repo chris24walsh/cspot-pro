@@ -116,11 +116,11 @@ function playableSetups(targetKey: string | null) {
   );
 }
 
-function setupValue(setup: { capo: number; optionValue?: string; shapeKey: string }) {
-  return setup.optionValue ?? `${setup.shapeKey}:${setup.capo}`;
+function setupValue(setup: { capo: number; shapeKey: string }) {
+  return `${setup.shapeKey}:${setup.capo}`;
 }
 
-function uniqueKeySetups<T extends { capo: number; optionValue?: string; shapeKey: string }>(setups: T[]) {
+function uniqueKeySetups<T extends { capo: number; shapeKey: string }>(setups: T[]) {
   const seen = new Set<string>();
   return setups.filter((setup) => {
     const value = setupValue(setup);
@@ -665,7 +665,7 @@ export function MusicianLiveView({ controlPlanId, onExit, plan, songs }: Musicia
   const currentAbsoluteKey = currentGuitarKey ? deriveAbsoluteKey(currentGuitarKey, capo) : null;
   const baseAbsoluteKey = chordChart.absoluteKey ?? chordChart.capoKey ?? currentGuitarKey ?? MUSICAL_KEYS[0];
   const activeKeyLabel = currentGuitarKey
-    ? `${currentGuitarKey}${capo > 0 ? `c${capo}` : ""}`
+    ? `${currentGuitarKey}c${capo}${currentAbsoluteKey ? ` (${currentAbsoluteKey})` : ""}`
     : "unset";
   const originalCapo = normalizeCapo(chordChart.capo);
   const originalShapeKey = chordChart.absoluteKey ?? chordChart.capoKey ?? null;
@@ -677,7 +677,6 @@ export function MusicianLiveView({ controlPlanId, onExit, plan, songs }: Musicia
           capo: originalCapo,
           distance: 0,
           isOriginal: true,
-          optionValue: `original:${originalShapeKey}:${originalCapo}`,
           shapeKey: originalShapeKey,
         }
       : null;
@@ -706,7 +705,6 @@ export function MusicianLiveView({ controlPlanId, onExit, plan, songs }: Musicia
         isAbsolute?: boolean;
         isCurrent?: boolean;
         isOriginal?: boolean;
-        optionValue?: string;
         shapeKey: string;
       } => Boolean(setup),
     ),
@@ -755,7 +753,6 @@ export function MusicianLiveView({ controlPlanId, onExit, plan, songs }: Musicia
               aria-label="Choose guitar key and capo"
               onChange={(event) => {
                 const parts = event.target.value.split(":");
-                if (parts[0] === "original") parts.shift();
                 const [shapeKey, capoValue] = parts;
                 if (!shapeKey) return;
                 setGuitarKey(shapeKey);
@@ -770,9 +767,7 @@ export function MusicianLiveView({ controlPlanId, onExit, plan, songs }: Musicia
                     ? activeKeyLabel
                     : setup.isAbsolute
                       ? setup.absoluteKey
-                      : setup.capo > 0
-                        ? `${setup.shapeKey}c${setup.capo} (${setup.absoluteKey})`
-                        : setup.shapeKey}
+                      : `${setup.shapeKey}c${setup.capo} (${setup.absoluteKey})`}
                 </option>
               ))}
             </select>
