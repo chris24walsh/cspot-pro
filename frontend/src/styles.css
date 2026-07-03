@@ -8124,6 +8124,12 @@ h3 {
   min-height: 92px;
 }
 
+@media (min-width: 541px) {
+  .worship-set-slide-toggle {
+    display: none !important;
+  }
+}
+
 .sunday-school-as-worship .worship-song-browser,
 .sunday-school-as-worship .worship-set-builder {
   padding: 10px;
@@ -8351,9 +8357,33 @@ h3 {
 }
 
 @media (max-width: 540px) {
+  .worship-section-list {
+    grid-auto-rows: max-content;
+  }
+
+  .worship-set-item.slides-expanded {
+    align-items: start;
+    grid-template-rows: auto auto;
+    height: auto;
+    overflow: visible;
+  }
+
+  .worship-set-item.slides-expanded > span,
+  .worship-set-item.slides-expanded > .worship-set-item-body,
+  .worship-set-item.slides-expanded > .worship-set-item-tools {
+    grid-row: 1;
+  }
+
   .worship-set-item.slides-expanded .worship-set-item-slides,
   .sunday-school-element-item.slides-expanded .sunday-school-mobile-resource-panel {
     display: grid;
+  }
+
+  .worship-set-item.slides-expanded .worship-set-item-slides {
+    grid-row: 2;
+    min-width: 0;
+    position: static;
+    width: 100%;
   }
 
   .worship-slide-review {
