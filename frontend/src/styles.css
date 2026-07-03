@@ -2091,6 +2091,43 @@ h3 {
   min-width: 0;
 }
 
+.worship-inline-suggestion-controls {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 4px;
+}
+
+.worship-inline-suggestion-controls label {
+  display: grid;
+  place-items: center;
+}
+
+.worship-inline-suggestion-controls input {
+  accent-color: #234a40;
+  height: 18px;
+  margin: 0;
+  width: 18px;
+}
+
+.worship-inline-suggestion-controls > span {
+  background: #fffdf7;
+  border: 1px solid #d8d0bd;
+  border-radius: 999px;
+  color: #4b5a52;
+  font-size: 10px;
+  font-weight: 850;
+  padding: 3px 6px;
+  white-space: nowrap;
+}
+
+.worship-inline-suggestion-controls .section-icon-button {
+  min-height: 26px;
+  min-width: 26px;
+  padding: 0;
+}
+
 .worship-sorter-heading {
   align-items: stretch;
   display: grid;
@@ -3485,8 +3522,24 @@ h3 {
 }
 
 .song-editor-action-button {
-  min-height: 34px;
-  min-width: 34px;
+  min-height: 46px;
+  min-width: 46px;
+}
+
+.song-editor-save-status {
+  align-self: center;
+  font-size: 12px;
+  font-weight: 900;
+  min-width: 58px;
+  text-align: center;
+}
+
+.song-editor-save-status.is-saved {
+  color: #28705b;
+}
+
+.song-editor-save-status.is-unsaved {
+  color: #9a521d;
 }
 
 .song-editor-save-button {

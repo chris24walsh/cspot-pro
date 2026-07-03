@@ -4,20 +4,17 @@ import { useEffect, useMemo, useState } from "react";
 import { createSong, updateSong, type Song } from "../api";
 import {
   createEmptyChordChart,
-  deriveAbsoluteKey,
   deriveCapoKey,
   displayChord,
   LEADING_CHORD_ANCHORS,
   lyricLines,
   MUSICAL_KEYS,
   normalizeChordSymbolInput,
-  normalizeKeySignature,
   parseChordChart,
   removeChordAnnotation,
-  semitoneDistance,
   serializeChordChart,
+  setChordChartAbsoluteKey,
   TRAILING_CHORD_ANCHORS,
-  transposeChordAnnotations,
   transposeChordSymbol,
   upsertChordAnnotation,
   validateChordSymbol,
@@ -27,6 +24,7 @@ import {
   type ChordDisplayMode,
 } from "../chordSheet";
 import { canonicalizeWorshipLyrics, normalizeWorshipSequence } from "../worshipText";
+import { useConfirmationDialog } from "./ConfirmationDialog";
 
 type SongForm = Omit<Song, "id" | "lyrics_status">;
 type SongEditorTab = "lyrics" | "details" | "chords";
@@ -263,6 +261,7 @@ export function SongEditorDialog({
   onSaved: (song: Song) => void | Promise<void>;
   song: Song;
 }) {
+  const { confirm, confirmationDialog } = useConfirmationDialog();
   const [tab, setTab] = useState<SongEditorTab>("lyrics");
   const [form, setForm] = useState<SongForm>(() => formFromSong(song));
   const [chordChart, setChordChart] = useState<ChordChartDocument>(() => parseChordChart(song.chords).document);
@@ -277,6 +276,9 @@ export function SongEditorDialog({
   const [hoveredChordId, setHoveredChordId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [persistedSongId, setPersistedSongId] = useState<string | null>(mode === "edit" ? song.id : null);
+  const [lastSavedSong, setLastSavedSong] = useState(song);
+  const [savedSignature, setSavedSignature] = useState(() => mode === "create" ? "" : JSON.stringify(normalizeForm(formFromSong(song), song.chords)));
   const displayMode: ChordDisplayMode = "absolute";
   const detailMode: ChordDetailMode = "advanced";
   const lines = useMemo(() => lyricLines(form.lyrics), [form.lyrics]);
@@ -301,7 +303,10 @@ export function SongEditorDialog({
     setLegacyChords(parsed.legacyText);
     setTab("lyrics");
     setMessage(null);
-  }, [song]);
+    setPersistedSongId(mode === "edit" ? song.id : null);
+    setLastSavedSong(song);
+    setSavedSignature(mode === "create" ? "" : JSON.stringify(normalizeForm(formFromSong(song), song.chords)));
+  }, [mode, song]);
 
   useEffect(() => {
     setChordChart((current) => ({
@@ -325,25 +330,7 @@ export function SongEditorDialog({
   }
 
   function updateAbsoluteKey(nextValue: string) {
-    const nextAbsoluteKey = normalizeKeySignature(nextValue);
-    setChordChart((current) => {
-      const linked = current.absoluteKey && current.capoKey && deriveAbsoluteKey(current.capoKey, current.capo) === current.absoluteKey;
-      const nextChart: ChordChartDocument = { ...current, absoluteKey: nextAbsoluteKey, keyAnchor: "absolute" };
-      if (nextAbsoluteKey && current.absoluteKey && linked && nextAbsoluteKey !== current.absoluteKey) {
-        nextChart.annotations = transposeChordAnnotations(current.annotations, semitoneDistance(current.absoluteKey, nextAbsoluteKey), {
-          preferFlats: nextAbsoluteKey.includes("b"),
-        });
-      }
-      if (nextAbsoluteKey) {
-        if (current.capoKey) {
-          if (current.keyAnchor === "capo") nextChart.capo = semitoneDistance(current.capoKey, nextAbsoluteKey);
-          else nextChart.capoKey = deriveCapoKey(nextAbsoluteKey, current.capo);
-        } else if (current.capo > 0) {
-          nextChart.capoKey = deriveCapoKey(nextAbsoluteKey, current.capo);
-        }
-      }
-      return nextChart;
-    });
+    setChordChart((current) => setChordChartAbsoluteKey(current, nextValue));
     setLegacyChords(null);
   }
 
@@ -491,9 +478,12 @@ export function SongEditorDialog({
     setMessage(null);
     try {
       const payload = normalizeForm(form, serializeChordChart(chordChart, legacyChords));
-      const saved = mode === "create" ? await createSong(payload) : await updateSong(song.id, payload);
+      const saved = persistedSongId ? await updateSong(persistedSongId, payload) : await createSong(payload);
+      setPersistedSongId(saved.id);
+      setLastSavedSong(saved);
+      setSavedSignature(JSON.stringify(normalizeForm(formFromSong(saved), saved.chords)));
       await onSaved(saved);
-      onClose();
+      setMessage("Saved.");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Could not save song.");
     } finally {
@@ -501,7 +491,22 @@ export function SongEditorDialog({
     }
   }
 
+  const currentSignature = JSON.stringify(normalizeForm(form, serializeChordChart(chordChart, legacyChords)));
+  const isDirty = currentSignature !== savedSignature;
+
+  async function archiveSong() {
+    if (!onArchive) return;
+    const confirmed = await confirm({
+      confirmLabel: "Archive song",
+      message: `Archive “${lastSavedSong.title}”?`,
+      title: "Archive song",
+      tone: "danger",
+    });
+    if (confirmed) await onArchive(lastSavedSong);
+  }
+
   return (
+    <>
     <div className="app-dialog-backdrop" role="presentation" onMouseDown={onClose}>
       <section
         aria-labelledby="song-editor-dialog-title"
@@ -522,7 +527,7 @@ export function SongEditorDialog({
                   aria-label="Archive song"
                   className="section-icon-button section-remove-button song-editor-action-button"
                   disabled={saving || !canEdit}
-                  onClick={() => void onArchive(song)}
+                  onClick={() => void archiveSong()}
                   title="Archive song"
                   type="button"
                 >
@@ -535,13 +540,16 @@ export function SongEditorDialog({
               <button
                 aria-label={saving ? "Saving song" : "Save song"}
                 className="section-icon-button song-editor-action-button song-editor-save-button"
-                disabled={saving || !canEdit || !form.title.trim()}
+                disabled={saving || !isDirty || !canEdit || !form.title.trim()}
                 onClick={() => void saveSong()}
                 title={saving ? "Saving..." : "Save song"}
                 type="button"
               >
                 <Save size={16} aria-hidden="true" />
               </button>
+              <span className={`song-editor-save-status ${isDirty ? "is-unsaved" : "is-saved"}`}>
+                {saving ? "Saving…" : isDirty ? "Unsaved" : "Saved"}
+              </span>
             </div>
           </div>
           {message ? <p className="form-message">{message}</p> : null}
@@ -613,7 +621,7 @@ export function SongEditorDialog({
                         {MUSICAL_KEYS.map((keyOption) => <option key={keyOption} value={keyOption}>{keyOption}</option>)}
                       </select>
                     </label>
-                    <label className="compact-field musician-capo-field">Capo<input disabled={!canEdit} min={0} onChange={(event) => updateCapo(Number(event.target.value || 0))} type="number" value={chordChart.capo} /></label>
+                    <label className="compact-field musician-capo-field">Capo<select disabled={!canEdit} onChange={(event) => updateCapo(Number(event.target.value))} value={chordChart.capo}>{[0, 1, 2, 3, 4, 5].map((capo) => <option key={capo} value={capo}>{capo}</option>)}</select></label>
                     <button className="text-button musician-copy-verse-button" disabled={!canEdit || lineAnnotations.length === 0} onClick={copyVerseChords} type="button">
                       <Copy size={14} aria-hidden="true" />
                       Copy Verse Chords
@@ -724,5 +732,7 @@ export function SongEditorDialog({
         </div>
       </section>
     </div>
+    {confirmationDialog}
+    </>
   );
 }

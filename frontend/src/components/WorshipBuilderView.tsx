@@ -18,6 +18,7 @@ import {
   getMembers,
   getWorshipLeaderAssignments,
   getWorshipSetSuggestion,
+  getWorshipSongUsage,
   parseGoogleDriveDeck,
   runCustomProviderSearch,
   searchGoogleDriveFiles,
@@ -39,6 +40,7 @@ import {
   type PlanType,
   type Song,
   type WorshipSuggestedSong,
+  type WorshipSongUsage,
   type WorshipLeaderAssignment,
 } from "../api";
 import { buildPresentationSections, suggestSlideGroupFontCap } from "../presentation";
@@ -369,6 +371,8 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
   const [suggestedSongs, setSuggestedSongs] = useState<WorshipSuggestedSong[]>([]);
   const [includedSuggestionIds, setIncludedSuggestionIds] = useState<Set<string>>(new Set());
   const [suggestionRefreshing, setSuggestionRefreshing] = useState(false);
+  const [suggestionItemIds, setSuggestionItemIds] = useState<Set<string>>(new Set());
+  const [songUsage, setSongUsage] = useState<Map<string, WorshipSongUsage>>(new Map());
   const [editingSong, setEditingSong] = useState<Song | null>(null);
   const [songEditorMode, setSongEditorMode] = useState<"create" | "edit">("edit");
   const [newSongPromptOpen, setNewSongPromptOpen] = useState(false);
@@ -630,12 +634,13 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
   async function load(targetPlanId?: string) {
     setLoading(true);
     try {
-      const [nextPlans, nextSongs, nextPlanTypes, nextUsers, nextLeaderAssignments] = await Promise.all([
+      const [nextPlans, nextSongs, nextPlanTypes, nextUsers, nextLeaderAssignments, nextSongUsage] = await Promise.all([
         getPlans(),
         getSongs(),
         getPlanTypes(),
         getMembers(),
         getWorshipLeaderAssignments(),
+        getWorshipSongUsage(),
       ]);
       const nextWorshipPlans = nextPlans.filter(isWorshipSetPlan);
       const requestedPlanId =
@@ -656,6 +661,7 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
       setUsers(nextUsers);
       setPlanTypes(nextPlanTypes);
       setLeaderAssignments(nextLeaderAssignments);
+      setSongUsage(new Map(nextSongUsage.map((usage) => [usage.song_id, usage])));
       setSelectedPlanId(resolvedPlanId);
       if (resolvedPlanId) {
         sessionStorage.setItem(SELECTED_WORSHIP_SET_SESSION_KEY, resolvedPlanId);
@@ -669,6 +675,7 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
       setSelectedItemId((current) =>
         current && nextWorshipItems.some((item) => item.id === current) ? current : nextWorshipItems[0]?.id ?? null,
       );
+      setSuggestionItemIds((current) => new Set([...current].filter((itemId) => nextWorshipItems.some((item) => item.id === itemId))));
       setMessage(null);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Could not load worship builder.");
@@ -906,6 +913,117 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
       setMessage(error instanceof Error ? error.message : "Could not suggest a worship set.");
     } finally {
       setSuggesting(false);
+    }
+  }
+
+  function suggestionSlot(index: number, count: number) {
+    if (index === 0) return "opener";
+    if (index === count - 1) return "closer";
+    return "middle";
+  }
+
+  function usageLabel(songId: string | null) {
+    const usage = songId ? songUsage.get(songId) : null;
+    if (!usage?.last_used) return "not used yet";
+    const days = Math.max(0, Math.floor((Date.now() - new Date(usage.last_used).getTime()) / 86_400_000));
+    return `not used for ${days} day${days === 1 ? "" : "s"}`;
+  }
+
+  function toggleSuggestionItem(itemId: string) {
+    setSuggestionItemIds((current) => {
+      const next = new Set(current);
+      if (next.has(itemId)) next.delete(itemId);
+      else next.add(itemId);
+      return next;
+    });
+  }
+
+  async function replaceWorshipItems(itemsToReplace: PlanItem[]) {
+    if (!plan || !itemsToReplace.length) return 0;
+    const before = snapshotWorshipItems(plan.items);
+    const blockedSongIds = new Set(worshipItems.flatMap((item) => item.song_id ? [item.song_id] : []));
+    let replacementCount = 0;
+    for (const item of itemsToReplace) {
+      if (item.song_id) blockedSongIds.delete(item.song_id);
+      const index = worshipItems.findIndex((candidate) => candidate.id === item.id);
+      const replacement = await suggestionReplacementForSlot(
+        suggestionSlot(Math.max(index, 0), worshipItems.length),
+        blockedSongIds,
+      );
+      if (!replacement) continue;
+      await updatePlanItem(item.id, {
+        item_type: "song",
+        title: replacement.song.title,
+        comment: `${replacement.slot}: ${replacement.reason}`,
+        key_signature: null,
+        song_id: replacement.song.id,
+      });
+      replacementCount += 1;
+    }
+    if (replacementCount) {
+      const updated = await getPlan(plan.id);
+      await recordSetHistory(
+        plan.id,
+        `swapping ${replacementCount} suggested song${replacementCount === 1 ? "" : "s"}`,
+        before,
+        snapshotWorshipItems(updated.items),
+        `${replacementCount} song${replacementCount === 1 ? "" : "s"} swapped`,
+      );
+      setSuggestionItemIds(new Set());
+      await load(plan.id);
+    }
+    return replacementCount;
+  }
+
+  async function suggestInlineWorshipSet() {
+    if (!plan || !canEditPlan || suggesting) return;
+    setSuggesting(true);
+    try {
+      if (!worshipItems.length) {
+        const suggestion = await getWorshipSetSuggestion(5);
+        const before = snapshotWorshipItems(plan.items);
+        const createdItems: PlanItem[] = [];
+        let sequence = 1;
+        for (const entry of suggestion.songs.slice(0, 5)) {
+          createdItems.push(await createPlanItem(plan.id, {
+            item_type: "song",
+            sequence: sequence.toFixed(2),
+            title: entry.song.title,
+            comment: `${entry.slot}: ${entry.reason}`,
+            key_signature: null,
+            song_id: entry.song.id,
+          }));
+          sequence += 1;
+        }
+        await recordSetHistory(plan.id, "adding five suggested songs", before, snapshotWorshipItems([...plan.items, ...createdItems]), `${createdItems.length} songs added`);
+        await load(plan.id);
+        setMessage(`Added ${createdItems.length} suggested songs.`);
+      } else {
+        const checked = worshipItems.filter((item) => suggestionItemIds.has(item.id));
+        if (!checked.length) {
+          setMessage("Tick the worship items you want to suggest or swap.");
+          return;
+        }
+        const count = await replaceWorshipItems(checked);
+        setMessage(count ? `Swapped ${count} checked song${count === 1 ? "" : "s"}.` : "No fresh suggestions found.");
+      }
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not suggest this worship set.");
+    } finally {
+      setSuggesting(false);
+    }
+  }
+
+  async function swapWorshipItem(item: PlanItem) {
+    if (suggestionRefreshing) return;
+    setSuggestionRefreshing(true);
+    try {
+      const count = await replaceWorshipItems([item]);
+      setMessage(count ? "Song suggestion swapped." : "No fresh suggestion found.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not swap this song.");
+    } finally {
+      setSuggestionRefreshing(false);
     }
   }
 
@@ -1592,8 +1710,8 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
                 />
               </div>
               <div className="worship-set-topbar-actions">
-                <button className="text-button topbar-action-button" disabled={!plan || !canEditPlan || suggesting} onClick={() => void suggestWorshipSet()} type="button">
-                  {suggesting ? "Suggesting..." : "Suggest Set"}
+                <button className="text-button topbar-action-button" disabled={!plan || !canEditPlan || suggesting} onClick={() => void suggestInlineWorshipSet()} type="button">
+                  {suggesting ? "Suggesting..." : worshipItems.length ? "Suggest/Swap Checked" : "Suggest 5 Songs"}
                 </button>
                 <button className="primary-button topbar-primary-button" disabled={!plan} onClick={() => setViewMode("live")} type="button">
                   <MonitorUp size={16} aria-hidden="true" />
@@ -1622,8 +1740,8 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
       </div>
       {mobileBuilderPane === "set" ? (
         <div className="worship-mobile-actions" aria-label="Worship set actions">
-          <button className="text-button" disabled={!plan || !canEditPlan || suggesting} onClick={() => void suggestWorshipSet()} type="button">
-            {suggesting ? "Suggesting..." : "Suggest Set"}
+          <button className="text-button" disabled={!plan || !canEditPlan || suggesting} onClick={() => void suggestInlineWorshipSet()} type="button">
+            {suggesting ? "Suggesting..." : worshipItems.length ? "Suggest/Swap Checked" : "Suggest 5 Songs"}
           </button>
           <button className="primary-button" disabled={!plan} onClick={() => setViewMode("live")} type="button">
             <MonitorUp size={16} aria-hidden="true" />
@@ -1706,6 +1824,29 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
                     <div className="worship-set-item-body">
                       <strong>{song ? compactSongTitle(song) : item.title}</strong>
                       {isSelected ? <small>insert next song after this</small> : null}
+                      <div className="worship-inline-suggestion-controls" onClick={(event) => event.stopPropagation()}>
+                        <label title="Include this item when suggesting songs">
+                          <input
+                            aria-label={`Suggest or swap ${song ? song.title : item.title}`}
+                            checked={suggestionItemIds.has(item.id)}
+                            disabled={!canEditPlan}
+                            onChange={() => toggleSuggestionItem(item.id)}
+                            type="checkbox"
+                          />
+                        </label>
+                        <span>{suggestionSlot(index, worshipItems.length)}</span>
+                        <span>{usageLabel(item.song_id)}</span>
+                        <button
+                          aria-label={`Swap suggestion for ${song ? song.title : item.title}`}
+                          className="section-icon-button"
+                          disabled={!canEditPlan || suggestionRefreshing}
+                          onClick={() => void swapWorshipItem(item)}
+                          title="Swap/regenerate suggestion"
+                          type="button"
+                        >
+                          <RefreshCw size={13} aria-hidden="true" />
+                        </button>
+                      </div>
                     </div>
                     <div className="worship-set-item-tools" onClick={(event) => event.stopPropagation()}>
                       <button

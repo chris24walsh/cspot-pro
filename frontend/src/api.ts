@@ -159,6 +159,12 @@ export interface WorshipSetSuggestion {
   songs: WorshipSuggestedSong[];
 }
 
+export interface WorshipSongUsage {
+  song_id: string;
+  use_count: number;
+  last_used: string | null;
+}
+
 export interface Role {
   id: string;
   name: string;
@@ -919,6 +925,10 @@ export async function getWorshipSetSuggestion(limit = 5, slots: string[] = []): 
   const search = new URLSearchParams({ limit: String(limit) });
   slots.forEach((slot) => search.append("slots", slot));
   return getJson<WorshipSetSuggestion>(`/api/v1/music/worship-suggestions?${search.toString()}`);
+}
+
+export async function getWorshipSongUsage(): Promise<WorshipSongUsage[]> {
+  return getJson<WorshipSongUsage[]>("/api/v1/music/worship-usage");
 }
 
 export async function createSong(payload: Omit<Song, "id" | "lyrics_status">): Promise<Song> {

@@ -280,6 +280,12 @@ Search modes:
   view. An authorized close works across devices and leaves a close marker so the
   former output cannot reclaim itself with a late heartbeat. Service-view `B`
   controls blanking and `F` toggles its locally opened output fullscreen.
+- Worship-set suggestions are edited inline: an empty set is seeded with five
+  songs, while populated sets replace only checked rows. Each row exposes its
+  position, rotation age, and a one-song regenerate action.
+- Changing a song's set key permanently transposes stored chord annotations;
+  capo (0–5) changes display metadata only. Song saves stay in the editor with
+  explicit Saved/Unsaved state, and song archiving requires confirmation.
 - coherent modular monolith shape
 - container-first local development
 - real end-to-end vertical slices already exist

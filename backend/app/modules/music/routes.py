@@ -1,15 +1,15 @@
-from datetime import UTC, datetime
 import json
 import math
 import secrets
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
 from app.core.database import get_session
-from app.modules.identity.models import User
 from app.modules.identity.auth import require_any_permission, require_permission
+from app.modules.identity.models import User
 from app.modules.music.models import Song, SongPart
 from app.modules.music.schemas import (
     SongCreate,
@@ -17,11 +17,12 @@ from app.modules.music.schemas import (
     SongRead,
     SongUpdate,
     WorshipSetSuggestionRead,
+    WorshipSongUsageEntryRead,
     WorshipSongUsageRead,
     WorshipSuggestedSongRead,
 )
 from app.modules.music.text import normalize_song_text
-from app.modules.planning.models import HistoryEntry, Plan, PlanItem, PlanType
+from app.modules.planning.models import HistoryEntry
 
 router = APIRouter()
 SONG_HISTORY_ACTION = "item_snapshot"
@@ -358,6 +359,25 @@ def suggest_worship_set(
         )
 
     return WorshipSetSuggestionRead(songs=suggested)
+
+
+@router.get("/worship-usage", response_model=list[WorshipSongUsageEntryRead])
+def worship_song_usage(
+    _current_user: User = Depends(require_permission("songs:read")),
+    session: Session = Depends(get_session),
+) -> list[WorshipSongUsageEntryRead]:
+    return [
+        WorshipSongUsageEntryRead(
+            song_id=song_id,
+            use_count=int(values.get("use_count") or 0),
+            last_used=(
+                last_used.isoformat()
+                if isinstance((last_used := values.get("last_used")), datetime)
+                else None
+            ),
+        )
+        for song_id, values in _song_usage(session).items()
+    ]
 
 
 @router.post("/songs", response_model=SongRead, status_code=status.HTTP_201_CREATED)

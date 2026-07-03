@@ -58,6 +58,10 @@ class WorshipSongUsageRead(BaseModel):
     last_used: str | None = None
 
 
+class WorshipSongUsageEntryRead(WorshipSongUsageRead):
+    song_id: str
+
+
 class WorshipSuggestedSongRead(BaseModel):
     song: SongRead
     slot: str

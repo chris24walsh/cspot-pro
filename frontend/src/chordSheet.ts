@@ -242,6 +242,20 @@ export function deriveAbsoluteKey(capoKey: string, capo: number) {
   return transposeNote(capoKey, capo, capoKey.includes("b"));
 }
 
+export function setChordChartAbsoluteKey(document: ChordChartDocument, value: string): ChordChartDocument {
+  const absoluteKey = normalizeKeySignature(value);
+  const next: ChordChartDocument = { ...document, absoluteKey, keyAnchor: "absolute" };
+  if (absoluteKey && document.absoluteKey && absoluteKey !== document.absoluteKey) {
+    next.annotations = transposeChordAnnotations(
+      document.annotations,
+      semitoneDistance(document.absoluteKey, absoluteKey),
+      { preferFlats: absoluteKey.includes("b") },
+    );
+  }
+  next.capoKey = absoluteKey && document.capo > 0 ? deriveCapoKey(absoluteKey, document.capo) : null;
+  return next;
+}
+
 export function transposeChordAnnotations(
   annotations: ChordAnnotation[],
   semitones: number,
