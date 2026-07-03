@@ -85,7 +85,7 @@ function clampNumber(value: number, min: number, max: number) {
 }
 
 function normalizeCapo(value: number) {
-  return Math.min(Math.max(Math.trunc(value), 0), 5);
+  return Math.min(Math.max(Math.trunc(value), 0), 11);
 }
 
 const PLAYABLE_SHAPE_KEYS = ["C", "G"] as const;
@@ -99,7 +99,7 @@ function bestPlayableSetup(targetKey: string | null, shapeKey: string) {
   if (!targetKey) {
     return { absoluteKey: shapeKey, capo: 0, distance: 0, shapeKey };
   }
-  return Array.from({ length: 6 }, (_, capoOption) => {
+  return Array.from({ length: 12 }, (_, capoOption) => {
     const absoluteKey = deriveAbsoluteKey(shapeKey, capoOption);
     return {
       absoluteKey,
@@ -665,7 +665,9 @@ export function MusicianLiveView({ controlPlanId, onExit, plan, songs }: Musicia
   const currentAbsoluteKey = currentGuitarKey ? deriveAbsoluteKey(currentGuitarKey, capo) : null;
   const baseAbsoluteKey = chordChart.absoluteKey ?? chordChart.capoKey ?? currentGuitarKey ?? MUSICAL_KEYS[0];
   const activeKeyLabel = currentGuitarKey
-    ? `${currentGuitarKey}c${capo}${currentAbsoluteKey ? ` (${currentAbsoluteKey})` : ""}`
+    ? capo > 0
+      ? `${currentGuitarKey}c${capo}${currentAbsoluteKey ? ` (${currentAbsoluteKey})` : ""}`
+      : currentGuitarKey
     : "unset";
   const originalCapo = normalizeCapo(chordChart.capo);
   const originalShapeKey = chordChart.absoluteKey ?? chordChart.capoKey ?? null;
@@ -767,7 +769,9 @@ export function MusicianLiveView({ controlPlanId, onExit, plan, songs }: Musicia
                     ? activeKeyLabel
                     : setup.isAbsolute
                       ? setup.absoluteKey
-                      : `${setup.shapeKey}c${setup.capo} (${setup.absoluteKey})`}
+                      : setup.capo > 0
+                        ? `${setup.shapeKey}c${setup.capo} (${setup.absoluteKey})`
+                        : setup.shapeKey}
                 </option>
               ))}
             </select>
