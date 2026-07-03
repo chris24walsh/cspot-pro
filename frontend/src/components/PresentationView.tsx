@@ -1023,9 +1023,18 @@ export function PresentationView({
   }
 
   function applyRemoteLiveState(state: PresentationLiveState) {
+    const sectionChanged = currentLiveStateRef.current?.planItemId !== state.planItemId;
     currentLiveStateRef.current = state;
     suppressPublishRef.current = true;
     lastLiveStateRef.current = state.updatedAt;
+    if (sectionChanged) {
+      catchUpCheckTokenRef.current += 1;
+      scrollOperatorToSelectedSlideRef.current = true;
+      sorterCatchUpDirectionRef.current = null;
+      railCatchUpDirectionRef.current = null;
+      setSorterCatchUpDirection(null);
+      setRailCatchUpDirection(null);
+    }
     setSlideTheme(state.theme ?? "light");
     setLiveBlanked(Boolean(state.blanked));
     setLiveIndex(resolveLiveIndex(slides, state));
