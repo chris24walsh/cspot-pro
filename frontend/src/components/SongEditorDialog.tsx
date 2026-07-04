@@ -1,4 +1,4 @@
-import { Archive, Copy, Search, Save, WandSparkles, X } from "lucide-react";
+import { Archive, Copy, ListRestart, Search, Save, WandSparkles, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
 import { createSong, updateSong, type Song } from "../api";
@@ -493,6 +493,28 @@ export function SongEditorDialog({
     }
   }
 
+  async function formatLyricsAndSequence() {
+    if (!canEdit || !persistedSongId || isDirty) return;
+    setSaving(true);
+    setMessage(null);
+    try {
+      const normalized = normalizeForm(form, serializeChordChart(chordChart, legacyChords));
+      const saved = await updateSong(persistedSongId, {
+        lyrics: normalized.lyrics,
+        sequence: normalized.sequence,
+      });
+      setForm(formFromSong(saved));
+      setLastSavedSong(saved);
+      setSavedSignature(JSON.stringify(normalizeForm(formFromSong(saved), saved.chords)));
+      await onSaved(saved);
+      setMessage("Formatted lyric labels and sequence.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not format this song.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
   const currentSignature = JSON.stringify(normalizeForm(form, serializeChordChart(chordChart, legacyChords)));
   const isDirty = currentSignature !== savedSignature;
 
@@ -524,6 +546,18 @@ export function SongEditorDialog({
               <h2 id="song-editor-dialog-title">{mode === "create" ? "New Song" : form.title || song.title}</h2>
             </div>
             <div className="action-row">
+              {mode === "edit" ? (
+                <button
+                  aria-label="Format lyric labels and sequence"
+                  className="section-icon-button song-editor-action-button"
+                  disabled={saving || isDirty || !canEdit || !lastSavedSong.lyrics?.trim()}
+                  onClick={() => void formatLyricsAndSequence()}
+                  title={isDirty ? "Save changes before formatting" : "Format lyric labels and sequence"}
+                  type="button"
+                >
+                  <ListRestart size={16} aria-hidden="true" />
+                </button>
+              ) : null}
               {mode === "edit" && !lastSavedSong.lyrics?.trim() && onFindLyrics ? (
                 <button
                   aria-label="Find lyrics from provider"
