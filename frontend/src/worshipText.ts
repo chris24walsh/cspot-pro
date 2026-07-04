@@ -931,13 +931,24 @@ function stripLeadingTitleBlock(blocks: string[], title: string | null) {
         .split(/\r?\n/)
         .map((line) => line.trim())
         .filter(Boolean);
+      const firstLineIsRepeatedLyric =
+        index === 0 &&
+        lines.length > 1 &&
+        lineMatchesTitleNoise(lines[0], title) &&
+        [
+          ...lines.slice(1),
+          ...blocks.slice(1).flatMap((candidate) => candidate.split(/\r?\n/).map((line) => line.trim()).filter(Boolean)),
+        ].some((line) => lineMatchesTitleNoise(line, title));
       while (
         lines.length &&
-        ((index === 0 && lineMatchesTitleNoise(lines[0], title)) ||
+        ((index === 0 && (lineMatchesTitleSuffixNoise(lines[0], title) || firstLineIsRepeatedLyric)) ||
           (index > 0 && lineMatchesTitleSuffixNoise(lines[0], title)))
       ) {
         lines.shift();
         removedInlineTitle = true;
+        if (index === 0) {
+          break;
+        }
       }
       return lines.join("\n").trim();
     })

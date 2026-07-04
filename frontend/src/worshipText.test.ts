@@ -1,8 +1,28 @@
 import { describe, expect, it } from "vitest";
 
-import { canonicalizeWorshipLyrics, normalizeWorshipSequence, sequenceFromWorshipLyrics } from "./worshipText";
+import { analyzeWorshipText, canonicalizeWorshipLyrics, normalizeWorshipSequence, sequenceFromWorshipLyrics } from "./worshipText";
 
 describe("worship text normalization", () => {
+  it("preserves a hymn title when it is also the genuine first lyric line", () => {
+    const result = analyzeWorshipText(
+      "Abide with me\nFast falls the eventide\nThe darkness deepens\nLord, with me abide\n\nSwift to its close ebbs out life's little day",
+      { title: "Abide with me" },
+    );
+
+    expect(result.sections[0]?.content).toContain("Abide with me");
+    expect(result.notes).not.toContain("Removed title noise from imported lyrics.");
+  });
+
+  it("removes a provider title heading when the opening lyric repeats it", () => {
+    const result = analyzeWorshipText(
+      "Abide with me\nAbide with me\nFast falls the eventide\nThe darkness deepens\nLord, with me abide\n\nSwift to its close ebbs out life's little day",
+      { title: "Abide with me" },
+    );
+
+    expect(result.sections[0]?.content.match(/Abide with me/g)).toHaveLength(1);
+    expect(result.notes).toContain("Removed title noise from imported lyrics.");
+  });
+
   it("keeps a sequence aligned when lyric verses are renumbered", () => {
     const lyrics = "Verse 3\nFirst\n\nChorus\nSing\n\nVerse 4\nSecond";
 
