@@ -1762,6 +1762,20 @@ h3 {
   white-space: nowrap;
 }
 
+.worship-source-filter {
+  background: #fffefa;
+  border: 1px solid #cfc7b4;
+  border-radius: 8px;
+  color: #234a40;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 800;
+  grid-column: 1 / -1;
+  min-height: 34px;
+  padding: 4px 8px;
+  width: 100%;
+}
+
 .worship-panel-heading {
   align-items: center;
   display: flex;

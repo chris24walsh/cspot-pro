@@ -190,6 +190,10 @@ function songLibraryStatusClass(song: Song) {
   return "song-library-row-complete";
 }
 
+function songBookSource(song: Song) {
+  return song.book_reference?.replace(/\s+#\d+\s*$/, "").trim() || null;
+}
+
 function normalizedTitle(value: string) {
   return value
     .toLowerCase()
@@ -364,6 +368,7 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
   const [selectedLeaderId, setSelectedLeaderId] = useState<string | null>(null);
   const [leaderAssignments, setLeaderAssignments] = useState<WorshipLeaderAssignment[]>([]);
   const [query, setQuery] = useState("");
+  const [bookSourceFilter, setBookSourceFilter] = useState("all");
   const [loading, setLoading] = useState(true);
   const [suggesting, setSuggesting] = useState(false);
   const [historyImportOpen, setHistoryImportOpen] = useState(false);
@@ -478,17 +483,31 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
     [worshipSections],
   );
 
+  const bookSourceOptions = useMemo(
+    () =>
+      Array.from(new Set(songs.map(songBookSource).filter((source): source is string => Boolean(source)))).sort((left, right) =>
+        left.localeCompare(right),
+      ),
+    [songs],
+  );
+
   const filteredSongs = useMemo(() => {
     const normalized = query.trim().toLowerCase();
     return songs
       .filter((song) => {
-        if (!normalized) {
-          return true;
+        const source = songBookSource(song);
+        const sourceMismatch =
+          bookSourceFilter === "none" ? source !== null : bookSourceFilter !== "all" && source !== bookSourceFilter;
+        if (sourceMismatch) {
+          return false;
         }
-        return `${song.title} ${song.author ?? ""} ${song.alternate_title ?? ""} ${song.lyrics ?? ""}`.toLowerCase().includes(normalized);
+        if (!normalized) return true;
+        return `${song.title} ${song.author ?? ""} ${song.alternate_title ?? ""} ${song.lyrics ?? ""} ${song.book_reference ?? ""} ${song.theme_tags ?? ""}`
+          .toLowerCase()
+          .includes(normalized);
       })
       .slice(0, 80);
-  }, [query, songs]);
+  }, [bookSourceFilter, query, songs]);
 
   const selectedCustomProviderMatch =
     customProviderResult?.matches.find((match) => match.id === selectedCustomProviderMatchId) ?? null;
@@ -1777,6 +1796,18 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
           <button className="text-button" disabled={!canCreateSong} onClick={openNewSongPrompt} type="button">
             New Song
           </button>
+          <select
+            aria-label="Filter songs by book or source"
+            className="worship-source-filter"
+            onChange={(event) => setBookSourceFilter(event.target.value)}
+            value={bookSourceFilter}
+          >
+            <option value="all">All books and sources</option>
+            {bookSourceOptions.map((source) => (
+              <option key={source} value={source}>{source}</option>
+            ))}
+            <option value="none">No book or source</option>
+          </select>
         </div>
         <div className="worship-song-list">
           {filteredSongs.map((song) => (
