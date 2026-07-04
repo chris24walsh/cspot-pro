@@ -25,6 +25,7 @@ import {
   selectCustomProviderMatch,
   updatePlan,
   updatePlanItem,
+  updateSong,
   setWorshipLeaderAssignment,
   type CustomProviderMatch,
   type CustomProviderSearchResult,
@@ -394,6 +395,7 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
   const [customProviderSelection, setCustomProviderSelection] = useState<CustomProviderSelectResult | null>(null);
   const [customProviderSelectionLoading, setCustomProviderSelectionLoading] = useState(false);
   const [customProviderImporting, setCustomProviderImporting] = useState(false);
+  const [customImportTargetSong, setCustomImportTargetSong] = useState<Song | null>(null);
   const [editHistory, setEditHistory] = useState<PlanHistoryEntry[]>([]);
   const [editHistoryIndex, setEditHistoryIndex] = useState(0);
   const [editHistoryOpen, setEditHistoryOpen] = useState(false);
@@ -1263,12 +1265,20 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
   }
 
   function openNewSongPrompt() {
+    setCustomImportTargetSong(null);
     resetCustomImportState(query.trim());
+    setNewSongPromptOpen(true);
+  }
+
+  function openProviderForSong(song: Song) {
+    setCustomImportTargetSong(song);
+    resetCustomImportState(song.title);
     setNewSongPromptOpen(true);
   }
 
   function closeNewSongPrompt() {
     setNewSongPromptOpen(false);
+    setCustomImportTargetSong(null);
     resetCustomImportState();
   }
 
@@ -1334,8 +1344,8 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
   }
 
   async function importSelectedWorshipCustomProviderSong() {
-    if (!canCreateSong) {
-      setMessage("Importing a new song into the library needs song-create permission.");
+    if (customImportTargetSong ? !canEditSong : !canCreateSong) {
+      setMessage(customImportTargetSong ? "Editing this song needs song-edit permission." : "Importing a new song into the library needs song-create permission.");
       return;
     }
     if (!selectedCustomProviderMatch || !customProviderSelection?.output_text) {
@@ -1343,13 +1353,15 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
       return;
     }
 
-    const resolvedTitle = selectedCustomProviderMatch.title.trim() || customProviderSelection.title?.trim() || "";
+    const resolvedTitle =
+      customImportTargetSong?.title ??
+      (selectedCustomProviderMatch.title.trim() || customProviderSelection.title?.trim() || "");
     if (!resolvedTitle) {
       setMessage("The imported song needs a title.");
       return;
     }
 
-    const duplicate = findDuplicateSong(resolvedTitle);
+    const duplicate = customImportTargetSong ? null : findDuplicateSong(resolvedTitle);
     if (duplicate) {
       setQuery(duplicate.title);
       closeNewSongPrompt();
@@ -1360,11 +1372,25 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
     setCustomProviderImporting(true);
     try {
       const analysis = analyzeWorshipText(customProviderSelection.output_text, { title: resolvedTitle });
+      const normalizedLyrics = canonicalizeWorshipLyrics(buildLyricsFromSections(analysis.sections) || analysis.lyrics, analysis.sequence);
+      if (customImportTargetSong) {
+        const updatedSong = await updateSong(customImportTargetSong.id, {
+          author: customImportTargetSong.author ?? selectedCustomProviderMatch.subtitle?.trim() ?? null,
+          lyrics: normalizedLyrics,
+          sequence: analysis.sequence,
+          license: customImportTargetSong.license ?? "Unknown",
+        });
+        setSongs((current) => current.map((song) => (song.id === updatedSong.id ? updatedSong : song)));
+        setQuery(updatedSong.title);
+        closeNewSongPrompt();
+        setMessage(`Added lyrics to "${updatedSong.title}".`);
+        return;
+      }
       const importedSong = await createSong({
         title: resolvedTitle,
         alternate_title: null,
         author: selectedCustomProviderMatch.subtitle?.trim() || null,
-        lyrics: canonicalizeWorshipLyrics(buildLyricsFromSections(analysis.sections) || analysis.lyrics, analysis.sequence),
+        lyrics: normalizedLyrics,
         chords: null,
         ccli_number: null,
         book_reference: null,
@@ -2136,19 +2162,19 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
             <div className="section-heading">
               <div>
                 <p className="eyebrow">Song Library</p>
-                <h2 id="new-song-prompt-title">New Song</h2>
+                <h2 id="new-song-prompt-title">{customImportTargetSong ? `Add lyrics to ${customImportTargetSong.title}` : "New Song"}</h2>
               </div>
               <button className="section-icon-button" onClick={closeNewSongPrompt} type="button" aria-label="Close new song">
                 x
               </button>
             </div>
 
-            <div className="new-song-choice-row">
+            {!customImportTargetSong ? <div className="new-song-choice-row">
               <button className="primary-button" disabled={!canCreateSong} onClick={openNewSongEditor} type="button">
                 <Music2 size={16} aria-hidden="true" />
                 Manual Song
               </button>
-            </div>
+            </div> : null}
 
             <div className="custom-provider-panel">
               <div className="custom-provider-header">
@@ -2220,11 +2246,11 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
                     </div>
                     <button
                       className="primary-button"
-                      disabled={!customProviderSelection.output_text || customProviderImporting || !canCreateSong}
+                      disabled={!customProviderSelection.output_text || customProviderImporting || (customImportTargetSong ? !canEditSong : !canCreateSong)}
                       onClick={() => void importSelectedWorshipCustomProviderSong()}
                       type="button"
                     >
-                      {customProviderImporting ? "Importing..." : "Import Song"}
+                      {customProviderImporting ? "Importing..." : customImportTargetSong ? "Add Lyrics" : "Import Song"}
                     </button>
                   </div>
                   {customProviderSelection.notes.length ? (
@@ -2250,6 +2276,10 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
           mode={songEditorMode}
           onArchive={canArchiveSong ? (song) => void archiveLibrarySong(song) : undefined}
           onClose={() => setEditingSong(null)}
+          onFindLyrics={(song) => {
+            setEditingSong(null);
+            openProviderForSong(song);
+          }}
           onSaved={async (updated) => {
             setSongs((current) => {
               const exists = current.some((song) => song.id === updated.id);

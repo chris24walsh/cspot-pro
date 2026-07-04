@@ -1,4 +1,4 @@
-import { Archive, Copy, Search, Save, X } from "lucide-react";
+import { Archive, Copy, Search, Save, WandSparkles, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
 import { createSong, updateSong, type Song } from "../api";
@@ -251,6 +251,7 @@ export function SongEditorDialog({
   mode = "edit",
   onArchive,
   onClose,
+  onFindLyrics,
   onSaved,
   song,
 }: {
@@ -258,6 +259,7 @@ export function SongEditorDialog({
   mode?: "create" | "edit";
   onArchive?: (song: Song) => void | Promise<void>;
   onClose: () => void;
+  onFindLyrics?: (song: Song) => void;
   onSaved: (song: Song) => void | Promise<void>;
   song: Song;
 }) {
@@ -522,6 +524,18 @@ export function SongEditorDialog({
               <h2 id="song-editor-dialog-title">{mode === "create" ? "New Song" : form.title || song.title}</h2>
             </div>
             <div className="action-row">
+              {mode === "edit" && !lastSavedSong.lyrics?.trim() && onFindLyrics ? (
+                <button
+                  aria-label="Find lyrics from provider"
+                  className="section-icon-button song-editor-action-button"
+                  disabled={saving || isDirty || !canEdit}
+                  onClick={() => onFindLyrics(lastSavedSong)}
+                  title={isDirty ? "Save changes before finding lyrics" : "Find lyrics from provider"}
+                  type="button"
+                >
+                  <WandSparkles size={16} aria-hidden="true" />
+                </button>
+              ) : null}
               {mode === "edit" && onArchive ? (
                 <button
                   aria-label="Archive song"
