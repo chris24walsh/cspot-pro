@@ -1826,8 +1826,13 @@ h3 {
 }
 
 .song-library-row-missing-lyrics {
-  background: #fff2ee;
-  border-color: #e4b0a5;
+  background: #ffe3df;
+  border-color: #d97869;
+}
+
+.song-library-row-missing-key {
+  background: #ffedd5;
+  border-color: #e4a24d;
 }
 
 .song-library-row-missing-chords {
@@ -1842,8 +1847,14 @@ h3 {
 
 .song-library-row-missing-lyrics:hover,
 .song-library-row-missing-lyrics:focus-within {
-  background: #ffe8e2;
-  border-color: #c47d6d;
+  background: #ffd5cf;
+  border-color: #bc5547;
+}
+
+.song-library-row-missing-key:hover,
+.song-library-row-missing-key:focus-within {
+  background: #ffe1b8;
+  border-color: #c7812a;
 }
 
 .song-library-row-missing-chords:hover,
@@ -2017,8 +2028,13 @@ h3 {
 }
 
 .worship-set-item.song-library-row-missing-lyrics {
-  background: #fff2ee;
-  border-color: #e4b0a5;
+  background: #ffe3df;
+  border-color: #d97869;
+}
+
+.worship-set-item.song-library-row-missing-key {
+  background: #ffedd5;
+  border-color: #e4a24d;
 }
 
 .worship-set-item.song-library-row-missing-chords {
@@ -2033,8 +2049,14 @@ h3 {
 
 .worship-set-item.song-library-row-missing-lyrics:hover,
 .worship-set-item.song-library-row-missing-lyrics:focus-visible {
-  background: #ffe8e2;
-  border-color: #c47d6d;
+  background: #ffd5cf;
+  border-color: #bc5547;
+}
+
+.worship-set-item.song-library-row-missing-key:hover,
+.worship-set-item.song-library-row-missing-key:focus-visible {
+  background: #ffe1b8;
+  border-color: #c7812a;
 }
 
 .worship-set-item.song-library-row-missing-chords:hover,
@@ -2180,7 +2202,7 @@ h3 {
   border-radius: 0;
   display: grid;
   gap: 0;
-  grid-template-rows: auto minmax(0, 1fr) auto;
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
   min-height: 0;
   overflow: hidden;
   padding: 0;
@@ -2291,7 +2313,7 @@ h3 {
   justify-content: flex-end;
 }
 
-.musician-song-counter {
+.musician-edit-button {
   align-items: center;
   background: #fffefa;
   border: 1px solid #cfc7b4;
@@ -2303,6 +2325,42 @@ h3 {
   min-height: 32px;
   padding: 4px 9px;
   white-space: nowrap;
+}
+
+.musician-edit-button:not(:disabled) {
+  cursor: pointer;
+}
+
+.musician-song-transport {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+}
+
+.musician-song-transport button {
+  align-items: center;
+  background: #f7f3e8;
+  border: 0;
+  border-bottom: 1px solid #e3dcc8;
+  color: #234a40;
+  cursor: pointer;
+  display: flex;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 900;
+  gap: 5px;
+  justify-content: flex-start;
+  min-height: 30px;
+  padding: 3px 8px;
+}
+
+.musician-song-transport button + button {
+  justify-content: flex-end;
+}
+
+.musician-song-transport button:disabled,
+.musician-edit-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
 }
 
 .chord-toggle-button {

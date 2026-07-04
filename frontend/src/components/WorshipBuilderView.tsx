@@ -44,6 +44,7 @@ import {
   type WorshipLeaderAssignment,
 } from "../api";
 import { buildPresentationSections, suggestSlideGroupFontCap } from "../presentation";
+import { parseChordChart } from "../chordSheet";
 import { showToast } from "../toast";
 import { analyzeImportedSongSlides, analyzeWorshipText, buildLyricsFromSections, canonicalizeWorshipLyrics } from "../worshipText";
 import { dateKey, isWorshipSetPlan, worshipSetType } from "../worshipSets";
@@ -174,9 +175,14 @@ function compactSongTitle(song: Song) {
 
 function songLibraryStatusClass(song: Song) {
   const hasLyrics = Boolean(song.lyrics?.trim());
-  const hasChords = Boolean(song.chords?.trim());
+  const chordChart = parseChordChart(song.chords).document;
+  const hasKey = Boolean(chordChart.absoluteKey ?? chordChart.capoKey);
+  const hasChords = chordChart.annotations.length > 0;
   if (!hasLyrics) {
     return "song-library-row-missing-lyrics";
+  }
+  if (!hasKey) {
+    return "song-library-row-missing-key";
   }
   if (!hasChords) {
     return "song-library-row-missing-chords";
@@ -1615,7 +1621,16 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
     const liveControlPlanId = plan ? servicePlansByDate.get(dateInputFromIso(plan.service_date))?.id ?? plan.id : null;
     return (
       <section className="worship-live-shell" aria-label="Musician live worship">
-        <MusicianLiveView controlPlanId={liveControlPlanId} onExit={() => setViewMode("builder")} plan={plan} songs={songs} />
+        <MusicianLiveView
+          controlPlanId={liveControlPlanId}
+          onEditSong={(song) => {
+            setViewMode("builder");
+            openSongEditor(song);
+          }}
+          onExit={() => setViewMode("builder")}
+          plan={plan}
+          songs={songs}
+        />
       </section>
     );
   }

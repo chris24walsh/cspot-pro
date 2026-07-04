@@ -1,4 +1,4 @@
-import { ChevronLeft, ChevronRight, LogOut, Maximize2, Minimize2, Music2 } from "lucide-react";
+import { ChevronLeft, ChevronRight, LogOut, Maximize2, Minimize2, Music2, Pencil } from "lucide-react";
 import type { CSSProperties } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
@@ -34,6 +34,7 @@ import { isEditableKeyboardTarget, slideKeyboardDirection, type SlideKeyboardDir
 
 interface MusicianLiveViewProps {
   controlPlanId?: string | null;
+  onEditSong: (song: Song) => void;
   onExit: () => void;
   plan: PlanDetail | null;
   songs: Song[];
@@ -325,7 +326,7 @@ function annotationsForSegment(annotations: ChordAnnotation[], segmentStart: num
     .filter((annotation): annotation is ChordAnnotation => Boolean(annotation));
 }
 
-export function MusicianLiveView({ controlPlanId, onExit, plan, songs }: MusicianLiveViewProps) {
+export function MusicianLiveView({ controlPlanId, onEditSong, onExit, plan, songs }: MusicianLiveViewProps) {
   const [liveState, setLiveState] = useState<PresentationLiveState | null>(null);
   const [showChords, setShowChords] = useState(true);
   const [capo, setCapo] = useState(0);
@@ -528,6 +529,16 @@ export function MusicianLiveView({ controlPlanId, onExit, plan, songs }: Musicia
     void publishWorshipSlide(nextIndex);
   }
 
+  function moveSong(delta: -1 | 1) {
+    const currentItemIndex = worshipItems.findIndex((item) => item.id === liveSlide?.planItemId);
+    const nextItem = worshipItems[currentItemIndex + delta];
+    const nextIndex = slides.findIndex((slide) => slide.planItemId === nextItem?.id);
+    if (nextIndex >= 0) {
+      setLocalIndex(nextIndex);
+      void publishWorshipSlide(nextIndex);
+    }
+  }
+
   async function publishWorshipSlide(nextIndex: number) {
     if (!liveSyncPlanId) {
       return;
@@ -713,7 +724,7 @@ export function MusicianLiveView({ controlPlanId, onExit, plan, songs }: Musicia
   );
   const currentSongSlides = liveSlide ? slides.filter((slide) => slide.planItemId === liveSlide.planItemId) : [];
   const currentSongSlideIndex = liveSlide ? currentSongSlides.findIndex((slide) => slide.id === liveSlide.id) : -1;
-  const songCounter = currentSongSlideIndex >= 0 ? `${currentSongSlideIndex + 1} / ${currentSongSlides.length}` : slides.length ? `${liveIndex + 1} / ${slides.length}` : "0 / 0";
+  const currentSongIndex = worshipItems.findIndex((item) => item.id === liveSlide?.planItemId);
   const isLastSongSlide = liveSlide?.itemType === "song" && currentSongSlideIndex >= 0 && currentSongSlideIndex === currentSongSlides.length - 1;
 
   return (
@@ -778,7 +789,15 @@ export function MusicianLiveView({ controlPlanId, onExit, plan, songs }: Musicia
           </label>
         </div>
         <div className="musician-live-controls" aria-label="Musician display controls">
-          <span className="musician-song-counter">{songCounter}</span>
+          <button
+            className="musician-edit-button"
+            disabled={!liveSong}
+            onClick={() => liveSong && onEditSong(liveSong)}
+            type="button"
+          >
+            <Pencil size={14} aria-hidden="true" />
+            Edit
+          </button>
           <button
             aria-pressed={showChords}
             className={`chord-toggle-button ${showChords ? "is-active" : ""}`}
@@ -795,6 +814,21 @@ export function MusicianLiveView({ controlPlanId, onExit, plan, songs }: Musicia
             <LogOut size={18} aria-hidden="true" />
           </button>
         </div>
+      </div>
+
+      <div className="musician-song-transport" aria-label="Song navigation">
+        <button disabled={currentSongIndex <= 0} onClick={() => moveSong(-1)} type="button">
+          <ChevronLeft size={16} aria-hidden="true" />
+          Previous song
+        </button>
+        <button
+          disabled={currentSongIndex < 0 || currentSongIndex >= worshipItems.length - 1}
+          onClick={() => moveSong(1)}
+          type="button"
+        >
+          Next song
+          <ChevronRight size={16} aria-hidden="true" />
+        </button>
       </div>
 
       {message ? <p className="form-message">{message}</p> : null}
