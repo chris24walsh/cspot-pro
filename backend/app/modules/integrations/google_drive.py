@@ -6,6 +6,8 @@ from hashlib import sha256
 import json
 from pathlib import Path
 import secrets
+import subprocess
+import tempfile
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
@@ -56,6 +58,64 @@ GOOGLE_VIDEO_MIME_TYPES = {
 }
 STATE_LIFETIME_MINUTES = 15
 STATE_ALGORITHM = "HS256"
+
+
+def _convert_drive_video_for_browser(content: bytes, target_name: str, mime_type: str) -> tuple[bytes, str, str]:
+    """Convert containers/codecs with weak browser support to fast-start MP4."""
+    suffix = Path(target_name).suffix.lower()
+    if mime_type not in GOOGLE_VIDEO_MIME_TYPES or suffix in {".mp4", ".webm", ".ogg"}:
+        return content, mime_type, target_name
+
+    with tempfile.TemporaryDirectory(prefix="cspot-video-") as temporary_directory:
+        source_path = Path(temporary_directory) / f"source{suffix or '.video'}"
+        output_path = Path(temporary_directory) / "browser.mp4"
+        source_path.write_bytes(content)
+        try:
+            subprocess.run(
+                [
+                    "ffmpeg",
+                    "-hide_banner",
+                    "-loglevel",
+                    "error",
+                    "-i",
+                    str(source_path),
+                    "-map",
+                    "0:v:0",
+                    "-map",
+                    "0:a?",
+                    "-c:v",
+                    "libx264",
+                    "-preset",
+                    "veryfast",
+                    "-crf",
+                    "22",
+                    "-pix_fmt",
+                    "yuv420p",
+                    "-c:a",
+                    "aac",
+                    "-b:a",
+                    "160k",
+                    "-movflags",
+                    "+faststart",
+                    "-map_metadata",
+                    "0",
+                    "-y",
+                    str(output_path),
+                ],
+                check=True,
+                capture_output=True,
+                text=True,
+                timeout=900,
+            )
+        except FileNotFoundError as exc:
+            raise ValueError("Video conversion is unavailable because ffmpeg is not installed.") from exc
+        except subprocess.TimeoutExpired as exc:
+            raise ValueError("Video conversion took too long and was stopped.") from exc
+        except subprocess.CalledProcessError as exc:
+            detail = (exc.stderr or exc.stdout or "ffmpeg could not read the video").strip()
+            raise ValueError(f"Could not convert this video for browser playback: {detail}") from exc
+
+        return output_path.read_bytes(), "video/mp4", f"{Path(target_name).stem}.mp4"
 
 
 def _escape_drive_query(value: str) -> str:
@@ -499,6 +559,13 @@ def import_google_drive_file(
         not stored_content_type or stored_content_type == "application/octet-stream"
     ):
         stored_content_type = selected.mime_type
+
+    if selected.mime_type in GOOGLE_VIDEO_MIME_TYPES:
+        content, stored_content_type, target_name = _convert_drive_video_for_browser(
+            content,
+            target_name,
+            stored_content_type or selected.mime_type,
+        )
 
     upload_root.mkdir(parents=True, exist_ok=True)
     storage_name = f"{uuid4()}-{Path(target_name).name}"
