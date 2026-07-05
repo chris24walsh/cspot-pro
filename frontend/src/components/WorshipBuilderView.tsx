@@ -48,7 +48,7 @@ import { buildPresentationSections, suggestSlideGroupFontCap } from "../presenta
 import { parseChordChart } from "../chordSheet";
 import { showToast } from "../toast";
 import { analyzeImportedSongSlides, analyzeWorshipText, buildLyricsFromSections, canonicalizeWorshipLyrics } from "../worshipText";
-import { dateKey, isWorshipSetPlan, worshipSetType } from "../worshipSets";
+import { dateKey, isWorshipSetPlan, preferredWorshipSetPlanId, worshipSetType } from "../worshipSets";
 import { calendarColor, calendarMarkers } from "../userCalendarStyle";
 import { AutoFitSlideText } from "./AutoFitSlideText";
 import { CalendarPopup } from "./CalendarPopup";
@@ -105,13 +105,6 @@ function dateInputFromIso(value: string | null | undefined) {
 
 function isoFromDateInput(value: string) {
   return `${value}T10:30:00.000Z`;
-}
-
-function nextSundayDateInput() {
-  const date = new Date();
-  date.setDate(date.getDate() + ((7 - date.getDay()) % 7 || 7));
-  date.setHours(10, 30, 0, 0);
-  return dateInputFromIso(date.toISOString());
 }
 
 function calendarDaysForMonth(monthInput: string) {
@@ -447,21 +440,6 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
 
   const calendarDays = useMemo(() => calendarDaysForMonth(setCalendarMonth), [setCalendarMonth]);
 
-  function nextWorshipSetPlanId(planList: PlanSummary[]) {
-    const todayKey = dateInputFromIso(new Date().toISOString());
-    const sundayKey = nextSundayDateInput();
-    const newestFirst = [...planList].sort((left, right) => {
-      const leftTime = new Date(left.service_date).getTime();
-      const rightTime = new Date(right.service_date).getTime();
-      return (Number.isNaN(rightTime) ? 0 : rightTime) - (Number.isNaN(leftTime) ? 0 : leftTime);
-    });
-    const nextSundayPlan = planList.find((candidate) => dateInputFromIso(candidate.service_date) === sundayKey);
-    const upcoming = [...planList]
-      .filter((candidate) => dateInputFromIso(candidate.service_date) >= todayKey)
-      .sort((left, right) => new Date(left.service_date).getTime() - new Date(right.service_date).getTime());
-    return nextSundayPlan?.id ?? upcoming[0]?.id ?? newestFirst[0]?.id ?? "";
-  }
-
   const worshipItems = useMemo(
     () => sortedWorshipItems(plan?.items ?? []),
     [plan],
@@ -670,16 +648,17 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
         getWorshipSongUsage(),
       ]);
       const nextWorshipPlans = nextPlans.filter(isWorshipSetPlan);
+      const preferredPlanId = preferredWorshipSetPlanId(nextWorshipPlans);
       const requestedPlanId =
         targetPlanId !== undefined
           ? targetPlanId
           : sessionStorage.getItem(SELECTED_WORSHIP_SET_SESSION_KEY) || selectedPlanId;
       const requestedPlan = nextWorshipPlans.find((candidate) => candidate.id === requestedPlanId);
       const requestedPlanIsUsable =
-        targetPlanId !== undefined || (requestedPlan && dateInputFromIso(requestedPlan.service_date) >= dateInputFromIso(new Date().toISOString()));
+        targetPlanId !== undefined || requestedPlan?.id === preferredPlanId;
       const resolvedPlanId = requestedPlan && requestedPlanIsUsable
         ? requestedPlanId
-        : nextWorshipSetPlanId(nextWorshipPlans);
+        : preferredPlanId;
       const nextPlan = resolvedPlanId ? await getPlan(resolvedPlanId) : null;
       const nextHistory = resolvedPlanId ? await getPlanHistory(resolvedPlanId) : [];
       const nextWorshipItems = sortedWorshipItems(nextPlan?.items ?? []);

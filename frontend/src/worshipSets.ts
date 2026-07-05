@@ -41,6 +41,19 @@ export function matchingWorshipSetForService(service: PlanDetail | null, sets: P
   return sets.find((candidate) => dateKey(candidate.service_date) === serviceDate) ?? null;
 }
 
+export function preferredWorshipSetPlanId(sets: PlanSummary[], now = new Date()) {
+  const todayKey = dateKey(now.toISOString());
+  const targetSunday = new Date(now);
+  targetSunday.setDate(targetSunday.getDate() + ((7 - targetSunday.getDay()) % 7));
+  const targetSundayKey = dateKey(targetSunday.toISOString());
+  const targetSundayPlan = sets.find((candidate) => dateKey(candidate.service_date) === targetSundayKey);
+  const upcoming = [...sets]
+    .filter((candidate) => dateKey(candidate.service_date) >= todayKey)
+    .sort((left, right) => new Date(left.service_date).getTime() - new Date(right.service_date).getTime());
+  const newestFirst = [...sets].sort((left, right) => new Date(right.service_date).getTime() - new Date(left.service_date).getTime());
+  return targetSundayPlan?.id ?? upcoming[0]?.id ?? newestFirst[0]?.id ?? "";
+}
+
 function sortedItems(items: PlanItem[]) {
   return [...items].sort((left, right) => (Number.parseFloat(left.sequence) || 0) - (Number.parseFloat(right.sequence) || 0));
 }

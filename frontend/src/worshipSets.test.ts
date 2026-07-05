@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { PlanDetail, PlanItem, PlanSummary } from "./api";
-import { WORSHIP_SET_ANCHOR_ITEM_TYPE, dateKey, matchingWorshipSetForService, mergeWorshipSetIntoService } from "./worshipSets";
+import { WORSHIP_SET_ANCHOR_ITEM_TYPE, dateKey, matchingWorshipSetForService, mergeWorshipSetIntoService, preferredWorshipSetPlanId } from "./worshipSets";
 
 function item(id: string, sequence: string, itemType: string, songId: string | null = null): PlanItem {
   return {
@@ -32,6 +32,14 @@ function summary(id: string, serviceDate: string, planType = "Service"): PlanSum
 }
 
 describe("worship set merge", () => {
+  it("keeps today's worship set selected on Sunday and rolls forward on Monday", () => {
+    const today = summary("today", "2026-07-05T10:30:00.000Z", "Worship Set");
+    const following = summary("following", "2026-07-12T10:30:00.000Z", "Worship Set");
+
+    expect(preferredWorshipSetPlanId([following, today], new Date(2026, 6, 5, 12))).toBe("today");
+    expect(preferredWorshipSetPlanId([following, today], new Date(2026, 6, 6, 12))).toBe("following");
+  });
+
   it("uses local date keys when matching service and worship set days", () => {
     const service = { service_date: "2026-02-01T10:30:00.000Z" } as PlanDetail;
     const matching = summary("set-1", "2026-02-01T09:00:00.000Z", "Worship Set");
