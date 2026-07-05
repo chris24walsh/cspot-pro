@@ -179,8 +179,8 @@ export function BroadcastManager() {
           <small>Use an HTTPS URL or an app-relative camera proxy path.</small>
         </label>
         <label className="wide-field">
-          Pre-service worship audio or stream URL
-          <input disabled={loading} onChange={(event) => setForm({ ...form, pre_service_audio_url: event.target.value || null })} placeholder="https://…/music.mp3" type="url" value={form.pre_service_audio_url || ""} />
+          Pre-service worship audio or YouTube URL
+          <input disabled={loading} onChange={(event) => setForm({ ...form, pre_service_audio_url: event.target.value || null })} placeholder="YouTube link or https://…/music.mp3" type="url" value={form.pre_service_audio_url || ""} />
         </label>
         <label>
           Starting-soon message

@@ -18,6 +18,7 @@ import {
 } from "../api";
 import {
   buildPresentationSlides,
+  extractYouTubeId,
   presentationTypeClass,
   resolveLiveIndex,
   suggestSlideGroupFontCap,
@@ -172,11 +173,16 @@ function HoldingPane({ message, startingSoon }: { message: string; startingSoon:
     <div
       aria-label={message}
       className={`service-broadcast-holding-slide ${startingSoon ? "is-starting-soon" : "is-offline"}`}
-      title={message}
     >
       <span className="service-broadcast-holding-mark">{startingSoon ? "Starting soon" : "Offline"}</span>
+      <strong>{message}</strong>
+      {startingSoon ? <p>Welcome. We’re glad you’re here.</p> : null}
     </div>
   );
+}
+
+function preServiceYouTubeUrl(videoId: string) {
+  return `https://www.youtube-nocookie.com/embed/${videoId}?autoplay=1&loop=1&playlist=${videoId}&rel=0&modestbranding=1&playsinline=1`;
 }
 
 export function ServiceBroadcastView() {
@@ -203,6 +209,7 @@ export function ServiceBroadcastView() {
   const upcomingService = plan ?? nextService;
   const startingSoon = !hasLiveService && isBroadcastStartingSoon(upcomingService?.service_date, Date.now(), settings.pre_service_minutes);
   const holdingMessage = startingSoon ? settings.starting_soon_message : settings.offline_message;
+  const preServiceYouTubeId = extractYouTubeId(settings.pre_service_audio_url);
   const textFontCap = useMemo(
     () => suggestSlideGroupFontCap(slides.filter((slide) => !slide.imageUrl && slide.text.trim()).map((slide) => slide.text)),
     [slides],
@@ -336,13 +343,21 @@ export function ServiceBroadcastView() {
             <CameraPane url={settings.camera_url} />
           ) : hasLiveService ? (
             <HoldingPane message="Camera stream is not configured" startingSoon={false} />
+          ) : startingSoon && preServiceYouTubeId ? (
+            <iframe
+              allow="autoplay; encrypted-media; picture-in-picture"
+              allowFullScreen
+              className="service-broadcast-camera-media service-broadcast-preservice-video"
+              src={preServiceYouTubeUrl(preServiceYouTubeId)}
+              title="Pre-service worship"
+            />
           ) : (
             <HoldingPane message={holdingMessage} startingSoon={startingSoon} />
           )}
         </section>
       </div>
 
-      {startingSoon && settings.pre_service_audio_url ? (
+      {startingSoon && settings.pre_service_audio_url && !preServiceYouTubeId ? (
         <div className="service-broadcast-preservice-audio">
           <span>Pre-service worship</span>
           <audio autoPlay controls loop src={settings.pre_service_audio_url} />

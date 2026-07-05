@@ -4398,9 +4398,14 @@ h3 {
 .service-broadcast-holding-slide {
   align-content: center;
   aspect-ratio: 16 / 9;
-  background: #0a100d;
+  background:
+    radial-gradient(circle at 18% 22%, rgba(111, 180, 152, 0.24), transparent 30%),
+    radial-gradient(circle at 82% 76%, rgba(204, 165, 92, 0.2), transparent 34%),
+    linear-gradient(145deg, #10271f 0%, #07110d 52%, #17251d 100%);
+  box-shadow: inset 0 0 80px rgba(0, 0, 0, 0.24);
   color: #dfe8e2;
   display: grid;
+  gap: clamp(12px, 2.2vw, 24px);
   justify-items: center;
   max-height: 100%;
   padding: 12px;
@@ -4413,9 +4418,9 @@ h3 {
 }
 
 .service-broadcast-holding-mark {
-  border: 1px solid #4f5c56;
+  border: 1px solid rgba(190, 218, 205, 0.42);
   border-radius: 999px;
-  color: #aebbb5;
+  color: #d8e9e1;
   font-size: 11px;
   font-weight: 900;
   letter-spacing: 0.04em;
@@ -4424,17 +4429,25 @@ h3 {
 }
 
 .service-broadcast-holding-slide strong {
-  font-size: clamp(24px, 3vw, 38px);
-  line-height: 1.05;
-  max-width: 16ch;
+  color: #fffdf5;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: clamp(28px, 4vw, 54px);
+  font-weight: 700;
+  line-height: 1.08;
+  max-width: 20ch;
+  text-wrap: balance;
 }
 
 .service-broadcast-holding-slide p {
-  color: #495650;
-  font-size: 15px;
+  color: #c9d9d1;
+  font-size: clamp(14px, 1.6vw, 20px);
   font-weight: 700;
   margin: 0;
   max-width: 34ch;
+}
+
+.service-broadcast-preservice-video {
+  background: #000;
 }
 
 .service-broadcast-footer-note {
