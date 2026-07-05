@@ -1,4 +1,5 @@
 import json
+import logging
 import signal
 import subprocess
 import threading
@@ -18,6 +19,7 @@ from app.modules.planning.models import PlanItem
 from app.modules.presentation.models import PresentationPosition, PresentationSession
 
 RECORDING_ROOT = Path("/app/storage/recordings")
+logger = logging.getLogger(__name__)
 
 
 class ActiveRecording:
@@ -307,27 +309,21 @@ def resume_recording(session: Session) -> BroadcastRecording | None:
 def sync_sermon_recording(
     session: Session,
     plan_id: str,
-    previous_plan_item_id: str | None,
+    _previous_plan_item_id: str | None,
     plan_item_id: str | None,
     slide_offset: int,
     created_by_user_id: str | None,
 ) -> None:
     item = session.get(PlanItem, plan_item_id) if plan_item_id else None
-    previous_item = session.get(PlanItem, previous_plan_item_id) if previous_plan_item_id else None
-    came_from_non_sermon = bool(
-        previous_item
-        and previous_item.plan_id == plan_id
-        and previous_item.deleted_at is None
-        and previous_item.item_type != "sermon"
-    )
     if item and item.plan_id == plan_id and item.item_type == "sermon" and item.deleted_at is None:
         if _active and _active.plan_id == plan_id:
             record_slide_transition(session, plan_id, item.id, slide_offset)
-        elif came_from_non_sermon:
+        else:
             try:
                 start_recording(session, plan_id, item.id, created_by_user_id)
                 record_slide_transition(session, plan_id, item.id, slide_offset)
-            except RuntimeError:
+            except RuntimeError as error:
+                logger.warning("Could not start automatic sermon recording: %s", error)
                 return
     else:
         stop_recording(session, plan_id)

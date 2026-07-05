@@ -44,7 +44,7 @@ def test_recording_source_requires_an_audio_track(monkeypatch) -> None:
     assert _source_has_audio("http://camera/stream.m3u8") is False
 
 
-def test_auto_recording_only_starts_on_non_sermon_to_sermon_edge(monkeypatch) -> None:
+def test_auto_recording_starts_when_output_opens_on_a_sermon(monkeypatch) -> None:
     items = {
         "welcome": SimpleNamespace(
             id="welcome", plan_id="plan-1", item_type="welcome", deleted_at=None
@@ -75,8 +75,6 @@ def test_auto_recording_only_starts_on_non_sermon_to_sermon_edge(monkeypatch) ->
     )
 
     sync_sermon_recording(session, "plan-1", None, "sermon-a", 0, "user-1")
-    sync_sermon_recording(session, "plan-1", "sermon-a", "sermon-b", 0, "user-1")
-    sync_sermon_recording(session, "plan-1", "welcome", "sermon-a", 0, "user-1")
     sync_sermon_recording(session, "plan-1", "sermon-a", "welcome", 0, "user-1")
 
     assert starts == ["sermon-a"]

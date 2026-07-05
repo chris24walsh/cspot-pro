@@ -325,6 +325,7 @@ def update_presentation_output_status(
     existing = _serialize_output_status(plan_id, position, payload.heartbeat_at)
     current_owner = existing.owner_id if existing.active else None
     next_payload = _position_payload(position)
+    new_output = False
     if payload.release:
         closed_owner = current_owner or next_payload.get("output_owner_id")
         if isinstance(closed_owner, str):
@@ -349,6 +350,17 @@ def update_presentation_output_status(
     session.refresh(position)
     if payload.release:
         stop_recording(session, plan_id)
+    else:
+        current_item_id = next_payload.get("plan_item_id")
+        slide_offset = next_payload.get("slide_offset", 0)
+        sync_sermon_recording(
+            session,
+            plan_id,
+            None,
+            current_item_id if isinstance(current_item_id, str) else None,
+            int(slide_offset) if isinstance(slide_offset, int | float) else 0,
+            current_user.id,
+        )
     status = _serialize_output_status(plan_id, position, payload.heartbeat_at)
     status.claimed = not payload.release and status.owner_id == payload.owner_id
     return status
