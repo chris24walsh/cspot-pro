@@ -6039,9 +6039,13 @@ h3 {
   background: #050807;
   display: grid;
   height: 100%;
+  max-height: 100%;
+  max-width: 100%;
   min-height: 0;
   min-width: 0;
+  overflow: hidden;
   place-items: stretch;
+  position: relative;
   width: 100%;
 }
 
@@ -6049,9 +6053,22 @@ h3 {
 .stage-video-frame video {
   background: #050807;
   border: 0;
+  display: block;
   height: 100%;
+  max-height: 100%;
+  max-width: 100%;
+  min-height: 0;
+  min-width: 0;
   object-fit: contain;
+  object-position: center center;
   width: 100%;
+}
+
+.slideshow-stage-image > .stage-video-frame {
+  height: auto;
+  inset: 0;
+  position: absolute;
+  width: auto;
 }
 
 .rendered-slide-image {
