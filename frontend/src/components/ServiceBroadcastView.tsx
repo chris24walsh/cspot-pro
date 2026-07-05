@@ -97,11 +97,16 @@ function CameraPane({ url }: { url: string }) {
         setFallbackUrl(mjpegUrl);
       }
     };
+    const updateSoundState = () => {
+      if (!cancelled) setPlaybackBlocked(video.paused || video.muted || video.volume === 0);
+    };
     setFallbackUrl(null);
     const play = async () => {
       try {
+        video.muted = false;
+        video.volume = 1;
         await video.play();
-        if (!cancelled) setPlaybackBlocked(false);
+        updateSoundState();
       } catch {
         if (!cancelled) setPlaybackBlocked(true);
       }
@@ -127,6 +132,8 @@ function CameraPane({ url }: { url: string }) {
       });
     }
     video.addEventListener("error", useFallback);
+    video.addEventListener("volumechange", updateSoundState);
+    video.addEventListener("playing", updateSoundState);
     const decodeTimer = window.setTimeout(() => {
       if (video.videoWidth === 0 || video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) {
         useFallback();
@@ -136,6 +143,8 @@ function CameraPane({ url }: { url: string }) {
       cancelled = true;
       window.clearTimeout(decodeTimer);
       video.removeEventListener("error", useFallback);
+      video.removeEventListener("volumechange", updateSoundState);
+      video.removeEventListener("playing", updateSoundState);
       hls?.destroy();
     };
   }, [isHls, kind, url]);
@@ -154,12 +163,13 @@ function CameraPane({ url }: { url: string }) {
             onClick={() => {
               if (videoRef.current) {
                 videoRef.current.muted = false;
+                videoRef.current.volume = 1;
                 void videoRef.current.play().then(() => setPlaybackBlocked(false)).catch(() => setPlaybackBlocked(true));
               }
             }}
             type="button"
           >
-            Start camera audio
+            Turn on camera sound
           </button>
         ) : null}
       </div>
