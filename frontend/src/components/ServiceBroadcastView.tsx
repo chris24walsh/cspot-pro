@@ -182,7 +182,36 @@ function HoldingPane({ message, startingSoon }: { message: string; startingSoon:
 }
 
 function preServiceYouTubeUrl(videoId: string) {
-  return `https://www.youtube-nocookie.com/embed/${videoId}?autoplay=1&loop=1&playlist=${videoId}&rel=0&modestbranding=1&playsinline=1`;
+  return `https://www.youtube-nocookie.com/embed/${videoId}?autoplay=1&mute=1&loop=1&playlist=${videoId}&rel=0&modestbranding=1&playsinline=1&enablejsapi=1`;
+}
+
+function PreServiceYouTubePane({ videoId }: { videoId: string }) {
+  const frameRef = useRef<HTMLIFrameElement | null>(null);
+  const [muted, setMuted] = useState(true);
+
+  function enableSound() {
+    frameRef.current?.contentWindow?.postMessage(JSON.stringify({ event: "command", func: "unMute", args: [] }), "*");
+    frameRef.current?.contentWindow?.postMessage(JSON.stringify({ event: "command", func: "playVideo", args: [] }), "*");
+    setMuted(false);
+  }
+
+  return (
+    <div className="service-broadcast-camera-player">
+      <iframe
+        allow="autoplay; encrypted-media; picture-in-picture"
+        allowFullScreen
+        className="service-broadcast-camera-media service-broadcast-preservice-video"
+        ref={frameRef}
+        src={preServiceYouTubeUrl(videoId)}
+        title="Pre-service worship"
+      />
+      {muted ? (
+        <button className="service-broadcast-camera-overlay" onClick={enableSound} type="button">
+          Turn on sound
+        </button>
+      ) : null}
+    </div>
+  );
 }
 
 export function ServiceBroadcastView() {
@@ -344,13 +373,7 @@ export function ServiceBroadcastView() {
           ) : hasLiveService ? (
             <HoldingPane message="Camera stream is not configured" startingSoon={false} />
           ) : startingSoon && preServiceYouTubeId ? (
-            <iframe
-              allow="autoplay; encrypted-media; picture-in-picture"
-              allowFullScreen
-              className="service-broadcast-camera-media service-broadcast-preservice-video"
-              src={preServiceYouTubeUrl(preServiceYouTubeId)}
-              title="Pre-service worship"
-            />
+            <PreServiceYouTubePane videoId={preServiceYouTubeId} />
           ) : (
             <HoldingPane message={holdingMessage} startingSoon={startingSoon} />
           )}
