@@ -45,6 +45,17 @@ export function CalendarPopup({
       <section
         className="app-dialog app-dialog-wide service-picker-dialog"
         aria-label={eyebrow ? `${eyebrow} ${title}` : title}
+        onKeyDownCapture={(event) => {
+          if (event.key === "Enter" && event.target instanceof HTMLButtonElement) {
+            event.preventDefault();
+          }
+        }}
+        onKeyUpCapture={(event) => {
+          if (event.key === "Enter" && event.target instanceof HTMLButtonElement) {
+            event.preventDefault();
+            event.target.click();
+          }
+        }}
         onMouseDown={(event) => event.stopPropagation()}
         role="dialog"
       >

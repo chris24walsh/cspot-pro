@@ -705,11 +705,16 @@ export function SongEditorDialog({
                                 onKeyDown={(event) => {
                                   if (event.key === "Enter") {
                                     event.preventDefault();
-                                    saveOrCloseInlineEditor();
                                   }
                                   if (event.key === "Escape") {
                                     event.preventDefault();
                                     cancelInlineChordEdit();
+                                  }
+                                }}
+                                onKeyUp={(event) => {
+                                  if (event.key === "Enter") {
+                                    event.preventDefault();
+                                    saveOrCloseInlineEditor();
                                   }
                                 }}
                                 placeholder={detailMode === "advanced" ? "BbMAJ7/D" : "Bbm"}

@@ -1862,6 +1862,11 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
                     onKeyDown={(event) => {
                       if (event.key === "Enter" || event.key === " ") {
                         event.preventDefault();
+                      }
+                    }}
+                    onKeyUp={(event) => {
+                      if (event.key === "Enter" || event.key === " ") {
+                        event.preventDefault();
                         setSelectedItemId(item.id);
                       }
                     }}
@@ -2178,6 +2183,11 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
                   className="search-input"
                   onChange={(event) => setCustomImportQuery(event.target.value)}
                   onKeyDown={(event) => {
+                    if (event.key === "Enter") {
+                      event.preventDefault();
+                    }
+                  }}
+                  onKeyUp={(event) => {
                     if (event.key === "Enter") {
                       event.preventDefault();
                       void runWorshipCustomSongImportSearch();

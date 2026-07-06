@@ -688,6 +688,8 @@ export function PresentationView({
   const [slideNotesDraft, setSlideNotesDraft] = useState("");
   const [slideNotesSaving, setSlideNotesSaving] = useState(false);
   const searchInputRef = useRef<HTMLInputElement | null>(null);
+  const searchSelectionInFlightRef = useRef(false);
+  const bibleSearchInsertInFlightRef = useRef(false);
   const keyCaptureRef = useRef<HTMLInputElement | null>(null);
   const outputWindowRef = useRef<Window | null>(null);
   const outputOwnerIdRef = useRef<string | null>(null);
@@ -2356,12 +2358,18 @@ export function PresentationView({
   }
 
   async function addBibleSearchResult(result: BibleSearchHit) {
+    if (bibleSearchInsertInFlightRef.current) {
+      return;
+    }
+    bibleSearchInsertInFlightRef.current = true;
     try {
       const createdItem = await insertBibleResult(result, searchInsertIndex ?? activeSectionInsertIndex());
       await reloadAfterInsertedItem(createdItem);
       closeSearchOverlay();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Could not add Scripture.");
+    } finally {
+      bibleSearchInsertInFlightRef.current = false;
     }
   }
 
@@ -2420,41 +2428,58 @@ export function PresentationView({
   }
 
   async function selectTopSearchResult() {
-    if (googleDriveLoading || customProviderLoading || customProviderSelectionLoading) {
+    if (
+      searchSelectionInFlightRef.current ||
+      googleDriveLoading ||
+      customProviderLoading ||
+      customProviderSelectionLoading
+    ) {
       return;
     }
-    if (searchMode === "songs") {
-      const firstSong = songSearchResults[0];
-      if (firstSong) {
-        await addSongSearchResult(firstSong);
-      }
-      return;
-    }
-    if (searchMode === "bible") {
-      const firstResult = bibleSearchResults[0] ?? (searchQuery.trim() ? (await runBibleSearch())[0] : null);
-      if (firstResult) {
-        await addBibleSearchResult(firstResult);
-      }
-      return;
-    }
-    if (searchMode === "deck") {
-      const firstFile = googleDriveFiles[0];
-      if (firstFile) {
-        await attachImportedDriveDeck(firstFile);
-      }
-      return;
-    }
-    if (searchMode === "video") {
-      if (!videoFile && !extractYouTubeId(searchQuery) && googleDriveFiles[0]) {
-        await attachImportedDriveVideo(googleDriveFiles[0]);
+    searchSelectionInFlightRef.current = true;
+    try {
+      if (searchMode === "songs") {
+        const firstSong = songSearchResults[0];
+        if (firstSong) {
+          await addSongSearchResult(firstSong);
+        }
         return;
       }
-      await addVideoSearchResult();
+      if (searchMode === "bible") {
+        const firstResult = bibleSearchResults[0] ?? (searchQuery.trim() ? (await runBibleSearch())[0] : null);
+        if (firstResult) {
+          await addBibleSearchResult(firstResult);
+        }
+        return;
+      }
+      if (searchMode === "deck") {
+        const firstFile = googleDriveFiles[0];
+        if (firstFile) {
+          await attachImportedDriveDeck(firstFile);
+        }
+        return;
+      }
+      if (searchMode === "video") {
+        if (!videoFile && !extractYouTubeId(searchQuery) && googleDriveFiles[0]) {
+          await attachImportedDriveVideo(googleDriveFiles[0]);
+          return;
+        }
+        await addVideoSearchResult();
+      }
+    } finally {
+      searchSelectionInFlightRef.current = false;
     }
   }
 
-  function handleSearchEnter(event: React.KeyboardEvent<HTMLInputElement>) {
-    if (event.key !== "Enter" || event.shiftKey) {
+  function suppressSearchEnterKeyDown(event: React.KeyboardEvent<HTMLInputElement>) {
+    if (event.key === "Enter" && !event.shiftKey) {
+      event.preventDefault();
+      event.stopPropagation();
+    }
+  }
+
+  function handleSearchEnterKeyUp(event: React.KeyboardEvent<HTMLInputElement>) {
+    if (event.key !== "Enter" || event.shiftKey || event.defaultPrevented) {
       return;
     }
     event.preventDefault();
@@ -3218,11 +3243,6 @@ export function PresentationView({
       if (event.key === "Escape" && searchOverlayOpen) {
         event.preventDefault();
         closeSearchOverlay();
-        return;
-      }
-      if (event.key === "Enter" && searchOverlayOpen && !event.shiftKey) {
-        event.preventDefault();
-        void selectTopSearchResult();
         return;
       }
       if (event.key === "Escape" && servicePickerOpen) {
@@ -4155,7 +4175,8 @@ export function PresentationView({
                   Search
                   <input
                     onChange={(event) => setSearchQuery(event.target.value)}
-                    onKeyDown={handleSearchEnter}
+                    onKeyDown={suppressSearchEnterKeyDown}
+                    onKeyUp={handleSearchEnterKeyUp}
                     ref={searchInputRef}
                     placeholder={
                       searchMode === "bible"
@@ -4173,7 +4194,8 @@ export function PresentationView({
                   Video Title
                   <input
                     onChange={(event) => setVideoTitle(event.target.value)}
-                    onKeyDown={handleSearchEnter}
+                    onKeyDown={suppressSearchEnterKeyDown}
+                    onKeyUp={handleSearchEnterKeyUp}
                     placeholder="Optional video title"
                     value={videoTitle}
                   />
@@ -4212,7 +4234,8 @@ export function PresentationView({
                     <input
                       disabled={!googleDriveStatus?.connected || Boolean(importingDriveFileId)}
                       onChange={(event) => setSearchQuery(event.target.value)}
-                      onKeyDown={handleSearchEnter}
+                      onKeyDown={suppressSearchEnterKeyDown}
+                      onKeyUp={handleSearchEnterKeyUp}
                       placeholder={
                         googleDriveStatus?.connected
                           ? "Search sermons, slides, or PDF decks"
@@ -4227,7 +4250,8 @@ export function PresentationView({
                     <input
                       disabled={!canAttachDeck || Boolean(importingDriveFileId)}
                       onChange={(event) => setDeckTitle(event.target.value)}
-                      onKeyDown={handleSearchEnter}
+                      onKeyDown={suppressSearchEnterKeyDown}
+                      onKeyUp={handleSearchEnterKeyUp}
                       placeholder="Optional override"
                       value={deckTitle}
                     />

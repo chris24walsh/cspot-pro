@@ -64,6 +64,17 @@ export function useConfirmationDialog() {
         aria-labelledby="confirmation-dialog-title"
         aria-modal="true"
         className="app-dialog confirmation-dialog"
+        onKeyDownCapture={(event) => {
+          if (event.key === "Enter" && event.target instanceof HTMLButtonElement) {
+            event.preventDefault();
+          }
+        }}
+        onKeyUpCapture={(event) => {
+          if (event.key === "Enter" && event.target instanceof HTMLButtonElement) {
+            event.preventDefault();
+            event.target.click();
+          }
+        }}
         onMouseDown={(event) => event.stopPropagation()}
         role="dialog"
       >
