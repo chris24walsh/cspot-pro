@@ -275,7 +275,12 @@ export function buildPresentationSections(
   songs: Song[],
   renderedSlidesByFileId: Record<string, RenderedSlide[]> = {},
 ): PresentationSection[] {
-  return items.map((item) => {
+  const orderedItems = [
+    ...items.filter((item) => item.item_type !== "end"),
+    ...items.filter((item) => item.item_type === "end"),
+  ];
+
+  return orderedItems.map((item) => {
     const song = item.song_id ? songs.find((candidate) => candidate.id === item.song_id) : null;
     const sectionTitle = song?.title ?? item.title;
 
@@ -324,6 +329,25 @@ export function buildPresentationSections(
         sequence: item.sequence,
       };
       return { id: item.id, title: sectionTitle, itemType: item.item_type, slides: [slide] };
+    }
+
+    if (item.item_type === "end") {
+      return {
+        id: item.id,
+        title: sectionTitle,
+        itemType: item.item_type,
+        slides: [{
+          id: item.id,
+          planItemId: item.id,
+          sectionId: item.id,
+          sectionTitle,
+          title: sectionTitle,
+          text: sectionTitle,
+          itemType: item.item_type,
+          sequence: item.sequence,
+          slideKind: "title" as const,
+        }],
+      };
     }
 
     if (song?.lyrics) {

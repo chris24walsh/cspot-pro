@@ -64,6 +64,18 @@ describe("presentation slide derivation", () => {
     ]);
   });
 
+  it("keeps the end item last and renders it as a title slide", () => {
+    const sections = buildPresentationSections([
+      planItem({ id: "end", item_type: "end", sequence: "999.00", title: "End", comment: "End of service" }),
+      planItem({ id: "late-item", item_type: "reading", sequence: "1009.00", title: "Late reading" }),
+    ], []);
+
+    expect(sections.map((section) => section.id)).toEqual(["late-item", "end"]);
+    expect(sections[1].slides).toMatchObject([
+      { text: "End", title: "End", slideKind: "title" },
+    ]);
+  });
+
   it("expands worship songs from sequence without duplicating stored lyrics", () => {
     const item = planItem({ id: "song-item", item_type: "song", song_id: "song-1", title: "Ignored" });
     const songs = [

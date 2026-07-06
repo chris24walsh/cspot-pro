@@ -3870,7 +3870,7 @@ export function PresentationView({
                     sorterSectionRefs.current[section.id] = element;
                   }}
                 >
-                  <div className="section-jump-row">
+                  {section.itemType !== "end" ? <div className="section-jump-row">
                     <button
                       className={`section-jump ${presentationTypeClass(section.itemType)} ${
                         liveSlide?.sectionId === section.id ? "active" : ""
@@ -3912,7 +3912,7 @@ export function PresentationView({
                         <span>Edit</span>
                       </button>
                     ) : null}
-                  </div>
+                  </div> : null}
                   {sectionRenderError ? <p className="render-error-message">{sectionRenderError}</p> : null}
                   {showSlideTiles ? (
                     <div className="section-slide-list">
@@ -4010,7 +4010,7 @@ export function PresentationView({
                 <Plus size={14} aria-hidden="true" />
               </button>
             ) : null}
-            {sections.map((section, sectionIndex) => {
+            {sections.filter((section) => section.itemType !== "end").map((section, sectionIndex) => {
               const sectionStart = slides.findIndex((slide) => slide.sectionId === section.id);
               const ownerItems = sectionOwner(section.id) === "worship" ? orderedWorshipSetItems() : orderedPlanItemsWithWorshipAnchor();
               const ownerItemIndex = ownerItems.findIndex((item) => item.id === section.id);
