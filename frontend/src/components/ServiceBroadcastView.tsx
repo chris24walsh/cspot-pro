@@ -308,8 +308,11 @@ export function ServiceBroadcastView() {
   }, [selectedPlanId]);
 
   useEffect(() => {
-    const files = mergeWorshipSetIntoService(plan?.items ?? [], worshipSetPlan?.items ?? []).flatMap((item) => item.files ?? []);
-    const deckFiles = files.filter((file) => !file.content_type?.startsWith("video/"));
+    const deckFiles = mergeWorshipSetIntoService(plan?.items ?? [], worshipSetPlan?.items ?? []).flatMap((item) =>
+      item.item_type === "video"
+        ? []
+        : (item.files ?? []).filter((file) => !file.content_type?.startsWith("video/")),
+    );
     if (!deckFiles.length) {
       setRenderedSlidesByFileId({});
       return;

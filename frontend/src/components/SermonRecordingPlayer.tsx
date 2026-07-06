@@ -66,8 +66,8 @@ export function SermonRecordingPlayer({ recording, onClose }: SermonRecordingPla
       .then(async ([nextPlan, nextSongs]) => {
         const recordedItemIds = new Set(recording.timeline.map((event) => event.plan_item_id));
         const files = nextPlan.items
-          .filter((item) => recordedItemIds.has(item.id))
-          .flatMap((item) => item.files ?? []);
+          .filter((item) => recordedItemIds.has(item.id) && item.item_type !== "video")
+          .flatMap((item) => (item.files ?? []).filter((file) => !file.content_type?.startsWith("video/")));
         const entries = await Promise.all(
           files.map(async (file) => [file.file_id, await getFileSlides(file.file_id).catch(() => [])] as const),
         );

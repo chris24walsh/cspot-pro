@@ -2920,8 +2920,18 @@ export function PresentationView({
   }, []);
 
   useEffect(() => {
-    const files = (plan?.items ?? []).flatMap((item) => item.files ?? []);
-    const activeFileIds = new Set(currentPlanItem?.files?.map((file) => file.file_id) ?? []);
+    const files = (plan?.items ?? []).flatMap((item) =>
+      item.item_type === "video"
+        ? []
+        : (item.files ?? []).filter((file) => !file.content_type?.startsWith("video/")),
+    );
+    const activeFileIds = new Set(
+      currentPlanItem?.item_type === "video"
+        ? []
+        : (currentPlanItem?.files ?? [])
+            .filter((file) => !file.content_type?.startsWith("video/"))
+            .map((file) => file.file_id),
+    );
     const uniqueFiles = Array.from(new Map(files.map((file) => [file.file_id, file])).values());
     const availableFileIds = new Set(uniqueFiles.map((file) => file.file_id));
 
@@ -3831,7 +3841,11 @@ export function PresentationView({
               const sectionStart = slides.findIndex((slide) => slide.sectionId === section.id);
               const visibleSectionSlides = sorterSlidesForSection(section.slides);
               const sectionItem = sectionPlanItem(section.id);
-              const sectionFileIds = sectionItem?.files?.map((file) => file.file_id) ?? [];
+              const sectionFileIds = sectionItem?.item_type === "video"
+                ? []
+                : sectionItem?.files
+                    ?.filter((file) => !file.content_type?.startsWith("video/"))
+                    .map((file) => file.file_id) ?? [];
               const canEditSectionSong = canEditSong && sectionItem?.song_id;
               const deckStatus = describeDeckStatus(
                 sectionFileIds,
@@ -3839,7 +3853,8 @@ export function PresentationView({
                 renderingFileIds,
                 renderErrorsByFileId,
               );
-              const sectionRenderError = sectionItem?.files
+              const sectionRenderError = sectionItem?.item_type === "video" ? undefined : sectionItem?.files
+                ?.filter((file) => !file.content_type?.startsWith("video/"))
                 ?.map((file) => renderErrorsByFileId[file.file_id])
                 .find(Boolean);
               const canCollapseSection = Boolean(sectionItem?.files?.length) && visibleSectionSlides.length > 4;

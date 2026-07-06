@@ -395,7 +395,11 @@ export function PresentationOutput() {
 
   useEffect(() => {
     async function loadRenderedDecks() {
-      const files = (plan?.items ?? []).flatMap((item) => item.files ?? []);
+      const files = (plan?.items ?? []).flatMap((item) =>
+        item.item_type === "video"
+          ? []
+          : (item.files ?? []).filter((file) => !file.content_type?.startsWith("video/")),
+      );
       const uniqueFiles = Array.from(new Map(files.map((file) => [file.file_id, file])).values());
       const nextSlides: Record<string, RenderedSlide[]> = {};
 
