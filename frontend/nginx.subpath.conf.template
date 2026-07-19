@@ -1,9 +1,18 @@
+map $http_x_forwarded_proto $cspot_redirect_to_https {
+    default 0;
+    http 1;
+}
+
 server {
     listen 80;
     server_name _;
 
     root /usr/share/nginx/html;
     index index.html;
+
+    if ($cspot_redirect_to_https) {
+        return 308 https://$host$request_uri;
+    }
 
     location = __APP_BASE_PATH__ {
         return 302 __APP_BASE_PATH__/;

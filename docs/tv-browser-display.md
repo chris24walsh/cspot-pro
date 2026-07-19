@@ -6,17 +6,20 @@ be connected to the presenter computer as an external monitor.
 
 ## One-time TV setup
 
-1. Open CSpot in the TV browser with `?presentation=tv` appended to the app URL.
-   For the current production path, this is:
+1. Open the short CSpot TV address in the TV browser:
 
    ```text
-   https://<church-app-host>/app/?presentation=tv
+   https://<church-app-host>/app/tv
    ```
+
+   The older `?presentation=tv` address remains supported. Public HTTP links
+   are upgraded to HTTPS automatically so the browser can retain its secure
+   sign-in session.
 
 2. Sign in with a dedicated CSpot viewer account and choose the remembered-login
    option. A viewer has the read permissions required to render plans without
    presentation or editing permissions.
-3. Bookmark the TV URL.
+3. Bookmark the `/app/tv` URL.
 4. Select **Fullscreen** on the TV once. Browsers require a local click before a
    page can enter fullscreen; CSpot cannot trigger this remotely.
 

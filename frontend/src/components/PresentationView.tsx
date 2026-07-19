@@ -56,6 +56,7 @@ import {
   type PlanType,
   type Song,
 } from "../api";
+import { appAssetUrl } from "../paths";
 import {
   PRESENTATION_CHANNEL,
   PRESENTATION_OUTPUT_STATUS_KEY,
@@ -1570,9 +1571,7 @@ export function PresentationView({
     setNetworkSlideshowOpen(true);
     setSlideshowOpen(true);
     await publishLiveState(liveIndex);
-    const displayUrl = new URL(window.location.href);
-    displayUrl.search = "";
-    displayUrl.searchParams.set("presentation", "tv");
+    const displayUrl = new URL(appAssetUrl("tv"), window.location.origin);
     setMessage(`TV output started. Open ${displayUrl.toString()} in the TV browser and sign in.`);
   }
 

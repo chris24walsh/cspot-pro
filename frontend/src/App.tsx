@@ -27,6 +27,7 @@ import {
   type SessionUser,
   type Song,
 } from "./api";
+import { isNetworkDisplayLocation } from "./browserRouting";
 import { AuthScreen } from "./components/AuthScreen";
 import { BroadcastManager } from "./components/BroadcastManager";
 import { PresentationOutput } from "./components/PresentationOutput";
@@ -70,7 +71,7 @@ function isTransientApiError(error: unknown) {
 function App() {
   const initialParams = new URLSearchParams(window.location.search);
   const isPresentationOutput = initialParams.get("presentation") === "output";
-  const isNetworkDisplay = initialParams.get("presentation") === "tv";
+  const isNetworkDisplay = isNetworkDisplayLocation(window.location);
   const publicWebsiteUrl = import.meta.env.VITE_PUBLIC_WEBSITE_URL || "/";
   const [activeModuleId, setActiveModuleId] = useState<ModuleId>("presentation");
   const [sessionUser, setSessionUser] = useState<SessionUser | null>(null);

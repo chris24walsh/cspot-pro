@@ -24,7 +24,8 @@ from a Raspberry Pi USB microphone or mixing-desk feed.
 
 The live slideshow can run directly in a
 [church TV's native browser](docs/tv-browser-display.md), following a presenter
-over the server without an HDMI cable or extended desktop.
+over the server without an HDMI cable or extended desktop. Use the short
+`/app/tv` production route; public HTTP visits are upgraded to HTTPS.
 
 ## Local Development
 

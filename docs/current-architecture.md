@@ -203,8 +203,10 @@ environment without requiring a server push channel yet.
 
 ### Network TV output
 
-The stable `?presentation=tv` display URL is a passive, authenticated slideshow
-renderer for a television browser. When the presenter selects **Start TV**, the
+The stable `/tv` display route (with `?presentation=tv` retained for
+compatibility) is a passive, authenticated slideshow renderer for a television
+browser. Public HTTP requests are upgraded to HTTPS by the web tier, with a
+browser-side fallback for older proxies and cached TV pages. When the presenter selects **Start TV**, the
 presenter control page owns and refreshes the server-authoritative output
 heartbeat while the TV discovers the active service and polls its live slide
 state. This avoids external-monitor wiring and allows multiple passive displays
