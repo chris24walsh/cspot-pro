@@ -1,3 +1,5 @@
+import json
+from datetime import UTC, datetime
 from types import SimpleNamespace
 
 from sqlalchemy import create_engine
@@ -7,6 +9,7 @@ from app.core.config import settings
 from app.core.database import Base
 from app.modules.broadcast.models import BroadcastViewerSettings
 from app.modules.broadcast.recording import _source_has_audio, _source_url, sync_sermon_recording
+from app.modules.broadcast.routes import live_output_exists
 
 
 def test_camera_proxy_path_resolves_to_internal_recording_source() -> None:
@@ -32,6 +35,25 @@ def test_camera_proxy_path_resolves_to_internal_recording_source() -> None:
         settings.camera_proxy_upstream = previous
 
 
+def test_dedicated_audio_stream_is_preferred_for_recording() -> None:
+    engine = create_engine("sqlite://")
+    Base.metadata.create_all(engine, tables=[BroadcastViewerSettings.__table__])
+    with Session(engine) as session:
+        session.add(
+            BroadcastViewerSettings(
+                stream_title="Service",
+                camera_url="http://camera/stream.m3u8",
+                live_audio_url="http://raspberrypi.local:8000/cspot.ogg",
+                pre_service_minutes=60,
+                starting_soon_message="Soon",
+                offline_message="Offline",
+            )
+        )
+        session.commit()
+
+        assert _source_url(session) == "http://raspberrypi.local:8000/cspot.ogg"
+
+
 def test_recording_source_requires_an_audio_track(monkeypatch) -> None:
     class Probe:
         returncode = 0
@@ -42,6 +64,23 @@ def test_recording_source_requires_an_audio_track(monkeypatch) -> None:
     )
 
     assert _source_has_audio("http://camera/stream.m3u8") is False
+
+
+def test_live_audio_relay_requires_a_fresh_output_heartbeat() -> None:
+    now = int(datetime.now(UTC).timestamp() * 1000)
+    position = SimpleNamespace(
+        payload_json=json.dumps(
+            {"output_owner_id": "output-1", "output_heartbeat_at": now - 1000}
+        )
+    )
+    session = SimpleNamespace(scalars=lambda _query: SimpleNamespace(all=lambda: [position]))
+
+    assert live_output_exists(session) is True
+
+    position.payload_json = json.dumps(
+        {"output_owner_id": "output-1", "output_heartbeat_at": now - 8000}
+    )
+    assert live_output_exists(session) is False
 
 
 def test_auto_recording_starts_when_output_opens_on_a_sermon(monkeypatch) -> None:

@@ -1,0 +1,18 @@
+[Unit]
+Description=CSpot live audio capture
+After=network-online.target sound.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+EnvironmentFile=/etc/cspot-audio-stream
+ExecStart=/usr/local/bin/cspot-rpi-audio-stream
+Restart=always
+RestartSec=3
+User=cspot-audio
+SupplementaryGroups=audio
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

@@ -1,8 +1,10 @@
 import json
+from datetime import UTC, datetime
 from pathlib import Path
 
+import requests
 from fastapi import APIRouter, Depends, HTTPException, Response, status
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -22,6 +24,7 @@ from app.modules.broadcast.schemas import (
 )
 from app.modules.identity.auth import CurrentUser, require_any_permission, require_permission
 from app.modules.identity.models import User
+from app.modules.presentation.models import PresentationPosition, PresentationSession
 
 router = APIRouter()
 
@@ -155,11 +158,35 @@ def settings_read(settings: BroadcastViewerSettings) -> BroadcastViewerSettingsR
         stream_title=settings.stream_title,
         stream_description=settings.stream_description,
         camera_url=settings.camera_url,
+        live_audio_url=settings.live_audio_url,
         pre_service_audio_url=settings.pre_service_audio_url,
         pre_service_minutes=settings.pre_service_minutes,
         starting_soon_message=settings.starting_soon_message,
         offline_message=settings.offline_message,
     )
+
+
+def live_output_exists(session: Session) -> bool:
+    now = int(datetime.now(UTC).timestamp() * 1000)
+    positions = session.scalars(
+        select(PresentationPosition)
+        .join(PresentationSession, PresentationSession.id == PresentationPosition.session_id)
+        .where(
+            PresentationSession.status == "live",
+            PresentationSession.ended_at.is_(None),
+        )
+        .order_by(PresentationPosition.updated_at.desc())
+    ).all()
+    for position in positions:
+        try:
+            payload = json.loads(position.payload_json or "{}")
+        except json.JSONDecodeError:
+            continue
+        heartbeat = payload.get("output_heartbeat_at") if isinstance(payload, dict) else None
+        owner_id = payload.get("output_owner_id") if isinstance(payload, dict) else None
+        if isinstance(heartbeat, int) and isinstance(owner_id, str) and now - heartbeat < 7000:
+            return True
+    return False
 
 
 @router.get("/viewer-settings", response_model=BroadcastViewerSettingsRead)
@@ -168,6 +195,44 @@ def get_viewer_settings(
     session: Session = Depends(get_session),
 ) -> BroadcastViewerSettingsRead:
     return settings_read(viewer_settings(session))
+
+
+@router.get("/live-audio")
+def live_audio(
+    _current_user: CurrentUser,
+    session: Session = Depends(get_session),
+) -> StreamingResponse:
+    if not live_output_exists(session):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Live audio is available only while presentation output is running",
+        )
+    source_url = viewer_settings(session).live_audio_url
+    if not source_url:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Live audio is not configured",
+        )
+    try:
+        upstream = requests.get(source_url, stream=True, timeout=(5, None))
+        upstream.raise_for_status()
+    except requests.RequestException as error:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="The live audio source is unavailable",
+        ) from error
+
+    def audio_chunks():
+        try:
+            yield from upstream.iter_content(chunk_size=32 * 1024)
+        finally:
+            upstream.close()
+
+    return StreamingResponse(
+        audio_chunks(),
+        media_type=upstream.headers.get("content-type", "audio/mpeg").split(";", 1)[0],
+        headers={"Cache-Control": "no-store"},
+    )
 
 
 @router.patch("/viewer-settings", response_model=BroadcastViewerSettingsRead)

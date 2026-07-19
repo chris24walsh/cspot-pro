@@ -8,7 +8,8 @@ Broadcast is a remote service viewer with compact sermon recording.
 
 - All eligible users land on Viewer by default.
 - Trusted users can open Settings to configure the stream title and description,
-  external camera/livestream URL, pre-service audio URL, lead time, and holding messages.
+  external camera/livestream URL, Raspberry Pi or desk audio stream, pre-service
+  audio URL, lead time, and holding messages.
 - The slideshow and camera appear only while CSpot has an active presentation heartbeat.
 - Desktop uses two equal side-by-side media panels; mobile stacks the same panels vertically.
 - Before the next planned service, a configurable starting-soon window can offer
@@ -30,8 +31,9 @@ Broadcast is a remote service viewer with compact sermon recording.
 
 ## Media Architecture
 
-Viewer media is delivered through the configured stream or camera proxy. The
-API uses FFmpeg only during sermon recording to extract 48 kbps mono Opus audio;
+Viewer video is delivered through the configured stream or camera proxy. A
+dedicated private live-audio source is relayed by the API. The API uses FFmpeg
+during sermon recording to extract 48 kbps mono Opus audio;
 it does not retain a large composite video. Recording files live in the durable
 application storage volume and slide timing is stored in the database.
 

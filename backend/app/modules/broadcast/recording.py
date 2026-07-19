@@ -37,6 +37,9 @@ _active: ActiveRecording | None = None
 
 def _source_url(session: Session) -> str | None:
     viewer = session.scalar(select(BroadcastViewerSettings).limit(1))
+    audio_url = viewer.live_audio_url.strip() if viewer and viewer.live_audio_url else ""
+    if audio_url.startswith(("http://", "https://")):
+        return audio_url
     camera_url = viewer.camera_url.strip() if viewer and viewer.camera_url else ""
     if not camera_url:
         return None

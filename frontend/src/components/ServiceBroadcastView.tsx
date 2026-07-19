@@ -2,6 +2,7 @@ import { Maximize2 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import {
+  broadcastLiveAudioUrl,
   getBroadcastViewerSettings,
   getFileSlides,
   getLivePresentationServices,
@@ -32,6 +33,7 @@ import { ScaledSlideImage } from "./ScaledSlideImage";
 const POLL_INTERVAL_MS = 3000;
 const DEFAULT_SETTINGS: BroadcastViewerSettings = {
   camera_url: null,
+  live_audio_url: null,
   offline_message: "No service is streaming right now",
   pre_service_audio_url: null,
   pre_service_minutes: 60,
@@ -75,7 +77,7 @@ function cameraMjpegFallback(url: string) {
   }
 }
 
-function CameraPane({ url }: { url: string }) {
+function CameraPane({ muteAudio, url }: { muteAudio: boolean; url: string }) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const [playbackBlocked, setPlaybackBlocked] = useState(false);
   const [fallbackUrl, setFallbackUrl] = useState<string | null>(null);
@@ -98,12 +100,12 @@ function CameraPane({ url }: { url: string }) {
       }
     };
     const updateSoundState = () => {
-      if (!cancelled) setPlaybackBlocked(video.paused || video.muted || video.volume === 0);
+      if (!cancelled) setPlaybackBlocked(video.paused || (!muteAudio && (video.muted || video.volume === 0)));
     };
     setFallbackUrl(null);
     const play = async () => {
       try {
-        video.muted = false;
+        video.muted = muteAudio;
         video.volume = 1;
         await video.play();
         updateSoundState();
@@ -111,8 +113,8 @@ function CameraPane({ url }: { url: string }) {
         if (!cancelled) setPlaybackBlocked(true);
       }
     };
-    video.muted = false;
-    video.defaultMuted = false;
+    video.muted = muteAudio;
+    video.defaultMuted = muteAudio;
     video.autoplay = true;
     video.playsInline = true;
 
@@ -147,7 +149,7 @@ function CameraPane({ url }: { url: string }) {
       video.removeEventListener("playing", updateSoundState);
       hls?.destroy();
     };
-  }, [isHls, kind, url]);
+  }, [isHls, kind, muteAudio, url]);
 
   if (fallbackUrl) {
     return <img alt="Live service camera" className="service-broadcast-camera-media" src={fallbackUrl} />;
@@ -156,20 +158,20 @@ function CameraPane({ url }: { url: string }) {
   if (kind === "video") {
     return (
       <div className="service-broadcast-camera-player">
-        <video autoPlay className="service-broadcast-camera-media" controls playsInline ref={videoRef} src={isHls ? undefined : url} />
+        <video autoPlay className="service-broadcast-camera-media" controls muted={muteAudio} playsInline ref={videoRef} src={isHls ? undefined : url} />
         {playbackBlocked ? (
           <button
             className="service-broadcast-camera-overlay"
             onClick={() => {
               if (videoRef.current) {
-                videoRef.current.muted = false;
+                videoRef.current.muted = muteAudio;
                 videoRef.current.volume = 1;
                 void videoRef.current.play().then(() => setPlaybackBlocked(false)).catch(() => setPlaybackBlocked(true));
               }
             }}
             type="button"
           >
-            Turn on camera sound
+            {muteAudio ? "Start camera" : "Turn on camera sound"}
           </button>
         ) : null}
       </div>
@@ -382,7 +384,7 @@ export function ServiceBroadcastView() {
 
         <section className="service-broadcast-camera-pane" aria-label="Live camera">
           {hasLiveService && settings.camera_url ? (
-            <CameraPane url={settings.camera_url} />
+            <CameraPane muteAudio={Boolean(settings.live_audio_url)} url={settings.camera_url} />
           ) : hasLiveService ? (
             <HoldingPane message="Camera stream is not configured" startingSoon={false} />
           ) : startingSoon && preServiceYouTubeId ? (
@@ -392,6 +394,13 @@ export function ServiceBroadcastView() {
           )}
         </section>
       </div>
+
+      {hasLiveService && settings.live_audio_url ? (
+        <div className="service-broadcast-preservice-audio service-broadcast-live-audio">
+          <span>Live service audio</span>
+          <audio autoPlay controls src={broadcastLiveAudioUrl()} />
+        </div>
+      ) : null}
 
       {startingSoon && settings.pre_service_audio_url && !preServiceYouTubeId ? (
         <div className="service-broadcast-preservice-audio">

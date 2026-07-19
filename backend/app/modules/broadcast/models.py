@@ -44,6 +44,7 @@ class BroadcastViewerSettings(IdMixin, TimestampMixin, Base):
     stream_title: Mapped[str] = mapped_column(String(180), default="Sunday Service")
     stream_description: Mapped[str | None] = mapped_column(Text)
     camera_url: Mapped[str | None] = mapped_column(Text)
+    live_audio_url: Mapped[str | None] = mapped_column(Text)
     pre_service_audio_url: Mapped[str | None] = mapped_column(Text)
     pre_service_minutes: Mapped[int] = mapped_column(Integer, default=60)
     starting_soon_message: Mapped[str] = mapped_column(

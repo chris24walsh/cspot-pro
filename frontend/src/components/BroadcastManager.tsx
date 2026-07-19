@@ -18,6 +18,7 @@ import { useConfirmationDialog } from "./ConfirmationDialog";
 
 const EMPTY_SETTINGS: BroadcastViewerSettings = {
   camera_url: null,
+  live_audio_url: null,
   offline_message: "No service is streaming right now",
   pre_service_audio_url: null,
   pre_service_minutes: 60,
@@ -179,6 +180,18 @@ export function BroadcastManager() {
           <small>Use an HTTPS URL or an app-relative camera proxy path.</small>
         </label>
         <label className="wide-field">
+          Live audio stream URL
+          <input
+            disabled={loading}
+            inputMode="url"
+            onChange={(event) => setForm({ ...form, live_audio_url: event.target.value || null })}
+            placeholder="https://audio-host.example/cspot.mp3"
+            type="text"
+            value={form.live_audio_url || ""}
+          />
+          <small>Audio from a Raspberry Pi or desk feed. This is preferred for live playback and sermon recording.</small>
+        </label>
+        <label className="wide-field">
           Pre-service worship audio or YouTube URL
           <input disabled={loading} onChange={(event) => setForm({ ...form, pre_service_audio_url: event.target.value || null })} placeholder="YouTube link or https://…/music.mp3" type="url" value={form.pre_service_audio_url || ""} />
         </label>
@@ -192,7 +205,7 @@ export function BroadcastManager() {
         </label>
       </div>
       <p className="muted-copy broadcast-settings-note">
-        The camera and slideshow appear only while the presenter slideshow is running. Pre-service audio is offered during the configured window before the next scheduled service.
+        Live media and the slideshow appear only while the presenter slideshow is running. Pre-service audio is offered during the configured window before the next scheduled service.
       </p>
 
       <section className="broadcast-recordings" aria-label="Sermon recordings">

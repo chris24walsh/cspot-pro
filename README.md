@@ -15,6 +15,11 @@ migration planning; this project starts clean with a container-first stack.
 - Auth: cookie-based sessions with backend-enforced RBAC
 - Tests: pytest for backend, browser tests to follow once flows exist
 
+## Live audio
+
+CSpot can take [live and recorded service audio](docs/raspberry-pi-live-audio.md)
+from a Raspberry Pi USB microphone or mixing-desk feed.
+
 ## Local Development
 
 Copy the environment file:

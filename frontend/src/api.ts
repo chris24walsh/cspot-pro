@@ -524,6 +524,7 @@ export interface BroadcastViewerSettings {
   stream_title: string;
   stream_description: string | null;
   camera_url: string | null;
+  live_audio_url: string | null;
   pre_service_audio_url: string | null;
   pre_service_minutes: number;
   starting_soon_message: string;
@@ -1025,6 +1026,10 @@ export async function deleteBroadcastRecording(recordingId: string): Promise<voi
 
 export function broadcastRecordingAudioUrl(recordingId: string) {
   return buildApiUrl(`/api/v1/broadcast/recordings/${recordingId}/audio`);
+}
+
+export function broadcastLiveAudioUrl() {
+  return buildApiUrl("/api/v1/broadcast/live-audio");
 }
 
 export async function getGoogleDriveStatus(): Promise<GoogleDriveStatus> {
