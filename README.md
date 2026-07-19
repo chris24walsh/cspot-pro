@@ -20,6 +20,12 @@ migration planning; this project starts clean with a container-first stack.
 CSpot can take [live and recorded service audio](docs/raspberry-pi-live-audio.md)
 from a Raspberry Pi USB microphone or mixing-desk feed.
 
+## Network TV display
+
+The live slideshow can run directly in a
+[church TV's native browser](docs/tv-browser-display.md), following a presenter
+over the server without an HDMI cable or extended desktop.
+
 ## Local Development
 
 Copy the environment file:

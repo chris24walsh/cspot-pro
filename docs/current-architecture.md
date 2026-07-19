@@ -201,6 +201,17 @@ The current live output model uses:
 This keeps the control window and output window in sync inside one browser
 environment without requiring a server push channel yet.
 
+### Network TV output
+
+The stable `?presentation=tv` display URL is a passive, authenticated slideshow
+renderer for a television browser. When the presenter selects **Start TV**, the
+presenter control page owns and refreshes the server-authoritative output
+heartbeat while the TV discovers the active service and polls its live slide
+state. This avoids external-monitor wiring and allows multiple passive displays
+without output-ownership conflicts. The TV uses a remembered, least-privilege
+viewer session; browser fullscreen and autoplay still require interaction on
+the television itself.
+
 ### Remote service viewer
 
 The Broadcast area is viewer-first. Eligible users land on the viewer even when

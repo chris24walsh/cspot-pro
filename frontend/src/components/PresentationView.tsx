@@ -1,4 +1,4 @@
-import { CircleStop, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, EyeOff, Mic, MonitorUp, Moon, Pause, Pencil, Play, Plus, Search, Trash2, Volume2, WandSparkles } from "lucide-react";
+import { CircleStop, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, EyeOff, Mic, MonitorUp, Moon, Pause, Pencil, Play, Plus, Search, Trash2, Tv, Volume2, WandSparkles } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
@@ -679,6 +679,7 @@ export function PresentationView({
   const [playingAudioSectionId, setPlayingAudioSectionId] = useState<string | null>(null);
   const [localAudioUrl, setLocalAudioUrl] = useState<string | null>(null);
   const [slideshowOpen, setSlideshowOpen] = useState(false);
+  const [networkSlideshowOpen, setNetworkSlideshowOpen] = useState(false);
   const [broadcastRecordings, setBroadcastRecordings] = useState<BroadcastRecording[]>([]);
   const [recordingAction, setRecordingAction] = useState(false);
   const [deckRenderRetryToken, setDeckRenderRetryToken] = useState(0);
@@ -1415,6 +1416,7 @@ export function PresentationView({
     }
     outputWindowRef.current = null;
     outputOwnerIdRef.current = null;
+    setNetworkSlideshowOpen(false);
     localStorage.removeItem(PRESENTATION_OUTPUT_STATUS_KEY);
     setSlideshowOpen(false);
   }
@@ -1437,6 +1439,10 @@ export function PresentationView({
   }
 
   async function toggleOutputFullscreen() {
+    if (networkSlideshowOpen) {
+      setMessage("Use the Fullscreen button in the TV browser; remote browsers cannot enter fullscreen without a click on that device.");
+      return;
+    }
     const outputWindow = outputWindowRef.current;
     if (!outputWindow || outputWindow.closed) {
       await startSlideshow();
@@ -1534,6 +1540,40 @@ export function PresentationView({
     );
     setSlideshowOpen(true);
     outputWindow.focus();
+  }
+
+  async function startNetworkSlideshow() {
+    if (!plan) {
+      setMessage("Select a plan before starting TV output.");
+      return;
+    }
+    if (networkSlideshowOpen) {
+      await closeActiveSlideshow();
+      return;
+    }
+    const currentOutputStatus = await getPresentationOutputStatus(plan.id).catch(() => null);
+    if (currentOutputStatus?.active) {
+      setMessage("A slideshow is already open. Close it before starting TV output.");
+      setSlideshowOpen(true);
+      return;
+    }
+    const ownerId = `tv-${outputOwnerId()}`;
+    const claimed = await updatePresentationOutputStatus(plan.id, {
+      owner_id: ownerId,
+      heartbeat_at: Date.now(),
+    }).catch(() => null);
+    if (!claimed?.claimed || claimed.owner_id !== ownerId) {
+      setMessage("Could not reserve the TV output.");
+      return;
+    }
+    outputOwnerIdRef.current = ownerId;
+    setNetworkSlideshowOpen(true);
+    setSlideshowOpen(true);
+    await publishLiveState(liveIndex);
+    const displayUrl = new URL(window.location.href);
+    displayUrl.search = "";
+    displayUrl.searchParams.set("presentation", "tv");
+    setMessage(`TV output started. Open ${displayUrl.toString()} in the TV browser and sign in.`);
   }
 
   async function selectPlan(planId: string) {
@@ -3102,6 +3142,48 @@ export function PresentationView({
   }, [selectedPlanId, slides]);
 
   useEffect(() => {
+    if (!networkSlideshowOpen || !plan?.id || !outputOwnerIdRef.current) {
+      return undefined;
+    }
+    const planId = plan.id;
+    const ownerId = outputOwnerIdRef.current;
+    let cancelled = false;
+
+    const heartbeat = async () => {
+      try {
+        const status = await updatePresentationOutputStatus(planId, {
+          owner_id: ownerId,
+          heartbeat_at: Date.now(),
+        });
+        if (!cancelled && status.owner_id !== ownerId) {
+          setNetworkSlideshowOpen(false);
+          setSlideshowOpen(status.active);
+          outputOwnerIdRef.current = null;
+          setMessage("The TV output was taken over by another display.");
+        }
+      } catch {
+        // A later heartbeat can recover from a brief network interruption.
+      }
+    };
+
+    const releaseOnClose = () => {
+      void updatePresentationOutputStatus(planId, {
+        owner_id: ownerId,
+        heartbeat_at: Date.now(),
+        release: true,
+      }).catch(() => undefined);
+    };
+    void heartbeat();
+    const timer = window.setInterval(() => void heartbeat(), 1500);
+    window.addEventListener("beforeunload", releaseOnClose);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+      window.removeEventListener("beforeunload", releaseOnClose);
+    };
+  }, [networkSlideshowOpen, plan?.id]);
+
+  useEffect(() => {
     syncSlideshowStatusFromStorage();
 
     const refreshOutputStatus = async () => {
@@ -3710,9 +3792,25 @@ export function PresentationView({
 
           <div className="presenter-controls" aria-label="Slide controls">
             <div className="action-row presenter-mobile-command-row">
-              <button className={slideshowOpen ? "primary-button" : "text-button"} disabled={loading || !plan} onClick={() => void startSlideshow()} title={slideshowOpen ? "Close slides" : "Start slides"} type="button">
+              <button
+                className={slideshowOpen && !networkSlideshowOpen ? "primary-button" : "text-button"}
+                disabled={loading || !plan || networkSlideshowOpen}
+                onClick={() => void startSlideshow()}
+                title={networkSlideshowOpen ? "TV output is active" : slideshowOpen ? "Close slides" : "Start slides on a connected display"}
+                type="button"
+              >
                 <MonitorUp size={16} aria-hidden="true" />
-                <span className="mobile-button-label">{slideshowOpen ? "Close Slides" : "Start Slides"}</span>
+                <span className="mobile-button-label">{networkSlideshowOpen ? "TV Active" : slideshowOpen ? "Close Slides" : "Start Slides"}</span>
+              </button>
+              <button
+                className={networkSlideshowOpen ? "primary-button" : "text-button"}
+                disabled={loading || !plan || (slideshowOpen && !networkSlideshowOpen)}
+                onClick={() => void startNetworkSlideshow()}
+                title={networkSlideshowOpen ? "Stop TV output" : "Send slides to a TV browser"}
+                type="button"
+              >
+                <Tv size={16} aria-hidden="true" />
+                <span className="mobile-button-label">{networkSlideshowOpen ? "Stop TV" : "Start TV"}</span>
               </button>
               {canEditPlan ? (
                 <button className="text-button" disabled={!plan} onClick={() => openSearchOverlay()} title="Search" type="button">

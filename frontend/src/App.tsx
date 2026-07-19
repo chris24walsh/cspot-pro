@@ -70,6 +70,7 @@ function isTransientApiError(error: unknown) {
 function App() {
   const initialParams = new URLSearchParams(window.location.search);
   const isPresentationOutput = initialParams.get("presentation") === "output";
+  const isNetworkDisplay = initialParams.get("presentation") === "tv";
   const publicWebsiteUrl = import.meta.env.VITE_PUBLIC_WEBSITE_URL || "/";
   const [activeModuleId, setActiveModuleId] = useState<ModuleId>("presentation");
   const [sessionUser, setSessionUser] = useState<SessionUser | null>(null);
@@ -256,16 +257,16 @@ function App() {
     }
   }, [canManageUsers, modules, sessionUser]);
 
-  if (isPresentationOutput) {
-    return <PresentationOutput />;
-  }
-
   if (authLoading) {
     return <main className="auth-shell"><section className="auth-card"><p>Loading cspot-pro...</p></section></main>;
   }
 
   if (!sessionUser) {
     return <AuthScreen bootstrapAvailable={bootstrapAvailable} onAuthenticated={setSessionUser} />;
+  }
+
+  if (isPresentationOutput || isNetworkDisplay) {
+    return <PresentationOutput networkDisplay={isNetworkDisplay} />;
   }
 
   async function signOut() {

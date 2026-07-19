@@ -19,6 +19,8 @@ product experience:
 - easier portability through containers
 - simpler future feature growth
 - a stronger presenter workflow
+- a church television that can follow a server-connected presenter without
+  being an external monitor
 
 ## Product Priorities
 

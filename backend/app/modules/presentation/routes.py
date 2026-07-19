@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_session
 from app.modules.broadcast.recording import stop_recording, sync_sermon_recording
-from app.modules.identity.auth import CurrentUser, require_any_permission, require_permission
+from app.modules.identity.auth import require_any_permission, require_permission
 from app.modules.identity.models import User
 from app.modules.planning.models import Plan, PlanItem, PlanType
 from app.modules.presentation.models import PresentationPosition, PresentationSession
@@ -237,7 +237,7 @@ def get_presentation_live_state(
 def update_presentation_live_state(
     plan_id: str,
     payload: PresentationLiveStateWrite,
-    current_user: CurrentUser,
+    current_user: User = Depends(require_permission("presentation:use")),
     session: Session = Depends(get_session),
 ) -> PresentationLiveStateRead:
     presentation_session = _latest_session(session, plan_id)
@@ -303,7 +303,7 @@ def get_presentation_output_status(
 def update_presentation_output_status(
     plan_id: str,
     payload: PresentationOutputStatusWrite,
-    current_user: CurrentUser,
+    current_user: User = Depends(require_permission("presentation:use")),
     session: Session = Depends(get_session),
 ) -> PresentationOutputStatusRead:
     presentation_session = _latest_session(session, plan_id)

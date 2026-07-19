@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import {
   getFileSlides,
+  getLivePresentationServices,
   getPlan,
   getPlans,
   getPresentationLiveState,
@@ -10,6 +11,7 @@ import {
   updatePresentationOutputStatus,
   updatePresentationLiveState,
   type PlanDetail,
+  type PresentationLiveService,
   type RenderedSlide,
   type Song,
 } from "../api";
@@ -44,7 +46,25 @@ function readLiveState(): PresentationLiveState | null {
   }
 }
 
-export function PresentationOutput() {
+export function networkDisplayState(service: PresentationLiveService): PresentationLiveState {
+  return {
+    planId: service.plan_id,
+    index: service.index,
+    updatedAt: service.updated_at,
+    planItemId: service.plan_item_id,
+    slideOffset: service.slide_offset,
+    theme: "light",
+    blanked: false,
+    fullscreen: true,
+    videoAction: null,
+  };
+}
+
+interface PresentationOutputProps {
+  networkDisplay?: boolean;
+}
+
+export function PresentationOutput({ networkDisplay = false }: PresentationOutputProps) {
   const outputOwnerId = useMemo(() => {
     const params = new URLSearchParams(window.location.search);
     return params.get("outputId") || "standalone-output";
@@ -56,6 +76,7 @@ export function PresentationOutput() {
     const params = new URLSearchParams(window.location.search);
     const planId = params.get("planId");
     const index = Number(params.get("index") ?? "0");
+    if (networkDisplay) return null;
     return planId ? { planId, index, updatedAt: Date.now() } : readLiveState();
   });
   const [message, setMessage] = useState<string | null>(null);
@@ -63,6 +84,7 @@ export function PresentationOutput() {
   const [renderedSlidesByFileId, setRenderedSlidesByFileId] = useState<Record<string, RenderedSlide[]>>({});
   const [blanked, setBlanked] = useState(false);
   const lastLiveStateRef = useRef(0);
+  const networkPlanIdRef = useRef<string | null>(null);
   const lastReadingRefreshRef = useRef("");
   const livePollInFlightRef = useRef(false);
   const videoFrameRef = useRef<HTMLIFrameElement | null>(null);
@@ -240,6 +262,7 @@ export function PresentationOutput() {
   }, [liveSlide?.itemType, liveState, load]);
 
   useEffect(() => {
+    if (networkDisplay) return undefined;
     writeOutputHeartbeat();
     const timer = window.setInterval(writeOutputHeartbeat, 1500);
 
@@ -260,7 +283,49 @@ export function PresentationOutput() {
       window.removeEventListener("beforeunload", clearHeartbeat);
       clearHeartbeat();
     };
-  }, [liveState?.planId, outputOwnerId, writeOutputHeartbeat]);
+  }, [liveState?.planId, networkDisplay, outputOwnerId, writeOutputHeartbeat]);
+
+  useEffect(() => {
+    if (!networkDisplay) return undefined;
+    let cancelled = false;
+    let inFlight = false;
+
+    async function discoverLiveService() {
+      if (inFlight) return;
+      inFlight = true;
+      try {
+        const services = await getLivePresentationServices();
+        if (cancelled) return;
+        const service = services[0];
+        if (!service) {
+          networkPlanIdRef.current = null;
+          lastLiveStateRef.current = 0;
+          setLiveState(null);
+          setPlan(null);
+          setWorshipSetPlan(null);
+          setRenderedSlidesByFileId({});
+          return;
+        }
+        if (networkPlanIdRef.current !== service.plan_id) {
+          networkPlanIdRef.current = service.plan_id;
+          applyLiveState(networkDisplayState(service));
+          // Force the live-state poll to hydrate theme, blanking, and media state.
+          lastLiveStateRef.current = 0;
+        }
+      } catch {
+        // Keep the last frame visible during a brief network interruption.
+      } finally {
+        inFlight = false;
+      }
+    }
+
+    void discoverLiveService();
+    const timer = window.setInterval(() => void discoverLiveService(), 1200);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [networkDisplay]);
 
   useEffect(() => {
     setBlanked(Boolean(liveState?.blanked));
@@ -420,6 +485,7 @@ export function PresentationOutput() {
   }, [plan]);
 
   useEffect(() => {
+    if (networkDisplay) return undefined;
     const channel = new BroadcastChannel(PRESENTATION_CHANNEL);
 
     channel.onmessage = (event: MessageEvent<PresentationLiveState>) => {
@@ -440,7 +506,7 @@ export function PresentationOutput() {
       channel.close();
       window.removeEventListener("storage", onStorage);
     };
-  }, []);
+  }, [networkDisplay]);
 
   useEffect(() => {
     function onFullscreenChange() {
@@ -473,7 +539,7 @@ export function PresentationOutput() {
       }
 
       if (event.key === "Escape") {
-        if (blanked) {
+        if (!networkDisplay && blanked) {
           event.preventDefault();
           setBlanked(false);
           void publishLiveState({ blanked: false });
@@ -486,6 +552,7 @@ export function PresentationOutput() {
       }
 
       if (event.key === "b" || event.key === "B") {
+        if (networkDisplay) return;
         event.preventDefault();
         const nextBlanked = !blanked;
         setBlanked(nextBlanked);
@@ -499,7 +566,7 @@ export function PresentationOutput() {
       document.removeEventListener("fullscreenchange", onFullscreenChange);
       window.removeEventListener("keydown", onKeyDown);
     };
-  }, [blanked, publishLiveState]);
+  }, [blanked, networkDisplay, publishLiveState]);
 
   useEffect(() => {
     if (!liveState) {
@@ -545,7 +612,7 @@ export function PresentationOutput() {
       >
         {blanked ? null : !liveSlide?.imageUrl && !liveSlide?.videoUrl && liveSlide?.itemType !== "song" ? (
           <div className="stage-title">
-            <span>{liveSlide?.title ?? "Ready"}</span>
+            <span>{liveSlide?.title ?? (networkDisplay ? "TV display ready" : "Ready")}</span>
           </div>
         ) : null}
         {blanked ? (
@@ -599,7 +666,10 @@ export function PresentationOutput() {
                 title={`${liveSlide.title} audio`}
               />
             ) : null}
-            <AutoFitSlideText maxFontSize={liveTextFontCap} text={liveSlide?.text ?? "Waiting for slideshow"} />
+            <AutoFitSlideText
+              maxFontSize={liveTextFontCap}
+              text={liveSlide?.text ?? (networkDisplay ? "Waiting for the presenter to start TV output" : "Waiting for slideshow")}
+            />
           </>
         )}
       </section>
