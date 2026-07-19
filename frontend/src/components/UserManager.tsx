@@ -24,6 +24,7 @@ import { useConfirmationDialog } from "./ConfirmationDialog";
 interface UserFormState {
   name: string;
   email: string;
+  username: string;
   start_page: string;
   calendar_color: string;
   calendar_avatar: string;
@@ -36,6 +37,7 @@ function formFromUser(user: User): UserFormState {
   return {
     name: user.name,
     email: user.email,
+    username: user.username,
     start_page: user.start_page ?? "",
     calendar_color: user.calendar_color || "teacher-a",
     calendar_avatar: user.calendar_avatar || "",
@@ -49,6 +51,7 @@ function payloadFromForm(form: UserFormState): UserInvitePayload {
   return {
     name: form.name,
     email: form.email,
+    username: form.username || null,
     start_page: form.start_page || null,
     calendar_color: form.calendar_color || null,
     calendar_avatar: form.calendar_avatar || null,
@@ -84,6 +87,7 @@ export function UserManager() {
   const [form, setForm] = useState<UserFormState>({
     name: "",
     email: "",
+    username: "",
     start_page: "",
     calendar_color: "teacher-a",
     calendar_avatar: "",
@@ -135,6 +139,7 @@ export function UserManager() {
     setForm({
       name: "",
       email: "",
+      username: "",
       start_page: "",
       calendar_color: "teacher-a",
       calendar_avatar: "",
@@ -353,7 +358,7 @@ export function UserManager() {
             >
               <strong>{user.name}</strong>
               <span>
-                {user.email} · {formatUserStatus(user)}
+                @{user.username} · {user.email} · {formatUserStatus(user)}
               </span>
             </button>
           ))}
@@ -420,6 +425,17 @@ export function UserManager() {
               required
               type="email"
               value={form.email}
+            />
+          </label>
+
+          <label>
+            Username
+            <input
+              autoCapitalize="none"
+              onChange={(event) => setForm({ ...form, username: event.target.value.toLowerCase() })}
+              pattern="[a-z0-9][a-z0-9._-]{1,79}"
+              required
+              value={form.username}
             />
           </label>
 

@@ -13,6 +13,7 @@ class RoleRead(BaseModel):
 
 class UserBase(BaseModel):
     email: str
+    username: str | None = None
     name: str
     start_page: str | None = None
     calendar_color: Literal["teacher-a", "teacher-b", "teacher-c", "teacher-d", "teacher-e", "teacher-f"] | None = None
@@ -28,6 +29,7 @@ class UserCreate(UserBase):
 
 class UserUpdate(BaseModel):
     email: str | None = None
+    username: str | None = None
     name: str | None = None
     start_page: str | None = None
     calendar_color: Literal["teacher-a", "teacher-b", "teacher-c", "teacher-d", "teacher-e", "teacher-f"] | None = None
@@ -48,6 +50,7 @@ class UserRead(UserBase):
 class MemberRead(BaseModel):
     id: str
     email: str
+    username: str
     name: str
     active: bool
     roles: list[str]
@@ -60,7 +63,8 @@ class SessionUserRead(UserRead):
 
 
 class LoginRequest(BaseModel):
-    email: str
+    identifier: str | None = None
+    email: str | None = None
     password: str
     remember: bool = False
 

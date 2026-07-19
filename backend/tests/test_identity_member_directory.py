@@ -14,6 +14,7 @@ def test_member_directory_exposes_team_fields_without_admin_fields() -> None:
     with Session(engine) as session:
         user = User(
             email="leader@example.com",
+            username="leader",
             name="Worship Leader",
             password_hash=None,
             start_page=None,
@@ -31,6 +32,7 @@ def test_member_directory_exposes_team_fields_without_admin_fields() -> None:
         member = user_to_member_read(session, user)
 
     assert member.roles == ["worship_leader"]
+    assert member.username == "leader"
     assert member.calendar_color == "teacher-b"
     assert "password_set" not in member.model_dump()
 

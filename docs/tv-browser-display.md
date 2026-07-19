@@ -16,9 +16,11 @@ be connected to the presenter computer as an external monitor.
    are upgraded to HTTPS automatically so the browser can retain its secure
    sign-in session.
 
-2. Sign in with a dedicated CSpot viewer account and choose the remembered-login
-   option. A viewer has the read permissions required to render plans without
-   presentation or editing permissions.
+2. Sign in with the dedicated viewer account's username or email address. TV
+   display login defaults to **Keep me signed in on this device** and uses both
+   modern and legacy cookie expiry attributes for older television browsers. A
+   viewer has the read permissions required to render plans without presentation
+   or editing permissions.
 3. Bookmark the `/app/tv` URL.
 4. Select **Fullscreen** on the TV once. Browsers require a local click before a
    page can enter fullscreen; CSpot cannot trigger this remotely.

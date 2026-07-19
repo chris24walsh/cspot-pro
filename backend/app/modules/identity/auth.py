@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from datetime import UTC, datetime, timedelta
 from typing import Annotated
 
 import jwt
@@ -60,7 +61,8 @@ def set_session_cookie(response: Response, *, user_id: str, remember: bool = Fal
         httponly=True,
         secure=settings.session_cookie_secure,
         samesite="lax",
-        max_age=max_age,
+        max_age=max_age if remember else None,
+        expires=datetime.now(UTC) + timedelta(seconds=max_age) if remember else None,
         path="/",
     )
 

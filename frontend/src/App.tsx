@@ -263,7 +263,13 @@ function App() {
   }
 
   if (!sessionUser) {
-    return <AuthScreen bootstrapAvailable={bootstrapAvailable} onAuthenticated={setSessionUser} />;
+    return (
+      <AuthScreen
+        bootstrapAvailable={bootstrapAvailable}
+        onAuthenticated={setSessionUser}
+        rememberByDefault={isNetworkDisplay}
+      />
+    );
   }
 
   if (isPresentationOutput || isNetworkDisplay) {

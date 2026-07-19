@@ -15,6 +15,7 @@ import { appAssetUrl } from "../paths";
 interface AuthScreenProps {
   bootstrapAvailable: boolean;
   onAuthenticated: (user: SessionUser) => void;
+  rememberByDefault?: boolean;
 }
 
 type AuthMode = "login" | "bootstrap" | "forgot" | "password_setup";
@@ -38,7 +39,7 @@ function tokenHeading(tokenMeta: AuthActionToken | null) {
   };
 }
 
-export function AuthScreen({ bootstrapAvailable, onAuthenticated }: AuthScreenProps) {
+export function AuthScreen({ bootstrapAvailable, onAuthenticated, rememberByDefault = false }: AuthScreenProps) {
   const params = useMemo(() => new URLSearchParams(window.location.search), []);
   const actionToken = params.get("token");
   const [mode, setMode] = useState<AuthMode>(actionToken ? "password_setup" : bootstrapAvailable ? "bootstrap" : "login");
@@ -47,7 +48,9 @@ export function AuthScreen({ bootstrapAvailable, onAuthenticated }: AuthScreenPr
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [remember, setRemember] = useState(() => Boolean(localStorage.getItem(REMEMBER_EMAIL_KEY)));
+  const [remember, setRemember] = useState(
+    () => rememberByDefault || Boolean(localStorage.getItem(REMEMBER_EMAIL_KEY)),
+  );
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -139,7 +142,7 @@ export function AuthScreen({ bootstrapAvailable, onAuthenticated }: AuthScreenPr
         return;
       }
 
-      const user = await login({ email, password, remember });
+      const user = await login({ identifier: email, password, remember });
       if (remember) {
         localStorage.setItem(REMEMBER_EMAIL_KEY, email);
       } else {
@@ -202,12 +205,12 @@ export function AuthScreen({ bootstrapAvailable, onAuthenticated }: AuthScreenPr
           ) : null}
 
           <label>
-            Email
+            {mode === "login" ? "Email or username" : "Email"}
             <input
               disabled={mode === "password_setup"}
               onChange={(event) => setEmail(event.target.value)}
               required
-              type="email"
+              type={mode === "login" ? "text" : "email"}
               value={email}
             />
           </label>
@@ -281,7 +284,7 @@ export function AuthScreen({ bootstrapAvailable, onAuthenticated }: AuthScreenPr
           {mode === "login" ? (
             <label className="auth-remember-row">
               <input checked={remember} onChange={(event) => setRemember(event.target.checked)} type="checkbox" />
-              <span>Remember me</span>
+              <span>Keep me signed in on this device</span>
             </label>
           ) : null}
 

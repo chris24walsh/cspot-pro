@@ -420,6 +420,7 @@ export interface CustomProviderSelectResult {
 export interface User {
   id: string;
   email: string;
+  username: string;
   name: string;
   start_page: string | null;
   calendar_color: string | null;
@@ -434,6 +435,7 @@ export interface User {
 export interface Member {
   id: string;
   email: string;
+  username: string;
   name: string;
   active: boolean;
   roles: string[];
@@ -481,6 +483,7 @@ export interface PlanHistoryPayload {
 
 export interface UserPayload {
   email: string;
+  username: string | null;
   name: string;
   start_page: string | null;
   calendar_color: string | null;
@@ -493,6 +496,7 @@ export interface UserPayload {
 
 export interface UserInvitePayload {
   email: string;
+  username: string | null;
   name: string;
   start_page: string | null;
   calendar_color: string | null;
@@ -782,7 +786,7 @@ export async function bootstrapAdmin(payload: {
   });
 }
 
-export async function login(payload: { email: string; password: string; remember?: boolean }): Promise<SessionUser> {
+export async function login(payload: { identifier: string; password: string; remember?: boolean }): Promise<SessionUser> {
   return sendJson<SessionUser>("/api/v1/identity/auth/login", "POST", payload, {
     suppressAuthEvent: true,
   });

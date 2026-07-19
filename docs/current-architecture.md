@@ -215,6 +215,10 @@ without output-ownership conflicts. The TV uses a remembered, least-privilege
 viewer session; browser fullscreen and autoplay still require interaction on
 the television itself.
 
+Identity accounts have a unique, lowercase username in addition to email.
+Sign-in accepts either identifier, and remembered sessions include both
+`Max-Age` and `Expires` for compatibility with older embedded browsers.
+
 ### Remote service viewer
 
 The Broadcast area is viewer-first. Eligible users land on the viewer even when

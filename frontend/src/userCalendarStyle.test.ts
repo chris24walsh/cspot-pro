@@ -9,6 +9,7 @@ function user(id: string, name: string, color = "teacher-a", avatar: string | nu
     calendar_avatar: avatar,
     calendar_color: color,
     email: `${id}@example.com`,
+    username: `user-${id}`,
     email_confirmed: true,
     id,
     invite_pending: false,

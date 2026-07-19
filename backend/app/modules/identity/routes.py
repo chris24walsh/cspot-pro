@@ -1,7 +1,8 @@
+import re
 from datetime import UTC, datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Response, status
-from sqlalchemy import select
+from sqlalchemy import func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -48,6 +49,46 @@ from app.modules.identity.security import (
 
 router = APIRouter()
 CALENDAR_COLORS = ("teacher-a", "teacher-b", "teacher-c", "teacher-d", "teacher-e", "teacher-f")
+USERNAME_PATTERN = re.compile(r"^[a-z0-9][a-z0-9._-]{1,79}$")
+
+
+def resolve_username(
+    session: Session,
+    *,
+    username: str | None,
+    email: str,
+    exclude_user_id: str | None = None,
+) -> str:
+    if username and username.strip():
+        candidate = username.strip().lower()
+        if not USERNAME_PATTERN.fullmatch(candidate):
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=(
+                    "Username must be 2-80 characters using letters, numbers, dots, dashes, "
+                    "or underscores."
+                ),
+            )
+        existing_id = session.scalar(select(User.id).where(User.username == candidate))
+        if existing_id is not None and existing_id != exclude_user_id:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="That username is already in use.",
+            )
+        return candidate
+
+    base = re.sub(r"[^a-z0-9._-]+", "-", email.split("@", 1)[0].strip().lower()).strip(".-_")
+    if len(base) < 2:
+        base = f"user-{base}".rstrip("-")
+    base = base[:72]
+    candidate = base
+    suffix = 2
+    while True:
+        existing_id = session.scalar(select(User.id).where(User.username == candidate))
+        if existing_id is None or existing_id == exclude_user_id:
+            return candidate
+        candidate = f"{base[: 79 - len(str(suffix))]}-{suffix}"
+        suffix += 1
 
 
 def stable_calendar_color(user_id: str) -> str:
@@ -75,6 +116,7 @@ def user_to_read(session: Session, user: User) -> UserRead:
     return UserRead(
         id=user.id,
         email=user.email,
+        username=user.username,
         name=user.name,
         start_page=user.start_page,
         calendar_color=user.calendar_color or stable_calendar_color(user.id),
@@ -126,6 +168,7 @@ def user_to_member_read(session: Session, user: User) -> MemberRead:
     return MemberRead(
         id=user.id,
         email=user.email,
+        username=user.username,
         name=user.name,
         active=user.active,
         roles=list_role_names(session, user.id),
@@ -250,6 +293,7 @@ def bootstrap_admin(
     if user is None:
         user = User(
             email=payload.email,
+            username=resolve_username(session, username=None, email=payload.email),
             name=payload.name,
             start_page="presentation",
             email_confirmed=True,
@@ -278,9 +322,20 @@ def login(
     response: Response,
     session: Session = Depends(get_session),
 ) -> SessionUserRead:
-    user = session.scalar(select(User).where(User.email == payload.email))
+    identifier = (payload.identifier or payload.email or "").strip().lower()
+    if not identifier:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Enter an email or username.",
+        )
+    user = session.scalar(
+        select(User).where(or_(func.lower(User.email) == identifier, User.username == identifier))
+    )
     if user is None or not user.active or not verify_password(payload.password, user.password_hash):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid email or password.")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid email/username or password.",
+        )
 
     set_session_cookie(response, user_id=user.id, remember=payload.remember)
     return user_to_session_read(session, user)
@@ -438,6 +493,7 @@ def create_user(
     try:
         user = User(
             email=payload.email,
+            username=resolve_username(session, username=payload.username, email=payload.email),
             name=payload.name,
             start_page=payload.start_page,
             email_confirmed=payload.email_confirmed,
@@ -455,7 +511,7 @@ def create_user(
         session.rollback()
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail="A user with that email already exists.",
+            detail="A user with that email or username already exists.",
         ) from exc
 
     session.refresh(user)
@@ -472,6 +528,7 @@ def invite_user(
     try:
         user = User(
             email=payload.email,
+            username=resolve_username(session, username=payload.username, email=payload.email),
             name=payload.name,
             start_page=payload.start_page,
             email_confirmed=False,
@@ -498,7 +555,7 @@ def invite_user(
         session.rollback()
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail="A user with that email already exists.",
+            detail="A user with that email or username already exists.",
         ) from exc
 
     session.refresh(user)
@@ -530,6 +587,7 @@ def update_user(
     values = payload.model_dump(exclude_unset=True)
     role_names = values.pop("role_names", None)
     password = values.pop("password", None)
+    username = values.pop("username", None) if "username" in values else user.username
 
     if password:
         try:
@@ -538,6 +596,12 @@ def update_user(
             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
 
     try:
+        user.username = resolve_username(
+            session,
+            username=username,
+            email=values.get("email", user.email),
+            exclude_user_id=user.id,
+        )
         for field, value in values.items():
             setattr(user, field, value)
 
@@ -552,7 +616,7 @@ def update_user(
         session.rollback()
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail="A user with that email already exists.",
+            detail="A user with that email or username already exists.",
         ) from exc
 
     session.refresh(user)
