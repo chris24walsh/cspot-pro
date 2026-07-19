@@ -1,3 +1,11 @@
+# Development environments
+
+The repository has a hot-reload local stack, an isolated production-image
+sandbox, and production deployments. The sandbox owns a separate Compose
+project, database volume, storage volume, credentials, and localhost port.
+Private remote access uses Tailscale Serve and never production data.
+
+
 # Current Architecture
 
 This document describes the current architecture of `cspot-pro` in a way

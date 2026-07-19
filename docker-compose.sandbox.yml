@@ -1,0 +1,44 @@
+name: ${COMPOSE_PROJECT_NAME:-cspot-sandbox}
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile.prod
+    env_file: [.env.sandbox]
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+    volumes:
+      - sandbox_storage:/app/storage
+
+  web:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile.prod
+      args:
+        VITE_API_BASE_URL: /api
+        VITE_APP_BASE_PATH: /
+    env_file: [.env.sandbox]
+    depends_on: [api]
+    ports:
+      - "127.0.0.1:${SANDBOX_HTTP_PORT:-18080}:80"
+    restart: unless-stopped
+
+  db:
+    image: postgres:16-alpine
+    env_file: [.env.sandbox]
+    restart: unless-stopped
+    volumes:
+      - sandbox_postgres:/var/lib/postgresql/data
+      - ./docker/init-db.sql:/docker-entrypoint-initdb.d/001-init-db.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-cspot_sandbox} -d ${POSTGRES_DB:-cspot_sandbox}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  sandbox_postgres:
+  sandbox_storage:

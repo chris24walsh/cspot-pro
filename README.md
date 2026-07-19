@@ -155,6 +155,17 @@ URL if the Website shortcut should link back there, for example:
 VITE_PUBLIC_WEBSITE_URL=https://lcf.walsh.qzz.io
 ```
 
+Pull requests are checked automatically. For production-like testing from a
+remote device, use the isolated Tailscale sandbox described in
+[docs/collaboration-and-sandbox.md](docs/collaboration-and-sandbox.md).
+
+Run the checks:
+
+```bash
+npm run check
+docker compose run --rm api pytest
+```
+
 ## Project Layout
 
 ```text
