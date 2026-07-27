@@ -4,8 +4,10 @@ import signal
 import subprocess
 import threading
 import time
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
+from queue import Queue
 from urllib.parse import urljoin
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
@@ -33,6 +35,104 @@ class ActiveRecording:
 
 _lock = threading.RLock()
 _active: ActiveRecording | None = None
+START_FAILURE_COOLDOWN_SECONDS = 60
+
+
+@dataclass(frozen=True)
+class RecordingIntent:
+    plan_id: str
+    previous_plan_item_id: str | None
+    plan_item_id: str | None
+    slide_offset: int
+    created_by_user_id: str | None
+
+
+_intent_queue: Queue[RecordingIntent] = Queue()
+_intent_lock = threading.Lock()
+_queued_intents: set[RecordingIntent] = set()
+_intent_worker: threading.Thread | None = None
+_retry_lock = threading.Lock()
+_start_retry_after: dict[tuple[str, str], float] = {}
+
+
+def _run_recording_intent(intent: RecordingIntent) -> None:
+    with SessionLocal() as session:
+        sync_sermon_recording(
+            session,
+            intent.plan_id,
+            intent.previous_plan_item_id,
+            intent.plan_item_id,
+            intent.slide_offset,
+            intent.created_by_user_id,
+        )
+
+
+def _recording_intent_worker() -> None:
+    while True:
+        intent = _intent_queue.get()
+        try:
+            _run_recording_intent(intent)
+        except Exception:
+            logger.exception("Could not apply automatic sermon recording state")
+        finally:
+            with _intent_lock:
+                _queued_intents.discard(intent)
+            _intent_queue.task_done()
+
+
+def schedule_sermon_recording(
+    plan_id: str,
+    previous_plan_item_id: str | None,
+    plan_item_id: str | None,
+    slide_offset: int,
+    created_by_user_id: str | None,
+) -> None:
+    """Apply a recording transition without retaining the request's DB session."""
+    global _intent_worker
+    intent = RecordingIntent(
+        plan_id=plan_id,
+        previous_plan_item_id=previous_plan_item_id,
+        plan_item_id=plan_item_id,
+        slide_offset=slide_offset,
+        created_by_user_id=created_by_user_id,
+    )
+    with _intent_lock:
+        if intent in _queued_intents:
+            return
+        _queued_intents.add(intent)
+        _intent_queue.put(intent)
+        if _intent_worker is None or not _intent_worker.is_alive():
+            _intent_worker = threading.Thread(
+                target=_recording_intent_worker,
+                daemon=True,
+                name="sermon-recording-intents",
+            )
+            _intent_worker.start()
+
+
+def _start_is_in_cooldown(plan_id: str, plan_item_id: str) -> bool:
+    retry_key = (plan_id, plan_item_id)
+    now = time.monotonic()
+    with _retry_lock:
+        retry_after = _start_retry_after.get(retry_key)
+        if retry_after is None:
+            return False
+        if now >= retry_after:
+            _start_retry_after.pop(retry_key, None)
+            return False
+        return True
+
+
+def _record_start_failure(plan_id: str, plan_item_id: str) -> None:
+    with _retry_lock:
+        _start_retry_after[(plan_id, plan_item_id)] = (
+            time.monotonic() + START_FAILURE_COOLDOWN_SECONDS
+        )
+
+
+def _clear_start_failure(plan_id: str, plan_item_id: str) -> None:
+    with _retry_lock:
+        _start_retry_after.pop((plan_id, plan_item_id), None)
 
 
 def _source_url(session: Session) -> str | None:
@@ -312,7 +412,7 @@ def resume_recording(session: Session) -> BroadcastRecording | None:
 def sync_sermon_recording(
     session: Session,
     plan_id: str,
-    _previous_plan_item_id: str | None,
+    previous_plan_item_id: str | None,
     plan_item_id: str | None,
     slide_offset: int,
     created_by_user_id: str | None,
@@ -321,12 +421,14 @@ def sync_sermon_recording(
     if item and item.plan_id == plan_id and item.item_type == "sermon" and item.deleted_at is None:
         if _active and _active.plan_id == plan_id:
             record_slide_transition(session, plan_id, item.id, slide_offset)
-        else:
+        elif previous_plan_item_id != item.id and not _start_is_in_cooldown(plan_id, item.id):
             try:
                 start_recording(session, plan_id, item.id, created_by_user_id)
                 record_slide_transition(session, plan_id, item.id, slide_offset)
             except RuntimeError as error:
+                _record_start_failure(plan_id, item.id)
                 logger.warning("Could not start automatic sermon recording: %s", error)
                 return
+            _clear_start_failure(plan_id, item.id)
     else:
         stop_recording(session, plan_id)

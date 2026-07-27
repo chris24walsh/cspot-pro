@@ -3147,8 +3147,13 @@ export function PresentationView({
     const planId = plan.id;
     const ownerId = outputOwnerIdRef.current;
     let cancelled = false;
+    let heartbeatInFlight = false;
 
     const heartbeat = async () => {
+      if (heartbeatInFlight) {
+        return;
+      }
+      heartbeatInFlight = true;
       try {
         const status = await updatePresentationOutputStatus(planId, {
           owner_id: ownerId,
@@ -3162,6 +3167,8 @@ export function PresentationView({
         }
       } catch {
         // A later heartbeat can recover from a brief network interruption.
+      } finally {
+        heartbeatInFlight = false;
       }
     };
 

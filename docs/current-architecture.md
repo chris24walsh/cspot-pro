@@ -299,15 +299,19 @@ Search modes:
   transitions. Automatic start is edge-triggered by a non-sermon-to-sermon move
   while the output heartbeat is live; it does not restart a manually stopped
   recording on later sermon slides. A paused recording resumes on the next sermon
-  slide, and leaving the sermon or closing output always stops it. Recording
+  slide, and leaving the sermon or closing output always stops it. Recorder
+  transitions run on one background worker with a separate database session;
+  stream probing and FFmpeg startup never block presenter API requests. Failed
+  source probes enter a cooldown instead of retrying on every heartbeat. Recording
   controls are hidden behind an off-by-default presenter toggle.
 - Every service receives a final End slide. Presenter controls can start, pause,
   resume, and stop recording; moving to a new slide resumes a paused recorder.
   Broadcast settings can permanently remove completed archive entries and files.
 - Presentation output ownership is server-authoritative and polled by the service
   view. An authorized close works across devices and leaves a close marker so the
-  former output cannot reclaim itself with a late heartbeat. Service-view `B`
-  controls blanking and `F` toggles its locally opened output fullscreen.
+  former output cannot reclaim itself with a late heartbeat. Presenter and output
+  clients keep at most one heartbeat request in flight. Service-view `B` controls
+  blanking and `F` toggles its locally opened output fullscreen.
 - Worship-set suggestions are edited inline: an empty set is seeded with five
   songs, while populated sets replace only checked rows. Each row exposes its
   position, rotation age, and a one-song regenerate action.

@@ -7,7 +7,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.core.database import get_session
-from app.modules.broadcast.recording import stop_recording, sync_sermon_recording
+from app.modules.broadcast.recording import schedule_sermon_recording
 from app.modules.identity.auth import require_any_permission, require_permission
 from app.modules.identity.models import User
 from app.modules.planning.models import Plan, PlanItem, PlanType
@@ -260,6 +260,7 @@ def update_presentation_live_state(
 
     existing_payload = _position_payload(position)
     previous_live_item_id = existing_payload.get("output_recording_item_id")
+    previous_slide_offset = existing_payload.get("slide_offset", 0)
     now = int(datetime.now(UTC).timestamp() * 1000)
     output_active = _serialize_output_status(plan_id, position, now).active
     next_payload = {**existing_payload, **payload.model_dump()}
@@ -273,17 +274,29 @@ def update_presentation_live_state(
     session.commit()
     session.refresh(presentation_session)
     session.refresh(position)
-    if output_active:
-        sync_sermon_recording(
-            session,
+    previous_item_id = (
+        previous_live_item_id if isinstance(previous_live_item_id, str) else None
+    )
+    slide_changed = (
+        previous_item_id == payload.plan_item_id
+        and previous_slide_offset != payload.slide_offset
+    )
+    if output_active and (previous_item_id != payload.plan_item_id or slide_changed):
+        schedule_sermon_recording(
             plan_id,
-            previous_live_item_id if isinstance(previous_live_item_id, str) else None,
+            previous_item_id,
             payload.plan_item_id,
             payload.slide_offset,
             current_user.id,
         )
-    else:
-        stop_recording(session, plan_id)
+    elif not output_active and previous_item_id is not None:
+        schedule_sermon_recording(
+            plan_id,
+            previous_item_id,
+            None,
+            payload.slide_offset,
+            current_user.id,
+        )
     return _serialize_live_state(presentation_session, position, plan_id)
 
 
@@ -325,6 +338,7 @@ def update_presentation_output_status(
     existing = _serialize_output_status(plan_id, position, payload.heartbeat_at)
     current_owner = existing.owner_id if existing.active else None
     next_payload = _position_payload(position)
+    previous_recording_item_id = next_payload.get("output_recording_item_id")
     new_output = False
     if payload.release:
         closed_owner = current_owner or next_payload.get("output_owner_id")
@@ -349,12 +363,22 @@ def update_presentation_output_status(
     session.commit()
     session.refresh(position)
     if payload.release:
-        stop_recording(session, plan_id)
-    else:
+        release_slide_offset = next_payload.get("slide_offset", 0)
+        schedule_sermon_recording(
+            plan_id,
+            previous_recording_item_id
+            if isinstance(previous_recording_item_id, str)
+            else None,
+            None,
+            int(release_slide_offset)
+            if isinstance(release_slide_offset, int | float)
+            else 0,
+            current_user.id,
+        )
+    elif new_output:
         current_item_id = next_payload.get("plan_item_id")
         slide_offset = next_payload.get("slide_offset", 0)
-        sync_sermon_recording(
-            session,
+        schedule_sermon_recording(
             plan_id,
             None,
             current_item_id if isinstance(current_item_id, str) else None,

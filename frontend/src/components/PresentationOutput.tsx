@@ -87,6 +87,7 @@ export function PresentationOutput({ networkDisplay = false }: PresentationOutpu
   const networkPlanIdRef = useRef<string | null>(null);
   const lastReadingRefreshRef = useRef("");
   const livePollInFlightRef = useRef(false);
+  const outputHeartbeatInFlightRef = useRef(false);
   const videoFrameRef = useRef<HTMLIFrameElement | null>(null);
   const videoElementRef = useRef<HTMLVideoElement | null>(null);
   const lastVideoActionRef = useRef<number | null>(null);
@@ -108,9 +109,10 @@ export function PresentationOutput({ networkDisplay = false }: PresentationOutpu
   );
 
   const writeOutputHeartbeat = useCallback(() => {
-    if (!liveState?.planId) {
+    if (!liveState?.planId || outputHeartbeatInFlightRef.current) {
       return;
     }
+    outputHeartbeatInFlightRef.current = true;
     const heartbeatAt = Date.now();
     localStorage.setItem(
       PRESENTATION_OUTPUT_STATUS_KEY,
@@ -119,15 +121,20 @@ export function PresentationOutput({ networkDisplay = false }: PresentationOutpu
     void updatePresentationOutputStatus(liveState.planId, {
       owner_id: outputOwnerId,
       heartbeat_at: heartbeatAt,
-    }).then((status) => {
-      if (!status.active && !status.claimed) {
-        window.close();
-        return;
-      }
-      if (status.active && status.owner_id && status.owner_id !== outputOwnerId) {
-        setMessage("Another slideshow output is already active.");
-      }
-    }).catch(() => undefined);
+    })
+      .then((status) => {
+        if (!status.active && !status.claimed) {
+          window.close();
+          return;
+        }
+        if (status.active && status.owner_id && status.owner_id !== outputOwnerId) {
+          setMessage("Another slideshow output is already active.");
+        }
+      })
+      .catch(() => undefined)
+      .finally(() => {
+        outputHeartbeatInFlightRef.current = false;
+      });
   }, [liveState?.planId, outputOwnerId]);
 
   function applyLiveState(state: PresentationLiveState) {

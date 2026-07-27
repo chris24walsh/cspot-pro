@@ -114,8 +114,36 @@ def test_auto_recording_starts_when_output_opens_on_a_sermon(monkeypatch) -> Non
     )
 
     sync_sermon_recording(session, "plan-1", None, "sermon-a", 0, "user-1")
+    sync_sermon_recording(session, "plan-1", "sermon-a", "sermon-a", 0, "user-1")
     sync_sermon_recording(session, "plan-1", "sermon-a", "welcome", 0, "user-1")
 
     assert starts == ["sermon-a"]
     assert transitions == ["sermon-a"]
     assert stops == ["plan-1"]
+
+
+def test_failed_auto_recording_start_enters_cooldown(monkeypatch) -> None:
+    sermon = SimpleNamespace(
+        id="sermon-a", plan_id="plan-1", item_type="sermon", deleted_at=None
+    )
+    session = SimpleNamespace(get=lambda _model, _item_id: sermon)
+    starts: list[str] = []
+    warnings: list[str] = []
+    monkeypatch.setattr("app.modules.broadcast.recording._active", None)
+    monkeypatch.setattr("app.modules.broadcast.recording._start_retry_after", {})
+
+    def fail_start(_session, _plan_id, item_id, _user_id):
+        starts.append(item_id)
+        raise RuntimeError("no audio")
+
+    monkeypatch.setattr("app.modules.broadcast.recording.start_recording", fail_start)
+    monkeypatch.setattr(
+        "app.modules.broadcast.recording.logger.warning",
+        lambda _message, error: warnings.append(str(error)),
+    )
+
+    sync_sermon_recording(session, "plan-1", None, "sermon-a", 0, "user-1")
+    sync_sermon_recording(session, "plan-1", None, "sermon-a", 0, "user-1")
+
+    assert starts == ["sermon-a"]
+    assert warnings == ["no audio"]
