@@ -302,8 +302,10 @@ Search modes:
   slide, and leaving the sermon or closing output always stops it. Recorder
   transitions run on one background worker with a separate database session;
   stream probing and FFmpeg startup never block presenter API requests. Failed
-  source probes enter a cooldown instead of retrying on every heartbeat. Recording
-  controls are hidden behind an off-by-default presenter toggle.
+  source probes enter a cooldown instead of retrying on every heartbeat. Automatic
+  recording can be disabled persistently from Broadcast settings, preventing
+  stream probes and recorder startup while leaving manual recording available.
+  Recording controls are hidden behind an off-by-default presenter toggle.
 - Every service receives a final End slide. Presenter controls can start, pause,
   resume, and stop recording; moving to a new slide resumes a paused recorder.
   Broadcast settings can permanently remove completed archive entries and files.

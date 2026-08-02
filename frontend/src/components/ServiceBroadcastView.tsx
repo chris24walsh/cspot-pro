@@ -32,6 +32,7 @@ import { ScaledSlideImage } from "./ScaledSlideImage";
 
 const POLL_INTERVAL_MS = 3000;
 const DEFAULT_SETTINGS: BroadcastViewerSettings = {
+  auto_record_sermons: true,
   camera_url: null,
   live_audio_url: null,
   offline_message: "No service is streaming right now",

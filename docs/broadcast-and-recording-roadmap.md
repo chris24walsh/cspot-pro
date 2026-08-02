@@ -19,7 +19,9 @@ Broadcast is a remote service viewer with compact sermon recording.
   has a fresh live heartbeat automatically records mono Opus audio and timestamps
   slide changes. Opening on a sermon or moving between sermon slides does not
   restart a stopped recording. A paused recording resumes on the next sermon
-  slide; leaving the sermon or closing the output always finalizes it.
+  slide; leaving the sermon or closing the output always finalizes it. Broadcast
+  settings provide a persistent auto-record toggle; disabling it skips automatic
+  source probes and recorder startup while keeping manual recording available.
 - Presenters can opt into recording controls with the off-by-default Recording
   toggle, then start, pause, resume, or stop beneath the slide controls. Every
   service has an End slide, giving the presenter a deliberate finish action.

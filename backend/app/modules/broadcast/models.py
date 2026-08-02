@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, Integer, String, Text, UniqueConstraint
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.database import Base
@@ -45,6 +45,7 @@ class BroadcastViewerSettings(IdMixin, TimestampMixin, Base):
     stream_description: Mapped[str | None] = mapped_column(Text)
     camera_url: Mapped[str | None] = mapped_column(Text)
     live_audio_url: Mapped[str | None] = mapped_column(Text)
+    auto_record_sermons: Mapped[bool] = mapped_column(Boolean, default=True)
     pre_service_audio_url: Mapped[str | None] = mapped_column(Text)
     pre_service_minutes: Mapped[int] = mapped_column(Integer, default=60)
     starting_soon_message: Mapped[str] = mapped_column(

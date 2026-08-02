@@ -1,4 +1,4 @@
-import { CircleStop, Mic, Play, Save, Trash2 } from "lucide-react";
+import { CircleStop, Mic, MicOff, Play, Save, Trash2 } from "lucide-react";
 import { type FormEvent, useEffect, useState } from "react";
 
 import {
@@ -17,6 +17,7 @@ import { recordingTimestampTitle, SermonRecordingPlayer } from "./SermonRecordin
 import { useConfirmationDialog } from "./ConfirmationDialog";
 
 const EMPTY_SETTINGS: BroadcastViewerSettings = {
+  auto_record_sermons: true,
   camera_url: null,
   live_audio_url: null,
   offline_message: "No service is streaming right now",
@@ -42,6 +43,7 @@ export function BroadcastManager() {
   const [recordings, setRecordings] = useState<BroadcastRecording[]>([]);
   const [liveService, setLiveService] = useState<PresentationLiveService | null>(null);
   const [recordingAction, setRecordingAction] = useState(false);
+  const [autoRecordingAction, setAutoRecordingAction] = useState(false);
   const [playingRecording, setPlayingRecording] = useState<BroadcastRecording | null>(null);
 
   useEffect(() => {
@@ -98,6 +100,21 @@ export function BroadcastManager() {
     }
   }
 
+  async function toggleAutomaticRecording() {
+    const enabled = !form.auto_record_sermons;
+    setAutoRecordingAction(true);
+    setMessage(null);
+    try {
+      const settings = await updateBroadcastViewerSettings({ auto_record_sermons: enabled });
+      setForm((current) => ({ ...current, auto_record_sermons: settings.auto_record_sermons }));
+      setMessage(`Automatic sermon recording ${enabled ? "enabled" : "disabled"}.`);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not update automatic recording.");
+    } finally {
+      setAutoRecordingAction(false);
+    }
+  }
+
   async function removeRecording(recording: BroadcastRecording) {
     const confirmed = await confirm({
       confirmLabel: "Delete recording",
@@ -136,7 +153,7 @@ export function BroadcastManager() {
           <p className="eyebrow">Broadcast</p>
           <h2>Viewer settings</h2>
         </div>
-        <button className="primary-button icon-text-button" disabled={loading || saving} type="submit">
+        <button className="primary-button icon-text-button" disabled={loading || saving || autoRecordingAction} type="submit">
           <Save size={15} aria-hidden="true" />
           {saving ? "Saving…" : "Save"}
         </button>
@@ -214,18 +231,32 @@ export function BroadcastManager() {
             <p className="eyebrow">Audio + slides</p>
             <h2>Sermon recordings</h2>
           </div>
-          {activeRecording ? (
-            <button className="danger-button icon-text-button" disabled={recordingAction} onClick={() => void stopRecording()} type="button">
-              <CircleStop size={15} aria-hidden="true" /> Stop recording
+          <div className="broadcast-recording-heading-actions">
+            <button
+              aria-pressed={form.auto_record_sermons}
+              className={`${form.auto_record_sermons ? "text-button" : "primary-button"} icon-text-button`}
+              disabled={loading || saving || autoRecordingAction}
+              onClick={() => void toggleAutomaticRecording()}
+              type="button"
+            >
+              {form.auto_record_sermons ? <MicOff size={15} aria-hidden="true" /> : <Mic size={15} aria-hidden="true" />}
+              {autoRecordingAction ? "Updating…" : form.auto_record_sermons ? "Turn off auto-record" : "Turn on auto-record"}
             </button>
-          ) : (
-            <button className="primary-button icon-text-button" disabled={!liveService || recordingAction} onClick={() => void startRecording()} type="button">
-              <Mic size={15} aria-hidden="true" /> Record now
-            </button>
-          )}
+            {activeRecording ? (
+              <button className="danger-button icon-text-button" disabled={recordingAction} onClick={() => void stopRecording()} type="button">
+                <CircleStop size={15} aria-hidden="true" /> Stop recording
+              </button>
+            ) : (
+              <button className="primary-button icon-text-button" disabled={!liveService || recordingAction} onClick={() => void startRecording()} type="button">
+                <Mic size={15} aria-hidden="true" /> Record now
+              </button>
+            )}
+          </div>
         </div>
         <p className="muted-copy">
-          Recording starts automatically on sermon sections and stores compact mono audio with synchronized slide timings.
+          {form.auto_record_sermons
+            ? "Recording starts automatically on sermon sections and stores compact mono audio with synchronized slide timings."
+            : "Automatic sermon recording is off. You can still start a recording manually with Record now."}
         </p>
         <div className="broadcast-recording-list">
           {recordings.length ? recordings.map((recording) => (

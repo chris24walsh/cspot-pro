@@ -95,7 +95,10 @@ def test_auto_recording_starts_when_output_opens_on_a_sermon(monkeypatch) -> Non
             id="sermon-b", plan_id="plan-1", item_type="sermon", deleted_at=None
         ),
     }
-    session = SimpleNamespace(get=lambda _model, item_id: items.get(item_id))
+    session = SimpleNamespace(
+        get=lambda _model, item_id: items.get(item_id),
+        scalar=lambda _query: True,
+    )
     starts: list[str] = []
     transitions: list[str] = []
     stops: list[str] = []
@@ -122,11 +125,35 @@ def test_auto_recording_starts_when_output_opens_on_a_sermon(monkeypatch) -> Non
     assert stops == ["plan-1"]
 
 
+def test_disabled_auto_recording_does_not_start_on_a_sermon(monkeypatch) -> None:
+    sermon = SimpleNamespace(
+        id="sermon-a", plan_id="plan-1", item_type="sermon", deleted_at=None
+    )
+    session = SimpleNamespace(
+        get=lambda _model, _item_id: sermon,
+        scalar=lambda _query: False,
+    )
+    starts: list[str] = []
+    monkeypatch.setattr("app.modules.broadcast.recording._active", None)
+    monkeypatch.setattr("app.modules.broadcast.recording._start_retry_after", {})
+    monkeypatch.setattr(
+        "app.modules.broadcast.recording.start_recording",
+        lambda _session, _plan_id, item_id, _user_id: starts.append(item_id),
+    )
+
+    sync_sermon_recording(session, "plan-1", None, "sermon-a", 0, "user-1")
+
+    assert starts == []
+
+
 def test_failed_auto_recording_start_enters_cooldown(monkeypatch) -> None:
     sermon = SimpleNamespace(
         id="sermon-a", plan_id="plan-1", item_type="sermon", deleted_at=None
     )
-    session = SimpleNamespace(get=lambda _model, _item_id: sermon)
+    session = SimpleNamespace(
+        get=lambda _model, _item_id: sermon,
+        scalar=lambda _query: True,
+    )
     starts: list[str] = []
     warnings: list[str] = []
     monkeypatch.setattr("app.modules.broadcast.recording._active", None)

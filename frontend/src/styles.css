@@ -3992,6 +3992,14 @@ h3 {
   padding-top: 16px;
 }
 
+.broadcast-recording-heading-actions {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
 .broadcast-recording-list {
   display: grid;
   gap: 6px;

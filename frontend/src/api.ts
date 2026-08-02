@@ -529,6 +529,7 @@ export interface BroadcastViewerSettings {
   stream_description: string | null;
   camera_url: string | null;
   live_audio_url: string | null;
+  auto_record_sermons: boolean;
   pre_service_audio_url: string | null;
   pre_service_minutes: number;
   starting_soon_message: string;

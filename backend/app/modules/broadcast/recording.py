@@ -152,6 +152,11 @@ def _source_url(session: Session) -> str | None:
     return None
 
 
+def _auto_recording_enabled(session: Session) -> bool:
+    enabled = session.scalar(select(BroadcastViewerSettings.auto_record_sermons).limit(1))
+    return True if enabled is None else bool(enabled)
+
+
 def _timeline(recording: BroadcastRecording) -> list[dict[str, object]]:
     if not recording.timeline_json:
         return []
@@ -422,6 +427,8 @@ def sync_sermon_recording(
         if _active and _active.plan_id == plan_id:
             record_slide_transition(session, plan_id, item.id, slide_offset)
         elif previous_plan_item_id != item.id and not _start_is_in_cooldown(plan_id, item.id):
+            if not _auto_recording_enabled(session):
+                return
             try:
                 start_recording(session, plan_id, item.id, created_by_user_id)
                 record_slide_transition(session, plan_id, item.id, slide_offset)

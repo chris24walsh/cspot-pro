@@ -159,6 +159,7 @@ def settings_read(settings: BroadcastViewerSettings) -> BroadcastViewerSettingsR
         stream_description=settings.stream_description,
         camera_url=settings.camera_url,
         live_audio_url=settings.live_audio_url,
+        auto_record_sermons=settings.auto_record_sermons,
         pre_service_audio_url=settings.pre_service_audio_url,
         pre_service_minutes=settings.pre_service_minutes,
         starting_soon_message=settings.starting_soon_message,
@@ -245,7 +246,13 @@ def update_viewer_settings(
     for field, value in payload.model_dump(exclude_unset=True).items():
         if (
             field
-            in {"stream_title", "pre_service_minutes", "starting_soon_message", "offline_message"}
+            in {
+                "auto_record_sermons",
+                "stream_title",
+                "pre_service_minutes",
+                "starting_soon_message",
+                "offline_message",
+            }
             and value is None
         ):
             raise HTTPException(
