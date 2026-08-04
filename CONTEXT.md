@@ -3,11 +3,11 @@
 ## Facts
 
 - Core priority: reliable live presentation for church services.
-- Repo: `/home/chwalsh/dev/cspot-modern`; prod host: `plex`; prod repo: `/home/chris/plex/cspot-pro`.
+- Repo: `/home/chwalsh/dev/cspot-modern`; prod host: `apps-host`; prod repo: `/srv/apps/cspot`; prod Compose project: `/srv/apps/infra/cspot-pro`.
 - After user-facing code changes, commit/push, pull on prod, and rebuild `cspot-api`, `cspot-web`, `cspot-db`.
 - If Plex media returns `Input/output error` after the USB SSD changes device name, run `scripts/recover-plex-media.sh`; see `docs/plex-media-recovery.md`.
 - Deploy command:
-  `ssh -o BatchMode=yes -o ConnectTimeout=8 plex 'cd /home/chris/plex/cspot-pro && git pull --ff-only origin main && cd /home/chris/plex && docker compose up -d --build cspot-api cspot-web cspot-db && docker compose ps cspot-api cspot-web cspot-db'`
+  `ssh apps-host 'cd /srv/apps/cspot && git pull --ff-only origin main && cd /srv/apps/infra/cspot-pro && docker compose up -d --build api web db && docker compose ps api web db'`
 - Presenter is the main service-control surface: preview, slide sorter, section rail, notes, search, and slideshow controls.
 - Imported sermon/deck slides must be preserved visually and shown fully in preview/live via proportional image scaling and white pillarbox/letterbox space.
 - Do not force rendered slide images to `width: 100%; height: 100%`; scale from natural image size into available frame.
