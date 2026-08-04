@@ -1,4 +1,4 @@
-import { CircleStop, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, EyeOff, Mic, MonitorUp, Moon, Pause, Pencil, Play, Plus, Search, Trash2, Volume2, WandSparkles } from "lucide-react";
+import { CircleStop, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, EyeOff, Maximize2, Mic, Minimize2, MonitorUp, Moon, Pause, Pencil, Play, Plus, Search, Trash2, Volume2, WandSparkles } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
@@ -657,6 +657,7 @@ export function PresentationView({
   const [customProviderResult, setCustomProviderResult] = useState<CustomProviderSearchResult | null>(null);
   const [selectedCustomProviderMatchId, setSelectedCustomProviderMatchId] = useState<string | null>(null);
   const [topbarSlot, setTopbarSlot] = useState<HTMLElement | null>(null);
+  const [presenterFullscreen, setPresenterFullscreen] = useState(false);
   const [servicePickerOpen, setServicePickerOpen] = useState(false);
   const [serviceDraftDate, setServiceDraftDate] = useState("");
   const [serviceDraftTitle, setServiceDraftTitle] = useState("");
@@ -687,6 +688,7 @@ export function PresentationView({
   const [railCatchUpDirection, setRailCatchUpDirection] = useState<"up" | "down" | null>(null);
   const [slideNotesDraft, setSlideNotesDraft] = useState("");
   const [slideNotesSaving, setSlideNotesSaving] = useState(false);
+  const mobileOrTabletDevice = useMemo(() => isMobileOrTabletDevice(), []);
   const searchInputRef = useRef<HTMLInputElement | null>(null);
   const searchSelectionInFlightRef = useRef(false);
   const bibleSearchInsertInFlightRef = useRef(false);
@@ -1431,6 +1433,43 @@ export function PresentationView({
       outputWindow.focus();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Could not change slideshow fullscreen mode.");
+    }
+  }
+
+  async function togglePresenterFullscreen() {
+    const webkitDocument = document as Document & {
+      webkitExitFullscreen?: () => Promise<void> | void;
+      webkitFullscreenElement?: Element | null;
+    };
+    const root = document.documentElement as HTMLElement & {
+      webkitRequestFullscreen?: () => Promise<void> | void;
+    };
+    const fullscreenElement = document.fullscreenElement ?? webkitDocument.webkitFullscreenElement;
+
+    try {
+      if (fullscreenElement) {
+        if (document.exitFullscreen) {
+          await document.exitFullscreen();
+        } else {
+          await webkitDocument.webkitExitFullscreen?.();
+        }
+        setPresenterFullscreen(false);
+        setMessage(null);
+        return;
+      }
+
+      if (root.requestFullscreen) {
+        await root.requestFullscreen({ navigationUI: "hide" });
+      } else if (root.webkitRequestFullscreen) {
+        await root.webkitRequestFullscreen();
+      } else {
+        setMessage("This browser cannot hide its address and navigation bars from a webpage. On iPhone or iPad, add CSpot to the Home Screen and open it there for a browser-free view.");
+        return;
+      }
+      setPresenterFullscreen(true);
+      setMessage(null);
+    } catch {
+      setMessage("Fullscreen was blocked by this browser. On iPhone or iPad, add CSpot to the Home Screen and open it there for a browser-free view.");
     }
   }
 
@@ -2875,6 +2914,21 @@ export function PresentationView({
   }, []);
 
   useEffect(() => {
+    const updatePresenterFullscreen = () => {
+      const webkitDocument = document as Document & { webkitFullscreenElement?: Element | null };
+      setPresenterFullscreen(Boolean(document.fullscreenElement ?? webkitDocument.webkitFullscreenElement));
+    };
+
+    updatePresenterFullscreen();
+    document.addEventListener("fullscreenchange", updatePresenterFullscreen);
+    document.addEventListener("webkitfullscreenchange", updatePresenterFullscreen);
+    return () => {
+      document.removeEventListener("fullscreenchange", updatePresenterFullscreen);
+      document.removeEventListener("webkitfullscreenchange", updatePresenterFullscreen);
+    };
+  }, []);
+
+  useEffect(() => {
     async function loadBibleOptions() {
       try {
         const [versions, books] = await Promise.all([getBibleVersions(), getBibleBooks()]);
@@ -3462,7 +3516,7 @@ export function PresentationView({
       />
       {topbarSlot
         ? createPortal(
-            <div className="presentation-topbar-tools">
+            <div className={`presentation-topbar-tools ${mobileOrTabletDevice ? "has-presenter-fullscreen" : ""}`}>
               <DateNavigator
                 historyContent={serviceHistoryContent()}
                 historyDisabled={!plan || serviceHistoryLoading}
@@ -3480,6 +3534,18 @@ export function PresentationView({
                 previousDisabled={loading || !plan || sortedPlans.findIndex((candidate) => candidate.id === plan.id) >= sortedPlans.length - 1}
                 previousLabel="Previous service"
               />
+              {mobileOrTabletDevice ? (
+                <button
+                  aria-label={presenterFullscreen ? "Exit presenter fullscreen" : "Enter presenter fullscreen"}
+                  aria-pressed={presenterFullscreen}
+                  className="section-icon-button presenter-page-fullscreen-button"
+                  onClick={() => void togglePresenterFullscreen()}
+                  title={presenterFullscreen ? "Exit fullscreen" : "Hide browser controls"}
+                  type="button"
+                >
+                  {presenterFullscreen ? <Minimize2 size={15} aria-hidden="true" /> : <Maximize2 size={15} aria-hidden="true" />}
+                </button>
+              ) : null}
             </div>,
             topbarSlot,
           )

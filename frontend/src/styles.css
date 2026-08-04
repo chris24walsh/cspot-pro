@@ -212,6 +212,20 @@ button {
   min-width: 0;
 }
 
+.presentation-topbar-tools.has-presenter-fullscreen {
+  width: 100%;
+}
+
+.presenter-page-fullscreen-button {
+  flex: 0 0 auto;
+  height: 30px;
+  margin-left: auto;
+  min-height: 30px;
+  min-width: 30px;
+  padding: 0;
+  width: 30px;
+}
+
 .topbar-action-group {
   align-items: center;
   display: flex;

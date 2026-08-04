@@ -182,6 +182,11 @@ The presenter is built around:
 - current live slide index
 - a separate output window synchronized through local browser messaging
 
+On phones and tablets, the presenter sub-toolbar includes a page-fullscreen
+toggle at its right edge. Supporting browsers are asked to hide their navigation
+UI; browsers without page fullscreen direct the operator to a standalone
+Home Screen installation instead.
+
 ### Presentation derivation
 
 Slides are derived from plan items by content type:
