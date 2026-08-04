@@ -226,6 +226,26 @@ button {
   width: 30px;
 }
 
+.presenter-fullscreen-help-dialog {
+  gap: 12px;
+}
+
+.presenter-fullscreen-help-dialog h2,
+.presenter-fullscreen-help-dialog p {
+  margin: 0;
+}
+
+.presenter-fullscreen-help-dialog ol {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding-left: 22px;
+}
+
+.presenter-fullscreen-help-dialog .primary-button {
+  justify-self: end;
+}
+
 .topbar-action-group {
   align-items: center;
   display: flex;

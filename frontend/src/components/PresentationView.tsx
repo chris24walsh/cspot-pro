@@ -658,6 +658,7 @@ export function PresentationView({
   const [selectedCustomProviderMatchId, setSelectedCustomProviderMatchId] = useState<string | null>(null);
   const [topbarSlot, setTopbarSlot] = useState<HTMLElement | null>(null);
   const [presenterFullscreen, setPresenterFullscreen] = useState(false);
+  const [fullscreenInstallHelpOpen, setFullscreenInstallHelpOpen] = useState(false);
   const [servicePickerOpen, setServicePickerOpen] = useState(false);
   const [serviceDraftDate, setServiceDraftDate] = useState("");
   const [serviceDraftTitle, setServiceDraftTitle] = useState("");
@@ -689,6 +690,10 @@ export function PresentationView({
   const [slideNotesDraft, setSlideNotesDraft] = useState("");
   const [slideNotesSaving, setSlideNotesSaving] = useState(false);
   const mobileOrTabletDevice = useMemo(() => isMobileOrTabletDevice(), []);
+  const standalonePresenterApp = useMemo(() => {
+    const standaloneNavigator = navigator as Navigator & { standalone?: boolean };
+    return standaloneNavigator.standalone === true || window.matchMedia("(display-mode: standalone)").matches;
+  }, []);
   const searchInputRef = useRef<HTMLInputElement | null>(null);
   const searchSelectionInFlightRef = useRef(false);
   const bibleSearchInsertInFlightRef = useRef(false);
@@ -1463,13 +1468,15 @@ export function PresentationView({
       } else if (root.webkitRequestFullscreen) {
         await root.webkitRequestFullscreen();
       } else {
-        setMessage("This browser cannot hide its address and navigation bars from a webpage. On iPhone or iPad, add CSpot to the Home Screen and open it there for a browser-free view.");
+        setFullscreenInstallHelpOpen(true);
+        setMessage(null);
         return;
       }
       setPresenterFullscreen(true);
       setMessage(null);
     } catch {
-      setMessage("Fullscreen was blocked by this browser. On iPhone or iPad, add CSpot to the Home Screen and open it there for a browser-free view.");
+      setFullscreenInstallHelpOpen(true);
+      setMessage(null);
     }
   }
 
@@ -3516,7 +3523,7 @@ export function PresentationView({
       />
       {topbarSlot
         ? createPortal(
-            <div className={`presentation-topbar-tools ${mobileOrTabletDevice ? "has-presenter-fullscreen" : ""}`}>
+            <div className={`presentation-topbar-tools ${mobileOrTabletDevice && !standalonePresenterApp ? "has-presenter-fullscreen" : ""}`}>
               <DateNavigator
                 historyContent={serviceHistoryContent()}
                 historyDisabled={!plan || serviceHistoryLoading}
@@ -3534,7 +3541,7 @@ export function PresentationView({
                 previousDisabled={loading || !plan || sortedPlans.findIndex((candidate) => candidate.id === plan.id) >= sortedPlans.length - 1}
                 previousLabel="Previous service"
               />
-              {mobileOrTabletDevice ? (
+              {mobileOrTabletDevice && !standalonePresenterApp ? (
                 <button
                   aria-label={presenterFullscreen ? "Exit presenter fullscreen" : "Enter presenter fullscreen"}
                   aria-pressed={presenterFullscreen}
@@ -3550,6 +3557,34 @@ export function PresentationView({
             topbarSlot,
           )
         : null}
+      {fullscreenInstallHelpOpen ? (
+        <div className="app-dialog-backdrop" onMouseDown={() => setFullscreenInstallHelpOpen(false)} role="presentation">
+          <section
+            aria-labelledby="presenter-fullscreen-help-title"
+            className="app-dialog presenter-fullscreen-help-dialog"
+            onMouseDown={(event) => event.stopPropagation()}
+            role="dialog"
+          >
+            <div className="section-heading">
+              <div>
+                <p className="eyebrow">Fullscreen presenter</p>
+                <h2 id="presenter-fullscreen-help-title">Open CSpot without Safari controls</h2>
+              </div>
+            </div>
+            <p>iPhone and iPad browsers do not allow a webpage button to remove their address and navigation bars. Install CSpot as a Home Screen web app instead:</p>
+            <ol>
+              <li>Open CSpot in Safari.</li>
+              <li>Tap the <strong>Share</strong> button.</li>
+              <li>Select <strong>Add to Home Screen</strong>, then tap <strong>Add</strong>.</li>
+              <li>Close Safari and open <strong>CSpot</strong> from the new Home Screen icon.</li>
+            </ol>
+            <p className="field-help">The Home Screen app has its own sign-in session, so you may need to sign in once more.</p>
+            <button className="primary-button" onClick={() => setFullscreenInstallHelpOpen(false)} type="button">
+              Got it
+            </button>
+          </section>
+        </div>
+      ) : null}
       <CalendarPopup
         isOpen={servicePickerOpen}
         onClose={() => setServicePickerOpen(false)}
