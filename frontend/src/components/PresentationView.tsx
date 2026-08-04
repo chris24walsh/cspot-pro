@@ -1,4 +1,4 @@
-import { CircleStop, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, EyeOff, Maximize2, Mic, Minimize2, MonitorUp, Moon, Pause, Pencil, Play, Plus, Search, Trash2, Volume2, WandSparkles } from "lucide-react";
+import { CircleStop, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, EyeOff, Mic, MonitorUp, Moon, Pause, Pencil, Play, Plus, Search, Trash2, Volume2, WandSparkles } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
@@ -657,8 +657,6 @@ export function PresentationView({
   const [customProviderResult, setCustomProviderResult] = useState<CustomProviderSearchResult | null>(null);
   const [selectedCustomProviderMatchId, setSelectedCustomProviderMatchId] = useState<string | null>(null);
   const [topbarSlot, setTopbarSlot] = useState<HTMLElement | null>(null);
-  const [presenterFullscreen, setPresenterFullscreen] = useState(false);
-  const [fullscreenInstallHelpOpen, setFullscreenInstallHelpOpen] = useState(false);
   const [servicePickerOpen, setServicePickerOpen] = useState(false);
   const [serviceDraftDate, setServiceDraftDate] = useState("");
   const [serviceDraftTitle, setServiceDraftTitle] = useState("");
@@ -689,11 +687,6 @@ export function PresentationView({
   const [railCatchUpDirection, setRailCatchUpDirection] = useState<"up" | "down" | null>(null);
   const [slideNotesDraft, setSlideNotesDraft] = useState("");
   const [slideNotesSaving, setSlideNotesSaving] = useState(false);
-  const mobileOrTabletDevice = useMemo(() => isMobileOrTabletDevice(), []);
-  const standalonePresenterApp = useMemo(() => {
-    const standaloneNavigator = navigator as Navigator & { standalone?: boolean };
-    return standaloneNavigator.standalone === true || window.matchMedia("(display-mode: standalone)").matches;
-  }, []);
   const searchInputRef = useRef<HTMLInputElement | null>(null);
   const searchSelectionInFlightRef = useRef(false);
   const bibleSearchInsertInFlightRef = useRef(false);
@@ -1438,45 +1431,6 @@ export function PresentationView({
       outputWindow.focus();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Could not change slideshow fullscreen mode.");
-    }
-  }
-
-  async function togglePresenterFullscreen() {
-    const webkitDocument = document as Document & {
-      webkitExitFullscreen?: () => Promise<void> | void;
-      webkitFullscreenElement?: Element | null;
-    };
-    const root = document.documentElement as HTMLElement & {
-      webkitRequestFullscreen?: () => Promise<void> | void;
-    };
-    const fullscreenElement = document.fullscreenElement ?? webkitDocument.webkitFullscreenElement;
-
-    try {
-      if (fullscreenElement) {
-        if (document.exitFullscreen) {
-          await document.exitFullscreen();
-        } else {
-          await webkitDocument.webkitExitFullscreen?.();
-        }
-        setPresenterFullscreen(false);
-        setMessage(null);
-        return;
-      }
-
-      if (root.requestFullscreen) {
-        await root.requestFullscreen({ navigationUI: "hide" });
-      } else if (root.webkitRequestFullscreen) {
-        await root.webkitRequestFullscreen();
-      } else {
-        setFullscreenInstallHelpOpen(true);
-        setMessage(null);
-        return;
-      }
-      setPresenterFullscreen(true);
-      setMessage(null);
-    } catch {
-      setFullscreenInstallHelpOpen(true);
-      setMessage(null);
     }
   }
 
@@ -2921,21 +2875,6 @@ export function PresentationView({
   }, []);
 
   useEffect(() => {
-    const updatePresenterFullscreen = () => {
-      const webkitDocument = document as Document & { webkitFullscreenElement?: Element | null };
-      setPresenterFullscreen(Boolean(document.fullscreenElement ?? webkitDocument.webkitFullscreenElement));
-    };
-
-    updatePresenterFullscreen();
-    document.addEventListener("fullscreenchange", updatePresenterFullscreen);
-    document.addEventListener("webkitfullscreenchange", updatePresenterFullscreen);
-    return () => {
-      document.removeEventListener("fullscreenchange", updatePresenterFullscreen);
-      document.removeEventListener("webkitfullscreenchange", updatePresenterFullscreen);
-    };
-  }, []);
-
-  useEffect(() => {
     async function loadBibleOptions() {
       try {
         const [versions, books] = await Promise.all([getBibleVersions(), getBibleBooks()]);
@@ -3523,7 +3462,7 @@ export function PresentationView({
       />
       {topbarSlot
         ? createPortal(
-            <div className={`presentation-topbar-tools ${mobileOrTabletDevice && !standalonePresenterApp ? "has-presenter-fullscreen" : ""}`}>
+            <div className="presentation-topbar-tools">
               <DateNavigator
                 historyContent={serviceHistoryContent()}
                 historyDisabled={!plan || serviceHistoryLoading}
@@ -3541,50 +3480,10 @@ export function PresentationView({
                 previousDisabled={loading || !plan || sortedPlans.findIndex((candidate) => candidate.id === plan.id) >= sortedPlans.length - 1}
                 previousLabel="Previous service"
               />
-              {mobileOrTabletDevice && !standalonePresenterApp ? (
-                <button
-                  aria-label={presenterFullscreen ? "Exit presenter fullscreen" : "Enter presenter fullscreen"}
-                  aria-pressed={presenterFullscreen}
-                  className="section-icon-button presenter-page-fullscreen-button"
-                  onClick={() => void togglePresenterFullscreen()}
-                  title={presenterFullscreen ? "Exit fullscreen" : "Hide browser controls"}
-                  type="button"
-                >
-                  {presenterFullscreen ? <Minimize2 size={15} aria-hidden="true" /> : <Maximize2 size={15} aria-hidden="true" />}
-                </button>
-              ) : null}
             </div>,
             topbarSlot,
           )
         : null}
-      {fullscreenInstallHelpOpen ? (
-        <div className="app-dialog-backdrop" onMouseDown={() => setFullscreenInstallHelpOpen(false)} role="presentation">
-          <section
-            aria-labelledby="presenter-fullscreen-help-title"
-            className="app-dialog presenter-fullscreen-help-dialog"
-            onMouseDown={(event) => event.stopPropagation()}
-            role="dialog"
-          >
-            <div className="section-heading">
-              <div>
-                <p className="eyebrow">Fullscreen presenter</p>
-                <h2 id="presenter-fullscreen-help-title">Open CSpot without Safari controls</h2>
-              </div>
-            </div>
-            <p>iPhone and iPad browsers do not allow a webpage button to remove their address and navigation bars. Install CSpot as a Home Screen web app instead:</p>
-            <ol>
-              <li>Open CSpot in Safari.</li>
-              <li>Tap the <strong>Share</strong> button.</li>
-              <li>Select <strong>Add to Home Screen</strong>, then tap <strong>Add</strong>.</li>
-              <li>Close Safari and open <strong>CSpot</strong> from the new Home Screen icon.</li>
-            </ol>
-            <p className="field-help">The Home Screen app has its own sign-in session, so you may need to sign in once more.</p>
-            <button className="primary-button" onClick={() => setFullscreenInstallHelpOpen(false)} type="button">
-              Got it
-            </button>
-          </section>
-        </div>
-      ) : null}
       <CalendarPopup
         isOpen={servicePickerOpen}
         onClose={() => setServicePickerOpen(false)}

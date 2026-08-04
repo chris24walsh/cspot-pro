@@ -1654,6 +1654,7 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
           onExit={() => setViewMode("builder")}
           plan={plan}
           songs={songs}
+          topbarSlot={topbarSlot}
         />
       </section>
     );

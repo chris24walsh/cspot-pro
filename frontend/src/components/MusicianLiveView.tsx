@@ -1,6 +1,7 @@
-import { ChevronLeft, ChevronRight, LogOut, Maximize2, Minimize2, Music2, Pencil } from "lucide-react";
+import { ChevronLeft, ChevronRight, LogOut, Music2, Pencil } from "lucide-react";
 import type { CSSProperties } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 
 import {
   getPresentationLiveState,
@@ -38,6 +39,7 @@ interface MusicianLiveViewProps {
   onExit: () => void;
   plan: PlanDetail | null;
   songs: Song[];
+  topbarSlot: HTMLElement | null;
 }
 
 function syncStateFromApi(state: PresentationLiveSyncState): PresentationLiveState {
@@ -326,16 +328,13 @@ function annotationsForSegment(annotations: ChordAnnotation[], segmentStart: num
     .filter((annotation): annotation is ChordAnnotation => Boolean(annotation));
 }
 
-export function MusicianLiveView({ controlPlanId, onEditSong, onExit, plan, songs }: MusicianLiveViewProps) {
+export function MusicianLiveView({ controlPlanId, onEditSong, onExit, plan, songs, topbarSlot }: MusicianLiveViewProps) {
   const [liveState, setLiveState] = useState<PresentationLiveState | null>(null);
   const [showChords, setShowChords] = useState(true);
   const [capo, setCapo] = useState(0);
   const [guitarKey, setGuitarKey] = useState<string | null>(null);
-  const [isFullscreen, setIsFullscreen] = useState(false);
-  const [fullscreenFallbackActive, setFullscreenFallbackActive] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [stageSize, setStageSize] = useState({ height: 650, width: 1120 });
-  const liveViewRef = useRef<HTMLElement | null>(null);
   const keyCaptureRef = useRef<HTMLInputElement | null>(null);
   const stageRef = useRef<HTMLDivElement | null>(null);
   const channelRef = useRef<BroadcastChannel | null>(null);
@@ -460,42 +459,6 @@ export function MusicianLiveView({ controlPlanId, onEditSong, onExit, plan, song
       window.visualViewport?.removeEventListener("resize", updateStageSize);
     };
   }, []);
-
-  useEffect(() => {
-    function updateFullscreenState() {
-      const webkitDocument = document as Document & { webkitFullscreenElement?: Element | null };
-      setIsFullscreen(Boolean(document.fullscreenElement ?? webkitDocument.webkitFullscreenElement ?? fullscreenFallbackActive));
-    }
-
-    updateFullscreenState();
-    document.addEventListener("fullscreenchange", updateFullscreenState);
-    document.addEventListener("webkitfullscreenchange", updateFullscreenState);
-    return () => {
-      document.removeEventListener("fullscreenchange", updateFullscreenState);
-      document.removeEventListener("webkitfullscreenchange", updateFullscreenState);
-    };
-  }, [fullscreenFallbackActive]);
-
-  useEffect(() => {
-    if (!fullscreenFallbackActive) {
-      return undefined;
-    }
-
-    const originalOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-
-    function onKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") {
-        setFullscreenFallbackActive(false);
-      }
-    }
-
-    window.addEventListener("keydown", onKeyDown);
-    return () => {
-      document.body.style.overflow = originalOverflow;
-      window.removeEventListener("keydown", onKeyDown);
-    };
-  }, [fullscreenFallbackActive]);
 
   useEffect(() => {
     if (!liveSyncPlanId) {
@@ -629,44 +592,6 @@ export function MusicianLiveView({ controlPlanId, onEditSong, onExit, plan, song
     };
   }, [liveIndex, slides.length]);
 
-  async function toggleFullscreen() {
-    const element = liveViewRef.current as (HTMLElement & { webkitRequestFullscreen?: () => Promise<void> | void }) | null;
-    const webkitDocument = document as Document & {
-      webkitExitFullscreen?: () => Promise<void> | void;
-      webkitFullscreenElement?: Element | null;
-    };
-    const fullscreenElement = document.fullscreenElement ?? webkitDocument.webkitFullscreenElement;
-
-    try {
-      if (fullscreenElement || fullscreenFallbackActive) {
-        setFullscreenFallbackActive(false);
-        if (document.exitFullscreen) {
-          await document.exitFullscreen();
-        } else if (fullscreenElement) {
-          await webkitDocument.webkitExitFullscreen?.();
-        }
-      } else if (element) {
-        if (element.requestFullscreen) {
-          await element.requestFullscreen();
-          setMessage(null);
-        } else if (element.webkitRequestFullscreen) {
-          await element.webkitRequestFullscreen?.();
-          setMessage(null);
-        } else {
-          setFullscreenFallbackActive(true);
-          setMessage(null);
-        }
-      }
-    } catch (error) {
-      if (element) {
-        setFullscreenFallbackActive(true);
-        setMessage(null);
-        return;
-      }
-      setMessage(error instanceof Error ? error.message : "Could not enter fullscreen.");
-    }
-  }
-
   const lyricLinesForSlide = lyricLines(liveSlide?.text ?? "");
   const wrappedLyricLinesForSlide = useMemo(
     () => lyricLinesForSlide.map((line) => wrapLyricLine(line, liveWrapCharacters)),
@@ -726,10 +651,67 @@ export function MusicianLiveView({ controlPlanId, onEditSong, onExit, plan, song
   const currentSongSlideIndex = liveSlide ? currentSongSlides.findIndex((slide) => slide.id === liveSlide.id) : -1;
   const currentSongIndex = worshipItems.findIndex((item) => item.id === liveSlide?.planItemId);
   const isLastSongSlide = liveSlide?.itemType === "song" && currentSongSlideIndex >= 0 && currentSongSlideIndex === currentSongSlides.length - 1;
+  const toolbar = (
+    <div className="musician-live-toolbar">
+      <div className="musician-live-title">
+        <strong>{liveSong?.title ?? liveSlide?.sectionTitle ?? "Waiting for a song"}</strong>
+        <label className="musician-key-select-label">
+          <span>Key</span>
+          <select
+            aria-label="Choose guitar key and capo"
+            onChange={(event) => {
+              const parts = event.target.value.split(":");
+              const [shapeKey, capoValue] = parts;
+              if (!shapeKey) return;
+              setGuitarKey(shapeKey);
+              setCapo(normalizeCapo(Number(capoValue || 0)));
+            }}
+            value={selectedSetupValue}
+          >
+            {!currentGuitarKey ? <option value="">Key</option> : null}
+            {keySetupOptions.map((setup) => (
+              <option key={setupValue(setup)} value={setupValue(setup)}>
+                {setup.isCurrent
+                  ? activeKeyLabel
+                  : setup.isAbsolute
+                    ? setup.absoluteKey
+                    : setup.capo > 0
+                      ? `${setup.shapeKey}c${setup.capo} (${setup.absoluteKey})`
+                      : setup.shapeKey}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
+      <div className="musician-live-controls" aria-label="Musician display controls">
+        <button
+          className="musician-edit-button"
+          disabled={!liveSong}
+          onClick={() => liveSong && onEditSong(liveSong)}
+          type="button"
+        >
+          <Pencil size={14} aria-hidden="true" />
+          Edit
+        </button>
+        <button
+          aria-pressed={showChords}
+          className={`chord-toggle-button ${showChords ? "is-active" : ""}`}
+          onClick={() => setShowChords((current) => !current)}
+          type="button"
+        >
+          <span aria-hidden="true" />
+          Chords
+        </button>
+        <button className="musician-fullscreen-button" onClick={onExit} type="button" aria-label="Exit live worship">
+          <LogOut size={18} aria-hidden="true" />
+        </button>
+      </div>
+    </div>
+  );
 
   return (
     <section
-      className={`musician-live-view ${isFullscreen ? "is-fullscreen" : ""} ${isLastSongSlide ? "is-song-end" : ""}`}
+      className={`musician-live-view ${isLastSongSlide ? "is-song-end" : ""}`}
       aria-label="Musician live view"
       onPointerDownCapture={(event) => {
         if (isEditableKeyboardTarget(event.target)) {
@@ -737,7 +719,6 @@ export function MusicianLiveView({ controlPlanId, onEditSong, onExit, plan, song
         }
         keyCaptureRef.current?.focus({ preventScroll: true });
       }}
-      ref={liveViewRef}
       tabIndex={-1}
     >
       <input
@@ -757,64 +738,7 @@ export function MusicianLiveView({ controlPlanId, onEditSong, onExit, plan, song
         spellCheck={false}
         tabIndex={-1}
       />
-      <div className="musician-live-toolbar">
-        <div className="musician-live-title">
-          <strong>{liveSong?.title ?? liveSlide?.sectionTitle ?? "Waiting for a song"}</strong>
-          <label className="musician-key-select-label">
-            <span>Key</span>
-            <select
-              aria-label="Choose guitar key and capo"
-              onChange={(event) => {
-                const parts = event.target.value.split(":");
-                const [shapeKey, capoValue] = parts;
-                if (!shapeKey) return;
-                setGuitarKey(shapeKey);
-                setCapo(normalizeCapo(Number(capoValue || 0)));
-              }}
-              value={selectedSetupValue}
-            >
-              {!currentGuitarKey ? <option value="">Key</option> : null}
-              {keySetupOptions.map((setup) => (
-                <option key={setupValue(setup)} value={setupValue(setup)}>
-                  {setup.isCurrent
-                    ? activeKeyLabel
-                    : setup.isAbsolute
-                      ? setup.absoluteKey
-                      : setup.capo > 0
-                        ? `${setup.shapeKey}c${setup.capo} (${setup.absoluteKey})`
-                        : setup.shapeKey}
-                </option>
-              ))}
-            </select>
-          </label>
-        </div>
-        <div className="musician-live-controls" aria-label="Musician display controls">
-          <button
-            className="musician-edit-button"
-            disabled={!liveSong}
-            onClick={() => liveSong && onEditSong(liveSong)}
-            type="button"
-          >
-            <Pencil size={14} aria-hidden="true" />
-            Edit
-          </button>
-          <button
-            aria-pressed={showChords}
-            className={`chord-toggle-button ${showChords ? "is-active" : ""}`}
-            onClick={() => setShowChords((current) => !current)}
-            type="button"
-          >
-            <span aria-hidden="true" />
-            Chords
-          </button>
-          <button className="musician-fullscreen-button" onClick={() => void toggleFullscreen()} type="button" aria-label={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"}>
-            {isFullscreen ? <Minimize2 size={18} aria-hidden="true" /> : <Maximize2 size={18} aria-hidden="true" />}
-          </button>
-          <button className="musician-fullscreen-button" onClick={onExit} type="button" aria-label="Exit live worship">
-            <LogOut size={18} aria-hidden="true" />
-          </button>
-        </div>
-      </div>
+      {topbarSlot ? createPortal(toolbar, topbarSlot) : null}
 
       <div className="musician-song-transport" aria-label="Song navigation">
         <button disabled={currentSongIndex <= 0} onClick={() => moveSong(-1)} type="button">

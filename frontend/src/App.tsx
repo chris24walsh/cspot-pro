@@ -5,6 +5,8 @@ import {
   Globe2,
   ListMusic,
   LogOut,
+  Maximize2,
+  Minimize2,
   Music2,
   Radio,
   Settings,
@@ -38,6 +40,7 @@ import { UserManager } from "./components/UserManager";
 import { WorshipBuilderView } from "./components/WorshipBuilderView";
 import { featureModules, type FeatureModule, type ModuleId } from "./data/featureMap";
 import { appAssetUrl } from "./paths";
+import { isMobileOrTabletDevice } from "./presentationDevice";
 import { ToastViewport } from "./toast";
 
 const iconMap = {
@@ -84,6 +87,14 @@ function App() {
     songs: [],
   });
   const [broadcastMode, setBroadcastMode] = useState<"control" | "viewer">("viewer");
+  const [mobileImmersive, setMobileImmersive] = useState(false);
+  const mobileOrTabletDevice = useMemo(
+    () =>
+      isMobileOrTabletDevice() ||
+      window.matchMedia("(max-width: 860px)").matches ||
+      (navigator.maxTouchPoints > 1 && window.matchMedia("(pointer: coarse)").matches),
+    [],
+  );
 
   const permissions = useMemo(() => new Set(sessionUser?.permissions ?? []), [sessionUser]);
   const roleNames = useMemo(() => new Set(sessionUser?.roles ?? []), [sessionUser?.roles]);
@@ -258,6 +269,20 @@ function App() {
     }
   }, [canManageUsers, modules, sessionUser]);
 
+  useEffect(() => {
+    function updateFullscreenState() {
+      const webkitDocument = document as Document & { webkitFullscreenElement?: Element | null };
+      setMobileImmersive(Boolean(document.fullscreenElement ?? webkitDocument.webkitFullscreenElement));
+    }
+
+    document.addEventListener("fullscreenchange", updateFullscreenState);
+    document.addEventListener("webkitfullscreenchange", updateFullscreenState);
+    return () => {
+      document.removeEventListener("fullscreenchange", updateFullscreenState);
+      document.removeEventListener("webkitfullscreenchange", updateFullscreenState);
+    };
+  }, []);
+
   if (authLoading) {
     return <main className="auth-shell"><section className="auth-card"><p>Loading cspot-pro...</p></section></main>;
   }
@@ -286,8 +311,47 @@ function App() {
     }
   }
 
+  async function toggleMobileImmersive() {
+    const webkitDocument = document as Document & {
+      webkitExitFullscreen?: () => Promise<void> | void;
+      webkitFullscreenElement?: Element | null;
+    };
+    const root = document.documentElement as HTMLElement & {
+      webkitRequestFullscreen?: () => Promise<void> | void;
+    };
+    const fullscreenElement = document.fullscreenElement ?? webkitDocument.webkitFullscreenElement;
+
+    if (mobileImmersive || fullscreenElement) {
+      setMobileImmersive(false);
+      try {
+        if (document.exitFullscreen) {
+          await document.exitFullscreen();
+        } else if (fullscreenElement) {
+          await webkitDocument.webkitExitFullscreen?.();
+        }
+      } catch {
+        // The compact app layout can still be exited when the browser rejects fullscreen changes.
+      }
+      return;
+    }
+
+    // Always enter the compact app layout. Browsers with the Fullscreen API also
+    // hide their own navigation chrome; iOS Safari keeps its chrome but yields the
+    // application's primary navigation row.
+    setMobileImmersive(true);
+    try {
+      if (root.requestFullscreen) {
+        await root.requestFullscreen({ navigationUI: "hide" });
+      } else {
+        await root.webkitRequestFullscreen?.();
+      }
+    } catch {
+      // Unsupported/rejected native fullscreen is an expected iOS fallback.
+    }
+  }
+
   return (
-    <main className="shell">
+    <main className={`shell ${mobileOrTabletDevice ? "is-mobile-device" : ""} ${mobileImmersive ? "is-mobile-immersive" : ""}`}>
       <ToastViewport />
       <aside className="sidebar" aria-label="Primary">
         <div className="brand">
@@ -327,7 +391,26 @@ function App() {
             <p className="eyebrow">{activeModule.kicker}</p>
             <h1>{activeModule.label}</h1>
           </div>
-          <div className="topbar-context-slot" id="workspace-topbar-slot" />
+          <div className="topbar-context-slot" id="workspace-topbar-slot">
+            {activeModule.id === "broadcast" && canUseBroadcast && canWatchBroadcast ? (
+              <div className="broadcast-mode-switch segmented-control" role="tablist" aria-label="Broadcast mode">
+                <button
+                  className={broadcastMode === "viewer" ? "is-active" : ""}
+                  onClick={() => setBroadcastMode("viewer")}
+                  type="button"
+                >
+                  Viewer
+                </button>
+                <button
+                  className={broadcastMode === "control" ? "is-active" : ""}
+                  onClick={() => setBroadcastMode("control")}
+                  type="button"
+                >
+                  Settings
+                </button>
+              </div>
+            ) : null}
+          </div>
           <div className="topbar-actions">
             {headerStats.map((stat) => (
               <div className="topbar-stat" key={stat.label}>
@@ -336,26 +419,19 @@ function App() {
               </div>
             ))}
           </div>
+          {mobileOrTabletDevice ? (
+            <button
+              aria-label={mobileImmersive ? "Exit immersive view" : "Enter immersive view"}
+              aria-pressed={mobileImmersive}
+              className="section-icon-button mobile-immersive-button"
+              onClick={() => void toggleMobileImmersive()}
+              title={mobileImmersive ? "Show app navigation" : "Use more screen space"}
+              type="button"
+            >
+              {mobileImmersive ? <Minimize2 size={16} aria-hidden="true" /> : <Maximize2 size={16} aria-hidden="true" />}
+            </button>
+          ) : null}
         </header>
-
-        {activeModule.id === "broadcast" && canUseBroadcast && canWatchBroadcast ? (
-          <div className="broadcast-mode-switch segmented-control" role="tablist" aria-label="Broadcast mode">
-            <button
-              className={broadcastMode === "viewer" ? "is-active" : ""}
-              onClick={() => setBroadcastMode("viewer")}
-              type="button"
-            >
-              Viewer
-            </button>
-            <button
-              className={broadcastMode === "control" ? "is-active" : ""}
-              onClick={() => setBroadcastMode("control")}
-              type="button"
-            >
-              Settings
-            </button>
-          </div>
-        ) : null}
 
         {activeModule.id === "worship" ? (
           <WorshipBuilderView

@@ -182,10 +182,14 @@ The presenter is built around:
 - current live slide index
 - a separate output window synchronized through local browser messaging
 
-On phones and tablets, the presenter sub-toolbar includes a page-fullscreen
-toggle at its right edge. Supporting browsers are asked to hide their navigation
-UI; browsers without page fullscreen direct the operator to a standalone
-Home Screen installation instead.
+On phones and tablets, every module uses the same compact context toolbar with
+an immersive-view toggle at its right edge. Entering immersive view always hides
+the application's primary navigation row. Supporting browsers are additionally
+asked to enter native fullscreen and hide their own navigation UI; iPhone and
+iPad Safari keep their browser chrome but still gain the space occupied by the
+application navigation. Date/history/assignment controls, broadcast mode tabs,
+and musician live controls share this toolbar rather than adding view-specific
+rows.
 
 ### Presentation derivation
 

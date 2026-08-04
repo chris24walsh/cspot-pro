@@ -2251,7 +2251,7 @@ h3 {
   border-radius: 0;
   display: grid;
   gap: 0;
-  grid-template-rows: auto auto minmax(0, 1fr) auto;
+  grid-template-rows: auto minmax(0, 1fr) auto;
   min-height: 0;
   overflow: hidden;
   padding: 0;
@@ -8670,5 +8670,208 @@ h3 {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+}
+
+/* Shared mobile context bar and immersive layout. Keep this block last so all
+   feature-specific responsive rules resolve to the same compact geometry. */
+.mobile-immersive-button {
+  display: none;
+}
+
+.shell.is-mobile-device .topbar {
+  align-items: center;
+  gap: 4px;
+  grid-template-columns: minmax(0, 1fr) 32px;
+  justify-items: stretch;
+  min-height: 38px;
+  padding: 3px 5px;
+}
+
+.shell.is-mobile-device .title-lockup,
+.shell.is-mobile-device .topbar-actions {
+  display: none;
+}
+
+.shell.is-mobile-device .topbar-context-slot {
+  grid-column: 1;
+  justify-content: flex-start;
+  min-width: 0;
+  width: 100%;
+}
+
+.shell.is-mobile-device .mobile-immersive-button {
+  align-self: center;
+  display: inline-flex;
+  grid-column: 2;
+  height: 32px;
+  justify-self: end;
+  min-height: 32px;
+  min-width: 32px;
+  padding: 0;
+  width: 32px;
+}
+
+.shell.is-mobile-device.is-mobile-immersive {
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+}
+
+.shell.is-mobile-device.is-mobile-immersive .sidebar {
+  display: none;
+}
+
+.shell.is-mobile-device.is-mobile-immersive .workspace {
+  grid-column: 1;
+  grid-row: 1;
+}
+
+.shell.is-mobile-device .presentation-topbar-tools,
+.shell.is-mobile-device .worship-topbar-tools,
+.shell.is-mobile-device .worship-set-picker-tools,
+.shell.is-mobile-device .date-navigator {
+  min-width: 0;
+  width: 100%;
+}
+
+.shell.is-mobile-device .presentation-topbar-tools {
+  flex-wrap: nowrap;
+  gap: 3px;
+  justify-content: flex-start;
+}
+
+.shell.is-mobile-device .worship-topbar-tools {
+  display: block;
+}
+
+.shell.is-mobile-device .date-navigator {
+  gap: 3px;
+  grid-template-columns: 30px minmax(0, 1fr) 30px 30px;
+}
+
+.shell.is-mobile-device .date-navigator.has-assignment {
+  grid-template-columns: 30px minmax(0, 1fr) 30px 30px minmax(50px, 84px);
+}
+
+.shell.is-mobile-device .date-navigator > .section-icon-button,
+.shell.is-mobile-device .date-navigator > .text-button,
+.shell.is-mobile-device .worship-topbar-tools .topbar-service-button,
+.shell.is-mobile-device .worship-topbar-tools .worship-history-button,
+.shell.is-mobile-device .worship-topbar-tools .worship-set-step-button {
+  height: 30px;
+  min-height: 30px;
+}
+
+.shell.is-mobile-device .date-navigator-date,
+.shell.is-mobile-device .date-navigator-assignment {
+  max-width: none;
+  padding: 3px 6px;
+}
+
+.shell.is-mobile-device .date-navigator-date {
+  font-size: 12px;
+}
+
+.shell.is-mobile-device .date-navigator-assignment {
+  font-size: 11px;
+  min-width: 0;
+}
+
+.shell.is-mobile-device .topbar-context-slot .musician-live-toolbar {
+  border: 0;
+  gap: 4px;
+  grid-template-columns: minmax(0, auto) minmax(0, 1fr);
+  min-height: 30px;
+  padding: 0;
+  width: 100%;
+}
+
+.shell.is-mobile-device .broadcast-mode-switch {
+  align-self: stretch;
+  gap: 0;
+  margin: 0;
+  width: min(100%, 270px);
+}
+
+.shell.is-mobile-device .broadcast-mode-switch button {
+  background: transparent;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  min-height: 30px;
+  padding: 3px 14px;
+}
+
+.shell.is-mobile-device .broadcast-mode-switch button.is-active {
+  background: transparent;
+  border-bottom-color: #245d4d;
+}
+
+.shell.is-mobile-device .service-broadcast-fullscreen-button {
+  display: none;
+}
+
+@media (max-width: 540px) {
+  .worship-builder,
+  .sunday-school-as-worship {
+    gap: 4px;
+    padding: 4px;
+  }
+
+  .worship-mobile-pane-tabs {
+    background: transparent;
+    border: 0;
+    border-bottom: 1px solid #ded8c7;
+    border-radius: 0;
+    gap: 0;
+    padding: 0;
+  }
+
+  .worship-mobile-pane-tabs button {
+    border-bottom: 2px solid transparent;
+    border-radius: 0;
+    font-size: 14px;
+    min-height: 31px;
+    padding: 3px 6px;
+  }
+
+  .worship-mobile-pane-tabs button.active {
+    background: transparent;
+    border-bottom-color: #245d4d;
+    box-shadow: none;
+    color: #17201b;
+  }
+
+  .worship-mobile-actions {
+    gap: 3px;
+  }
+
+  .worship-mobile-actions .primary-button,
+  .worship-mobile-actions .text-button {
+    min-height: 31px;
+    padding: 4px 6px;
+  }
+
+  .shell.is-mobile-device .musician-live-title {
+    min-width: 88px;
+  }
+
+  .shell.is-mobile-device .musician-key-select-label {
+    grid-template-columns: auto minmax(68px, 92px);
+  }
+
+  .shell.is-mobile-device .musician-live-controls {
+    gap: 3px;
+    overflow: visible;
+  }
+
+  .shell.is-mobile-device .musician-edit-button,
+  .shell.is-mobile-device .musician-fullscreen-button {
+    height: 30px;
+    min-height: 30px;
+  }
+
+  .shell.is-mobile-device .musician-fullscreen-button {
+    width: 32px;
   }
 }
