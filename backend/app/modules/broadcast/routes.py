@@ -185,7 +185,13 @@ def live_output_exists(session: Session) -> bool:
             continue
         heartbeat = payload.get("output_heartbeat_at") if isinstance(payload, dict) else None
         owner_id = payload.get("output_owner_id") if isinstance(payload, dict) else None
-        if isinstance(heartbeat, int) and isinstance(owner_id, str) and now - heartbeat < 7000:
+        explicitly_active = payload.get("output_active") is True
+        legacy_heartbeat_active = bool(
+            "output_active" not in payload
+            and isinstance(heartbeat, int)
+            and now - heartbeat < 7000
+        )
+        if isinstance(owner_id, str) and (explicitly_active or legacy_heartbeat_active):
             return True
     return False
 

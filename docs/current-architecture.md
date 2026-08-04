@@ -207,13 +207,16 @@ The stable `/tv` display route (with `?presentation=tv` retained for
 compatibility) is a passive, authenticated slideshow renderer for a television
 browser. Public HTTP requests are upgraded by the browser bootstrap using the
 client-visible URL, which avoids ambiguity across nested TLS-terminating proxies.
-When the presenter selects **Start TV**, the
-presenter control page owns and refreshes the server-authoritative output
-heartbeat while the TV discovers the active service and polls its live slide
-state. This avoids external-monitor wiring and allows multiple passive displays
-without output-ownership conflicts. The TV uses a remembered, least-privilege
-viewer session; browser fullscreen and autoplay still require interaction on
-the television itself.
+When the presenter selects **Start Slideshow**, the presenter control page
+creates a server-authoritative output session. On a desktop it also opens the
+local slideshow window; on a phone or tablet it only enables the network output.
+The session remains active if controller tabs, local output windows, or TV
+browsers close or become suspended. Another presenter can reconnect and stop it
+explicitly, which causes open desktop output windows to close and TV browsers to
+return to waiting. This avoids external-monitor wiring and allows multiple
+passive displays without output-ownership conflicts. The TV uses a remembered,
+least-privilege viewer session; browser fullscreen and autoplay still require
+interaction on the television itself.
 
 Identity accounts have a unique, lowercase username in addition to email.
 Sign-in accepts either identifier, and remembered sessions include both
@@ -222,13 +225,14 @@ Sign-in accepts either identifier, and remembered sessions include both
 ### Remote service viewer
 
 The Broadcast area is viewer-first. Eligible users land on the viewer even when
-they can edit its settings. A current slideshow output heartbeat is the gate for:
+they can edit its settings. An explicitly active slideshow output session is the
+gate for:
 
 - the active service slideshow
 - one externally configured camera or stream URL
 - an optional dedicated Raspberry Pi or desk audio stream
 
-When the heartbeat is absent, both panels remain disabled. During the configured
+When no output session is active, both panels remain disabled. During the configured
 window before the next planned service, the page shows a starting-soon state and
 can offer configured worship audio. Outside that window it clearly shows that no
 service is streaming.
@@ -297,7 +301,7 @@ Search modes:
   any song set is created.
 - Sermon recording stores compact Opus audio plus timestamped presentation
   transitions. Automatic start is edge-triggered by a non-sermon-to-sermon move
-  while the output heartbeat is live; it does not restart a manually stopped
+  while the output session is active; it does not restart a manually stopped
   recording on later sermon slides. A paused recording resumes on the next sermon
   slide, and leaving the sermon or closing output always stops it. Recorder
   transitions run on one background worker with a separate database session;
@@ -309,11 +313,12 @@ Search modes:
 - Every service receives a final End slide. Presenter controls can start, pause,
   resume, and stop recording; moving to a new slide resumes a paused recorder.
   Broadcast settings can permanently remove completed archive entries and files.
-- Presentation output ownership is server-authoritative and polled by the service
-  view. An authorized close works across devices and leaves a close marker so the
-  former output cannot reclaim itself with a late heartbeat. Presenter and output
-  clients keep at most one heartbeat request in flight. Service-view `B` controls
-  blanking and `F` toggles its locally opened output fullscreen.
+- Presentation output ownership is server-authoritative and persists until an
+  authorized presenter explicitly stops it. Stop works across devices, leaves a
+  close marker so an older output client cannot reclaim the session, and is
+  polled by desktop output windows so they close remotely. Legacy heartbeat-only
+  sessions still expire during upgrades. Service-view `B` controls blanking and
+  `F` toggles its locally opened output fullscreen.
 - Worship-set suggestions are edited inline: an empty set is seeded with five
   songs, while populated sets replace only checked rows. Each row exposes its
   position, rotation age, and a one-song regenerate action.

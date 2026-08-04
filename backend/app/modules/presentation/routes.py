@@ -146,9 +146,14 @@ def _serialize_output_status(
         if payload.get("output_heartbeat_at") is not None
         else None
     )
-    active = bool(
-        owner_id and heartbeat_at and now is not None and now - heartbeat_at < OUTPUT_STALE_MS
+    explicitly_active = payload.get("output_active") is True
+    legacy_heartbeat_active = bool(
+        "output_active" not in payload
+        and heartbeat_at
+        and now is not None
+        and now - heartbeat_at < OUTPUT_STALE_MS
     )
+    active = bool(owner_id and (explicitly_active or legacy_heartbeat_active))
     return PresentationOutputStatusRead(
         plan_id=plan_id,
         active=active,
@@ -346,6 +351,7 @@ def update_presentation_output_status(
             next_payload["output_closed_owner_id"] = closed_owner
         next_payload.pop("output_owner_id", None)
         next_payload.pop("output_heartbeat_at", None)
+        next_payload.pop("output_active", None)
         next_payload.pop("output_recording_item_id", None)
     elif next_payload.get("output_closed_owner_id") == payload.owner_id:
         return PresentationOutputStatusRead(plan_id=plan_id)
@@ -356,6 +362,7 @@ def update_presentation_output_status(
         next_payload.pop("output_closed_owner_id", None)
         next_payload["output_owner_id"] = payload.owner_id
         next_payload["output_heartbeat_at"] = payload.heartbeat_at
+        next_payload["output_active"] = True
         if new_output:
             next_payload["output_recording_item_id"] = next_payload.get("plan_item_id")
 

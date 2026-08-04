@@ -7,8 +7,8 @@ import {
   getPlan,
   getPlans,
   getPresentationLiveState,
+  getPresentationOutputStatus,
   getSongs,
-  updatePresentationOutputStatus,
   updatePresentationLiveState,
   type PlanDetail,
   type PresentationLiveService,
@@ -17,7 +17,6 @@ import {
 } from "../api";
 import {
   PRESENTATION_CHANNEL,
-  PRESENTATION_OUTPUT_STATUS_KEY,
   PRESENTATION_STORAGE_KEY,
   buildPresentationSlides,
   presentationTypeClass,
@@ -108,27 +107,15 @@ export function PresentationOutput({ networkDisplay = false }: PresentationOutpu
     [slides],
   );
 
-  const writeOutputHeartbeat = useCallback(() => {
+  const checkOutputStatus = useCallback(() => {
     if (!liveState?.planId || outputHeartbeatInFlightRef.current) {
       return;
     }
     outputHeartbeatInFlightRef.current = true;
-    const heartbeatAt = Date.now();
-    localStorage.setItem(
-      PRESENTATION_OUTPUT_STATUS_KEY,
-      JSON.stringify({ planId: liveState.planId, heartbeatAt, ownerId: outputOwnerId }),
-    );
-    void updatePresentationOutputStatus(liveState.planId, {
-      owner_id: outputOwnerId,
-      heartbeat_at: heartbeatAt,
-    })
+    void getPresentationOutputStatus(liveState.planId)
       .then((status) => {
-        if (!status.active && !status.claimed) {
+        if (!status.active || status.owner_id !== outputOwnerId) {
           window.close();
-          return;
-        }
-        if (status.active && status.owner_id && status.owner_id !== outputOwnerId) {
-          setMessage("Another slideshow output is already active.");
         }
       })
       .catch(() => undefined)
@@ -270,27 +257,12 @@ export function PresentationOutput({ networkDisplay = false }: PresentationOutpu
 
   useEffect(() => {
     if (networkDisplay) return undefined;
-    writeOutputHeartbeat();
-    const timer = window.setInterval(writeOutputHeartbeat, 1500);
-
-    function clearHeartbeat() {
-      if (liveState?.planId) {
-        void updatePresentationOutputStatus(liveState.planId, {
-          owner_id: outputOwnerId,
-          heartbeat_at: Date.now(),
-          release: true,
-        }).catch(() => undefined);
-      }
-      localStorage.removeItem(PRESENTATION_OUTPUT_STATUS_KEY);
-    }
-
-    window.addEventListener("beforeunload", clearHeartbeat);
+    checkOutputStatus();
+    const timer = window.setInterval(checkOutputStatus, 1500);
     return () => {
       window.clearInterval(timer);
-      window.removeEventListener("beforeunload", clearHeartbeat);
-      clearHeartbeat();
     };
-  }, [liveState?.planId, networkDisplay, outputOwnerId, writeOutputHeartbeat]);
+  }, [checkOutputStatus, networkDisplay]);
 
   useEffect(() => {
     if (!networkDisplay) return undefined;

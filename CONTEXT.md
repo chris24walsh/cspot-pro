@@ -21,7 +21,8 @@
 - Blank changes should publish the exact next value immediately to avoid stale cross-device sync.
 - Arrow-key presenter navigation should be keydown-only to avoid double-advancing.
 - Sorter/rail should auto-follow live slide when already in sync; if operator scrolls away, show catch-up arrow after delayed latest-slide check.
-- Only one slideshow/output window should be active across devices; block starting another while one device already owns the output.
+- One server-authoritative slideshow session is active per service until a presenter explicitly stops it from any device.
+- Start Slideshow also enables TV output; desktops open a local output window, while phones and tablets only control the network output.
 - Mobile dialogs/overlays must fit and remain scrollable.
 - Mobile service calendar/search and worship set picker use single-column scrollable dialogs on small screens.
 - Mobile text inputs use 16px font sizing to avoid disruptive browser auto-zoom.
@@ -65,7 +66,6 @@
 - Preferred policy for disabling slideshow start: device-based, role-based, or user setting.
 - Whether notes should autosave visibly, use explicit save, or both.
 - Whether sorter thumbnails should eventually pillarbox fully despite smaller readable content.
-- Exact ownership/release rule for single active slideshow across devices.
 - Which licensed Bible source/provider to use for ESV, NIV, NKJV, NLT, and other popular copyrighted versions.
 
 ## Current Priorities

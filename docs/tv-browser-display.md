@@ -32,14 +32,19 @@ stops it. Refreshing or reopening the TV page does not interrupt the presenter.
 ## During a service
 
 1. Open the service in **Present** on a laptop, tablet, or other controller.
-2. Select **Start TV** instead of **Start Slides**.
+2. Select **Start Slideshow**. On a laptop or desktop, CSpot also opens the
+   normal local output window. On a phone or tablet, it only enables the TV
+   presentation.
 3. Use the normal slide sorter, section rail, keyboard navigation, blanking, and
    media controls. State travels through the CSpot server to the television.
-4. Select **Stop TV** when the service is over.
+4. Select **Stop Slideshow** when the service is over.
 
-The presenter device remains the controller, but it no longer needs a video
-cable, extended desktop, or local output window. More than one signed-in TV page
-can passively follow the same active service.
+The presenter device remains the controller while it is open, but the TV output
+continues if that device closes the tab, closes the browser, or navigates away.
+Another presenter device can reconnect to the same service and stop the TV
+output explicitly. No video cable, extended desktop, or local output window is
+required. More than one signed-in TV page can passively follow the same active
+service.
 
 ## Operational notes
 
@@ -49,5 +54,8 @@ can passively follow the same active service.
   media can start because of autoplay policies.
 - Use a least-privilege dedicated viewer account on the TV, not an administrator
   account.
-- If the controller loses connectivity, the TV keeps the last slide visible and
-  returns to waiting after the server heartbeat expires.
+- If the controller loses connectivity or its screen locks, the active session
+  and last slide remain available until a presenter reconnects.
+- Closing every display does not stop the session. Use **Stop Slideshow** on any
+  presenter device to return TV displays and Broadcast to their waiting/offline
+  states.

@@ -305,10 +305,19 @@ def _watch_recording(recording_id: str, plan_id: str) -> None:
             except json.JSONDecodeError:
                 payload = {}
             heartbeat = payload.get("output_heartbeat_at")
+            owner_id = payload.get("output_owner_id")
             item_id = payload.get("plan_item_id")
             item = session.get(PlanItem, item_id) if isinstance(item_id, str) else None
             now_ms = int(datetime.now(UTC).timestamp() * 1000)
-            output_live = isinstance(heartbeat, int) and now_ms - heartbeat < 7000
+            explicitly_active = payload.get("output_active") is True
+            legacy_heartbeat_active = bool(
+                "output_active" not in payload
+                and isinstance(heartbeat, int)
+                and now_ms - heartbeat < 7000
+            )
+            output_live = isinstance(owner_id, str) and (
+                explicitly_active or legacy_heartbeat_active
+            )
             on_sermon = bool(item and item.item_type == "sermon" and item.deleted_at is None)
             if not output_live or not on_sermon:
                 with _lock:

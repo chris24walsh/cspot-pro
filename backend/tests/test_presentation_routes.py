@@ -92,6 +92,23 @@ def test_output_status_ignores_stale_owner() -> None:
     assert status.heartbeat_at is None
 
 
+def test_explicit_output_remains_active_after_heartbeat_is_stale() -> None:
+    position = PresentationPosition(
+        id="position-1",
+        session_id="session-1",
+        payload_json=(
+            '{"output_owner_id": "owner-1", "output_heartbeat_at": 10000, '
+            '"output_active": true}'
+        ),
+    )
+
+    status = _serialize_output_status("plan-1", position, now=20000)
+
+    assert status.active is True
+    assert status.owner_id == "owner-1"
+    assert status.heartbeat_at == 10000
+
+
 def test_remote_release_prevents_the_closed_output_from_reclaiming() -> None:
     engine = create_engine("sqlite://")
     Base.metadata.create_all(

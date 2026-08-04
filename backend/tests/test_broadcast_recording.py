@@ -83,6 +83,22 @@ def test_live_audio_relay_requires_a_fresh_output_heartbeat() -> None:
     assert live_output_exists(session) is False
 
 
+def test_live_audio_relay_remains_available_for_explicit_output_session() -> None:
+    now = int(datetime.now(UTC).timestamp() * 1000)
+    position = SimpleNamespace(
+        payload_json=json.dumps(
+            {
+                "output_owner_id": "output-1",
+                "output_heartbeat_at": now - 8000,
+                "output_active": True,
+            }
+        )
+    )
+    session = SimpleNamespace(scalars=lambda _query: SimpleNamespace(all=lambda: [position]))
+
+    assert live_output_exists(session) is True
+
+
 def test_auto_recording_starts_when_output_opens_on_a_sermon(monkeypatch) -> None:
     items = {
         "welcome": SimpleNamespace(

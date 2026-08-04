@@ -1,4 +1,4 @@
-import { CircleStop, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, EyeOff, Mic, MonitorUp, Moon, Pause, Pencil, Play, Plus, Search, Trash2, Tv, Volume2, WandSparkles } from "lucide-react";
+import { CircleStop, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, EyeOff, Mic, MonitorUp, Moon, Pause, Pencil, Play, Plus, Search, Trash2, Volume2, WandSparkles } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
@@ -56,10 +56,8 @@ import {
   type PlanType,
   type Song,
 } from "../api";
-import { appAssetUrl } from "../paths";
 import {
   PRESENTATION_CHANNEL,
-  PRESENTATION_OUTPUT_STATUS_KEY,
   PRESENTATION_STORAGE_KEY,
   buildPresentationSections,
   buildPresentationSlides,
@@ -71,6 +69,7 @@ import {
   type PresentationLiveState,
   type PresentationTheme,
 } from "../presentation";
+import { isMobileOrTabletDevice } from "../presentationDevice";
 import { AutoFitSlideText } from "./AutoFitSlideText";
 import { useConfirmationDialog } from "./ConfirmationDialog";
 import { CalendarPopup } from "./CalendarPopup";
@@ -680,7 +679,6 @@ export function PresentationView({
   const [playingAudioSectionId, setPlayingAudioSectionId] = useState<string | null>(null);
   const [localAudioUrl, setLocalAudioUrl] = useState<string | null>(null);
   const [slideshowOpen, setSlideshowOpen] = useState(false);
-  const [networkSlideshowOpen, setNetworkSlideshowOpen] = useState(false);
   const [broadcastRecordings, setBroadcastRecordings] = useState<BroadcastRecording[]>([]);
   const [recordingAction, setRecordingAction] = useState(false);
   const [deckRenderRetryToken, setDeckRenderRetryToken] = useState(0);
@@ -973,24 +971,6 @@ export function PresentationView({
       }
       return next;
     });
-  }
-
-  function syncSlideshowStatusFromStorage() {
-    try {
-      const value = localStorage.getItem(PRESENTATION_OUTPUT_STATUS_KEY);
-      if (!value) {
-        setSlideshowOpen(false);
-        return;
-      }
-      const status = JSON.parse(value) as { planId?: string; heartbeatAt?: number };
-      const isFresh =
-        status.planId === selectedPlanId &&
-        typeof status.heartbeatAt === "number" &&
-        Date.now() - status.heartbeatAt < 5000;
-      setSlideshowOpen(isFresh);
-    } catch {
-      setSlideshowOpen(false);
-    }
   }
 
   function buildLiveStateForSlides(
@@ -1404,22 +1384,11 @@ export function PresentationView({
     }
   }
 
-  function closeSlideshowWindow() {
+  function closeLocalSlideshowWindow() {
     if (outputWindowRef.current && !outputWindowRef.current.closed) {
       outputWindowRef.current.close();
     }
-    if (plan?.id && outputOwnerIdRef.current) {
-      void updatePresentationOutputStatus(plan.id, {
-        owner_id: outputOwnerIdRef.current,
-        heartbeat_at: Date.now(),
-        release: true,
-      }).catch(() => undefined);
-    }
     outputWindowRef.current = null;
-    outputOwnerIdRef.current = null;
-    setNetworkSlideshowOpen(false);
-    localStorage.removeItem(PRESENTATION_OUTPUT_STATUS_KEY);
-    setSlideshowOpen(false);
   }
 
   async function closeActiveSlideshow() {
@@ -1427,26 +1396,30 @@ export function PresentationView({
       return;
     }
     const status = await getPresentationOutputStatus(plan.id).catch(() => null);
-    const ownerId = status?.owner_id ?? outputOwnerIdRef.current;
-    closeSlideshowWindow();
-    if (ownerId) {
+    const ownerId = status?.owner_id ?? outputOwnerIdRef.current ?? outputOwnerId();
+    try {
       await updatePresentationOutputStatus(plan.id, {
         owner_id: ownerId,
         heartbeat_at: Date.now(),
         release: true,
-      }).catch(() => undefined);
+      });
+      closeLocalSlideshowWindow();
+      outputOwnerIdRef.current = null;
+      setSlideshowOpen(false);
+      setMessage(null);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not stop the slideshow.");
     }
-    setMessage(null);
   }
 
   async function toggleOutputFullscreen() {
-    if (networkSlideshowOpen) {
-      setMessage("Use the Fullscreen button in the TV browser; remote browsers cannot enter fullscreen without a click on that device.");
-      return;
-    }
     const outputWindow = outputWindowRef.current;
     if (!outputWindow || outputWindow.closed) {
-      await startSlideshow();
+      if (slideshowOpen) {
+        setMessage("Use the Fullscreen button on the display; remote browsers cannot enter fullscreen without a click on that device.");
+      } else {
+        await startSlideshow();
+      }
       return;
     }
     try {
@@ -1467,15 +1440,16 @@ export function PresentationView({
       return;
     }
 
-    if (slideshowOpen || (outputWindowRef.current && !outputWindowRef.current.closed)) {
+    if (slideshowOpen) {
       await closeActiveSlideshow();
       return;
     }
 
     const currentOutputStatus = await getPresentationOutputStatus(plan.id).catch(() => null);
     if (currentOutputStatus?.active) {
-      setMessage("A slideshow is already open on another device. Close it before starting a new one.");
+      outputOwnerIdRef.current = currentOutputStatus.owner_id;
       setSlideshowOpen(true);
+      await closeActiveSlideshow();
       return;
     }
 
@@ -1484,13 +1458,21 @@ export function PresentationView({
       owner_id: ownerId,
       heartbeat_at: Date.now(),
     }).catch(() => null);
-    if (claimed?.active && claimed.owner_id !== ownerId) {
-      setMessage("A slideshow is already open on another device. Close it before starting a new one.");
-      setSlideshowOpen(true);
+    if (!claimed?.claimed || claimed.owner_id !== ownerId) {
+      setMessage("Could not start the slideshow because another output session is active.");
+      setSlideshowOpen(Boolean(claimed?.active));
       return;
     }
 
-    void publishLiveState(liveIndex);
+    outputOwnerIdRef.current = ownerId;
+    setSlideshowOpen(true);
+    await publishLiveState(liveIndex);
+
+    if (isMobileOrTabletDevice()) {
+      setMessage("Slideshow started. The TV presentation is active.");
+      return;
+    }
+
     const detectedScreens = screens.length ? screens : await detectDisplays();
     const detectedPreferredIndex = detectedScreens.findIndex((screen) => !screen.current);
     const targetIndex = screens.length
@@ -1524,55 +1506,13 @@ export function PresentationView({
 
     const outputWindow = window.open(url.toString(), "cspot-pro-live-output", features);
     if (!outputWindow) {
-      void updatePresentationOutputStatus(plan.id, {
-        owner_id: ownerId,
-        heartbeat_at: Date.now(),
-        release: true,
-      }).catch(() => undefined);
-      setMessage("The browser blocked the live output window. Allow pop-ups for this app and try again.");
+      setMessage("The TV presentation is active, but the browser blocked the local output window. Allow pop-ups to open it next time.");
       return;
     }
 
     outputWindowRef.current = outputWindow;
-    outputOwnerIdRef.current = ownerId;
-    localStorage.setItem(
-      PRESENTATION_OUTPUT_STATUS_KEY,
-      JSON.stringify({ planId: plan.id, heartbeatAt: Date.now(), ownerId }),
-    );
-    setSlideshowOpen(true);
+    setMessage(null);
     outputWindow.focus();
-  }
-
-  async function startNetworkSlideshow() {
-    if (!plan) {
-      setMessage("Select a plan before starting TV output.");
-      return;
-    }
-    if (networkSlideshowOpen) {
-      await closeActiveSlideshow();
-      return;
-    }
-    const currentOutputStatus = await getPresentationOutputStatus(plan.id).catch(() => null);
-    if (currentOutputStatus?.active) {
-      setMessage("A slideshow is already open. Close it before starting TV output.");
-      setSlideshowOpen(true);
-      return;
-    }
-    const ownerId = `tv-${outputOwnerId()}`;
-    const claimed = await updatePresentationOutputStatus(plan.id, {
-      owner_id: ownerId,
-      heartbeat_at: Date.now(),
-    }).catch(() => null);
-    if (!claimed?.claimed || claimed.owner_id !== ownerId) {
-      setMessage("Could not reserve the TV output.");
-      return;
-    }
-    outputOwnerIdRef.current = ownerId;
-    setNetworkSlideshowOpen(true);
-    setSlideshowOpen(true);
-    await publishLiveState(liveIndex);
-    const displayUrl = new URL(appAssetUrl("tv"), window.location.origin);
-    setMessage(`TV output started. Open ${displayUrl.toString()} in the TV browser and sign in.`);
   }
 
   async function selectPlan(planId: string) {
@@ -3141,57 +3081,6 @@ export function PresentationView({
   }, [selectedPlanId, slides]);
 
   useEffect(() => {
-    if (!networkSlideshowOpen || !plan?.id || !outputOwnerIdRef.current) {
-      return undefined;
-    }
-    const planId = plan.id;
-    const ownerId = outputOwnerIdRef.current;
-    let cancelled = false;
-    let heartbeatInFlight = false;
-
-    const heartbeat = async () => {
-      if (heartbeatInFlight) {
-        return;
-      }
-      heartbeatInFlight = true;
-      try {
-        const status = await updatePresentationOutputStatus(planId, {
-          owner_id: ownerId,
-          heartbeat_at: Date.now(),
-        });
-        if (!cancelled && status.owner_id !== ownerId) {
-          setNetworkSlideshowOpen(false);
-          setSlideshowOpen(status.active);
-          outputOwnerIdRef.current = null;
-          setMessage("The TV output was taken over by another display.");
-        }
-      } catch {
-        // A later heartbeat can recover from a brief network interruption.
-      } finally {
-        heartbeatInFlight = false;
-      }
-    };
-
-    const releaseOnClose = () => {
-      void updatePresentationOutputStatus(planId, {
-        owner_id: ownerId,
-        heartbeat_at: Date.now(),
-        release: true,
-      }).catch(() => undefined);
-    };
-    void heartbeat();
-    const timer = window.setInterval(() => void heartbeat(), 1500);
-    window.addEventListener("beforeunload", releaseOnClose);
-    return () => {
-      cancelled = true;
-      window.clearInterval(timer);
-      window.removeEventListener("beforeunload", releaseOnClose);
-    };
-  }, [networkSlideshowOpen, plan?.id]);
-
-  useEffect(() => {
-    syncSlideshowStatusFromStorage();
-
     const refreshOutputStatus = async () => {
       if (!selectedPlanId) {
         setSlideshowOpen(false);
@@ -3200,8 +3089,11 @@ export function PresentationView({
       const status = await getPresentationOutputStatus(selectedPlanId).catch(() => null);
       if (status) {
         setSlideshowOpen(status.active);
-        if (!status.active) {
-          localStorage.removeItem(PRESENTATION_OUTPUT_STATUS_KEY);
+        if (status.active) {
+          outputOwnerIdRef.current = status.owner_id;
+        } else {
+          closeLocalSlideshowWindow();
+          outputOwnerIdRef.current = null;
         }
       }
     };
@@ -3209,30 +3101,11 @@ export function PresentationView({
     const timer = window.setInterval(() => {
       void refreshOutputStatus();
       if (outputWindowRef.current && outputWindowRef.current.closed) {
-        if (plan?.id && outputOwnerIdRef.current) {
-          void updatePresentationOutputStatus(plan.id, {
-            owner_id: outputOwnerIdRef.current,
-            heartbeat_at: Date.now(),
-            release: true,
-          }).catch(() => undefined);
-        }
         outputWindowRef.current = null;
-        outputOwnerIdRef.current = null;
-        localStorage.removeItem(PRESENTATION_OUTPUT_STATUS_KEY);
-        setSlideshowOpen(false);
       }
     }, 1000);
-
-    function onStorage(event: StorageEvent) {
-      if (event.key === PRESENTATION_OUTPUT_STATUS_KEY) {
-        syncSlideshowStatusFromStorage();
-      }
-    }
-
-    window.addEventListener("storage", onStorage);
     return () => {
       window.clearInterval(timer);
-      window.removeEventListener("storage", onStorage);
     };
   }, [selectedPlanId]);
 
@@ -3799,24 +3672,14 @@ export function PresentationView({
           <div className="presenter-controls" aria-label="Slide controls">
             <div className="action-row presenter-mobile-command-row">
               <button
-                className={slideshowOpen && !networkSlideshowOpen ? "primary-button" : "text-button"}
-                disabled={loading || !plan || networkSlideshowOpen}
+                className={slideshowOpen ? "primary-button" : "text-button"}
+                disabled={loading || !plan}
                 onClick={() => void startSlideshow()}
-                title={networkSlideshowOpen ? "TV output is active" : slideshowOpen ? "Close slides" : "Start slides on a connected display"}
+                title={slideshowOpen ? "Stop slideshow on every display" : "Start slideshow and TV presentation"}
                 type="button"
               >
-                <MonitorUp size={16} aria-hidden="true" />
-                <span className="mobile-button-label">{networkSlideshowOpen ? "TV Active" : slideshowOpen ? "Close Slides" : "Start Slides"}</span>
-              </button>
-              <button
-                className={networkSlideshowOpen ? "primary-button" : "text-button"}
-                disabled={loading || !plan || (slideshowOpen && !networkSlideshowOpen)}
-                onClick={() => void startNetworkSlideshow()}
-                title={networkSlideshowOpen ? "Stop TV output" : "Send slides to a TV browser"}
-                type="button"
-              >
-                <Tv size={16} aria-hidden="true" />
-                <span className="mobile-button-label">{networkSlideshowOpen ? "Stop TV" : "Start TV"}</span>
+                {slideshowOpen ? <CircleStop size={16} aria-hidden="true" /> : <MonitorUp size={16} aria-hidden="true" />}
+                <span className="mobile-button-label">{slideshowOpen ? "Stop Slideshow" : "Start Slideshow"}</span>
               </button>
               {canEditPlan ? (
                 <button className="text-button" disabled={!plan} onClick={() => openSearchOverlay()} title="Search" type="button">
