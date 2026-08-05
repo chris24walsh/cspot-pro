@@ -18,6 +18,7 @@ import { useConfirmationDialog } from "./ConfirmationDialog";
 
 const EMPTY_SETTINGS: BroadcastViewerSettings = {
   auto_record_sermons: true,
+  recording_grace_seconds: 60,
   camera_url: null,
   camera_sources: [],
   active_camera_id: null,
@@ -45,6 +46,12 @@ export function formatRecordingSize(sizeBytes: number | null) {
   return `${(sizeBytes / 1024 / 1024).toFixed(1)} MB`;
 }
 
+function recordingCountdown(deadline: string | null, now = Date.now()) {
+  if (!deadline) return null;
+  const seconds = Math.max(0, Math.ceil((new Date(deadline).getTime() - now) / 1000));
+  return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
+}
+
 export function BroadcastManager() {
   const { confirm, confirmationDialog } = useConfirmationDialog();
   const [form, setForm] = useState<BroadcastViewerSettings>(EMPTY_SETTINGS);
@@ -57,6 +64,12 @@ export function BroadcastManager() {
   const [autoRecordingAction, setAutoRecordingAction] = useState(false);
   const [playingRecording, setPlayingRecording] = useState<BroadcastRecording | null>(null);
   const [activeTab, setActiveTab] = useState<"recordings" | "livestream" | "mixer">("recordings");
+  const [clock, setClock] = useState(Date.now());
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setClock(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   useEffect(() => {
     void getBroadcastViewerSettings()
@@ -204,12 +217,10 @@ export function BroadcastManager() {
           <p className="eyebrow">Broadcast</p>
           <h2>Admin controls</h2>
         </div>
-        {activeTab !== "recordings" ? (
-          <button className="primary-button icon-text-button" disabled={loading || saving || autoRecordingAction} type="submit">
-            <Save size={15} aria-hidden="true" />
-            {saving ? "Saving…" : "Save"}
-          </button>
-        ) : null}
+        <button className="primary-button icon-text-button" disabled={loading || saving || autoRecordingAction} type="submit">
+          <Save size={15} aria-hidden="true" />
+          {saving ? "Saving…" : "Save"}
+        </button>
       </div>
 
       {message ? <p className="form-message">{message}</p> : null}
@@ -358,6 +369,16 @@ export function BroadcastManager() {
       </> : null}
 
       {activeTab === "recordings" ? <section className="broadcast-recordings broadcast-tab-panel" aria-label="Sermon recordings" role="tabpanel">
+        <label className="recording-grace-setting">
+          <span>
+            <strong>Automatic stop grace period</strong>
+            <small>Keep one continuous audio file when briefly leaving the sermon, blanking, reaching End, or stopping the slideshow.</small>
+          </span>
+          <span className="input-with-suffix">
+            <input disabled={loading} min={0} max={600} onChange={(event) => setForm({ ...form, recording_grace_seconds: Number(event.target.value) })} type="number" value={form.recording_grace_seconds} />
+            <span>seconds</span>
+          </span>
+        </label>
         <div className="section-heading">
           <div>
             <p className="eyebrow">Audio + slides</p>
@@ -396,11 +417,16 @@ export function BroadcastManager() {
               <div>
                 <strong>{recordingTimestampTitle(recording)}</strong>
                 <span>{recording.status === "recording" || recording.status === "paused"
-                  ? recording.status === "paused" ? "Recording paused" : "Recording now"
+                  ? recording.status === "paused"
+                    ? "Recording paused"
+                    : recording.pending_stop_at
+                      ? `Recording continues · ending in ${recordingCountdown(recording.pending_stop_at, clock)} · ${recording.pending_stop_reason ?? "Left sermon"}`
+                      : "Recording now"
                   : [
                       `${Math.round((recording.duration_seconds ?? 0) / 60)} min`,
                       formatRecordingSize(recording.size_bytes),
                       `${recording.timeline.length} slide changes`,
+                      recording.end_reason ? `Ended: ${recording.end_reason}` : null,
                     ].filter(Boolean).join(" · ")}
                 </span>
               </div>

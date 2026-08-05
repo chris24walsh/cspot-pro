@@ -287,8 +287,17 @@ def test_live_state_only_schedules_real_sermon_slide_changes(monkeypatch) -> Non
             SimpleNamespace(id="user-1"),  # type: ignore[arg-type]
             session,
         )
+        blanked = unchanged.model_copy(
+            update={"blanked": True, "updated_at": now + 2}
+        )
+        update_presentation_live_state(
+            "plan-1",
+            blanked,
+            SimpleNamespace(id="user-1"),  # type: ignore[arg-type]
+            session,
+        )
         changed = unchanged.model_copy(
-            update={"index": 5, "slide_offset": 3, "updated_at": now + 2}
+            update={"index": 5, "slide_offset": 3, "updated_at": now + 3}
         )
         update_presentation_live_state(
             "plan-1",

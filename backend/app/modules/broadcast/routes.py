@@ -48,6 +48,9 @@ def recording_read(recording: BroadcastRecording) -> BroadcastRecordingRead:
         recorded_at=recording.recorded_at,
         started_at=recording.started_at,
         ended_at=recording.ended_at,
+        pending_stop_at=recording.pending_stop_at,
+        pending_stop_reason=recording.pending_stop_reason,
+        end_reason=recording.end_reason,
         timeline=timeline if isinstance(timeline, list) else [],
     )
 
@@ -175,6 +178,7 @@ def settings_read(settings: BroadcastViewerSettings) -> BroadcastViewerSettingsR
         mixer_notes=settings.mixer_notes,
         slide_delay_ms=settings.slide_delay_ms or 0,
         auto_record_sermons=settings.auto_record_sermons,
+        recording_grace_seconds=settings.recording_grace_seconds or 0,
         pre_service_audio_url=settings.pre_service_audio_url,
         pre_service_minutes=settings.pre_service_minutes,
         starting_soon_message=settings.starting_soon_message,
@@ -316,6 +320,7 @@ def update_viewer_settings(
             field
             in {
                 "auto_record_sermons",
+                "recording_grace_seconds",
                 "stream_title",
                 "pre_service_minutes",
                 "starting_soon_message",

@@ -37,6 +37,7 @@ const POLL_INTERVAL_MS = 2000;
 const LIVE_STATE_POLL_INTERVAL_MS = 500;
 const DEFAULT_SETTINGS: BroadcastViewerSettings = {
   auto_record_sermons: true,
+  recording_grace_seconds: 60,
   active_camera_id: null,
   camera_cycle_seconds: 0,
   camera_cycle_started_at: null,

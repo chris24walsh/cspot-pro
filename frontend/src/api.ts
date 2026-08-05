@@ -547,6 +547,7 @@ export interface BroadcastViewerSettings {
   mixer_notes: string | null;
   slide_delay_ms: number;
   auto_record_sermons: boolean;
+  recording_grace_seconds: number;
   pre_service_audio_url: string | null;
   pre_service_minutes: number;
   starting_soon_message: string;
@@ -566,6 +567,9 @@ export interface BroadcastRecording {
   recorded_at: string | null;
   started_at: string | null;
   ended_at: string | null;
+  pending_stop_at: string | null;
+  pending_stop_reason: string | null;
+  end_reason: string | null;
   timeline: Array<{ at: number; plan_item_id: string; slide_offset: number }>;
 }
 

@@ -1,4 +1,4 @@
-import { CircleStop, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, EyeOff, Mic, MonitorUp, Moon, Pause, Pencil, Play, Plus, Search, Trash2, Volume2, WandSparkles } from "lucide-react";
+import { CircleStop, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Clock, EyeOff, Mic, MonitorUp, Moon, Pause, Pencil, Play, Plus, Search, Trash2, Volume2, WandSparkles } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
@@ -601,6 +601,11 @@ function serializeSlideNote(rawNotes: string | null | undefined, slide: Presenta
     : null;
 }
 
+function recordingGraceCountdown(deadline: string, now: number) {
+  const seconds = Math.max(0, Math.ceil((new Date(deadline).getTime() - now) / 1000));
+  return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
+}
+
 export function PresentationView({
   canAttachDeck,
   canCreatePlan,
@@ -681,6 +686,7 @@ export function PresentationView({
   const [slideshowOpen, setSlideshowOpen] = useState(false);
   const [broadcastRecordings, setBroadcastRecordings] = useState<BroadcastRecording[]>([]);
   const [recordingAction, setRecordingAction] = useState(false);
+  const [recordingClock, setRecordingClock] = useState(Date.now());
   const [deckRenderRetryToken, setDeckRenderRetryToken] = useState(0);
   const [undoAction, setUndoAction] = useState<{ label: string; run: () => Promise<void> } | null>(null);
   const [sorterCatchUpDirection, setSorterCatchUpDirection] = useState<"up" | "down" | null>(null);
@@ -933,6 +939,13 @@ export function PresentationView({
       window.clearInterval(timer);
     };
   }, [plan?.id]);
+
+  useEffect(() => {
+    if (!activeSermonRecording?.pending_stop_at) return undefined;
+    setRecordingClock(Date.now());
+    const timer = window.setInterval(() => setRecordingClock(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, [activeSermonRecording?.pending_stop_at]);
 
   async function runRecordingAction(action: "start" | "stop" | "pause" | "resume") {
     if (recordingAction || !plan) {
@@ -3696,6 +3709,18 @@ export function PresentationView({
                 <ChevronRight size={16} aria-hidden="true" />
               </button>
             </div>
+            {activeSermonRecording?.pending_stop_at ? (
+              <div className="recording-grace-countdown" role="status">
+                <Clock size={17} aria-hidden="true" />
+                <span>
+                  <strong>Recording continues — ending in {recordingGraceCountdown(activeSermonRecording.pending_stop_at, recordingClock)}</strong>
+                  <small>{activeSermonRecording.pending_stop_reason ?? "Left sermon"}. Return to a sermon slide to keep this recording, or end it now.</small>
+                </span>
+                <button className="danger-button icon-text-button" disabled={recordingAction} onClick={() => void runRecordingAction("stop")} type="button">
+                  <CircleStop size={15} aria-hidden="true" /> End now
+                </button>
+              </div>
+            ) : null}
             {recordingControlsEnabled && (currentPlanItem?.item_type === "sermon" || activeSermonRecording) ? (
               <div className="action-row sermon-recording-controls is-open" aria-label="Sermon recording controls">
                 {!activeSermonRecording ? (

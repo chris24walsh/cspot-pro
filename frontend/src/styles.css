@@ -4098,6 +4098,43 @@ h3 {
   padding-top: 16px;
 }
 
+.recording-grace-setting {
+  align-items: center;
+  background: #f8f5ec;
+  border: 1px solid #ded8c7;
+  border-radius: 8px;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: minmax(0, 1fr) minmax(130px, 190px);
+  padding: 9px 10px;
+}
+
+.recording-grace-setting > span:first-child {
+  display: grid;
+  gap: 2px;
+}
+
+.recording-grace-setting strong {
+  font-size: 13px;
+}
+
+.recording-grace-setting small {
+  color: #65716a;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.recording-grace-setting input {
+  background: #fffdf7;
+  border: 1px solid #cfc7b4;
+  border-radius: 8px;
+  color: #17201b;
+  font: inherit;
+  min-height: 36px;
+  padding: 6px 8px;
+  width: 100%;
+}
+
 .broadcast-recording-heading-actions {
   align-items: center;
   display: flex;
@@ -4725,6 +4762,11 @@ h3 {
     grid-template-columns: minmax(0, 1fr);
   }
 
+  .recording-grace-setting,
+  .recording-grace-countdown {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
   .broadcast-mixer-paths {
     grid-template-columns: minmax(0, 1fr);
   }
@@ -5078,6 +5120,37 @@ h3 {
   border-top: 1px solid #e3dcc8;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   padding-top: 8px;
+}
+
+.recording-grace-countdown {
+  align-items: center;
+  background: #fff2d7;
+  border: 1px solid #d9a94d;
+  border-radius: 8px;
+  color: #533b0d;
+  display: grid;
+  gap: 8px;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  padding: 8px 9px;
+}
+
+.recording-grace-countdown > span {
+  display: grid;
+  gap: 1px;
+}
+
+.recording-grace-countdown strong {
+  font-size: 13px;
+}
+
+.recording-grace-countdown small {
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.recording-grace-countdown .danger-button {
+  min-height: 34px;
+  white-space: nowrap;
 }
 
 .presenter-controls .text-button,

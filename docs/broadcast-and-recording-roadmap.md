@@ -30,7 +30,10 @@ must be known before adding a protocol adapter.
   has a fresh live heartbeat automatically records mono Opus audio and timestamps
   slide changes. Opening on a sermon or moving between sermon slides does not
   restart a stopped recording. A paused recording resumes on the next sermon
-  slide; leaving the sermon or closing the output always finalizes it. Broadcast
+  slide. Leaving the sermon, reaching End, or closing output starts a configurable
+  stop countdown; blanking does not affect recording. Returning to the sermon
+  cancels the countdown without splitting the file. Expiry trims the retained
+  audio back to the departure point and annotates the archive with the stop reason. Broadcast
   settings provide a persistent auto-record toggle; disabling it skips automatic
   source probes and recorder startup while keeping manual recording available.
 - Recorder timestamps are generated from actual audio samples. Finalization

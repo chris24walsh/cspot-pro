@@ -10,11 +10,14 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.core.database import Base
-from app.modules.broadcast.models import BroadcastViewerSettings
+from app.modules.broadcast.models import BroadcastRecording, BroadcastViewerSettings
 from app.modules.broadcast.recording import (
     _finalize_recording_file,
     _media_duration,
     _recording_command,
+    _trim_recording_file,
+    cancel_pending_recording_stop,
+    request_recording_stop,
     _source_has_audio,
     _source_url,
     sync_sermon_recording,
@@ -177,6 +180,32 @@ def test_finalization_repairs_a_large_timestamp_gap(tmp_path: Path) -> None:
     assert 1.5 < repaired_duration < 3
 
 
+def test_grace_audio_can_be_trimmed_back_to_departure(tmp_path: Path) -> None:
+    recording = tmp_path / "sermon.webm"
+    generated = subprocess.run(
+        [
+            "ffmpeg",
+            "-hide_banner",
+            "-loglevel",
+            "error",
+            "-f",
+            "lavfi",
+            "-i",
+            "sine=frequency=1000:sample_rate=48000:duration=4",
+            "-c:a",
+            "libopus",
+            str(recording),
+        ],
+        check=False,
+    )
+
+    assert generated.returncode == 0
+    assert _trim_recording_file(recording, 2)
+    duration = _media_duration(recording)
+    assert duration is not None
+    assert 1.9 < duration < 2.1
+
+
 def test_live_audio_relay_requires_a_fresh_output_heartbeat() -> None:
     now = int(datetime.now(UTC).timestamp() * 1000)
     position = SimpleNamespace(
@@ -228,7 +257,6 @@ def test_auto_recording_starts_when_output_opens_on_a_sermon(monkeypatch) -> Non
     )
     starts: list[str] = []
     transitions: list[str] = []
-    stops: list[str] = []
     monkeypatch.setattr("app.modules.broadcast.recording._active", None)
     monkeypatch.setattr(
         "app.modules.broadcast.recording.start_recording",
@@ -238,18 +266,93 @@ def test_auto_recording_starts_when_output_opens_on_a_sermon(monkeypatch) -> Non
         "app.modules.broadcast.recording.record_slide_transition",
         lambda _session, _plan_id, item_id, _offset: transitions.append(item_id),
     )
-    monkeypatch.setattr(
-        "app.modules.broadcast.recording.stop_recording",
-        lambda _session, plan_id: stops.append(plan_id),
-    )
 
     sync_sermon_recording(session, "plan-1", None, "sermon-a", 0, "user-1")
-    sync_sermon_recording(session, "plan-1", "sermon-a", "sermon-a", 0, "user-1")
-    sync_sermon_recording(session, "plan-1", "sermon-a", "welcome", 0, "user-1")
 
     assert starts == ["sermon-a"]
     assert transitions == ["sermon-a"]
-    assert stops == ["plan-1"]
+
+
+def test_active_recording_uses_grace_when_leaving_and_cancels_on_return(monkeypatch) -> None:
+    items = {
+        "worship": SimpleNamespace(
+            id="worship", plan_id="plan-1", item_type="song", title="Worship", deleted_at=None
+        ),
+        "sermon": SimpleNamespace(
+            id="sermon", plan_id="plan-1", item_type="sermon", title="Sermon", deleted_at=None
+        ),
+    }
+    session = SimpleNamespace(get=lambda _model, item_id: items.get(item_id))
+    transitions: list[str] = []
+    pending: list[str] = []
+    cancellations: list[str] = []
+    monkeypatch.setattr(
+        "app.modules.broadcast.recording._active",
+        SimpleNamespace(plan_id="plan-1"),
+    )
+    monkeypatch.setattr(
+        "app.modules.broadcast.recording.record_slide_transition",
+        lambda _session, _plan_id, item_id, _offset: transitions.append(item_id),
+    )
+    monkeypatch.setattr(
+        "app.modules.broadcast.recording.request_recording_stop",
+        lambda _session, _plan_id, reason: pending.append(reason),
+    )
+    monkeypatch.setattr(
+        "app.modules.broadcast.recording.cancel_pending_recording_stop",
+        lambda _session, plan_id: cancellations.append(plan_id),
+    )
+
+    sync_sermon_recording(session, "plan-1", "sermon", "worship", 0, "user-1")
+    sync_sermon_recording(session, "plan-1", "worship", "sermon", 1, "user-1")
+
+    assert transitions == ["worship", "sermon"]
+    assert pending == ["Worship selected"]
+    assert cancellations == ["plan-1"]
+
+
+def test_recording_stop_grace_is_persisted_and_can_be_cancelled(monkeypatch) -> None:
+    engine = create_engine("sqlite://")
+    Base.metadata.create_all(
+        engine,
+        tables=[BroadcastViewerSettings.__table__, BroadcastRecording.__table__],
+    )
+    with Session(engine) as session:
+        settings_row = BroadcastViewerSettings(
+            stream_title="Service",
+            recording_grace_seconds=60,
+            pre_service_minutes=60,
+            starting_soon_message="Soon",
+            offline_message="Offline",
+        )
+        recording = BroadcastRecording(
+            plan_id=None,
+            plan_item_id=None,
+            title="Sermon",
+            source="test",
+            media_kind="audio-slides",
+            status="recording",
+            file_path="/tmp/sermon.webm",
+            file_name="sermon.webm",
+        )
+        session.add_all([settings_row, recording])
+        session.commit()
+        monkeypatch.setattr(
+            "app.modules.broadcast.recording._active",
+            SimpleNamespace(plan_id="plan-1", recording_id=recording.id),
+        )
+
+        pending = request_recording_stop(session, "plan-1", "End slide reached")
+        assert pending is not None
+        assert pending.pending_stop_at is not None
+        assert pending.pending_stop_reason == "End slide reached"
+        assert pending.pending_stop_offset_ms == 0
+
+        resumed = cancel_pending_recording_stop(session, "plan-1")
+        assert resumed is not None
+        assert resumed.pending_stop_at is None
+        assert resumed.pending_stop_reason is None
+        assert resumed.pending_stop_offset_ms is None
 
 
 def test_disabled_auto_recording_does_not_start_on_a_sermon(monkeypatch) -> None:

@@ -5,7 +5,7 @@ import subprocess
 import threading
 import time
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from queue import Queue
 from urllib.parse import urljoin
@@ -161,6 +161,11 @@ def _auto_recording_enabled(session: Session) -> bool:
     return True if enabled is None else bool(enabled)
 
 
+def _recording_grace_seconds(session: Session) -> int:
+    value = session.scalar(select(BroadcastViewerSettings.recording_grace_seconds).limit(1))
+    return 60 if value is None else max(0, min(600, int(value)))
+
+
 def _timeline(recording: BroadcastRecording) -> list[dict[str, object]]:
     if not recording.timeline_json:
         return []
@@ -283,6 +288,44 @@ def _repair_discontinuous_timestamps(path: Path) -> bool:
         return False
     finally:
         repaired_path.unlink(missing_ok=True)
+
+
+def _trim_recording_file(path: Path, duration_seconds: float) -> bool:
+    trimmed_path = path.with_name(f".{path.stem}.grace-trim.webm")
+    trimmed_path.unlink(missing_ok=True)
+    try:
+        trim = subprocess.run(
+            [
+                "ffmpeg",
+                "-hide_banner",
+                "-loglevel",
+                "error",
+                "-y",
+                "-i",
+                str(path),
+                "-vn",
+                "-af",
+                f"atrim=end={max(0, duration_seconds):.3f},asetpts=N/SR/TB",
+                "-ac",
+                "1",
+                "-c:a",
+                "libopus",
+                "-b:a",
+                "48k",
+                str(trimmed_path),
+            ],
+            capture_output=True,
+            check=False,
+            timeout=RECORDING_REPAIR_TIMEOUT_SECONDS,
+        )
+        if trim.returncode != 0 or not trimmed_path.is_file() or trimmed_path.stat().st_size == 0:
+            return False
+        trimmed_path.replace(path)
+        return True
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+    finally:
+        trimmed_path.unlink(missing_ok=True)
 
 
 def _finalize_recording_file(path: Path, expected_duration: float | None) -> float | None:
@@ -411,11 +454,97 @@ def _watch_recording(recording_id: str, plan_id: str) -> None:
                 explicitly_active or legacy_heartbeat_active
             )
             on_sermon = bool(item and item.item_type == "sermon" and item.deleted_at is None)
-            if not output_live or not on_sermon:
-                with _lock:
-                    if _active and _active.recording_id == recording_id:
-                        stop_recording(session, plan_id)
-                return
+            if output_live and on_sermon:
+                cancel_pending_recording_stop(session, plan_id)
+            else:
+                request_recording_stop(
+                    session,
+                    plan_id,
+                    _recording_departure_reason(item, output_live),
+                )
+            with _lock:
+                if not _active or _active.recording_id != recording_id:
+                    return
+                recording = session.get(BroadcastRecording, recording_id)
+                if recording and recording.pending_stop_at:
+                    deadline = recording.pending_stop_at
+                    if deadline.tzinfo is None:
+                        deadline = deadline.replace(tzinfo=UTC)
+                    if deadline <= datetime.now(UTC):
+                        stop_recording(
+                            session,
+                            plan_id,
+                            f"{recording.pending_stop_reason or 'Left sermon'}; grace period elapsed",
+                        )
+                        return
+
+
+def _recording_departure_reason(item: PlanItem | None, output_live: bool) -> str:
+    if not output_live:
+        return "Slideshow stopped"
+    if item is None:
+        return "No presentation slide selected"
+    if item.item_type == "end":
+        return "End slide reached"
+    label = (getattr(item, "title", None) or item.item_type or "Non-sermon slide").strip()
+    return f"{label} selected"
+
+
+def request_recording_stop(
+    session: Session,
+    plan_id: str,
+    reason: str,
+) -> BroadcastRecording | None:
+    with _lock:
+        if not _active or _active.plan_id != plan_id:
+            return None
+        recording = session.get(BroadcastRecording, _active.recording_id)
+        if not recording:
+            return None
+        if recording.pending_stop_at is None:
+            now = datetime.now(UTC)
+            grace_seconds = _recording_grace_seconds(session)
+            if grace_seconds == 0:
+                return stop_recording(session, plan_id, reason)
+            elapsed = 0.0
+            if recording.started_at:
+                started_at = recording.started_at
+                if started_at.tzinfo is None:
+                    started_at = started_at.replace(tzinfo=UTC)
+                paused_seconds = _active.paused_seconds
+                if _active.paused_at is not None:
+                    paused_at = _active.paused_at
+                    if paused_at.tzinfo is None:
+                        paused_at = paused_at.replace(tzinfo=UTC)
+                    paused_seconds += (now - paused_at).total_seconds()
+                elapsed = max(0.0, (now - started_at).total_seconds() - paused_seconds)
+            recording.pending_stop_at = now + timedelta(seconds=grace_seconds)
+            recording.pending_stop_reason = reason
+            recording.pending_stop_offset_ms = round(elapsed * 1000)
+            session.commit()
+            session.refresh(recording)
+        return recording
+
+
+def cancel_pending_recording_stop(
+    session: Session,
+    plan_id: str,
+) -> BroadcastRecording | None:
+    with _lock:
+        if not _active or _active.plan_id != plan_id:
+            return None
+        recording = session.get(BroadcastRecording, _active.recording_id)
+        if recording and (
+            recording.pending_stop_at
+            or recording.pending_stop_reason
+            or recording.pending_stop_offset_ms is not None
+        ):
+            recording.pending_stop_at = None
+            recording.pending_stop_reason = None
+            recording.pending_stop_offset_ms = None
+            session.commit()
+            session.refresh(recording)
+        return recording
 
 
 def record_slide_transition(
@@ -447,7 +576,11 @@ def record_slide_transition(
         session.commit()
 
 
-def stop_recording(session: Session, plan_id: str | None = None) -> BroadcastRecording | None:
+def stop_recording(
+    session: Session,
+    plan_id: str | None = None,
+    reason: str = "Stopped manually",
+) -> BroadcastRecording | None:
     global _active
     with _lock:
         if not _active or (plan_id is not None and _active.plan_id != plan_id):
@@ -468,6 +601,20 @@ def stop_recording(session: Session, plan_id: str | None = None) -> BroadcastRec
                 active.process.wait(timeout=5)
         if recording:
             recording.ended_at = datetime.now(UTC)
+            pending_stop_reason = recording.pending_stop_reason
+            trim_at_seconds = (
+                recording.pending_stop_offset_ms / 1000
+                if recording.pending_stop_offset_ms is not None
+                else None
+            )
+            recording.pending_stop_at = None
+            recording.pending_stop_reason = None
+            recording.pending_stop_offset_ms = None
+            recording.end_reason = (
+                f"{pending_stop_reason}; ended during grace period"
+                if pending_stop_reason and reason == "Stopped manually"
+                else reason
+            )
             expected_duration: float | None = None
             if recording.started_at:
                 expected_duration = max(
@@ -476,6 +623,11 @@ def stop_recording(session: Session, plan_id: str | None = None) -> BroadcastRec
                     - active.paused_seconds,
                 )
             path = Path(recording.audio_file_path or recording.file_path)
+            if trim_at_seconds is not None and path.exists():
+                if _trim_recording_file(path, trim_at_seconds):
+                    expected_duration = trim_at_seconds
+                else:
+                    logger.error("Could not trim recording grace audio from %s", path)
             media_duration = _finalize_recording_file(path, expected_duration) if path.exists() else None
             duration = media_duration if media_duration is not None else expected_duration
             recording.duration_seconds = max(0, int(round(duration))) if duration is not None else None
@@ -512,6 +664,9 @@ def resume_recording(session: Session) -> BroadcastRecording | None:
             _active.process.send_signal(signal.SIGCONT)
         if recording:
             recording.status = "recording"
+            recording.pending_stop_at = None
+            recording.pending_stop_reason = None
+            recording.pending_stop_offset_ms = None
             session.commit()
             session.refresh(recording)
         return recording
@@ -528,6 +683,7 @@ def sync_sermon_recording(
     item = session.get(PlanItem, plan_item_id) if plan_item_id else None
     if item and item.plan_id == plan_id and item.item_type == "sermon" and item.deleted_at is None:
         if _active and _active.plan_id == plan_id:
+            cancel_pending_recording_stop(session, plan_id)
             record_slide_transition(session, plan_id, item.id, slide_offset)
         elif previous_plan_item_id != item.id and not _start_is_in_cooldown(plan_id, item.id):
             if not _auto_recording_enabled(session):
@@ -540,5 +696,11 @@ def sync_sermon_recording(
                 logger.warning("Could not start automatic sermon recording: %s", error)
                 return
             _clear_start_failure(plan_id, item.id)
-    else:
-        stop_recording(session, plan_id)
+    elif _active and _active.plan_id == plan_id:
+        if item and item.plan_id == plan_id and item.deleted_at is None:
+            record_slide_transition(session, plan_id, item.id, slide_offset)
+        request_recording_stop(
+            session,
+            plan_id,
+            _recording_departure_reason(item, output_live=plan_item_id is not None),
+        )

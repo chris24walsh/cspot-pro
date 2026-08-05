@@ -27,6 +27,7 @@ class BroadcastViewerSettingsRead(BaseModel):
     mixer_notes: str | None = None
     slide_delay_ms: int
     auto_record_sermons: bool
+    recording_grace_seconds: int
     pre_service_audio_url: str | None = None
     pre_service_minutes: int
     starting_soon_message: str
@@ -49,6 +50,7 @@ class BroadcastViewerSettingsUpdate(BaseModel):
     mixer_notes: str | None = Field(default=None, max_length=2000)
     slide_delay_ms: int | None = Field(default=None, ge=0, le=10000)
     auto_record_sermons: bool | None = None
+    recording_grace_seconds: int | None = Field(default=None, ge=0, le=600)
     pre_service_audio_url: str | None = None
     pre_service_minutes: int | None = Field(default=None, ge=0, le=180)
     starting_soon_message: str | None = Field(default=None, max_length=240)
@@ -80,4 +82,7 @@ class BroadcastRecordingRead(BaseModel):
     recorded_at: datetime | None = None
     started_at: datetime | None = None
     ended_at: datetime | None = None
+    pending_stop_at: datetime | None = None
+    pending_stop_reason: str | None = None
+    end_reason: str | None = None
     timeline: list[dict[str, object]] = Field(default_factory=list)

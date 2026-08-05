@@ -327,7 +327,11 @@ Search modes:
   transitions. Automatic start is edge-triggered by a non-sermon-to-sermon move
   while the output session is active; it does not restart a manually stopped
   recording on later sermon slides. A paused recording resumes on the next sermon
-  slide, and leaving the sermon or closing output always stops it. Recorder
+  slide. Leaving the sermon, reaching End, or closing output starts a persisted,
+  configurable stop countdown (60 seconds by default); blanking never starts it.
+  Returning to a sermon slide cancels the countdown and retains one continuous
+  recording. If the countdown expires or End now is chosen, the grace audio is
+  trimmed back to the departure point and the archive records the stop reason. Recorder
   transitions run on one background worker with a separate database session;
   stream probing and FFmpeg startup never block presenter API requests. Failed
   source probes enter a cooldown instead of retrying on every heartbeat. Automatic
@@ -340,6 +344,8 @@ Search modes:
   Recording controls are hidden behind an off-by-default presenter toggle.
 - Every service receives a final End slide. Presenter controls can start, pause,
   resume, and stop recording; moving to a new slide resumes a paused recorder.
+  A visible presenter countdown protects brief worship/announcement detours and
+  accidental slideshow closure without splitting the sermon archive.
   Broadcast settings can permanently remove completed archive entries and files.
 - Presentation output ownership is server-authoritative and persists until an
   authorized presenter explicitly stops it. Stop works across devices, leaves a
