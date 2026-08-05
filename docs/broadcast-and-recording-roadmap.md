@@ -18,7 +18,8 @@ must be known before adding a protocol adapter.
   either camera or use an independent Raspberry Pi/desk stream.
 - Camera video prefers low-latency MSE over the camera gateway WebSocket. Both
   the video and selected camera audio reconnect automatically after a stall;
-  HLS remains a compatibility fallback.
+  video switches to HLS when MSE negotiates a codec the browser cannot play or
+  does not produce playable media promptly.
 - Slide updates are sampled every 500 ms and have a configurable delay for
   alignment with the measured camera pipeline latency.
 - The slideshow and camera appear only while CSpot has an active presentation heartbeat.

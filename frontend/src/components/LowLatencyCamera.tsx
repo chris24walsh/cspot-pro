@@ -1,5 +1,5 @@
 import { RefreshCw, Volume2 } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { go2RtcWebSocketUrl } from "../broadcastCamera";
 
@@ -14,7 +14,7 @@ function cameraKind(url: string) {
   return "frame";
 }
 
-function LowLatencyMseVideo({ label, url }: { label: string; url: string }) {
+function LowLatencyMseVideo({ label, onFallback, url }: { label: string; onFallback: () => void; url: string }) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const [retryToken, setRetryToken] = useState(0);
   const [status, setStatus] = useState<StreamStatus>("connecting");
@@ -27,12 +27,20 @@ function LowLatencyMseVideo({ label, url }: { label: string; url: string }) {
     let socket: WebSocket | null = null;
     let reconnectTimer = 0;
     let watchdogTimer = 0;
+    let startupTimer = 0;
     let sourceBuffer: SourceBuffer | null = null;
     let mediaSource: MediaSource | null = null;
     let sourceOpen = false;
     let socketOpen = false;
     let lastDataAt = Date.now();
     const queue: ArrayBuffer[] = [];
+
+    const fallBack = () => {
+      if (disposed) return;
+      disposed = true;
+      socket?.close();
+      onFallback();
+    };
 
     const appendNext = () => {
       if (!sourceBuffer || sourceBuffer.updating || !queue.length) return;
@@ -92,6 +100,10 @@ function LowLatencyMseVideo({ label, url }: { label: string; url: string }) {
             return;
           }
           if (message.type === "mse" && message.value && mediaSource?.readyState === "open" && !sourceBuffer) {
+            if (!MediaSource.isTypeSupported(message.value)) {
+              fallBack();
+              return;
+            }
             try {
               sourceBuffer = mediaSource.addSourceBuffer(message.value);
               sourceBuffer.mode = "segments";
@@ -112,10 +124,10 @@ function LowLatencyMseVideo({ label, url }: { label: string; url: string }) {
                 appendNext();
               });
             } catch {
-              socket?.close();
+              fallBack();
             }
           } else if (message.type === "error") {
-            socket?.close();
+            fallBack();
           }
           return;
         }
@@ -128,11 +140,15 @@ function LowLatencyMseVideo({ label, url }: { label: string; url: string }) {
       void video.play().catch(() => undefined);
     };
 
-    const markLive = () => setStatus("live");
-    const handleVideoError = () => socket?.close();
+    const markLive = () => {
+      window.clearTimeout(startupTimer);
+      setStatus("live");
+    };
+    const handleVideoError = fallBack;
     video.addEventListener("playing", markLive);
     video.addEventListener("error", handleVideoError);
     connect();
+    startupTimer = window.setTimeout(fallBack, 8000);
     watchdogTimer = window.setInterval(() => {
       if (Date.now() - lastDataAt > 7000 || (video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA && Date.now() - lastDataAt > 4000)) {
         socket?.close();
@@ -142,6 +158,7 @@ function LowLatencyMseVideo({ label, url }: { label: string; url: string }) {
     return () => {
       disposed = true;
       window.clearTimeout(reconnectTimer);
+      window.clearTimeout(startupTimer);
       window.clearInterval(watchdogTimer);
       video.removeEventListener("playing", markLive);
       video.removeEventListener("error", handleVideoError);
@@ -150,7 +167,7 @@ function LowLatencyMseVideo({ label, url }: { label: string; url: string }) {
       video.removeAttribute("src");
       video.load();
     };
-  }, [retryToken, websocketUrl]);
+  }, [onFallback, retryToken, websocketUrl]);
 
   return (
     <div className="service-broadcast-camera-player">
@@ -248,8 +265,12 @@ function ResilientVideo({ label, url }: { label: string; url: string }) {
 
 export function LowLatencyCamera({ label, url }: { label: string; url: string }) {
   const websocketUrl = useMemo(() => go2RtcWebSocketUrl(url), [url]);
+  const [failedMseUrl, setFailedMseUrl] = useState<string | null>(null);
+  const fallBack = useCallback(() => setFailedMseUrl(url), [url]);
   const kind = cameraKind(url);
-  if (websocketUrl && typeof MediaSource !== "undefined") return <LowLatencyMseVideo label={label} url={url} />;
+  if (websocketUrl && failedMseUrl !== url && typeof MediaSource !== "undefined") {
+    return <LowLatencyMseVideo label={label} onFallback={fallBack} url={url} />;
+  }
   if (kind === "mjpeg") return <img alt={label} className="service-broadcast-camera-media" src={url} />;
   if (kind === "video") return <ResilientVideo label={label} url={url} />;
   return <iframe allow="autoplay; fullscreen; picture-in-picture" className="service-broadcast-camera-media" src={url} title={label} />;
