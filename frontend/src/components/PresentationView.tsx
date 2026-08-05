@@ -65,7 +65,7 @@ import {
   presentationTypeClass,
   resolveLiveIndex,
   suggestSlideGroupFontCap,
-  suggestSlideTypeFontCap,
+  suggestedSlideFontCap,
   type PresentationSlide,
   type PresentationLiveState,
   type PresentationTheme,
@@ -407,13 +407,15 @@ async function tryFetchBiblePassage(
 function SlideTextBlock({
   text,
   compact = false,
+  className,
   maxFontSize,
 }: {
   text: string;
   compact?: boolean;
+  className?: string;
   maxFontSize?: number;
 }) {
-  return <AutoFitSlideText compact={compact} maxFontSize={maxFontSize} text={text} />;
+  return <AutoFitSlideText className={className} compact={compact} maxFontSize={maxFontSize} text={text} />;
 }
 
 function DeferredMiniSlideImage({ src }: { src: string }) {
@@ -807,10 +809,7 @@ export function PresentationView({
     () => slides.filter((slide) => !slide.imageUrl && slide.text.trim()),
     [slides],
   );
-  const liveTextFontCap = useMemo(() => {
-    const cap = suggestSlideTypeFontCap(slides, liveSlide?.itemType);
-    return liveSlide?.itemType === "reading" ? Math.min(cap, 42) : cap;
-  }, [liveSlide?.itemType, slides]);
+  const liveTextFontCap = suggestedSlideFontCap(liveSlide);
   const compactPlanTextFontCap = useMemo(
     () => suggestSlideGroupFontCap(planTextSlides.map((slide) => slide.text), true),
     [planTextSlides],
@@ -3677,7 +3676,11 @@ export function PresentationView({
                   )}
                 </div>
               ) : (
-                <SlideTextBlock maxFontSize={liveTextFontCap} text={liveSlide?.text ?? "No live slide selected"} />
+                <SlideTextBlock
+                  className={liveSlide?.slideKind === "title" ? "is-title-slide" : undefined}
+                  maxFontSize={liveTextFontCap}
+                  text={liveSlide?.text ?? "No live slide selected"}
+                />
               )}
             </div>
           </div>

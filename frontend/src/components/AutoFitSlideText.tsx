@@ -25,7 +25,7 @@ export function AutoFitSlideText({
     }
 
     const min = compact ? 7 : 8;
-    const max = maxFontSize ?? (compact ? 14 : 76);
+    const baseMax = maxFontSize ?? (compact ? 14 : 76);
 
     function availableSpace(element: HTMLElement) {
       const styles = window.getComputedStyle(element);
@@ -49,7 +49,7 @@ export function AutoFitSlideText({
       const verticalBreathingRoom = Math.max(5, Math.ceil(candidate * (compact ? 0.08 : 0.22)));
       return (
         activePre.scrollHeight + verticalBreathingRoom <= available.height &&
-        activePre.scrollWidth <= available.width
+        activePre.scrollWidth <= activePre.clientWidth + 1
       );
     }
 
@@ -60,6 +60,10 @@ export function AutoFitSlideText({
         return;
       }
 
+      const frameScale = compact
+        ? 1
+        : Math.min(activeFrame.clientWidth / 960, activeFrame.clientHeight / 540);
+      const max = Math.max(min, Math.round(baseMax * Math.max(0.3, Math.min(2.5, frameScale))));
       let low = min;
       let high = max;
       let best = min;

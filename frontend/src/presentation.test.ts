@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { PlanItem, RenderedSlide, Song } from "./api";
-import { buildPresentationSections, buildPresentationSlides, resolveLiveIndex, splitOversizedLyricSlide, suggestSlideTypeFontCap } from "./presentation";
+import { buildPresentationSections, buildPresentationSlides, resolveLiveIndex, splitOversizedLyricSlide, suggestedSlideFontCap } from "./presentation";
 
 function planItem(overrides: Partial<PlanItem>): PlanItem {
   return {
@@ -109,7 +109,7 @@ describe("presentation slide derivation", () => {
     ]);
   });
 
-  it("keeps font consistency within each slide type and ignores title slides", () => {
+  it("uses restrained title sizing without enlarging short lyric slides", () => {
     const slides = buildPresentationSlides([
       planItem({ id: "song-item", item_type: "song", song_id: "song-1", title: "Song" }),
       planItem({ id: "reading", item_type: "reading", title: "John 3:16", comment: "For God so loved the world." }),
@@ -119,7 +119,12 @@ describe("presentation slide derivation", () => {
       title: "Short title",
     })]);
 
-    expect(suggestSlideTypeFontCap(slides, "song")).toBe(54);
-    expect(suggestSlideTypeFontCap(slides, "reading")).toBe(72);
+    const songTitle = slides.find((slide) => slide.itemType === "song" && slide.slideKind === "title");
+    const songContent = slides.find((slide) => slide.itemType === "song" && slide.slideKind === "content");
+    const reading = slides.find((slide) => slide.itemType === "reading");
+
+    expect(suggestedSlideFontCap(songTitle)).toBe(64);
+    expect(suggestedSlideFontCap(songContent)).toBe(52);
+    expect(suggestedSlideFontCap(reading)).toBe(68);
   });
 });

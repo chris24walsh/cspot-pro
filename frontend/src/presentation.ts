@@ -113,20 +113,11 @@ export function suggestSlideGroupFontCap(texts: string[], compact = false) {
   return bestCap;
 }
 
-export function suggestSlideTypeFontCap(
-  slides: PresentationSlide[],
-  itemType: string | null | undefined,
-  compact = false,
-) {
-  const matchingSlides = slides.filter((slide) =>
-    !slide.imageUrl &&
-    !slide.videoUrl &&
-    slide.slideKind !== "title" &&
-    slide.text.trim() &&
-    (!itemType || slide.itemType === itemType),
-  );
-  const fallbackSlides = slides.filter((slide) => !slide.imageUrl && !slide.videoUrl && slide.text.trim());
-  return suggestSlideGroupFontCap((matchingSlides.length ? matchingSlides : fallbackSlides).map((slide) => slide.text), compact);
+export function suggestedSlideFontCap(slide: PresentationSlide | null | undefined) {
+  if (slide?.slideKind === "title") return 64;
+  if (slide?.itemType === "reading") return 68;
+  if (slide?.itemType === "song") return 52;
+  return 64;
 }
 
 function meaningfulTextLines(text: string) {

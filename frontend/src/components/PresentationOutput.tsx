@@ -21,7 +21,7 @@ import {
   buildPresentationSlides,
   presentationTypeClass,
   resolveLiveIndex,
-  suggestSlideTypeFontCap,
+  suggestedSlideFontCap,
   type PresentationLiveState,
 } from "../presentation";
 import { isWorshipSetPlan, matchingWorshipSetForService, mergeWorshipSetIntoService } from "../worshipSets";
@@ -102,13 +102,7 @@ export function PresentationOutput({ networkDisplay = false }: PresentationOutpu
   const liveSlide = liveTargetMissing ? null : slides[resolvedIndex] ?? null;
   const liveMediaUrl = liveSlide?.videoUrl ?? liveSlide?.youtubeAudioUrl;
   const liveMediaProvider = liveSlide?.videoProvider ?? (liveSlide?.youtubeAudioUrl ? "youtube" : undefined);
-  const liveTextFontCap = useMemo(
-    () => {
-      const cap = suggestSlideTypeFontCap(slides, liveSlide?.itemType);
-      return liveSlide?.itemType === "reading" ? Math.min(cap, 42) : cap;
-    },
-    [liveSlide?.itemType, slides],
-  );
+  const liveTextFontCap = suggestedSlideFontCap(liveSlide);
 
   const checkOutputStatus = useCallback(() => {
     if (!liveState?.planId || outputHeartbeatInFlightRef.current) {
@@ -649,6 +643,7 @@ export function PresentationOutput({ networkDisplay = false }: PresentationOutpu
               />
             ) : null}
             <AutoFitSlideText
+              className={liveSlide?.slideKind === "title" ? "is-title-slide" : undefined}
               maxFontSize={liveTextFontCap}
               text={liveSlide?.text ?? (networkDisplay ? "Waiting for the presenter to start TV output" : "Waiting for slideshow")}
             />

@@ -5758,6 +5758,11 @@ h3 {
   padding-block: 0.08em 0.18em;
 }
 
+.fit-slide-text-live.is-title-slide {
+  font-weight: 850;
+  line-height: 1.08;
+}
+
 .mini-slide-surface img {
   height: auto;
   max-height: 100%;

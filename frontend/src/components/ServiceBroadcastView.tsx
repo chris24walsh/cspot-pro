@@ -25,7 +25,7 @@ import {
   extractYouTubeId,
   presentationTypeClass,
   resolveLiveIndex,
-  suggestSlideTypeFontCap,
+  suggestedSlideFontCap,
   type PresentationLiveState,
 } from "../presentation";
 import { isBroadcastStartingSoon } from "../broadcastTiming";
@@ -163,10 +163,7 @@ export function ServiceBroadcastView({ canControl = false, onOpenSettings }: { c
     : selectedAudioCamera
       ? cameraAudioUrl(selectedAudioCamera.url)
       : null;
-  const textFontCap = useMemo(() => {
-    const cap = suggestSlideTypeFontCap(slides, liveSlide?.itemType);
-    return liveSlide?.itemType === "reading" ? Math.min(cap, 42) : cap;
-  }, [liveSlide?.itemType, slides]);
+  const textFontCap = suggestedSlideFontCap(liveSlide);
 
   useEffect(() => {
     if (settings.camera_cycle_seconds > 0) lastCameraCycleSecondsRef.current = settings.camera_cycle_seconds;
@@ -366,7 +363,11 @@ export function ServiceBroadcastView({ canControl = false, onOpenSettings }: { c
             ) : (
               <div className="presentation-stage service-broadcast-presentation-stage">
                 {liveSlide.slideKind !== "title" && liveSlide.sectionTitle ? <div className="stage-title">{liveSlide.sectionTitle}</div> : null}
-                <AutoFitSlideText text={liveSlide.text} maxFontSize={textFontCap} />
+                <AutoFitSlideText
+                  className={liveSlide.slideKind === "title" ? "is-title-slide" : undefined}
+                  text={liveSlide.text}
+                  maxFontSize={textFontCap}
+                />
               </div>
             )}
           </div>
