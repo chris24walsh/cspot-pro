@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { PlanItem, RenderedSlide, Song } from "./api";
-import { buildPresentationSections, buildPresentationSlides, resolveLiveIndex, splitOversizedLyricSlide } from "./presentation";
+import { buildPresentationSections, buildPresentationSlides, resolveLiveIndex, splitOversizedLyricSlide, suggestSlideTypeFontCap } from "./presentation";
 
 function planItem(overrides: Partial<PlanItem>): PlanItem {
   return {
@@ -107,5 +107,19 @@ describe("presentation slide derivation", () => {
       "Line one has enough words\nLine two has enough words\nLine three has enough words",
       "Line four has enough words\nLine five has enough words\nLine six has enough words",
     ]);
+  });
+
+  it("keeps font consistency within each slide type and ignores title slides", () => {
+    const slides = buildPresentationSlides([
+      planItem({ id: "song-item", item_type: "song", song_id: "song-1", title: "Song" }),
+      planItem({ id: "reading", item_type: "reading", title: "John 3:16", comment: "For God so loved the world." }),
+    ], [song({
+      lyrics: "Verse 1\nThis is a moderately long first lyric line\nThis is a moderately long second lyric line\nThis is a moderately long third lyric line\nThis is a moderately long fourth lyric line",
+      sequence: "V1",
+      title: "Short title",
+    })]);
+
+    expect(suggestSlideTypeFontCap(slides, "song")).toBe(54);
+    expect(suggestSlideTypeFontCap(slides, "reading")).toBe(72);
   });
 });

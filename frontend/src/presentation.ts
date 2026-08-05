@@ -113,6 +113,22 @@ export function suggestSlideGroupFontCap(texts: string[], compact = false) {
   return bestCap;
 }
 
+export function suggestSlideTypeFontCap(
+  slides: PresentationSlide[],
+  itemType: string | null | undefined,
+  compact = false,
+) {
+  const matchingSlides = slides.filter((slide) =>
+    !slide.imageUrl &&
+    !slide.videoUrl &&
+    slide.slideKind !== "title" &&
+    slide.text.trim() &&
+    (!itemType || slide.itemType === itemType),
+  );
+  const fallbackSlides = slides.filter((slide) => !slide.imageUrl && !slide.videoUrl && slide.text.trim());
+  return suggestSlideGroupFontCap((matchingSlides.length ? matchingSlides : fallbackSlides).map((slide) => slide.text), compact);
+}
+
 function meaningfulTextLines(text: string) {
   return text
     .split(/\r?\n/)

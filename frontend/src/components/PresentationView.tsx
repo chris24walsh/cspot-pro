@@ -65,6 +65,7 @@ import {
   presentationTypeClass,
   resolveLiveIndex,
   suggestSlideGroupFontCap,
+  suggestSlideTypeFontCap,
   type PresentationSlide,
   type PresentationLiveState,
   type PresentationTheme,
@@ -806,11 +807,10 @@ export function PresentationView({
     () => slides.filter((slide) => !slide.imageUrl && slide.text.trim()),
     [slides],
   );
-  const planTextFontCap = useMemo(
-    () => suggestSlideGroupFontCap(planTextSlides.map((slide) => slide.text)),
-    [planTextSlides],
-  );
-  const liveTextFontCap = liveSlide?.itemType === "reading" ? Math.min(planTextFontCap, 42) : planTextFontCap;
+  const liveTextFontCap = useMemo(() => {
+    const cap = suggestSlideTypeFontCap(slides, liveSlide?.itemType);
+    return liveSlide?.itemType === "reading" ? Math.min(cap, 42) : cap;
+  }, [liveSlide?.itemType, slides]);
   const compactPlanTextFontCap = useMemo(
     () => suggestSlideGroupFontCap(planTextSlides.map((slide) => slide.text), true),
     [planTextSlides],

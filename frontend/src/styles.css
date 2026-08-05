@@ -5746,7 +5746,7 @@ h3 {
 }
 
 .fit-slide-box-live {
-  padding: 7%;
+  padding: 6% 6% 4%;
 }
 
 .fit-slide-text-compact {
@@ -6336,11 +6336,12 @@ h3 {
 
 .presentation-stage {
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
   aspect-ratio: 16 / 9;
   background: #202322;
   min-height: 0;
   padding: 0;
+  position: relative;
   text-align: center;
 }
 
@@ -6371,8 +6372,11 @@ h3 {
   font-weight: 800;
   gap: 10px;
   justify-content: center;
-  margin: 8px 12px 0;
-  position: relative;
+  left: 6%;
+  margin: 0;
+  position: absolute;
+  right: 6%;
+  top: 2.2%;
   z-index: 1;
 }
 
@@ -6519,7 +6523,7 @@ h3 {
 .slideshow-stage {
   align-content: center;
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
   height: 100%;
   min-height: 0;
   overflow: hidden;
@@ -6536,10 +6540,19 @@ h3 {
 }
 
 .slideshow-stage .stage-title {
-  font-size: clamp(22px, 2vw, 34px);
-  margin: 2vh 2vw 0;
-  position: relative;
+  font-size: clamp(16px, 1.35vw, 24px);
+  left: 6%;
+  margin: 0;
+  position: absolute;
+  right: 6%;
+  top: 2.2%;
   z-index: 1;
+}
+
+.service-broadcast-slide .stage-title {
+  font-size: clamp(10px, 1.1vw, 16px);
+  line-height: 1.1;
+  top: 2.4%;
 }
 
 .slideshow-stage pre {

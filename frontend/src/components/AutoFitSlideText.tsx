@@ -24,7 +24,7 @@ export function AutoFitSlideText({
       return;
     }
 
-    const min = compact ? 7 : 18;
+    const min = compact ? 7 : 8;
     const max = maxFontSize ?? (compact ? 14 : 76);
 
     function fits(candidate: number) {

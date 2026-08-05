@@ -21,7 +21,7 @@ import {
   buildPresentationSlides,
   presentationTypeClass,
   resolveLiveIndex,
-  suggestSlideGroupFontCap,
+  suggestSlideTypeFontCap,
   type PresentationLiveState,
 } from "../presentation";
 import { isWorshipSetPlan, matchingWorshipSetForService, mergeWorshipSetIntoService } from "../worshipSets";
@@ -103,8 +103,11 @@ export function PresentationOutput({ networkDisplay = false }: PresentationOutpu
   const liveMediaUrl = liveSlide?.videoUrl ?? liveSlide?.youtubeAudioUrl;
   const liveMediaProvider = liveSlide?.videoProvider ?? (liveSlide?.youtubeAudioUrl ? "youtube" : undefined);
   const liveTextFontCap = useMemo(
-    () => suggestSlideGroupFontCap(slides.filter((slide) => !slide.imageUrl && slide.text.trim()).map((slide) => slide.text)),
-    [slides],
+    () => {
+      const cap = suggestSlideTypeFontCap(slides, liveSlide?.itemType);
+      return liveSlide?.itemType === "reading" ? Math.min(cap, 42) : cap;
+    },
+    [liveSlide?.itemType, slides],
   );
 
   const checkOutputStatus = useCallback(() => {

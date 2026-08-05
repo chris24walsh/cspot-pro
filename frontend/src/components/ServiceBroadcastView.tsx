@@ -25,7 +25,7 @@ import {
   extractYouTubeId,
   presentationTypeClass,
   resolveLiveIndex,
-  suggestSlideGroupFontCap,
+  suggestSlideTypeFontCap,
   type PresentationLiveState,
 } from "../presentation";
 import { isBroadcastStartingSoon } from "../broadcastTiming";
@@ -163,10 +163,10 @@ export function ServiceBroadcastView({ canControl = false, onOpenSettings }: { c
     : selectedAudioCamera
       ? cameraAudioUrl(selectedAudioCamera.url)
       : null;
-  const textFontCap = useMemo(
-    () => suggestSlideGroupFontCap(slides.filter((slide) => !slide.imageUrl && slide.text.trim()).map((slide) => slide.text)),
-    [slides],
-  );
+  const textFontCap = useMemo(() => {
+    const cap = suggestSlideTypeFontCap(slides, liveSlide?.itemType);
+    return liveSlide?.itemType === "reading" ? Math.min(cap, 42) : cap;
+  }, [liveSlide?.itemType, slides]);
 
   useEffect(() => {
     if (settings.camera_cycle_seconds > 0) lastCameraCycleSecondsRef.current = settings.camera_cycle_seconds;
@@ -364,8 +364,8 @@ export function ServiceBroadcastView({ canControl = false, onOpenSettings }: { c
                 {liveSlide.videoProvider === "file" ? <video controls src={liveSlide.videoUrl} /> : <iframe allow="autoplay; encrypted-media; picture-in-picture" allowFullScreen src={liveSlide.videoUrl} title={liveSlide.title} />}
               </div>
             ) : (
-              <div className="presentation-stage">
-                <div className="stage-title">{liveSlide.slideKind === "title" ? "" : liveSlide.sectionTitle}</div>
+              <div className="presentation-stage service-broadcast-presentation-stage">
+                {liveSlide.slideKind !== "title" && liveSlide.sectionTitle ? <div className="stage-title">{liveSlide.sectionTitle}</div> : null}
                 <AutoFitSlideText text={liveSlide.text} maxFontSize={textFontCap} />
               </div>
             )}
