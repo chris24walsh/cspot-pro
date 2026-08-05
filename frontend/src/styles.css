@@ -7684,7 +7684,6 @@ h3 {
   }
 
   .type-reading .presentation-stage {
-    grid-template-rows: min-content minmax(0, 1fr);
     padding: 25px 9px 8px;
   }
 
