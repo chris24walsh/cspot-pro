@@ -33,6 +33,9 @@ must be known before adding a protocol adapter.
   slide; leaving the sermon or closing the output always finalizes it. Broadcast
   settings provide a persistent auto-record toggle; disabling it skips automatic
   source probes and recorder startup while keeping manual recording available.
+- Recorder timestamps are generated from actual audio samples. Finalization
+  compares the playable file with the expected duration and repairs timestamp
+  gaps caused by pausing a live source before publishing the archive entry.
 - Presenters can opt into recording controls with the off-by-default Recording
   toggle, then start, pause, resume, or stop beneath the slide controls. Every
   service has an End slide, giving the presenter a deliberate finish action.

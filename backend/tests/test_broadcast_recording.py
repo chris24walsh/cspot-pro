@@ -1,5 +1,7 @@
 import json
+import subprocess
 from datetime import UTC, datetime
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -9,7 +11,14 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.core.database import Base
 from app.modules.broadcast.models import BroadcastViewerSettings
-from app.modules.broadcast.recording import _source_has_audio, _source_url, sync_sermon_recording
+from app.modules.broadcast.recording import (
+    _finalize_recording_file,
+    _media_duration,
+    _recording_command,
+    _source_has_audio,
+    _source_url,
+    sync_sermon_recording,
+)
 from app.modules.broadcast.routes import live_output_exists, update_viewer_settings
 from app.modules.broadcast.schemas import BroadcastViewerSettingsUpdate
 
@@ -132,6 +141,40 @@ def test_recording_source_requires_an_audio_track(monkeypatch) -> None:
     )
 
     assert _source_has_audio("http://camera/stream.m3u8") is False
+
+
+def test_recorder_generates_timestamps_from_audio_samples() -> None:
+    command = _recording_command("http://camera/audio", Path("sermon.webm"))
+
+    assert command[command.index("-af") + 1] == "asetpts=N/SR/TB"
+
+
+def test_finalization_repairs_a_large_timestamp_gap(tmp_path: Path) -> None:
+    recording = tmp_path / "sermon.webm"
+    generated = subprocess.run(
+        [
+            "ffmpeg",
+            "-hide_banner",
+            "-loglevel",
+            "error",
+            "-f",
+            "lavfi",
+            "-i",
+            "sine=frequency=1000:sample_rate=48000:duration=101",
+            "-af",
+            "aselect='lt(t,1)+gt(t,100)'",
+            "-c:a",
+            "libopus",
+            str(recording),
+        ],
+        check=False,
+    )
+
+    assert generated.returncode == 0
+    assert (_media_duration(recording) or 0) > 100
+    repaired_duration = _finalize_recording_file(recording, 2)
+    assert repaired_duration is not None
+    assert 1.5 < repaired_duration < 3
 
 
 def test_live_audio_relay_requires_a_fresh_output_heartbeat() -> None:

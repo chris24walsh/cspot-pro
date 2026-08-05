@@ -37,6 +37,7 @@ class ActiveRecording:
 _lock = threading.RLock()
 _active: ActiveRecording | None = None
 START_FAILURE_COOLDOWN_SECONDS = 60
+RECORDING_REPAIR_TIMEOUT_SECONDS = 300
 
 
 @dataclass(frozen=True)
@@ -198,6 +199,112 @@ def _source_has_audio(source_url: str) -> bool:
     return probe.returncode == 0 and b"audio" in probe.stdout
 
 
+def _recording_command(source_url: str, file_path: Path) -> list[str]:
+    return [
+        "ffmpeg",
+        "-hide_banner",
+        "-loglevel",
+        "error",
+        "-y",
+        "-i",
+        source_url,
+        "-vn",
+        "-map",
+        "0:a:0",
+        "-af",
+        "asetpts=N/SR/TB",
+        "-ac",
+        "1",
+        "-c:a",
+        "libopus",
+        "-b:a",
+        "48k",
+        str(file_path),
+    ]
+
+
+def _media_duration(path: Path) -> float | None:
+    try:
+        probe = subprocess.run(
+            [
+                "ffprobe",
+                "-v",
+                "error",
+                "-show_entries",
+                "format=duration",
+                "-of",
+                "default=noprint_wrappers=1:nokey=1",
+                str(path),
+            ],
+            capture_output=True,
+            check=False,
+            timeout=20,
+        )
+        duration = float(probe.stdout.strip())
+    except (OSError, ValueError, subprocess.TimeoutExpired):
+        return None
+    return duration if probe.returncode == 0 and duration >= 0 else None
+
+
+def _repair_discontinuous_timestamps(path: Path) -> bool:
+    repaired_path = path.with_name(f".{path.stem}.timestamp-repair.webm")
+    repaired_path.unlink(missing_ok=True)
+    command = [
+        "ffmpeg",
+        "-hide_banner",
+        "-loglevel",
+        "error",
+        "-y",
+        "-i",
+        str(path),
+        "-vn",
+        "-af",
+        "asetpts=N/SR/TB",
+        "-ac",
+        "1",
+        "-c:a",
+        "libopus",
+        "-b:a",
+        "48k",
+        str(repaired_path),
+    ]
+    try:
+        repair = subprocess.run(
+            command,
+            capture_output=True,
+            check=False,
+            timeout=RECORDING_REPAIR_TIMEOUT_SECONDS,
+        )
+        if repair.returncode != 0 or not repaired_path.is_file() or repaired_path.stat().st_size == 0:
+            return False
+        repaired_path.replace(path)
+        return True
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+    finally:
+        repaired_path.unlink(missing_ok=True)
+
+
+def _finalize_recording_file(path: Path, expected_duration: float | None) -> float | None:
+    media_duration = _media_duration(path)
+    if (
+        media_duration is not None
+        and expected_duration is not None
+        and media_duration > expected_duration + max(5.0, expected_duration * 0.1)
+    ):
+        logger.warning(
+            "Repairing discontinuous recording timestamps for %s (media %.3fs, expected %.3fs)",
+            path,
+            media_duration,
+            expected_duration,
+        )
+        if _repair_discontinuous_timestamps(path):
+            media_duration = _media_duration(path)
+        else:
+            logger.error("Could not repair discontinuous recording timestamps for %s", path)
+    return media_duration
+
+
 def start_recording(
     session: Session,
     plan_id: str,
@@ -244,25 +351,7 @@ def start_recording(
         session.add(recording)
         session.commit()
         session.refresh(recording)
-        command = [
-            "ffmpeg",
-            "-hide_banner",
-            "-loglevel",
-            "error",
-            "-y",
-            "-i",
-            source_url,
-            "-vn",
-            "-map",
-            "0:a:0",
-            "-ac",
-            "1",
-            "-c:a",
-            "libopus",
-            "-b:a",
-            "48k",
-            str(file_path),
-        ]
+        command = _recording_command(source_url, file_path)
         try:
             process = subprocess.Popen(
                 command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
@@ -379,15 +468,17 @@ def stop_recording(session: Session, plan_id: str | None = None) -> BroadcastRec
                 active.process.wait(timeout=5)
         if recording:
             recording.ended_at = datetime.now(UTC)
+            expected_duration: float | None = None
             if recording.started_at:
-                recording.duration_seconds = max(
-                    0,
-                    int(
-                        (recording.ended_at - recording.started_at).total_seconds()
-                        - active.paused_seconds
-                    ),
+                expected_duration = max(
+                    0.0,
+                    (recording.ended_at - recording.started_at).total_seconds()
+                    - active.paused_seconds,
                 )
-            path = Path(recording.file_path)
+            path = Path(recording.audio_file_path or recording.file_path)
+            media_duration = _finalize_recording_file(path, expected_duration) if path.exists() else None
+            duration = media_duration if media_duration is not None else expected_duration
+            recording.duration_seconds = max(0, int(round(duration))) if duration is not None else None
             recording.size_bytes = path.stat().st_size if path.exists() else None
             recording.status = "ready" if recording.size_bytes else "failed"
             session.commit()
