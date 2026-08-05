@@ -27,6 +27,16 @@ export function AutoFitSlideText({
     const min = compact ? 7 : 8;
     const max = maxFontSize ?? (compact ? 14 : 76);
 
+    function availableSpace(element: HTMLElement) {
+      const styles = window.getComputedStyle(element);
+      const horizontalPadding = Number.parseFloat(styles.paddingLeft) + Number.parseFloat(styles.paddingRight);
+      const verticalPadding = Number.parseFloat(styles.paddingTop) + Number.parseFloat(styles.paddingBottom);
+      return {
+        height: Math.max(0, element.clientHeight - verticalPadding),
+        width: Math.max(0, element.clientWidth - horizontalPadding),
+      };
+    }
+
     function fits(candidate: number) {
       const activeFrame = frameRef.current;
       const activePre = textRef.current;
@@ -35,10 +45,11 @@ export function AutoFitSlideText({
       }
 
       activePre.style.fontSize = `${candidate}px`;
+      const available = availableSpace(activeFrame);
       const verticalBreathingRoom = Math.max(5, Math.ceil(candidate * (compact ? 0.08 : 0.22)));
       return (
-        activePre.scrollHeight + verticalBreathingRoom <= activeFrame.clientHeight &&
-        activePre.scrollWidth <= activeFrame.clientWidth
+        activePre.scrollHeight + verticalBreathingRoom <= available.height &&
+        activePre.scrollWidth <= available.width
       );
     }
 
@@ -68,12 +79,31 @@ export function AutoFitSlideText({
       setFontSize(settled);
     }
 
-    const resizeObserver = new ResizeObserver(updateSize);
-    resizeObserver.observe(frame);
+    let resizeObserver: ResizeObserver | null = null;
+    let firstFrame = 0;
+    let secondFrame = 0;
+    let settleTimer = 0;
+
+    // Always perform an initial fit, including on browsers without ResizeObserver.
     updateSize();
+    firstFrame = window.requestAnimationFrame(() => {
+      updateSize();
+      secondFrame = window.requestAnimationFrame(updateSize);
+    });
+    settleTimer = window.setTimeout(updateSize, 250);
+    window.addEventListener("resize", updateSize);
+    if (typeof ResizeObserver !== "undefined") {
+      resizeObserver = new ResizeObserver(updateSize);
+      resizeObserver.observe(frame);
+    }
+    void document.fonts?.ready.then(updateSize).catch(() => undefined);
 
     return () => {
-      resizeObserver.disconnect();
+      resizeObserver?.disconnect();
+      window.cancelAnimationFrame(firstFrame);
+      window.cancelAnimationFrame(secondFrame);
+      window.clearTimeout(settleTimer);
+      window.removeEventListener("resize", updateSize);
     };
   }, [compact, maxFontSize, text]);
 
