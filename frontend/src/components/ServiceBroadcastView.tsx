@@ -231,9 +231,14 @@ export function ServiceBroadcastView({ canControl = false, onOpenSettings }: { c
         getPresentationLiveState(target.plan_id).catch(() => null),
       ]);
       const matchingWorshipSet = matchingWorshipSetForService(nextPlan, plans.filter(isWorshipSetPlan));
-      setPlan(nextPlan);
+      // Do not expose edits to the current plan before their corresponding
+      // live-state transition has passed through the configured slide delay.
+      // This matters for Bible navigation, which edits the current plan item
+      // in place rather than moving to a differently indexed slide.
+      setPlan((current) => current?.id === nextPlan.id ? current : nextPlan);
       setSelectedPlanId(nextPlan.id);
-      setWorshipSetPlan(matchingWorshipSet ? await getPlan(matchingWorshipSet.id) : null);
+      const nextWorshipSetPlan = matchingWorshipSet ? await getPlan(matchingWorshipSet.id) : null;
+      setWorshipSetPlan((current) => current?.id === nextWorshipSetPlan?.id ? current : nextWorshipSetPlan);
       if (remoteState) {
         const nextState = liveStateFromApi(remoteState);
         setRemoteLiveState((current) => current?.updatedAt === nextState.updatedAt ? current : nextState);
@@ -286,7 +291,16 @@ export function ServiceBroadcastView({ canControl = false, onOpenSettings }: { c
       setLiveState(null);
       return undefined;
     }
-    const timer = window.setTimeout(() => setLiveState(remoteLiveState), settings.slide_delay_ms);
+    // Fetch the matching plan snapshot now, but reveal it atomically with the
+    // delayed state. Otherwise the service poll can show an edited Bible verse
+    // immediately while its navigation state is still waiting on the delay.
+    const delayedPlan = getPlan(remoteLiveState.planId).catch(() => null);
+    const timer = window.setTimeout(() => {
+      void delayedPlan.then((nextPlan) => {
+        if (nextPlan) setPlan(nextPlan);
+        setLiveState(remoteLiveState);
+      });
+    }, settings.slide_delay_ms);
     return () => window.clearTimeout(timer);
   }, [remoteLiveState, settings.slide_delay_ms]);
 

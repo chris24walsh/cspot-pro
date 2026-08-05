@@ -5763,6 +5763,10 @@ h3 {
   line-height: 1.08;
 }
 
+.slideshow-stage .fit-slide-text-live.is-title-slide {
+  font-weight: 900;
+}
+
 .mini-slide-surface img {
   height: auto;
   max-height: 100%;

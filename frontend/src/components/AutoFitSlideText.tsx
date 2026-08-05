@@ -71,7 +71,11 @@ export function AutoFitSlideText({
         }
       }
 
-      const settled = Math.max(min, best - (compact ? 0 : 3));
+      // Keep a small proportional safety margin for late font/layout rounding.
+      // A fixed three-pixel deduction is negligible on a projector but removes
+      // a quarter of a fitted 12px mobile verse, making it look needlessly tiny.
+      const safetyMargin = compact ? 0 : Math.min(3, Math.floor(best * 0.04));
+      const settled = Math.max(min, best - safetyMargin);
       activePre.style.fontSize = `${settled}px`;
       setFontSize(settled);
     }
