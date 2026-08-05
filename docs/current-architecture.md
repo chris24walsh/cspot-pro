@@ -238,8 +238,8 @@ they can edit its settings. An explicitly active slideshow output session is the
 gate for:
 
 - the active service slideshow
-- one externally configured camera or stream URL
-- an optional dedicated Raspberry Pi or desk audio stream
+- multiple named camera/stream sources with manual or timed cross-fades
+- audio from any configured camera, no audio, or a dedicated Raspberry Pi/desk stream
 
 When no output session is active, both panels remain disabled. During the configured
 window before the next planned service, the page shows a starting-soon state and
@@ -247,10 +247,17 @@ can offer configured worship audio. Outside that window it clearly shows that no
 service is streaming.
 
 Viewer settings are stored in the database and edited from Broadcast Settings.
-The camera and optional pre-service audio are loaded directly by the browser.
-Dedicated live audio is relayed through the API so a private Pi/Icecast source
-can be used from an HTTPS deployment. Video is not proxied, keeping the heavier
-streaming load away from the core service planning process.
+Camera sources are kept warm in layered players so switching uses an opacity
+cross-fade instead of reconnecting. The camera gateway uses MSE over a proxied
+WebSocket for low-latency playback, with native/HLS/MJPEG compatibility paths,
+a stall watchdog, and automatic reconnection. Slide state is polled separately
+at 500 ms and passes through a configurable delay so it can be aligned with the
+camera pipeline. Dedicated live audio is relayed through the API so a private
+Pi/Icecast source can be used from an HTTPS deployment; camera audio uses its
+matching gateway source and stays independent of which camera is visible.
+PTZ movement remains the camera's own patrol/tour responsibility; CSpot selects
+and fades that moving view but does not store camera credentials or issue vendor-
+specific movement commands.
 
 ## Presenter Information Architecture
 

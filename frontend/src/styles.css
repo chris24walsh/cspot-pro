@@ -3998,6 +3998,7 @@ h3 {
 }
 
 .broadcast-settings-grid input,
+.broadcast-settings-grid select,
 .broadcast-settings-grid textarea {
   background: #fffdf7;
   border: 1px solid #cfc7b4;
@@ -4007,6 +4008,58 @@ h3 {
   min-height: 38px;
   padding: 7px 9px;
   width: 100%;
+}
+
+.broadcast-camera-settings {
+  background: #f8f5ec;
+  border: 1px solid #ded8c7;
+  border-radius: 8px;
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+}
+
+.broadcast-camera-settings-heading {
+  align-items: center;
+  display: flex;
+  gap: 10px;
+  justify-content: space-between;
+}
+
+.broadcast-camera-settings-heading > div {
+  display: grid;
+  gap: 2px;
+}
+
+.broadcast-camera-settings-heading strong {
+  font-size: 13px;
+}
+
+.broadcast-camera-settings-heading small {
+  color: #65716a;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.broadcast-camera-source-list {
+  display: grid;
+  gap: 5px;
+}
+
+.broadcast-camera-source {
+  align-items: center;
+  display: grid;
+  gap: 5px;
+  grid-template-columns: minmax(100px, 0.35fr) minmax(180px, 1fr) auto 34px;
+}
+
+.broadcast-camera-source.is-on-air {
+  box-shadow: inset 3px 0 0 #245d4d;
+  padding-left: 6px;
+}
+
+.broadcast-camera-source input {
+  min-height: 34px;
 }
 
 .broadcast-settings-grid textarea {
@@ -4369,6 +4422,48 @@ h3 {
   max-width: 100%;
   position: relative;
   width: 100%;
+}
+
+.service-broadcast-camera-switcher {
+  aspect-ratio: 16 / 9;
+  height: 100%;
+  max-height: 100%;
+  overflow: hidden;
+  position: relative;
+  width: 100%;
+}
+
+.service-broadcast-camera-layer {
+  inset: 0;
+  opacity: 0;
+  pointer-events: none;
+  position: absolute;
+  transition: opacity var(--camera-fade-duration, 1200ms) ease-in-out;
+  z-index: 1;
+}
+
+.service-broadcast-camera-layer.is-active {
+  opacity: 1;
+  pointer-events: auto;
+  z-index: 2;
+}
+
+.service-broadcast-camera-layer > .service-broadcast-camera-player,
+.service-broadcast-camera-layer > .service-broadcast-camera-media {
+  height: 100%;
+}
+
+.service-broadcast-camera-label {
+  background: rgba(5, 8, 7, 0.66);
+  border-radius: 999px;
+  bottom: 9px;
+  color: #f5fbf8;
+  font-size: 11px;
+  font-weight: 850;
+  left: 9px;
+  padding: 3px 8px;
+  position: absolute;
+  z-index: 3;
 }
 
 .service-broadcast-camera-media {
@@ -7800,6 +7895,14 @@ h3 {
 
   .broadcast-settings-grid {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  .broadcast-camera-source {
+    grid-template-columns: minmax(0, 1fr) auto 34px;
+  }
+
+  .broadcast-camera-source input:first-child {
+    grid-column: 1 / -1;
   }
 }
 .auth-shell {

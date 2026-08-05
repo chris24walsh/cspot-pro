@@ -46,6 +46,7 @@
 - Sunday School resources are imported as metadata/file links from local Spring 2026 folders, classified into packets, Bible, craft, game, coloring/activity, worksheet, and media.
 - Sunday School calendar shading is teacher-name based; no full roster/scheduling model exists yet.
 - Mobile immersive view is owned by the shared app toolbar: it hides the primary navigation everywhere and also requests native fullscreen where browsers support it.
+- Broadcast supports multiple warm camera sources, manual/timed cross-fades, selectable camera or independent audio, low-latency MSE playback with automatic recovery, and a configurable slide synchronization delay.
 - Remote control of the church display from mobile/tablet is a desired direction.
 - Longer-term feature areas: teacher scheduling, remote streaming view, and camera/OBS-style service overlay.
 

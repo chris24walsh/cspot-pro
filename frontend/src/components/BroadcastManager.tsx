@@ -1,4 +1,4 @@
-import { CircleStop, Mic, MicOff, Play, Save, Trash2 } from "lucide-react";
+import { CircleStop, Mic, MicOff, Play, Plus, Radio, Save, Trash2, X } from "lucide-react";
 import { type FormEvent, useEffect, useState } from "react";
 
 import {
@@ -19,7 +19,14 @@ import { useConfirmationDialog } from "./ConfirmationDialog";
 const EMPTY_SETTINGS: BroadcastViewerSettings = {
   auto_record_sermons: true,
   camera_url: null,
+  camera_sources: [],
+  active_camera_id: null,
+  camera_cycle_seconds: 0,
+  camera_cycle_started_at: null,
+  camera_fade_ms: 1200,
   live_audio_url: null,
+  live_audio_source: "none",
+  slide_delay_ms: 800,
   offline_message: "No service is streaming right now",
   pre_service_audio_url: null,
   pre_service_minutes: 60,
@@ -146,6 +153,45 @@ export function BroadcastManager() {
     }
   }
 
+  function addCamera() {
+    const id = `camera-${Date.now().toString(36)}`;
+    setForm((current) => ({
+      ...current,
+      active_camera_id: current.active_camera_id ?? id,
+      camera_sources: [...current.camera_sources, { id, label: `Camera ${current.camera_sources.length + 1}`, url: "" }],
+    }));
+  }
+
+  function updateCamera(id: string, field: "label" | "url", value: string) {
+    setForm((current) => ({
+      ...current,
+      camera_sources: current.camera_sources.map((source) => source.id === id ? { ...source, [field]: value } : source),
+    }));
+  }
+
+  function removeCamera(id: string) {
+    setForm((current) => {
+      const camera_sources = current.camera_sources.filter((source) => source.id !== id);
+      const active_camera_id = current.active_camera_id === id ? camera_sources[0]?.id ?? null : current.active_camera_id;
+      const live_audio_source = current.live_audio_source === id ? camera_sources[0]?.id ?? "none" : current.live_audio_source;
+      return { ...current, active_camera_id, camera_sources, live_audio_source };
+    });
+  }
+
+  async function putCameraOnAir(cameraId: string) {
+    setMessage(null);
+    try {
+      const settings = await updateBroadcastViewerSettings({
+        active_camera_id: cameraId,
+        camera_sources: form.camera_sources,
+      });
+      setForm((current) => ({ ...current, ...settings }));
+      setMessage(`${settings.camera_sources.find((source) => source.id === cameraId)?.label ?? "Camera"} is now on air.`);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not switch cameras.");
+    }
+  }
+
   return (
     <form className="broadcast-settings" onSubmit={(event) => void save(event)}>
       <div className="section-heading">
@@ -184,20 +230,85 @@ export function BroadcastManager() {
           Stream description
           <textarea disabled={loading} onChange={(event) => setForm({ ...form, stream_description: event.target.value || null })} value={form.stream_description || ""} />
         </label>
-        <label className="wide-field">
-          Camera or livestream URL
-          <input
-            disabled={loading}
-            inputMode="url"
-            onChange={(event) => setForm({ ...form, camera_url: event.target.value || null })}
-            placeholder="/app/camera/api/stream.m3u8?src=…"
-            type="text"
-            value={form.camera_url || ""}
-          />
-          <small>Use an HTTPS URL or an app-relative camera proxy path.</small>
+        <section className="wide-field broadcast-camera-settings" aria-label="Camera sources">
+          <div className="broadcast-camera-settings-heading">
+            <div>
+              <strong>Camera sources</strong>
+              <small>Sources stay warm so switching can cross-fade without waiting for a new stream.</small>
+            </div>
+            <button className="text-button icon-text-button" disabled={loading || form.camera_sources.length >= 8} onClick={addCamera} type="button">
+              <Plus size={14} aria-hidden="true" /> Add camera
+            </button>
+          </div>
+          <div className="broadcast-camera-source-list">
+            {form.camera_sources.map((source) => (
+              <article className={`broadcast-camera-source ${form.active_camera_id === source.id ? "is-on-air" : ""}`} key={source.id}>
+                <input
+                  aria-label="Camera name"
+                  disabled={loading}
+                  onChange={(event) => updateCamera(source.id, "label", event.target.value)}
+                  placeholder="Lectern"
+                  value={source.label}
+                />
+                <input
+                  aria-label={`${source.label} stream URL`}
+                  disabled={loading}
+                  inputMode="url"
+                  onChange={(event) => updateCamera(source.id, "url", event.target.value)}
+                  placeholder="/app/camera/api/stream.m3u8?src=…"
+                  type="text"
+                  value={source.url}
+                />
+                <button
+                  aria-pressed={form.active_camera_id === source.id}
+                  className={form.active_camera_id === source.id ? "primary-button icon-text-button" : "text-button icon-text-button"}
+                  disabled={loading || !source.url || form.active_camera_id === source.id}
+                  onClick={() => void putCameraOnAir(source.id)}
+                  type="button"
+                >
+                  <Radio size={14} aria-hidden="true" /> {form.active_camera_id === source.id ? "On air" : "Fade to"}
+                </button>
+                <button aria-label={`Remove ${source.label}`} className="section-icon-button" disabled={loading} onClick={() => removeCamera(source.id)} type="button">
+                  <X size={15} aria-hidden="true" />
+                </button>
+              </article>
+            ))}
+            {!form.camera_sources.length ? <p className="muted-copy">No camera sources configured.</p> : null}
+          </div>
+        </section>
+        <label>
+          Automatic camera change
+          <span className="input-with-suffix">
+            <input disabled={loading} min={0} max={3600} onChange={(event) => setForm({ ...form, camera_cycle_seconds: Number(event.target.value) })} type="number" value={form.camera_cycle_seconds} />
+            <span>seconds</span>
+          </span>
+          <small>Use 0 for manual Fade to controls. Configure a PTZ patrol/tour on the camera itself; CSpot controls when that view appears.</small>
+        </label>
+        <label>
+          Camera fade
+          <span className="input-with-suffix">
+            <input disabled={loading} min={0} max={10} step={0.1} onChange={(event) => setForm({ ...form, camera_fade_ms: Math.round(Number(event.target.value) * 1000) })} type="number" value={form.camera_fade_ms / 1000} />
+            <span>seconds</span>
+          </span>
+        </label>
+        <label>
+          Slideshow delay
+          <span className="input-with-suffix">
+            <input disabled={loading} min={0} max={10} step={0.1} onChange={(event) => setForm({ ...form, slide_delay_ms: Math.round(Number(event.target.value) * 1000) })} type="number" value={form.slide_delay_ms / 1000} />
+            <span>seconds</span>
+          </span>
+          <small>Delay slide changes to align them with the camera.</small>
+        </label>
+        <label>
+          Live audio source
+          <select disabled={loading} onChange={(event) => setForm({ ...form, live_audio_source: event.target.value })} value={form.live_audio_source}>
+            <option value="none">No live audio</option>
+            <option value="independent">Independent audio stream</option>
+            {form.camera_sources.map((source) => <option key={source.id} value={source.id}>{source.label} camera</option>)}
+          </select>
         </label>
         <label className="wide-field">
-          Live audio stream URL
+          Independent live audio stream URL
           <input
             disabled={loading}
             inputMode="url"
@@ -206,7 +317,7 @@ export function BroadcastManager() {
             type="text"
             value={form.live_audio_url || ""}
           />
-          <small>Audio from a Raspberry Pi or desk feed. This is preferred for live playback and sermon recording.</small>
+          <small>Select Independent audio stream above to use a Raspberry Pi or desk feed for live playback and sermon recording.</small>
         </label>
         <label className="wide-field">
           Pre-service worship audio or YouTube URL

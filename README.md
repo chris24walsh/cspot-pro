@@ -231,7 +231,7 @@ back to the static wireframe data when it is not.
 
 - Service: choose/create/archive services, build the running order, add songs, Bible passages, and slide decks, and control the live output
 - Songs: create/edit/archive songs, import and clean lyrics, edit details/chords, and prepare song slides
-- Broadcast: viewer-first remote service page with live slides and an external camera feed; trusted users configure stream details, holding messages, and pre-service audio
+- Broadcast: viewer-first remote service page with synchronized live slides, low-latency multi-camera cross-fades, selectable camera/independent audio, automatic stream recovery, holding messages, and pre-service audio
 - Admin: invite users, send password resets, deactivate/reactivate accounts, assign roles, and test SMTP email
 
 ## Access Control

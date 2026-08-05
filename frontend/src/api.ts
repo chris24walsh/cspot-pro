@@ -524,11 +524,24 @@ export interface EmailTestResponse {
   recipient: string;
 }
 
+export interface BroadcastCameraSource {
+  id: string;
+  label: string;
+  url: string;
+}
+
 export interface BroadcastViewerSettings {
   stream_title: string;
   stream_description: string | null;
   camera_url: string | null;
+  camera_sources: BroadcastCameraSource[];
+  active_camera_id: string | null;
+  camera_cycle_seconds: number;
+  camera_cycle_started_at: string | null;
+  camera_fade_ms: number;
   live_audio_url: string | null;
+  live_audio_source: string;
+  slide_delay_ms: number;
   auto_record_sermons: boolean;
   pre_service_audio_url: string | null;
   pre_service_minutes: number;

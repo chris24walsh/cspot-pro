@@ -9,7 +9,8 @@ from app.core.config import settings
 from app.core.database import Base
 from app.modules.broadcast.models import BroadcastViewerSettings
 from app.modules.broadcast.recording import _source_has_audio, _source_url, sync_sermon_recording
-from app.modules.broadcast.routes import live_output_exists
+from app.modules.broadcast.routes import live_output_exists, update_viewer_settings
+from app.modules.broadcast.schemas import BroadcastViewerSettingsUpdate
 
 
 def test_camera_proxy_path_resolves_to_internal_recording_source() -> None:
@@ -52,6 +53,59 @@ def test_dedicated_audio_stream_is_preferred_for_recording() -> None:
         session.commit()
 
         assert _source_url(session) == "http://raspberrypi.local:8000/cspot.ogg"
+
+
+def test_selected_camera_audio_is_used_for_recording() -> None:
+    engine = create_engine("sqlite://")
+    Base.metadata.create_all(engine, tables=[BroadcastViewerSettings.__table__])
+    with Session(engine) as session:
+        session.add(
+            BroadcastViewerSettings(
+                stream_title="Service",
+                camera_url="http://camera/lectern.m3u8",
+                camera_sources_json=json.dumps(
+                    [
+                        {"id": "lectern", "label": "Lectern", "url": "http://camera/lectern.m3u8"},
+                        {"id": "ptz", "label": "Room", "url": "http://camera/ptz.m3u8"},
+                    ]
+                ),
+                live_audio_source="ptz",
+                pre_service_minutes=60,
+                starting_soon_message="Soon",
+                offline_message="Offline",
+            )
+        )
+        session.commit()
+
+        assert _source_url(session) == "http://camera/ptz.m3u8"
+
+
+def test_multi_camera_settings_are_normalized_and_returned() -> None:
+    engine = create_engine("sqlite://")
+    Base.metadata.create_all(engine, tables=[BroadcastViewerSettings.__table__])
+    with Session(engine) as session:
+        result = update_viewer_settings(
+            BroadcastViewerSettingsUpdate(
+                camera_sources=[
+                    {"id": "lectern", "label": "Lectern", "url": "/app/camera/api/stream.m3u8?src=lectern"},
+                    {"id": "ptz", "label": "Room", "url": "/app/camera/api/stream.m3u8?src=ptz"},
+                ],
+                active_camera_id="ptz",
+                camera_cycle_seconds=45,
+                camera_fade_ms=1500,
+                live_audio_source="lectern",
+                slide_delay_ms=900,
+            ),
+            SimpleNamespace(id="user-1"),
+            session,
+        )
+
+        assert [source.id for source in result.camera_sources] == ["lectern", "ptz"]
+        assert result.active_camera_id == "ptz"
+        assert result.live_audio_source == "lectern"
+        assert result.camera_cycle_seconds == 45
+        assert result.camera_fade_ms == 1500
+        assert result.slide_delay_ms == 900
 
 
 def test_recording_source_requires_an_audio_track(monkeypatch) -> None:

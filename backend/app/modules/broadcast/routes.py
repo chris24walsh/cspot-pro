@@ -22,6 +22,7 @@ from app.modules.broadcast.schemas import (
     BroadcastViewerSettingsRead,
     BroadcastViewerSettingsUpdate,
 )
+from app.modules.broadcast.settings import camera_sources, effective_audio_source
 from app.modules.identity.auth import CurrentUser, require_any_permission, require_permission
 from app.modules.identity.models import User
 from app.modules.presentation.models import PresentationPosition, PresentationSession
@@ -154,11 +155,21 @@ def viewer_settings(session: Session) -> BroadcastViewerSettings:
 
 
 def settings_read(settings: BroadcastViewerSettings) -> BroadcastViewerSettingsRead:
+    sources = camera_sources(settings)
+    source_ids = {source.id for source in sources}
+    active_camera_id = settings.active_camera_id if settings.active_camera_id in source_ids else (sources[0].id if sources else None)
     return BroadcastViewerSettingsRead(
         stream_title=settings.stream_title,
         stream_description=settings.stream_description,
         camera_url=settings.camera_url,
+        camera_sources=sources,
+        active_camera_id=active_camera_id,
+        camera_cycle_seconds=settings.camera_cycle_seconds or 0,
+        camera_cycle_started_at=settings.camera_cycle_started_at,
+        camera_fade_ms=settings.camera_fade_ms or 0,
         live_audio_url=settings.live_audio_url,
+        live_audio_source=effective_audio_source(settings, sources),
+        slide_delay_ms=settings.slide_delay_ms or 0,
         auto_record_sermons=settings.auto_record_sermons,
         pre_service_audio_url=settings.pre_service_audio_url,
         pre_service_minutes=settings.pre_service_minutes,
@@ -249,7 +260,48 @@ def update_viewer_settings(
     session: Session = Depends(get_session),
 ) -> BroadcastViewerSettingsRead:
     settings = viewer_settings(session)
-    for field, value in payload.model_dump(exclude_unset=True).items():
+    updates = payload.model_dump(exclude_unset=True)
+    camera_source_payload = updates.pop("camera_sources", ...)
+    if camera_source_payload is None:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="camera_sources cannot be empty",
+        )
+    if camera_source_payload is not ...:
+        updates.pop("camera_url", None)
+        source_ids = [source["id"] for source in camera_source_payload]
+        if len(source_ids) != len(set(source_ids)):
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="Camera source IDs must be unique",
+            )
+        settings.camera_sources_json = json.dumps(camera_source_payload, separators=(",", ":"))
+        settings.camera_url = camera_source_payload[0]["url"] if camera_source_payload else None
+
+    sources = camera_sources(settings)
+    source_ids = {source.id for source in sources}
+    requested_camera_id = updates.get("active_camera_id", settings.active_camera_id)
+    if requested_camera_id and requested_camera_id not in source_ids:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="The selected camera is not configured",
+        )
+    requested_audio_source = updates.get("live_audio_source", effective_audio_source(settings, sources))
+    if requested_audio_source not in {"none", "independent", *source_ids}:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="The selected live audio source is not configured",
+        )
+    if requested_audio_source == "independent" and not updates.get("live_audio_url", settings.live_audio_url):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Enter an independent live audio URL before selecting it",
+        )
+
+    if "active_camera_id" in updates or "camera_cycle_seconds" in updates or camera_source_payload is not ...:
+        settings.camera_cycle_started_at = datetime.now(UTC)
+
+    for field, value in updates.items():
         if (
             field
             in {
@@ -273,6 +325,11 @@ def update_viewer_settings(
                 )
             value = value or None
         setattr(settings, field, value)
+
+    if sources and settings.active_camera_id not in source_ids:
+        settings.active_camera_id = sources[0].id
+    if not sources:
+        settings.active_camera_id = None
     session.commit()
     session.refresh(settings)
     return settings_read(settings)

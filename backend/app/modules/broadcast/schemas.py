@@ -3,11 +3,24 @@ from datetime import datetime
 from pydantic import BaseModel, Field
 
 
+class BroadcastCameraSource(BaseModel):
+    id: str = Field(min_length=1, max_length=80, pattern=r"^[a-zA-Z0-9_-]+$")
+    label: str = Field(min_length=1, max_length=120)
+    url: str = Field(min_length=1, max_length=2000)
+
+
 class BroadcastViewerSettingsRead(BaseModel):
     stream_title: str
     stream_description: str | None = None
     camera_url: str | None = None
+    camera_sources: list[BroadcastCameraSource] = Field(default_factory=list)
+    active_camera_id: str | None = None
+    camera_cycle_seconds: int
+    camera_cycle_started_at: datetime | None = None
+    camera_fade_ms: int
     live_audio_url: str | None = None
+    live_audio_source: str
+    slide_delay_ms: int
     auto_record_sermons: bool
     pre_service_audio_url: str | None = None
     pre_service_minutes: int
@@ -19,7 +32,13 @@ class BroadcastViewerSettingsUpdate(BaseModel):
     stream_title: str | None = Field(default=None, max_length=180)
     stream_description: str | None = None
     camera_url: str | None = None
+    camera_sources: list[BroadcastCameraSource] | None = Field(default=None, max_length=8)
+    active_camera_id: str | None = Field(default=None, max_length=80)
+    camera_cycle_seconds: int | None = Field(default=None, ge=0, le=3600)
+    camera_fade_ms: int | None = Field(default=None, ge=0, le=10000)
     live_audio_url: str | None = None
+    live_audio_source: str | None = Field(default=None, max_length=100)
+    slide_delay_ms: int | None = Field(default=None, ge=0, le=10000)
     auto_record_sermons: bool | None = None
     pre_service_audio_url: str | None = None
     pre_service_minutes: int | None = Field(default=None, ge=0, le=180)

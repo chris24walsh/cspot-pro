@@ -1,15 +1,20 @@
 # Broadcast Viewer Direction
 
-Last updated: 2026-07-03
+Last updated: 2026-08-05
 
 ## Current State
 
 Broadcast is a remote service viewer with compact sermon recording.
 
 - All eligible users land on Viewer by default.
-- Trusted users can open Settings to configure the stream title and description,
-  external camera/livestream URL, Raspberry Pi or desk audio stream, pre-service
-  audio URL, lead time, and holding messages.
+- Trusted users can configure up to eight named camera sources, put a source on
+  air with a cross-fade, or enable synchronized timed rotation. Audio can follow
+  either camera or use an independent Raspberry Pi/desk stream.
+- Camera video prefers low-latency MSE over the camera gateway WebSocket. Both
+  the video and selected camera audio reconnect automatically after a stall;
+  HLS remains a compatibility fallback.
+- Slide updates are sampled every 500 ms and have a configurable delay for
+  alignment with the measured camera pipeline latency.
 - The slideshow and camera appear only while CSpot has an active presentation heartbeat.
 - Desktop uses two equal side-by-side media panels; mobile stacks the same panels vertically.
 - Before the next planned service, a configurable starting-soon window can offer
@@ -33,7 +38,8 @@ Broadcast is a remote service viewer with compact sermon recording.
 
 ## Media Architecture
 
-Viewer video is delivered through the configured stream or camera proxy. A
+Viewer video is delivered through the configured stream or camera proxy. Named
+sources remain connected while live so fades do not wait for camera startup. A
 dedicated private live-audio source is relayed by the API. The API uses FFmpeg
 during sermon recording to extract 48 kbps mono Opus audio;
 it does not retain a large composite video. Recording files live in the durable
@@ -46,7 +52,6 @@ The former OBS WebSocket controls and virtual-camera controls remain retired.
 ## Possible Future Work
 
 - Optional public/no-login viewer link with explicit access controls.
-- Stream health checks and a friendly camera-unavailable state.
 - Multiple service schedules or special-event starting-soon windows.
 - A curated uploaded pre-service audio playlist with licensing metadata.
 - Attendance telemetry that avoids collecting unnecessary personal data.

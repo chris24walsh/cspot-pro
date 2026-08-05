@@ -1,4 +1,5 @@
 import { Maximize2 } from "lucide-react";
+import type { CSSProperties } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import {
@@ -17,6 +18,7 @@ import {
   type RenderedSlide,
   type Song,
 } from "../api";
+import { activeCameraIdAt, cameraAudioUrl } from "../broadcastCamera";
 import {
   buildPresentationSlides,
   extractYouTubeId,
@@ -28,17 +30,26 @@ import {
 import { isBroadcastStartingSoon } from "../broadcastTiming";
 import { isWorshipSetPlan, matchingWorshipSetForService, mergeWorshipSetIntoService } from "../worshipSets";
 import { AutoFitSlideText } from "./AutoFitSlideText";
+import { LiveStreamAudio, LowLatencyCamera } from "./LowLatencyCamera";
 import { ScaledSlideImage } from "./ScaledSlideImage";
 
-const POLL_INTERVAL_MS = 3000;
+const POLL_INTERVAL_MS = 2000;
+const LIVE_STATE_POLL_INTERVAL_MS = 500;
 const DEFAULT_SETTINGS: BroadcastViewerSettings = {
   auto_record_sermons: true,
+  active_camera_id: null,
+  camera_cycle_seconds: 0,
+  camera_cycle_started_at: null,
+  camera_fade_ms: 1200,
+  camera_sources: [],
   camera_url: null,
   live_audio_url: null,
+  live_audio_source: "none",
   offline_message: "No service is streaming right now",
   pre_service_audio_url: null,
   pre_service_minutes: 60,
   starting_soon_message: "Our service will begin shortly",
+  slide_delay_ms: 800,
   stream_description: null,
   stream_title: "Sunday Service",
 };
@@ -56,129 +67,6 @@ function liveStateFromApi(state: Awaited<ReturnType<typeof getPresentationLiveSt
     videoAction: state.video_action,
     videoActionAt: state.video_action_at ?? undefined,
   };
-}
-
-function cameraKind(url: string) {
-  const lower = url.toLowerCase();
-  if (/\.(mjpg|mjpeg)(?:[?#]|$)/.test(lower) || lower.includes("mjpeg") || lower.includes("mjpg")) return "mjpeg";
-  if (/\.(mp4|webm|ogg|m3u8)(?:[?#]|$)/.test(lower)) return "video";
-  return "frame";
-}
-
-function cameraMjpegFallback(url: string) {
-  try {
-    const parsed = new URL(url, window.location.origin);
-    const source = parsed.searchParams.get("src");
-    if (!source || !parsed.pathname.endsWith("/api/stream.m3u8")) return null;
-    parsed.pathname = parsed.pathname.replace(/\/api\/stream\.m3u8$/, "/api/stream.mjpeg");
-    parsed.search = new URLSearchParams({ src: source }).toString();
-    return `${parsed.pathname}${parsed.search}`;
-  } catch {
-    return null;
-  }
-}
-
-function CameraPane({ muteAudio, url }: { muteAudio: boolean; url: string }) {
-  const videoRef = useRef<HTMLVideoElement | null>(null);
-  const [playbackBlocked, setPlaybackBlocked] = useState(false);
-  const [fallbackUrl, setFallbackUrl] = useState<string | null>(null);
-  const kind = cameraKind(url);
-  const isHls = url.toLowerCase().includes(".m3u8");
-
-  useEffect(() => {
-    if (kind !== "video" || !videoRef.current) return undefined;
-    const video = videoRef.current;
-    let cancelled = false;
-    let fallbackSelected = false;
-    let hls: InstanceType<typeof import("hls.js").default> | null = null;
-    const mjpegUrl = cameraMjpegFallback(url);
-    const useFallback = () => {
-      if (!cancelled && !fallbackSelected && mjpegUrl) {
-        fallbackSelected = true;
-        hls?.destroy();
-        video.pause();
-        setFallbackUrl(mjpegUrl);
-      }
-    };
-    const updateSoundState = () => {
-      if (!cancelled) setPlaybackBlocked(video.paused || (!muteAudio && (video.muted || video.volume === 0)));
-    };
-    setFallbackUrl(null);
-    const play = async () => {
-      try {
-        video.muted = muteAudio;
-        video.volume = 1;
-        await video.play();
-        updateSoundState();
-      } catch {
-        if (!cancelled) setPlaybackBlocked(true);
-      }
-    };
-    video.muted = muteAudio;
-    video.defaultMuted = muteAudio;
-    video.autoplay = true;
-    video.playsInline = true;
-
-    if (!isHls || video.canPlayType("application/vnd.apple.mpegurl")) {
-      video.src = url;
-      void play();
-    } else {
-      void import("hls.js").then(({ default: Hls }) => {
-        if (cancelled || !Hls.isSupported()) return;
-        hls = new Hls({ enableWorker: true, lowLatencyMode: true });
-        hls.on(Hls.Events.MANIFEST_PARSED, () => void play());
-        hls.on(Hls.Events.ERROR, (_event, data) => {
-          if (data.fatal) useFallback();
-        });
-        hls.loadSource(url);
-        hls.attachMedia(video);
-      });
-    }
-    video.addEventListener("error", useFallback);
-    video.addEventListener("volumechange", updateSoundState);
-    video.addEventListener("playing", updateSoundState);
-    const decodeTimer = window.setTimeout(() => {
-      if (video.videoWidth === 0 || video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) {
-        useFallback();
-      }
-    }, 6000);
-    return () => {
-      cancelled = true;
-      window.clearTimeout(decodeTimer);
-      video.removeEventListener("error", useFallback);
-      video.removeEventListener("volumechange", updateSoundState);
-      video.removeEventListener("playing", updateSoundState);
-      hls?.destroy();
-    };
-  }, [isHls, kind, muteAudio, url]);
-
-  if (fallbackUrl) {
-    return <img alt="Live service camera" className="service-broadcast-camera-media" src={fallbackUrl} />;
-  }
-  if (kind === "mjpeg") return <img alt="Live service camera" className="service-broadcast-camera-media" src={url} />;
-  if (kind === "video") {
-    return (
-      <div className="service-broadcast-camera-player">
-        <video autoPlay className="service-broadcast-camera-media" controls muted={muteAudio} playsInline ref={videoRef} src={isHls ? undefined : url} />
-        {playbackBlocked ? (
-          <button
-            className="service-broadcast-camera-overlay"
-            onClick={() => {
-              if (videoRef.current) {
-                videoRef.current.muted = muteAudio;
-                videoRef.current.volume = 1;
-                void videoRef.current.play().then(() => setPlaybackBlocked(false)).catch(() => setPlaybackBlocked(true));
-              }
-            }}
-            type="button"
-          >
-            {muteAudio ? "Start camera" : "Turn on camera sound"}
-          </button>
-        ) : null}
-      </div>
-    );
-  }
-  return <iframe allow="autoplay; fullscreen; picture-in-picture" className="service-broadcast-camera-media" src={url} title="Live service camera" />;
 }
 
 function HoldingPane({ message, startingSoon }: { message: string; startingSoon: boolean }) {
@@ -237,21 +125,36 @@ export function ServiceBroadcastView() {
   const [plan, setPlan] = useState<PlanDetail | null>(null);
   const [worshipSetPlan, setWorshipSetPlan] = useState<PlanDetail | null>(null);
   const [songs, setSongs] = useState<Song[]>([]);
+  const [remoteLiveState, setRemoteLiveState] = useState<PresentationLiveState | null>(null);
   const [liveState, setLiveState] = useState<PresentationLiveState | null>(null);
   const [renderedSlidesByFileId, setRenderedSlidesByFileId] = useState<Record<string, RenderedSlide[]>>({});
   const [message, setMessage] = useState<string | null>(null);
   const [fullscreen, setFullscreen] = useState(false);
+  const [cameraClock, setCameraClock] = useState(() => Date.now());
 
   const slides = useMemo(
     () => buildPresentationSlides(mergeWorshipSetIntoService(plan?.items ?? [], worshipSetPlan?.items ?? []), songs, renderedSlidesByFileId),
     [plan, worshipSetPlan, renderedSlidesByFileId, songs],
   );
-  const liveSlide = liveState?.blanked ? null : slides[resolveLiveIndex(slides, liveState)] ?? null;
-  const hasLiveService = Boolean(plan && liveState);
+  const liveSlide = !liveState || liveState.blanked ? null : slides[resolveLiveIndex(slides, liveState)] ?? null;
+  const hasLiveService = Boolean(plan && remoteLiveState);
   const upcomingService = plan ?? nextService;
   const startingSoon = !hasLiveService && isBroadcastStartingSoon(upcomingService?.service_date, Date.now(), settings.pre_service_minutes);
   const holdingMessage = startingSoon ? settings.starting_soon_message : settings.offline_message;
   const preServiceYouTubeId = extractYouTubeId(settings.pre_service_audio_url);
+  const activeCameraId = activeCameraIdAt(
+    settings.camera_sources,
+    settings.active_camera_id,
+    settings.camera_cycle_seconds,
+    settings.camera_cycle_started_at,
+    cameraClock,
+  );
+  const selectedAudioCamera = settings.camera_sources.find((source) => source.id === settings.live_audio_source) ?? null;
+  const liveAudioUrl = settings.live_audio_source === "independent" && settings.live_audio_url
+    ? broadcastLiveAudioUrl()
+    : selectedAudioCamera
+      ? cameraAudioUrl(selectedAudioCamera.url)
+      : null;
   const textFontCap = useMemo(
     () => suggestSlideGroupFontCap(slides.filter((slide) => !slide.imageUrl && slide.text.trim()).map((slide) => slide.text)),
     [slides],
@@ -280,6 +183,7 @@ export function ServiceBroadcastView() {
       if (!target) {
         setPlan(null);
         setWorshipSetPlan(null);
+        setRemoteLiveState(null);
         setLiveState(null);
         setSelectedPlanId(null);
         setMessage(null);
@@ -294,7 +198,12 @@ export function ServiceBroadcastView() {
       setPlan(nextPlan);
       setSelectedPlanId(nextPlan.id);
       setWorshipSetPlan(matchingWorshipSet ? await getPlan(matchingWorshipSet.id) : null);
-      setLiveState(remoteState ? liveStateFromApi(remoteState) : null);
+      if (remoteState) {
+        const nextState = liveStateFromApi(remoteState);
+        setRemoteLiveState((current) => current?.updatedAt === nextState.updatedAt ? current : nextState);
+      } else {
+        setRemoteLiveState(null);
+      }
       setMessage(null);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Could not load the service stream.");
@@ -309,6 +218,47 @@ export function ServiceBroadcastView() {
     return () => window.clearInterval(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedPlanId]);
+
+  useEffect(() => {
+    if (!plan) return undefined;
+    let cancelled = false;
+    let inFlight = false;
+    async function pollLiveState() {
+      if (inFlight || !plan) return;
+      inFlight = true;
+      try {
+        const nextState = liveStateFromApi(await getPresentationLiveState(plan.id));
+        if (!cancelled) {
+          setRemoteLiveState((current) => current?.updatedAt === nextState.updatedAt ? current : nextState);
+        }
+      } catch {
+        // The slower session poll owns offline/session error state.
+      } finally {
+        inFlight = false;
+      }
+    }
+    void pollLiveState();
+    const timer = window.setInterval(() => void pollLiveState(), LIVE_STATE_POLL_INTERVAL_MS);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [plan]);
+
+  useEffect(() => {
+    if (!remoteLiveState) {
+      setLiveState(null);
+      return undefined;
+    }
+    const timer = window.setTimeout(() => setLiveState(remoteLiveState), settings.slide_delay_ms);
+    return () => window.clearTimeout(timer);
+  }, [remoteLiveState, settings.slide_delay_ms]);
+
+  useEffect(() => {
+    if (settings.camera_cycle_seconds <= 0 || settings.camera_sources.length < 2) return undefined;
+    const timer = window.setInterval(() => setCameraClock(Date.now()), 250);
+    return () => window.clearInterval(timer);
+  }, [settings.camera_cycle_seconds, settings.camera_sources.length]);
 
   useEffect(() => {
     const deckFiles = mergeWorshipSetIntoService(plan?.items ?? [], worshipSetPlan?.items ?? []).flatMap((item) =>
@@ -384,8 +334,22 @@ export function ServiceBroadcastView() {
         </section>
 
         <section className="service-broadcast-camera-pane" aria-label="Live camera">
-          {hasLiveService && settings.camera_url ? (
-            <CameraPane muteAudio={Boolean(settings.live_audio_url)} url={settings.camera_url} />
+          {hasLiveService && settings.camera_sources.length ? (
+            <div
+              className="service-broadcast-camera-switcher"
+              style={{ "--camera-fade-duration": `${settings.camera_fade_ms}ms` } as CSSProperties}
+            >
+              {settings.camera_sources.map((source) => (
+                <div
+                  aria-hidden={source.id !== activeCameraId}
+                  className={`service-broadcast-camera-layer ${source.id === activeCameraId ? "is-active" : ""}`}
+                  key={source.id}
+                >
+                  <LowLatencyCamera label={`${source.label} camera`} url={source.url} />
+                  <span className="service-broadcast-camera-label">{source.label}</span>
+                </div>
+              ))}
+            </div>
           ) : hasLiveService ? (
             <HoldingPane message="Camera stream is not configured" startingSoon={false} />
           ) : startingSoon && preServiceYouTubeId ? (
@@ -396,12 +360,7 @@ export function ServiceBroadcastView() {
         </section>
       </div>
 
-      {hasLiveService && settings.live_audio_url ? (
-        <div className="service-broadcast-preservice-audio service-broadcast-live-audio">
-          <span>Live service audio</span>
-          <audio autoPlay controls src={broadcastLiveAudioUrl()} />
-        </div>
-      ) : null}
+      {hasLiveService && liveAudioUrl ? <LiveStreamAudio label={selectedAudioCamera ? `${selectedAudioCamera.label} audio` : "Live service audio"} url={liveAudioUrl} /> : null}
 
       {startingSoon && settings.pre_service_audio_url && !preServiceYouTubeId ? (
         <div className="service-broadcast-preservice-audio">
