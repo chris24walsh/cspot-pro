@@ -87,6 +87,7 @@ function App() {
     songs: [],
   });
   const [broadcastMode, setBroadcastMode] = useState<"control" | "viewer">("viewer");
+  const [broadcastControlTab, setBroadcastControlTab] = useState<"recordings" | "livestream" | "mixer">("recordings");
   const [mobileImmersive, setMobileImmersive] = useState(false);
   const mobileOrTabletDevice = useMemo(
     () =>
@@ -456,9 +457,15 @@ function App() {
           />
         ) : activeModule.id === "broadcast" ? (
           canUseBroadcast && broadcastMode === "control" ? (
-            <BroadcastManager />
+            <BroadcastManager initialTab={broadcastControlTab} />
           ) : canWatchBroadcast ? (
-            <ServiceBroadcastView />
+            <ServiceBroadcastView
+              canControl={canUseBroadcast}
+              onOpenSettings={() => {
+                setBroadcastControlTab("livestream");
+                setBroadcastMode("control");
+              }}
+            />
           ) : (
             <section className="empty-state" aria-label="Broadcast access restricted">
               <h2>Broadcast viewer access is restricted</h2>

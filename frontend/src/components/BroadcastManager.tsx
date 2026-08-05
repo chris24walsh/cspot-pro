@@ -52,7 +52,7 @@ function recordingCountdown(deadline: string | null, now = Date.now()) {
   return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
 }
 
-export function BroadcastManager() {
+export function BroadcastManager({ initialTab = "recordings" }: { initialTab?: "recordings" | "livestream" | "mixer" }) {
   const { confirm, confirmationDialog } = useConfirmationDialog();
   const [form, setForm] = useState<BroadcastViewerSettings>(EMPTY_SETTINGS);
   const [loading, setLoading] = useState(true);
@@ -63,7 +63,7 @@ export function BroadcastManager() {
   const [recordingAction, setRecordingAction] = useState(false);
   const [autoRecordingAction, setAutoRecordingAction] = useState(false);
   const [playingRecording, setPlayingRecording] = useState<BroadcastRecording | null>(null);
-  const [activeTab, setActiveTab] = useState<"recordings" | "livestream" | "mixer">("recordings");
+  const [activeTab, setActiveTab] = useState<"recordings" | "livestream" | "mixer">(initialTab);
   const [clock, setClock] = useState(Date.now());
 
   useEffect(() => {

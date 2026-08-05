@@ -15,7 +15,9 @@ must be known before adding a protocol adapter.
 - All eligible users land on Viewer by default.
 - Trusted users can configure up to eight named camera sources, put a source on
   air with a cross-fade, or enable synchronized timed rotation. Audio can follow
-  either camera or use an independent Raspberry Pi/desk stream.
+  either camera or use an independent Raspberry Pi/desk stream. The Viewer uses
+  one sound toggle instead of native audio controls; trusted users also get a
+  compact live desk for camera fades, rotation, timing status, and configuration.
 - Camera video prefers low-latency MSE over the camera gateway WebSocket. Both
   the video and selected camera audio reconnect automatically after a stall;
   video switches to HLS when MSE negotiates a codec the browser cannot play or

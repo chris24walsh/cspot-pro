@@ -1,4 +1,4 @@
-import { Maximize2 } from "lucide-react";
+import { Maximize2, Radio, Settings2 } from "lucide-react";
 import type { CSSProperties } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
@@ -11,6 +11,7 @@ import {
   getPlans,
   getPresentationLiveState,
   getSongs,
+  updateBroadcastViewerSettings,
   type BroadcastViewerSettings,
   type PlanDetail,
   type PlanSummary,
@@ -120,7 +121,7 @@ function PreServiceYouTubePane({ videoId }: { videoId: string }) {
   );
 }
 
-export function ServiceBroadcastView() {
+export function ServiceBroadcastView({ canControl = false, onOpenSettings }: { canControl?: boolean; onOpenSettings?: () => void }) {
   const shellRef = useRef<HTMLElement | null>(null);
   const pollInFlightRef = useRef(false);
   const [settings, setSettings] = useState(DEFAULT_SETTINGS);
@@ -136,6 +137,8 @@ export function ServiceBroadcastView() {
   const [message, setMessage] = useState<string | null>(null);
   const [fullscreen, setFullscreen] = useState(false);
   const [cameraClock, setCameraClock] = useState(() => Date.now());
+  const [controlBusy, setControlBusy] = useState(false);
+  const lastCameraCycleSecondsRef = useRef(30);
 
   const slides = useMemo(
     () => buildPresentationSlides(mergeWorshipSetIntoService(plan?.items ?? [], worshipSetPlan?.items ?? []), songs, renderedSlidesByFileId),
@@ -164,6 +167,37 @@ export function ServiceBroadcastView() {
     () => suggestSlideGroupFontCap(slides.filter((slide) => !slide.imageUrl && slide.text.trim()).map((slide) => slide.text)),
     [slides],
   );
+
+  useEffect(() => {
+    if (settings.camera_cycle_seconds > 0) lastCameraCycleSecondsRef.current = settings.camera_cycle_seconds;
+  }, [settings.camera_cycle_seconds]);
+
+  async function updateLiveControls(patch: Partial<BroadcastViewerSettings>) {
+    setControlBusy(true);
+    try {
+      setSettings(await updateBroadcastViewerSettings(patch));
+      setMessage(null);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not update livestream controls.");
+    } finally {
+      setControlBusy(false);
+    }
+  }
+
+  function putCameraOnAir(cameraId: string) {
+    void updateLiveControls({
+      active_camera_id: cameraId,
+      camera_cycle_started_at: settings.camera_cycle_seconds > 0 ? new Date().toISOString() : settings.camera_cycle_started_at,
+    });
+  }
+
+  function toggleCameraCycle() {
+    const cycleSeconds = settings.camera_cycle_seconds > 0 ? 0 : lastCameraCycleSecondsRef.current;
+    void updateLiveControls({
+      camera_cycle_seconds: cycleSeconds,
+      camera_cycle_started_at: cycleSeconds > 0 ? new Date().toISOString() : null,
+    });
+  }
 
   async function loadBroadcast() {
     if (pollInFlightRef.current) return;
@@ -365,7 +399,50 @@ export function ServiceBroadcastView() {
         </section>
       </div>
 
-      {hasLiveService && liveAudioUrl ? <LiveStreamAudio label={selectedAudioCamera ? `${selectedAudioCamera.label} audio` : "Live service audio"} url={liveAudioUrl} /> : null}
+      {hasLiveService && (liveAudioUrl || canControl) ? (
+        <div className={`service-broadcast-viewer-controls ${canControl ? "has-admin-controls" : ""}`}>
+          {liveAudioUrl ? <LiveStreamAudio label={selectedAudioCamera ? `${selectedAudioCamera.label} audio` : "Live service audio"} url={liveAudioUrl} /> : null}
+          {canControl ? (
+            <div className="service-broadcast-admin-live-controls" aria-label="Quick livestream controls">
+              <span className="service-broadcast-admin-control-label"><Radio size={14} aria-hidden="true" /> Camera</span>
+              <div className="service-broadcast-camera-buttons">
+                {settings.camera_sources.map((source) => (
+                  <button
+                    aria-pressed={source.id === activeCameraId}
+                    className={source.id === activeCameraId ? "is-active" : ""}
+                    disabled={controlBusy || source.id === activeCameraId}
+                    key={source.id}
+                    onClick={() => putCameraOnAir(source.id)}
+                    type="button"
+                  >
+                    {source.label}
+                  </button>
+                ))}
+              </div>
+              {settings.camera_sources.length > 1 ? (
+                <button
+                  aria-pressed={settings.camera_cycle_seconds > 0}
+                  className="text-button"
+                  disabled={controlBusy}
+                  onClick={toggleCameraCycle}
+                  title={settings.camera_cycle_seconds > 0 ? "Pause automatic camera changes" : "Start automatic camera changes"}
+                  type="button"
+                >
+                  {settings.camera_cycle_seconds > 0 ? `Auto ${settings.camera_cycle_seconds}s` : "Manual cameras"}
+                </button>
+              ) : null}
+              <span className="service-broadcast-timing-summary">
+                Fade {(settings.camera_fade_ms / 1000).toFixed(1)}s · slides +{(settings.slide_delay_ms / 1000).toFixed(1)}s
+              </span>
+              {onOpenSettings ? (
+                <button className="text-button icon-text-button" onClick={onOpenSettings} type="button">
+                  <Settings2 size={14} aria-hidden="true" /> Configure
+                </button>
+              ) : null}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
 
       {startingSoon && settings.pre_service_audio_url && !preServiceYouTubeId ? (
         <div className="service-broadcast-preservice-audio">

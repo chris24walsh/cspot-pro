@@ -4746,6 +4746,93 @@ h3 {
   width: 100%;
 }
 
+.service-broadcast-viewer-controls {
+  align-items: center;
+  background: rgba(20, 34, 28, 0.92);
+  border: 1px solid #355046;
+  border-radius: 8px;
+  display: flex;
+  gap: 8px;
+  min-height: 44px;
+  padding: 5px 7px;
+}
+
+.service-broadcast-live-audio {
+  background: transparent;
+  border: 0;
+  flex: 0 0 auto;
+  padding: 0;
+}
+
+.service-broadcast-audio-element {
+  display: none;
+}
+
+.service-broadcast-sound-button {
+  min-height: 32px;
+  white-space: nowrap;
+}
+
+.service-broadcast-admin-live-controls {
+  align-items: center;
+  border-left: 1px solid rgba(103, 137, 123, 0.48);
+  display: flex;
+  flex: 1 1 auto;
+  gap: 7px;
+  min-width: 0;
+  padding-left: 9px;
+}
+
+.service-broadcast-admin-control-label {
+  align-items: center;
+  color: #b8c9c1;
+  display: inline-flex;
+  font-size: 11px;
+  font-weight: 900;
+  gap: 4px;
+  text-transform: uppercase;
+}
+
+.service-broadcast-camera-buttons {
+  display: flex;
+  gap: 4px;
+  min-width: 0;
+}
+
+.service-broadcast-camera-buttons button {
+  background: #182a23;
+  border: 1px solid #3a594c;
+  border-radius: 6px;
+  color: #e8f3ed;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 850;
+  min-height: 30px;
+  overflow: hidden;
+  padding: 4px 9px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.service-broadcast-camera-buttons button.is-active {
+  background: #2b5a49;
+  border-color: #72b49a;
+  color: #fff;
+}
+
+.service-broadcast-camera-buttons button:disabled {
+  cursor: default;
+  opacity: 1;
+}
+
+.service-broadcast-timing-summary {
+  color: #9fb2aa;
+  font-size: 11px;
+  font-weight: 750;
+  margin-left: auto;
+  white-space: nowrap;
+}
+
 @media (max-width: 900px) {
   .broadcast-settings {
     margin: 0 8px 8px;
@@ -4797,6 +4884,25 @@ h3 {
   .service-broadcast-preservice-audio {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .service-broadcast-viewer-controls,
+  .service-broadcast-admin-live-controls {
+    align-items: center;
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+
+  .service-broadcast-admin-live-controls {
+    border-left: 0;
+    border-top: 1px solid rgba(103, 137, 123, 0.48);
+    flex-basis: 100%;
+    padding-left: 0;
+    padding-top: 5px;
+  }
+
+  .service-broadcast-timing-summary {
+    display: none;
   }
 }
 

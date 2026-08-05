@@ -1,4 +1,4 @@
-import { RefreshCw, Volume2 } from "lucide-react";
+import { RefreshCw, Volume2, VolumeX } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { go2RtcWebSocketUrl } from "../broadcastCamera";
@@ -298,9 +298,23 @@ export function LowLatencyCamera({ label, url }: { label: string; url: string })
 
 function LowLatencyMseAudio({ label, url }: { label: string; url: string }) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
-  const [playbackBlocked, setPlaybackBlocked] = useState(false);
-  const [retryToken, setRetryToken] = useState(0);
+  const [soundEnabled, setSoundEnabled] = useState(false);
   const websocketUrl = go2RtcWebSocketUrl(url)!;
+
+  function toggleSound() {
+    const audio = audioRef.current;
+    if (!audio) return;
+    if (soundEnabled) {
+      audio.muted = true;
+      setSoundEnabled(false);
+      return;
+    }
+    audio.muted = false;
+    void audio.play().then(() => setSoundEnabled(true)).catch(() => {
+      audio.muted = true;
+      setSoundEnabled(false);
+    });
+  }
 
   useEffect(() => {
     const audio = audioRef.current;
@@ -374,7 +388,7 @@ function LowLatencyMseAudio({ label, url }: { label: string; url: string }) {
                   if (end - audio.currentTime > 0.8) audio.currentTime = Math.max(0, end - 0.12);
                 }
                 appendNext();
-                void audio.play().then(() => setPlaybackBlocked(false)).catch(() => setPlaybackBlocked(true));
+                void audio.play().catch(() => undefined);
               });
             } catch {
               socket?.close();
@@ -392,7 +406,7 @@ function LowLatencyMseAudio({ label, url }: { label: string; url: string }) {
         if (!disposed && !reconnectTimer) reconnectTimer = window.setTimeout(connect, 1500);
       });
       socket.addEventListener("error", () => socket?.close());
-      void audio.play().then(() => setPlaybackBlocked(false)).catch(() => setPlaybackBlocked(true));
+      void audio.play().catch(() => undefined);
     };
 
     connect();
@@ -408,37 +422,46 @@ function LowLatencyMseAudio({ label, url }: { label: string; url: string }) {
       audio.removeAttribute("src");
       audio.load();
     };
-  }, [retryToken, websocketUrl]);
+  }, [websocketUrl]);
 
   return (
     <div className="service-broadcast-preservice-audio service-broadcast-live-audio">
-      <span>{label}</span>
-      <audio autoPlay controls ref={audioRef} />
-      {playbackBlocked ? (
-        <button className="text-button icon-text-button" onClick={() => void audioRef.current?.play().then(() => setPlaybackBlocked(false)).catch(() => setPlaybackBlocked(true))} type="button">
-          <Volume2 size={14} aria-hidden="true" /> Turn on live sound
-        </button>
-      ) : (
-        <button aria-label="Reconnect live audio" className="section-icon-button" onClick={() => setRetryToken((current) => current + 1)} title="Reconnect live audio" type="button">
-          <RefreshCw size={14} aria-hidden="true" />
-        </button>
-      )}
+      <audio autoPlay className="service-broadcast-audio-element" muted ref={audioRef} />
+      <button aria-pressed={soundEnabled} className="text-button icon-text-button service-broadcast-sound-button" onClick={toggleSound} title={label} type="button">
+        {soundEnabled ? <VolumeX size={15} aria-hidden="true" /> : <Volume2 size={15} aria-hidden="true" />}
+        {soundEnabled ? "Mute sound" : "Turn on sound"}
+      </button>
     </div>
   );
 }
 
 function FallbackLiveStreamAudio({ label, url }: { label: string; url: string }) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
-  const [playbackBlocked, setPlaybackBlocked] = useState(false);
+  const [soundEnabled, setSoundEnabled] = useState(false);
   const [retryToken, setRetryToken] = useState(0);
   const isHls = url.toLowerCase().includes(".m3u8");
+
+  function toggleSound() {
+    const audio = audioRef.current;
+    if (!audio) return;
+    if (soundEnabled) {
+      audio.muted = true;
+      setSoundEnabled(false);
+      return;
+    }
+    audio.muted = false;
+    void audio.play().then(() => setSoundEnabled(true)).catch(() => {
+      audio.muted = true;
+      setSoundEnabled(false);
+    });
+  }
 
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio) return undefined;
     let cancelled = false;
     let hls: InstanceType<typeof import("hls.js").default> | null = null;
-    const play = () => void audio.play().then(() => setPlaybackBlocked(false)).catch(() => setPlaybackBlocked(true));
+    const play = () => void audio.play().catch(() => undefined);
     if (!isHls || audio.canPlayType("application/vnd.apple.mpegurl")) {
       audio.src = url;
       play();
@@ -467,13 +490,11 @@ function FallbackLiveStreamAudio({ label, url }: { label: string; url: string })
 
   return (
     <div className="service-broadcast-preservice-audio service-broadcast-live-audio">
-      <span>{label}</span>
-      <audio autoPlay controls ref={audioRef} />
-      {playbackBlocked ? (
-        <button className="text-button icon-text-button" onClick={() => void audioRef.current?.play().then(() => setPlaybackBlocked(false)).catch(() => setPlaybackBlocked(true))} type="button">
-          <Volume2 size={14} aria-hidden="true" /> Turn on live sound
-        </button>
-      ) : null}
+      <audio autoPlay className="service-broadcast-audio-element" muted ref={audioRef} />
+      <button aria-pressed={soundEnabled} className="text-button icon-text-button service-broadcast-sound-button" onClick={toggleSound} title={label} type="button">
+        {soundEnabled ? <VolumeX size={15} aria-hidden="true" /> : <Volume2 size={15} aria-hidden="true" />}
+        {soundEnabled ? "Mute sound" : "Turn on sound"}
+      </button>
     </div>
   );
 }
