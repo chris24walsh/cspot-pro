@@ -5,7 +5,16 @@ import { go2RtcWebSocketUrl } from "../broadcastCamera";
 
 type StreamStatus = "connecting" | "live" | "recovering" | "unavailable";
 
-const VIDEO_CODECS = ["avc1.640029", "avc1.64002A", "avc1.640033", "hvc1.1.6.L153.B0"];
+const MSE_CODECS = [
+  "avc1.640029",
+  "avc1.64002A",
+  "avc1.640033",
+  "hvc1.1.6.L153.B0",
+  "mp4a.40.2",
+  "mp4a.40.5",
+  "flac",
+  "opus",
+];
 
 function cameraKind(url: string) {
   const lower = url.toLowerCase();
@@ -35,8 +44,9 @@ function LowLatencyMseVideo({ label, onFallback, url }: { label: string; onFallb
     let lastDataAt = Date.now();
     const queue: ArrayBuffer[] = [];
 
-    const fallBack = () => {
+    const fallBack = (reason: string) => {
       if (disposed) return;
+      console.warn(`Camera MSE fallback (${reason})`, websocketUrl);
       disposed = true;
       socket?.close();
       onFallback();
@@ -47,7 +57,7 @@ function LowLatencyMseVideo({ label, onFallback, url }: { label: string; onFallb
       try {
         sourceBuffer.appendBuffer(queue.shift()!);
       } catch {
-        socket?.close();
+        fallBack("append failed");
       }
     };
 
@@ -78,7 +88,7 @@ function LowLatencyMseVideo({ label, onFallback, url }: { label: string; onFallb
 
       const requestMse = () => {
         if (!sourceOpen || !socketOpen || !socket) return;
-        const codecs = VIDEO_CODECS.filter((codec) => MediaSource.isTypeSupported(`video/mp4; codecs="${codec}"`)).join();
+        const codecs = MSE_CODECS.filter((codec) => MediaSource.isTypeSupported(`video/mp4; codecs="${codec}"`)).join();
         socket.send(JSON.stringify({ type: "mse", value: codecs }));
       };
       mediaSource.addEventListener("sourceopen", () => {
@@ -96,12 +106,12 @@ function LowLatencyMseVideo({ label, onFallback, url }: { label: string; onFallb
           try {
             message = JSON.parse(event.data) as { type?: string; value?: string };
           } catch {
-            socket?.close();
+            fallBack("invalid response");
             return;
           }
           if (message.type === "mse" && message.value && mediaSource?.readyState === "open" && !sourceBuffer) {
             if (!MediaSource.isTypeSupported(message.value)) {
-              fallBack();
+              fallBack(`unsupported codec ${message.value}`);
               return;
             }
             try {
@@ -109,25 +119,33 @@ function LowLatencyMseVideo({ label, onFallback, url }: { label: string; onFallb
               sourceBuffer.mode = "segments";
               sourceBuffer.addEventListener("updateend", () => {
                 if (!sourceBuffer) return;
-                if (sourceBuffer.buffered.length) {
+                if (!sourceBuffer.updating && queue.length) {
+                  appendNext();
+                  return;
+                }
+                if (!sourceBuffer.updating && sourceBuffer.buffered.length) {
                   const end = sourceBuffer.buffered.end(sourceBuffer.buffered.length - 1);
-                  const start = sourceBuffer.buffered.start(0);
-                  if (end - start > 4 && !sourceBuffer.updating) {
+                  const bufferedStart = sourceBuffer.buffered.start(0);
+                  const liveStart = end - 5;
+                  if (liveStart > bufferedStart) {
                     try {
-                      sourceBuffer.remove(start, end - 3);
+                      sourceBuffer.remove(bufferedStart, liveStart);
+                      mediaSource?.setLiveSeekableRange(liveStart, end);
                     } catch {
                       // A following update will retry trimming the live buffer.
                     }
                   }
-                  if (end - video.currentTime > 0.8) video.currentTime = Math.max(0, end - 0.12);
+                  if (video.currentTime < liveStart) video.currentTime = liveStart;
+                  const gap = end - video.currentTime;
+                  video.playbackRate = Math.min(2, Math.max(1, gap));
                 }
-                appendNext();
+                void video.play().catch(() => undefined);
               });
             } catch {
-              fallBack();
+              fallBack("source buffer rejected");
             }
           } else if (message.type === "error") {
-            fallBack();
+            fallBack(message.value || "server error");
           }
           return;
         }
@@ -144,11 +162,12 @@ function LowLatencyMseVideo({ label, onFallback, url }: { label: string; onFallb
       window.clearTimeout(startupTimer);
       setStatus("live");
     };
-    const handleVideoError = fallBack;
+    const handleVideoError = () => fallBack("video decode error");
+    video.addEventListener("loadeddata", markLive);
     video.addEventListener("playing", markLive);
     video.addEventListener("error", handleVideoError);
     connect();
-    startupTimer = window.setTimeout(fallBack, 8000);
+    startupTimer = window.setTimeout(() => fallBack("startup timeout"), 12000);
     watchdogTimer = window.setInterval(() => {
       if (Date.now() - lastDataAt > 7000 || (video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA && Date.now() - lastDataAt > 4000)) {
         socket?.close();
@@ -160,6 +179,7 @@ function LowLatencyMseVideo({ label, onFallback, url }: { label: string; onFallb
       window.clearTimeout(reconnectTimer);
       window.clearTimeout(startupTimer);
       window.clearInterval(watchdogTimer);
+      video.removeEventListener("loadeddata", markLive);
       video.removeEventListener("playing", markLive);
       video.removeEventListener("error", handleVideoError);
       socket?.close();
