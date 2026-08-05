@@ -29,12 +29,8 @@ export function AutoFitSlideText({
 
     function availableSpace(element: HTMLElement) {
       const styles = window.getComputedStyle(element);
-      const horizontalPadding = Number.parseFloat(styles.paddingLeft) + Number.parseFloat(styles.paddingRight);
       const verticalPadding = Number.parseFloat(styles.paddingTop) + Number.parseFloat(styles.paddingBottom);
-      return {
-        height: Math.max(0, element.clientHeight - verticalPadding),
-        width: Math.max(0, element.clientWidth - horizontalPadding),
-      };
+      return Math.max(0, element.clientHeight - verticalPadding);
     }
 
     function fits(candidate: number) {
@@ -45,12 +41,9 @@ export function AutoFitSlideText({
       }
 
       activePre.style.fontSize = `${candidate}px`;
-      const available = availableSpace(activeFrame);
+      const availableHeight = availableSpace(activeFrame);
       const verticalBreathingRoom = Math.max(5, Math.ceil(candidate * (compact ? 0.08 : 0.22)));
-      return (
-        activePre.scrollHeight + verticalBreathingRoom <= available.height &&
-        activePre.scrollWidth <= activePre.clientWidth + 1
-      );
+      return activePre.scrollHeight + verticalBreathingRoom <= availableHeight;
     }
 
     function updateSize() {
