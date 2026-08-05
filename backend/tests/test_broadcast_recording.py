@@ -2,6 +2,7 @@ import json
 from datetime import UTC, datetime
 from types import SimpleNamespace
 
+import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
@@ -94,6 +95,10 @@ def test_multi_camera_settings_are_normalized_and_returned() -> None:
                 camera_cycle_seconds=45,
                 camera_fade_ms=1500,
                 live_audio_source="lectern",
+                mixer_name="Behringer X32",
+                mixer_protocol="bridge",
+                mixer_control_url="https://mixer-control.church.local",
+                mixer_notes="Musicians use monitor buses 1-4.",
                 slide_delay_ms=900,
             ),
             SimpleNamespace(id="user-1"),
@@ -103,9 +108,18 @@ def test_multi_camera_settings_are_normalized_and_returned() -> None:
         assert [source.id for source in result.camera_sources] == ["lectern", "ptz"]
         assert result.active_camera_id == "ptz"
         assert result.live_audio_source == "lectern"
+        assert result.mixer_name == "Behringer X32"
+        assert result.mixer_protocol == "bridge"
+        assert result.mixer_control_url == "https://mixer-control.church.local"
+        assert result.mixer_notes == "Musicians use monitor buses 1-4."
         assert result.camera_cycle_seconds == 45
         assert result.camera_fade_ms == 1500
         assert result.slide_delay_ms == 900
+
+
+def test_mixer_control_url_rejects_non_web_links() -> None:
+    with pytest.raises(ValueError, match="http or https"):
+        BroadcastViewerSettingsUpdate(mixer_control_url="javascript:alert(1)")
 
 
 def test_recording_source_requires_an_audio_track(monkeypatch) -> None:

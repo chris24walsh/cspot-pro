@@ -6,6 +6,12 @@ Last updated: 2026-08-05
 
 Broadcast is a remote service viewer with compact sermon recording.
 
+Admin controls are separated into Recordings, Livestream, and Audio Mixer tabs.
+The mixer tab records a shared desk profile and can launch a desk web interface
+or OSC/MIDI bridge. Native musician monitor faders remain deliberately
+model-specific: the desk model, allowed buses, and mute/gain safety boundaries
+must be known before adding a protocol adapter.
+
 - All eligible users land on Viewer by default.
 - Trusted users can configure up to eight named camera sources, put a source on
   air with a cross-fade, or enable synchronized timed rotation. Audio can follow

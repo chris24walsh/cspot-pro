@@ -169,6 +169,10 @@ def settings_read(settings: BroadcastViewerSettings) -> BroadcastViewerSettingsR
         camera_fade_ms=settings.camera_fade_ms or 0,
         live_audio_url=settings.live_audio_url,
         live_audio_source=effective_audio_source(settings, sources),
+        mixer_name=settings.mixer_name,
+        mixer_protocol=settings.mixer_protocol or "none",
+        mixer_control_url=settings.mixer_control_url,
+        mixer_notes=settings.mixer_notes,
         slide_delay_ms=settings.slide_delay_ms or 0,
         auto_record_sermons=settings.auto_record_sermons,
         pre_service_audio_url=settings.pre_service_audio_url,
@@ -296,6 +300,12 @@ def update_viewer_settings(
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="Enter an independent live audio URL before selecting it",
+        )
+    requested_mixer_protocol = updates.get("mixer_protocol", settings.mixer_protocol or "none")
+    if requested_mixer_protocol not in {"none", "web", "bridge", "audio-only"}:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="The selected mixer integration type is not supported",
         )
 
     if "active_camera_id" in updates or "camera_cycle_seconds" in updates or camera_source_payload is not ...:

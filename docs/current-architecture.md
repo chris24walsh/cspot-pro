@@ -259,6 +259,14 @@ PTZ movement remains the camera's own patrol/tour responsibility; CSpot selects
 and fades that moving view but does not store camera credentials or issue vendor-
 specific movement commands.
 
+Broadcast administration is divided into Recordings, Livestream, and Audio
+Mixer tabs. Mixer settings store the shared desk identity, integration type,
+control/bridge URL, and installation notes. Digital desks with their own web
+interface can be opened directly; OSC/MIDI desks require a model-specific
+bridge before native CSpot faders are exposed. An analogue desk can supply
+audio through an aux/matrix output, class-compliant USB interface, and Raspberry
+Pi, but its physical faders cannot be controlled digitally.
+
 ## Presenter Information Architecture
 
 The current intended presenter layout has three roles:

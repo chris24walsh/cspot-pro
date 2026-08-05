@@ -143,8 +143,8 @@ export const featureModules: FeatureModule[] = [
     ],
     lanes: [
       {
-        title: "Viewer Settings",
-        items: ["Stream details", "Camera URL", "Pre-service audio", "Holding messages"],
+        title: "Admin controls",
+        items: ["Sermon recordings", "Multi-camera livestream", "Audio routing", "Mixer desk integration"],
       },
       {
         title: "Remote Viewers",

@@ -1,4 +1,4 @@
-import { CircleStop, Mic, MicOff, Play, Plus, Radio, Save, Trash2, X } from "lucide-react";
+import { CircleStop, ExternalLink, Mic, MicOff, Play, Plus, Radio, Save, SlidersHorizontal, Trash2, Video, X } from "lucide-react";
 import { type FormEvent, useEffect, useState } from "react";
 
 import {
@@ -26,6 +26,10 @@ const EMPTY_SETTINGS: BroadcastViewerSettings = {
   camera_fade_ms: 1200,
   live_audio_url: null,
   live_audio_source: "none",
+  mixer_name: null,
+  mixer_protocol: "none",
+  mixer_control_url: null,
+  mixer_notes: null,
   slide_delay_ms: 800,
   offline_message: "No service is streaming right now",
   pre_service_audio_url: null,
@@ -52,6 +56,7 @@ export function BroadcastManager() {
   const [recordingAction, setRecordingAction] = useState(false);
   const [autoRecordingAction, setAutoRecordingAction] = useState(false);
   const [playingRecording, setPlayingRecording] = useState<BroadcastRecording | null>(null);
+  const [activeTab, setActiveTab] = useState<"recordings" | "livestream" | "mixer">("recordings");
 
   useEffect(() => {
     void getBroadcastViewerSettings()
@@ -145,7 +150,7 @@ export function BroadcastManager() {
     setMessage(null);
     try {
       setForm(await updateBroadcastViewerSettings(form));
-      setMessage("Viewer settings saved.");
+      setMessage("Broadcast settings saved.");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Could not save viewer settings.");
     } finally {
@@ -197,17 +202,32 @@ export function BroadcastManager() {
       <div className="section-heading">
         <div>
           <p className="eyebrow">Broadcast</p>
-          <h2>Viewer settings</h2>
+          <h2>Admin controls</h2>
         </div>
-        <button className="primary-button icon-text-button" disabled={loading || saving || autoRecordingAction} type="submit">
-          <Save size={15} aria-hidden="true" />
-          {saving ? "Saving…" : "Save"}
-        </button>
+        {activeTab !== "recordings" ? (
+          <button className="primary-button icon-text-button" disabled={loading || saving || autoRecordingAction} type="submit">
+            <Save size={15} aria-hidden="true" />
+            {saving ? "Saving…" : "Save"}
+          </button>
+        ) : null}
       </div>
 
       {message ? <p className="form-message">{message}</p> : null}
 
-      <div className="broadcast-settings-grid">
+      <div className="broadcast-admin-tabs segmented-control" role="tablist" aria-label="Broadcast administration">
+        <button aria-selected={activeTab === "recordings"} className={activeTab === "recordings" ? "is-active" : ""} onClick={() => setActiveTab("recordings")} role="tab" type="button">
+          <Mic size={15} aria-hidden="true" /> Recordings
+        </button>
+        <button aria-selected={activeTab === "livestream"} className={activeTab === "livestream" ? "is-active" : ""} onClick={() => setActiveTab("livestream")} role="tab" type="button">
+          <Video size={15} aria-hidden="true" /> Livestream
+        </button>
+        <button aria-selected={activeTab === "mixer"} className={activeTab === "mixer" ? "is-active" : ""} onClick={() => setActiveTab("mixer")} role="tab" type="button">
+          <SlidersHorizontal size={15} aria-hidden="true" /> Audio mixer
+        </button>
+      </div>
+
+      {activeTab === "livestream" ? <>
+      <div className="broadcast-settings-grid" role="tabpanel" aria-label="Livestream settings">
         <label>
           Stream title
           <input disabled={loading} onChange={(event) => setForm({ ...form, stream_title: event.target.value })} value={form.stream_title} />
@@ -335,8 +355,9 @@ export function BroadcastManager() {
       <p className="muted-copy broadcast-settings-note">
         Live media and the slideshow appear only while the presenter slideshow is running. Pre-service audio is offered during the configured window before the next scheduled service.
       </p>
+      </> : null}
 
-      <section className="broadcast-recordings" aria-label="Sermon recordings">
+      {activeTab === "recordings" ? <section className="broadcast-recordings broadcast-tab-panel" aria-label="Sermon recordings" role="tabpanel">
         <div className="section-heading">
           <div>
             <p className="eyebrow">Audio + slides</p>
@@ -398,7 +419,73 @@ export function BroadcastManager() {
             </article>
           )) : <p className="muted-copy">No sermon recordings yet.</p>}
         </div>
-      </section>
+      </section> : null}
+
+      {activeTab === "mixer" ? (
+        <section className="broadcast-mixer broadcast-tab-panel" aria-label="Musician audio mixer" role="tabpanel">
+          <div className="broadcast-mixer-heading">
+            <div>
+              <p className="eyebrow">Musician audio</p>
+              <h2>Mixer desk integration</h2>
+            </div>
+            {form.mixer_control_url && (form.mixer_protocol === "web" || form.mixer_protocol === "bridge") ? (
+              <a className="primary-button icon-text-button" href={form.mixer_control_url} rel="noreferrer" target="_blank">
+                <ExternalLink size={15} aria-hidden="true" /> Open mixer controls
+              </a>
+            ) : null}
+          </div>
+
+          <div className="broadcast-settings-grid">
+            <label>
+              Integration type
+              <select disabled={loading} onChange={(event) => setForm({ ...form, mixer_protocol: event.target.value as BroadcastViewerSettings["mixer_protocol"] })} value={form.mixer_protocol}>
+                <option value="none">Not configured</option>
+                <option value="web">Desk has browser controls</option>
+                <option value="bridge">OSC/MIDI control bridge</option>
+                <option value="audio-only">Audio capture only</option>
+              </select>
+            </label>
+            <label>
+              Mixer desk
+              <input disabled={loading} onChange={(event) => setForm({ ...form, mixer_name: event.target.value || null })} placeholder="Make and model, e.g. Behringer X32" value={form.mixer_name || ""} />
+            </label>
+            <label className="wide-field">
+              Desk or bridge control URL
+              <input disabled={loading || form.mixer_protocol === "none" || form.mixer_protocol === "audio-only"} inputMode="url" onChange={(event) => setForm({ ...form, mixer_control_url: event.target.value || null })} placeholder="https://mixer-control.church.local" type="url" value={form.mixer_control_url || ""} />
+              <small>Use the desk’s web interface, or an HTTPS control bridge on the church network. CSpot opens it separately so the manufacturer’s controls and safety limits remain intact.</small>
+            </label>
+            <label className="wide-field">
+              Installation notes
+              <textarea disabled={loading} onChange={(event) => setForm({ ...form, mixer_notes: event.target.value || null })} placeholder="Control VLAN, monitor bus assignments, interface input, or setup notes" value={form.mixer_notes || ""} />
+            </label>
+          </div>
+
+          <div className="broadcast-mixer-paths">
+            <article>
+              <strong>Digital network desk</strong>
+              <span>Connect the desk and control device to the same trusted LAN. Use its browser interface now, or a model-specific OSC/MIDI bridge for native CSpot faders.</span>
+            </article>
+            <article>
+              <strong>Analogue desk</strong>
+              <span>Send a dedicated aux or matrix output through a class-compliant USB audio interface to a Raspberry Pi. This supplies livestream and recording audio, but cannot remotely move analogue faders.</span>
+            </article>
+            <article>
+              <strong>Native musician mixes</strong>
+              <span>Channel faders, mute safety, and monitor-bus control require the desk make/model and the buses musicians may change. Save those details above before enabling a protocol adapter.</span>
+            </article>
+          </div>
+
+          <div className="broadcast-mixer-route">
+            <span>Current broadcast audio</span>
+            <strong>{form.live_audio_source === "independent"
+              ? form.live_audio_url || "Independent stream URL not set"
+              : form.live_audio_source === "none"
+                ? "No live audio"
+                : `${form.camera_sources.find((source) => source.id === form.live_audio_source)?.label ?? form.live_audio_source} camera`}</strong>
+            <button className="text-button" onClick={() => setActiveTab("livestream")} type="button">Change audio routing</button>
+          </div>
+        </section>
+      ) : null}
       {playingRecording ? <SermonRecordingPlayer onClose={() => setPlayingRecording(null)} recording={playingRecording} /> : null}
       {confirmationDialog}
     </form>

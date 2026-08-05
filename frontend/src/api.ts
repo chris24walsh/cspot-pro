@@ -541,6 +541,10 @@ export interface BroadcastViewerSettings {
   camera_fade_ms: number;
   live_audio_url: string | null;
   live_audio_source: string;
+  mixer_name: string | null;
+  mixer_protocol: "none" | "web" | "bridge" | "audio-only";
+  mixer_control_url: string | null;
+  mixer_notes: string | null;
   slide_delay_ms: number;
   auto_record_sermons: boolean;
   pre_service_audio_url: string | null;

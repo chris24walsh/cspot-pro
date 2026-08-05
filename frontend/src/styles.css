@@ -3980,6 +3980,25 @@ h3 {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
+.broadcast-admin-tabs {
+  align-self: start;
+  display: inline-flex;
+  gap: 3px;
+  justify-self: start;
+}
+
+.broadcast-admin-tabs button {
+  align-items: center;
+  display: inline-flex;
+  gap: 6px;
+}
+
+.broadcast-tab-panel {
+  border-top: 0;
+  margin-top: 0;
+  padding-top: 0;
+}
+
 .broadcast-mode-switch {
   align-self: start;
   margin: 0 0 10px;
@@ -4138,6 +4157,79 @@ h3 {
   min-height: 34px;
   min-width: 36px;
   padding: 5px 8px;
+}
+
+.broadcast-mixer {
+  display: grid;
+  gap: 14px;
+}
+
+.broadcast-mixer-heading {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+}
+
+.broadcast-mixer-heading > div {
+  display: grid;
+  gap: 2px;
+}
+
+.broadcast-mixer-heading h2,
+.broadcast-mixer-heading p {
+  margin: 0;
+}
+
+.broadcast-mixer-paths {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.broadcast-mixer-paths article {
+  background: #f8f5ec;
+  border: 1px solid #ded8c7;
+  border-radius: 8px;
+  display: grid;
+  gap: 5px;
+  padding: 10px;
+}
+
+.broadcast-mixer-paths strong {
+  color: #224f42;
+  font-size: 13px;
+}
+
+.broadcast-mixer-paths span {
+  color: #65716a;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.broadcast-mixer-route {
+  align-items: center;
+  background: #edf5f0;
+  border: 1px solid #a9cbbf;
+  border-radius: 8px;
+  display: grid;
+  gap: 3px 10px;
+  grid-template-columns: minmax(130px, auto) minmax(0, 1fr) auto;
+  padding: 9px 10px;
+}
+
+.broadcast-mixer-route span {
+  color: #65716a;
+  font-size: 11px;
+  font-weight: 850;
+  text-transform: uppercase;
+}
+
+.broadcast-mixer-route strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .sermon-recording-player {
@@ -4629,6 +4721,15 @@ h3 {
   }
 
   .broadcast-recording-row {
+    align-items: stretch;
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .broadcast-mixer-paths {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .broadcast-mixer-route {
     align-items: stretch;
     grid-template-columns: minmax(0, 1fr);
   }

@@ -1,6 +1,7 @@
 from datetime import datetime
+from urllib.parse import urlsplit
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class BroadcastCameraSource(BaseModel):
@@ -20,6 +21,10 @@ class BroadcastViewerSettingsRead(BaseModel):
     camera_fade_ms: int
     live_audio_url: str | None = None
     live_audio_source: str
+    mixer_name: str | None = None
+    mixer_protocol: str
+    mixer_control_url: str | None = None
+    mixer_notes: str | None = None
     slide_delay_ms: int
     auto_record_sermons: bool
     pre_service_audio_url: str | None = None
@@ -38,12 +43,23 @@ class BroadcastViewerSettingsUpdate(BaseModel):
     camera_fade_ms: int | None = Field(default=None, ge=0, le=10000)
     live_audio_url: str | None = None
     live_audio_source: str | None = Field(default=None, max_length=100)
+    mixer_name: str | None = Field(default=None, max_length=160)
+    mixer_protocol: str | None = Field(default=None, max_length=40)
+    mixer_control_url: str | None = Field(default=None, max_length=2000)
+    mixer_notes: str | None = Field(default=None, max_length=2000)
     slide_delay_ms: int | None = Field(default=None, ge=0, le=10000)
     auto_record_sermons: bool | None = None
     pre_service_audio_url: str | None = None
     pre_service_minutes: int | None = Field(default=None, ge=0, le=180)
     starting_soon_message: str | None = Field(default=None, max_length=240)
     offline_message: str | None = Field(default=None, max_length=240)
+
+    @field_validator("mixer_control_url")
+    @classmethod
+    def validate_mixer_control_url(cls, value: str | None) -> str | None:
+        if value and urlsplit(value).scheme.lower() not in {"http", "https"}:
+            raise ValueError("Mixer control URL must use http or https")
+        return value
 
 
 class BroadcastRecordingStart(BaseModel):
