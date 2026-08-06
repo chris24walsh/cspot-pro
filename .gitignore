@@ -17,6 +17,8 @@ venv/
 node_modules/
 dist/
 build/
+bin/
+obj/
 coverage/
 backend/storage/
 recordings/

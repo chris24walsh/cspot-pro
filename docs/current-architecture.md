@@ -255,6 +255,10 @@ at 500 ms and passes through a configurable delay so it can be aligned with the
 camera pipeline. Dedicated live audio is relayed through the API so a private
 Pi/Icecast source can be used from an HTTPS deployment; camera audio uses its
 matching gateway source and stays independent of which camera is visible.
+The optional CSpot Audio Bridge exposes multiple Windows DirectShow or Linux
+ALSA inputs as on-demand, shared MP3 streams. Capture stops after the final
+consumer disconnects, and the same bridge can move from a Windows church
+desktop to a Raspberry Pi without changing the CSpot-side protocol.
 PTZ movement remains the camera's own patrol/tour responsibility; CSpot selects
 and fades that moving view but does not store camera credentials or issue vendor-
 specific movement commands.

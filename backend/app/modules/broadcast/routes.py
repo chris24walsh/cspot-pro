@@ -250,7 +250,9 @@ def live_audio(
 
     def audio_chunks():
         try:
-            yield from upstream.iter_content(chunk_size=32 * 1024)
+            # Keep the relay responsive for live speech. A 32 KiB buffer is
+            # roughly four seconds of 64 kbps MP3 audio before proxy overhead.
+            yield from upstream.iter_content(chunk_size=2 * 1024)
         finally:
             upstream.close()
 

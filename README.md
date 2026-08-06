@@ -17,8 +17,11 @@ migration planning; this project starts clean with a container-first stack.
 
 ## Live audio
 
-CSpot can take [live and recorded service audio](docs/raspberry-pi-live-audio.md)
-from a Raspberry Pi USB microphone or mixing-desk feed.
+CSpot can take live and recorded service audio from the portable
+[CSpot Audio Bridge](audio-bridge/README.md), with independent USB microphone
+and mixing-desk inputs on Windows or Raspberry Pi. The original
+[single-input Pi/Icecast setup](docs/raspberry-pi-live-audio.md) remains
+supported.
 
 ## Network TV display
 

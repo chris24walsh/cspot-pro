@@ -1,5 +1,10 @@
 # Raspberry Pi live audio
 
+For new installations with multiple inputs, prefer the portable
+[`audio-bridge`](../audio-bridge/README.md). It captures only while CSpot is
+consuming a source and uses the same configuration model on Windows and Linux.
+The Icecast publisher below remains supported for existing single-input Pis.
+
 CSpot can play and record a dedicated low-bandwidth audio stream independently
 of the camera. A Raspberry Pi captures an ALSA input with FFmpeg and publishes
 mono MP3 audio to Icecast. The API relays that stream to signed-in viewers, so
