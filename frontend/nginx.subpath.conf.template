@@ -1,12 +1,14 @@
 server {
     listen 80;
     server_name _;
+    # Use relative Location headers so redirects do not leak the internal Docker hostname.
+    absolute_redirect off;
 
     root /usr/share/nginx/html;
     index index.html;
 
     location = __APP_BASE_PATH__ {
-        return 302 __APP_BASE_PATH__/;
+        try_files /index.html =404;
     }
 
     location __APP_BASE_PATH__/api/ {

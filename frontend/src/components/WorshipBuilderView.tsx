@@ -1644,19 +1644,43 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
   if (viewMode === "live") {
     const liveControlPlanId = plan ? servicePlansByDate.get(dateInputFromIso(plan.service_date))?.id ?? plan.id : null;
     return (
-      <section className="worship-live-shell" aria-label="Musician live worship">
-        <MusicianLiveView
-          controlPlanId={liveControlPlanId}
-          onEditSong={(song) => {
-            setViewMode("builder");
-            openSongEditor(song);
-          }}
-          onExit={() => setViewMode("builder")}
-          plan={plan}
-          songs={songs}
-          topbarSlot={topbarSlot}
-        />
-      </section>
+      <>
+        <section className="worship-live-shell" aria-label="Musician live worship">
+          <MusicianLiveView
+            controlPlanId={liveControlPlanId}
+            onEditSong={openSongEditor}
+            onExit={() => setViewMode("builder")}
+            plan={plan}
+            songs={songs}
+            topbarSlot={topbarSlot}
+          />
+        </section>
+
+        {editingSong ? (
+          <SongEditorDialog
+            canEdit={songEditorMode === "create" ? canCreateSong : canEditSong}
+            mode={songEditorMode}
+            onArchive={canArchiveSong ? (song) => void archiveLibrarySong(song) : undefined}
+            onClose={() => setEditingSong(null)}
+            onFindLyrics={(song) => {
+              setEditingSong(null);
+              setViewMode("builder");
+              openProviderForSong(song);
+            }}
+            onSaved={async (updated) => {
+              setSongs((current) => {
+                const exists = current.some((song) => song.id === updated.id);
+                return exists ? current.map((song) => (song.id === updated.id ? updated : song)) : [updated, ...current];
+              });
+              if (plan) {
+                await load(plan.id);
+              }
+              setMessage(`Saved "${updated.title}".`);
+            }}
+            song={editingSong}
+          />
+        ) : null}
+      </>
     );
   }
 
@@ -1753,7 +1777,7 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
                 <button className="text-button topbar-action-button" disabled={!plan || !canEditPlan || suggesting} onClick={() => void suggestInlineWorshipSet()} type="button">
                   {suggesting ? "Suggesting..." : worshipItems.length ? "Suggest/Swap Checked" : "Suggest 5 Songs"}
                 </button>
-                <button className="primary-button topbar-primary-button" disabled={!plan} onClick={() => setViewMode("live")} type="button">
+                <button className="primary-button topbar-primary-button" onClick={() => setViewMode("live")} type="button">
                   <MonitorUp size={16} aria-hidden="true" />
                   Live
                 </button>
@@ -1783,7 +1807,7 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
           <button className="text-button" disabled={!plan || !canEditPlan || suggesting} onClick={() => void suggestInlineWorshipSet()} type="button">
             {suggesting ? "Suggesting..." : worshipItems.length ? "Suggest/Swap Checked" : "Suggest 5 Songs"}
           </button>
-          <button className="primary-button" disabled={!plan} onClick={() => setViewMode("live")} type="button">
+          <button className="primary-button" onClick={() => setViewMode("live")} type="button">
             <MonitorUp size={16} aria-hidden="true" />
             Live
           </button>

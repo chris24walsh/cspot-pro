@@ -107,8 +107,11 @@ ROLE_DEFINITIONS: dict[str, RoleDefinition] = {
         "permissions": READ_PERMISSIONS | TEAM_READ_PERMISSIONS | SERVICE_PLANNING_PERMISSIONS,
     },
     "teacher": {
-        "description": "Prepare upcoming services and update service content without managing songs or users.",
-        "permissions": READ_PERMISSIONS | SERVICE_PLANNING_PERMISSIONS | PRESENTATION_CONTROL_PERMISSIONS,
+        "description": "Prepare upcoming services, sermon decks, and service content without managing songs or users.",
+        "permissions": READ_PERMISSIONS
+        | SERVICE_PLANNING_PERMISSIONS
+        | {"library:create"}
+        | PRESENTATION_CONTROL_PERMISSIONS,
     },
     "presenter": {
         "description": "Operate the live service computer and presentation flow.",

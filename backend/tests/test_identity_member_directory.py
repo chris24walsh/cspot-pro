@@ -42,3 +42,15 @@ def test_worship_and_sunday_school_roles_can_read_the_member_directory() -> None
         permissions = permissions_for_roles([role])
         assert "team:read" in permissions
         assert "users:manage" not in permissions
+
+
+def test_live_worship_and_teacher_service_permissions_match_role_workflows() -> None:
+    musician_permissions = permissions_for_roles(["musician"])
+    worship_leader_permissions = permissions_for_roles(["worship_leader"])
+    teacher_permissions = permissions_for_roles(["teacher"])
+
+    assert {"plans:read", "songs:read", "team:read"} <= musician_permissions
+    assert {"plans:read", "songs:read", "team:read"} <= worship_leader_permissions
+    assert {"plans:create", "plans:edit", "library:create"} <= teacher_permissions
+    assert "plans:delete" not in teacher_permissions
+    assert "library:delete" not in teacher_permissions

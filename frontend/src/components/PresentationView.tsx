@@ -4033,7 +4033,7 @@ export function PresentationView({
                       <span>{(sectionIndex + 1).toString().padStart(2, "0")}</span>
                       <strong>{section.title}</strong>
                     </button>
-                    {canEditPlan || canDeletePlan || sectionAudioSlide ? (
+                    {canEditPlan || sectionAudioSlide ? (
                       <div className="section-actions">
                         {sectionAudioSlide ? (
                           <button
@@ -4070,7 +4070,7 @@ export function PresentationView({
                             </button>
                           </>
                         ) : null}
-                        {canDeletePlan ? (
+                        {canEditPlan ? (
                           <button
                             aria-label={`Remove ${section.title}`}
                             className="section-icon-button section-remove-button"
