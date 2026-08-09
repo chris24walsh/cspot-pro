@@ -19,7 +19,7 @@ import {
   type RenderedSlide,
   type Song,
 } from "../api";
-import { activeCameraIdAt, cameraAudioUrl } from "../broadcastCamera";
+import { activeCameraIdAt, cameraAudioUrl, cameraServicePhase } from "../broadcastCamera";
 import {
   buildPresentationSlides,
   extractYouTubeId,
@@ -150,12 +150,14 @@ export function ServiceBroadcastView({ canControl = false, onOpenSettings }: { c
   const startingSoon = !hasLiveService && isBroadcastStartingSoon(upcomingService?.service_date, Date.now(), settings.pre_service_minutes);
   const holdingMessage = startingSoon ? settings.starting_soon_message : settings.offline_message;
   const preServiceYouTubeId = extractYouTubeId(settings.pre_service_audio_url);
+  const currentCameraPhase = cameraServicePhase(liveSlide?.itemType, liveSlide?.sectionTitle);
   const activeCameraId = activeCameraIdAt(
     settings.camera_sources,
     settings.active_camera_id,
     settings.camera_cycle_seconds,
     settings.camera_cycle_started_at,
     cameraClock,
+    currentCameraPhase,
   );
   const selectedAudioCamera = settings.camera_sources.find((source) => source.id === settings.live_audio_source) ?? null;
   const liveAudioUrl = settings.live_audio_source === "independent" && settings.live_audio_url
@@ -443,7 +445,7 @@ export function ServiceBroadcastView({ canControl = false, onOpenSettings }: { c
                   title={settings.camera_cycle_seconds > 0 ? "Pause automatic camera changes" : "Start automatic camera changes"}
                   type="button"
                 >
-                  {settings.camera_cycle_seconds > 0 ? `Auto ${settings.camera_cycle_seconds}s` : "Manual cameras"}
+                  {settings.camera_cycle_seconds > 0 ? `Auto · ${currentCameraPhase}` : "Manual cameras"}
                 </button>
               ) : null}
               <span className="service-broadcast-timing-summary">

@@ -308,12 +308,12 @@ export function BroadcastManager({ initialTab = "recordings" }: { initialTab?: "
           </div>
         </section>
         <label>
-          Automatic camera change
+          Base camera dwell
           <span className="input-with-suffix">
             <input disabled={loading} min={0} max={3600} onChange={(event) => setForm({ ...form, camera_cycle_seconds: Number(event.target.value) })} type="number" value={form.camera_cycle_seconds} />
             <span>seconds</span>
           </span>
-          <small>Use 0 for manual Fade to controls. Configure a PTZ patrol/tour on the camera itself; CSpot controls when that view appears.</small>
+          <small>Use 0 for manual controls. Sources named Lectern or Pulpit get more airtime, especially during prayer, sermons, and announcements; seeded variation keeps the pace natural.</small>
         </label>
         <label>
           Camera fade

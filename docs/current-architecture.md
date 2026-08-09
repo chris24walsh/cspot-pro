@@ -238,7 +238,7 @@ they can edit its settings. An explicitly active slideshow output session is the
 gate for:
 
 - the active service slideshow
-- multiple named camera/stream sources with manual or timed cross-fades
+- multiple named camera/stream sources with manual or synchronized weighted cross-fades; automatic pacing uses deterministic jitter and service-aware worship, prayer, sermon, and announcement profiles, with a lectern/pulpit bias
 - audio from any configured camera, no audio, or a dedicated Raspberry Pi/desk stream
 
 When no output session is active, both panels remain disabled. During the configured
