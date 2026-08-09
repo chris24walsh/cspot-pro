@@ -1779,7 +1779,7 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
                 </button>
                 <button className="primary-button topbar-primary-button" onClick={() => setViewMode("live")} type="button">
                   <MonitorUp size={16} aria-hidden="true" />
-                  Live
+                  Worship Live
                 </button>
               </div>
             </div>,
@@ -1809,7 +1809,7 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
           </button>
           <button className="primary-button" onClick={() => setViewMode("live")} type="button">
             <MonitorUp size={16} aria-hidden="true" />
-            Live
+            Worship Live
           </button>
         </div>
       ) : null}

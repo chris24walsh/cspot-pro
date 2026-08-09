@@ -7025,10 +7025,14 @@ h3 {
   }
 
   .worship-set-topbar-actions {
-    display: none;
+    display: grid;
     gap: 5px;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    width: 100%;
+    grid-template-columns: auto;
+    width: auto;
+  }
+
+  .worship-set-topbar-actions .topbar-action-button {
+    display: none;
   }
 
   .worship-set-topbar-actions .primary-button,
