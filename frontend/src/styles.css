@@ -3980,19 +3980,6 @@ h3 {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
-.broadcast-admin-tabs {
-  align-self: start;
-  display: inline-flex;
-  gap: 3px;
-  justify-self: start;
-}
-
-.broadcast-admin-tabs button {
-  align-items: center;
-  display: inline-flex;
-  gap: 6px;
-}
-
 .broadcast-tab-panel {
   border-top: 0;
   margin-top: 0;
@@ -4001,6 +3988,7 @@ h3 {
 
 .broadcast-mode-switch {
   align-self: start;
+  flex-wrap: wrap;
   margin: 0 0 10px;
 }
 
@@ -9228,7 +9216,7 @@ h3 {
   align-self: stretch;
   gap: 0;
   margin: 0;
-  width: min(100%, 270px);
+  width: min(100%, 420px);
 }
 
 .shell.is-mobile-device .broadcast-mode-switch button {
@@ -9237,7 +9225,7 @@ h3 {
   border-bottom: 2px solid transparent;
   border-radius: 0;
   min-height: 30px;
-  padding: 3px 14px;
+  padding: 3px 10px;
 }
 
 .shell.is-mobile-device .broadcast-mode-switch button.is-active {

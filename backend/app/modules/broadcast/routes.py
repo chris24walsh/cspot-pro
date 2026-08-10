@@ -57,7 +57,9 @@ def recording_read(recording: BroadcastRecording) -> BroadcastRecordingRead:
 
 @router.get("/recordings", response_model=list[BroadcastRecordingRead])
 def list_recordings(
-    _current_user: User = Depends(require_any_permission("broadcast:use", "presentation:use")),
+    _current_user: User = Depends(
+        require_any_permission("plans:read", "broadcast:use", "presentation:use")
+    ),
     session: Session = Depends(get_session),
 ) -> list[BroadcastRecordingRead]:
     recordings = session.scalars(
@@ -69,7 +71,7 @@ def list_recordings(
 @router.post("/recordings/start", response_model=BroadcastRecordingRead)
 def manually_start_recording(
     payload: BroadcastRecordingStart,
-    current_user: User = Depends(require_any_permission("broadcast:use", "presentation:use")),
+    current_user: User = Depends(require_permission("broadcast:use")),
     session: Session = Depends(get_session),
 ) -> BroadcastRecordingRead:
     try:
@@ -81,7 +83,7 @@ def manually_start_recording(
 
 @router.post("/recordings/stop", response_model=BroadcastRecordingRead | None)
 def manually_stop_recording(
-    _current_user: User = Depends(require_any_permission("broadcast:use", "presentation:use")),
+    _current_user: User = Depends(require_permission("broadcast:use")),
     session: Session = Depends(get_session),
 ) -> BroadcastRecordingRead | None:
     recording = stop_recording(session)
@@ -90,7 +92,7 @@ def manually_stop_recording(
 
 @router.post("/recordings/pause", response_model=BroadcastRecordingRead | None)
 def manually_pause_recording(
-    _current_user: User = Depends(require_any_permission("broadcast:use", "presentation:use")),
+    _current_user: User = Depends(require_permission("broadcast:use")),
     session: Session = Depends(get_session),
 ) -> BroadcastRecordingRead | None:
     recording = pause_recording(session)
@@ -99,7 +101,7 @@ def manually_pause_recording(
 
 @router.post("/recordings/resume", response_model=BroadcastRecordingRead | None)
 def manually_resume_recording(
-    _current_user: User = Depends(require_any_permission("broadcast:use", "presentation:use")),
+    _current_user: User = Depends(require_permission("broadcast:use")),
     session: Session = Depends(get_session),
 ) -> BroadcastRecordingRead | None:
     recording = resume_recording(session)

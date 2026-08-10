@@ -86,8 +86,7 @@ function App() {
     selectedPlan: null,
     songs: [],
   });
-  const [broadcastMode, setBroadcastMode] = useState<"control" | "viewer">("viewer");
-  const [broadcastControlTab, setBroadcastControlTab] = useState<"recordings" | "livestream" | "mixer">("recordings");
+  const [broadcastWorkspace, setBroadcastWorkspace] = useState<"viewer" | "recordings" | "livestream" | "mixer">("viewer");
   const [mobileImmersive, setMobileImmersive] = useState(false);
   const mobileOrTabletDevice = useMemo(
     () =>
@@ -393,22 +392,46 @@ function App() {
             <h1>{activeModule.label}</h1>
           </div>
           <div className="topbar-context-slot" id="workspace-topbar-slot">
-            {activeModule.id === "broadcast" && canUseBroadcast && canWatchBroadcast ? (
+            {activeModule.id === "broadcast" && canWatchBroadcast ? (
               <div className="broadcast-mode-switch segmented-control" role="tablist" aria-label="Broadcast mode">
                 <button
-                  className={broadcastMode === "viewer" ? "is-active" : ""}
-                  onClick={() => setBroadcastMode("viewer")}
+                  aria-selected={broadcastWorkspace === "viewer"}
+                  className={broadcastWorkspace === "viewer" ? "is-active" : ""}
+                  onClick={() => setBroadcastWorkspace("viewer")}
+                  role="tab"
                   type="button"
                 >
                   Viewer
                 </button>
                 <button
-                  className={broadcastMode === "control" ? "is-active" : ""}
-                  onClick={() => setBroadcastMode("control")}
+                  aria-selected={broadcastWorkspace === "recordings"}
+                  className={broadcastWorkspace === "recordings" ? "is-active" : ""}
+                  onClick={() => setBroadcastWorkspace("recordings")}
+                  role="tab"
                   type="button"
                 >
-                  Settings
+                  Recordings
                 </button>
+                {canUseBroadcast ? <>
+                  <button
+                    aria-selected={broadcastWorkspace === "livestream"}
+                    className={broadcastWorkspace === "livestream" ? "is-active" : ""}
+                    onClick={() => setBroadcastWorkspace("livestream")}
+                    role="tab"
+                    type="button"
+                  >
+                    Livestream
+                  </button>
+                  <button
+                    aria-selected={broadcastWorkspace === "mixer"}
+                    className={broadcastWorkspace === "mixer" ? "is-active" : ""}
+                    onClick={() => setBroadcastWorkspace("mixer")}
+                    role="tab"
+                    type="button"
+                  >
+                    Mixer
+                  </button>
+                </> : null}
               </div>
             ) : null}
           </div>
@@ -456,14 +479,13 @@ function App() {
             canEditSlideNotes={canEditSlideNotes}
           />
         ) : activeModule.id === "broadcast" ? (
-          canUseBroadcast && broadcastMode === "control" ? (
-            <BroadcastManager initialTab={broadcastControlTab} />
+          broadcastWorkspace !== "viewer" && (broadcastWorkspace === "recordings" || canUseBroadcast) ? (
+            <BroadcastManager activeTab={broadcastWorkspace} canManage={canUseBroadcast} onSelectTab={setBroadcastWorkspace} />
           ) : canWatchBroadcast ? (
             <ServiceBroadcastView
               canControl={canUseBroadcast}
               onOpenSettings={() => {
-                setBroadcastControlTab("livestream");
-                setBroadcastMode("control");
+                setBroadcastWorkspace("livestream");
               }}
             />
           ) : (

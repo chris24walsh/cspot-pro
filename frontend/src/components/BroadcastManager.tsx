@@ -1,4 +1,4 @@
-import { CircleStop, ExternalLink, Headphones, Mic, MicOff, MonitorPlay, Play, Plus, Radio, Save, SlidersHorizontal, Trash2, Video, X } from "lucide-react";
+import { CircleStop, ExternalLink, Headphones, Mic, MicOff, MonitorPlay, Play, Plus, Radio, Save, Trash2, X } from "lucide-react";
 import { type FormEvent, useEffect, useState } from "react";
 
 import {
@@ -55,7 +55,15 @@ function recordingCountdown(deadline: string | null, now = Date.now()) {
   return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
 }
 
-export function BroadcastManager({ initialTab = "recordings" }: { initialTab?: "recordings" | "livestream" | "mixer" }) {
+export function BroadcastManager({
+  activeTab,
+  canManage,
+  onSelectTab,
+}: {
+  activeTab: "recordings" | "livestream" | "mixer";
+  canManage: boolean;
+  onSelectTab: (tab: "viewer" | "recordings" | "livestream" | "mixer") => void;
+}) {
   const { confirm, confirmationDialog } = useConfirmationDialog();
   const [form, setForm] = useState<BroadcastViewerSettings>(EMPTY_SETTINGS);
   const [loading, setLoading] = useState(true);
@@ -66,7 +74,6 @@ export function BroadcastManager({ initialTab = "recordings" }: { initialTab?: "
   const [recordingAction, setRecordingAction] = useState(false);
   const [autoRecordingAction, setAutoRecordingAction] = useState(false);
   const [playingRecording, setPlayingRecording] = useState<BroadcastRecording | null>(null);
-  const [activeTab, setActiveTab] = useState<"recordings" | "livestream" | "mixer">(initialTab);
   const [clock, setClock] = useState(Date.now());
   const [testingCameraId, setTestingCameraId] = useState<string | null>(null);
   const [testingAudioId, setTestingAudioId] = useState<string | null>(null);
@@ -86,7 +93,7 @@ export function BroadcastManager({ initialTab = "recordings" }: { initialTab?: "
   async function loadRecordings() {
     const [nextRecordings, liveServices] = await Promise.all([
       getBroadcastRecordings(),
-      getLivePresentationServices(),
+      canManage ? getLivePresentationServices() : Promise.resolve([]),
     ]);
     setRecordings(nextRecordings);
     setLiveService(liveServices[0] ?? null);
@@ -96,7 +103,7 @@ export function BroadcastManager({ initialTab = "recordings" }: { initialTab?: "
     void loadRecordings().catch(() => undefined);
     const timer = window.setInterval(() => void loadRecordings().catch(() => undefined), 5000);
     return () => window.clearInterval(timer);
-  }, []);
+  }, [canManage]);
 
   const activeRecording = recordings.find((recording) => recording.status === "recording" || recording.status === "paused") ?? null;
 
@@ -164,6 +171,7 @@ export function BroadcastManager({ initialTab = "recordings" }: { initialTab?: "
 
   async function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (!canManage) return;
     setSaving(true);
     setMessage(null);
     try {
@@ -277,29 +285,17 @@ export function BroadcastManager({ initialTab = "recordings" }: { initialTab?: "
       <div className="section-heading">
         <div>
           <p className="eyebrow">Broadcast</p>
-          <h2>Admin controls</h2>
+          <h2>{canManage ? "Admin controls" : "Recordings"}</h2>
         </div>
-        <button className="primary-button icon-text-button" disabled={loading || saving || autoRecordingAction} type="submit">
+        {canManage ? <button className="primary-button icon-text-button" disabled={loading || saving || autoRecordingAction} type="submit">
           <Save size={15} aria-hidden="true" />
           {saving ? "Saving…" : "Save"}
-        </button>
+        </button> : null}
       </div>
 
       {message ? <p className="form-message">{message}</p> : null}
 
-      <div className="broadcast-admin-tabs segmented-control" role="tablist" aria-label="Broadcast administration">
-        <button aria-selected={activeTab === "recordings"} className={activeTab === "recordings" ? "is-active" : ""} onClick={() => setActiveTab("recordings")} role="tab" type="button">
-          <Mic size={15} aria-hidden="true" /> Recordings
-        </button>
-        <button aria-selected={activeTab === "livestream"} className={activeTab === "livestream" ? "is-active" : ""} onClick={() => setActiveTab("livestream")} role="tab" type="button">
-          <Video size={15} aria-hidden="true" /> Livestream
-        </button>
-        <button aria-selected={activeTab === "mixer"} className={activeTab === "mixer" ? "is-active" : ""} onClick={() => setActiveTab("mixer")} role="tab" type="button">
-          <SlidersHorizontal size={15} aria-hidden="true" /> Audio mixer
-        </button>
-      </div>
-
-      {activeTab === "livestream" ? <>
+      {canManage && activeTab === "livestream" ? <>
       <div className="broadcast-settings-grid" role="tabpanel" aria-label="Livestream settings">
         <label>
           Stream title
@@ -491,7 +487,7 @@ export function BroadcastManager({ initialTab = "recordings" }: { initialTab?: "
       </> : null}
 
       {activeTab === "recordings" ? <section className="broadcast-recordings broadcast-tab-panel" aria-label="Sermon recordings" role="tabpanel">
-        <label className="recording-grace-setting">
+        {canManage ? <label className="recording-grace-setting">
           <span>
             <strong>Automatic stop grace period</strong>
             <small>Keep one continuous audio file when briefly leaving the sermon, blanking, reaching End, or stopping the slideshow.</small>
@@ -500,13 +496,13 @@ export function BroadcastManager({ initialTab = "recordings" }: { initialTab?: "
             <input disabled={loading} min={0} max={600} onChange={(event) => setForm({ ...form, recording_grace_seconds: Number(event.target.value) })} type="number" value={form.recording_grace_seconds} />
             <span>seconds</span>
           </span>
-        </label>
+        </label> : null}
         <div className="section-heading">
           <div>
             <p className="eyebrow">Audio + slides</p>
             <h2>Sermon recordings</h2>
           </div>
-          <div className="broadcast-recording-heading-actions">
+          {canManage ? <div className="broadcast-recording-heading-actions">
             <button
               aria-pressed={form.auto_record_sermons}
               className={`${form.auto_record_sermons ? "text-button" : "primary-button"} icon-text-button`}
@@ -526,12 +522,13 @@ export function BroadcastManager({ initialTab = "recordings" }: { initialTab?: "
                 <Mic size={15} aria-hidden="true" /> Record now
               </button>
             )}
-          </div>
+          </div> : null}
         </div>
         <p className="muted-copy">
-          {form.auto_record_sermons
+          {canManage ? (form.auto_record_sermons
             ? "Recording starts automatically on sermon sections and stores compact mono audio with synchronized slide timings."
-            : "Automatic sermon recording is off. You can still start a recording manually with Record now."}
+            : "Automatic sermon recording is off. You can still start a recording manually with Record now.")
+            : "Listen to saved sermon audio with its synchronized slides."}
         </p>
         <div className="broadcast-recording-list">
           {recordings.length ? recordings.map((recording) => (
@@ -558,7 +555,7 @@ export function BroadcastManager({ initialTab = "recordings" }: { initialTab?: "
                     <Play size={15} aria-hidden="true" /> Play sermon
                   </button>
                 ) : <span className={`status-badge ${recording.status}`}>{recording.status}</span>}
-                {recording.status !== "recording" && recording.status !== "paused" ? (
+                {canManage && recording.status !== "recording" && recording.status !== "paused" ? (
                   <button aria-label="Delete recording" className="danger-button" onClick={() => void removeRecording(recording)} title="Delete recording" type="button">
                     <Trash2 size={15} aria-hidden="true" />
                   </button>
@@ -569,7 +566,7 @@ export function BroadcastManager({ initialTab = "recordings" }: { initialTab?: "
         </div>
       </section> : null}
 
-      {activeTab === "mixer" ? (
+      {canManage && activeTab === "mixer" ? (
         <section className="broadcast-mixer broadcast-tab-panel" aria-label="Musician audio mixer" role="tabpanel">
           <div className="broadcast-mixer-heading">
             <div>
@@ -629,7 +626,7 @@ export function BroadcastManager({ initialTab = "recordings" }: { initialTab?: "
               ? "No live audio"
               : form.audio_sources.find((source) => source.id === form.live_audio_source)?.label
                 ?? `${form.camera_sources.find((source) => source.id === form.live_audio_source)?.label ?? form.live_audio_source} camera`}</strong>
-            <button className="text-button" onClick={() => setActiveTab("livestream")} type="button">Change audio routing</button>
+            <button className="text-button" onClick={() => onSelectTab("livestream")} type="button">Change audio routing</button>
           </div>
         </section>
       ) : null}
