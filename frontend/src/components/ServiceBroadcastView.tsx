@@ -192,8 +192,8 @@ export function ServiceBroadcastView({ canControl = false, onOpenSettings }: { c
     });
   }
 
-  function toggleCameraCycle() {
-    const cycleSeconds = settings.camera_cycle_seconds > 0 ? 0 : lastCameraCycleSecondsRef.current;
+  function setCameraCycleMode(mode: "manual" | "automatic") {
+    const cycleSeconds = mode === "automatic" ? lastCameraCycleSecondsRef.current : 0;
     void updateLiveControls({
       camera_cycle_seconds: cycleSeconds,
       camera_cycle_started_at: cycleSeconds > 0 ? new Date().toISOString() : null,
@@ -423,32 +423,31 @@ export function ServiceBroadcastView({ canControl = false, onOpenSettings }: { c
           {liveAudioUrl ? <LiveStreamAudio label={selectedAudioCamera ? `${selectedAudioCamera.label} audio` : "Live service audio"} url={liveAudioUrl} /> : null}
           {canControl ? (
             <div className="service-broadcast-admin-live-controls" aria-label="Quick livestream controls">
-              <span className="service-broadcast-admin-control-label"><Radio size={14} aria-hidden="true" /> Camera</span>
-              <div className="service-broadcast-camera-buttons">
-                {settings.camera_sources.map((source) => (
-                  <button
-                    aria-pressed={source.id === activeCameraId}
-                    className={source.id === activeCameraId ? "is-active" : ""}
-                    disabled={controlBusy || source.id === activeCameraId}
-                    key={source.id}
-                    onClick={() => putCameraOnAir(source.id)}
-                    type="button"
-                  >
-                    {source.label}
-                  </button>
-                ))}
-              </div>
-              {settings.camera_sources.length > 1 ? (
-                <button
-                  aria-pressed={settings.camera_cycle_seconds > 0}
-                  className="text-button"
-                  disabled={controlBusy}
-                  onClick={toggleCameraCycle}
-                  title={settings.camera_cycle_seconds > 0 ? "Pause automatic camera changes" : "Start automatic camera changes"}
-                  type="button"
+              <label className="service-broadcast-live-select">
+                <span><Radio size={13} aria-hidden="true" /> Camera</span>
+                <select
+                  aria-label="Camera on air"
+                  disabled={controlBusy || !settings.camera_sources.length}
+                  onChange={(event) => putCameraOnAir(event.target.value)}
+                  value={activeCameraId ?? ""}
                 >
-                  {settings.camera_cycle_seconds > 0 ? `Auto · ${currentCameraPhase}` : "Manual cameras"}
-                </button>
+                  {!settings.camera_sources.length ? <option value="">No cameras</option> : null}
+                  {settings.camera_sources.map((source) => <option key={source.id} value={source.id}>{source.label}</option>)}
+                </select>
+              </label>
+              {settings.camera_sources.length > 1 ? (
+                <label className="service-broadcast-live-select">
+                  <span>Switching</span>
+                  <select
+                    aria-label="Camera switching mode"
+                    disabled={controlBusy}
+                    onChange={(event) => setCameraCycleMode(event.target.value as "manual" | "automatic")}
+                    value={settings.camera_cycle_seconds > 0 ? "automatic" : "manual"}
+                  >
+                    <option value="manual">Manual</option>
+                    <option value="automatic">Auto · {currentCameraPhase}</option>
+                  </select>
+                </label>
               ) : null}
               <span className="service-broadcast-timing-summary">
                 Fade {(settings.camera_fade_ms / 1000).toFixed(1)}s · slides +{(settings.slide_delay_ms / 1000).toFixed(1)}s
