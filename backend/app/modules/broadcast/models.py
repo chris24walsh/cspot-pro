@@ -49,6 +49,7 @@ class BroadcastViewerSettings(IdMixin, TimestampMixin, Base):
     stream_description: Mapped[str | None] = mapped_column(Text)
     camera_url: Mapped[str | None] = mapped_column(Text)
     camera_sources_json: Mapped[str | None] = mapped_column(Text)
+    audio_sources_json: Mapped[str | None] = mapped_column(Text)
     active_camera_id: Mapped[str | None] = mapped_column(String(80))
     camera_cycle_seconds: Mapped[int] = mapped_column(Integer, default=0)
     camera_cycle_started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

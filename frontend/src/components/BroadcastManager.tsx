@@ -1,8 +1,9 @@
-import { CircleStop, ExternalLink, Mic, MicOff, Play, Plus, Radio, Save, SlidersHorizontal, Trash2, Video, X } from "lucide-react";
+import { CircleStop, ExternalLink, Headphones, Mic, MicOff, MonitorPlay, Play, Plus, Radio, Save, SlidersHorizontal, Trash2, Video, X } from "lucide-react";
 import { type FormEvent, useEffect, useState } from "react";
 
 import {
   getBroadcastViewerSettings,
+  broadcastAudioSourceTestUrl,
   deleteBroadcastRecording,
   getBroadcastRecordings,
   getLivePresentationServices,
@@ -15,12 +16,14 @@ import {
 } from "../api";
 import { recordingTimestampTitle, SermonRecordingPlayer } from "./SermonRecordingPlayer";
 import { useConfirmationDialog } from "./ConfirmationDialog";
+import { LowLatencyCamera } from "./LowLatencyCamera";
 
 const EMPTY_SETTINGS: BroadcastViewerSettings = {
   auto_record_sermons: true,
   recording_grace_seconds: 60,
   camera_url: null,
   camera_sources: [],
+  audio_sources: [],
   active_camera_id: null,
   camera_cycle_seconds: 0,
   camera_cycle_started_at: null,
@@ -65,6 +68,8 @@ export function BroadcastManager({ initialTab = "recordings" }: { initialTab?: "
   const [playingRecording, setPlayingRecording] = useState<BroadcastRecording | null>(null);
   const [activeTab, setActiveTab] = useState<"recordings" | "livestream" | "mixer">(initialTab);
   const [clock, setClock] = useState(Date.now());
+  const [testingCameraId, setTestingCameraId] = useState<string | null>(null);
+  const [testingAudioId, setTestingAudioId] = useState<string | null>(null);
 
   useEffect(() => {
     const timer = window.setInterval(() => setClock(Date.now()), 1000);
@@ -191,9 +196,66 @@ export function BroadcastManager({ initialTab = "recordings" }: { initialTab?: "
     setForm((current) => {
       const camera_sources = current.camera_sources.filter((source) => source.id !== id);
       const active_camera_id = current.active_camera_id === id ? camera_sources[0]?.id ?? null : current.active_camera_id;
-      const live_audio_source = current.live_audio_source === id ? camera_sources[0]?.id ?? "none" : current.live_audio_source;
+      const live_audio_source = current.live_audio_source === id ? current.audio_sources[0]?.id ?? camera_sources[0]?.id ?? "none" : current.live_audio_source;
       return { ...current, active_camera_id, camera_sources, live_audio_source };
     });
+    setTestingCameraId((current) => current === id ? null : current);
+  }
+
+  function addAudioSource() {
+    const id = `audio-${Date.now().toString(36)}`;
+    setForm((current) => ({
+      ...current,
+      audio_sources: [...current.audio_sources, { id, label: `Audio ${current.audio_sources.length + 1}`, url: "" }],
+    }));
+  }
+
+  function updateAudioSource(id: string, field: "label" | "url", value: string) {
+    setForm((current) => ({
+      ...current,
+      audio_sources: current.audio_sources.map((source) => source.id === id ? { ...source, [field]: value } : source),
+    }));
+  }
+
+  function removeAudioSource(id: string) {
+    setForm((current) => {
+      const audio_sources = current.audio_sources.filter((source) => source.id !== id);
+      const live_audio_source = current.live_audio_source === id ? audio_sources[0]?.id ?? current.camera_sources[0]?.id ?? "none" : current.live_audio_source;
+      return { ...current, audio_sources, live_audio_source };
+    });
+    setTestingAudioId((current) => current === id ? null : current);
+  }
+
+  async function testAudioSource(sourceId: string) {
+    if (testingAudioId === sourceId) {
+      setTestingAudioId(null);
+      return;
+    }
+    setMessage(null);
+    try {
+      const settings = await updateBroadcastViewerSettings({
+        audio_sources: form.audio_sources,
+        live_audio_source: form.live_audio_source,
+      });
+      setForm((current) => ({ ...current, ...settings }));
+      setTestingAudioId(sourceId);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not test the audio source.");
+    }
+  }
+
+  async function useAudioSource(sourceId: string) {
+    setMessage(null);
+    try {
+      const settings = await updateBroadcastViewerSettings({
+        audio_sources: form.audio_sources,
+        live_audio_source: sourceId,
+      });
+      setForm((current) => ({ ...current, ...settings }));
+      setMessage(`${settings.audio_sources.find((source) => source.id === sourceId)?.label ?? "Audio source"} is now live.`);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not change the live audio source.");
+    }
   }
 
   async function putCameraOnAir(cameraId: string) {
@@ -291,6 +353,15 @@ export function BroadcastManager({ initialTab = "recordings" }: { initialTab?: "
                   value={source.url}
                 />
                 <button
+                  aria-pressed={testingCameraId === source.id}
+                  className="text-button icon-text-button"
+                  disabled={loading || !source.url}
+                  onClick={() => setTestingCameraId((current) => current === source.id ? null : source.id)}
+                  type="button"
+                >
+                  <MonitorPlay size={14} aria-hidden="true" /> {testingCameraId === source.id ? "Close" : "Test"}
+                </button>
+                <button
                   aria-pressed={form.active_camera_id === source.id}
                   className={form.active_camera_id === source.id ? "primary-button icon-text-button" : "text-button icon-text-button"}
                   disabled={loading || !source.url || form.active_camera_id === source.id}
@@ -302,9 +373,68 @@ export function BroadcastManager({ initialTab = "recordings" }: { initialTab?: "
                 <button aria-label={`Remove ${source.label}`} className="section-icon-button" disabled={loading} onClick={() => removeCamera(source.id)} type="button">
                   <X size={15} aria-hidden="true" />
                 </button>
+                {testingCameraId === source.id ? (
+                  <div className="broadcast-source-test broadcast-camera-test">
+                    <LowLatencyCamera label={`${source.label} test preview`} url={source.url} />
+                  </div>
+                ) : null}
               </article>
             ))}
             {!form.camera_sources.length ? <p className="muted-copy">No camera sources configured.</p> : null}
+          </div>
+        </section>
+        <section className="wide-field broadcast-camera-settings broadcast-audio-settings" aria-label="Audio sources">
+          <div className="broadcast-camera-settings-heading">
+            <div>
+              <strong>Audio sources</strong>
+              <small>Add independent room microphones, mixer feeds, or other audio streams. Listen here before putting one live.</small>
+            </div>
+            <button className="text-button icon-text-button" disabled={loading || form.audio_sources.length >= 8} onClick={addAudioSource} type="button">
+              <Plus size={14} aria-hidden="true" /> Add audio
+            </button>
+          </div>
+          <div className="broadcast-camera-source-list">
+            {form.audio_sources.map((source) => (
+              <article className={`broadcast-camera-source broadcast-audio-source ${form.live_audio_source === source.id ? "is-on-air" : ""}`} key={source.id}>
+                <input
+                  aria-label="Audio source name"
+                  disabled={loading}
+                  onChange={(event) => updateAudioSource(source.id, "label", event.target.value)}
+                  placeholder="Desk feed"
+                  value={source.label}
+                />
+                <input
+                  aria-label={`${source.label} stream URL`}
+                  disabled={loading}
+                  inputMode="url"
+                  onChange={(event) => updateAudioSource(source.id, "url", event.target.value)}
+                  placeholder="http://audio-host:8091/audio/desk.mp3?token=…"
+                  type="text"
+                  value={source.url}
+                />
+                <button className="text-button icon-text-button" disabled={loading || !source.url} onClick={() => void testAudioSource(source.id)} type="button">
+                  <Headphones size={14} aria-hidden="true" /> {testingAudioId === source.id ? "Stop" : "Listen"}
+                </button>
+                <button
+                  aria-pressed={form.live_audio_source === source.id}
+                  className={form.live_audio_source === source.id ? "primary-button icon-text-button" : "text-button icon-text-button"}
+                  disabled={loading || !source.url || form.live_audio_source === source.id}
+                  onClick={() => void useAudioSource(source.id)}
+                  type="button"
+                >
+                  <Radio size={14} aria-hidden="true" /> {form.live_audio_source === source.id ? "Live" : "Use live"}
+                </button>
+                <button aria-label={`Remove ${source.label}`} className="section-icon-button" disabled={loading} onClick={() => removeAudioSource(source.id)} type="button">
+                  <X size={15} aria-hidden="true" />
+                </button>
+                {testingAudioId === source.id ? (
+                  <div className="broadcast-source-test broadcast-audio-test">
+                    <audio autoPlay controls src={broadcastAudioSourceTestUrl(source.id)} />
+                  </div>
+                ) : null}
+              </article>
+            ))}
+            {!form.audio_sources.length ? <p className="muted-copy">No independent audio sources configured.</p> : null}
           </div>
         </section>
         <label>
@@ -334,21 +464,13 @@ export function BroadcastManager({ initialTab = "recordings" }: { initialTab?: "
           Live audio source
           <select disabled={loading} onChange={(event) => setForm({ ...form, live_audio_source: event.target.value })} value={form.live_audio_source}>
             <option value="none">No live audio</option>
-            <option value="independent">Independent audio stream</option>
-            {form.camera_sources.map((source) => <option key={source.id} value={source.id}>{source.label} camera</option>)}
+            {form.audio_sources.length ? <optgroup label="Independent audio">
+              {form.audio_sources.map((source) => <option key={source.id} value={source.id}>{source.label}</option>)}
+            </optgroup> : null}
+            {form.camera_sources.length ? <optgroup label="Camera audio">
+              {form.camera_sources.map((source) => <option key={source.id} value={source.id}>{source.label} camera</option>)}
+            </optgroup> : null}
           </select>
-        </label>
-        <label className="wide-field">
-          Independent live audio stream URL
-          <input
-            disabled={loading}
-            inputMode="url"
-            onChange={(event) => setForm({ ...form, live_audio_url: event.target.value || null })}
-            placeholder="https://audio-host.example/cspot.mp3"
-            type="text"
-            value={form.live_audio_url || ""}
-          />
-          <small>Select Independent audio stream above to use a Raspberry Pi or desk feed for live playback and sermon recording.</small>
         </label>
         <label className="wide-field">
           Pre-service worship audio or YouTube URL
@@ -503,11 +625,10 @@ export function BroadcastManager({ initialTab = "recordings" }: { initialTab?: "
 
           <div className="broadcast-mixer-route">
             <span>Current broadcast audio</span>
-            <strong>{form.live_audio_source === "independent"
-              ? form.live_audio_url || "Independent stream URL not set"
-              : form.live_audio_source === "none"
-                ? "No live audio"
-                : `${form.camera_sources.find((source) => source.id === form.live_audio_source)?.label ?? form.live_audio_source} camera`}</strong>
+            <strong>{form.live_audio_source === "none"
+              ? "No live audio"
+              : form.audio_sources.find((source) => source.id === form.live_audio_source)?.label
+                ?? `${form.camera_sources.find((source) => source.id === form.live_audio_source)?.label ?? form.live_audio_source} camera`}</strong>
             <button className="text-button" onClick={() => setActiveTab("livestream")} type="button">Change audio routing</button>
           </div>
         </section>

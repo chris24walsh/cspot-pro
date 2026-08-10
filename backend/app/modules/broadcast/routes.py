@@ -22,7 +22,7 @@ from app.modules.broadcast.schemas import (
     BroadcastViewerSettingsRead,
     BroadcastViewerSettingsUpdate,
 )
-from app.modules.broadcast.settings import camera_sources, effective_audio_source
+from app.modules.broadcast.settings import audio_sources, camera_sources, effective_audio_source, selected_audio_url
 from app.modules.identity.auth import CurrentUser, require_any_permission, require_permission
 from app.modules.identity.models import User
 from app.modules.presentation.models import PresentationPosition, PresentationSession
@@ -159,6 +159,7 @@ def viewer_settings(session: Session) -> BroadcastViewerSettings:
 
 def settings_read(settings: BroadcastViewerSettings) -> BroadcastViewerSettingsRead:
     sources = camera_sources(settings)
+    independent_sources = audio_sources(settings)
     source_ids = {source.id for source in sources}
     active_camera_id = settings.active_camera_id if settings.active_camera_id in source_ids else (sources[0].id if sources else None)
     return BroadcastViewerSettingsRead(
@@ -166,12 +167,13 @@ def settings_read(settings: BroadcastViewerSettings) -> BroadcastViewerSettingsR
         stream_description=settings.stream_description,
         camera_url=settings.camera_url,
         camera_sources=sources,
+        audio_sources=independent_sources,
         active_camera_id=active_camera_id,
         camera_cycle_seconds=settings.camera_cycle_seconds or 0,
         camera_cycle_started_at=settings.camera_cycle_started_at,
         camera_fade_ms=settings.camera_fade_ms or 0,
         live_audio_url=settings.live_audio_url,
-        live_audio_source=effective_audio_source(settings, sources),
+        live_audio_source=effective_audio_source(settings, sources, independent_sources),
         mixer_name=settings.mixer_name,
         mixer_protocol=settings.mixer_protocol or "none",
         mixer_control_url=settings.mixer_control_url,
@@ -233,7 +235,7 @@ def live_audio(
             status_code=status.HTTP_409_CONFLICT,
             detail="Live audio is available only while presentation output is running",
         )
-    source_url = viewer_settings(session).live_audio_url
+    source_url = selected_audio_url(viewer_settings(session))
     if not source_url:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -263,6 +265,40 @@ def live_audio(
     )
 
 
+@router.get("/audio-sources/{source_id}/test")
+def test_audio_source(
+    source_id: str,
+    _current_user: User = Depends(require_permission("broadcast:use")),
+    session: Session = Depends(get_session),
+) -> StreamingResponse:
+    source = next(
+        (candidate for candidate in audio_sources(viewer_settings(session)) if candidate.id == source_id),
+        None,
+    )
+    if source is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Audio source not found")
+    try:
+        upstream = requests.get(source.url, stream=True, timeout=(5, None))
+        upstream.raise_for_status()
+    except requests.RequestException as error:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="The audio source is unavailable",
+        ) from error
+
+    def audio_chunks():
+        try:
+            yield from upstream.iter_content(chunk_size=2 * 1024)
+        finally:
+            upstream.close()
+
+    return StreamingResponse(
+        audio_chunks(),
+        media_type=upstream.headers.get("content-type", "audio/mpeg").split(";", 1)[0],
+        headers={"Cache-Control": "no-store"},
+    )
+
+
 @router.patch("/viewer-settings", response_model=BroadcastViewerSettingsRead)
 def update_viewer_settings(
     payload: BroadcastViewerSettingsUpdate,
@@ -272,6 +308,7 @@ def update_viewer_settings(
     settings = viewer_settings(session)
     updates = payload.model_dump(exclude_unset=True)
     camera_source_payload = updates.pop("camera_sources", ...)
+    audio_source_payload = updates.pop("audio_sources", ...)
     if camera_source_payload is None:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
@@ -288,25 +325,49 @@ def update_viewer_settings(
         settings.camera_sources_json = json.dumps(camera_source_payload, separators=(",", ":"))
         settings.camera_url = camera_source_payload[0]["url"] if camera_source_payload else None
 
+    if audio_source_payload is None:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="audio_sources cannot be empty",
+        )
+    if audio_source_payload is not ...:
+        audio_ids = [source["id"] for source in audio_source_payload]
+        if len(audio_ids) != len(set(audio_ids)):
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="Audio source IDs must be unique",
+            )
+        settings.audio_sources_json = json.dumps(audio_source_payload, separators=(",", ":"))
+
     sources = camera_sources(settings)
+    independent_sources = audio_sources(settings)
     source_ids = {source.id for source in sources}
+    audio_ids = {source.id for source in independent_sources}
+    if source_ids & audio_ids:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Camera and audio source IDs must be unique",
+        )
     requested_camera_id = updates.get("active_camera_id", settings.active_camera_id)
     if requested_camera_id and requested_camera_id not in source_ids:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="The selected camera is not configured",
         )
-    requested_audio_source = updates.get("live_audio_source", effective_audio_source(settings, sources))
-    if requested_audio_source not in {"none", "independent", *source_ids}:
+    requested_audio_source = updates.get(
+        "live_audio_source",
+        effective_audio_source(settings, sources, independent_sources),
+    )
+    if requested_audio_source not in {"none", *source_ids, *audio_ids}:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="The selected live audio source is not configured",
         )
-    if requested_audio_source == "independent" and not updates.get("live_audio_url", settings.live_audio_url):
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="Enter an independent live audio URL before selecting it",
-        )
+    selected_independent = next(
+        (source for source in independent_sources if source.id == requested_audio_source),
+        None,
+    )
+    updates["live_audio_url"] = selected_independent.url if selected_independent else None
     requested_mixer_protocol = updates.get("mixer_protocol", settings.mixer_protocol or "none")
     if requested_mixer_protocol not in {"none", "web", "bridge", "audio-only"}:
         raise HTTPException(

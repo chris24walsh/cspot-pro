@@ -17,7 +17,7 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.core.database import SessionLocal
 from app.modules.broadcast.models import BroadcastRecording, BroadcastViewerSettings
-from app.modules.broadcast.settings import effective_audio_source, selected_camera_url
+from app.modules.broadcast.settings import selected_audio_url, selected_camera_url
 from app.modules.planning.models import PlanItem
 from app.modules.presentation.models import PresentationPosition, PresentationSession
 
@@ -141,8 +141,8 @@ def _source_url(session: Session) -> str | None:
     viewer = session.scalar(select(BroadcastViewerSettings).limit(1))
     if not viewer:
         return None
-    audio_url = viewer.live_audio_url.strip() if viewer.live_audio_url else ""
-    if effective_audio_source(viewer) == "independent" and audio_url.startswith(("http://", "https://")):
+    audio_url = (selected_audio_url(viewer) or "").strip()
+    if audio_url.startswith(("http://", "https://")):
         return audio_url
     camera_url = (selected_camera_url(viewer) or "").strip()
     if not camera_url:

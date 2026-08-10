@@ -10,11 +10,18 @@ class BroadcastCameraSource(BaseModel):
     url: str = Field(min_length=1, max_length=2000)
 
 
+class BroadcastAudioSource(BaseModel):
+    id: str = Field(min_length=1, max_length=80, pattern=r"^[a-zA-Z0-9_-]+$")
+    label: str = Field(min_length=1, max_length=120)
+    url: str = Field(min_length=1, max_length=2000)
+
+
 class BroadcastViewerSettingsRead(BaseModel):
     stream_title: str
     stream_description: str | None = None
     camera_url: str | None = None
     camera_sources: list[BroadcastCameraSource] = Field(default_factory=list)
+    audio_sources: list[BroadcastAudioSource] = Field(default_factory=list)
     active_camera_id: str | None = None
     camera_cycle_seconds: int
     camera_cycle_started_at: datetime | None = None
@@ -39,6 +46,7 @@ class BroadcastViewerSettingsUpdate(BaseModel):
     stream_description: str | None = None
     camera_url: str | None = None
     camera_sources: list[BroadcastCameraSource] | None = Field(default=None, max_length=8)
+    audio_sources: list[BroadcastAudioSource] | None = Field(default=None, max_length=8)
     active_camera_id: str | None = Field(default=None, max_length=80)
     camera_cycle_seconds: int | None = Field(default=None, ge=0, le=3600)
     camera_fade_ms: int | None = Field(default=None, ge=0, le=10000)

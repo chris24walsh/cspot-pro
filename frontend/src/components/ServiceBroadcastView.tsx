@@ -44,6 +44,7 @@ const DEFAULT_SETTINGS: BroadcastViewerSettings = {
   camera_cycle_started_at: null,
   camera_fade_ms: 1200,
   camera_sources: [],
+  audio_sources: [],
   camera_url: null,
   live_audio_url: null,
   live_audio_source: "none",
@@ -160,7 +161,8 @@ export function ServiceBroadcastView({ canControl = false, onOpenSettings }: { c
     currentCameraPhase,
   );
   const selectedAudioCamera = settings.camera_sources.find((source) => source.id === settings.live_audio_source) ?? null;
-  const liveAudioUrl = settings.live_audio_source === "independent" && settings.live_audio_url
+  const selectedIndependentAudio = settings.audio_sources.find((source) => source.id === settings.live_audio_source) ?? null;
+  const liveAudioUrl = selectedIndependentAudio
     ? broadcastLiveAudioUrl()
     : selectedAudioCamera
       ? cameraAudioUrl(selectedAudioCamera.url)

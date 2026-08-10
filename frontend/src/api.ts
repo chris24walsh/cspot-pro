@@ -530,11 +530,18 @@ export interface BroadcastCameraSource {
   url: string;
 }
 
+export interface BroadcastAudioSource {
+  id: string;
+  label: string;
+  url: string;
+}
+
 export interface BroadcastViewerSettings {
   stream_title: string;
   stream_description: string | null;
   camera_url: string | null;
   camera_sources: BroadcastCameraSource[];
+  audio_sources: BroadcastAudioSource[];
   active_camera_id: string | null;
   camera_cycle_seconds: number;
   camera_cycle_started_at: string | null;
@@ -1056,6 +1063,10 @@ export function broadcastRecordingAudioUrl(recordingId: string) {
 
 export function broadcastLiveAudioUrl() {
   return buildApiUrl("/api/v1/broadcast/live-audio");
+}
+
+export function broadcastAudioSourceTestUrl(sourceId: string) {
+  return buildApiUrl(`/api/v1/broadcast/audio-sources/${encodeURIComponent(sourceId)}/test`);
 }
 
 export async function getGoogleDriveStatus(): Promise<GoogleDriveStatus> {

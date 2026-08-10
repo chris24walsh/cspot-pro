@@ -129,6 +129,56 @@ def test_multi_camera_settings_are_normalized_and_returned() -> None:
         assert result.slide_delay_ms == 900
 
 
+def test_independent_audio_sources_are_grouped_and_selected() -> None:
+    engine = create_engine("sqlite://")
+    Base.metadata.create_all(engine, tables=[BroadcastViewerSettings.__table__])
+    with Session(engine) as session:
+        result = update_viewer_settings(
+            BroadcastViewerSettingsUpdate(
+                audio_sources=[
+                    {"id": "room-mic", "label": "Room mic", "url": "http://audio/room.mp3"},
+                    {"id": "desk", "label": "Desk", "url": "http://audio/desk.mp3"},
+                ],
+                live_audio_source="desk",
+            ),
+            SimpleNamespace(id="user-1"),
+            session,
+        )
+
+        assert [source.id for source in result.audio_sources] == ["room-mic", "desk"]
+        assert result.live_audio_source == "desk"
+        assert result.live_audio_url == "http://audio/desk.mp3"
+        assert _source_url(session) == "http://audio/desk.mp3"
+
+
+def test_legacy_independent_audio_url_is_returned_as_a_source() -> None:
+    engine = create_engine("sqlite://")
+    Base.metadata.create_all(engine, tables=[BroadcastViewerSettings.__table__])
+    with Session(engine) as session:
+        session.add(
+            BroadcastViewerSettings(
+                stream_title="Service",
+                live_audio_url="http://audio/legacy.mp3",
+                live_audio_source="independent",
+                pre_service_minutes=60,
+                starting_soon_message="Soon",
+                offline_message="Offline",
+            )
+        )
+        session.commit()
+
+        result = update_viewer_settings(
+            BroadcastViewerSettingsUpdate(stream_title="Updated service"),
+            SimpleNamespace(id="user-1"),
+            session,
+        )
+
+        assert [(source.id, source.url) for source in result.audio_sources] == [
+            ("independent", "http://audio/legacy.mp3")
+        ]
+        assert result.live_audio_source == "independent"
+
+
 def test_mixer_control_url_rejects_non_web_links() -> None:
     with pytest.raises(ValueError, match="http or https"):
         BroadcastViewerSettingsUpdate(mixer_control_url="javascript:alert(1)")
