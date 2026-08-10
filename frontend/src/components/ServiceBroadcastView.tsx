@@ -192,6 +192,10 @@ export function ServiceBroadcastView({ canControl = false, onOpenSettings }: { c
     });
   }
 
+  function putAudioOnAir(sourceId: string) {
+    void updateLiveControls({ live_audio_source: sourceId });
+  }
+
   function setCameraCycleMode(mode: "manual" | "automatic") {
     const cycleSeconds = mode === "automatic" ? lastCameraCycleSecondsRef.current : 0;
     void updateLiveControls({
@@ -420,7 +424,7 @@ export function ServiceBroadcastView({ canControl = false, onOpenSettings }: { c
 
       {hasLiveService && (liveAudioUrl || canControl) ? (
         <div className={`service-broadcast-viewer-controls ${canControl ? "has-admin-controls" : ""}`}>
-          {liveAudioUrl ? <LiveStreamAudio label={selectedAudioCamera ? `${selectedAudioCamera.label} audio` : "Live service audio"} url={liveAudioUrl} /> : null}
+          {liveAudioUrl ? <LiveStreamAudio label={selectedAudioCamera ? `${selectedAudioCamera.label} audio` : selectedIndependentAudio?.label ?? "Live service audio"} url={liveAudioUrl} /> : null}
           {canControl ? (
             <div className="service-broadcast-admin-live-controls" aria-label="Quick livestream controls">
               <label className="service-broadcast-live-select">
@@ -433,6 +437,23 @@ export function ServiceBroadcastView({ canControl = false, onOpenSettings }: { c
                 >
                   {!settings.camera_sources.length ? <option value="">No cameras</option> : null}
                   {settings.camera_sources.map((source) => <option key={source.id} value={source.id}>{source.label}</option>)}
+                </select>
+              </label>
+              <label className="service-broadcast-live-select">
+                <span>Audio</span>
+                <select
+                  aria-label="Live audio source"
+                  disabled={controlBusy}
+                  onChange={(event) => putAudioOnAir(event.target.value)}
+                  value={settings.live_audio_source}
+                >
+                  <option value="none">No audio</option>
+                  {settings.audio_sources.length ? <optgroup label="Independent audio">
+                    {settings.audio_sources.map((source) => <option key={source.id} value={source.id}>{source.label}</option>)}
+                  </optgroup> : null}
+                  {settings.camera_sources.length ? <optgroup label="Camera audio">
+                    {settings.camera_sources.map((source) => <option key={source.id} value={source.id}>{source.label}</option>)}
+                  </optgroup> : null}
                 </select>
               </label>
               {settings.camera_sources.length > 1 ? (

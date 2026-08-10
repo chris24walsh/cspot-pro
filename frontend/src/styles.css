@@ -4357,6 +4357,7 @@ h3 {
   flex-direction: column;
   gap: 8px;
   min-height: calc(100vh - 96px);
+  min-width: 0;
   overflow: hidden;
   padding: 8px;
   position: relative;
@@ -4530,6 +4531,8 @@ h3 {
   gap: 8px;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   min-height: 0;
+  min-width: 0;
+  width: 100%;
 }
 
 .service-broadcast-slide-pane,
@@ -4538,6 +4541,7 @@ h3 {
   border-radius: 6px;
   display: grid;
   min-height: 0;
+  min-width: 0;
   overflow: hidden;
   place-items: center;
 }
@@ -4546,6 +4550,8 @@ h3 {
   display: grid;
   height: 100%;
   min-height: 0;
+  min-width: 0;
+  max-width: 100%;
   place-items: center;
   width: 100%;
 }
@@ -4555,6 +4561,8 @@ h3 {
 .service-broadcast-slide .stage-video-frame {
   aspect-ratio: 16 / 9;
   max-height: 100%;
+  max-width: 100%;
+  min-width: 0;
   object-fit: contain;
   width: 100%;
 }
@@ -8174,6 +8182,7 @@ h3 {
     min-height: calc(100vh - 96px);
     overflow-y: auto;
     padding: 6px;
+    width: 100%;
   }
 
   .service-broadcast-toolbar {
@@ -8190,6 +8199,7 @@ h3 {
     grid-template-columns: minmax(0, 1fr);
     grid-template-rows: repeat(2, minmax(0, 1fr));
     min-height: min(62dvh, 560px);
+    overflow: hidden;
   }
 
   .service-broadcast-slide-pane {
