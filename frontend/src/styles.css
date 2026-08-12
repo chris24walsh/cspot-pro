@@ -3651,7 +3651,11 @@ h3 {
 
 .song-editor-dialog .section-heading {
   align-items: center;
+  display: grid;
+  gap: 8px;
+  grid-template-columns: minmax(0, 1fr) auto;
   margin-bottom: 4px;
+  min-width: 0;
 }
 
 .song-editor-dialog .section-heading > div:first-child {
@@ -3667,7 +3671,9 @@ h3 {
 
 .song-editor-dialog .section-heading .action-row {
   flex: 0 0 auto;
+  flex-wrap: nowrap;
   gap: 5px;
+  min-width: 0;
 }
 
 .song-editor-dialog {
@@ -7559,6 +7565,30 @@ h3 {
 }
 
 @media (max-width: 540px) {
+  .song-editor-dialog .section-heading {
+    gap: 5px;
+  }
+
+  .song-editor-dialog .section-heading .action-row {
+    gap: 3px;
+  }
+
+  .song-editor-dialog .song-editor-action-button {
+    height: 34px;
+    min-height: 34px;
+    min-width: 34px;
+    padding: 0;
+    width: 34px;
+  }
+
+  .song-editor-dialog .song-editor-save-status {
+    display: none;
+  }
+
+  .song-editor-dialog .section-heading h2 {
+    max-width: 100%;
+  }
+
   .song-editor-scroll.is-lyrics-tab {
     overflow: hidden;
   }
