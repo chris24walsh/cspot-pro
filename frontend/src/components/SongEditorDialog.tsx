@@ -99,12 +99,13 @@ function formFromSong(song: Song): SongForm {
 }
 
 function normalizeForm(form: SongForm, chords: string | null): SongForm {
-  const sequence = normalizeWorshipSequence(form.sequence, form.lyrics);
+  const lyrics = form.lyrics ? canonicalizeWorshipLyrics(form.lyrics, form.sequence) : null;
+  const sequence = normalizeWorshipSequence(form.sequence, lyrics);
   return {
     title: form.title.trim(),
     alternate_title: form.alternate_title || null,
     author: form.author || null,
-    lyrics: form.lyrics ? canonicalizeWorshipLyrics(form.lyrics, sequence) : null,
+    lyrics,
     chords,
     ccli_number: form.ccli_number || null,
     book_reference: form.book_reference || null,

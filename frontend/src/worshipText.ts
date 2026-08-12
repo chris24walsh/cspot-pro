@@ -418,9 +418,19 @@ export function worshipSequenceBlocks(value: string | null | undefined, sequence
 
 export function canonicalizeWorshipLyrics(value: string | null | undefined, sequence?: string | null) {
   const sections = parseWorshipSectionBlocks(value);
-  const seenContentByLabel = new Map<string, string>();
+  const contentKeysByLabel = new Map<string, string[]>();
+  const emittedLabels = new Set<string>();
   const verseLabels = canonicalVerseLabelMap(value);
   let verseNumber = 1;
+
+  const uniqueVariantLabel = (label: string, variantIndex: number) => {
+    if (variantIndex === 0 && !emittedLabels.has(label)) return label;
+    const match = label.match(/^(.*?)(\d+)?$/);
+    const base = match?.[1] || label;
+    let number = Math.max(Number(match?.[2] ?? 1) + variantIndex, 2);
+    while (emittedLabels.has(`${base}${number}`)) number += 1;
+    return `${base}${number}`;
+  };
 
   const blocks = sections
     .map((section) => {
@@ -436,22 +446,20 @@ export function canonicalizeWorshipLyrics(value: string | null | undefined, sequ
       if (/^Verse\d+$/i.test(label)) {
         verseNumber = Math.max(verseNumber, Number(label.match(/\d+$/)?.[0] ?? 0) + 1);
       }
-      const previous = seenContentByLabel.get(label);
-      if (section.content && !previous) {
-        seenContentByLabel.set(label, blockKey(section.content));
-        return [`[${compactSectionLabel(label)}]`, section.content].join("\n");
-      }
-      if (section.content && previous === blockKey(section.content)) {
-        return null;
-      }
-      if (section.content) {
-        return [`[${compactSectionLabel(label)}]`, section.content].join("\n");
-      }
-      return seenContentByLabel.has(label) ? null : `[${compactSectionLabel(label)}]`;
+      if (!section.content) return null;
+      const contentKey = blockKey(section.content);
+      const knownContentKeys = contentKeysByLabel.get(label) ?? [];
+      if (knownContentKeys.includes(contentKey)) return null;
+
+      const resolvedLabel = uniqueVariantLabel(label, knownContentKeys.length);
+      knownContentKeys.push(contentKey);
+      contentKeysByLabel.set(label, knownContentKeys);
+      emittedLabels.add(resolvedLabel);
+      return [`[${compactSectionLabel(resolvedLabel)}]`, section.content].join("\n");
     })
     .filter((block): block is string => Boolean(block));
 
-  const sequenceOnlyRepeats = sequenceLabels(sequence).filter((label) => seenContentByLabel.has(label));
+  const sequenceOnlyRepeats = sequenceLabels(sequence).filter((label) => contentKeysByLabel.has(label));
   if (sequenceOnlyRepeats.length > blocks.length) {
     const knownLabels = new Set(blocks.map((block) => normalizeSectionToken(block.split(/\r?\n/, 1)[0] ?? "")).filter(Boolean));
     for (const label of sequenceOnlyRepeats) {

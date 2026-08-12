@@ -46,6 +46,15 @@ describe("worship text normalization", () => {
     expect(normalizeWorshipSequence("V1 C C V2", lyrics)).toBe("V1 C C V2");
   });
 
+  it("prunes empty sections and numbers same-tag sections with different lyrics", () => {
+    const lyrics = "[V1]\nFirst verse\n\n[C]\nFirst chorus\n\n[B]\n\n[C]\nSecond chorus\n\n[C]\nFirst chorus";
+
+    expect(canonicalizeWorshipLyrics(lyrics, "V1 C B C C")).toBe(
+      "[V1]\nFirst verse\n\n[C]\nFirst chorus\n\n[C2]\nSecond chorus",
+    );
+    expect(normalizeWorshipSequence("V1 C C", canonicalizeWorshipLyrics(lyrics))).toBe("V1 C C2");
+  });
+
   it("normalizes long sequence labels that contain spaces", () => {
     expect(normalizeWorshipSequence("Verse 1 Chorus Verse 2 Pre-Chorus 2")).toBe("V1 C V2 P2");
   });
@@ -61,7 +70,7 @@ describe("worship text normalization", () => {
   it("uses O for outro labels", () => {
     const lyrics = "[Outro]\nFinal line\n\n[O]\nFinal repeat";
 
-    expect(canonicalizeWorshipLyrics(lyrics)).toBe("[O]\nFinal line\n\n[O]\nFinal repeat");
+    expect(canonicalizeWorshipLyrics(lyrics)).toBe("[O]\nFinal line\n\n[O2]\nFinal repeat");
     expect(normalizeWorshipSequence("Outro O", lyrics)).toBe("O O");
     expect(sequenceFromWorshipLyrics(lyrics)).toBe("O");
   });
