@@ -1,5 +1,5 @@
 import { Archive, Copy, ListRestart, Search, Save, Trash2, WandSparkles, X } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { createSong, updateSong, type Song } from "../api";
 import {
@@ -19,6 +19,7 @@ import {
   transposeChordSymbol,
   upsertChordAnnotation,
   validateChordSymbol,
+  wrapChordEditorLine,
   type ChordAnnotation,
   type ChordChartDocument,
   type ChordDetailMode,
@@ -279,6 +280,8 @@ export function SongEditorDialog({
   const [hoveredChordId, setHoveredChordId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [chordEditorLineLength, setChordEditorLineLength] = useState(80);
+  const chordChartPanelRef = useRef<HTMLDivElement | null>(null);
   const [persistedSongId, setPersistedSongId] = useState<string | null>(mode === "edit" ? song.id : null);
   const [lastSavedSong, setLastSavedSong] = useState(song);
   const [savedSignature, setSavedSignature] = useState(() => mode === "create" ? "" : JSON.stringify(normalizeForm(formFromSong(song), song.chords)));
@@ -321,6 +324,20 @@ export function SongEditorDialog({
     }));
     setSelectedLineIndex((current) => Math.min(current, Math.max(lines.length - 1, 0)));
   }, [lines]);
+
+  useEffect(() => {
+    if (tab !== "chords" || !chordChartPanelRef.current) return;
+    const panel = chordChartPanelRef.current;
+    const updateLineLength = () => {
+      const usableWidth = Math.max(0, panel.clientWidth - 100);
+      setChordEditorLineLength(Math.max(14, Math.min(90, Math.floor(usableWidth / 12))));
+    };
+    updateLineLength();
+    if (typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(updateLineLength);
+    observer.observe(panel);
+    return () => observer.disconnect();
+  }, [tab]);
 
   function normalizeChordInput(value: string) {
     const input = normalizeChordSymbolInput(value);
@@ -700,7 +717,7 @@ export function SongEditorDialog({
                 </div>
               </div>
 
-              <div className="musician-chart-panel">
+              <div className="musician-chart-panel" ref={chordChartPanelRef}>
                 {lines.length ? (
                   <div className="musician-preview">
                     {lines.map((line, lineIndex) => {
@@ -709,7 +726,7 @@ export function SongEditorDialog({
                       }
                       const annotations = lineAnnotations.filter((annotation) => annotation.lineIndex === lineIndex);
                       const totalSlots = line.length + LEADING_CHORD_ANCHORS + TRAILING_CHORD_ANCHORS;
-                      const renderSlot = (slotIndex: number) => {
+                      const renderSlot = (slotIndex: number, gridColumn: number) => {
                         const annotation = annotations.find((candidate) => candidate.anchorIndex === slotIndex);
                         const isEditing =
                           inlineChordEditorOpen &&
@@ -718,7 +735,7 @@ export function SongEditorDialog({
                           (editingAnnotationId === null ? !annotation : annotation != null && editingAnnotationId === annotation.id);
                         if (isEditing) {
                           return (
-                            <span className="musician-slot-editor" key={`editor-${lineIndex}-${slotIndex}`} style={{ gridColumn: slotIndex + 1, gridRow: 1 }}>
+                            <span className="musician-slot-editor" key={`editor-${lineIndex}-${slotIndex}`} style={{ gridColumn, gridRow: 1 }}>
                               <input
                                 autoFocus
                                 disabled={!canEdit}
@@ -767,34 +784,45 @@ export function SongEditorDialog({
                             onFocus={() => { setHoveredAnchor({ lineIndex, slotIndex }); setHoveredChordId(annotation?.id ?? null); }}
                             onMouseEnter={() => { setHoveredAnchor({ lineIndex, slotIndex }); setHoveredChordId(annotation?.id ?? null); }}
                             onMouseLeave={() => { setHoveredAnchor(null); setHoveredChordId(null); }}
-                            style={{ gridColumn: slotIndex + 1, gridRow: 1 }}
+                            style={{ gridColumn, gridRow: 1 }}
                             type="button"
                           >
                             <span className="musician-slot-chord">{annotation ? displayChord(annotation.chord, { capo: chordChart.capo, detailMode, displayMode }) : "·"}</span>
                           </button>
                         );
                       };
-                      return (
-                        <div className="musician-line-grid" key={`${lineIndex}-${line}`} style={{ gridTemplateColumns: `repeat(${totalSlots}, minmax(1ch, 1ch))` }}>
-                          {Array.from({ length: totalSlots }, (_, slotIndex) => renderSlot(slotIndex))}
-                          {Array.from({ length: line.length }, (_, charIndex) => (
-                            <button
-                              className={`musician-char ${line[charIndex] === " " ? "is-space" : ""} ${hoveredAnchor?.lineIndex === lineIndex && hoveredAnchor.slotIndex === LEADING_CHORD_ANCHORS + charIndex ? "is-anchor-hovered" : ""}`}
-                              disabled={!canEdit}
-                              key={`${lineIndex}-char-${charIndex}`}
-                              onClick={() => {
-                                const slotIndex = LEADING_CHORD_ANCHORS + charIndex;
-                                const annotation = annotations.find((candidate) => candidate.anchorIndex === slotIndex);
-                                startInlineChordEdit(lineIndex, slotIndex, annotation);
-                              }}
-                              style={{ gridColumn: LEADING_CHORD_ANCHORS + charIndex + 1, gridRow: 2 }}
-                              type="button"
-                            >
-                              {line[charIndex] === " " ? "\u00a0" : line[charIndex]}
-                            </button>
-                          ))}
-                        </div>
-                      );
+                      return wrapChordEditorLine(line, chordEditorLineLength).map((segment, segmentIndex, segments) => {
+                        const globalSlotStart = segmentIndex === 0 ? 0 : LEADING_CHORD_ANCHORS + segment.start;
+                        const globalSlotEnd = segmentIndex === segments.length - 1 ? totalSlots : LEADING_CHORD_ANCHORS + segment.end;
+                        const visualSlotCount = globalSlotEnd - globalSlotStart;
+                        return (
+                          <div className={`musician-line-grid ${segmentIndex > 0 ? "is-continuation" : ""}`} key={`${lineIndex}-${segment.start}`} style={{ gridTemplateColumns: `repeat(${visualSlotCount}, minmax(1ch, 1ch))` }}>
+                            {Array.from({ length: visualSlotCount }, (_, localSlotIndex) => {
+                              const slotIndex = globalSlotStart + localSlotIndex;
+                              return renderSlot(slotIndex, localSlotIndex + 1);
+                            })}
+                            {Array.from({ length: segment.end - segment.start }, (_, localCharIndex) => {
+                              const charIndex = segment.start + localCharIndex;
+                              return (
+                                <button
+                                  className={`musician-char ${line[charIndex] === " " ? "is-space" : ""} ${hoveredAnchor?.lineIndex === lineIndex && hoveredAnchor.slotIndex === LEADING_CHORD_ANCHORS + charIndex ? "is-anchor-hovered" : ""}`}
+                                  disabled={!canEdit}
+                                  key={`${lineIndex}-char-${charIndex}`}
+                                  onClick={() => {
+                                    const slotIndex = LEADING_CHORD_ANCHORS + charIndex;
+                                    const annotation = annotations.find((candidate) => candidate.anchorIndex === slotIndex);
+                                    startInlineChordEdit(lineIndex, slotIndex, annotation);
+                                  }}
+                                  style={{ gridColumn: LEADING_CHORD_ANCHORS + charIndex - globalSlotStart + 1, gridRow: 2 }}
+                                  type="button"
+                                >
+                                  {line[charIndex] === " " ? "\u00a0" : line[charIndex]}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        );
+                      });
                     })}
                   </div>
                 ) : (

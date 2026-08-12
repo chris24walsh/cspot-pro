@@ -31,6 +31,30 @@ export interface ChordSymbolValidation {
   error: string | null;
 }
 
+export interface ChordEditorLineSegment {
+  end: number;
+  start: number;
+}
+
+export function wrapChordEditorLine(line: string, maxCharacters: number): ChordEditorLineSegment[] {
+  if (!line.length) return [{ start: 0, end: 0 }];
+  const limit = Math.max(1, Math.floor(maxCharacters));
+  const segments: ChordEditorLineSegment[] = [];
+  let start = 0;
+
+  while (start < line.length) {
+    let end = Math.min(start + limit, line.length);
+    if (end < line.length) {
+      const breakAt = line.lastIndexOf(" ", end);
+      if (breakAt > start) end = breakAt + 1;
+    }
+    segments.push({ start, end });
+    start = end;
+  }
+
+  return segments;
+}
+
 const SHARP_NOTES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
 const FLAT_NOTES = ["C", "Db", "D", "Eb", "E", "F", "Gb", "G", "Ab", "A", "Bb", "B"];
 const NOTE_INDEX = new Map<string, number>([

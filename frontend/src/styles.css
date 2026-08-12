@@ -3135,7 +3135,7 @@ h3 {
   gap: 18px;
   overflow: visible;
   padding: 18px 20px 26px;
-  width: max-content;
+  width: 100%;
   min-width: 100%;
 }
 
@@ -3223,9 +3223,13 @@ h3 {
   display: grid;
   gap: 0;
   justify-content: start;
-  min-width: max-content;
+  max-width: 100%;
   padding-left: 2.25ch;
   row-gap: 0;
+}
+
+.musician-line-grid.is-continuation {
+  margin-top: -14px;
 }
 
 .musician-slot {

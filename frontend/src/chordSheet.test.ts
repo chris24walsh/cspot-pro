@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { cappedCapoForKeys, clearChordAnnotations, createEmptyChordChart, setChordChartAbsoluteKey } from "./chordSheet";
+import { cappedCapoForKeys, clearChordAnnotations, createEmptyChordChart, setChordChartAbsoluteKey, wrapChordEditorLine } from "./chordSheet";
 
 describe("setChordChartAbsoluteKey", () => {
   it("permanently transposes stored chords without changing capo", () => {
@@ -40,5 +40,17 @@ describe("clearChordAnnotations", () => {
     };
 
     expect(clearChordAnnotations(chart)).toEqual({ ...chart, annotations: [] });
+  });
+});
+
+describe("wrapChordEditorLine", () => {
+  it("wraps at word boundaries without changing character positions", () => {
+    const line = "All the words on one original lyric line";
+    const segments = wrapChordEditorLine(line, 14);
+
+    expect(segments.length).toBeGreaterThan(1);
+    expect(segments.map(({ start, end }) => line.slice(start, end)).join("")).toBe(line);
+    expect(segments[0]).toEqual({ start: 0, end: 14 });
+    expect(segments[segments.length - 1]?.end).toBe(line.length);
   });
 });
