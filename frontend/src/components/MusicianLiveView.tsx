@@ -763,22 +763,10 @@ export function MusicianLiveView({ controlPlanId, onEditSong, onExit, plan, song
       {topbarSlot ? createPortal(toolbar, topbarSlot) : null}
 
       <div className="musician-song-navigation">
-        <div className="musician-song-transport" aria-label="Song navigation">
-          <button disabled={currentSongIndex <= 0} onClick={() => moveSong(-1)} type="button">
-            <ChevronLeft size={16} aria-hidden="true" />
-            Previous song
-          </button>
-          <button
-            disabled={currentSongIndex < 0 || currentSongIndex >= worshipItems.length - 1}
-            onClick={() => moveSong(1)}
-            type="button"
-          >
-            Next song
-            <ChevronRight size={16} aria-hidden="true" />
-          </button>
-        </div>
-
-        {sequenceBlocks.length ? <nav className="musician-sequence-strip" aria-label="Song sequence">
+        <button aria-label="Previous song" className="musician-song-step-button" disabled={currentSongIndex <= 0} onClick={() => moveSong(-1)} title="Previous song" type="button">
+          <ChevronLeft size={16} aria-hidden="true" />
+        </button>
+        <nav className="musician-sequence-strip" aria-label="Song sequence">
           {sequenceBlocks.map((block, blockIndex) => (
             <button
               aria-current={blockIndex === currentSequenceBlockIndex ? "step" : undefined}
@@ -796,7 +784,10 @@ export function MusicianLiveView({ controlPlanId, onEditSong, onExit, plan, song
               {block.label}
             </button>
           ))}
-        </nav> : null}
+        </nav>
+        <button aria-label="Next song" className="musician-song-step-button" disabled={currentSongIndex < 0 || currentSongIndex >= worshipItems.length - 1} onClick={() => moveSong(1)} title="Next song" type="button">
+          <ChevronRight size={16} aria-hidden="true" />
+        </button>
       </div>
 
       {message ? <p className="form-message">{message}</p> : null}

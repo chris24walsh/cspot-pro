@@ -2380,60 +2380,58 @@ h3 {
   cursor: pointer;
 }
 
-.musician-song-transport {
+.musician-song-navigation {
+  background: #f7f3e8;
+  border-bottom: 1px solid #e3dcc8;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 3px;
+  grid-template-columns: 30px minmax(0, 1fr) 30px;
+  min-width: 0;
+  padding: 3px 4px;
 }
 
-.musician-song-transport button {
+.musician-song-step-button {
   align-items: center;
-  background: #f7f3e8;
-  border: 0;
-  border-bottom: 1px solid #e3dcc8;
+  background: #fffefa;
+  border: 1px solid #d9d0bb;
+  border-radius: 5px;
   color: #234a40;
   cursor: pointer;
-  display: flex;
-  font: inherit;
-  font-size: 12px;
-  font-weight: 900;
-  gap: 5px;
-  justify-content: flex-start;
-  min-height: 30px;
-  padding: 3px 8px;
+  display: inline-flex;
+  justify-content: center;
+  min-height: 26px;
+  padding: 0;
+  width: 30px;
 }
 
-.musician-song-transport button + button {
-  justify-content: flex-end;
-}
-
-.musician-song-transport button:disabled,
+.musician-song-step-button:disabled,
 .musician-edit-button:disabled {
   cursor: not-allowed;
   opacity: 0.45;
 }
 
 .musician-sequence-strip {
-  background: #fffefa;
-  border-bottom: 1px solid #e3dcc8;
+  align-items: center;
+  background: transparent;
   display: flex;
-  gap: 4px;
+  gap: 2px;
   min-width: 0;
   overflow-x: auto;
-  padding: 4px 6px;
+  padding: 0;
   scrollbar-width: thin;
 }
 
 .musician-sequence-strip button {
   background: #f7f3e8;
   border: 1px solid #d9d0bb;
-  border-radius: 999px;
+  border-radius: 4px;
   color: #617069;
   flex: 0 0 auto;
   font-size: 10px;
   font-weight: 900;
-  min-height: 24px;
-  min-width: 34px;
-  padding: 2px 8px;
+  min-height: 26px;
+  min-width: 28px;
+  padding: 2px 5px;
 }
 
 .musician-sequence-strip button.is-active {
