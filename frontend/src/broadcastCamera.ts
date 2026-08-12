@@ -1,4 +1,5 @@
 import type { BroadcastCameraSource } from "./api";
+import { appAssetUrl } from "./paths";
 
 export type CameraServicePhase = "general" | "worship" | "prayer" | "sermon" | "announcements";
 
@@ -85,6 +86,13 @@ export function go2RtcWebSocketUrl(url: string): string | null {
   parsed.search = new URLSearchParams({ src: source }).toString();
   parsed.protocol = parsed.protocol === "https:" ? "wss:" : "ws:";
   return parsed.toString();
+}
+
+export function go2RtcAudioStreamUrl(streamName: string): string | null {
+  const source = streamName.trim();
+  if (!source) return null;
+  const query = new URLSearchParams({ audio: "aac", src: source });
+  return `${appAssetUrl("camera/api/stream.m3u8")}?${query}`;
 }
 
 export function cameraAudioUrl(url: string): string {

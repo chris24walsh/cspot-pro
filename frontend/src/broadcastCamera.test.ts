@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
 
-import { activeCameraIdAt, cameraAudioUrl, cameraServicePhase, go2RtcSourceName, go2RtcWebSocketUrl } from "./broadcastCamera";
+import {
+  activeCameraIdAt,
+  cameraAudioUrl,
+  cameraServicePhase,
+  go2RtcAudioStreamUrl,
+  go2RtcSourceName,
+  go2RtcWebSocketUrl,
+} from "./broadcastCamera";
 
 describe("broadcast camera helpers", () => {
   it("converts a proxied HLS camera into its low-latency websocket", () => {
@@ -12,6 +19,12 @@ describe("broadcast camera helpers", () => {
   it("builds an audio-only camera playlist", () => {
     expect(cameraAudioUrl("/app/camera/api/stream.m3u8?src=ptz&video=h264&audio=aac"))
       .toBe("/app/camera/api/stream.m3u8?audio=aac&src=ptz");
+  });
+
+  it("builds a same-origin audio playlist for an opaque go2rtc source name", () => {
+    expect(go2RtcAudioStreamUrl("live audio/desk?private"))
+      .toBe("/camera/api/stream.m3u8?audio=aac&src=live+audio%2Fdesk%3Fprivate");
+    expect(go2RtcAudioStreamUrl("   ")).toBeNull();
   });
 
   it("keeps seeded automatic camera changes synchronized from the saved start time", () => {

@@ -533,7 +533,8 @@ export interface BroadcastCameraSource {
 export interface BroadcastAudioSource {
   id: string;
   label: string;
-  url: string;
+  url: string | null;
+  stream_name: string | null;
 }
 
 export interface BroadcastViewerSettings {
@@ -548,6 +549,7 @@ export interface BroadcastViewerSettings {
   camera_fade_ms: number;
   live_audio_url: string | null;
   live_audio_source: string;
+  live_audio_stream_name: string | null;
   manual_live_audience: "off" | "public" | "admins";
   mixer_name: string | null;
   mixer_protocol: "none" | "web" | "bridge" | "audio-only";

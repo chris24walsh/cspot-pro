@@ -21,7 +21,9 @@ CSpot can take live and recorded service audio from the portable
 [CSpot Audio Bridge](audio-bridge/README.md), with independent USB microphone
 and mixing-desk inputs on Windows or Raspberry Pi. The original
 [single-input Pi/Icecast setup](docs/raspberry-pi-live-audio.md) remains
-supported.
+supported. Independent HTTP/MP3 inputs are normalized to AAC by go2rtc for the
+same fragmented-MP4 MSE/HLS browser transport used by camera audio; the raw
+authenticated relay remains available for compatibility and recording.
 
 ## Network TV display
 

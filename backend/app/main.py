@@ -2,10 +2,14 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy import select
 
 from app.api.router import api_router
 from app.core.config import settings
 from app.core.database import SessionLocal
+from app.modules.broadcast.models import BroadcastViewerSettings
+from app.modules.broadcast.settings import audio_sources
+from app.modules.broadcast.transport import reconcile_audio_sources
 from app.modules.planning.reference_data import ensure_worship_set_plan_type
 
 
@@ -13,6 +17,9 @@ from app.modules.planning.reference_data import ensure_worship_set_plan_type
 async def lifespan(_app: FastAPI):
     with SessionLocal.begin() as session:
         ensure_worship_set_plan_type(session)
+        viewer_settings = session.scalar(select(BroadcastViewerSettings).limit(1))
+        configured_audio_sources = audio_sources(viewer_settings) if viewer_settings else []
+    reconcile_audio_sources(configured_audio_sources)
     yield
 
 

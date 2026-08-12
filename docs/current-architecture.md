@@ -259,13 +259,34 @@ cross-fade instead of reconnecting. The camera gateway uses MSE over a proxied
 WebSocket for low-latency playback, with native/HLS/MJPEG compatibility paths,
 a stall watchdog, and automatic reconnection. Slide state is polled separately
 at 500 ms and passes through a configurable delay so it can be aligned with the
-camera pipeline. Dedicated live audio is relayed through the API so a private
-Pi/Icecast source can be used from an HTTPS deployment; camera audio uses its
+camera pipeline.
+
+Independent room-microphone and desk feeds can remain private HTTP MP3 inputs.
+CSpot reconciles each configured input into go2rtc as an FFmpeg-backed AAC
+stream, so viewers receive independent and camera audio through the same
+fragmented-MP4 MSE path and HLS compatibility path. The source URL and any
+listener token stay server-side. The authenticated raw API relay at
+`/api/v1/broadcast/live-audio` remains available as a browser fallback; the
+same raw upstream remains available to the sermon-recording pipeline. Raw MP3
+is not the preferred desktop playback transport. The administrator's per-source
+Listen preview uses the normalized transport as well when the gateway is
+available.
+
+Gateway entries owned by CSpot use opaque names in the reserved
+`cspot-audio-*` namespace. Reconciliation creates or updates entries for the
+currently configured independent sources and removes stale CSpot-owned entries.
+It never treats the opaque name as a user-facing source ID and does not modify
+operator-managed camera streams outside that namespace. Camera audio uses its
 matching gateway source and stays independent of which camera is visible.
+The public frontend proxy exposes only authenticated WebSocket and HLS playback
+routes, checks requested source names against the configured camera/audio
+allowlist, and returns 404 for go2rtc configuration, stream-inspection, log, and
+restart endpoints. Independent input URLs are redacted from ordinary viewer
+settings responses.
 The optional CSpot Audio Bridge exposes multiple Windows DirectShow or Linux
 ALSA inputs as on-demand, shared MP3 streams. Capture stops after the final
 consumer disconnects, and the same bridge can move from a Windows church
-desktop to a Raspberry Pi without changing the CSpot-side protocol.
+desktop to a Raspberry Pi without changing the CSpot-side input protocol.
 PTZ movement remains the camera's own patrol/tour responsibility; CSpot selects
 and fades that moving view but does not store camera credentials or issue vendor-
 specific movement commands.

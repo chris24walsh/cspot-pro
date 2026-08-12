@@ -17,18 +17,26 @@ class BroadcastAudioSource(BaseModel):
     url: str = Field(min_length=1, max_length=2000)
 
 
+class BroadcastAudioSourceRead(BaseModel):
+    id: str
+    label: str
+    url: str | None = None
+    stream_name: str | None = None
+
+
 class BroadcastViewerSettingsRead(BaseModel):
     stream_title: str
     stream_description: str | None = None
     camera_url: str | None = None
     camera_sources: list[BroadcastCameraSource] = Field(default_factory=list)
-    audio_sources: list[BroadcastAudioSource] = Field(default_factory=list)
+    audio_sources: list[BroadcastAudioSourceRead] = Field(default_factory=list)
     active_camera_id: str | None = None
     camera_cycle_seconds: int
     camera_cycle_started_at: datetime | None = None
     camera_fade_ms: int
     live_audio_url: str | None = None
     live_audio_source: str
+    live_audio_stream_name: str | None = None
     manual_live_audience: Literal["off", "public", "admins"] = "off"
     mixer_name: str | None = None
     mixer_protocol: str

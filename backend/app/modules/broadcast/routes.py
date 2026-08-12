@@ -1,9 +1,11 @@
 import json
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Annotated
+from urllib.parse import parse_qs, urlsplit
 
 import requests
-from fastapi import APIRouter, Depends, HTTPException, Response, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Response, status
 from fastapi.responses import FileResponse, StreamingResponse
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -17,6 +19,7 @@ from app.modules.broadcast.recording import (
     stop_recording,
 )
 from app.modules.broadcast.schemas import (
+    BroadcastAudioSourceRead,
     BroadcastRecordingRead,
     BroadcastRecordingStart,
     BroadcastViewerSettingsRead,
@@ -28,6 +31,12 @@ from app.modules.broadcast.settings import (
     camera_sources,
     effective_audio_source,
     selected_audio_url,
+)
+from app.modules.broadcast.transport import (
+    audio_stream_name,
+    audio_transport_available,
+    camera_stream_name,
+    reconcile_audio_sources,
 )
 from app.modules.identity.auth import (
     CurrentUser,
@@ -171,7 +180,10 @@ def viewer_settings(session: Session) -> BroadcastViewerSettings:
 
 
 def settings_read(
-    settings: BroadcastViewerSettings, *, can_view_admin_test: bool = True
+    settings: BroadcastViewerSettings,
+    *,
+    can_view_admin_test: bool = True,
+    include_audio_source_urls: bool = True,
 ) -> BroadcastViewerSettingsRead:
     sources = camera_sources(settings)
     independent_sources = audio_sources(settings)
@@ -184,18 +196,43 @@ def settings_read(
     manual_live_audience = settings.manual_live_audience or "off"
     if manual_live_audience == "admins" and not can_view_admin_test:
         manual_live_audience = "off"
+    selected_independent_audio = next(
+        (
+            source
+            for source in independent_sources
+            if source.id == effective_audio_source(settings, sources, independent_sources)
+        ),
+        None,
+    )
     return BroadcastViewerSettingsRead(
         stream_title=settings.stream_title,
         stream_description=settings.stream_description,
         camera_url=settings.camera_url,
         camera_sources=sources,
-        audio_sources=independent_sources,
+        audio_sources=[
+            BroadcastAudioSourceRead(
+                id=source.id,
+                label=source.label,
+                url=source.url if include_audio_source_urls else None,
+                stream_name=(
+                    audio_stream_name(source)
+                    if include_audio_source_urls and audio_transport_available()
+                    else None
+                ),
+            )
+            for source in independent_sources
+        ],
         active_camera_id=active_camera_id,
         camera_cycle_seconds=settings.camera_cycle_seconds or 0,
         camera_cycle_started_at=settings.camera_cycle_started_at,
         camera_fade_ms=settings.camera_fade_ms or 0,
-        live_audio_url=settings.live_audio_url,
+        live_audio_url=settings.live_audio_url if include_audio_source_urls else None,
         live_audio_source=effective_audio_source(settings, sources, independent_sources),
+        live_audio_stream_name=(
+            audio_stream_name(selected_independent_audio)
+            if selected_independent_audio is not None and audio_transport_available()
+            else None
+        ),
         manual_live_audience=manual_live_audience,
         mixer_name=settings.mixer_name,
         mixer_protocol=settings.mixer_protocol or "none",
@@ -245,10 +282,88 @@ def get_viewer_settings(
     current_user: CurrentUser,
     session: Session = Depends(get_session),
 ) -> BroadcastViewerSettingsRead:
-    can_view_admin_test = "users:manage" in list_permissions(session, current_user.id)
-    return settings_read(
-        viewer_settings(session), can_view_admin_test=can_view_admin_test
+    permissions = set(list_permissions(session, current_user.id))
+    can_view_admin_test = "users:manage" in permissions
+    can_manage_broadcast = bool(
+        permissions.intersection({"broadcast:use", "users:manage"})
     )
+    return settings_read(
+        viewer_settings(session),
+        can_view_admin_test=can_view_admin_test,
+        include_audio_source_urls=can_manage_broadcast,
+    )
+
+
+@router.get("/playback-authorized", status_code=status.HTTP_204_NO_CONTENT)
+def playback_authorized(
+    current_user: CurrentUser,
+    session: Session = Depends(get_session),
+    playback_source: Annotated[
+        str | None, Header(alias="X-CSpot-Playback-Source")
+    ] = None,
+    playback_uri: Annotated[
+        str | None, Header(alias="X-CSpot-Playback-URI")
+    ] = None,
+) -> Response:
+    permissions = set(list_permissions(session, current_user.id))
+    settings = viewer_settings(session)
+    can_manage = bool(permissions.intersection({"broadcast:use", "users:manage"}))
+    manual_audience = settings.manual_live_audience or "off"
+    manually_visible = manual_audience == "public" or (
+        manual_audience == "admins" and "users:manage" in permissions
+    )
+    if not can_manage and not manually_visible and not live_output_exists(session):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Livestream playback is not currently available",
+        )
+
+    # HLS child playlists and segments carry a short-lived session ID instead
+    # of the source name. Their session can only be created by an authorized
+    # request to a source-checked top-level playlist.
+    is_hls_session_request = bool(
+        playback_uri and "/camera/api/hls/" in playback_uri.split("?", 1)[0]
+    )
+    if not is_hls_session_request:
+        requested_source = playback_source
+        if not requested_source and playback_uri:
+            requested_source = (
+                parse_qs(urlsplit(playback_uri).query).get("src") or [None]
+            )[0]
+        allowed_sources = {
+            name
+            for source in camera_sources(settings)
+            if (name := camera_stream_name(source)) is not None
+        }
+        independent_sources = audio_sources(settings)
+        if can_manage:
+            allowed_sources.update(
+                name
+                for source in independent_sources
+                if (name := audio_stream_name(source)) is not None
+            )
+        else:
+            selected_source_id = effective_audio_source(
+                settings,
+                camera_sources(settings),
+                independent_sources,
+            )
+            selected_source = next(
+                (
+                    source
+                    for source in independent_sources
+                    if source.id == selected_source_id
+                ),
+                None,
+            )
+            if selected_source and (name := audio_stream_name(selected_source)):
+                allowed_sources.add(name)
+        if requested_source not in allowed_sources:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Livestream source is not configured",
+            )
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.patch("/manual-live", response_model=BroadcastViewerSettingsRead)
@@ -317,7 +432,11 @@ def test_audio_source(
     session: Session = Depends(get_session),
 ) -> StreamingResponse:
     source = next(
-        (candidate for candidate in audio_sources(viewer_settings(session)) if candidate.id == source_id),
+        (
+            candidate
+            for candidate in audio_sources(viewer_settings(session))
+            if candidate.id == source_id
+        ),
         None,
     )
     if source is None:
@@ -420,7 +539,12 @@ def update_viewer_settings(
             detail="The selected mixer integration type is not supported",
         )
 
-    if "active_camera_id" in updates or "camera_cycle_seconds" in updates or camera_source_payload is not ...:
+    camera_cycle_changed = (
+        "active_camera_id" in updates
+        or "camera_cycle_seconds" in updates
+        or camera_source_payload is not ...
+    )
+    if camera_cycle_changed:
         settings.camera_cycle_started_at = datetime.now(UTC)
 
     for field, value in updates.items():
@@ -455,4 +579,6 @@ def update_viewer_settings(
         settings.active_camera_id = None
     session.commit()
     session.refresh(settings)
-    return settings_read(settings)
+    result = settings_read(settings)
+    reconcile_audio_sources(independent_sources)
+    return result

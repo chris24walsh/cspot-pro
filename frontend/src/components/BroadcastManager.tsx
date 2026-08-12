@@ -15,9 +15,10 @@ import {
   type BroadcastRecording,
   type PresentationLiveService,
 } from "../api";
+import { go2RtcAudioStreamUrl } from "../broadcastCamera";
 import { recordingTimestampTitle, SermonRecordingPlayer } from "./SermonRecordingPlayer";
 import { useConfirmationDialog } from "./ConfirmationDialog";
-import { LowLatencyCamera } from "./LowLatencyCamera";
+import { LiveStreamAudio, LowLatencyCamera } from "./LowLatencyCamera";
 
 const EMPTY_SETTINGS: BroadcastViewerSettings = {
   auto_record_sermons: true,
@@ -31,6 +32,7 @@ const EMPTY_SETTINGS: BroadcastViewerSettings = {
   camera_fade_ms: 1200,
   live_audio_url: null,
   live_audio_source: "none",
+  live_audio_stream_name: null,
   manual_live_audience: "off",
   mixer_name: null,
   mixer_protocol: "none",
@@ -237,14 +239,24 @@ export function BroadcastManager({
     const id = `audio-${Date.now().toString(36)}`;
     setForm((current) => ({
       ...current,
-      audio_sources: [...current.audio_sources, { id, label: `Audio ${current.audio_sources.length + 1}`, url: "" }],
+      audio_sources: [
+        ...current.audio_sources,
+        {
+          id,
+          label: `Audio ${current.audio_sources.length + 1}`,
+          stream_name: null,
+          url: "",
+        },
+      ],
     }));
   }
 
   function updateAudioSource(id: string, field: "label" | "url", value: string) {
     setForm((current) => ({
       ...current,
-      audio_sources: current.audio_sources.map((source) => source.id === id ? { ...source, [field]: value } : source),
+      audio_sources: current.audio_sources.map((source) => source.id === id
+        ? { ...source, [field]: value, ...(field === "url" ? { stream_name: null } : {}) }
+        : source),
     }));
   }
 
@@ -461,7 +473,7 @@ export function BroadcastManager({
                   onChange={(event) => updateAudioSource(source.id, "url", event.target.value)}
                   placeholder="http://audio-host:8091/audio/desk.mp3?token=…"
                   type="text"
-                  value={source.url}
+                  value={source.url ?? ""}
                 />
                 <button className="text-button icon-text-button" disabled={loading || !source.url} onClick={() => void testAudioSource(source.id)} type="button">
                   <Headphones size={14} aria-hidden="true" /> {testingAudioId === source.id ? "Stop" : "Listen"}
@@ -480,7 +492,14 @@ export function BroadcastManager({
                 </button>
                 {testingAudioId === source.id ? (
                   <div className="broadcast-source-test broadcast-audio-test">
-                    <audio autoPlay controls src={broadcastAudioSourceTestUrl(source.id)} />
+                    <LiveStreamAudio
+                      label={`${source.label} test audio`}
+                      url={
+                        (source.stream_name
+                          ? go2RtcAudioStreamUrl(source.stream_name)
+                          : null) ?? broadcastAudioSourceTestUrl(source.id)
+                      }
+                    />
                   </div>
                 ) : null}
               </article>

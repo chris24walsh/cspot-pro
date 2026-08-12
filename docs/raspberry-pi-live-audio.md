@@ -7,8 +7,11 @@ The Icecast publisher below remains supported for existing single-input Pis.
 
 CSpot can play and record a dedicated low-bandwidth audio stream independently
 of the camera. A Raspberry Pi captures an ALSA input with FFmpeg and publishes
-mono MP3 audio to Icecast. The API relays that stream to signed-in viewers, so
-an internal HTTP source still works when CSpot itself is served over HTTPS.
+mono MP3 audio to Icecast. CSpot keeps that HTTP listener URL private and
+ingests it server-side into the camera gateway, where FFmpeg supplies AAC for
+the same fragmented-MP4 MSE and HLS paths used by camera audio. An internal HTTP
+source therefore still works when CSpot itself is served over HTTPS, without
+requiring desktop browsers to play the endless raw MP3 stream directly.
 
 ## Hardware
 
@@ -65,10 +68,19 @@ http://192.168.1.40:8000/cspot.mp3
 ```
 
 When a presentation output is live, viewers receive a Live service audio
-player. The API refuses to open the configured microphone stream at other times.
-If a camera is also configured, its audio is muted to avoid echo. Sermon
-recording prefers this source and falls back to the camera audio track when the
-dedicated source is empty.
+player. CSpot reconciles each configured independent input into an
+FFmpeg-backed go2rtc stream and uses AAC for viewer playback. These internal
+gateway entries have opaque names beginning with `cspot-audio-`; the prefix is
+reserved for CSpot, and administrators should not create, rename, or depend on
+those names in go2rtc configuration. Reconciliation adds or updates entries for
+configured inputs and removes stale entries in that reserved namespace without
+touching operator-managed camera streams.
+
+The authenticated raw MP3 relay remains available as a fallback and for sermon
+recording. It refuses access when the livestream is not available to the signed-
+in viewer. If a camera is also configured, its audio is muted to avoid echo.
+Sermon recording prefers the independent source and falls back to the camera
+audio track when the dedicated source is empty.
 
 Keep Icecast private, use synthetic credentials during testing, and do not put
 the source password in the listener URL entered in CSpot.

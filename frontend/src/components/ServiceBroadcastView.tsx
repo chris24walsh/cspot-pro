@@ -19,7 +19,7 @@ import {
   type RenderedSlide,
   type Song,
 } from "../api";
-import { activeCameraIdAt, cameraAudioUrl, cameraServicePhase } from "../broadcastCamera";
+import { activeCameraIdAt, cameraAudioUrl, cameraServicePhase, go2RtcAudioStreamUrl } from "../broadcastCamera";
 import {
   buildPresentationSlides,
   extractYouTubeId,
@@ -48,6 +48,7 @@ const DEFAULT_SETTINGS: BroadcastViewerSettings = {
   camera_url: null,
   live_audio_url: null,
   live_audio_source: "none",
+  live_audio_stream_name: null,
   manual_live_audience: "off",
   mixer_name: null,
   mixer_protocol: "none",
@@ -164,7 +165,7 @@ export function ServiceBroadcastView({ canControl = false, onOpenSettings }: { c
   const selectedAudioCamera = settings.camera_sources.find((source) => source.id === settings.live_audio_source) ?? null;
   const selectedIndependentAudio = settings.audio_sources.find((source) => source.id === settings.live_audio_source) ?? null;
   const liveAudioUrl = selectedIndependentAudio
-    ? broadcastLiveAudioUrl()
+    ? (settings.live_audio_stream_name ? go2RtcAudioStreamUrl(settings.live_audio_stream_name) : null) ?? broadcastLiveAudioUrl()
     : selectedAudioCamera
       ? cameraAudioUrl(selectedAudioCamera.url)
       : null;
