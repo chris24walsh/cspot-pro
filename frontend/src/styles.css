@@ -1215,6 +1215,20 @@ button {
   padding-block: 4px;
 }
 
+.worship-live-launch-button {
+  background: #fffdf7;
+  border: 1px solid #b9b09b;
+  border-radius: 8px;
+  color: #526058;
+}
+
+.worship-live-launch-button.is-live {
+  background: #1f6b52;
+  border-color: #1f6b52;
+  color: #fff;
+  box-shadow: 0 0 0 2px rgba(68, 168, 130, 0.2);
+}
+
 .compact-video-controls {
   align-items: center;
   display: flex;

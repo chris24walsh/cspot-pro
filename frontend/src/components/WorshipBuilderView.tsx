@@ -16,6 +16,7 @@ import {
   getPlans,
   getSongs,
   getMembers,
+  getLivePresentationServices,
   getWorshipLeaderAssignments,
   getWorshipSetSuggestion,
   getWorshipSongUsage,
@@ -395,6 +396,7 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
   const [editHistoryApplying, setEditHistoryApplying] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<"builder" | "live">("builder");
+  const [serviceSlideshowLive, setServiceSlideshowLive] = useState(false);
   const [mobileBuilderPane, setMobileBuilderPane] = useState<"library" | "set">("set");
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
   const [expandedMobileSlideItemId, setExpandedMobileSlideItemId] = useState<string | null>(null);
@@ -437,6 +439,29 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
     () => new Map(plans.filter((candidate) => !isWorshipSetPlan(candidate)).map((servicePlan) => [dateInputFromIso(servicePlan.service_date), servicePlan])),
     [plans],
   );
+  const linkedServicePlanId = plan ? servicePlansByDate.get(dateInputFromIso(plan.service_date))?.id ?? null : null;
+
+  useEffect(() => {
+    let cancelled = false;
+    async function refreshSlideshowStatus() {
+      if (!linkedServicePlanId) {
+        if (!cancelled) setServiceSlideshowLive(false);
+        return;
+      }
+      try {
+        const liveServices = await getLivePresentationServices();
+        if (!cancelled) setServiceSlideshowLive(liveServices.some((service) => service.plan_id === linkedServicePlanId));
+      } catch {
+        if (!cancelled) setServiceSlideshowLive(false);
+      }
+    }
+    void refreshSlideshowStatus();
+    const timer = window.setInterval(() => void refreshSlideshowStatus(), 3000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [linkedServicePlanId]);
 
   const calendarDays = useMemo(() => calendarDaysForMonth(setCalendarMonth), [setCalendarMonth]);
 
@@ -1778,7 +1803,13 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
                 <button className="text-button topbar-action-button" disabled={!plan || !canEditPlan || suggesting} onClick={() => void suggestInlineWorshipSet()} type="button">
                   {suggesting ? "Suggesting..." : worshipItems.length ? "Suggest/Swap Checked" : "Suggest 5 Songs"}
                 </button>
-                <button className="primary-button topbar-primary-button" onClick={() => setViewMode("live")} type="button">
+                <button
+                  aria-label={serviceSlideshowLive ? "Worship Live: service slideshow is live" : "Worship Live: service slideshow is not live"}
+                  className={`topbar-primary-button worship-live-launch-button ${serviceSlideshowLive ? "is-live" : "is-idle"}`}
+                  onClick={() => setViewMode("live")}
+                  title={serviceSlideshowLive ? "Service slideshow is live" : "Service slideshow is not live"}
+                  type="button"
+                >
                   <MonitorUp size={16} aria-hidden="true" />
                   <span>Worship Live</span>
                 </button>
