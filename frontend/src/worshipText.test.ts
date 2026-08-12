@@ -30,11 +30,20 @@ describe("worship text normalization", () => {
     expect(normalizeWorshipSequence("Verse 3, Chorus, Verse 4, Chorus", lyrics)).toBe("V1 C V2 C");
   });
 
-  it("preserves repeated references to the same renumbered verse", () => {
+  it("moves repeated section references into the sequence instead of duplicating lyric headings", () => {
     const lyrics = "Verse 2\nFirst\n\nChorus\nSing\n\nVerse 2";
 
-    expect(canonicalizeWorshipLyrics(lyrics)).toBe("[V1]\nFirst\n\n[C]\nSing\n\n[V1]");
+    expect(canonicalizeWorshipLyrics(lyrics)).toBe("[V1]\nFirst\n\n[C]\nSing");
     expect(normalizeWorshipSequence("V2 C V2", lyrics)).toBe("V1 C V1");
+  });
+
+  it("removes repeated named sections with identical lyrics but keeps their sequence positions", () => {
+    const lyrics = "[V1]\nFirst verse\n\n[C]\nSing together\n\n[C]\nSing together\n\n[V2]\nSecond verse";
+
+    expect(canonicalizeWorshipLyrics(lyrics, "V1 C C V2")).toBe(
+      "[V1]\nFirst verse\n\n[C]\nSing together\n\n[V2]\nSecond verse",
+    );
+    expect(normalizeWorshipSequence("V1 C C V2", lyrics)).toBe("V1 C C V2");
   });
 
   it("normalizes long sequence labels that contain spaces", () => {

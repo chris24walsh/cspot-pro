@@ -442,14 +442,14 @@ export function canonicalizeWorshipLyrics(value: string | null | undefined, sequ
         return [`[${compactSectionLabel(label)}]`, section.content].join("\n");
       }
       if (section.content && previous === blockKey(section.content)) {
-        return `[${compactSectionLabel(label)}]`;
+        return null;
       }
       if (section.content) {
         return [`[${compactSectionLabel(label)}]`, section.content].join("\n");
       }
-      return `[${compactSectionLabel(label)}]`;
+      return seenContentByLabel.has(label) ? null : `[${compactSectionLabel(label)}]`;
     })
-    .filter(Boolean);
+    .filter((block): block is string => Boolean(block));
 
   const sequenceOnlyRepeats = sequenceLabels(sequence).filter((label) => seenContentByLabel.has(label));
   if (sequenceOnlyRepeats.length > blocks.length) {
