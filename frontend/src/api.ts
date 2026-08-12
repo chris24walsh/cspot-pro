@@ -548,6 +548,7 @@ export interface BroadcastViewerSettings {
   camera_fade_ms: number;
   live_audio_url: string | null;
   live_audio_source: string;
+  manual_live_audience: "off" | "public" | "admins";
   mixer_name: string | null;
   mixer_protocol: "none" | "web" | "bridge" | "audio-only";
   mixer_control_url: string | null;
@@ -1028,6 +1029,12 @@ export async function updateBroadcastViewerSettings(
   payload: Partial<BroadcastViewerSettings>,
 ): Promise<BroadcastViewerSettings> {
   return sendJson<BroadcastViewerSettings>("/api/v1/broadcast/viewer-settings", "PATCH", payload);
+}
+
+export async function updateManualLivestream(
+  audience: "off" | "public" | "admins",
+): Promise<BroadcastViewerSettings> {
+  return sendJson<BroadcastViewerSettings>("/api/v1/broadcast/manual-live", "PATCH", { audience });
 }
 
 export async function getBroadcastRecordings(): Promise<BroadcastRecording[]> {

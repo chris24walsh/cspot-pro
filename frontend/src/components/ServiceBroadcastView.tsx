@@ -48,6 +48,7 @@ const DEFAULT_SETTINGS: BroadcastViewerSettings = {
   camera_url: null,
   live_audio_url: null,
   live_audio_source: "none",
+  manual_live_audience: "off",
   mixer_name: null,
   mixer_protocol: "none",
   mixer_control_url: null,
@@ -146,9 +147,9 @@ export function ServiceBroadcastView({ canControl = false, onOpenSettings }: { c
     [plan, worshipSetPlan, renderedSlidesByFileId, songs],
   );
   const liveSlide = !liveState || liveState.blanked ? null : slides[resolveLiveIndex(slides, liveState)] ?? null;
-  const hasLiveService = Boolean(plan && remoteLiveState);
+  const hasLiveBroadcast = Boolean((plan && remoteLiveState) || settings.manual_live_audience !== "off");
   const upcomingService = plan ?? nextService;
-  const startingSoon = !hasLiveService && isBroadcastStartingSoon(upcomingService?.service_date, Date.now(), settings.pre_service_minutes);
+  const startingSoon = !hasLiveBroadcast && isBroadcastStartingSoon(upcomingService?.service_date, Date.now(), settings.pre_service_minutes);
   const holdingMessage = startingSoon ? settings.starting_soon_message : settings.offline_message;
   const preServiceYouTubeId = extractYouTubeId(settings.pre_service_audio_url);
   const currentCameraPhase = cameraServicePhase(liveSlide?.itemType, liveSlide?.sectionTitle);
@@ -372,10 +373,10 @@ export function ServiceBroadcastView({ canControl = false, onOpenSettings }: { c
       <div className="service-broadcast-grid">
         <section className="service-broadcast-slide-pane" aria-label="Live presentation">
           <div className={`service-broadcast-slide ${presentationTypeClass(liveSlide?.itemType ?? "generic")} stage-theme-${liveState?.theme ?? "dark"}`}>
-            {!hasLiveService ? (
+            {!hasLiveBroadcast ? (
               <HoldingPane message={holdingMessage} startingSoon={startingSoon} />
             ) : !liveSlide ? (
-              <HoldingPane message="The presentation is live" startingSoon />
+              <HoldingPane message="The livestream is live" startingSoon />
             ) : liveSlide.imageUrl ? (
               <ScaledSlideImage alt={liveSlide.title} src={liveSlide.imageUrl} />
             ) : liveSlide.videoUrl ? (
@@ -396,7 +397,7 @@ export function ServiceBroadcastView({ canControl = false, onOpenSettings }: { c
         </section>
 
         <section className="service-broadcast-camera-pane" aria-label="Live camera">
-          {hasLiveService && settings.camera_sources.length ? (
+          {hasLiveBroadcast && settings.camera_sources.length ? (
             <div
               className="service-broadcast-camera-switcher"
               style={{ "--camera-fade-duration": `${settings.camera_fade_ms}ms` } as CSSProperties}
@@ -412,7 +413,7 @@ export function ServiceBroadcastView({ canControl = false, onOpenSettings }: { c
                 </div>
               ))}
             </div>
-          ) : hasLiveService ? (
+          ) : hasLiveBroadcast ? (
             <HoldingPane message="Camera stream is not configured" startingSoon={false} />
           ) : startingSoon && preServiceYouTubeId ? (
             <PreServiceYouTubePane videoId={preServiceYouTubeId} />
@@ -422,7 +423,7 @@ export function ServiceBroadcastView({ canControl = false, onOpenSettings }: { c
         </section>
       </div>
 
-      {hasLiveService && (liveAudioUrl || canControl) ? (
+      {hasLiveBroadcast && (liveAudioUrl || canControl) ? (
         <div className={`service-broadcast-viewer-controls ${canControl ? "has-admin-controls" : ""}`}>
           {liveAudioUrl ? <LiveStreamAudio label={selectedAudioCamera ? `${selectedAudioCamera.label} audio` : selectedIndependentAudio?.label ?? "Live service audio"} url={liveAudioUrl} /> : null}
           {canControl ? (

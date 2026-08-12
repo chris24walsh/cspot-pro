@@ -234,14 +234,21 @@ Sign-in accepts either identifier, and remembered sessions include both
 ### Remote service viewer
 
 The Broadcast area is viewer-first. Eligible users land on the viewer even when
-they can edit its settings. An explicitly active slideshow output session is the
-gate for:
+they can edit its settings. An explicitly active slideshow output session normally
+opens the gate for:
 
 - the active service slideshow
 - multiple named camera/stream sources with manual or synchronized weighted cross-fades; automatic pacing uses deterministic jitter and service-aware worship, prayer, sermon, and announcement profiles, with a lectern/pulpit bias
 - audio from any configured camera, no audio, or a dedicated Raspberry Pi/desk stream
 
-When no output session is active, both panels remain disabled. During the configured
+Administrators can also enable the camera and audio directly from the Livestream
+tab without starting presentation output. They choose either a public stream,
+visible to all eligible viewers, or an admin-only test stream. Manual mode persists
+until an administrator stops it; admin-test state and live audio remain unavailable
+to non-admin accounts. Without presentation output, the slide pane shows a live
+holding card rather than inventing a slideshow state.
+
+When neither presentation output nor a permitted manual stream is active, both panels remain disabled. During the configured
 window before the next planned service, the page shows a starting-soon state and
 can offer configured worship audio. Outside that window it clearly shows that no
 service is streaming.

@@ -64,6 +64,18 @@ change where practical:
 - `docs/current-architecture.md`
 - `docs/legacy-feature-map.md` when parity assumptions change
 
+## Default Delivery Workflow
+
+- Unless the user explicitly says not to, finish repository changes by committing
+  them, pushing the current branch to the `cspot-pro` remote, and deploying them
+  to the `apps-host` production host.
+- Production source checkout: `/srv/apps/cspot`.
+- Production Compose project: `/srv/apps/infra/cspot-pro`.
+- Deploy `main` with:
+  `ssh apps-host 'cd /srv/apps/cspot && git pull --ff-only origin main && cd /srv/apps/infra/cspot-pro && docker compose up -d --build api web db && docker compose ps api web db'`.
+- Confirm the push succeeds before deploying, and report any failed push, build,
+  migration, container health, or deployment check instead of claiming success.
+
 ## Known Active Concern
 
 Imported slide-deck rendering currently depends on LibreOffice conversion. The

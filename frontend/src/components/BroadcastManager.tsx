@@ -9,6 +9,7 @@ import {
   getLivePresentationServices,
   startBroadcastRecording,
   stopBroadcastRecording,
+  updateManualLivestream,
   updateBroadcastViewerSettings,
   type BroadcastViewerSettings,
   type BroadcastRecording,
@@ -30,6 +31,7 @@ const EMPTY_SETTINGS: BroadcastViewerSettings = {
   camera_fade_ms: 1200,
   live_audio_url: null,
   live_audio_source: "none",
+  manual_live_audience: "off",
   mixer_name: null,
   mixer_protocol: "none",
   mixer_control_url: null,
@@ -73,6 +75,7 @@ export function BroadcastManager({
   const [liveService, setLiveService] = useState<PresentationLiveService | null>(null);
   const [recordingAction, setRecordingAction] = useState(false);
   const [autoRecordingAction, setAutoRecordingAction] = useState(false);
+  const [livestreamAction, setLivestreamAction] = useState(false);
   const [playingRecording, setPlayingRecording] = useState<BroadcastRecording | null>(null);
   const [clock, setClock] = useState(Date.now());
   const [testingCameraId, setTestingCameraId] = useState<string | null>(null);
@@ -149,6 +152,26 @@ export function BroadcastManager({
       setMessage(error instanceof Error ? error.message : "Could not update automatic recording.");
     } finally {
       setAutoRecordingAction(false);
+    }
+  }
+
+  async function setLivestreamAudience(audience: "off" | "public" | "admins") {
+    setLivestreamAction(true);
+    setMessage(null);
+    try {
+      const settings = await updateManualLivestream(audience);
+      setForm((current) => ({ ...current, manual_live_audience: settings.manual_live_audience }));
+      setMessage(
+        audience === "public"
+          ? "Livestream started for everyone."
+          : audience === "admins"
+            ? "Admin-only test livestream started."
+            : "Livestream stopped.",
+      );
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not update the livestream.");
+    } finally {
+      setLivestreamAction(false);
     }
   }
 
@@ -297,6 +320,38 @@ export function BroadcastManager({
 
       {canManage && activeTab === "livestream" ? <>
       <div className="broadcast-settings-grid" role="tabpanel" aria-label="Livestream settings">
+        <section className={`wide-field broadcast-live-launch ${form.manual_live_audience !== "off" ? "is-live" : ""}`} aria-label="Livestream controls">
+          <div>
+            <strong>{form.manual_live_audience === "public" ? "Live for everyone" : form.manual_live_audience === "admins" ? "Admin test is live" : "Livestream is off"}</strong>
+            <small>Start the camera and audio feed without starting the presenter slideshow.</small>
+          </div>
+          <div className="broadcast-live-launch-actions">
+            <button
+              className="primary-button icon-text-button"
+              disabled={loading || livestreamAction || form.manual_live_audience === "public"}
+              onClick={() => void setLivestreamAudience("public")}
+              type="button"
+            >
+              <Radio size={14} aria-hidden="true" /> Start for everyone
+            </button>
+            <button
+              className="text-button icon-text-button"
+              disabled={loading || livestreamAction || form.manual_live_audience === "admins"}
+              onClick={() => void setLivestreamAudience("admins")}
+              type="button"
+            >
+              <MonitorPlay size={14} aria-hidden="true" /> Start admin test
+            </button>
+            <button
+              className="danger-button icon-text-button"
+              disabled={loading || livestreamAction || form.manual_live_audience === "off"}
+              onClick={() => void setLivestreamAudience("off")}
+              type="button"
+            >
+              <CircleStop size={14} aria-hidden="true" /> Stop livestream
+            </button>
+          </div>
+        </section>
         <label>
           Stream title
           <input disabled={loading} onChange={(event) => setForm({ ...form, stream_title: event.target.value })} value={form.stream_title} />
@@ -482,7 +537,7 @@ export function BroadcastManager({
         </label>
       </div>
       <p className="muted-copy broadcast-settings-note">
-        Live media and the slideshow appear only while the presenter slideshow is running. Pre-service audio is offered during the configured window before the next scheduled service.
+        A presenter slideshow also starts the public stream automatically. The controls above can run camera and audio independently; admin test mode stays hidden from other viewers.
       </p>
       </> : null}
 

@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Literal
 from urllib.parse import urlsplit
 
 from pydantic import BaseModel, Field, field_validator
@@ -28,6 +29,7 @@ class BroadcastViewerSettingsRead(BaseModel):
     camera_fade_ms: int
     live_audio_url: str | None = None
     live_audio_source: str
+    manual_live_audience: Literal["off", "public", "admins"] = "off"
     mixer_name: str | None = None
     mixer_protocol: str
     mixer_control_url: str | None = None
@@ -70,6 +72,10 @@ class BroadcastViewerSettingsUpdate(BaseModel):
         if value and urlsplit(value).scheme.lower() not in {"http", "https"}:
             raise ValueError("Mixer control URL must use http or https")
         return value
+
+
+class ManualLivestreamUpdate(BaseModel):
+    audience: Literal["off", "public", "admins"]
 
 
 class BroadcastRecordingStart(BaseModel):

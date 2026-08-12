@@ -56,6 +56,7 @@ class BroadcastViewerSettings(IdMixin, TimestampMixin, Base):
     camera_fade_ms: Mapped[int] = mapped_column(Integer, default=1200)
     live_audio_url: Mapped[str | None] = mapped_column(Text)
     live_audio_source: Mapped[str | None] = mapped_column(String(100))
+    manual_live_audience: Mapped[str] = mapped_column(String(20), default="off")
     mixer_name: Mapped[str | None] = mapped_column(String(160))
     mixer_protocol: Mapped[str | None] = mapped_column(String(40))
     mixer_control_url: Mapped[str | None] = mapped_column(Text)

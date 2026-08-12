@@ -21,9 +21,20 @@ from app.modules.broadcast.schemas import (
     BroadcastRecordingStart,
     BroadcastViewerSettingsRead,
     BroadcastViewerSettingsUpdate,
+    ManualLivestreamUpdate,
 )
-from app.modules.broadcast.settings import audio_sources, camera_sources, effective_audio_source, selected_audio_url
-from app.modules.identity.auth import CurrentUser, require_any_permission, require_permission
+from app.modules.broadcast.settings import (
+    audio_sources,
+    camera_sources,
+    effective_audio_source,
+    selected_audio_url,
+)
+from app.modules.identity.auth import (
+    CurrentUser,
+    list_permissions,
+    require_any_permission,
+    require_permission,
+)
 from app.modules.identity.models import User
 from app.modules.presentation.models import PresentationPosition, PresentationSession
 
@@ -159,11 +170,20 @@ def viewer_settings(session: Session) -> BroadcastViewerSettings:
     return settings
 
 
-def settings_read(settings: BroadcastViewerSettings) -> BroadcastViewerSettingsRead:
+def settings_read(
+    settings: BroadcastViewerSettings, *, can_view_admin_test: bool = True
+) -> BroadcastViewerSettingsRead:
     sources = camera_sources(settings)
     independent_sources = audio_sources(settings)
     source_ids = {source.id for source in sources}
-    active_camera_id = settings.active_camera_id if settings.active_camera_id in source_ids else (sources[0].id if sources else None)
+    active_camera_id = (
+        settings.active_camera_id
+        if settings.active_camera_id in source_ids
+        else (sources[0].id if sources else None)
+    )
+    manual_live_audience = settings.manual_live_audience or "off"
+    if manual_live_audience == "admins" and not can_view_admin_test:
+        manual_live_audience = "off"
     return BroadcastViewerSettingsRead(
         stream_title=settings.stream_title,
         stream_description=settings.stream_description,
@@ -176,6 +196,7 @@ def settings_read(settings: BroadcastViewerSettings) -> BroadcastViewerSettingsR
         camera_fade_ms=settings.camera_fade_ms or 0,
         live_audio_url=settings.live_audio_url,
         live_audio_source=effective_audio_source(settings, sources, independent_sources),
+        manual_live_audience=manual_live_audience,
         mixer_name=settings.mixer_name,
         mixer_protocol=settings.mixer_protocol or "none",
         mixer_control_url=settings.mixer_control_url,
@@ -221,23 +242,45 @@ def live_output_exists(session: Session) -> bool:
 
 @router.get("/viewer-settings", response_model=BroadcastViewerSettingsRead)
 def get_viewer_settings(
-    _current_user: CurrentUser,
+    current_user: CurrentUser,
     session: Session = Depends(get_session),
 ) -> BroadcastViewerSettingsRead:
-    return settings_read(viewer_settings(session))
+    can_view_admin_test = "users:manage" in list_permissions(session, current_user.id)
+    return settings_read(
+        viewer_settings(session), can_view_admin_test=can_view_admin_test
+    )
+
+
+@router.patch("/manual-live", response_model=BroadcastViewerSettingsRead)
+def update_manual_livestream(
+    payload: ManualLivestreamUpdate,
+    _current_user: User = Depends(require_permission("users:manage")),
+    session: Session = Depends(get_session),
+) -> BroadcastViewerSettingsRead:
+    settings = viewer_settings(session)
+    settings.manual_live_audience = payload.audience
+    session.commit()
+    session.refresh(settings)
+    return settings_read(settings)
 
 
 @router.get("/live-audio")
 def live_audio(
-    _current_user: CurrentUser,
+    current_user: CurrentUser,
     session: Session = Depends(get_session),
 ) -> StreamingResponse:
-    if not live_output_exists(session):
+    settings = viewer_settings(session)
+    manual_audience = settings.manual_live_audience or "off"
+    manual_live_visible = manual_audience == "public" or (
+        manual_audience == "admins"
+        and "users:manage" in list_permissions(session, current_user.id)
+    )
+    if not live_output_exists(session) and not manual_live_visible:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail="Live audio is available only while presentation output is running",
+            detail="Live audio is available only while the livestream is running",
         )
-    source_url = selected_audio_url(viewer_settings(session))
+    source_url = selected_audio_url(settings)
     if not source_url:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

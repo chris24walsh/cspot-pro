@@ -4112,6 +4112,40 @@ h3 {
   width: 100%;
 }
 
+.broadcast-live-launch {
+  align-items: center;
+  background: #f8f5ec;
+  border: 1px solid #ded8c7;
+  border-radius: 8px;
+  display: flex;
+  gap: 14px;
+  justify-content: space-between;
+  padding: 12px;
+}
+
+.broadcast-live-launch.is-live {
+  background: #eef8f3;
+  border-color: #8ebba9;
+  box-shadow: inset 3px 0 0 #245d4d;
+}
+
+.broadcast-live-launch > div:first-child {
+  display: grid;
+  gap: 3px;
+}
+
+.broadcast-live-launch small {
+  color: #65716a;
+  font-weight: 700;
+}
+
+.broadcast-live-launch-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  justify-content: flex-end;
+}
+
 .broadcast-camera-settings {
   background: #f8f5ec;
   border: 1px solid #ded8c7;
@@ -8430,6 +8464,15 @@ h3 {
 
   .broadcast-settings-grid {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  .broadcast-live-launch {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .broadcast-live-launch-actions {
+    justify-content: flex-start;
   }
 
   .broadcast-camera-source {

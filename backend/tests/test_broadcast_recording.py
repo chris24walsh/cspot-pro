@@ -5,7 +5,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
@@ -15,15 +15,57 @@ from app.modules.broadcast.recording import (
     _finalize_recording_file,
     _media_duration,
     _recording_command,
+    _source_has_audio,
+    _source_url,
     _trim_recording_file,
     cancel_pending_recording_stop,
     request_recording_stop,
-    _source_has_audio,
-    _source_url,
     sync_sermon_recording,
 )
-from app.modules.broadcast.routes import live_output_exists, update_viewer_settings
-from app.modules.broadcast.schemas import BroadcastViewerSettingsUpdate
+from app.modules.broadcast.routes import (
+    live_output_exists,
+    settings_read,
+    update_manual_livestream,
+    update_viewer_settings,
+)
+from app.modules.broadcast.schemas import (
+    BroadcastViewerSettingsUpdate,
+    ManualLivestreamUpdate,
+)
+
+
+def test_admin_test_livestream_is_hidden_from_regular_viewers() -> None:
+    settings_row = BroadcastViewerSettings(
+        stream_title="Service",
+        manual_live_audience="admins",
+        auto_record_sermons=True,
+        recording_grace_seconds=60,
+        pre_service_minutes=60,
+        starting_soon_message="Soon",
+        offline_message="Offline",
+    )
+
+    assert settings_read(settings_row).manual_live_audience == "admins"
+    assert (
+        settings_read(settings_row, can_view_admin_test=False).manual_live_audience
+        == "off"
+    )
+
+
+def test_admin_can_start_public_livestream_without_presentation_output() -> None:
+    engine = create_engine("sqlite://")
+    Base.metadata.create_all(engine, tables=[BroadcastViewerSettings.__table__])
+    with Session(engine) as session:
+        result = update_manual_livestream(
+            ManualLivestreamUpdate(audience="public"),
+            SimpleNamespace(id="admin-1"),  # type: ignore[arg-type]
+            session,
+        )
+
+        assert result.manual_live_audience == "public"
+        assert session.scalar(
+            select(BroadcastViewerSettings.manual_live_audience)
+        ) == "public"
 
 
 def test_camera_proxy_path_resolves_to_internal_recording_source() -> None:
