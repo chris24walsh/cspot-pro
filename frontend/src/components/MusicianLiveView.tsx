@@ -1,4 +1,4 @@
-import { ChevronLeft, ChevronRight, LogOut, Music2, Pencil } from "lucide-react";
+import { ChevronLeft, ChevronRight, Guitar, LogOut, Music2, Pencil } from "lucide-react";
 import type { CSSProperties } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -703,22 +703,26 @@ export function MusicianLiveView({ controlPlanId, onEditSong, onExit, plan, song
       </div>
       <div className="musician-live-controls" aria-label="Musician display controls">
         <button
+          aria-label="Edit song"
           className="musician-edit-button"
           disabled={!liveSong}
           onClick={() => liveSong && onEditSong(liveSong)}
+          title="Edit song"
           type="button"
         >
           <Pencil size={14} aria-hidden="true" />
-          Edit
+          <span className="musician-control-text">Edit</span>
         </button>
         <button
           aria-pressed={showChords}
           className={`chord-toggle-button ${showChords ? "is-active" : ""}`}
           onClick={() => setShowChords((current) => !current)}
+          title={showChords ? "Hide chords" : "Show chords"}
           type="button"
         >
-          <span aria-hidden="true" />
-          Chords
+          <span className="chord-toggle-indicator" aria-hidden="true" />
+          <Guitar className="chord-toggle-icon" size={16} aria-hidden="true" />
+          <span className="musician-control-text">Chords</span>
         </button>
         <button className="musician-fullscreen-button" onClick={onExit} type="button" aria-label="Exit live worship">
           <LogOut size={18} aria-hidden="true" />

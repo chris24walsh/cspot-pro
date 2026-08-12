@@ -2457,7 +2457,7 @@ h3 {
   padding: 4px 11px 4px 6px;
 }
 
-.chord-toggle-button span {
+.chord-toggle-indicator {
   background: #cfc7b4;
   border-radius: 999px;
   display: inline-block;
@@ -2466,7 +2466,7 @@ h3 {
   width: 32px;
 }
 
-.chord-toggle-button span::after {
+.chord-toggle-indicator::after {
   background: #fffefa;
   border-radius: 999px;
   content: "";
@@ -2483,12 +2483,16 @@ h3 {
   border-color: #8ebba9;
 }
 
-.chord-toggle-button.is-active span {
+.chord-toggle-button.is-active .chord-toggle-indicator {
   background: #234a40;
 }
 
-.chord-toggle-button.is-active span::after {
+.chord-toggle-button.is-active .chord-toggle-indicator::after {
   transform: translateX(14px);
+}
+
+.chord-toggle-icon {
+  display: none;
 }
 
 .musician-fullscreen-button {
@@ -8163,18 +8167,43 @@ h3 {
     padding: 2px 5px;
   }
 
-  .chord-toggle-button span {
+  .chord-toggle-indicator {
     height: 16px;
     width: 28px;
   }
 
-  .chord-toggle-button span::after {
+  .chord-toggle-indicator::after {
     height: 12px;
     width: 12px;
   }
 
-  .chord-toggle-button.is-active span::after {
+  .chord-toggle-button.is-active .chord-toggle-indicator::after {
     transform: translateX(12px);
+  }
+
+  .musician-edit-button .musician-control-text,
+  .chord-toggle-button .musician-control-text,
+  .chord-toggle-button .chord-toggle-indicator {
+    display: none;
+  }
+
+  .chord-toggle-button .chord-toggle-icon {
+    display: block;
+  }
+
+  .musician-edit-button,
+  .chord-toggle-button {
+    height: 34px;
+    justify-content: center;
+    min-height: 34px;
+    padding: 0;
+    width: 34px;
+  }
+
+  .chord-toggle-button.is-active {
+    background: #234a40;
+    border-color: #234a40;
+    color: #fffefa;
   }
 
   .musician-fullscreen-button {
@@ -9375,9 +9404,33 @@ h3 {
   }
 
   .shell.is-mobile-device .musician-edit-button,
+  .shell.is-mobile-device .chord-toggle-button,
   .shell.is-mobile-device .musician-fullscreen-button {
     height: 30px;
     min-height: 30px;
+  }
+
+  .shell.is-mobile-device .musician-edit-button,
+  .shell.is-mobile-device .chord-toggle-button {
+    justify-content: center;
+    padding: 0;
+    width: 30px;
+  }
+
+  .shell.is-mobile-device .musician-edit-button .musician-control-text,
+  .shell.is-mobile-device .chord-toggle-button .musician-control-text,
+  .shell.is-mobile-device .chord-toggle-button .chord-toggle-indicator {
+    display: none;
+  }
+
+  .shell.is-mobile-device .chord-toggle-button .chord-toggle-icon {
+    display: block;
+  }
+
+  .shell.is-mobile-device .chord-toggle-button.is-active {
+    background: #234a40;
+    border-color: #234a40;
+    color: #fffefa;
   }
 
   .shell.is-mobile-device .musician-fullscreen-button {
