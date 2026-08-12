@@ -3708,15 +3708,18 @@ h3 {
 
 .musician-chord-actions {
   align-items: end;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
+  display: grid;
+  gap: 4px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
+.musician-copy-verse-button,
 .musician-clear-chords-button {
   align-self: end;
+  justify-content: center;
   min-height: 34px;
-  padding: 5px 10px;
+  min-width: 0;
+  padding: 5px 8px;
   white-space: nowrap;
 }
 
@@ -7853,24 +7856,26 @@ h3 {
   }
 
   .song-editor-dialog .musician-copy-verse-button {
-    font-size: 12px;
-    min-height: 34px;
-    padding: 5px 7px;
+    min-height: 32px;
+    padding: 3px;
   }
 
   .song-editor-dialog .musician-chord-actions {
-    align-items: stretch;
-    display: grid;
-    gap: 4px;
+    align-self: end;
+    grid-template-columns: repeat(2, 32px);
+    justify-content: end;
   }
 
   .song-editor-dialog .musician-clear-chords-button {
-    font-size: 11px;
-    min-height: 30px;
-    padding: 3px 6px;
+    min-height: 32px;
+    padding: 3px;
   }
 
-  .song-editor-dialog .musician-copy-verse-button svg {
+  .song-editor-dialog .musician-chord-actions button span {
+    display: none;
+  }
+
+  .song-editor-dialog .musician-chord-actions svg {
     height: 13px;
     width: 13px;
   }

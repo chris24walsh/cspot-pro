@@ -687,13 +687,13 @@ export function SongEditorDialog({
                     </label>
                     <label className="compact-field musician-capo-field">Capo<select disabled={!canEdit} onChange={(event) => updateCapo(Number(event.target.value))} value={chordChart.capo}>{[0, 1, 2, 3, 4, 5].map((capo) => <option key={capo} value={capo}>{capo}</option>)}</select></label>
                     <div className="musician-chord-actions">
-                      <button className="text-button musician-copy-verse-button" disabled={!canEdit || lineAnnotations.length === 0} onClick={copyVerseChords} type="button">
+                      <button aria-label="Copy verse chords" className="text-button musician-copy-verse-button" disabled={!canEdit || lineAnnotations.length === 0} onClick={copyVerseChords} title="Copy verse chords" type="button">
                         <Copy size={14} aria-hidden="true" />
-                        Copy Verse Chords
+                        <span>Copy verse chords</span>
                       </button>
-                      <button className="danger-button musician-clear-chords-button" disabled={!canEdit || (!lineAnnotations.length && !legacyChords)} onClick={() => void clearAllChords()} type="button">
+                      <button aria-label="Clear all chords" className="danger-button musician-clear-chords-button" disabled={!canEdit || (!lineAnnotations.length && !legacyChords)} onClick={() => void clearAllChords()} title="Clear all chords" type="button">
                         <Trash2 size={14} aria-hidden="true" />
-                        Clear all chords
+                        <span>Clear all chords</span>
                       </button>
                     </div>
                   </div>
