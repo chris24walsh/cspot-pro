@@ -420,19 +420,13 @@ export function ServiceBroadcastView({ canControl = false, onOpenSettings }: { c
           ) : (
             <HoldingPane message={holdingMessage} startingSoon={startingSoon} />
           )}
-          {hasLiveBroadcast && liveAudioUrl ? (
-            <div className="service-broadcast-camera-audio-control">
-              <LiveStreamAudio
-                label={selectedAudioCamera ? `${selectedAudioCamera.label} audio` : selectedIndependentAudio?.label ?? "Live service audio"}
-                url={liveAudioUrl}
-              />
-            </div>
-          ) : null}
         </section>
       </div>
 
-      {hasLiveBroadcast && canControl ? (
-        <div className="service-broadcast-viewer-controls has-admin-controls">
+      {hasLiveBroadcast && (liveAudioUrl || canControl) ? (
+        <div className={`service-broadcast-viewer-controls ${canControl ? "has-admin-controls" : ""}`}>
+          {liveAudioUrl ? <LiveStreamAudio label={selectedAudioCamera ? `${selectedAudioCamera.label} audio` : selectedIndependentAudio?.label ?? "Live service audio"} url={liveAudioUrl} /> : null}
+          {canControl ? (
             <div className="service-broadcast-admin-live-controls" aria-label="Quick livestream controls">
               <label className="service-broadcast-live-select">
                 <span><Radio size={13} aria-hidden="true" /> Camera</span>
@@ -486,6 +480,7 @@ export function ServiceBroadcastView({ canControl = false, onOpenSettings }: { c
                 </button>
               ) : null}
             </div>
+          ) : null}
         </div>
       ) : null}
 

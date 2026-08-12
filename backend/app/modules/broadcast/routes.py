@@ -306,7 +306,7 @@ def live_audio(
     return StreamingResponse(
         audio_chunks(),
         media_type=upstream.headers.get("content-type", "audio/mpeg").split(";", 1)[0],
-        headers={"Cache-Control": "no-store"},
+        headers={"Cache-Control": "no-store", "X-Accel-Buffering": "no"},
     )
 
 
