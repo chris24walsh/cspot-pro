@@ -429,6 +429,10 @@ export function removeChordAnnotation(document: ChordChartDocument, id: string) 
   };
 }
 
+export function clearChordAnnotations(document: ChordChartDocument): ChordChartDocument {
+  return { ...document, annotations: [] };
+}
+
 export function displayChord(
   chord: string,
   options: {

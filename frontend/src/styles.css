@@ -3676,6 +3676,20 @@ h3 {
   white-space: nowrap;
 }
 
+.musician-chord-actions {
+  align-items: end;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.musician-clear-chords-button {
+  align-self: end;
+  min-height: 34px;
+  padding: 5px 10px;
+  white-space: nowrap;
+}
+
 .import-lyrics-dialog {
   max-height: min(780px, calc(100vh - 40px));
   max-width: min(760px, 100%);
@@ -7812,6 +7826,18 @@ h3 {
     font-size: 12px;
     min-height: 34px;
     padding: 5px 7px;
+  }
+
+  .song-editor-dialog .musician-chord-actions {
+    align-items: stretch;
+    display: grid;
+    gap: 4px;
+  }
+
+  .song-editor-dialog .musician-clear-chords-button {
+    font-size: 11px;
+    min-height: 30px;
+    padding: 3px 6px;
   }
 
   .song-editor-dialog .musician-copy-verse-button svg {

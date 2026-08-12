@@ -1,9 +1,10 @@
-import { Archive, Copy, ListRestart, Search, Save, WandSparkles, X } from "lucide-react";
+import { Archive, Copy, ListRestart, Search, Save, Trash2, WandSparkles, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
 import { createSong, updateSong, type Song } from "../api";
 import {
   createEmptyChordChart,
+  clearChordAnnotations,
   deriveCapoKey,
   displayChord,
   LEADING_CHORD_ANCHORS,
@@ -469,6 +470,21 @@ export function SongEditorDialog({
     setMessage("Verse chords copied.");
   }
 
+  async function clearAllChords() {
+    if (!canEdit || (!lineAnnotations.length && !legacyChords)) return;
+    const confirmed = await confirm({
+      confirmLabel: "Clear all chords",
+      message: "Remove every chord annotation from this song? The lyrics, key, and capo will be kept.",
+      title: "Clear all chords",
+      tone: "danger",
+    });
+    if (!confirmed) return;
+    setChordChart((current) => clearChordAnnotations(current));
+    setLegacyChords(null);
+    cancelInlineChordEdit();
+    setMessage("All chords cleared. Save the song to keep this change.");
+  }
+
   async function saveSong() {
     if (!canEdit) return;
     if (chordChart.annotations.length && !chordChart.absoluteKey && !chordChart.capoKey) {
@@ -670,10 +686,16 @@ export function SongEditorDialog({
                       </select>
                     </label>
                     <label className="compact-field musician-capo-field">Capo<select disabled={!canEdit} onChange={(event) => updateCapo(Number(event.target.value))} value={chordChart.capo}>{[0, 1, 2, 3, 4, 5].map((capo) => <option key={capo} value={capo}>{capo}</option>)}</select></label>
-                    <button className="text-button musician-copy-verse-button" disabled={!canEdit || lineAnnotations.length === 0} onClick={copyVerseChords} type="button">
-                      <Copy size={14} aria-hidden="true" />
-                      Copy Verse Chords
-                    </button>
+                    <div className="musician-chord-actions">
+                      <button className="text-button musician-copy-verse-button" disabled={!canEdit || lineAnnotations.length === 0} onClick={copyVerseChords} type="button">
+                        <Copy size={14} aria-hidden="true" />
+                        Copy Verse Chords
+                      </button>
+                      <button className="danger-button musician-clear-chords-button" disabled={!canEdit || (!lineAnnotations.length && !legacyChords)} onClick={() => void clearAllChords()} type="button">
+                        <Trash2 size={14} aria-hidden="true" />
+                        Clear all chords
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>
