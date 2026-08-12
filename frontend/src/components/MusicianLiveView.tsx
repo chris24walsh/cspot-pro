@@ -768,6 +768,7 @@ export function MusicianLiveView({ controlPlanId, onEditSong, onExit, plan, song
       <div className="musician-song-navigation">
         <button aria-label="Previous song" className="musician-song-step-button" disabled={currentSongIndex <= 0} onClick={() => moveSong(-1)} title="Previous song" type="button">
           <ChevronLeft size={16} aria-hidden="true" />
+          <span className="musician-song-step-label">Previous</span>
         </button>
         <nav className="musician-sequence-strip" aria-label="Song sequence">
           {sequenceBlocks.map((block, blockIndex) => (
@@ -789,6 +790,7 @@ export function MusicianLiveView({ controlPlanId, onEditSong, onExit, plan, song
           ))}
         </nav>
         <button aria-label="Next song" className="musician-song-step-button" disabled={currentSongIndex < 0 || currentSongIndex >= worshipItems.length - 1} onClick={() => moveSong(1)} title="Next song" type="button">
+          <span className="musician-song-step-label">Next</span>
           <ChevronRight size={16} aria-hidden="true" />
         </button>
       </div>

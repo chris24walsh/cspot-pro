@@ -2385,7 +2385,7 @@ h3 {
   border-bottom: 1px solid #e3dcc8;
   display: grid;
   gap: 3px;
-  grid-template-columns: 30px minmax(0, 1fr) 30px;
+  grid-template-columns: auto minmax(0, 1fr) auto;
   min-width: 0;
   padding: 3px 4px;
 }
@@ -2398,10 +2398,11 @@ h3 {
   color: #234a40;
   cursor: pointer;
   display: inline-flex;
+  gap: 4px;
   justify-content: center;
   min-height: 26px;
-  padding: 0;
-  width: 30px;
+  padding: 2px 7px;
+  white-space: nowrap;
 }
 
 .musician-song-step-button:disabled,
@@ -2410,11 +2411,25 @@ h3 {
   opacity: 0.45;
 }
 
+.shell.is-mobile-device .musician-song-navigation {
+  grid-template-columns: 30px minmax(0, 1fr) 30px;
+}
+
+.shell.is-mobile-device .musician-song-step-button {
+  padding: 0;
+  width: 30px;
+}
+
+.shell.is-mobile-device .musician-song-step-label {
+  display: none;
+}
+
 .musician-sequence-strip {
   align-items: center;
   background: transparent;
   display: flex;
   gap: 2px;
+  justify-content: safe center;
   min-width: 0;
   overflow-x: auto;
   padding: 0;
@@ -8196,6 +8211,19 @@ h3 {
     min-height: 34px;
     padding: 0;
     width: 34px;
+  }
+
+  .musician-song-navigation {
+    grid-template-columns: 30px minmax(0, 1fr) 30px;
+  }
+
+  .musician-song-step-button {
+    padding: 0;
+    width: 30px;
+  }
+
+  .musician-song-step-label {
+    display: none;
   }
 
   .chord-toggle-button.is-active {
