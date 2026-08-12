@@ -29,6 +29,7 @@ interface DateNavigatorProps {
   historyExpanded?: boolean;
   historyContent?: ReactNode;
   assignmentLabel?: string;
+  assignmentInitial?: string | null;
   assignmentTitle?: string;
   onAssignment?: () => void;
   assignmentDisabled?: boolean;
@@ -51,6 +52,7 @@ export function DateNavigator({
   historyExpanded = false,
   historyContent,
   assignmentLabel,
+  assignmentInitial,
   assignmentTitle = "Leader",
   onAssignment,
   assignmentDisabled = false,
@@ -87,8 +89,11 @@ export function DateNavigator({
           title={assignmentTitle}
           type="button"
         >
-          <UserRound size={13} aria-hidden="true" />
-          <span>{assignmentLabel || "Leader"}</span>
+          <span className="date-navigator-assignment-mobile" aria-hidden="true">
+            {assignmentInitial ? assignmentInitial.slice(0, 1).toUpperCase() : <UserRound size={13} />}
+          </span>
+          <UserRound className="date-navigator-assignment-icon" size={13} aria-hidden="true" />
+          <span className="date-navigator-assignment-label">{assignmentLabel || "Leader"}</span>
         </button>
       ) : null}
       {historyContent}

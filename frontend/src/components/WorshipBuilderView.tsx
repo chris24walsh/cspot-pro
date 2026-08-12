@@ -1692,6 +1692,7 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
               <div className="worship-set-picker-tools">
                 <DateNavigator
                   assignmentDisabled={!plan || !canEditPlan}
+                  assignmentInitial={selectedWorshipLeader?.name?.trim().charAt(0) || null}
                   assignmentLabel={selectedWorshipLeader?.name || "Leader"}
                   assignmentTitle={selectedWorshipLeader ? `Leader: ${selectedWorshipLeader.name}` : "Assign leader"}
                   historyDisabled={!plan || editHistoryApplying}
@@ -1779,7 +1780,7 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
                 </button>
                 <button className="primary-button topbar-primary-button" onClick={() => setViewMode("live")} type="button">
                   <MonitorUp size={16} aria-hidden="true" />
-                  Worship Live
+                  <span>Worship Live</span>
                 </button>
               </div>
             </div>,

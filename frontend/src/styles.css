@@ -324,6 +324,10 @@ button {
   white-space: nowrap;
 }
 
+.date-navigator-assignment-mobile {
+  display: none;
+}
+
 .worship-history-button,
 .worship-set-step-button {
   min-height: 44px;
@@ -9347,7 +9351,7 @@ h3 {
 }
 
 .shell.is-mobile-device .date-navigator.has-assignment {
-  grid-template-columns: 30px minmax(0, 1fr) 30px 30px minmax(50px, 84px);
+  grid-template-columns: 30px minmax(0, 1fr) 30px 30px 30px;
 }
 
 .shell.is-mobile-device .date-navigator > .section-icon-button,
@@ -9372,6 +9376,27 @@ h3 {
 .shell.is-mobile-device .date-navigator-assignment {
   font-size: 11px;
   min-width: 0;
+  padding: 0;
+  width: 30px;
+}
+
+.shell.is-mobile-device .date-navigator-assignment-icon,
+.shell.is-mobile-device .date-navigator-assignment-label,
+.shell.is-mobile-device .worship-set-topbar-actions .topbar-primary-button span {
+  display: none;
+}
+
+.shell.is-mobile-device .date-navigator-assignment-mobile {
+  align-items: center;
+  display: inline-flex;
+  font-size: 13px;
+  font-weight: 950;
+  justify-content: center;
+}
+
+.shell.is-mobile-device .worship-set-topbar-actions .topbar-primary-button {
+  padding: 0;
+  width: 30px;
 }
 
 .shell.is-mobile-device .topbar-context-slot .musician-live-toolbar {
