@@ -1762,10 +1762,6 @@ h3 {
   display: none;
 }
 
-.worship-mobile-actions {
-  display: none;
-}
-
 .worship-song-browser,
 .worship-set-builder,
 .worship-set-list,
@@ -7961,19 +7957,6 @@ h3 {
     font-size: 12px;
   }
 
-  .worship-mobile-actions {
-    display: grid;
-    gap: 5px;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .worship-mobile-actions .primary-button,
-  .worship-mobile-actions .text-button {
-    min-height: 34px;
-    padding: 6px 8px;
-    width: 100%;
-  }
-
   .worship-song-browser,
   .worship-set-builder {
     display: none;
@@ -9305,7 +9288,24 @@ h3 {
 }
 
 .shell.is-mobile-device .worship-topbar-tools {
+  display: grid;
+  gap: 3px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  overflow: visible;
+}
+
+.shell.is-mobile-device .worship-set-topbar-actions {
   display: block;
+  min-width: 0;
+}
+
+.shell.is-mobile-device .worship-set-topbar-actions .topbar-primary-button {
+  align-items: center;
+  display: inline-flex;
+  justify-content: center;
+  min-height: 30px;
+  padding: 3px 8px;
+  width: auto;
 }
 
 .shell.is-mobile-device .date-navigator {
@@ -9404,16 +9404,6 @@ h3 {
     border-bottom-color: #245d4d;
     box-shadow: none;
     color: #17201b;
-  }
-
-  .worship-mobile-actions {
-    gap: 3px;
-  }
-
-  .worship-mobile-actions .primary-button,
-  .worship-mobile-actions .text-button {
-    min-height: 31px;
-    padding: 4px 6px;
   }
 
   .shell.is-mobile-device .musician-live-title {

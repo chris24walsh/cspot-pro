@@ -1802,18 +1802,6 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
           Set <span>{worshipItems.length}</span>
         </button>
       </div>
-      {mobileBuilderPane === "set" ? (
-        <div className="worship-mobile-actions" aria-label="Worship set actions">
-          <button className="text-button" disabled={!plan || !canEditPlan || suggesting} onClick={() => void suggestInlineWorshipSet()} type="button">
-            {suggesting ? "Suggesting..." : worshipItems.length ? "Suggest/Swap Checked" : "Suggest 5 Songs"}
-          </button>
-          <button className="primary-button" onClick={() => setViewMode("live")} type="button">
-            <MonitorUp size={16} aria-hidden="true" />
-            Worship Live
-          </button>
-        </div>
-      ) : null}
-
       <aside className={`worship-song-browser ${mobileBuilderPane === "library" ? "is-mobile-active" : ""}`}>
         <div className="worship-library-search-row">
           <input
