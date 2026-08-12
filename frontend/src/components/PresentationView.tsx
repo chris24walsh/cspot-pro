@@ -1126,6 +1126,14 @@ export function PresentationView({
         setLiveBlanked(false);
         void publishLiveStateForSlides(nextSlides, nextLiveIndex, { blanked: false }, targetPlan?.id);
       }
+      if (!options?.silent) {
+        catchUpCheckTokenRef.current += 1;
+        scrollOperatorToSelectedSlideRef.current = true;
+        sorterCatchUpDirectionRef.current = null;
+        railCatchUpDirectionRef.current = null;
+        setSorterCatchUpDirection(null);
+        setRailCatchUpDirection(null);
+      }
       setLiveIndex(nextLiveIndex);
     } catch (error) {
       if (!isTransientApiError(error) || !plan) {
