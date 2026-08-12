@@ -376,6 +376,10 @@ function mergeStandaloneSectionHeadings(formatted: string) {
 }
 
 export function expandWorshipSlides(value: string | null | undefined, sequence?: string | null) {
+  return worshipSequenceBlocks(value, sequence).map((block) => block.content);
+}
+
+export function worshipSequenceBlocks(value: string | null | undefined, sequence?: string | null) {
   const sections = parseWorshipSectionBlocks(value);
   if (!sections.length) {
     return [];
@@ -403,9 +407,13 @@ export function expandWorshipSlides(value: string | null | undefined, sequence?:
     }
   }
 
-  const ordered = sequenceLabels(sequence).flatMap((label) => contentByLabel.get(label) ?? []);
+  const ordered = sequenceLabels(sequence).flatMap((label) =>
+    (contentByLabel.get(label) ?? []).map((content) => ({ content, label: compactSectionLabel(label) })),
+  );
 
-  return ordered.length ? ordered : fallbackSlides;
+  return ordered.length
+    ? ordered
+    : fallbackSlides.map((content, index) => ({ content, label: sections[index]?.label || String(index + 1) }));
 }
 
 export function canonicalizeWorshipLyrics(value: string | null | undefined, sequence?: string | null) {

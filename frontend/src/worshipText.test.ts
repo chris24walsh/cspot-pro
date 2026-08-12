@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { analyzeWorshipText, canonicalizeWorshipLyrics, normalizeWorshipSequence, sequenceFromWorshipLyrics } from "./worshipText";
+import { analyzeWorshipText, canonicalizeWorshipLyrics, normalizeWorshipSequence, sequenceFromWorshipLyrics, worshipSequenceBlocks } from "./worshipText";
 
 describe("worship text normalization", () => {
   it("preserves a hymn title when it is also the genuine first lyric line", () => {
@@ -80,6 +80,13 @@ describe("worship text normalization", () => {
 
     expect(normalizeWorshipSequence("V1 C V2 C V1 C", lyrics)).toBe("V1 C V2 C V1 C");
     expect(normalizeWorshipSequence("V1 C V2 C V1 C", lyricsWithBridge)).toBe("V1 C V2 B C V1 C");
+  });
+
+  it("exposes repeated arranged blocks for musician navigation", () => {
+    const lyrics = "[V1]\nFirst verse\n\n[C]\nSing together\n\n[V2]\nSecond verse";
+
+    expect(worshipSequenceBlocks(lyrics, "V1 C V2 C").map((block) => block.label)).toEqual(["V1", "C", "V2", "C"]);
+    expect(worshipSequenceBlocks(lyrics, "V1 C V2 C")[3]?.content).toBe("Sing together");
   });
 
   it("closes gaps in sequence verse numbering", () => {

@@ -29,9 +29,11 @@ import {
   PRESENTATION_STORAGE_KEY,
   buildPresentationSlides,
   resolveLiveIndex,
+  splitOversizedLyricSlide,
   type PresentationLiveState,
 } from "../presentation";
 import { isEditableKeyboardTarget, slideKeyboardDirection, type SlideKeyboardDirection } from "../keyboardNavigation";
+import { worshipSequenceBlocks } from "../worshipText";
 
 interface MusicianLiveViewProps {
   controlPlanId?: string | null;
@@ -649,6 +651,22 @@ export function MusicianLiveView({ controlPlanId, onEditSong, onExit, plan, song
   );
   const currentSongSlides = liveSlide ? slides.filter((slide) => slide.planItemId === liveSlide.planItemId) : [];
   const currentSongSlideIndex = liveSlide ? currentSongSlides.findIndex((slide) => slide.id === liveSlide.id) : -1;
+  const sequenceBlocks = liveSong
+    ? worshipSequenceBlocks(liveSong.lyrics, liveSong.sequence).map((block, blockIndex, blocks) => {
+        const precedingSlideCount = blocks
+          .slice(0, blockIndex)
+          .reduce((total, preceding) => total + splitOversizedLyricSlide(preceding.content).length, 0);
+        const slideCount = splitOversizedLyricSlide(block.content).length;
+        return {
+          ...block,
+          endSlideIndex: 1 + precedingSlideCount + slideCount,
+          slideIndex: 1 + precedingSlideCount,
+        };
+      })
+    : [];
+  const currentSequenceBlockIndex = sequenceBlocks.findIndex(
+    (block) => currentSongSlideIndex >= block.slideIndex && currentSongSlideIndex < block.endSlideIndex,
+  );
   const currentSongIndex = worshipItems.findIndex((item) => item.id === liveSlide?.planItemId);
   const isLastSongSlide = liveSlide?.itemType === "song" && currentSongSlideIndex >= 0 && currentSongSlideIndex === currentSongSlides.length - 1;
   const toolbar = (
@@ -740,19 +758,41 @@ export function MusicianLiveView({ controlPlanId, onEditSong, onExit, plan, song
       />
       {topbarSlot ? createPortal(toolbar, topbarSlot) : null}
 
-      <div className="musician-song-transport" aria-label="Song navigation">
-        <button disabled={currentSongIndex <= 0} onClick={() => moveSong(-1)} type="button">
-          <ChevronLeft size={16} aria-hidden="true" />
-          Previous song
-        </button>
-        <button
-          disabled={currentSongIndex < 0 || currentSongIndex >= worshipItems.length - 1}
-          onClick={() => moveSong(1)}
-          type="button"
-        >
-          Next song
-          <ChevronRight size={16} aria-hidden="true" />
-        </button>
+      <div className="musician-song-navigation">
+        <div className="musician-song-transport" aria-label="Song navigation">
+          <button disabled={currentSongIndex <= 0} onClick={() => moveSong(-1)} type="button">
+            <ChevronLeft size={16} aria-hidden="true" />
+            Previous song
+          </button>
+          <button
+            disabled={currentSongIndex < 0 || currentSongIndex >= worshipItems.length - 1}
+            onClick={() => moveSong(1)}
+            type="button"
+          >
+            Next song
+            <ChevronRight size={16} aria-hidden="true" />
+          </button>
+        </div>
+
+        {sequenceBlocks.length ? <nav className="musician-sequence-strip" aria-label="Song sequence">
+          {sequenceBlocks.map((block, blockIndex) => (
+            <button
+              aria-current={blockIndex === currentSequenceBlockIndex ? "step" : undefined}
+              className={blockIndex === currentSequenceBlockIndex ? "is-active" : ""}
+              key={`${block.label}-${blockIndex}`}
+              onClick={() => {
+                const targetIndex = slides.findIndex((slide) => slide.planItemId === liveSlide?.planItemId) + block.slideIndex;
+                if (targetIndex >= 0) {
+                  setLocalIndex(targetIndex);
+                  void publishWorshipSlide(targetIndex);
+                }
+              }}
+              type="button"
+            >
+              {block.label}
+            </button>
+          ))}
+        </nav> : null}
       </div>
 
       {message ? <p className="form-message">{message}</p> : null}
