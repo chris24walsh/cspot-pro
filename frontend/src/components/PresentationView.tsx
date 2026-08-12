@@ -1226,6 +1226,15 @@ export function PresentationView({
     });
   }
 
+  function sorterTargetForSlide(slide: PresentationSlide | null | undefined) {
+    if (!slide) return null;
+    const directTarget = thumbnailRefs.current[slide.id];
+    if (directTarget) return directTarget;
+    const section = sections.find((candidate) => candidate.id === slide.sectionId);
+    const firstVisibleSlide = section ? sorterSlidesForSection(section.slides)[0] : null;
+    return (firstVisibleSlide ? thumbnailRefs.current[firstVisibleSlide.id] : null) ?? sorterSectionRefs.current[slide.sectionId] ?? null;
+  }
+
   function selectSlideFromOperator(nextIndex: number) {
     const targetSlide = slides[Math.min(Math.max(nextIndex, 0), Math.max(slides.length - 1, 0))];
     catchUpCheckTokenRef.current += 1;
@@ -1242,7 +1251,7 @@ export function PresentationView({
       window.requestAnimationFrame(() => {
         scrollItemIntoOperatorView(
           slideGridRef.current,
-          thumbnailRefs.current[targetSlide.id] ?? sorterSectionRefs.current[targetSlide.sectionId] ?? null,
+          sorterTargetForSlide(targetSlide),
         );
         scrollItemIntoOperatorView(sectionRailListRef.current, sectionRailRefs.current[targetSlide.sectionId] ?? null);
       });
@@ -1252,9 +1261,7 @@ export function PresentationView({
 
   function updateCatchUpDirectionsForSlide(index: number) {
     const activeSlide = slides[index];
-    const sorterTarget = activeSlide
-      ? thumbnailRefs.current[activeSlide.id] ?? sorterSectionRefs.current[activeSlide.sectionId] ?? null
-      : null;
+    const sorterTarget = sorterTargetForSlide(activeSlide);
     const nextSorterDirection = slideVisibilityDirection(slideGridRef.current, sorterTarget);
     const nextRailDirection = slideVisibilityDirection(sectionRailListRef.current, activeSlide ? sectionRailRefs.current[activeSlide.sectionId] ?? null : null);
     sorterCatchUpDirectionRef.current = nextSorterDirection;
@@ -1275,7 +1282,7 @@ export function PresentationView({
     railProgrammaticScrollUntilRef.current = Date.now() + 900;
     scrollItemIntoOperatorView(
       slideGridRef.current,
-      thumbnailRefs.current[activeSlide.id] ?? sorterSectionRefs.current[activeSlide.sectionId] ?? null,
+      sorterTargetForSlide(activeSlide),
     );
     scrollItemIntoOperatorView(sectionRailListRef.current, sectionRailRefs.current[activeSlide.sectionId] ?? null);
     sorterCatchUpDirectionRef.current = null;
@@ -3163,7 +3170,7 @@ export function PresentationView({
           sorterProgrammaticScrollUntilRef.current = Date.now() + 900;
           scrollItemIntoOperatorView(
             slideGridRef.current,
-            thumbnailRefs.current[activeSlide.id] ?? sorterSectionRefs.current[activeSlide.sectionId] ?? null,
+            sorterTargetForSlide(activeSlide),
           );
           sorterCatchUpDirectionRef.current = null;
           setSorterCatchUpDirection(null);
@@ -3219,7 +3226,7 @@ export function PresentationView({
       railProgrammaticScrollUntilRef.current = Date.now() + 900;
       scrollItemIntoOperatorView(
         slideGridRef.current,
-        thumbnailRefs.current[activeSlide.id] ?? sorterSectionRefs.current[activeSlide.sectionId] ?? null,
+        sorterTargetForSlide(activeSlide),
       );
       scrollItemIntoOperatorView(sectionRailListRef.current, sectionRailRefs.current[activeSlide.sectionId] ?? null);
     });
@@ -3854,9 +3861,7 @@ export function PresentationView({
             aria-label="All slides"
             onScroll={() => {
               const activeSlide = slides[liveIndex];
-              const sorterTarget = activeSlide
-                ? thumbnailRefs.current[activeSlide.id] ?? sorterSectionRefs.current[activeSlide.sectionId] ?? null
-                : null;
+              const sorterTarget = sorterTargetForSlide(activeSlide);
               const nextDirection = slideVisibilityDirection(slideGridRef.current, sorterTarget);
               sorterCatchUpDirectionRef.current = nextDirection;
               setSorterCatchUpDirection(nextDirection);
