@@ -1,5 +1,5 @@
 import { ChevronLeft, ChevronRight } from "lucide-react";
-import { ReactNode } from "react";
+import { ReactNode, useRef, type WheelEvent } from "react";
 
 interface CalendarDay {
   date: string;
@@ -22,6 +22,12 @@ interface CalendarPopupProps {
   actionButtons?: ReactNode;
 }
 
+export function shiftCalendarMonth(calendarMonth: string, offset: -1 | 1) {
+  const [year, month] = calendarMonth.split("-").map(Number);
+  const shifted = new Date(year, month - 1 + offset, 1);
+  return `${shifted.getFullYear()}-${String(shifted.getMonth() + 1).padStart(2, "0")}`;
+}
+
 export function CalendarPopup({
   isOpen,
   onClose,
@@ -36,8 +42,27 @@ export function CalendarPopup({
   footerContent,
   actionButtons,
 }: CalendarPopupProps) {
+  const wheelDistanceRef = useRef(0);
+  const wheelResetRef = useRef<number | null>(null);
+  const touchStartYRef = useRef<number | null>(null);
+
   if (!isOpen) {
     return null;
+  }
+
+  function moveMonth(offset: -1 | 1) {
+    onMonthChange(shiftCalendarMonth(calendarMonth, offset));
+  }
+
+  function handleCalendarWheel(event: WheelEvent<HTMLDivElement>) {
+    if (Math.abs(event.deltaY) <= Math.abs(event.deltaX)) return;
+    event.preventDefault();
+    wheelDistanceRef.current += event.deltaY;
+    if (wheelResetRef.current !== null) window.clearTimeout(wheelResetRef.current);
+    wheelResetRef.current = window.setTimeout(() => { wheelDistanceRef.current = 0; }, 180);
+    if (Math.abs(wheelDistanceRef.current) < 45) return;
+    moveMonth(wheelDistanceRef.current > 0 ? 1 : -1);
+    wheelDistanceRef.current = 0;
   }
 
   return (
@@ -65,13 +90,7 @@ export function CalendarPopup({
               <button
                 aria-label="Previous month"
                 className="text-button"
-                onClick={() => {
-                  const [year, month] = calendarMonth.split("-").map(Number);
-                  const prev = new Date(year, month - 2, 1);
-                  onMonthChange(
-                    `${prev.getFullYear()}-${String(prev.getMonth() + 1).padStart(2, "0")}`
-                  );
-                }}
+                onClick={() => moveMonth(-1)}
                 type="button"
               >
                 <ChevronLeft size={16} aria-hidden="true" />
@@ -85,20 +104,26 @@ export function CalendarPopup({
               <button
                 aria-label="Next month"
                 className="text-button"
-                onClick={() => {
-                  const [year, month] = calendarMonth.split("-").map(Number);
-                  const next = new Date(year, month, 1);
-                  onMonthChange(
-                    `${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, "0")}`
-                  );
-                }}
+                onClick={() => moveMonth(1)}
                 type="button"
               >
                 <ChevronRight size={16} aria-hidden="true" />
               </button>
             </div>
 
-            <div className="service-calendar-grid" aria-label="Calendar date picker">
+            <div
+              className="service-calendar-grid is-scrollable"
+              aria-label="Calendar date picker"
+              onTouchEnd={(event) => {
+                const start = touchStartYRef.current;
+                touchStartYRef.current = null;
+                if (start === null) return;
+                const distance = start - event.changedTouches[0].clientY;
+                if (Math.abs(distance) >= 42) moveMonth(distance > 0 ? 1 : -1);
+              }}
+              onTouchStart={(event) => { touchStartYRef.current = event.touches[0].clientY; }}
+              onWheel={handleCalendarWheel}
+            >
               {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day) => (
                 <span className="service-calendar-weekday" key={day}>
                   {day}

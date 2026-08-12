@@ -1317,6 +1317,12 @@ button {
   min-height: 0;
 }
 
+.service-calendar-grid.is-scrollable {
+  overscroll-behavior: contain;
+  scroll-behavior: smooth;
+  touch-action: pan-y;
+}
+
 .service-calendar-weekday {
   color: #66736b;
   font-size: 11px;
