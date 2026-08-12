@@ -626,7 +626,7 @@ export function SongEditorDialog({
           </div>
         </div>
 
-        <div className={`song-editor-scroll ${tab === "chords" ? "is-chords-tab" : ""}`}>
+        <div className={`song-editor-scroll is-${tab}-tab`}>
           {tab === "details" ? (
             <div className="form-grid">
               <label>Title<input disabled={!canEdit} onChange={(event) => setForm({ ...form, title: event.target.value })} required value={form.title} /></label>

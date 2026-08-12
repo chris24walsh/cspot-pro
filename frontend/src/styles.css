@@ -2697,6 +2697,7 @@ h3 {
 
 #song-dialog-lyrics {
   min-height: clamp(320px, 54svh, 620px);
+  overflow: auto;
 }
 
 .stack-list {
@@ -7554,6 +7555,25 @@ h3 {
 }
 
 @media (max-width: 540px) {
+  .song-editor-scroll.is-lyrics-tab {
+    overflow: hidden;
+  }
+
+  .song-editor-scroll.is-lyrics-tab .form-grid.single-column,
+  .song-editor-scroll.is-lyrics-tab .field-block.wide-field {
+    height: 100%;
+  }
+
+  .song-editor-scroll.is-lyrics-tab .field-block.wide-field {
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+
+  #song-dialog-lyrics {
+    height: 100%;
+    min-height: 0;
+    resize: none;
+  }
+
   h1 {
     font-size: 28px;
   }
@@ -8296,8 +8316,8 @@ h3 {
   .service-broadcast-grid {
     gap: 6px;
     grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: repeat(2, minmax(0, 1fr));
-    min-height: min(62dvh, 560px);
+    grid-template-rows: auto auto;
+    min-height: 0;
     overflow: hidden;
   }
 
@@ -8311,8 +8331,10 @@ h3 {
 
   .service-broadcast-slide-pane,
   .service-broadcast-camera-pane {
-    aspect-ratio: auto;
-    height: 100%;
+    aspect-ratio: 16 / 9;
+    height: auto;
+    max-width: 100%;
+    width: 100%;
   }
 
   .service-broadcast-slide {
@@ -8334,7 +8356,18 @@ h3 {
   }
 
   .service-broadcast-holding-slide {
+    aspect-ratio: auto;
+    height: 100%;
+    max-width: 100%;
+    min-width: 0;
+    overflow: hidden;
     padding: 12px;
+  }
+
+  .service-broadcast-holding-slide strong {
+    font-size: clamp(22px, 7vw, 34px);
+    max-width: 100%;
+    overflow-wrap: anywhere;
   }
 
   .broadcast-settings-grid {
