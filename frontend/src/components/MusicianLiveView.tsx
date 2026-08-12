@@ -61,7 +61,10 @@ function compactLine(value: string) {
   return value.trim().replace(/\s+/g, " ");
 }
 
-function findSlideLineOffset(sourceLyrics: string, slideText: string) {
+export function findSlideLineOffset(sourceLyrics: string, slideText: string, slideKind?: "title" | "content") {
+  if (slideKind === "title") {
+    return -1;
+  }
   const sourceLines = lyricLines(sourceLyrics).map(compactLine);
   const slideLines = lyricLines(slideText).map(compactLine);
   if (!sourceLines.length || !slideLines.length) {
@@ -373,8 +376,8 @@ export function MusicianLiveView({ controlPlanId, onEditSong, onExit, plan, song
   );
   const liveWrapCharacters = useMemo(() => wrapCharacterLimit(liveFontSize, stageSize.width), [liveFontSize, stageSize.width]);
   const slideLineOffset = useMemo(
-    () => findSlideLineOffset(liveSong?.lyrics ?? "", liveSlide?.text ?? ""),
-    [liveSlide?.text, liveSong?.lyrics],
+    () => findSlideLineOffset(liveSong?.lyrics ?? "", liveSlide?.text ?? "", liveSlide?.slideKind),
+    [liveSlide?.slideKind, liveSlide?.text, liveSong?.lyrics],
   );
 
   const annotationsByLine = useMemo(() => {
