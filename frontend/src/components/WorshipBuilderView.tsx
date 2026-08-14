@@ -473,7 +473,11 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
   );
 
   const worshipSections = useMemo(
-    () => buildPresentationSections(worshipItems, songs),
+    () =>
+      buildPresentationSections(worshipItems, songs).map((section) => ({
+        ...section,
+        slides: section.slides.filter((slide) => slide.slideKind !== "title"),
+      })),
     [songs, worshipItems],
   );
   const selectedWorshipSection = useMemo(
@@ -1994,6 +1998,7 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
                             <div className="mini-slide-surface stage-theme-light">
                               <AutoFitSlideText
                                 className="fit-slide-text-compact"
+                                compact
                                 maxFontSize={compactFontCap}
                                 text={slide.text || "No lyrics"}
                               />
@@ -2080,6 +2085,7 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
                         <div className="mini-slide-surface stage-theme-light">
                           <AutoFitSlideText
                             className="fit-slide-text-compact"
+                            compact
                             maxFontSize={compactFontCap}
                             text={slide.text || "No lyrics"}
                           />
