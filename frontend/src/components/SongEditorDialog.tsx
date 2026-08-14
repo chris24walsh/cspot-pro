@@ -39,6 +39,13 @@ type GuitarChordShape = {
   label?: string;
 };
 
+export function chordEditorLineLengthForWidth(panelWidth: number) {
+  // Allow only for the preview border, compact horizontal padding, and a small
+  // safety gutter for chord labels that extend beyond their anchor.
+  const usableWidth = Math.max(0, panelWidth - 28);
+  return Math.max(14, Math.min(90, Math.floor(usableWidth / 12)));
+}
+
 const WORSHIP_SLOT_OPTIONS = [
   { value: "opener", label: "Opening" },
   { value: "middle", label: "Middle" },
@@ -332,8 +339,7 @@ export function SongEditorDialog({
     if (tab !== "chords" || !chordChartPanelRef.current) return;
     const panel = chordChartPanelRef.current;
     const updateLineLength = () => {
-      const usableWidth = Math.max(0, panel.clientWidth - 100);
-      setChordEditorLineLength(Math.max(14, Math.min(90, Math.floor(usableWidth / 12))));
+      setChordEditorLineLength(chordEditorLineLengthForWidth(panel.clientWidth));
     };
     updateLineLength();
     if (typeof ResizeObserver === "undefined") return;

@@ -3334,7 +3334,7 @@ h3 {
   display: grid;
   gap: 18px;
   overflow: visible;
-  padding: 18px 20px 26px;
+  padding: 14px 6px 22px;
   width: 100%;
   min-width: 100%;
 }
@@ -3344,7 +3344,7 @@ h3 {
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
   font-size: 20px;
   font-weight: 700;
-  padding: 2px 0 0 2.25ch;
+  padding: 2px 0 0;
   white-space: pre;
 }
 
@@ -3424,7 +3424,7 @@ h3 {
   gap: 0;
   justify-content: start;
   max-width: 100%;
-  padding-left: 2.25ch;
+  padding-left: 0;
   row-gap: 0;
 }
 
