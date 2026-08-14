@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
 
-import { cappedCapoForKeys, clearChordAnnotations, createEmptyChordChart, setChordChartAbsoluteKey, wrapChordEditorLine } from "./chordSheet";
+import { cappedCapoForKeys, clearChordAnnotations, createEmptyChordChart, normalizeKeySignature, setChordChartAbsoluteKey, wrapChordEditorLine } from "./chordSheet";
+
+describe("normalizeKeySignature", () => {
+  it("uses C# rather than Db in the chord editor", () => {
+    expect(normalizeKeySignature("Db")).toBe("C#");
+    expect(normalizeKeySignature("C#")).toBe("C#");
+  });
+});
 
 describe("setChordChartAbsoluteKey", () => {
   it("permanently transposes stored chords without changing capo", () => {

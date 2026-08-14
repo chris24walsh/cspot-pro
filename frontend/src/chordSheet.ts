@@ -3,7 +3,7 @@ export type ChordDetailMode = "advanced" | "simple";
 export type KeyAnchorMode = "absolute" | "capo";
 export const LEADING_CHORD_ANCHORS = 3;
 export const TRAILING_CHORD_ANCHORS = 5;
-export const MUSICAL_KEYS = ["C", "Db", "D", "Eb", "E", "F", "F#", "G", "Ab", "A", "Bb", "B"] as const;
+export const MUSICAL_KEYS = ["C", "C#", "D", "Eb", "E", "F", "F#", "G", "Ab", "A", "Bb", "B"] as const;
 
 export interface ChordAnnotation {
   id: string;
@@ -246,6 +246,9 @@ export function normalizeKeySignature(key: string | null | undefined) {
     return null;
   }
   const normalized = normalizeNote(key);
+  if (normalized === "Db") {
+    return "C#";
+  }
   return NOTE_INDEX.has(normalized) ? normalized : null;
 }
 
