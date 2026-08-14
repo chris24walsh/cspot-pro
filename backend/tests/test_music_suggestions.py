@@ -3,7 +3,8 @@ from datetime import UTC, datetime
 import pytest
 from fastapi import HTTPException
 
-from app.modules.music.routes import _suggestion_slots, worship_song_usage
+from app.modules.music.models import Song
+from app.modules.music.routes import _role_matches, _suggestion_slots, worship_song_usage
 
 
 def test_suggestion_slots_accept_explicit_replacement_slots() -> None:
@@ -18,6 +19,14 @@ def test_suggestion_slots_default_to_full_set_shape() -> None:
 def test_suggestion_slots_reject_unknown_slots() -> None:
     with pytest.raises(HTTPException):
         _suggestion_slots(5, ["communion"])
+
+
+def test_role_matching_supports_multiple_song_types() -> None:
+    song = Song(title="Multi-role song", worship_role="middle,closer")
+
+    assert _role_matches(song, "middle")
+    assert _role_matches(song, "closer")
+    assert not _role_matches(song, "opener")
 
 
 def test_worship_usage_exposes_last_use_for_inline_rotation_tags(monkeypatch) -> None:

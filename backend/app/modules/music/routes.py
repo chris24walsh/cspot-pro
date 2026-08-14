@@ -120,6 +120,7 @@ def _song_usage(session: Session) -> dict[str, dict[str, object]]:
                     songs.deleted_at is null
                     and plan_items.deleted_at is null
                     and plans.deleted_at is null
+                    and plans.service_date <= :now
                     and plan_items.item_type = 'song'
                     and plan_types.name = 'Worship Set'
             )
@@ -133,7 +134,8 @@ def _song_usage(session: Session) -> dict[str, dict[str, object]]:
                 end as slot
             from worship_items
             """
-        )
+        ),
+        {"now": datetime.now(UTC)},
     ).all()
     usage: dict[str, dict[str, object]] = {}
     for song_id, service_date, slot in rows:
@@ -161,8 +163,12 @@ def _song_usage(session: Session) -> dict[str, dict[str, object]]:
 
 
 def _role_matches(song: Song, slot: str) -> bool:
-    role = (song.worship_role or "any").strip().lower()
-    return role in {"", "any", slot}
+    roles = {
+        role.strip().lower()
+        for role in (song.worship_role or "any").split(",")
+        if role.strip()
+    }
+    return not roles or "any" in roles or slot in roles
 
 
 def _aware_datetime(value: datetime) -> datetime:

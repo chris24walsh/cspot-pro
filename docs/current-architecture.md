@@ -385,9 +385,12 @@ Search modes:
   polled by desktop output windows so they close remotely. Legacy heartbeat-only
   sessions still expire during upgrades. Service-view `B` controls blanking and
   `F` toggles its locally opened output fullscreen.
-- Worship-set suggestions are edited inline: an empty set is seeded with five
-  songs, while populated sets replace only checked rows. Each row exposes its
-  position, rotation age, and a one-song regenerate action.
+- An empty worship set offers a five-song suggestion as its first list item.
+  Populated rows expose a one-song swap action beside their edit, remove, and
+  reorder controls; clicking the row expands or contracts its lyrics on mobile.
+- Song-library and set rows show concise usage age and additive worship-slot
+  tags. Saving a worship-set edit learns opening, middle, and closing roles from
+  the resulting order without removing roles learned or entered previously.
 - Changing a song's set key permanently transposes stored chord annotations;
   capo (0–5) changes display metadata only. Song saves stay in the editor with
   explicit Saved/Unsaved state, and song archiving requires confirmation.

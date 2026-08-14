@@ -649,7 +649,7 @@ export function SongEditorDialog({
             <div className="form-grid">
               <label>Title<input disabled={!canEdit} onChange={(event) => setForm({ ...form, title: event.target.value })} required value={form.title} /></label>
               <div className="field-block worship-slot-field">
-                <span>Worship Slot</span>
+                <span>Song Type</span>
                 <div className="checkbox-pill-grid">
                   {WORSHIP_SLOT_OPTIONS.map((option) => {
                     const selectedValues = worshipRoleValues(form.worship_role);
@@ -666,6 +666,7 @@ export function SongEditorDialog({
                     );
                   })}
                 </div>
+                <small className="field-help">Choose every position that suits this song. Worship-set order also adds types automatically.</small>
               </div>
               <label className="wide-field youtube-field">
                 <span>YouTube Link / ID</span>

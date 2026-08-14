@@ -50,6 +50,7 @@ import { parseChordChart } from "../chordSheet";
 import { showToast } from "../toast";
 import { analyzeImportedSongSlides, analyzeWorshipText, buildLyricsFromSections, canonicalizeWorshipLyrics } from "../worshipText";
 import { dateKey, isWorshipSetPlan, preferredWorshipSetPlanId, worshipSetType } from "../worshipSets";
+import { lastUsedLabel, worshipRoleLabel } from "../worshipSongMetadata";
 import { calendarColor, calendarMarkers } from "../userCalendarStyle";
 import { AutoFitSlideText } from "./AutoFitSlideText";
 import { CalendarPopup } from "./CalendarPopup";
@@ -377,7 +378,6 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
   const [suggestedSongs, setSuggestedSongs] = useState<WorshipSuggestedSong[]>([]);
   const [includedSuggestionIds, setIncludedSuggestionIds] = useState<Set<string>>(new Set());
   const [suggestionRefreshing, setSuggestionRefreshing] = useState(false);
-  const [suggestionItemIds, setSuggestionItemIds] = useState<Set<string>>(new Set());
   const [songUsage, setSongUsage] = useState<Map<string, WorshipSongUsage>>(new Map());
   const [editingSong, setEditingSong] = useState<Song | null>(null);
   const [songEditorMode, setSongEditorMode] = useState<"create" | "edit">("edit");
@@ -706,7 +706,6 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
       setSelectedItemId((current) =>
         current && nextWorshipItems.some((item) => item.id === current) ? current : nextWorshipItems[0]?.id ?? null,
       );
-      setSuggestionItemIds((current) => new Set([...current].filter((itemId) => nextWorshipItems.some((item) => item.id === itemId))));
       setMessage(null);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Could not load worship builder.");
@@ -955,18 +954,7 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
 
   function usageLabel(songId: string | null) {
     const usage = songId ? songUsage.get(songId) : null;
-    if (!usage?.last_used) return "not used yet";
-    const days = Math.max(0, Math.floor((Date.now() - new Date(usage.last_used).getTime()) / 86_400_000));
-    return `not used for ${days} day${days === 1 ? "" : "s"}`;
-  }
-
-  function toggleSuggestionItem(itemId: string) {
-    setSuggestionItemIds((current) => {
-      const next = new Set(current);
-      if (next.has(itemId)) next.delete(itemId);
-      else next.add(itemId);
-      return next;
-    });
+    return lastUsedLabel(usage?.last_used);
   }
 
   async function replaceWorshipItems(itemsToReplace: PlanItem[]) {
@@ -1000,44 +988,33 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
         snapshotWorshipItems(updated.items),
         `${replacementCount} song${replacementCount === 1 ? "" : "s"} swapped`,
       );
-      setSuggestionItemIds(new Set());
       await load(plan.id);
     }
     return replacementCount;
   }
 
   async function suggestInlineWorshipSet() {
-    if (!plan || !canEditPlan || suggesting) return;
+    if (!plan || !canEditPlan || suggesting || worshipItems.length) return;
     setSuggesting(true);
     try {
-      if (!worshipItems.length) {
-        const suggestion = await getWorshipSetSuggestion(5);
-        const before = snapshotWorshipItems(plan.items);
-        const createdItems: PlanItem[] = [];
-        let sequence = 1;
-        for (const entry of suggestion.songs.slice(0, 5)) {
-          createdItems.push(await createPlanItem(plan.id, {
-            item_type: "song",
-            sequence: sequence.toFixed(2),
-            title: entry.song.title,
-            comment: `${entry.slot}: ${entry.reason}`,
-            key_signature: null,
-            song_id: entry.song.id,
-          }));
-          sequence += 1;
-        }
-        await recordSetHistory(plan.id, "adding five suggested songs", before, snapshotWorshipItems([...plan.items, ...createdItems]), `${createdItems.length} songs added`);
-        await load(plan.id);
-        setMessage(`Added ${createdItems.length} suggested songs.`);
-      } else {
-        const checked = worshipItems.filter((item) => suggestionItemIds.has(item.id));
-        if (!checked.length) {
-          setMessage("Tick the worship items you want to suggest or swap.");
-          return;
-        }
-        const count = await replaceWorshipItems(checked);
-        setMessage(count ? `Swapped ${count} checked song${count === 1 ? "" : "s"}.` : "No fresh suggestions found.");
+      const suggestion = await getWorshipSetSuggestion(5);
+      const before = snapshotWorshipItems(plan.items);
+      const createdItems: PlanItem[] = [];
+      let sequence = 1;
+      for (const entry of suggestion.songs.slice(0, 5)) {
+        createdItems.push(await createPlanItem(plan.id, {
+          item_type: "song",
+          sequence: sequence.toFixed(2),
+          title: entry.song.title,
+          comment: `${entry.slot}: ${entry.reason}`,
+          key_signature: null,
+          song_id: entry.song.id,
+        }));
+        sequence += 1;
       }
+      await recordSetHistory(plan.id, "adding five suggested songs", before, snapshotWorshipItems([...plan.items, ...createdItems]), `${createdItems.length} songs added`);
+      await load(plan.id);
+      setMessage(`Added ${createdItems.length} suggested songs.`);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Could not suggest this worship set.");
     } finally {
@@ -1800,9 +1777,6 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
                 />
               </div>
               <div className="worship-set-topbar-actions">
-                <button className="text-button topbar-action-button" disabled={!plan || !canEditPlan || suggesting} onClick={() => void suggestInlineWorshipSet()} type="button">
-                  {suggesting ? "Suggesting..." : worshipItems.length ? "Suggest/Swap Checked" : "Suggest 5 Songs"}
-                </button>
                 <button
                   aria-label={serviceSlideshowLive ? "Worship Live: service slideshow is live" : "Worship Live: service slideshow is not live"}
                   className={`topbar-primary-button worship-live-launch-button ${serviceSlideshowLive ? "is-live" : "is-idle"}`}
@@ -1874,6 +1848,9 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
               >
                 <span>
                   <strong>{song.title}</strong>
+                  <small>
+                    {worshipRoleLabel(song.worship_role)} · {usageLabel(song.id)}
+                  </small>
                 </span>
               </button>
               <button
@@ -1901,9 +1878,13 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
                 const slidesExpanded = expandedMobileSlideItemId === item.id;
                 return (
                   <article
+                    aria-expanded={slidesExpanded}
                     className={`worship-set-item ${song ? songLibraryStatusClass(song) : ""} ${isSelected ? "is-selected" : ""} ${slidesExpanded ? "slides-expanded" : ""}`}
                     key={item.id}
-                    onClick={() => setSelectedItemId(item.id)}
+                    onClick={() => {
+                      setSelectedItemId(item.id);
+                      setExpandedMobileSlideItemId((current) => (current === item.id ? null : item.id));
+                    }}
                     onKeyDown={(event) => {
                       if (event.key === "Enter" || event.key === " ") {
                         event.preventDefault();
@@ -1913,6 +1894,7 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
                       if (event.key === "Enter" || event.key === " ") {
                         event.preventDefault();
                         setSelectedItemId(item.id);
+                        setExpandedMobileSlideItemId((current) => (current === item.id ? null : item.id));
                       }
                     }}
                     ref={(element) => {
@@ -1925,85 +1907,62 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
                     <div className="worship-set-item-body">
                       <strong>{song ? compactSongTitle(song) : item.title}</strong>
                       {isSelected ? <small>insert next song after this</small> : null}
-                      <div className="worship-inline-suggestion-controls" onClick={(event) => event.stopPropagation()}>
-                        <label title="Include this item when suggesting songs">
-                          <input
-                            aria-label={`Suggest or swap ${song ? song.title : item.title}`}
-                            checked={suggestionItemIds.has(item.id)}
-                            disabled={!canEditPlan}
-                            onChange={() => toggleSuggestionItem(item.id)}
-                            type="checkbox"
-                          />
-                        </label>
+                      <div className="worship-inline-suggestion-controls">
                         <span>{suggestionSlot(index, worshipItems.length)}</span>
                         <span>{usageLabel(item.song_id)}</span>
-                        <button
-                          aria-label={`Swap suggestion for ${song ? song.title : item.title}`}
-                          className="section-icon-button"
-                          disabled={!canEditPlan || suggestionRefreshing}
-                          onClick={() => void swapWorshipItem(item)}
-                          title="Swap/regenerate suggestion"
-                          type="button"
-                        >
-                          <RefreshCw size={13} aria-hidden="true" />
-                        </button>
                       </div>
                     </div>
                     <div className="worship-set-item-tools" onClick={(event) => event.stopPropagation()}>
                       <button
-                        aria-expanded={slidesExpanded}
-                        aria-label={`${slidesExpanded ? "Hide" : "Show"} slides for ${song ? song.title : item.title}`}
-                        className="section-icon-button worship-set-slide-toggle"
-                        disabled={!itemSection?.slides.length}
-                        onClick={() => setExpandedMobileSlideItemId((current) => (current === item.id ? null : item.id))}
+                        aria-label={`Swap suggestion for ${song ? song.title : item.title}`}
+                        className="section-icon-button"
+                        disabled={!canEditPlan || suggestionRefreshing}
+                        onClick={() => void swapWorshipItem(item)}
+                        title="Swap song suggestion"
                         type="button"
                       >
-                        {slidesExpanded ? <ChevronUp size={14} aria-hidden="true" /> : <ChevronDown size={14} aria-hidden="true" />}
+                        <RefreshCw size={14} aria-hidden="true" />
                       </button>
-                      <div className="worship-set-actions">
-                        <button
-                          aria-label={`Edit ${song ? song.title : item.title}`}
-                          className="section-icon-button"
-                          disabled={!song || !canEditSong}
-                          onClick={() => {
-                            if (song) {
-                              openSongEditor(song);
-                            }
-                          }}
-                          type="button"
-                        >
-                          <Pencil size={14} aria-hidden="true" />
-                        </button>
-                        <button
-                          aria-label={`Remove ${item.title}`}
-                          className="section-icon-button section-remove-button"
-                          disabled={!canEditPlan}
-                          onClick={() => void removeSong(item)}
-                          type="button"
-                        >
-                          <Trash2 size={14} aria-hidden="true" />
-                        </button>
-                      </div>
-                      <div className="worship-set-actions">
-                        <button
-                          aria-label={`Move ${item.title} up`}
-                          className="section-icon-button"
-                          disabled={!canEditPlan || index === 0}
-                          onClick={() => void moveSong(item, -1)}
-                          type="button"
-                        >
-                          <ChevronUp size={14} aria-hidden="true" />
-                        </button>
-                        <button
-                          aria-label={`Move ${item.title} down`}
-                          className="section-icon-button"
-                          disabled={!canEditPlan || index === worshipItems.length - 1}
-                          onClick={() => void moveSong(item, 1)}
-                          type="button"
-                        >
-                          <ChevronDown size={14} aria-hidden="true" />
-                        </button>
-                      </div>
+                      <button
+                        aria-label={`Edit ${song ? song.title : item.title}`}
+                        className="section-icon-button"
+                        disabled={!song || !canEditSong}
+                        onClick={() => {
+                          if (song) {
+                            openSongEditor(song);
+                          }
+                        }}
+                        type="button"
+                      >
+                        <Pencil size={14} aria-hidden="true" />
+                      </button>
+                      <button
+                        aria-label={`Remove ${item.title}`}
+                        className="section-icon-button section-remove-button"
+                        disabled={!canEditPlan}
+                        onClick={() => void removeSong(item)}
+                        type="button"
+                      >
+                        <Trash2 size={14} aria-hidden="true" />
+                      </button>
+                      <button
+                        aria-label={`Move ${item.title} up`}
+                        className="section-icon-button"
+                        disabled={!canEditPlan || index === 0}
+                        onClick={() => void moveSong(item, -1)}
+                        type="button"
+                      >
+                        <ChevronUp size={14} aria-hidden="true" />
+                      </button>
+                      <button
+                        aria-label={`Move ${item.title} down`}
+                        className="section-icon-button"
+                        disabled={!canEditPlan || index === worshipItems.length - 1}
+                        onClick={() => void moveSong(item, 1)}
+                        type="button"
+                      >
+                        <ChevronDown size={14} aria-hidden="true" />
+                      </button>
                     </div>
                     {slidesExpanded && itemSection ? (
                       <div className="worship-set-item-slides" aria-label={`${itemSection.title} slides`}>
@@ -2011,7 +1970,10 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
                           <button
                             className="slide-tile preview-tile type-song readonly"
                             key={slide.id}
-                            onClick={() => setSelectedItemId(item.id)}
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              setSelectedItemId(item.id);
+                            }}
                             type="button"
                           >
                             <span>{String(slideIndex + 1).padStart(2, "0")}</span>
@@ -2030,10 +1992,24 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
                 );
               })}
               {!worshipItems.length ? (
-                <p className="empty-state compact-empty">
-                  <Music2 size={18} aria-hidden="true" />
-                  Add songs from the library to build this worship set.
-                </p>
+                <>
+                  <button
+                    className="worship-empty-suggestion"
+                    disabled={!plan || !canEditPlan || suggesting}
+                    onClick={() => void suggestInlineWorshipSet()}
+                    type="button"
+                  >
+                    <WandSparkles size={18} aria-hidden="true" />
+                    <span>
+                      <strong>{suggesting ? "Suggesting…" : "Suggest 5 songs"}</strong>
+                      <small>Build a balanced starting set</small>
+                    </span>
+                  </button>
+                  <p className="empty-state compact-empty">
+                    <Music2 size={18} aria-hidden="true" />
+                    Or add songs from the library.
+                  </p>
+                </>
               ) : null}
             </div>
           </section>

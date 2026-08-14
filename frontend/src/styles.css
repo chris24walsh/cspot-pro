@@ -2079,7 +2079,7 @@ h3 {
   cursor: pointer;
   display: grid;
   gap: 10px;
-  grid-template-columns: 26px minmax(0, 1fr) 68px;
+  grid-template-columns: 26px minmax(0, 1fr) 116px;
   padding: 9px;
   text-align: left;
 }
@@ -2151,18 +2151,12 @@ h3 {
   align-self: center;
   display: grid;
   gap: 4px;
-  grid-template-columns: repeat(2, 36px);
+  grid-template-columns: repeat(3, 36px);
   justify-content: end;
-  width: 76px;
+  width: 116px;
 }
 
-.worship-set-actions {
-  display: grid;
-  gap: 4px;
-  grid-template-columns: 36px;
-}
-
-.worship-set-actions .section-icon-button {
+.worship-set-item-tools > .section-icon-button {
   min-height: 36px;
   min-width: 36px;
   padding: 0;
@@ -2190,18 +2184,6 @@ h3 {
   margin-top: 4px;
 }
 
-.worship-inline-suggestion-controls label {
-  display: grid;
-  place-items: center;
-}
-
-.worship-inline-suggestion-controls input {
-  accent-color: #234a40;
-  height: 18px;
-  margin: 0;
-  width: 18px;
-}
-
 .worship-inline-suggestion-controls > span {
   background: #fffdf7;
   border: 1px solid #d8d0bd;
@@ -2213,10 +2195,43 @@ h3 {
   white-space: nowrap;
 }
 
-.worship-inline-suggestion-controls .section-icon-button {
-  min-height: 26px;
-  min-width: 26px;
-  padding: 0;
+
+.worship-empty-suggestion {
+  align-items: center;
+  background: #eaf5ef;
+  border: 1px dashed #75ae96;
+  border-radius: 8px;
+  color: #234a40;
+  cursor: pointer;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: 26px minmax(0, 1fr);
+  min-height: 64px;
+  padding: 10px;
+  text-align: left;
+  width: 100%;
+}
+
+.worship-empty-suggestion:hover,
+.worship-empty-suggestion:focus-visible {
+  background: #dcefe5;
+  border-style: solid;
+  outline: none;
+}
+
+.worship-empty-suggestion:disabled {
+  cursor: not-allowed;
+  opacity: 0.65;
+}
+
+.worship-empty-suggestion span {
+  display: grid;
+  gap: 2px;
+}
+
+.worship-empty-suggestion small {
+  color: #65716a;
+  font-weight: 650;
 }
 
 .worship-sorter-heading {
@@ -8109,31 +8124,25 @@ h3 {
     font-size: 14px;
   }
 
-  .worship-set-actions {
-    grid-template-columns: 30px;
-  }
-
   .worship-set-item-tools {
     gap: 4px;
     grid-template-columns: repeat(3, 30px);
     width: 98px;
   }
 
-  .worship-set-actions .section-icon-button,
-  .worship-set-slide-toggle {
+  .worship-set-item-tools > .section-icon-button {
     border-radius: 8px;
     min-height: 30px;
     min-width: 30px;
   }
 
-  .worship-set-slide-toggle {
-    display: inline-flex;
-  }
-
-  .worship-set-actions .section-icon-button svg,
-  .worship-set-slide-toggle svg {
+  .worship-set-item-tools > .section-icon-button svg {
     height: 13px;
     width: 13px;
+  }
+
+  .worship-set-slide-toggle {
+    display: inline-flex;
   }
 
   .song-library-row {
@@ -9001,12 +9010,6 @@ h3 {
 
 .worship-set-item-slides .slide-tile {
   min-height: 92px;
-}
-
-@media (min-width: 541px) {
-  .worship-set-slide-toggle {
-    display: none !important;
-  }
 }
 
 .sunday-school-as-worship .worship-song-browser,
