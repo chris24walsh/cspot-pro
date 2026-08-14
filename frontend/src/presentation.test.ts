@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { PlanItem, RenderedSlide, Song } from "./api";
-import { buildPresentationSections, buildPresentationSlides, resolveLiveIndex, splitOversizedLyricSlide, suggestedSlideFontCap } from "./presentation";
+import { buildPresentationSections, buildPresentationSlides, resolveLiveIndex, splitOversizedLyricSlide, suggestedSlideFontCap, suggestUniformSlideGroupFontCap } from "./presentation";
 
 function planItem(overrides: Partial<PlanItem>): PlanItem {
   return {
@@ -43,6 +43,9 @@ function song(overrides: Partial<Song>): Song {
 }
 
 describe("presentation slide derivation", () => {
+  it("uses one compact font cap based on the densest slide in a set", () => {
+    expect(suggestUniformSlideGroupFontCap(["Short lyric", "One\nTwo\nThree\nFour\nFive\nSix"], true)).toBe(9);
+  });
   it("keeps deck-backed items as rendered image slides", () => {
     const item = planItem({
       files: [{ content_type: "application/vnd.ms-powerpoint", display_name: "Sermon", file_id: "file-1", id: "pf-1", sort_order: 0 }],

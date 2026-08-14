@@ -2306,11 +2306,19 @@ h3 {
   width: 100%;
 }
 
+.worship-preview-mobile {
+  display: none;
+  height: 100%;
+  width: 100%;
+}
+
 @media (max-width: 699px) {
   .worship-preview-lyrics {
-    font-size: 16px;
-    line-height: 1.14;
-    padding: 6px;
+    display: none;
+  }
+
+  .worship-preview-mobile {
+    display: block;
   }
 }
 

@@ -4,6 +4,7 @@ type AutoFitSlideTextProps = {
   text: string;
   compact?: boolean;
   className?: string;
+  fixedSize?: boolean;
   maxFontSize?: number;
 };
 
@@ -11,6 +12,7 @@ export function AutoFitSlideText({
   text,
   compact = false,
   className = "",
+  fixedSize = false,
   maxFontSize,
 }: AutoFitSlideTextProps) {
   const frameRef = useRef<HTMLDivElement>(null);
@@ -21,6 +23,13 @@ export function AutoFitSlideText({
     const frame = frameRef.current;
     const pre = textRef.current;
     if (!frame || !pre) {
+      return;
+    }
+
+    if (fixedSize) {
+      const size = maxFontSize ?? (compact ? 12 : 72);
+      pre.style.fontSize = `${size}px`;
+      setFontSize(size);
       return;
     }
 
@@ -106,7 +115,7 @@ export function AutoFitSlideText({
       window.clearTimeout(settleTimer);
       window.removeEventListener("resize", updateSize);
     };
-  }, [compact, maxFontSize, text]);
+  }, [compact, fixedSize, maxFontSize, text]);
 
   return (
     <div className={`fit-slide-box ${compact ? "fit-slide-box-compact" : "fit-slide-box-live"}`} ref={frameRef}>

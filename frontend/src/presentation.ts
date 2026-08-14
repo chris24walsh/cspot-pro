@@ -113,6 +113,12 @@ export function suggestSlideGroupFontCap(texts: string[], compact = false) {
   return bestCap;
 }
 
+export function suggestUniformSlideGroupFontCap(texts: string[], compact = false) {
+  const meaningfulTexts = texts.map((text) => text.trim()).filter(Boolean);
+  if (!meaningfulTexts.length) return compact ? 13 : 72;
+  return Math.min(...meaningfulTexts.map((text) => suggestTextFontCap(text, compact)));
+}
+
 export function suggestedSlideFontCap(slide: PresentationSlide | null | undefined) {
   if (slide?.slideKind === "title") return 64;
   if (slide?.itemType === "reading") return 68;

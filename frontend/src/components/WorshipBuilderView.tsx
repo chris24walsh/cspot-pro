@@ -46,7 +46,7 @@ import {
   type WorshipSongUsage,
   type WorshipLeaderAssignment,
 } from "../api";
-import { buildPresentationSections } from "../presentation";
+import { buildPresentationSections, suggestUniformSlideGroupFontCap } from "../presentation";
 import { parseChordChart } from "../chordSheet";
 import { showToast } from "../toast";
 import { analyzeImportedSongSlides, analyzeWorshipText, buildLyricsFromSections, canonicalizeWorshipLyrics } from "../worshipText";
@@ -54,6 +54,7 @@ import { dateKey, isWorshipSetPlan, preferredWorshipSetPlanId, worshipSetType } 
 import { lastUsedLabel, worshipRoleLabel } from "../worshipSongMetadata";
 import { calendarColor, calendarMarkers } from "../userCalendarStyle";
 import { CalendarPopup } from "./CalendarPopup";
+import { AutoFitSlideText } from "./AutoFitSlideText";
 import { DateNavigator, formatNavigatorDate } from "./DateNavigator";
 import { MusicianLiveView } from "./MusicianLiveView";
 import { SongEditorDialog } from "./SongEditorDialog";
@@ -491,6 +492,10 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
   const selectedWorshipSection = useMemo(
     () => worshipSections.find((section) => section.id === selectedItemId) ?? worshipSections[0] ?? null,
     [selectedItemId, worshipSections],
+  );
+  const mobilePreviewFontCap = useMemo(
+    () => suggestUniformSlideGroupFontCap(worshipSections.flatMap((section) => section.slides.map((slide) => slide.text)), true),
+    [worshipSections],
   );
 
   const bookSourceOptions = useMemo(
@@ -1996,6 +2001,9 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
                             <span>{String(slideIndex + 1).padStart(2, "0")}</span>
                             <div className="mini-slide-surface stage-theme-light">
                               <pre className="worship-preview-lyrics">{slide.text || "No lyrics"}</pre>
+                              <div className="worship-preview-mobile">
+                                <AutoFitSlideText compact fixedSize maxFontSize={mobilePreviewFontCap} text={slide.text || "No lyrics"} />
+                              </div>
                             </div>
                           </button>
                         ))}
@@ -2078,6 +2086,9 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
                         <span>{String(index + 1).padStart(2, "0")}</span>
                         <div className="mini-slide-surface stage-theme-light">
                           <pre className="worship-preview-lyrics">{slide.text || "No lyrics"}</pre>
+                          <div className="worship-preview-mobile">
+                            <AutoFitSlideText compact fixedSize maxFontSize={mobilePreviewFontCap} text={slide.text || "No lyrics"} />
+                          </div>
                         </div>
                       </button>
                     ))}
