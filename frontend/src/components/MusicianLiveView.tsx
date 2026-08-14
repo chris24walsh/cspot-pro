@@ -340,8 +340,13 @@ export function MusicianLiveView({ controlPlanId, onEditSong, onExit, plan, song
   const [guitarKey, setGuitarKey] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [stageSize, setStageSize] = useState({ height: 650, width: 1120 });
+  const [readerMode, setReaderMode] = useState<"pages" | "song">(() =>
+    localStorage.getItem("cspot.worshipLiveReaderMode") === "song" ? "song" : "pages",
+  );
+  const [browseIndex, setBrowseIndex] = useState<number | null>(null);
   const keyCaptureRef = useRef<HTMLInputElement | null>(null);
   const stageRef = useRef<HTMLDivElement | null>(null);
+  const swipeStartRef = useRef<{ x: number; y: number } | null>(null);
   const channelRef = useRef<BroadcastChannel | null>(null);
   const pollingRef = useRef(false);
   const handledKeyboardEventsRef = useRef<WeakSet<KeyboardEvent>>(new WeakSet());
@@ -357,24 +362,36 @@ export function MusicianLiveView({ controlPlanId, onEditSong, onExit, plan, song
         .sort((left, right) => (Number.parseFloat(left.sequence) || 0) - (Number.parseFloat(right.sequence) || 0)),
     [plan?.items],
   );
-  const slides = useMemo(() => buildPresentationSlides(worshipItems, songs), [songs, worshipItems]);
+  const presentationSlides = useMemo(() => buildPresentationSlides(worshipItems, songs), [songs, worshipItems]);
+  const slides = useMemo(() => presentationSlides.filter((slide) => slide.slideKind !== "title"), [presentationSlides]);
   const [localIndex, setLocalIndex] = useState(0);
   const remoteWorshipIndex = useMemo(() => {
     if (!liveState?.planItemId) {
       return -1;
     }
-    return resolveLiveIndex(slides, liveState);
-  }, [liveState, slides]);
-  const liveIndex = remoteWorshipIndex >= 0 ? remoteWorshipIndex : boundedIndex(localIndex, slides.length);
+    const remoteSlide = presentationSlides[resolveLiveIndex(presentationSlides, liveState)];
+    if (!remoteSlide) return -1;
+    const exactIndex = slides.findIndex((slide) => slide.id === remoteSlide.id);
+    return exactIndex >= 0 ? exactIndex : slides.findIndex((slide) => slide.planItemId === remoteSlide.planItemId);
+  }, [liveState, presentationSlides, slides]);
+  const syncedIndex = remoteWorshipIndex >= 0 ? remoteWorshipIndex : boundedIndex(localIndex, slides.length);
+  const liveIndex = browseIndex ?? syncedIndex;
   const liveSlide = slides[liveIndex] ?? null;
   const liveItem = worshipItems.find((item) => item.id === liveSlide?.planItemId) ?? null;
   const liveSong = liveItem?.song_id ? songs.find((song) => song.id === liveItem.song_id) ?? null : null;
   const chordChart = useMemo(() => parseChordChart(liveSong?.chords ?? null).document, [liveSong?.chords]);
   const liveFontSize = useMemo(
-    () => fitFontSizeForSlide(liveSlide?.itemType === "song" ? liveSlide.text : "", stageSize.width, stageSize.height),
-    [liveSlide?.itemType, liveSlide?.text, stageSize.height, stageSize.width],
+    () => fitFontSizeForSlide(
+      liveSlide?.itemType === "song" ? liveSlide.text : "",
+      readerMode === "pages" && stageSize.width >= 700 ? stageSize.width / 2 : stageSize.width,
+      stageSize.height,
+    ),
+    [liveSlide?.itemType, liveSlide?.text, readerMode, stageSize.height, stageSize.width],
   );
-  const liveWrapCharacters = useMemo(() => wrapCharacterLimit(liveFontSize, stageSize.width), [liveFontSize, stageSize.width]);
+  const liveWrapCharacters = useMemo(
+    () => wrapCharacterLimit(liveFontSize, readerMode === "pages" && stageSize.width >= 700 ? stageSize.width / 2 : stageSize.width),
+    [liveFontSize, readerMode, stageSize.width],
+  );
   const slideLineOffset = useMemo(
     () => findSlideLineOffset(liveSong?.lyrics ?? "", liveSlide?.text ?? "", liveSlide?.slideKind),
     [liveSlide?.slideKind, liveSlide?.text, liveSong?.lyrics],
@@ -403,8 +420,17 @@ export function MusicianLiveView({ controlPlanId, onEditSong, onExit, plan, song
   useEffect(() => {
     setLiveState(null);
     setLocalIndex(0);
+    setBrowseIndex(null);
     setMessage(null);
   }, [liveSyncPlanId, plan?.id]);
+
+  useEffect(() => {
+    setBrowseIndex(null);
+  }, [liveState?.planItemId]);
+
+  useEffect(() => {
+    localStorage.setItem("cspot.worshipLiveReaderMode", readerMode);
+  }, [readerMode]);
 
   useEffect(() => {
     keyCaptureRef.current?.focus({ preventScroll: true });
@@ -497,6 +523,12 @@ export function MusicianLiveView({ controlPlanId, onEditSong, onExit, plan, song
     void publishWorshipSlide(nextIndex);
   }
 
+  function browseLyrics(delta: -1 | 1) {
+    const nextIndex = boundedIndex(liveIndex + delta, slides.length);
+    if (slides[nextIndex]?.planItemId !== liveSlide?.planItemId) return;
+    setBrowseIndex(nextIndex === syncedIndex ? null : nextIndex);
+  }
+
   function moveSong(delta: -1 | 1) {
     const currentItemIndex = worshipItems.findIndex((item) => item.id === liveSlide?.planItemId);
     const nextItem = worshipItems[currentItemIndex + delta];
@@ -516,13 +548,14 @@ export function MusicianLiveView({ controlPlanId, onEditSong, onExit, plan, song
       return;
     }
 
+    const presentationIndex = presentationSlides.findIndex((candidate) => candidate.id === slide.id);
     const slideOffset = Math.max(
-      slides.filter((candidate) => candidate.planItemId === slide.planItemId).findIndex((candidate) => candidate.id === slide.id),
+      presentationSlides.filter((candidate) => candidate.planItemId === slide.planItemId).findIndex((candidate) => candidate.id === slide.id),
       0,
     );
     const state: PresentationLiveState = {
       planId: liveSyncPlanId,
-      index: nextIndex,
+      index: presentationIndex,
       updatedAt: Date.now(),
       planItemId: slide.planItemId,
       slideOffset,
@@ -539,7 +572,7 @@ export function MusicianLiveView({ controlPlanId, onEditSong, onExit, plan, song
     try {
       const synced = await updatePresentationLiveState(liveSyncPlanId, {
         plan_id: liveSyncPlanId,
-        index: nextIndex,
+        index: presentationIndex,
         plan_item_id: slide.planItemId,
         slide_offset: slideOffset,
         updated_at: state.updatedAt,
@@ -662,8 +695,8 @@ export function MusicianLiveView({ controlPlanId, onEditSong, onExit, plan, song
         const slideCount = splitOversizedLyricSlide(block.content).length;
         return {
           ...block,
-          endSlideIndex: 1 + precedingSlideCount + slideCount,
-          slideIndex: 1 + precedingSlideCount,
+          endSlideIndex: precedingSlideCount + slideCount,
+          slideIndex: precedingSlideCount,
         };
       })
     : [];
@@ -799,7 +832,20 @@ export function MusicianLiveView({ controlPlanId, onEditSong, onExit, plan, song
 
       <div
         ref={stageRef}
-        className="musician-live-stage"
+        className={`musician-live-stage musician-reader-${readerMode}`}
+        onPointerDown={(event) => {
+          swipeStartRef.current = { x: event.clientX, y: event.clientY };
+        }}
+        onPointerUp={(event) => {
+          const start = swipeStartRef.current;
+          swipeStartRef.current = null;
+          if (!start) return;
+          const horizontal = event.clientX - start.x;
+          const vertical = event.clientY - start.y;
+          if (Math.abs(horizontal) >= 48 && Math.abs(horizontal) > Math.abs(vertical) * 1.25) {
+            browseLyrics(horizontal < 0 ? 1 : -1);
+          }
+        }}
         style={{ "--musician-live-font-size": `${liveFontSize}px` } as CSSProperties & Record<"--musician-live-font-size", string>}
       >
         {!liveSlide ? (
@@ -813,30 +859,49 @@ export function MusicianLiveView({ controlPlanId, onEditSong, onExit, plan, song
             <h3>{liveSlide.sectionTitle}</h3>
             <p>The congregation view is not on a song right now.</p>
           </div>
+        ) : readerMode === "song" ? (
+          <div className="musician-full-song" aria-label="Full song lyrics">
+            {sequenceBlocks.map((block, index) => (
+              <section className={index === currentSequenceBlockIndex ? "is-current" : ""} key={`${block.label}-${index}`}>
+                <strong>{block.label}</strong>
+                <p>{block.content}</p>
+              </section>
+            ))}
+          </div>
         ) : (
-          <div className="musician-chord-sheet" aria-label="Lyrics with chords">
-            {wrappedLyricLinesForSlide.map((segments, lineIndex) => (
-              <div className="musician-lyric-line-group" key={`${lineIndex}-${lyricLinesForSlide[lineIndex]}`}>
-                {segments.map((segment, segmentIndex) => (
-                  <MusicianChordLine
-                    annotations={annotationsForSegment(
-                      annotationsByLine.get(lineIndex) ?? [],
-                      segment.start,
-                      segment.line.length,
-                      segmentIndex === segments.length - 1,
-                    )}
-                    baseAbsoluteKey={baseAbsoluteKey}
-                    capo={capo}
-                    detailMode={detailMode}
-                    displayMode={displayMode}
-                    key={`${lineIndex}-${segmentIndex}-${segment.line}`}
-                    line={segment.line}
-                    showChords={showChords}
-                    targetAbsoluteKey={currentGuitarKey}
-                  />
+          <div className="musician-page-spread">
+            <section className="musician-page is-current" aria-label="Current lyrics">
+              <span className="musician-page-label">Now</span>
+              <div className="musician-chord-sheet" aria-label="Lyrics with chords">
+                {wrappedLyricLinesForSlide.map((segments, lineIndex) => (
+                  <div className="musician-lyric-line-group" key={`${lineIndex}-${lyricLinesForSlide[lineIndex]}`}>
+                    {segments.map((segment, segmentIndex) => (
+                      <MusicianChordLine
+                        annotations={annotationsForSegment(annotationsByLine.get(lineIndex) ?? [], segment.start, segment.line.length, segmentIndex === segments.length - 1)}
+                        baseAbsoluteKey={baseAbsoluteKey}
+                        capo={capo}
+                        detailMode={detailMode}
+                        displayMode={displayMode}
+                        key={`${lineIndex}-${segmentIndex}-${segment.line}`}
+                        line={segment.line}
+                        showChords={showChords}
+                        targetAbsoluteKey={currentGuitarKey}
+                      />
+                    ))}
+                  </div>
                 ))}
               </div>
-            ))}
+            </section>
+            <section className="musician-page is-next" aria-label="Next lyrics">
+              <span className="musician-page-label">Next</span>
+              {slides[liveIndex + 1]?.planItemId === liveSlide.planItemId ? (
+                <div className="musician-next-lyrics">{slides[liveIndex + 1].text}</div>
+              ) : (
+                <div className="musician-next-lyrics is-end">End of song</div>
+              )}
+            </section>
+            <button aria-label="Browse to previous lyrics" className="musician-edge-nav is-previous" disabled={currentSongSlideIndex <= 0} onClick={() => browseLyrics(-1)} type="button"><ChevronLeft aria-hidden="true" /></button>
+            <button aria-label="Browse to next lyrics" className="musician-edge-nav is-next" disabled={currentSongSlideIndex >= currentSongSlides.length - 1} onClick={() => browseLyrics(1)} type="button"><ChevronRight aria-hidden="true" /></button>
           </div>
         )}
       </div>
@@ -853,6 +918,11 @@ export function MusicianLiveView({ controlPlanId, onEditSong, onExit, plan, song
         >
           <ChevronRight size={16} aria-hidden="true" />
         </button>
+        <div className="musician-reader-controls">
+          <button aria-pressed={readerMode === "pages"} className={readerMode === "pages" ? "is-active" : ""} onClick={() => setReaderMode("pages")} type="button">Pages</button>
+          <button aria-pressed={readerMode === "song"} className={readerMode === "song" ? "is-active" : ""} onClick={() => setReaderMode("song")} type="button">Song</button>
+          {browseIndex !== null ? <button className="musician-return-live" onClick={() => setBrowseIndex(null)} type="button">Return to live</button> : null}
+        </div>
       </div>
     </section>
   );
