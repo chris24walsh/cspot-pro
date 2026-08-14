@@ -27,6 +27,7 @@ import {
 } from "../chordSheet";
 import { canonicalizeWorshipLyrics, normalizeWorshipSequence } from "../worshipText";
 import { useConfirmationDialog } from "./ConfirmationDialog";
+import { useEscapeClose } from "./useEscapeClose";
 
 type SongForm = Omit<Song, "id" | "lyrics_status">;
 type SongEditorTab = "lyrics" | "details" | "chords";
@@ -267,6 +268,7 @@ export function SongEditorDialog({
   song: Song;
 }) {
   const { confirm, confirmationDialog } = useConfirmationDialog();
+  useEscapeClose(true, onClose);
   const [tab, setTab] = useState<SongEditorTab>("lyrics");
   const [form, setForm] = useState<SongForm>(() => formFromSong(song));
   const [chordChart, setChordChart] = useState<ChordChartDocument>(() => parseChordChart(song.chords).document);

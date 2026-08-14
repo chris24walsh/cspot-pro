@@ -58,6 +58,7 @@ import { CalendarPopup } from "./CalendarPopup";
 import { DateNavigator, formatNavigatorDate } from "./DateNavigator";
 import { MusicianLiveView } from "./MusicianLiveView";
 import { SongEditorDialog } from "./SongEditorDialog";
+import { useEscapeClose } from "./useEscapeClose";
 
 const SELECTED_WORSHIP_SET_SESSION_KEY = "cspot.selectedWorshipSetPlanId";
 const WORSHIP_HISTORY_FOLDER = "LCF Cloud/Worship/Weekly Worship Slidedecks";
@@ -407,6 +408,14 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
   const slideReviewRef = useRef<HTMLElement | null>(null);
   const setItemRefs = useRef<Record<string, HTMLElement | null>>({});
   const slideGroupRefs = useRef<Record<string, HTMLDivElement | null>>({});
+
+  const hasDismissiblePopup = suggestionReviewOpen || newSongPromptOpen || historyImportOpen || editHistoryOpen;
+  useEscapeClose(hasDismissiblePopup, () => {
+    if (suggestionReviewOpen) setSuggestionReviewOpen(false);
+    else if (newSongPromptOpen) closeNewSongPrompt();
+    else if (historyImportOpen) setHistoryImportOpen(false);
+    else if (editHistoryOpen) setEditHistoryOpen(false);
+  });
 
   const worshipSetPlans = useMemo(() => plans.filter(isWorshipSetPlan), [plans]);
 

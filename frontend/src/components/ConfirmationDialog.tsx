@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { useEscapeClose } from "./useEscapeClose";
 
 type ConfirmationOptions = {
   cancelLabel?: string;
@@ -46,17 +47,10 @@ export function useConfirmationDialog() {
     }
 
     cancelButtonRef.current?.focus();
+    return undefined;
+  }, [pending]);
 
-    function onKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") {
-        event.preventDefault();
-        close(false);
-      }
-    }
-
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [close, pending]);
+  useEscapeClose(Boolean(pending), () => close(false));
 
   const dialog = pending ? (
     <div className="app-dialog-backdrop" role="presentation" onMouseDown={() => close(false)}>

@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { useEscapeClose } from "./useEscapeClose";
 
 import {
   ApiError,
@@ -238,6 +239,11 @@ export function SundaySchoolView({ canEdit }: { canEdit: boolean }) {
   const [importing, setImporting] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const lessonRefs = useRef<Record<string, HTMLButtonElement | null>>({});
+
+  useEscapeClose(Boolean(resourcePickerOpen || teacherPickerDate), () => {
+    if (resourcePickerOpen) setResourcePickerOpen(false);
+    else setTeacherPickerDate(null);
+  });
 
   const lessonsByDate = useMemo(
     () => new Map(lessons.map((lesson) => [dateInputFromIso(lesson.lesson_date), lesson])),

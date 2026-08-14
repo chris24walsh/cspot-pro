@@ -18,6 +18,7 @@ import {
 } from "../presentation";
 import { AutoFitSlideText } from "./AutoFitSlideText";
 import { ScaledSlideImage } from "./ScaledSlideImage";
+import { useEscapeClose } from "./useEscapeClose";
 
 interface SermonRecordingPlayerProps {
   recording: BroadcastRecording;
@@ -50,6 +51,7 @@ export function recordingTimelineEventAt(
 }
 
 export function SermonRecordingPlayer({ recording, onClose }: SermonRecordingPlayerProps) {
+  useEscapeClose(true, onClose);
   const [plan, setPlan] = useState<PlanDetail | null>(null);
   const [songs, setSongs] = useState<Song[]>([]);
   const [renderedSlidesByFileId, setRenderedSlidesByFileId] = useState<Record<string, RenderedSlide[]>>({});

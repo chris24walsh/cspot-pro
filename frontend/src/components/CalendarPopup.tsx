@@ -1,5 +1,6 @@
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { ReactNode, useRef, type WheelEvent } from "react";
+import { useEscapeClose } from "./useEscapeClose";
 
 interface CalendarDay {
   date: string;
@@ -45,6 +46,7 @@ export function CalendarPopup({
   const wheelDistanceRef = useRef(0);
   const wheelResetRef = useRef<number | null>(null);
   const touchStartYRef = useRef<number | null>(null);
+  useEscapeClose(isOpen, onClose);
 
   if (!isOpen) {
     return null;
