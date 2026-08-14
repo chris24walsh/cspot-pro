@@ -262,7 +262,7 @@ def get_plan(
     _current_user: User = Depends(require_permission("plans:read")),
     session: Session = Depends(get_session),
 ) -> PlanDetail:
-    get_plan_or_404(session, plan_id)
+    plan = get_plan_or_404(session, plan_id)
     items = session.scalars(
         select(PlanItem)
         .where(PlanItem.plan_id == plan.id, PlanItem.deleted_at.is_(None))
