@@ -666,8 +666,18 @@ export function SongEditorDialog({
                     );
                   })}
                 </div>
-                <small className="field-help">Choose every position that suits this song. Worship-set order also adds types automatically.</small>
+                <small className="field-help">Types are learned after a worship-set date passes. A removed type stays removed until the song is used in that position again.</small>
               </div>
+              <label className="wide-field">
+                <span>Categories</span>
+                <input
+                  disabled={!canEdit}
+                  onChange={(event) => setForm({ ...form, theme_tags: event.target.value })}
+                  placeholder="hymn, gentle, unaccompanied, big band, christmas, easter"
+                  value={form.theme_tags ?? ""}
+                />
+                <small className="field-help">Comma-separated. Christmas, Easter, Advent, and Lent songs stay out of general suggestions.</small>
+              </label>
               <label className="wide-field youtube-field">
                 <span>YouTube Link / ID</span>
                 <span className="inline-input-action">

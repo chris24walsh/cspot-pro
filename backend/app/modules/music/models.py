@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy import DateTime, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.database import Base
@@ -26,6 +26,23 @@ class Song(IdMixin, TimestampMixin, Base):
     tempo: Mapped[str | None] = mapped_column(String(40))
     theme_tags: Mapped[str | None] = mapped_column(String(500))
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class SongWorshipRoleRemoval(IdMixin, TimestampMixin, Base):
+    __tablename__ = "song_worship_role_removals"
+    __table_args__ = (UniqueConstraint("song_id", "role", name="uq_song_worship_role_removal"),)
+
+    song_id: Mapped[str] = mapped_column(ForeignKey("songs.id", ondelete="CASCADE"), index=True)
+    role: Mapped[str] = mapped_column(String(40), index=True)
+    removed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
+class WorshipSuggestionFeedback(IdMixin, TimestampMixin, Base):
+    __tablename__ = "worship_suggestion_feedback"
+
+    song_id: Mapped[str] = mapped_column(ForeignKey("songs.id", ondelete="CASCADE"), index=True)
+    slot: Mapped[str] = mapped_column(String(40), index=True)
+    action: Mapped[str] = mapped_column(String(40), index=True)
 
 
 class SongPart(IdMixin, TimestampMixin, Base):

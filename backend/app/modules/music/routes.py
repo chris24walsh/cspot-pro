@@ -1,7 +1,7 @@
 import json
 import math
 import secrets
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy import select, text
@@ -10,7 +10,12 @@ from sqlalchemy.orm import Session
 from app.core.database import get_session
 from app.modules.identity.auth import require_any_permission, require_permission
 from app.modules.identity.models import User
-from app.modules.music.models import Song, SongPart
+from app.modules.music.models import (
+    Song,
+    SongPart,
+    SongWorshipRoleRemoval,
+    WorshipSuggestionFeedback,
+)
 from app.modules.music.schemas import (
     SongCreate,
     SongPartRead,
@@ -20,6 +25,7 @@ from app.modules.music.schemas import (
     WorshipSongUsageEntryRead,
     WorshipSongUsageRead,
     WorshipSuggestedSongRead,
+    WorshipSuggestionFeedbackCreate,
 )
 from app.modules.music.text import normalize_song_text
 from app.modules.planning.models import HistoryEntry
@@ -97,6 +103,78 @@ def song_to_read(song: Song) -> SongRead:
 
 _suggestion_random = secrets.SystemRandom()
 _SUGGESTION_SLOTS = {"opener", "middle", "closer"}
+_SEASONAL_TAGS = {"advent", "christmas", "easter", "lent"}
+
+
+def _role_values(value: str | None) -> set[str]:
+    return {
+        role.strip().lower()
+        for role in (value or "").split(",")
+        if role.strip() and role.strip().lower() != "any"
+    }
+
+
+def _tag_values(value: str | None) -> set[str]:
+    return {tag.strip().lower() for tag in (value or "").split(",") if tag.strip()}
+
+
+def _song_matches_categories(song: Song, categories: list[str] | None) -> bool:
+    tags = _tag_values(song.theme_tags)
+    requested = {category.strip().lower() for category in categories or [] if category.strip()}
+    if requested:
+        return bool(tags & requested)
+    return not bool(tags & _SEASONAL_TAGS)
+
+
+def _elapsed_role_can_apply(service_date: datetime, removed_at: datetime | None) -> bool:
+    return removed_at is None or _aware_datetime(service_date) > _aware_datetime(removed_at)
+
+
+def _sync_elapsed_worship_roles(session: Session, now: datetime | None = None) -> int:
+    now = now or datetime.now(UTC)
+    rows = session.execute(
+        text(
+            """
+            with worship_items as (
+                select songs.id as song_id, plans.service_date,
+                    row_number() over (partition by plans.id order by plan_items.sequence, plan_items.created_at, plan_items.id) as item_number,
+                    count(*) over (partition by plans.id) as item_count
+                from songs
+                join plan_items on plan_items.song_id = songs.id
+                join plans on plans.id = plan_items.plan_id
+                join plan_types on plan_types.id = plans.plan_type_id
+                where songs.deleted_at is null and plan_items.deleted_at is null
+                    and plans.deleted_at is null and plans.service_date < :now
+                    and plan_items.item_type = 'song' and plan_types.name = 'Worship Set'
+            )
+            select song_id, service_date,
+                case when item_number = 1 then 'opener'
+                     when item_number = item_count then 'closer' else 'middle' end as role
+            from worship_items
+            """
+        ),
+        {"now": now},
+    ).all()
+    removals = {
+        (removal.song_id, removal.role): removal.removed_at
+        for removal in session.scalars(select(SongWorshipRoleRemoval)).all()
+    }
+    updated_ids: set[str] = set()
+    for song_id, service_date, role in rows:
+        removed_at = removals.get((song_id, role))
+        if not _elapsed_role_can_apply(service_date, removed_at):
+            continue
+        song = session.get(Song, song_id)
+        if song is None:
+            continue
+        roles = _role_values(song.worship_role)
+        if role not in roles:
+            roles.add(role)
+            song.worship_role = ",".join(sorted(roles))
+            updated_ids.add(song_id)
+    if updated_ids:
+        session.commit()
+    return len(updated_ids)
 
 
 def _song_usage(session: Session) -> dict[str, dict[str, object]]:
@@ -163,12 +241,8 @@ def _song_usage(session: Session) -> dict[str, dict[str, object]]:
 
 
 def _role_matches(song: Song, slot: str) -> bool:
-    roles = {
-        role.strip().lower()
-        for role in (song.worship_role or "any").split(",")
-        if role.strip()
-    }
-    return not roles or "any" in roles or slot in roles
+    roles = _role_values(song.worship_role)
+    return not roles or slot in roles
 
 
 def _aware_datetime(value: datetime) -> datetime:
@@ -198,7 +272,9 @@ def _historical_slot_fit(usage: dict[str, object], slot: str) -> tuple[float, in
         return 0.0, 0, 0.0
 
     slot_count = int(slot_counts.get(slot) or 0)
-    total = sum(int(slot_counts.get(candidate) or 0) for candidate in ("opener", "middle", "closer"))
+    total = sum(
+        int(slot_counts.get(candidate) or 0) for candidate in ("opener", "middle", "closer")
+    )
     if total <= 0:
         return 0.0, slot_count, 0.0
 
@@ -209,7 +285,9 @@ def _historical_slot_fit(usage: dict[str, object], slot: str) -> tuple[float, in
     return bonus, slot_count, share
 
 
-def _song_score(song: Song, slot: str, usage: dict[str, object], now: datetime) -> tuple[float, str]:
+def _song_score(
+    song: Song, slot: str, usage: dict[str, object], now: datetime, rejection_weight: float = 0
+) -> tuple[float, str]:
     use_count = int(usage.get("use_count") or 0)
     last_used = usage.get("last_used")
     days_since = 9999
@@ -219,7 +297,9 @@ def _song_score(song: Song, slot: str, usage: dict[str, object], now: datetime) 
     energy = song.energy if song.energy is not None else 3
     target_energy = {"opener": 5, "middle": 3, "closer": 2}.get(slot, 3)
     recent_count = _recent_use_count(usage, now, 35)
-    historical_bonus, historical_slot_count, historical_slot_share = _historical_slot_fit(usage, slot)
+    historical_bonus, historical_slot_count, historical_slot_share = _historical_slot_fit(
+        usage, slot
+    )
     role_bonus = 18 if _role_matches(song, slot) else -22
     favourite_bonus = min(math.log1p(use_count) * 5.0, 12)
     recent_favourite_bonus = 0.0
@@ -237,6 +317,7 @@ def _song_score(song: Song, slot: str, usage: dict[str, object], now: datetime) 
 
     rotation_penalty = min(use_count * 0.8, 10)
     energy_penalty = abs(energy - target_energy) * 2.8
+    rejection_penalty = min(rejection_weight * 12, 36)
     score = (
         50
         + role_bonus
@@ -247,6 +328,7 @@ def _song_score(song: Song, slot: str, usage: dict[str, object], now: datetime) 
         - stale_recent_penalty
         - rotation_penalty
         - energy_penalty
+        - rejection_penalty
     )
 
     if use_count == 0:
@@ -264,7 +346,9 @@ def _song_score(song: Song, slot: str, usage: dict[str, object], now: datetime) 
     return score, reason
 
 
-def _weighted_pick(candidates: list[tuple[float, str, Song, dict[str, object]]]) -> tuple[float, str, Song, dict[str, object]]:
+def _weighted_pick(
+    candidates: list[tuple[float, str, Song, dict[str, object]]],
+) -> tuple[float, str, Song, dict[str, object]]:
     if len(candidates) == 1:
         return candidates[0]
     floor = min(score for score, _reason, _song, _usage in candidates)
@@ -307,6 +391,7 @@ def list_songs(
     _current_user: User = Depends(require_permission("songs:read")),
     search: str | None = None,
 ) -> list[SongRead]:
+    _sync_elapsed_worship_roles(session)
     statement = select(Song).where(Song.deleted_at.is_(None)).order_by(Song.title)
     if search:
         statement = statement.where(Song.title.ilike(f"%{search}%"))
@@ -320,12 +405,31 @@ def suggest_worship_set(
     session: Session = Depends(get_session),
     limit: int = 5,
     slots: list[str] | None = Query(default=None),
+    categories: list[str] | None = Query(default=None),
 ) -> WorshipSetSuggestionRead:
+    _sync_elapsed_worship_roles(session)
     songs = session.scalars(
         select(Song).where(Song.deleted_at.is_(None), Song.lyrics.is_not(None)).order_by(Song.title)
     ).all()
+    songs = [song for song in songs if _song_matches_categories(song, categories)]
     usage = _song_usage(session)
     now = datetime.now(UTC)
+    rejection_rows = session.execute(
+        select(
+            WorshipSuggestionFeedback.song_id,
+            WorshipSuggestionFeedback.slot,
+            WorshipSuggestionFeedback.created_at,
+        )
+        .where(
+            WorshipSuggestionFeedback.action == "rejected",
+            WorshipSuggestionFeedback.created_at >= now - timedelta(days=90),
+        )
+    ).all()
+    rejection_weights: dict[tuple[str, str], float] = {}
+    for song_id, slot, rejected_at in rejection_rows:
+        age_days = max((_aware_datetime(now) - _aware_datetime(rejected_at)).days, 0)
+        key = (song_id, slot)
+        rejection_weights[key] = rejection_weights.get(key, 0) + max(1 - age_days / 90, 0)
     requested_slots = _suggestion_slots(limit, slots)
     selected_ids: set[str] = set()
     suggested: list[WorshipSuggestedSongRead] = []
@@ -344,7 +448,9 @@ def suggest_worship_set(
                     "slot_counts": {"opener": 0, "middle": 0, "closer": 0},
                 },
             )
-            score, reason = _song_score(song, slot, song_usage, now)
+            score, reason = _song_score(
+                song, slot, song_usage, now, rejection_weights.get((song.id, slot), 0)
+            )
             candidates.append((score, reason, song, song_usage))
         if not candidates:
             break
@@ -365,6 +471,22 @@ def suggest_worship_set(
         )
 
     return WorshipSetSuggestionRead(songs=suggested)
+
+
+@router.post("/worship-suggestion-feedback", status_code=status.HTTP_201_CREATED)
+def record_worship_suggestion_feedback(
+    payload: WorshipSuggestionFeedbackCreate,
+    _current_user: User = Depends(require_any_permission("plans:edit", "songs:edit")),
+    session: Session = Depends(get_session),
+) -> dict[str, str]:
+    if payload.slot not in _SUGGESTION_SLOTS or payload.action != "rejected":
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Invalid suggestion feedback"
+        )
+    get_song_or_404(session, payload.song_id)
+    session.add(WorshipSuggestionFeedback(**payload.model_dump()))
+    session.commit()
+    return {"status": "recorded"}
 
 
 @router.get("/worship-usage", response_model=list[WorshipSongUsageEntryRead])
@@ -393,7 +515,9 @@ def create_song(
     session: Session = Depends(get_session),
 ) -> SongRead:
     values = payload.model_dump()
-    values["lyrics"], values["sequence"] = normalize_song_text(values.get("lyrics"), values.get("sequence"))
+    values["lyrics"], values["sequence"] = normalize_song_text(
+        values.get("lyrics"), values.get("sequence")
+    )
     song = Song(**values)
     session.add(song)
     session.flush()
@@ -440,6 +564,31 @@ def update_song(
     song = get_song_or_404(session, song_id)
     changes: list[str] = []
     values = payload.model_dump(exclude_unset=True)
+    if "worship_role" in values:
+        previous_roles = _role_values(song.worship_role)
+        next_roles = _role_values(values.get("worship_role"))
+        now = datetime.now(UTC)
+        for role in previous_roles - next_roles:
+            removal = session.scalar(
+                select(SongWorshipRoleRemoval).where(
+                    SongWorshipRoleRemoval.song_id == song.id,
+                    SongWorshipRoleRemoval.role == role,
+                )
+            )
+            if removal is None:
+                removal = SongWorshipRoleRemoval(song_id=song.id, role=role, removed_at=now)
+                session.add(removal)
+            else:
+                removal.removed_at = now
+        for role in next_roles - previous_roles:
+            removal = session.scalar(
+                select(SongWorshipRoleRemoval).where(
+                    SongWorshipRoleRemoval.song_id == song.id,
+                    SongWorshipRoleRemoval.role == role,
+                )
+            )
+            if removal is not None:
+                session.delete(removal)
     values["lyrics"], values["sequence"] = normalize_song_text(
         values.get("lyrics", song.lyrics), values.get("sequence", song.sequence)
     )
@@ -491,7 +640,9 @@ def list_song_parts(
     _current_user: User = Depends(require_permission("songs:read")),
     session: Session = Depends(get_session),
 ) -> list[SongPartRead]:
-    song_parts = session.scalars(select(SongPart).order_by(SongPart.sort_order, SongPart.name)).all()
+    song_parts = session.scalars(
+        select(SongPart).order_by(SongPart.sort_order, SongPart.name)
+    ).all()
     return [
         SongPartRead(
             id=song_part.id,

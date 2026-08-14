@@ -2234,6 +2234,26 @@ h3 {
   font-weight: 650;
 }
 
+.worship-suggestion-category {
+  align-items: center;
+  color: #65716a;
+  display: flex;
+  font-size: 11px;
+  font-weight: 750;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.worship-suggestion-category select {
+  background: #fffdf7;
+  border: 1px solid #d8d0bd;
+  border-radius: 7px;
+  color: #334139;
+  font: inherit;
+  min-height: 30px;
+  padding: 4px 7px;
+}
+
 .worship-sorter-heading {
   align-items: stretch;
   display: grid;

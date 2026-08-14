@@ -21,6 +21,7 @@ import {
   getWorshipSetSuggestion,
   getWorshipSongUsage,
   parseGoogleDriveDeck,
+  recordWorshipSuggestionRejection,
   runCustomProviderSearch,
   searchGoogleDriveFiles,
   selectCustomProviderMatch,
@@ -378,6 +379,7 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
   const [suggestedSongs, setSuggestedSongs] = useState<WorshipSuggestedSong[]>([]);
   const [includedSuggestionIds, setIncludedSuggestionIds] = useState<Set<string>>(new Set());
   const [suggestionRefreshing, setSuggestionRefreshing] = useState(false);
+  const [suggestionCategory, setSuggestionCategory] = useState("general");
   const [songUsage, setSongUsage] = useState<Map<string, WorshipSongUsage>>(new Map());
   const [editingSong, setEditingSong] = useState<Song | null>(null);
   const [songEditorMode, setSongEditorMode] = useState<"create" | "edit">("edit");
@@ -965,8 +967,12 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
     for (const item of itemsToReplace) {
       if (item.song_id) blockedSongIds.delete(item.song_id);
       const index = worshipItems.findIndex((candidate) => candidate.id === item.id);
+      const slot = suggestionSlot(Math.max(index, 0), worshipItems.length);
+      if (item.song_id) {
+        await recordWorshipSuggestionRejection(item.song_id, slot);
+      }
       const replacement = await suggestionReplacementForSlot(
-        suggestionSlot(Math.max(index, 0), worshipItems.length),
+        slot,
         blockedSongIds,
       );
       if (!replacement) continue;
@@ -997,7 +1003,11 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
     if (!plan || !canEditPlan || suggesting || worshipItems.length) return;
     setSuggesting(true);
     try {
-      const suggestion = await getWorshipSetSuggestion(5);
+      const suggestion = await getWorshipSetSuggestion(
+        5,
+        [],
+        suggestionCategory === "general" ? [] : [suggestionCategory],
+      );
       const before = snapshotWorshipItems(plan.items);
       const createdItems: PlanItem[] = [];
       let sequence = 1;
@@ -1039,7 +1049,11 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
     let attempts = 0;
     while (attempts < 4) {
       attempts += 1;
-      const suggestion = await getWorshipSetSuggestion(8, Array.from({ length: 8 }, () => slot));
+      const suggestion = await getWorshipSetSuggestion(
+        8,
+        Array.from({ length: 8 }, () => slot),
+        suggestionCategory === "general" ? [] : [suggestionCategory],
+      );
       for (const entry of suggestion.songs) {
         if (blockedSongIds.has(entry.song.id)) {
           continue;
@@ -2005,6 +2019,18 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
                       <small>Build a balanced starting set</small>
                     </span>
                   </button>
+                  <label className="worship-suggestion-category">
+                    <span>Suggestion category</span>
+                    <select onChange={(event) => setSuggestionCategory(event.target.value)} value={suggestionCategory}>
+                      <option value="general">General worship</option>
+                      <option value="christmas">Christmas</option>
+                      <option value="easter">Easter</option>
+                      <option value="hymn">Hymns</option>
+                      <option value="gentle">Gentle</option>
+                      <option value="unaccompanied">Unaccompanied</option>
+                      <option value="big band">Big band</option>
+                    </select>
+                  </label>
                   <p className="empty-state compact-empty">
                     <Music2 size={18} aria-hidden="true" />
                     Or add songs from the library.

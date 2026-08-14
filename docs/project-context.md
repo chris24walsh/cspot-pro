@@ -125,8 +125,9 @@ These preferences have been made explicit and should guide future changes.
 
 - New songs should support paste-in lyrics and formatting assistance.
 - Worship songs should be normalized into a consistent slide structure.
-- Worship-set order should add opening, middle, and closing song-type tags to
-  the library without replacing tags a leader has already assigned.
+- Elapsed worship-set order should add opening, middle, and closing song-type
+  tags without replacing manually assigned tags. Manual removals remain in
+  force until a later elapsed set provides new evidence for that position.
 - Every song save should prune invalid or deprecated part labels and renumber
   lyric and sequence verses together without gaps.
 - A sequence longer than the lyric label list may encode deliberate repeats and

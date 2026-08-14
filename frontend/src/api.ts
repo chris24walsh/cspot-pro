@@ -958,10 +958,19 @@ export async function getSongs(): Promise<Song[]> {
   return getJson<Song[]>("/api/v1/music/songs");
 }
 
-export async function getWorshipSetSuggestion(limit = 5, slots: string[] = []): Promise<WorshipSetSuggestion> {
+export async function getWorshipSetSuggestion(limit = 5, slots: string[] = [], categories: string[] = []): Promise<WorshipSetSuggestion> {
   const search = new URLSearchParams({ limit: String(limit) });
   slots.forEach((slot) => search.append("slots", slot));
+  categories.forEach((category) => search.append("categories", category));
   return getJson<WorshipSetSuggestion>(`/api/v1/music/worship-suggestions?${search.toString()}`);
+}
+
+export async function recordWorshipSuggestionRejection(songId: string, slot: string): Promise<void> {
+  await sendJson("/api/v1/music/worship-suggestion-feedback", "POST", {
+    song_id: songId,
+    slot,
+    action: "rejected",
+  });
 }
 
 export async function getWorshipSongUsage(): Promise<WorshipSongUsage[]> {

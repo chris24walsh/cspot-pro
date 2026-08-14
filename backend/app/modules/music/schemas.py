@@ -72,3 +72,9 @@ class WorshipSuggestedSongRead(BaseModel):
 
 class WorshipSetSuggestionRead(BaseModel):
     songs: list[WorshipSuggestedSongRead]
+
+
+class WorshipSuggestionFeedbackCreate(BaseModel):
+    song_id: str
+    slot: str
+    action: str = "rejected"

@@ -389,8 +389,12 @@ Search modes:
   Populated rows expose a one-song swap action beside their edit, remove, and
   reorder controls; clicking the row expands or contracts its lyrics on mobile.
 - Song-library and set rows show concise usage age and additive worship-slot
-  tags. Saving a worship-set edit learns opening, middle, and closing roles from
-  the resulting order without removing roles learned or entered previously.
+  tags. Opening, middle, and closing roles are learned only after the worship-set
+  date has passed. Removing a learned role suppresses historical re-learning
+  until the song later serves in that position again.
+- General suggestions exclude Advent, Christmas, Lent, and Easter categories.
+  The empty-set category selector can request themed or musical subsets, while
+  recent swap rejections apply a decaying penalty to future suggestions.
 - Changing a song's set key permanently transposes stored chord annotations;
   capo (0–5) changes display metadata only. Song saves stay in the editor with
   explicit Saved/Unsaved state, and song archiving requires confirmation.

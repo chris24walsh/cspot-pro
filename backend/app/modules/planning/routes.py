@@ -10,7 +10,6 @@ from app.core.database import get_session
 from app.modules.identity.auth import require_any_permission, require_permission
 from app.modules.identity.models import User
 from app.modules.library.models import ItemFile, StoredFile
-from app.modules.music.models import Song
 from app.modules.planning.models import (
     HistoryEntry,
     ItemNote,
@@ -38,44 +37,6 @@ router = APIRouter()
 PLAN_HISTORY_ACTION = "item_snapshot"
 PLAN_HISTORY_ENTITY_TYPE = "plan"
 PLAN_HISTORY_LIMIT = 80
-
-
-def _merge_worship_roles(current_value: str | None, inferred_role: str) -> str:
-    roles = [
-        role.strip().lower()
-        for role in (current_value or "").split(",")
-        if role.strip() and role.strip().lower() != "any"
-    ]
-    if inferred_role not in roles:
-        roles.append(inferred_role)
-    return ",".join(roles)
-
-
-def _learn_worship_roles_from_plan(session: Session, plan: Plan) -> None:
-    plan_type = session.get(PlanType, plan.plan_type_id)
-    if not plan_type or plan_type.name.strip().casefold() != "worship set":
-        return
-
-    items = list(
-        session.scalars(
-            select(PlanItem)
-            .where(
-                PlanItem.plan_id == plan.id,
-                PlanItem.deleted_at.is_(None),
-                PlanItem.item_type == "song",
-                PlanItem.song_id.is_not(None),
-            )
-            .order_by(PlanItem.sequence, PlanItem.created_at, PlanItem.id)
-        ).all()
-    )
-    for index, item in enumerate(items):
-        song = session.get(Song, item.song_id)
-        if song is None or song.deleted_at is not None:
-            continue
-        inferred_role = (
-            "opener" if index == 0 else "closer" if index == len(items) - 1 else "middle"
-        )
-        song.worship_role = _merge_worship_roles(song.worship_role, inferred_role)
 
 
 @router.get("/worship-leader-assignments", response_model=list[WorshipLeaderAssignmentRead])
@@ -301,7 +262,7 @@ def get_plan(
     _current_user: User = Depends(require_permission("plans:read")),
     session: Session = Depends(get_session),
 ) -> PlanDetail:
-    plan = get_plan_or_404(session, plan_id)
+    get_plan_or_404(session, plan_id)
     items = session.scalars(
         select(PlanItem)
         .where(PlanItem.plan_id == plan.id, PlanItem.deleted_at.is_(None))
@@ -369,7 +330,6 @@ def create_plan_history(
         details=json.dumps(details, separators=(",", ":")),
     )
     session.add(entry)
-    _learn_worship_roles_from_plan(session, plan)
     session.commit()
     session.refresh(entry)
     read_entry = history_entry_to_read(session, entry)
