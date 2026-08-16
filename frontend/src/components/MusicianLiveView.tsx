@@ -343,7 +343,6 @@ export function MusicianLiveView({ controlPlanId, onEditSong, onExit, plan, song
   const [readerMode, setReaderMode] = useState<"pages" | "song">(() =>
     localStorage.getItem("cspot.worshipLiveReaderMode") === "song" ? "song" : "pages",
   );
-  const [browseIndex, setBrowseIndex] = useState<number | null>(null);
   const keyCaptureRef = useRef<HTMLInputElement | null>(null);
   const stageRef = useRef<HTMLDivElement | null>(null);
   const swipeStartRef = useRef<{ x: number; y: number } | null>(null);
@@ -377,7 +376,7 @@ export function MusicianLiveView({ controlPlanId, onEditSong, onExit, plan, song
     return exactIndex >= 0 ? exactIndex : slides.findIndex((slide) => slide.planItemId === remoteSlide.planItemId);
   }, [liveState, presentationSlides, slides]);
   const syncedIndex = remoteWorshipIndex >= 0 ? remoteWorshipIndex : boundedIndex(localIndex, slides.length);
-  const liveIndex = browseIndex ?? syncedIndex;
+  const liveIndex = syncedIndex;
   const liveSlide = slides[liveIndex] ?? null;
   const liveItem = worshipItems.find((item) => item.id === liveSlide?.planItemId) ?? null;
   const liveSong = liveItem?.song_id ? songs.find((song) => song.id === liveItem.song_id) ?? null : null;
@@ -422,13 +421,8 @@ export function MusicianLiveView({ controlPlanId, onEditSong, onExit, plan, song
   useEffect(() => {
     setLiveState(null);
     setLocalIndex(0);
-    setBrowseIndex(null);
     setMessage(null);
   }, [liveSyncPlanId, plan?.id]);
-
-  useEffect(() => {
-    setBrowseIndex(null);
-  }, [liveState?.planItemId]);
 
   useEffect(() => {
     localStorage.setItem("cspot.worshipLiveReaderMode", readerMode);
@@ -523,12 +517,6 @@ export function MusicianLiveView({ controlPlanId, onEditSong, onExit, plan, song
     const nextIndex = boundedIndex(liveIndex + delta, slides.length);
     setLocalIndex(nextIndex);
     void publishWorshipSlide(nextIndex);
-  }
-
-  function browseLyrics(delta: -1 | 1) {
-    const nextIndex = boundedIndex(liveIndex + delta, slides.length);
-    if (slides[nextIndex]?.planItemId !== liveSlide?.planItemId) return;
-    setBrowseIndex(nextIndex === syncedIndex ? null : nextIndex);
   }
 
   function moveSong(delta: -1 | 1) {
@@ -744,6 +732,10 @@ export function MusicianLiveView({ controlPlanId, onEditSong, onExit, plan, song
         </label>
       </div>
       <div className="musician-live-controls" aria-label="Musician display controls">
+        <div className="musician-reader-controls" aria-label="Lyrics display mode">
+          <button aria-pressed={readerMode === "pages"} className={readerMode === "pages" ? "is-active" : ""} onClick={() => setReaderMode("pages")} type="button">Pages</button>
+          <button aria-pressed={readerMode === "song"} className={readerMode === "song" ? "is-active" : ""} onClick={() => setReaderMode("song")} type="button">Song</button>
+        </div>
         <button
           aria-label="Edit song"
           className="musician-edit-button"
@@ -852,7 +844,7 @@ export function MusicianLiveView({ controlPlanId, onEditSong, onExit, plan, song
           const horizontal = event.clientX - start.x;
           const vertical = event.clientY - start.y;
           if (Math.abs(horizontal) >= 48 && Math.abs(horizontal) > Math.abs(vertical) * 1.25) {
-            browseLyrics(horizontal < 0 ? 1 : -1);
+            moveLive(horizontal < 0 ? 1 : -1);
           }
         }}
         style={{ "--musician-live-font-size": `${liveFontSize}px` } as CSSProperties & Record<"--musician-live-font-size", string>}
@@ -903,35 +895,20 @@ export function MusicianLiveView({ controlPlanId, onEditSong, onExit, plan, song
             </section>
             <section className="musician-page is-next" aria-label="Next lyrics">
               <span className="musician-page-label">Next</span>
-              {slides[liveIndex + 1]?.planItemId === liveSlide.planItemId ? (
+              {slides[liveIndex + 1] ? (
                 <div className="musician-next-lyrics">{slides[liveIndex + 1].text}</div>
               ) : (
-                <div className="musician-next-lyrics is-end">End of song</div>
+                <div className="musician-next-lyrics is-end">End of set</div>
               )}
             </section>
-            <button aria-label="Browse to previous lyrics" className="musician-edge-nav is-previous" disabled={currentSongSlideIndex <= 0} onClick={() => browseLyrics(-1)} type="button"><ChevronLeft aria-hidden="true" /></button>
-            <button aria-label="Browse to next lyrics" className="musician-edge-nav is-next" disabled={currentSongSlideIndex >= currentSongSlides.length - 1} onClick={() => browseLyrics(1)} type="button"><ChevronRight aria-hidden="true" /></button>
           </div>
         )}
-      </div>
-
-      <div className="musician-live-transport">
-        <button className="text-button" disabled={!slides.length || liveIndex <= 0} onClick={() => moveLive(-1)} type="button">
-          <ChevronLeft size={16} aria-hidden="true" />
-        </button>
-        <button
-          className="primary-button"
-          disabled={!slides.length || liveIndex >= slides.length - 1}
-          onClick={() => moveLive(1)}
-          type="button"
-        >
-          <ChevronRight size={16} aria-hidden="true" />
-        </button>
-        <div className="musician-reader-controls">
-          <button aria-pressed={readerMode === "pages"} className={readerMode === "pages" ? "is-active" : ""} onClick={() => setReaderMode("pages")} type="button">Pages</button>
-          <button aria-pressed={readerMode === "song"} className={readerMode === "song" ? "is-active" : ""} onClick={() => setReaderMode("song")} type="button">Song</button>
-          {browseIndex !== null ? <button className="musician-return-live" onClick={() => setBrowseIndex(null)} type="button">Return to live</button> : null}
-        </div>
+        {liveSlide ? (
+          <>
+            <button aria-label="Previous slide" className="musician-edge-nav is-previous" disabled={liveIndex <= 0} onClick={() => moveLive(-1)} type="button"><ChevronLeft aria-hidden="true" /></button>
+            <button aria-label="Next slide" className="musician-edge-nav is-next" disabled={liveIndex >= slides.length - 1} onClick={() => moveLive(1)} type="button"><ChevronRight aria-hidden="true" /></button>
+          </>
+        ) : null}
       </div>
     </section>
   );

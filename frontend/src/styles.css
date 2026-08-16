@@ -2853,19 +2853,6 @@ h3 {
   margin: 0;
 }
 
-.musician-live-transport {
-  align-items: center;
-  background: #fffdf7;
-  border: 0;
-  border-top: 1px solid #e3dcc8;
-  border-radius: 0;
-  display: grid;
-  gap: 1px;
-  grid-template-columns: repeat(2, minmax(70px, 1fr)) auto;
-  min-height: 34px;
-  padding: 0;
-}
-
 .musician-reader-controls {
   align-items: center;
   display: flex;
@@ -2891,28 +2878,13 @@ h3 {
   color: #fff;
 }
 
-.musician-reader-controls .musician-return-live {
-  background: #fff2d8;
-  border-color: #d8a84b;
-  color: #704c0d;
-}
-
 @media (max-width: 699px) {
   .musician-page-spread { grid-template-columns: 1fr; }
   .musician-page.is-next { display: none; }
   .musician-page { border: 0; border-radius: 0; padding-inline: 8px; }
   .musician-page-label { display: none; }
   .musician-full-song { columns: 1; }
-  .musician-live-transport { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .musician-reader-controls { grid-column: 1 / -1; justify-content: center; }
-}
-
-.musician-live-transport .primary-button,
-.musician-live-transport .text-button {
-  border-radius: 0;
-  justify-content: center;
-  min-height: 34px;
-  padding: 4px;
+  .musician-reader-controls { justify-content: center; }
 }
 
 .compact-empty {
@@ -8587,28 +8559,11 @@ h3 {
     padding-bottom: max(6px, env(safe-area-inset-bottom));
   }
 
-  .musician-live-view:fullscreen .musician-live-transport,
-  .musician-live-view.is-fullscreen .musician-live-transport,
-  .musician-live-view:-webkit-full-screen .musician-live-transport {
-    padding-bottom: env(safe-area-inset-bottom);
-  }
-
   .musician-lyrics-only p {
     font-size: clamp(28px, 8vw, 44px);
     line-height: 1.1;
   }
 
-  .musician-live-transport {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 1px;
-    min-height: 32px;
-  }
-
-  .musician-live-transport .text-button,
-  .musician-live-transport .primary-button {
-    min-height: 32px;
-    padding: 3px;
-  }
 }
 
 /* Keep responsive broadcast rules after the desktop broadcast declarations so
