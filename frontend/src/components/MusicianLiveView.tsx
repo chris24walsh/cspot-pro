@@ -363,7 +363,9 @@ export function MusicianLiveView({ controlPlanId, onEditSong, onExit, plan, song
     [plan?.items],
   );
   const presentationSlides = useMemo(() => buildPresentationSlides(worshipItems, songs), [songs, worshipItems]);
-  const slides = useMemo(() => presentationSlides.filter((slide) => slide.slideKind !== "title"), [presentationSlides]);
+  // Worship Live controls the congregation slideshow, so song title slides must
+  // remain in its navigation as useful transitions between songs.
+  const slides = presentationSlides;
   const [localIndex, setLocalIndex] = useState(0);
   const remoteWorshipIndex = useMemo(() => {
     if (!liveState?.planItemId) {
@@ -686,7 +688,11 @@ export function MusicianLiveView({ controlPlanId, onEditSong, onExit, plan, song
     ),
   );
   const currentSongSlides = liveSlide ? slides.filter((slide) => slide.planItemId === liveSlide.planItemId) : [];
+  const currentSongContentSlides = currentSongSlides.filter((slide) => slide.slideKind !== "title");
   const currentSongSlideIndex = liveSlide ? currentSongSlides.findIndex((slide) => slide.id === liveSlide.id) : -1;
+  const currentSongContentSlideIndex = liveSlide
+    ? currentSongContentSlides.findIndex((slide) => slide.id === liveSlide.id)
+    : -1;
   const sequenceBlocks = liveSong
     ? worshipSequenceBlocks(liveSong.lyrics, liveSong.sequence).map((block, blockIndex, blocks) => {
         const precedingSlideCount = blocks
@@ -701,7 +707,7 @@ export function MusicianLiveView({ controlPlanId, onEditSong, onExit, plan, song
       })
     : [];
   const currentSequenceBlockIndex = sequenceBlocks.findIndex(
-    (block) => currentSongSlideIndex >= block.slideIndex && currentSongSlideIndex < block.endSlideIndex,
+    (block) => currentSongContentSlideIndex >= block.slideIndex && currentSongContentSlideIndex < block.endSlideIndex,
   );
   const currentSongIndex = worshipItems.findIndex((item) => item.id === liveSlide?.planItemId);
   const isLastSongSlide = liveSlide?.itemType === "song" && currentSongSlideIndex >= 0 && currentSongSlideIndex === currentSongSlides.length - 1;
@@ -810,7 +816,10 @@ export function MusicianLiveView({ controlPlanId, onEditSong, onExit, plan, song
               className={blockIndex === currentSequenceBlockIndex ? "is-active" : ""}
               key={`${block.label}-${blockIndex}`}
               onClick={() => {
-                const targetIndex = slides.findIndex((slide) => slide.planItemId === liveSlide?.planItemId) + block.slideIndex;
+                const firstContentIndex = slides.findIndex(
+                  (slide) => slide.planItemId === liveSlide?.planItemId && slide.slideKind !== "title",
+                );
+                const targetIndex = firstContentIndex + block.slideIndex;
                 if (targetIndex >= 0) {
                   setLocalIndex(targetIndex);
                   void publishWorshipSlide(targetIndex);
