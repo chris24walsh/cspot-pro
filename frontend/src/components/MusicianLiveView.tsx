@@ -930,28 +930,30 @@ export function MusicianLiveView({ controlPlanId, onEditSong, onExit, plan, song
                       ref={isCurrent ? activeSongPartRef : undefined}
                       style={{ "--musician-live-font-size": `${songModeFontSize}px` } as CSSProperties}
                     >
-                      <div className="musician-song-chord-sheet">
-                        {partLines.map((line, lineIndex) => {
-                          const segments = wrapLyricLine(line, songModeWrapCharacters);
-                          return (
-                            <div className="musician-lyric-line-group" key={`${lineIndex}-${line}`}>
-                              {segments.map((segment, segmentIndex) => (
-                                <MusicianChordLine
-                                  annotations={annotationsForSegment(partAnnotations.get(lineIndex) ?? [], segment.start, segment.line.length, segmentIndex === segments.length - 1)}
-                                  baseAbsoluteKey={baseAbsoluteKey}
-                                  capo={capo}
-                                  detailMode={detailMode}
-                                  displayMode={displayMode}
-                                  key={`${lineIndex}-${segmentIndex}-${segment.line}`}
-                                  line={segment.line}
-                                  showChords={showChords}
-                                  targetAbsoluteKey={currentGuitarKey}
-                                />
-                              ))}
-                            </div>
-                          );
-                        })}
-                      </div>
+                      {showChords ? (
+                        <div className="musician-song-chord-sheet">
+                          {partLines.map((line, lineIndex) => {
+                            const segments = wrapLyricLine(line, songModeWrapCharacters);
+                            return (
+                              <div className="musician-lyric-line-group" key={`${lineIndex}-${line}`}>
+                                {segments.map((segment, segmentIndex) => (
+                                  <MusicianChordLine
+                                    annotations={annotationsForSegment(partAnnotations.get(lineIndex) ?? [], segment.start, segment.line.length, segmentIndex === segments.length - 1)}
+                                    baseAbsoluteKey={baseAbsoluteKey}
+                                    capo={capo}
+                                    detailMode={detailMode}
+                                    displayMode={displayMode}
+                                    key={`${lineIndex}-${segmentIndex}-${segment.line}`}
+                                    line={segment.line}
+                                    showChords
+                                    targetAbsoluteKey={currentGuitarKey}
+                                  />
+                                ))}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      ) : <p>{part}</p>}
                     </div>
                   );
                 })}
