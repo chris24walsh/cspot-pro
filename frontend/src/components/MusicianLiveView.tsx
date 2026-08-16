@@ -718,15 +718,25 @@ export function MusicianLiveView({ controlPlanId, onEditSong, onExit, plan, song
 
   useEffect(() => {
     if (readerMode !== "song" || !fullSongRef.current || !activeSongPartRef.current) {
-      return;
+      return undefined;
     }
-    const container = fullSongRef.current;
-    const activePart = activeSongPartRef.current;
-    container.scrollTo({
-      behavior: "smooth",
-      left: Math.max(activePart.offsetLeft - (container.clientWidth - activePart.clientWidth) / 2, 0),
-      top: Math.max(activePart.offsetTop - (container.clientHeight - activePart.clientHeight) / 2, 0),
+    let secondFrame = 0;
+    const firstFrame = window.requestAnimationFrame(() => {
+      secondFrame = window.requestAnimationFrame(() => {
+        const container = fullSongRef.current;
+        const activePart = activeSongPartRef.current;
+        if (!container || !activePart) return;
+        container.scrollTo({
+          behavior: "smooth",
+          left: Math.max(activePart.offsetLeft - (container.clientWidth - activePart.clientWidth) / 2, 0),
+          top: Math.max(activePart.offsetTop - (container.clientHeight - activePart.clientHeight) / 2, 0),
+        });
+      });
     });
+    return () => {
+      window.cancelAnimationFrame(firstFrame);
+      window.cancelAnimationFrame(secondFrame);
+    };
   }, [currentSequenceBlockIndex, currentSequencePartIndex, readerMode, showChords]);
   const currentSongIndex = worshipItems.findIndex((item) => item.id === liveSlide?.planItemId);
   const isLastSongSlide = liveSlide?.itemType === "song" && currentSongSlideIndex >= 0 && currentSongSlideIndex === currentSongSlides.length - 1;
