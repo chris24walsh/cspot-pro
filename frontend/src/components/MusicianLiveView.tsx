@@ -1,4 +1,4 @@
-import { ChevronLeft, ChevronRight, Guitar, LogOut, Music2, Pencil } from "lucide-react";
+import { BookOpen, ChevronLeft, ChevronRight, Guitar, LogOut, Music2, Pencil } from "lucide-react";
 import type { CSSProperties } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -345,6 +345,8 @@ export function MusicianLiveView({ controlPlanId, onEditSong, onExit, plan, song
   );
   const keyCaptureRef = useRef<HTMLInputElement | null>(null);
   const stageRef = useRef<HTMLDivElement | null>(null);
+  const fullSongRef = useRef<HTMLDivElement | null>(null);
+  const activeSongPartRef = useRef<HTMLDivElement | null>(null);
   const swipeStartRef = useRef<{ x: number; y: number } | null>(null);
   const channelRef = useRef<BroadcastChannel | null>(null);
   const pollingRef = useRef(false);
@@ -686,10 +688,12 @@ export function MusicianLiveView({ controlPlanId, onEditSong, onExit, plan, song
         const precedingSlideCount = blocks
           .slice(0, blockIndex)
           .reduce((total, preceding) => total + splitOversizedLyricSlide(preceding.content).length, 0);
-        const slideCount = splitOversizedLyricSlide(block.content).length;
+        const parts = splitOversizedLyricSlide(block.content);
+        const slideCount = parts.length;
         return {
           ...block,
           endSlideIndex: precedingSlideCount + slideCount,
+          parts,
           slideIndex: precedingSlideCount,
         };
       })
@@ -697,6 +701,22 @@ export function MusicianLiveView({ controlPlanId, onEditSong, onExit, plan, song
   const currentSequenceBlockIndex = sequenceBlocks.findIndex(
     (block) => currentSongContentSlideIndex >= block.slideIndex && currentSongContentSlideIndex < block.endSlideIndex,
   );
+  const currentSequencePartIndex = currentSequenceBlockIndex >= 0
+    ? currentSongContentSlideIndex - sequenceBlocks[currentSequenceBlockIndex].slideIndex
+    : -1;
+
+  useEffect(() => {
+    if (readerMode !== "song" || !fullSongRef.current || !activeSongPartRef.current) {
+      return;
+    }
+    const container = fullSongRef.current;
+    const activePart = activeSongPartRef.current;
+    container.scrollTo({
+      behavior: "smooth",
+      left: Math.max(activePart.offsetLeft - (container.clientWidth - activePart.clientWidth) / 2, 0),
+      top: Math.max(activePart.offsetTop - (container.clientHeight - activePart.clientHeight) / 2, 0),
+    });
+  }, [currentSequenceBlockIndex, currentSequencePartIndex, readerMode]);
   const currentSongIndex = worshipItems.findIndex((item) => item.id === liveSlide?.planItemId);
   const isLastSongSlide = liveSlide?.itemType === "song" && currentSongSlideIndex >= 0 && currentSongSlideIndex === currentSongSlides.length - 1;
   const toolbar = (
@@ -732,10 +752,17 @@ export function MusicianLiveView({ controlPlanId, onEditSong, onExit, plan, song
         </label>
       </div>
       <div className="musician-live-controls" aria-label="Musician display controls">
-        <div className="musician-reader-controls" aria-label="Lyrics display mode">
-          <button aria-pressed={readerMode === "pages"} className={readerMode === "pages" ? "is-active" : ""} onClick={() => setReaderMode("pages")} type="button">Pages</button>
-          <button aria-pressed={readerMode === "song"} className={readerMode === "song" ? "is-active" : ""} onClick={() => setReaderMode("song")} type="button">Song</button>
-        </div>
+        <button
+          aria-label={`Switch to ${readerMode === "pages" ? "Song" : "Pages"} view`}
+          aria-pressed={readerMode === "song"}
+          className={`musician-reader-toggle ${readerMode === "song" ? "is-active" : ""}`}
+          onClick={() => setReaderMode((current) => current === "pages" ? "song" : "pages")}
+          title={`Showing ${readerMode === "pages" ? "Pages" : "Song"} view`}
+          type="button"
+        >
+          <BookOpen size={16} aria-hidden="true" />
+          <span className="musician-control-text">{readerMode === "pages" ? "Pages" : "Song"}</span>
+        </button>
         <button
           aria-label="Edit song"
           className="musician-edit-button"
@@ -811,12 +838,19 @@ export function MusicianLiveView({ controlPlanId, onEditSong, onExit, plan, song
                 const firstContentIndex = slides.findIndex(
                   (slide) => slide.planItemId === liveSlide?.planItemId && slide.slideKind !== "title",
                 );
-                const targetIndex = firstContentIndex + block.slideIndex;
+                const nextPartIndex = blockIndex === currentSequenceBlockIndex
+                  ? (currentSequencePartIndex + 1) % block.parts.length
+                  : 0;
+                const targetIndex = firstContentIndex + block.slideIndex + nextPartIndex;
                 if (targetIndex >= 0) {
                   setLocalIndex(targetIndex);
                   void publishWorshipSlide(targetIndex);
                 }
               }}
+              style={blockIndex === currentSequenceBlockIndex ? {
+                "--sequence-active-end": `${((currentSequencePartIndex + 1) / block.parts.length) * 100}%`,
+                "--sequence-active-start": `${(currentSequencePartIndex / block.parts.length) * 100}%`,
+              } as CSSProperties : undefined}
               type="button"
             >
               {block.label}
@@ -835,7 +869,11 @@ export function MusicianLiveView({ controlPlanId, onEditSong, onExit, plan, song
         ref={stageRef}
         className={`musician-live-stage musician-reader-${readerMode}`}
         onPointerDown={(event) => {
+          event.currentTarget.setPointerCapture(event.pointerId);
           swipeStartRef.current = { x: event.clientX, y: event.clientY };
+        }}
+        onPointerCancel={() => {
+          swipeStartRef.current = null;
         }}
         onPointerUp={(event) => {
           const start = swipeStartRef.current;
@@ -861,11 +899,22 @@ export function MusicianLiveView({ controlPlanId, onEditSong, onExit, plan, song
             <p>The congregation view is not on a song right now.</p>
           </div>
         ) : readerMode === "song" ? (
-          <div className="musician-full-song" aria-label="Full song lyrics">
-            {sequenceBlocks.map((block, index) => (
-              <section className={index === currentSequenceBlockIndex ? "is-current" : ""} key={`${block.label}-${index}`}>
+          <div className="musician-full-song" aria-label="Full song lyrics" ref={fullSongRef}>
+            {sequenceBlocks.map((block, blockIndex) => (
+              <section key={`${block.label}-${blockIndex}`}>
                 <strong>{block.label}</strong>
-                <p>{block.content}</p>
+                {block.parts.map((part, partIndex) => {
+                  const isCurrent = blockIndex === currentSequenceBlockIndex && partIndex === currentSequencePartIndex;
+                  return (
+                    <div
+                      className={`musician-song-part ${isCurrent ? "is-current" : ""}`}
+                      key={`${block.label}-${blockIndex}-${partIndex}`}
+                      ref={isCurrent ? activeSongPartRef : undefined}
+                    >
+                      <p>{part}</p>
+                    </div>
+                  );
+                })}
               </section>
             ))}
           </div>
