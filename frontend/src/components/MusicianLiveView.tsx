@@ -333,6 +333,29 @@ function annotationsForSegment(annotations: ChordAnnotation[], segmentStart: num
     .filter((annotation): annotation is ChordAnnotation => Boolean(annotation));
 }
 
+function chordAnnotationsBySlideLine(
+  sourceLyrics: string,
+  slideText: string,
+  slideKind: "title" | "content" | undefined,
+  annotations: ChordAnnotation[],
+) {
+  const grouped = new Map<number, ChordAnnotation[]>();
+  const lineOffset = findSlideLineOffset(sourceLyrics, slideText, slideKind);
+  if (lineOffset < 0) return grouped;
+
+  for (const annotation of annotations) {
+    const slideLineIndex = annotation.lineIndex - lineOffset;
+    if (slideLineIndex < 0) continue;
+    const existing = grouped.get(slideLineIndex) ?? [];
+    existing.push(annotation);
+    grouped.set(slideLineIndex, existing);
+  }
+  for (const lineAnnotations of grouped.values()) {
+    lineAnnotations.sort((left, right) => left.anchorIndex - right.anchorIndex);
+  }
+  return grouped;
+}
+
 export function MusicianLiveView({ controlPlanId, onEditSong, onExit, plan, songs, topbarSlot }: MusicianLiveViewProps) {
   const [liveState, setLiveState] = useState<PresentationLiveState | null>(null);
   const [showChords, setShowChords] = useState(true);
@@ -395,30 +418,18 @@ export function MusicianLiveView({ controlPlanId, onEditSong, onExit, plan, song
     () => wrapCharacterLimit(liveFontSize, readerMode === "pages" && stageSize.width >= 700 ? stageSize.width / 2 : stageSize.width),
     [liveFontSize, readerMode, stageSize.width],
   );
-  const slideLineOffset = useMemo(
-    () => findSlideLineOffset(liveSong?.lyrics ?? "", liveSlide?.text ?? "", liveSlide?.slideKind),
-    [liveSlide?.slideKind, liveSlide?.text, liveSong?.lyrics],
+  const songModeColumnWidth = stageSize.width >= 700 ? stageSize.width / 2 : stageSize.width;
+  const songModeFontSize = clampNumber(songModeColumnWidth / 24, 18, 32);
+  const songModeWrapCharacters = wrapCharacterLimit(songModeFontSize, songModeColumnWidth);
+  const annotationsByLine = useMemo(
+    () => chordAnnotationsBySlideLine(
+      liveSong?.lyrics ?? "",
+      liveSlide?.text ?? "",
+      liveSlide?.slideKind,
+      chordChart.annotations,
+    ),
+    [chordChart.annotations, liveSlide?.slideKind, liveSlide?.text, liveSong?.lyrics],
   );
-
-  const annotationsByLine = useMemo(() => {
-    const grouped = new Map<number, ChordAnnotation[]>();
-    if (slideLineOffset < 0) {
-      return grouped;
-    }
-    for (const annotation of chordChart.annotations) {
-      const slideLineIndex = annotation.lineIndex - slideLineOffset;
-      if (slideLineIndex < 0) {
-        continue;
-      }
-      const existing = grouped.get(slideLineIndex) ?? [];
-      existing.push(annotation);
-      grouped.set(slideLineIndex, existing);
-    }
-    for (const annotations of grouped.values()) {
-      annotations.sort((left, right) => left.anchorIndex - right.anchorIndex);
-    }
-    return grouped;
-  }, [chordChart.annotations, slideLineOffset]);
 
   useEffect(() => {
     setLiveState(null);
@@ -716,7 +727,7 @@ export function MusicianLiveView({ controlPlanId, onEditSong, onExit, plan, song
       left: Math.max(activePart.offsetLeft - (container.clientWidth - activePart.clientWidth) / 2, 0),
       top: Math.max(activePart.offsetTop - (container.clientHeight - activePart.clientHeight) / 2, 0),
     });
-  }, [currentSequenceBlockIndex, currentSequencePartIndex, readerMode]);
+  }, [currentSequenceBlockIndex, currentSequencePartIndex, readerMode, showChords]);
   const currentSongIndex = worshipItems.findIndex((item) => item.id === liveSlide?.planItemId);
   const isLastSongSlide = liveSlide?.itemType === "song" && currentSongSlideIndex >= 0 && currentSongSlideIndex === currentSongSlides.length - 1;
   const toolbar = (
@@ -905,13 +916,42 @@ export function MusicianLiveView({ controlPlanId, onEditSong, onExit, plan, song
                 <strong>{block.label}</strong>
                 {block.parts.map((part, partIndex) => {
                   const isCurrent = blockIndex === currentSequenceBlockIndex && partIndex === currentSequencePartIndex;
+                  const partLines = lyricLines(part);
+                  const partAnnotations = chordAnnotationsBySlideLine(
+                    liveSong?.lyrics ?? "",
+                    part,
+                    "content",
+                    chordChart.annotations,
+                  );
                   return (
                     <div
                       className={`musician-song-part ${isCurrent ? "is-current" : ""}`}
                       key={`${block.label}-${blockIndex}-${partIndex}`}
                       ref={isCurrent ? activeSongPartRef : undefined}
+                      style={{ "--musician-live-font-size": `${songModeFontSize}px` } as CSSProperties}
                     >
-                      <p>{part}</p>
+                      <div className="musician-song-chord-sheet">
+                        {partLines.map((line, lineIndex) => {
+                          const segments = wrapLyricLine(line, songModeWrapCharacters);
+                          return (
+                            <div className="musician-lyric-line-group" key={`${lineIndex}-${line}`}>
+                              {segments.map((segment, segmentIndex) => (
+                                <MusicianChordLine
+                                  annotations={annotationsForSegment(partAnnotations.get(lineIndex) ?? [], segment.start, segment.line.length, segmentIndex === segments.length - 1)}
+                                  baseAbsoluteKey={baseAbsoluteKey}
+                                  capo={capo}
+                                  detailMode={detailMode}
+                                  displayMode={displayMode}
+                                  key={`${lineIndex}-${segmentIndex}-${segment.line}`}
+                                  line={segment.line}
+                                  showChords={showChords}
+                                  targetAbsoluteKey={currentGuitarKey}
+                                />
+                              ))}
+                            </div>
+                          );
+                        })}
+                      </div>
                     </div>
                   );
                 })}

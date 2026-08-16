@@ -2777,6 +2777,22 @@ h3 {
   border-radius: 8px;
 }
 
+.musician-song-chord-sheet {
+  display: grid;
+  gap: 0.45em;
+  min-width: 0;
+}
+
+.musician-song-chord-sheet .musician-lyric-line-group {
+  justify-items: start;
+}
+
+.musician-song-chord-sheet .musician-chord-line {
+  justify-content: start;
+  line-height: 1.08;
+  row-gap: 2px;
+}
+
 .musician-full-song strong {
   color: #245d4d;
   display: block;
