@@ -2753,12 +2753,11 @@ h3 {
 
 .musician-full-song {
   align-content: start;
-  columns: 2 360px;
-  column-gap: clamp(28px, 4vw, 68px);
   height: 100%;
-  overflow: auto;
+  overflow-x: hidden;
+  overflow-y: auto;
   padding: clamp(10px, 2vw, 28px);
-  width: min(100%, 1500px);
+  width: min(100%, 960px);
 }
 
 .musician-full-song section {
@@ -2791,6 +2790,10 @@ h3 {
   justify-content: start;
   line-height: 1.08;
   row-gap: 2px;
+}
+
+.musician-next-chord-sheet {
+  gap: clamp(12px, 2vh, 28px);
 }
 
 .musician-full-song strong {

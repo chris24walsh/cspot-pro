@@ -418,7 +418,7 @@ export function MusicianLiveView({ controlPlanId, onEditSong, onExit, plan, song
     () => wrapCharacterLimit(liveFontSize, readerMode === "pages" && stageSize.width >= 700 ? stageSize.width / 2 : stageSize.width),
     [liveFontSize, readerMode, stageSize.width],
   );
-  const songModeColumnWidth = stageSize.width >= 700 ? stageSize.width / 2 : stageSize.width;
+  const songModeColumnWidth = stageSize.width;
   const songModeFontSize = clampNumber(songModeColumnWidth / 24, 18, 32);
   const songModeWrapCharacters = wrapCharacterLimit(songModeFontSize, songModeColumnWidth);
   const annotationsByLine = useMemo(
@@ -429,6 +429,23 @@ export function MusicianLiveView({ controlPlanId, onEditSong, onExit, plan, song
       chordChart.annotations,
     ),
     [chordChart.annotations, liveSlide?.slideKind, liveSlide?.text, liveSong?.lyrics],
+  );
+  const nextSlide = slides[liveIndex + 1] ?? null;
+  const nextSlideUsesCurrentSong = Boolean(
+    nextSlide
+    && nextSlide.slideKind === "content"
+    && nextSlide.planItemId === liveSlide?.planItemId,
+  );
+  const nextLyricLines = nextSlideUsesCurrentSong ? lyricLines(nextSlide?.text ?? "") : [];
+  const nextWrappedLyricLines = nextLyricLines.map((line) => wrapLyricLine(line, liveWrapCharacters));
+  const nextAnnotationsByLine = useMemo(
+    () => chordAnnotationsBySlideLine(
+      liveSong?.lyrics ?? "",
+      nextSlide?.text ?? "",
+      nextSlide?.slideKind,
+      chordChart.annotations,
+    ),
+    [chordChart.annotations, liveSong?.lyrics, nextSlide?.slideKind, nextSlide?.text],
   );
 
   useEffect(() => {
@@ -996,8 +1013,28 @@ export function MusicianLiveView({ controlPlanId, onEditSong, onExit, plan, song
             </section>
             <section className="musician-page is-next" aria-label="Next lyrics">
               <span className="musician-page-label">Next</span>
-              {slides[liveIndex + 1] ? (
-                <div className="musician-next-lyrics">{slides[liveIndex + 1].text}</div>
+              {nextSlide && showChords && nextSlideUsesCurrentSong ? (
+                <div className="musician-chord-sheet musician-next-chord-sheet" aria-label="Next lyrics with chords">
+                  {nextWrappedLyricLines.map((segments, lineIndex) => (
+                    <div className="musician-lyric-line-group" key={`${lineIndex}-${nextLyricLines[lineIndex]}`}>
+                      {segments.map((segment, segmentIndex) => (
+                        <MusicianChordLine
+                          annotations={annotationsForSegment(nextAnnotationsByLine.get(lineIndex) ?? [], segment.start, segment.line.length, segmentIndex === segments.length - 1)}
+                          baseAbsoluteKey={baseAbsoluteKey}
+                          capo={capo}
+                          detailMode={detailMode}
+                          displayMode={displayMode}
+                          key={`${lineIndex}-${segmentIndex}-${segment.line}`}
+                          line={segment.line}
+                          showChords
+                          targetAbsoluteKey={currentGuitarKey}
+                        />
+                      ))}
+                    </div>
+                  ))}
+                </div>
+              ) : nextSlide ? (
+                <div className="musician-next-lyrics">{nextSlide.text}</div>
               ) : (
                 <div className="musician-next-lyrics is-end">End of set</div>
               )}
