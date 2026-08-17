@@ -121,7 +121,7 @@ function App() {
   const canUseServiceOperator = canUsePresentation && (isAdmin || isTeacher || isPresenter);
   const canUseWorshipTools = canReadSongs && (isAdmin || isMusician || isWorshipLeader);
   const canUseSundaySchool = isAdmin || isSundaySchoolTeacher || isSundaySchoolLeader;
-  const canEditSlideNotes = isTeacher;
+  const canEditSlideNotes = isAdmin || isTeacher || isPresenter;
 
   const loadAuth = useCallback(async () => {
     setAuthLoading(true);

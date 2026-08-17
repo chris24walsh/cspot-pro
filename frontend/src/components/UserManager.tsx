@@ -48,6 +48,9 @@ function formFromUser(user: User): UserFormState {
 }
 
 function payloadFromForm(form: UserFormState): UserInvitePayload {
+  const roleNames = form.role_names.some((roleName) => roleName !== "viewer")
+    ? Array.from(new Set(["viewer", ...form.role_names]))
+    : form.role_names.length ? form.role_names : ["viewer"];
   return {
     name: form.name,
     email: form.email,
@@ -57,7 +60,7 @@ function payloadFromForm(form: UserFormState): UserInvitePayload {
     calendar_avatar: form.calendar_avatar || null,
     email_confirmed: form.email_confirmed,
     active: form.active,
-    role_names: form.role_names.length ? form.role_names : ["viewer"],
+    role_names: roleNames,
   };
 }
 
@@ -159,11 +162,17 @@ export function UserManager() {
 
   function toggleRole(roleName: string) {
     const hasRole = form.role_names.includes(roleName);
+    if (roleName === "viewer" && form.role_names.some((name) => name !== "viewer")) {
+      return;
+    }
+    const nextRoles = hasRole
+      ? form.role_names.filter((name) => name !== roleName)
+      : [...form.role_names, roleName];
     setForm({
       ...form,
-      role_names: hasRole
-        ? form.role_names.filter((name) => name !== roleName)
-        : [...form.role_names, roleName],
+      role_names: nextRoles.some((name) => name !== "viewer")
+        ? Array.from(new Set(["viewer", ...nextRoles]))
+        : nextRoles.length ? nextRoles : ["viewer"],
     });
   }
 
@@ -450,6 +459,7 @@ export function UserManager() {
                 >
                   <input
                     checked={form.role_names.includes(role.name)}
+                    disabled={role.name === "viewer" && form.role_names.some((name) => name !== "viewer")}
                     onChange={() => toggleRole(role.name)}
                     type="checkbox"
                   />

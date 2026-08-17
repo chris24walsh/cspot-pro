@@ -4,7 +4,8 @@ from sqlalchemy.orm import Session
 from app.core.database import Base
 from app.modules.identity.models import Role, User, UserRole
 from app.modules.identity.permissions import permissions_for_roles
-from app.modules.identity.routes import user_to_member_read
+from app.modules.identity.auth import list_role_names
+from app.modules.identity.routes import set_user_roles, user_to_member_read
 
 
 def test_member_directory_exposes_team_fields_without_admin_fields() -> None:
@@ -48,9 +49,47 @@ def test_live_worship_and_teacher_service_permissions_match_role_workflows() -> 
     musician_permissions = permissions_for_roles(["musician"])
     worship_leader_permissions = permissions_for_roles(["worship_leader"])
     teacher_permissions = permissions_for_roles(["teacher"])
+    presenter_permissions = permissions_for_roles(["presenter"])
 
     assert {"plans:read", "songs:read", "team:read"} <= musician_permissions
     assert {"plans:read", "songs:read", "team:read"} <= worship_leader_permissions
     assert {"plans:create", "plans:edit", "library:create"} <= teacher_permissions
     assert "plans:delete" not in teacher_permissions
     assert "library:delete" not in teacher_permissions
+    assert {
+        "plans:create",
+        "plans:edit",
+        "plans:delete",
+        "songs:create",
+        "songs:edit",
+        "library:create",
+        "library:edit",
+        "presentation:use",
+    } <= presenter_permissions
+    assert "songs:delete" not in presenter_permissions
+    assert "users:manage" not in presenter_permissions
+
+
+def test_every_non_viewer_role_also_assigns_viewer() -> None:
+    engine = create_engine("sqlite://")
+    Base.metadata.create_all(engine, tables=[User.__table__, Role.__table__, UserRole.__table__])
+
+    with Session(engine) as session:
+        user = User(
+            email="presenter@example.com",
+            username="presenter",
+            name="Presenter",
+            password_hash=None,
+            start_page=None,
+            calendar_color=None,
+            calendar_avatar=None,
+            email_confirmed=True,
+            active=True,
+        )
+        session.add(user)
+        session.flush()
+
+        set_user_roles(session, user, ["presenter"])
+        session.flush()
+
+        assert list_role_names(session, user.id) == ["viewer", "presenter"]

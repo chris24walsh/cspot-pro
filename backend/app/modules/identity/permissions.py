@@ -114,8 +114,13 @@ ROLE_DEFINITIONS: dict[str, RoleDefinition] = {
         | PRESENTATION_CONTROL_PERMISSIONS,
     },
     "presenter": {
-        "description": "Operate the live service computer and presentation flow.",
-        "permissions": READ_PERMISSIONS | SERVICE_PLANNING_PERMISSIONS | PRESENTATION_CONTROL_PERMISSIONS,
+        "description": "Operate and edit every part of the live service flow, including songs and sermon decks.",
+        "permissions": READ_PERMISSIONS
+        | SERVICE_PLANNING_PERMISSIONS
+        | SERVICE_ARCHIVE_PERMISSIONS
+        | {"songs:create", "songs:edit"}
+        | {"library:create", "library:edit"}
+        | PRESENTATION_CONTROL_PERMISSIONS,
     },
     "administrator": {
         "description": "Full access across users, planning, worship, Sunday school, broadcast, and site settings.",
