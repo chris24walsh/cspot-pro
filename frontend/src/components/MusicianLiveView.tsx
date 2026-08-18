@@ -44,6 +44,8 @@ interface MusicianLiveViewProps {
   topbarSlot: HTMLElement | null;
 }
 
+const WORSHIP_LIVE_POLL_INTERVAL_MS = 400;
+
 function syncStateFromApi(state: PresentationLiveSyncState): PresentationLiveState {
   return {
     planId: state.plan_id,
@@ -539,7 +541,7 @@ export function MusicianLiveView({ controlPlanId, onEditSong, onExit, plan, song
     }
 
     void pullLiveState();
-    const timer = window.setInterval(() => void pullLiveState(), 1800);
+    const timer = window.setInterval(() => void pullLiveState(), WORSHIP_LIVE_POLL_INTERVAL_MS);
     return () => window.clearInterval(timer);
   }, [liveSyncPlanId]);
 
