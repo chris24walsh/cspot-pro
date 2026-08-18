@@ -566,7 +566,7 @@ export function PresentationOutput({ networkDisplay = false }: PresentationOutpu
 
   return (
     <main className="slideshow-output" aria-label="Live slideshow output">
-      {fullscreenReady ? (
+      {fullscreenReady && !networkDisplay ? (
         <button className="slideshow-fullscreen" onClick={() => void enterFullscreen()} type="button">
           <Maximize2 size={18} aria-hidden="true" />
           Fullscreen
