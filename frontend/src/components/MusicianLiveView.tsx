@@ -143,7 +143,9 @@ function uniqueKeySetups<T extends { capo: number; shapeKey: string }>(setups: T
 }
 
 function wrapCharacterLimit(fontSize: number, stageWidth = 1120) {
-  const horizontalInsets = stageWidth < 480 ? 32 : 72;
+  // The edge controls float over the lyrics, so reserve only the page's real
+  // padding here rather than narrowing the text to avoid those controls.
+  const horizontalInsets = stageWidth < 480 ? 12 : 24;
   const usableWidth = Math.max(stageWidth - horizontalInsets, 180);
   const chordAnchorSlots = LEADING_CHORD_ANCHORS + TRAILING_CHORD_ANCHORS;
   return Math.max(
@@ -410,31 +412,43 @@ export function MusicianLiveView({ controlPlanId, onEditSong, onExit, plan, song
   const syncedIndex = remoteWorshipIndex >= 0 ? remoteWorshipIndex : boundedIndex(localIndex, slides.length);
   const liveIndex = syncedIndex;
   const liveSlide = slides[liveIndex] ?? null;
+  const nextSlide = slides[liveIndex + 1] ?? null;
   const liveItem = worshipItems.find((item) => item.id === liveSlide?.planItemId) ?? null;
   const liveSong = liveItem?.song_id ? songs.find((song) => song.id === liveItem.song_id) ?? null : null;
   const chordChart = useMemo(() => parseChordChart(liveSong?.chords ?? null).document, [liveSong?.chords]);
   const pageColumnWidth = stageSize.width >= 700 ? stageSize.width / 2 : stageSize.width;
-  const liveFontSize = useMemo(
-    () => readerMode === "pages"
-      ? Math.min(
-          ...slides
-            .filter((slide) => slide.itemType === "song" && slide.slideKind === "content")
-            .map((slide) => fitFontSizeForSlide(slide.text, pageColumnWidth, stageSize.height)),
-          56,
-        )
-      : fitFontSizeForSlide(
-          liveSlide?.itemType === "song" ? liveSlide.text : "",
-          stageSize.width,
-          stageSize.height,
-        ),
-    [liveSlide?.itemType, liveSlide?.text, pageColumnWidth, readerMode, slides, stageSize.height, stageSize.width],
-  );
+  const liveFontSize = useMemo(() => {
+    if (readerMode !== "pages") {
+      return fitFontSizeForSlide(
+        liveSlide?.itemType === "song" ? liveSlide.text : "",
+        stageSize.width,
+        stageSize.height,
+      );
+    }
+
+    const contentSlides = slides.filter(
+      (slide) => slide.itemType === "song" && slide.slideKind === "content",
+    );
+    const baselineFit = Math.min(
+      ...contentSlides.map((slide) => fitFontSizeForSlide(slide.text, pageColumnWidth, stageSize.height)),
+      56,
+    );
+    const visibleContentSlides = [liveSlide, nextSlide].filter(
+      (slide) => slide?.itemType === "song" && slide.slideKind === "content",
+    );
+    const visibleFit = Math.min(
+      ...visibleContentSlides.map((slide) => fitFontSizeForSlide(slide!.text, pageColumnWidth, stageSize.height)),
+      56,
+    );
+    const discreetUplift = visibleFit >= baselineFit + 6 ? 6 : visibleFit >= baselineFit + 3 ? 3 : 0;
+    return Math.min(visibleFit, baselineFit + discreetUplift);
+  }, [liveSlide, nextSlide, pageColumnWidth, readerMode, slides, stageSize.height, stageSize.width]);
   const liveWrapCharacters = useMemo(
     () => wrapCharacterLimit(liveFontSize, readerMode === "pages" ? pageColumnWidth : stageSize.width),
     [liveFontSize, pageColumnWidth, readerMode, stageSize.width],
   );
-  const songModeColumnWidth = Math.min(stageSize.width, 960);
-  const songModeFontSize = clampNumber(songModeColumnWidth / 24, 18, 32);
+  const songModeColumnWidth = Math.min(stageSize.width, 1180);
+  const songModeFontSize = clampNumber(songModeColumnWidth / 21, 20, 38);
   const songModeWrapCharacters = wrapCharacterLimit(songModeFontSize, songModeColumnWidth);
   const annotationsByLine = useMemo(
     () => chordAnnotationsBySlideLine(
@@ -445,7 +459,6 @@ export function MusicianLiveView({ controlPlanId, onEditSong, onExit, plan, song
     ),
     [chordChart.annotations, liveSlide?.slideKind, liveSlide?.text, liveSong?.lyrics],
   );
-  const nextSlide = slides[liveIndex + 1] ?? null;
   const nextSlideUsesCurrentSong = Boolean(
     nextSlide
     && nextSlide.slideKind === "content"

@@ -2761,7 +2761,7 @@ h3 {
   overflow-x: hidden;
   overflow-y: auto;
   padding: clamp(10px, 2vw, 28px);
-  width: min(100%, 960px);
+  width: min(100%, 1180px);
 }
 
 .musician-full-song section {
@@ -2771,7 +2771,7 @@ h3 {
 }
 
 .musician-song-part {
-  padding: 8px 10px;
+  padding: 8px clamp(10px, 1.5vw, 18px);
 }
 
 .musician-song-part.is-current {
@@ -2806,12 +2806,12 @@ h3 {
   display: block;
   font-size: 13px;
   margin-bottom: 5px;
-  padding-inline: 10px;
+  padding-inline: clamp(10px, 1.5vw, 18px);
   text-transform: uppercase;
 }
 
 .musician-full-song p {
-  font-size: clamp(20px, 2.2vw, 34px);
+  font-size: clamp(22px, 2.8vw, 38px);
   font-weight: 750;
   line-height: 1.2;
   margin: 0;
@@ -9719,13 +9719,13 @@ h3 {
 }
 
 .shell.is-mobile-device .musician-full-song {
-  padding: 6px 8px;
+  padding: 6px clamp(12px, 2.5vw, 28px);
   width: 100%;
 }
 
 .shell.is-mobile-device .musician-full-song strong,
 .shell.is-mobile-device .musician-song-part {
-  padding-inline: 8px;
+  padding-inline: clamp(10px, 1.5vw, 18px);
 }
 
 .shell.is-mobile-device .broadcast-mode-switch {
