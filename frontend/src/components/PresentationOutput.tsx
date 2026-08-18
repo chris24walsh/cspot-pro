@@ -31,6 +31,7 @@ import { ScaledSlideImage } from "./ScaledSlideImage";
 const AUDIO_FADE_DURATION_MS = 2000;
 const AUDIO_FADE_STEPS = 20;
 const AUDIO_FADE_INTERVAL_MS = AUDIO_FADE_DURATION_MS / AUDIO_FADE_STEPS;
+const REMOTE_LIVE_STATE_POLL_INTERVAL_MS = 250;
 
 function readLiveState(): PresentationLiveState | null {
   const value = localStorage.getItem(PRESENTATION_STORAGE_KEY);
@@ -426,7 +427,7 @@ export function PresentationOutput({ networkDisplay = false }: PresentationOutpu
           livePollInFlightRef.current = false;
         }
       })();
-    }, 900);
+    }, REMOTE_LIVE_STATE_POLL_INTERVAL_MS);
 
     return () => {
       livePollInFlightRef.current = false;
