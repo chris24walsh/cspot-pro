@@ -2700,12 +2700,19 @@ h3 {
   touch-action: pan-y;
 }
 
+.musician-live-stage.musician-reader-pages {
+  overscroll-behavior: none;
+  touch-action: pan-x;
+}
+
 .musician-page-spread {
+  box-sizing: border-box;
   display: grid;
   gap: clamp(8px, 1.2vw, 18px);
   grid-template-columns: repeat(2, minmax(0, 1fr));
   height: 100%;
   min-height: 0;
+  overflow: hidden;
   width: 100%;
 }
 
@@ -2715,11 +2722,17 @@ h3 {
   border: 1px solid #d7ddcf;
   border-radius: 14px;
   display: grid;
+  box-sizing: border-box;
   min-height: 0;
   min-width: 0;
   overflow: hidden;
   padding: clamp(22px, 3vw, 42px) clamp(14px, 2vw, 30px);
   position: relative;
+}
+
+.musician-page > .musician-chord-sheet,
+.musician-page > .musician-next-lyrics {
+  width: var(--musician-content-width, 88%);
 }
 
 .musician-page.is-current {
@@ -2787,11 +2800,12 @@ h3 {
 
 .musician-full-song {
   align-content: start;
+  box-sizing: border-box;
   height: 100%;
   overflow-x: hidden;
   overflow-y: auto;
   padding: clamp(10px, 2vw, 28px);
-  width: min(100%, 1180px);
+  width: min(var(--musician-content-width, 88%), 1180px);
 }
 
 .musician-full-song section {
@@ -9750,7 +9764,7 @@ h3 {
 
 .shell.is-mobile-device .musician-full-song {
   padding: 6px clamp(12px, 2.5vw, 28px);
-  width: 100%;
+  width: var(--musician-content-width, 88%);
 }
 
 .shell.is-mobile-device .musician-full-song strong,

@@ -47,10 +47,16 @@ interface MusicianLiveViewProps {
 const WORSHIP_LIVE_POLL_INTERVAL_MS = 400;
 const WORSHIP_LIVE_SCALE_STORAGE_KEY = "cspot.worshipLiveLyricScale";
 const WORSHIP_LIVE_SCALE_OPTIONS = [80, 90, 100, 110, 120] as const;
+const WORSHIP_LIVE_SCALE_LABELS = ["Compact", "Small", "Standard", "Large", "Maximum"] as const;
 
 function savedLyricScale() {
   const saved = Number(sessionStorage.getItem(WORSHIP_LIVE_SCALE_STORAGE_KEY));
   return WORSHIP_LIVE_SCALE_OPTIONS.includes(saved as (typeof WORSHIP_LIVE_SCALE_OPTIONS)[number]) ? saved : 100;
+}
+
+function lyricFootprint(scale: number) {
+  const optionIndex = Math.max(WORSHIP_LIVE_SCALE_OPTIONS.indexOf(scale as (typeof WORSHIP_LIVE_SCALE_OPTIONS)[number]), 0);
+  return 0.76 + optionIndex * 0.06;
 }
 
 function syncStateFromApi(state: PresentationLiveSyncState): PresentationLiveState {
@@ -425,12 +431,15 @@ export function MusicianLiveView({ controlPlanId, onEditSong, onExit, plan, song
   const liveSong = liveItem?.song_id ? songs.find((song) => song.id === liveItem.song_id) ?? null : null;
   const chordChart = useMemo(() => parseChordChart(liveSong?.chords ?? null).document, [liveSong?.chords]);
   const pageColumnWidth = stageSize.width >= 700 ? stageSize.width / 2 : stageSize.width;
+  const contentFootprint = lyricFootprint(lyricScale);
+  const pageContentWidth = pageColumnWidth * contentFootprint;
+  const pageContentHeight = stageSize.height * Math.min(contentFootprint / 0.9, 1);
   const liveFontSize = useMemo(() => {
     if (readerMode !== "pages") {
       return fitFontSizeForSlide(
         liveSlide?.itemType === "song" ? liveSlide.text : "",
-        stageSize.width,
-        stageSize.height,
+        stageSize.width * contentFootprint,
+        stageSize.height * Math.min(contentFootprint / 0.9, 1),
       );
     }
 
@@ -438,26 +447,25 @@ export function MusicianLiveView({ controlPlanId, onEditSong, onExit, plan, song
       (slide) => slide.itemType === "song" && slide.slideKind === "content",
     );
     const baselineFit = Math.min(
-      ...contentSlides.map((slide) => fitFontSizeForSlide(slide.text, pageColumnWidth, stageSize.height)),
+      ...contentSlides.map((slide) => fitFontSizeForSlide(slide.text, pageContentWidth, pageContentHeight)),
       56,
     );
     const visibleContentSlides = [liveSlide, nextSlide].filter(
       (slide) => slide?.itemType === "song" && slide.slideKind === "content",
     );
     const visibleFit = Math.min(
-      ...visibleContentSlides.map((slide) => fitFontSizeForSlide(slide!.text, pageColumnWidth, stageSize.height)),
+      ...visibleContentSlides.map((slide) => fitFontSizeForSlide(slide!.text, pageContentWidth, pageContentHeight)),
       56,
     );
     const discreetUplift = visibleFit >= baselineFit + 6 ? 6 : visibleFit >= baselineFit + 3 ? 3 : 0;
     return Math.min(visibleFit, baselineFit + discreetUplift);
-  }, [liveSlide, nextSlide, pageColumnWidth, readerMode, slides, stageSize.height, stageSize.width]);
-  const scaledLiveFontSize = liveFontSize * lyricScale / 100;
+  }, [contentFootprint, liveSlide, nextSlide, pageContentHeight, pageContentWidth, readerMode, slides, stageSize.height, stageSize.width]);
   const liveWrapCharacters = useMemo(
-    () => wrapCharacterLimit(scaledLiveFontSize, readerMode === "pages" ? pageColumnWidth : stageSize.width),
-    [pageColumnWidth, readerMode, scaledLiveFontSize, stageSize.width],
+    () => wrapCharacterLimit(liveFontSize, readerMode === "pages" ? pageContentWidth : stageSize.width * contentFootprint),
+    [contentFootprint, liveFontSize, pageContentWidth, readerMode, stageSize.width],
   );
-  const songModeColumnWidth = Math.min(stageSize.width, 1180);
-  const songModeFontSize = clampNumber(songModeColumnWidth / 21, 20, 38) * lyricScale / 100;
+  const songModeColumnWidth = Math.min(stageSize.width * contentFootprint, 1180);
+  const songModeFontSize = clampNumber(songModeColumnWidth / 21, 20, 38);
   const songModeWrapCharacters = wrapCharacterLimit(songModeFontSize, songModeColumnWidth);
   const annotationsByLine = useMemo(
     () => chordAnnotationsBySlideLine(
@@ -838,8 +846,8 @@ export function MusicianLiveView({ controlPlanId, onEditSong, onExit, plan, song
             onChange={(event) => setLyricScale(Number(event.target.value))}
             value={lyricScale}
           >
-            {WORSHIP_LIVE_SCALE_OPTIONS.map((scale) => (
-              <option key={scale} value={scale}>{scale}%</option>
+            {WORSHIP_LIVE_SCALE_OPTIONS.map((scale, index) => (
+              <option key={scale} value={scale}>{WORSHIP_LIVE_SCALE_LABELS[index]}</option>
             ))}
           </select>
         </label>
@@ -976,7 +984,10 @@ export function MusicianLiveView({ controlPlanId, onEditSong, onExit, plan, song
             moveLive(horizontal < 0 ? 1 : -1);
           }
         }}
-        style={{ "--musician-live-font-size": `${scaledLiveFontSize}px` } as CSSProperties & Record<"--musician-live-font-size", string>}
+        style={{
+          "--musician-content-width": `${contentFootprint * 100}%`,
+          "--musician-live-font-size": `${liveFontSize}px`,
+        } as CSSProperties & Record<"--musician-content-width" | "--musician-live-font-size", string>}
       >
         {!liveSlide ? (
           <p className="empty-state compact-empty">
