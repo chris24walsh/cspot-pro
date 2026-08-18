@@ -412,7 +412,11 @@ export function MusicianLiveView({ controlPlanId, onEditSong, onExit, plan, song
   const syncedIndex = remoteWorshipIndex >= 0 ? remoteWorshipIndex : boundedIndex(localIndex, slides.length);
   const liveIndex = syncedIndex;
   const liveSlide = slides[liveIndex] ?? null;
-  const nextSlide = slides[liveIndex + 1] ?? null;
+  const pageLeadIndex = liveSlide?.slideKind === "title"
+    ? slides.findIndex((slide, index) => index > liveIndex && slide.planItemId === liveSlide.planItemId && slide.slideKind === "content")
+    : liveIndex;
+  const pageLeadSlide = slides[pageLeadIndex] ?? liveSlide;
+  const pageNextSlide = slides.find((slide, index) => index > pageLeadIndex && slide.slideKind === "content") ?? null;
   const liveItem = worshipItems.find((item) => item.id === liveSlide?.planItemId) ?? null;
   const liveSong = liveItem?.song_id ? songs.find((song) => song.id === liveItem.song_id) ?? null : null;
   const chordChart = useMemo(() => parseChordChart(liveSong?.chords ?? null).document, [liveSong?.chords]);
@@ -439,13 +443,13 @@ export function MusicianLiveView({ controlPlanId, onEditSong, onExit, plan, song
     return groupedFits;
   }, [pageContentHeight, pageContentWidth, slides]);
   const liveFontSize = readerMode === "pages"
-    ? pageFontSizesByPlanItem.get(liveSlide?.planItemId ?? "") ?? 40
+    ? pageFontSizesByPlanItem.get(pageLeadSlide?.planItemId ?? "") ?? 40
     : fitFontSizeForSlide(
         liveSlide?.itemType === "song" ? liveSlide.text : "",
         stageSize.width,
         stageSize.height,
       );
-  const nextFontSize = pageFontSizesByPlanItem.get(nextSlide?.planItemId ?? "") ?? liveFontSize;
+  const nextFontSize = pageFontSizesByPlanItem.get(pageNextSlide?.planItemId ?? "") ?? liveFontSize;
   const liveWrapCharacters = useMemo(
     () => wrapCharacterLimit(liveFontSize, readerMode === "pages" ? pageContentWidth : stageSize.width),
     [liveFontSize, pageContentWidth, readerMode, stageSize.width],
@@ -457,27 +461,26 @@ export function MusicianLiveView({ controlPlanId, onEditSong, onExit, plan, song
   const annotationsByLine = useMemo(
     () => chordAnnotationsBySlideLine(
       liveSong?.lyrics ?? "",
-      liveSlide?.text ?? "",
-      liveSlide?.slideKind,
+      pageLeadSlide?.text ?? "",
+      pageLeadSlide?.slideKind,
       chordChart.annotations,
     ),
-    [chordChart.annotations, liveSlide?.slideKind, liveSlide?.text, liveSong?.lyrics],
+    [chordChart.annotations, liveSong?.lyrics, pageLeadSlide?.slideKind, pageLeadSlide?.text],
   );
-  const nextSlideUsesCurrentSong = Boolean(
-    nextSlide
-    && nextSlide.slideKind === "content"
-    && nextSlide.planItemId === liveSlide?.planItemId,
+  const pageNextSlideUsesCurrentSong = Boolean(
+    pageNextSlide
+    && pageNextSlide.planItemId === pageLeadSlide?.planItemId,
   );
-  const nextLyricLines = nextSlideUsesCurrentSong ? lyricLines(nextSlide?.text ?? "") : [];
+  const nextLyricLines = pageNextSlideUsesCurrentSong ? lyricLines(pageNextSlide?.text ?? "") : [];
   const nextWrappedLyricLines = nextLyricLines.map((line) => wrapLyricLine(line, nextWrapCharacters));
   const nextAnnotationsByLine = useMemo(
     () => chordAnnotationsBySlideLine(
       liveSong?.lyrics ?? "",
-      nextSlide?.text ?? "",
-      nextSlide?.slideKind,
+      pageNextSlide?.text ?? "",
+      pageNextSlide?.slideKind,
       chordChart.annotations,
     ),
-    [chordChart.annotations, liveSong?.lyrics, nextSlide?.slideKind, nextSlide?.text],
+    [chordChart.annotations, liveSong?.lyrics, pageNextSlide?.slideKind, pageNextSlide?.text],
   );
 
   useEffect(() => {
@@ -682,7 +685,7 @@ export function MusicianLiveView({ controlPlanId, onEditSong, onExit, plan, song
     };
   }, [liveIndex, slides.length]);
 
-  const lyricLinesForSlide = lyricLines(liveSlide?.text ?? "");
+  const lyricLinesForSlide = lyricLines(pageLeadSlide?.text ?? "");
   const wrappedLyricLinesForSlide = useMemo(
     () => lyricLinesForSlide.map((line) => wrapLyricLine(line, liveWrapCharacters)),
     [liveWrapCharacters, lyricLinesForSlide],
@@ -1071,7 +1074,7 @@ export function MusicianLiveView({ controlPlanId, onEditSong, onExit, plan, song
               style={{ "--musician-live-font-size": `${nextFontSize}px` } as CSSProperties}
             >
               <span className="musician-page-label">Next</span>
-              {nextSlide && showChords && nextSlideUsesCurrentSong ? (
+              {pageNextSlide && showChords && pageNextSlideUsesCurrentSong ? (
                 <div className="musician-chord-sheet musician-next-chord-sheet" aria-label="Next lyrics with chords">
                   {nextWrappedLyricLines.map((segments, lineIndex) => (
                     <div className="musician-lyric-line-group" key={`${lineIndex}-${nextLyricLines[lineIndex]}`}>
@@ -1091,8 +1094,8 @@ export function MusicianLiveView({ controlPlanId, onEditSong, onExit, plan, song
                     </div>
                   ))}
                 </div>
-              ) : nextSlide ? (
-                <div className="musician-next-lyrics">{nextSlide.text}</div>
+              ) : pageNextSlide ? (
+                <div className="musician-next-lyrics">{pageNextSlide.text}</div>
               ) : (
                 <div className="musician-next-lyrics is-end">End of set</div>
               )}
