@@ -106,6 +106,7 @@ function App() {
   const isSundaySchoolLeader = roleNames.has("sunday_school_leader");
   const isTeacher = roleNames.has("teacher");
   const isPresenter = roleNames.has("presenter");
+  const isViewerOnly = isViewer && roleNames.size === 1;
   const canManageUsers = permissions.has("users:manage");
   const canCreatePlans = permissions.has("plans:create");
   const canDeletePlans = permissions.has("plans:delete");
@@ -253,10 +254,10 @@ function App() {
   }, [activeModuleId, modules]);
 
   useEffect(() => {
-    if (sessionUser && canWatchBroadcast && !canUsePresentation && modules.some((module) => module.id === "broadcast")) {
+    if (sessionUser && isViewerOnly && canWatchBroadcast && modules.some((module) => module.id === "broadcast")) {
       setActiveModuleId("broadcast");
     }
-  }, [canUsePresentation, canWatchBroadcast, modules, sessionUser]);
+  }, [canWatchBroadcast, isViewerOnly, modules, sessionUser]);
 
   useEffect(() => {
     if (!sessionUser || !canManageUsers || !modules.some((module) => module.id === "admin")) {

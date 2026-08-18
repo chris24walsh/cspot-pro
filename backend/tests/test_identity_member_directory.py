@@ -53,6 +53,7 @@ def test_live_worship_and_teacher_service_permissions_match_role_workflows() -> 
 
     assert {"plans:read", "songs:read", "team:read"} <= musician_permissions
     assert {"plans:read", "songs:read", "team:read"} <= worship_leader_permissions
+    assert "presentation:use" in worship_leader_permissions
     assert {"plans:create", "plans:edit", "library:create"} <= teacher_permissions
     assert "plans:delete" not in teacher_permissions
     assert "library:delete" not in teacher_permissions

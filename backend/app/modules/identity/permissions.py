@@ -96,7 +96,8 @@ ROLE_DEFINITIONS: dict[str, RoleDefinition] = {
         | SONG_EDIT_PERMISSIONS
         | LIBRARY_EDIT_PERMISSIONS
         | TEAM_EDIT_PERMISSIONS
-        | COMMUNICATION_EDIT_PERMISSIONS,
+        | COMMUNICATION_EDIT_PERMISSIONS
+        | PRESENTATION_CONTROL_PERMISSIONS,
     },
     "sunday_school_teacher": {
         "description": "Read Sunday school lessons and resources without changing them.",
