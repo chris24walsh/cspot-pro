@@ -45,19 +45,6 @@ interface MusicianLiveViewProps {
 }
 
 const WORSHIP_LIVE_POLL_INTERVAL_MS = 400;
-const WORSHIP_LIVE_SCALE_STORAGE_KEY = "cspot.worshipLiveLyricScale";
-const WORSHIP_LIVE_SCALE_OPTIONS = [80, 90, 100, 110, 120] as const;
-const WORSHIP_LIVE_SCALE_LABELS = ["Compact", "Small", "Standard", "Large", "Maximum"] as const;
-
-function savedLyricScale() {
-  const saved = Number(sessionStorage.getItem(WORSHIP_LIVE_SCALE_STORAGE_KEY));
-  return WORSHIP_LIVE_SCALE_OPTIONS.includes(saved as (typeof WORSHIP_LIVE_SCALE_OPTIONS)[number]) ? saved : 100;
-}
-
-function lyricFootprint(scale: number) {
-  const optionIndex = Math.max(WORSHIP_LIVE_SCALE_OPTIONS.indexOf(scale as (typeof WORSHIP_LIVE_SCALE_OPTIONS)[number]), 0);
-  return 0.76 + optionIndex * 0.06;
-}
 
 function syncStateFromApi(state: PresentationLiveSyncState): PresentationLiveState {
   return {
@@ -388,7 +375,6 @@ export function MusicianLiveView({ controlPlanId, onEditSong, onExit, plan, song
   const [readerMode, setReaderMode] = useState<"pages" | "song">(() =>
     localStorage.getItem("cspot.worshipLiveReaderMode") === "song" ? "song" : "pages",
   );
-  const [lyricScale, setLyricScale] = useState(savedLyricScale);
   const keyCaptureRef = useRef<HTMLInputElement | null>(null);
   const stageRef = useRef<HTMLDivElement | null>(null);
   const fullSongRef = useRef<HTMLDivElement | null>(null);
@@ -431,18 +417,9 @@ export function MusicianLiveView({ controlPlanId, onEditSong, onExit, plan, song
   const liveSong = liveItem?.song_id ? songs.find((song) => song.id === liveItem.song_id) ?? null : null;
   const chordChart = useMemo(() => parseChordChart(liveSong?.chords ?? null).document, [liveSong?.chords]);
   const pageColumnWidth = stageSize.width >= 700 ? stageSize.width / 2 : stageSize.width;
-  const contentFootprint = lyricFootprint(lyricScale);
-  const pageContentWidth = pageColumnWidth * contentFootprint;
-  const pageContentHeight = stageSize.height * Math.min(contentFootprint / 0.9, 1);
-  const liveFontSize = useMemo(() => {
-    if (readerMode !== "pages") {
-      return fitFontSizeForSlide(
-        liveSlide?.itemType === "song" ? liveSlide.text : "",
-        stageSize.width * contentFootprint,
-        stageSize.height * Math.min(contentFootprint / 0.9, 1),
-      );
-    }
-
+  const pageContentWidth = pageColumnWidth;
+  const pageContentHeight = stageSize.height;
+  const pageFontSizesByPlanItem = useMemo(() => {
     const contentSlides = slides.filter(
       (slide) => slide.itemType === "song" && slide.slideKind === "content",
     );
@@ -450,21 +427,31 @@ export function MusicianLiveView({ controlPlanId, onEditSong, onExit, plan, song
       ...contentSlides.map((slide) => fitFontSizeForSlide(slide.text, pageContentWidth, pageContentHeight)),
       56,
     );
-    const visibleContentSlides = [liveSlide, nextSlide].filter(
-      (slide) => slide?.itemType === "song" && slide.slideKind === "content",
-    );
-    const visibleFit = Math.min(
-      ...visibleContentSlides.map((slide) => fitFontSizeForSlide(slide!.text, pageContentWidth, pageContentHeight)),
-      56,
-    );
-    const discreetUplift = visibleFit >= baselineFit + 6 ? 6 : visibleFit >= baselineFit + 3 ? 3 : 0;
-    return Math.min(visibleFit, baselineFit + discreetUplift);
-  }, [contentFootprint, liveSlide, nextSlide, pageContentHeight, pageContentWidth, readerMode, slides, stageSize.height, stageSize.width]);
+    const groupedFits = new Map<string, number>();
+    for (const slide of contentSlides) {
+      const slideFit = fitFontSizeForSlide(slide.text, pageContentWidth, pageContentHeight);
+      groupedFits.set(slide.planItemId, Math.min(groupedFits.get(slide.planItemId) ?? 56, slideFit));
+    }
+    for (const [planItemId, songFit] of groupedFits) {
+      const discreetUplift = songFit >= baselineFit + 6 ? 6 : songFit >= baselineFit + 3 ? 3 : 0;
+      groupedFits.set(planItemId, Math.min(songFit, baselineFit + discreetUplift));
+    }
+    return groupedFits;
+  }, [pageContentHeight, pageContentWidth, slides]);
+  const liveFontSize = readerMode === "pages"
+    ? pageFontSizesByPlanItem.get(liveSlide?.planItemId ?? "") ?? 40
+    : fitFontSizeForSlide(
+        liveSlide?.itemType === "song" ? liveSlide.text : "",
+        stageSize.width,
+        stageSize.height,
+      );
+  const nextFontSize = pageFontSizesByPlanItem.get(nextSlide?.planItemId ?? "") ?? liveFontSize;
   const liveWrapCharacters = useMemo(
-    () => wrapCharacterLimit(liveFontSize, readerMode === "pages" ? pageContentWidth : stageSize.width * contentFootprint),
-    [contentFootprint, liveFontSize, pageContentWidth, readerMode, stageSize.width],
+    () => wrapCharacterLimit(liveFontSize, readerMode === "pages" ? pageContentWidth : stageSize.width),
+    [liveFontSize, pageContentWidth, readerMode, stageSize.width],
   );
-  const songModeColumnWidth = Math.min(stageSize.width * contentFootprint, 1180);
+  const nextWrapCharacters = wrapCharacterLimit(nextFontSize, pageContentWidth);
+  const songModeColumnWidth = Math.min(stageSize.width, 1180);
   const songModeFontSize = clampNumber(songModeColumnWidth / 21, 20, 38);
   const songModeWrapCharacters = wrapCharacterLimit(songModeFontSize, songModeColumnWidth);
   const annotationsByLine = useMemo(
@@ -482,7 +469,7 @@ export function MusicianLiveView({ controlPlanId, onEditSong, onExit, plan, song
     && nextSlide.planItemId === liveSlide?.planItemId,
   );
   const nextLyricLines = nextSlideUsesCurrentSong ? lyricLines(nextSlide?.text ?? "") : [];
-  const nextWrappedLyricLines = nextLyricLines.map((line) => wrapLyricLine(line, liveWrapCharacters));
+  const nextWrappedLyricLines = nextLyricLines.map((line) => wrapLyricLine(line, nextWrapCharacters));
   const nextAnnotationsByLine = useMemo(
     () => chordAnnotationsBySlideLine(
       liveSong?.lyrics ?? "",
@@ -502,10 +489,6 @@ export function MusicianLiveView({ controlPlanId, onEditSong, onExit, plan, song
   useEffect(() => {
     localStorage.setItem("cspot.worshipLiveReaderMode", readerMode);
   }, [readerMode]);
-
-  useEffect(() => {
-    sessionStorage.setItem(WORSHIP_LIVE_SCALE_STORAGE_KEY, String(lyricScale));
-  }, [lyricScale]);
 
   useEffect(() => {
     keyCaptureRef.current?.focus({ preventScroll: true });
@@ -803,7 +786,7 @@ export function MusicianLiveView({ controlPlanId, onEditSong, onExit, plan, song
       window.cancelAnimationFrame(firstFrame);
       window.cancelAnimationFrame(secondFrame);
     };
-  }, [currentSequenceBlockIndex, currentSequencePartIndex, lyricScale, readerMode, showChords]);
+  }, [currentSequenceBlockIndex, currentSequencePartIndex, readerMode, showChords]);
   const currentSongIndex = worshipItems.findIndex((item) => item.id === liveSlide?.planItemId);
   const isLastSongSlide = liveSlide?.itemType === "song" && currentSongSlideIndex >= 0 && currentSongSlideIndex === currentSongSlides.length - 1;
   const toolbar = (
@@ -839,18 +822,6 @@ export function MusicianLiveView({ controlPlanId, onEditSong, onExit, plan, song
         </label>
       </div>
       <div className="musician-live-controls" aria-label="Musician display controls">
-        <label className="musician-scale-select" title="Lyric size">
-          <span aria-hidden="true">A</span>
-          <select
-            aria-label="Lyric size"
-            onChange={(event) => setLyricScale(Number(event.target.value))}
-            value={lyricScale}
-          >
-            {WORSHIP_LIVE_SCALE_OPTIONS.map((scale, index) => (
-              <option key={scale} value={scale}>{WORSHIP_LIVE_SCALE_LABELS[index]}</option>
-            ))}
-          </select>
-        </label>
         <button
           aria-label={`Switch to ${readerMode === "pages" ? "Song" : "Pages"} view`}
           aria-pressed={readerMode === "song"}
@@ -985,7 +956,7 @@ export function MusicianLiveView({ controlPlanId, onEditSong, onExit, plan, song
           }
         }}
         style={{
-          "--musician-content-width": `${contentFootprint * 100}%`,
+          "--musician-content-width": "100%",
           "--musician-live-font-size": `${liveFontSize}px`,
         } as CSSProperties & Record<"--musician-content-width" | "--musician-live-font-size", string>}
       >
@@ -1075,7 +1046,11 @@ export function MusicianLiveView({ controlPlanId, onEditSong, onExit, plan, song
                 ))}
               </div>
             </section>
-            <section className="musician-page is-next" aria-label="Next lyrics">
+            <section
+              className="musician-page is-next"
+              aria-label="Next lyrics"
+              style={{ "--musician-live-font-size": `${nextFontSize}px` } as CSSProperties}
+            >
               <span className="musician-page-label">Next</span>
               {nextSlide && showChords && nextSlideUsesCurrentSong ? (
                 <div className="musician-chord-sheet musician-next-chord-sheet" aria-label="Next lyrics with chords">
