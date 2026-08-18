@@ -740,6 +740,7 @@ export function MusicianLiveView({ controlPlanId, onEditSong, onExit, plan, song
   const currentSongSlides = liveSlide ? slides.filter((slide) => slide.planItemId === liveSlide.planItemId) : [];
   const currentSongContentSlides = currentSongSlides.filter((slide) => slide.slideKind !== "title");
   const currentSongSlideIndex = liveSlide ? currentSongSlides.findIndex((slide) => slide.id === liveSlide.id) : -1;
+  const isSongTitleSlide = liveSlide?.itemType === "song" && liveSlide.slideKind === "title";
   const currentSongContentSlideIndex = liveSlide
     ? currentSongContentSlides.findIndex((slide) => slide.id === liveSlide.id)
     : -1;
@@ -786,7 +787,7 @@ export function MusicianLiveView({ controlPlanId, onEditSong, onExit, plan, song
       window.cancelAnimationFrame(firstFrame);
       window.cancelAnimationFrame(secondFrame);
     };
-  }, [currentSequenceBlockIndex, currentSequencePartIndex, readerMode, showChords]);
+  }, [currentSequenceBlockIndex, currentSequencePartIndex, liveSlide?.id, readerMode, showChords]);
   const currentSongIndex = worshipItems.findIndex((item) => item.id === liveSlide?.planItemId);
   const isLastSongSlide = liveSlide?.itemType === "song" && currentSongSlideIndex >= 0 && currentSongSlideIndex === currentSongSlides.length - 1;
   const toolbar = (
@@ -899,6 +900,24 @@ export function MusicianLiveView({ controlPlanId, onEditSong, onExit, plan, song
           <span className="musician-song-step-label">Previous</span>
         </button>
         <nav className="musician-sequence-strip" aria-label="Song sequence">
+          {liveSong ? <button
+            aria-current={isSongTitleSlide ? "step" : undefined}
+            aria-label="Song title slide"
+            className={`musician-sequence-title ${isSongTitleSlide ? "is-active" : ""}`}
+            onClick={() => {
+              const titleIndex = slides.findIndex(
+                (slide) => slide.planItemId === liveSlide?.planItemId && slide.slideKind === "title",
+              );
+              if (titleIndex >= 0) {
+                setLocalIndex(titleIndex);
+                void publishWorshipSlide(titleIndex);
+              }
+            }}
+            title="Song title slide"
+            type="button"
+          >
+            <Music2 size={13} aria-hidden="true" />
+          </button> : null}
           {sequenceBlocks.map((block, blockIndex) => (
             <button
               aria-current={blockIndex === currentSequenceBlockIndex ? "step" : undefined}
@@ -989,7 +1008,7 @@ export function MusicianLiveView({ controlPlanId, onEditSong, onExit, plan, song
                     <div
                       className={`musician-song-part ${isCurrent ? "is-current" : ""}`}
                       key={`${block.label}-${blockIndex}-${partIndex}`}
-                      ref={isCurrent ? activeSongPartRef : undefined}
+                      ref={isCurrent || (isSongTitleSlide && blockIndex === 0 && partIndex === 0) ? activeSongPartRef : undefined}
                       style={{ "--musician-live-font-size": `${songModeFontSize}px` } as CSSProperties}
                     >
                       {showChords ? (

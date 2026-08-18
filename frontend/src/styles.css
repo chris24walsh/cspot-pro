@@ -2540,6 +2540,13 @@ h3 {
   padding: 2px 5px;
 }
 
+.musician-sequence-strip .musician-sequence-title {
+  align-items: center;
+  display: inline-flex;
+  justify-content: center;
+  padding: 2px;
+}
+
 .musician-sequence-strip button.is-active {
   background: linear-gradient(
     90deg,
