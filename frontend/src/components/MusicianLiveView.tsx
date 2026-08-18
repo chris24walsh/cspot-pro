@@ -143,8 +143,13 @@ function uniqueKeySetups<T extends { capo: number; shapeKey: string }>(setups: T
 }
 
 function wrapCharacterLimit(fontSize: number, stageWidth = 1120) {
-  const usableWidth = Math.max(stageWidth * 0.94, 180);
-  return Math.max(Math.floor(usableWidth / Math.max(fontSize * 0.6, 1)) - 2, 12);
+  const horizontalInsets = stageWidth < 480 ? 32 : 72;
+  const usableWidth = Math.max(stageWidth - horizontalInsets, 180);
+  const chordAnchorSlots = LEADING_CHORD_ANCHORS + TRAILING_CHORD_ANCHORS;
+  return Math.max(
+    Math.floor(usableWidth / Math.max(fontSize * 0.6, 1)) - chordAnchorSlots - 1,
+    12,
+  );
 }
 
 function wrapLyricLine(line: string, maxCharacters: number) {
@@ -408,19 +413,27 @@ export function MusicianLiveView({ controlPlanId, onEditSong, onExit, plan, song
   const liveItem = worshipItems.find((item) => item.id === liveSlide?.planItemId) ?? null;
   const liveSong = liveItem?.song_id ? songs.find((song) => song.id === liveItem.song_id) ?? null : null;
   const chordChart = useMemo(() => parseChordChart(liveSong?.chords ?? null).document, [liveSong?.chords]);
+  const pageColumnWidth = stageSize.width >= 700 ? stageSize.width / 2 : stageSize.width;
   const liveFontSize = useMemo(
-    () => fitFontSizeForSlide(
-      liveSlide?.itemType === "song" ? liveSlide.text : "",
-      readerMode === "pages" && stageSize.width >= 700 ? stageSize.width / 2 : stageSize.width,
-      stageSize.height,
-    ),
-    [liveSlide?.itemType, liveSlide?.text, readerMode, stageSize.height, stageSize.width],
+    () => readerMode === "pages"
+      ? Math.min(
+          ...slides
+            .filter((slide) => slide.itemType === "song" && slide.slideKind === "content")
+            .map((slide) => fitFontSizeForSlide(slide.text, pageColumnWidth, stageSize.height)),
+          56,
+        )
+      : fitFontSizeForSlide(
+          liveSlide?.itemType === "song" ? liveSlide.text : "",
+          stageSize.width,
+          stageSize.height,
+        ),
+    [liveSlide?.itemType, liveSlide?.text, pageColumnWidth, readerMode, slides, stageSize.height, stageSize.width],
   );
   const liveWrapCharacters = useMemo(
-    () => wrapCharacterLimit(liveFontSize, readerMode === "pages" && stageSize.width >= 700 ? stageSize.width / 2 : stageSize.width),
-    [liveFontSize, readerMode, stageSize.width],
+    () => wrapCharacterLimit(liveFontSize, readerMode === "pages" ? pageColumnWidth : stageSize.width),
+    [liveFontSize, pageColumnWidth, readerMode, stageSize.width],
   );
-  const songModeColumnWidth = stageSize.width;
+  const songModeColumnWidth = Math.min(stageSize.width, 960);
   const songModeFontSize = clampNumber(songModeColumnWidth / 24, 18, 32);
   const songModeWrapCharacters = wrapCharacterLimit(songModeFontSize, songModeColumnWidth);
   const annotationsByLine = useMemo(

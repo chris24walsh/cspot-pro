@@ -27,6 +27,7 @@ button {
   display: grid;
   grid-template-columns: 64px minmax(0, 1fr);
   height: 100vh;
+  height: 100dvh;
   min-height: 0;
   overflow: hidden;
 }
@@ -2324,12 +2325,14 @@ h3 {
 
 .worship-live-shell {
   display: grid;
+  flex: 1 1 0;
   grid-template-columns: 1fr;
   grid-template-rows: minmax(0, 1fr);
-  height: calc(100svh - 72px);
+  height: auto;
   min-height: 0;
   overflow: hidden;
   padding: 0;
+  width: 100%;
 }
 
 .musician-live-view {
@@ -2339,6 +2342,7 @@ h3 {
   display: grid;
   gap: 0;
   grid-template-rows: auto minmax(0, 1fr) auto;
+  height: 100%;
   min-height: 0;
   overflow: hidden;
   padding: 0;
@@ -2772,8 +2776,8 @@ h3 {
 
 .musician-song-part.is-current {
   background: #e4f2ea;
-  border-left: 4px solid #245d4d;
   border-radius: 8px;
+  box-shadow: inset 4px 0 #245d4d;
 }
 
 .musician-song-chord-sheet {
@@ -2789,6 +2793,7 @@ h3 {
 .musician-song-chord-sheet .musician-chord-line {
   justify-content: start;
   line-height: 1.08;
+  margin-left: -3ch;
   row-gap: 2px;
 }
 
@@ -9702,6 +9707,25 @@ h3 {
   min-height: 30px;
   padding: 0;
   width: 100%;
+}
+
+.shell.is-mobile-device .musician-live-stage {
+  padding: 2px;
+}
+
+.shell.is-mobile-device .musician-page {
+  border-radius: 8px;
+  padding: 28px 6px 6px;
+}
+
+.shell.is-mobile-device .musician-full-song {
+  padding: 6px 8px;
+  width: 100%;
+}
+
+.shell.is-mobile-device .musician-full-song strong,
+.shell.is-mobile-device .musician-song-part {
+  padding-inline: 8px;
 }
 
 .shell.is-mobile-device .broadcast-mode-switch {
