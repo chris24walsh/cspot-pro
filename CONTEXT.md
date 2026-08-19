@@ -40,6 +40,7 @@
 - The key selector uses compact closed labels such as `C5` and expands them to descriptions such as `C capo 5 (F)` while focused. Device rotation always reapplies Scroll for portrait and Pages for landscape; manual changes last only until the next rotation.
 - Worship Live Page mode uses direction-aware page-turn transitions for local and remotely synchronized slide changes, while respecting reduced-motion preferences.
 - Worship Live Page mode emphasizes the active lyric page through styling while preserving equal page widths for reliable lyric fitting; musicians can click the first-page preview to move from a title cue into the first lyrics, the next-page preview advances directly to that slide, and larger layouts expose a slim previous-page leaf behind the active page.
+- At the end of a song, the Page mode next-page preview represents the next song's title slide and shows its key/capo setup rather than skipping ahead to its first lyrics.
 - Service and Sunday School song search match lyrics as well as titles/metadata.
 - Bible reference search supports numbered books and compact references, e.g. `1Kings3:5` and `2Tim1:7`.
 - Bible import supports KJV JSON and eBible VPL zip; ASV is public domain and preferred default when available.

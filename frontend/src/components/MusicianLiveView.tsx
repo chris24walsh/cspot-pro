@@ -425,7 +425,7 @@ export function MusicianLiveView({ controlPlanId, onEditSong, onExit, plan, song
     ? slides.findIndex((slide, index) => index > liveIndex && slide.planItemId === liveSlide.planItemId && slide.slideKind === "content")
     : liveIndex;
   const pageLeadSlide = slides[pageLeadIndex] ?? liveSlide;
-  const pageNextSlide = slides.find((slide, index) => index > pageLeadIndex && slide.slideKind === "content") ?? null;
+  const pageNextSlide = slides[pageLeadIndex + 1] ?? null;
   const pagePreviousSlide = [...slides.slice(0, pageLeadIndex)].reverse().find((slide) => slide.slideKind === "content") ?? null;
   const previousPageLeadIndexRef = useRef(pageLeadIndex);
   const pageTurnDirection = pageLeadIndex < previousPageLeadIndexRef.current ? "backward" : "forward";
@@ -486,6 +486,17 @@ export function MusicianLiveView({ controlPlanId, onEditSong, onExit, plan, song
     pageNextSlide
     && pageNextSlide.planItemId === pageLeadSlide?.planItemId,
   );
+  const pageNextItem = worshipItems.find((item) => item.id === pageNextSlide?.planItemId) ?? null;
+  const pageNextSong = pageNextItem?.song_id ? songs.find((song) => song.id === pageNextItem.song_id) ?? null : null;
+  const pageNextChordChart = useMemo(() => parseChordChart(pageNextSong?.chords ?? null).document, [pageNextSong?.chords]);
+  const pageNextShapeKey = pageNextChordChart.capo > 0
+    ? pageNextChordChart.capoKey ?? pageNextChordChart.absoluteKey
+    : pageNextChordChart.absoluteKey ?? pageNextChordChart.capoKey;
+  const pageNextAbsoluteKey = pageNextChordChart.absoluteKey
+    ?? (pageNextShapeKey ? deriveAbsoluteKey(pageNextShapeKey, pageNextChordChart.capo) : null);
+  const pageNextKeyLabel = pageNextShapeKey && pageNextAbsoluteKey
+    ? keySetupLabel({ absoluteKey: pageNextAbsoluteKey, capo: pageNextChordChart.capo, shapeKey: pageNextShapeKey }, true)
+    : null;
   const nextLyricLines = pageNextSlideUsesCurrentSong ? lyricLines(pageNextSlide?.text ?? "") : [];
   const nextWrappedLyricLines = nextLyricLines.map((line) => wrapLyricLine(line, nextWrapCharacters));
   const nextAnnotationsByLine = useMemo(
@@ -1127,9 +1138,9 @@ export function MusicianLiveView({ controlPlanId, onEditSong, onExit, plan, song
               </div>
             </button>
             <button
-              className="musician-page is-next"
+              className={`musician-page is-next ${pageNextSlide?.slideKind === "title" ? "is-song-title" : ""}`}
               disabled={!pageNextSlide}
-              aria-label="Next lyrics"
+              aria-label={pageNextSlide?.slideKind === "title" ? `Next song: ${pageNextSlide.text}` : "Next lyrics"}
               onClick={() => {
                 if (!pageNextSlide) return;
                 const nextIndex = slides.findIndex((slide) => slide.id === pageNextSlide.id);
@@ -1141,7 +1152,13 @@ export function MusicianLiveView({ controlPlanId, onEditSong, onExit, plan, song
               type="button"
             >
               <span className="musician-page-label">Next</span>
-              {pageNextSlide && showChords && pageNextSlideUsesCurrentSong ? (
+              {pageNextSlide?.slideKind === "title" ? (
+                <div className="musician-next-song-preview">
+                  <Music2 size={26} aria-hidden="true" />
+                  <strong>{pageNextSlide.text}</strong>
+                  {pageNextKeyLabel ? <span>{pageNextKeyLabel}</span> : null}
+                </div>
+              ) : pageNextSlide && showChords && pageNextSlideUsesCurrentSong ? (
                 <div className="musician-chord-sheet musician-next-chord-sheet" aria-label="Next lyrics with chords">
                   {nextWrappedLyricLines.map((segments, lineIndex) => (
                     <div className="musician-lyric-line-group" key={`${lineIndex}-${nextLyricLines[lineIndex]}`}>

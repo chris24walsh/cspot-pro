@@ -2843,6 +2843,39 @@ button.musician-page {
   cursor: default;
 }
 
+.musician-page.is-next.is-song-title {
+  background: linear-gradient(145deg, rgba(244, 239, 224, 0.94), rgba(255, 253, 247, 0.9));
+}
+
+.musician-next-song-preview {
+  align-items: center;
+  color: #32473f;
+  display: grid;
+  gap: 10px;
+  justify-items: center;
+  text-align: center;
+  width: 100%;
+}
+
+.musician-next-song-preview svg {
+  color: #8a6a30;
+}
+
+.musician-next-song-preview strong {
+  font-size: clamp(22px, 3vw, 44px);
+  line-height: 1.08;
+}
+
+.musician-next-song-preview span {
+  background: rgba(36, 93, 77, 0.1);
+  border: 1px solid rgba(36, 93, 77, 0.18);
+  border-radius: 999px;
+  color: #245d4d;
+  font-size: clamp(13px, 1.4vw, 18px);
+  font-weight: 800;
+  padding: 5px 10px;
+}
+
 .musician-page-label {
   background: #245d4d;
   border-radius: 999px;
