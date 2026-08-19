@@ -40,7 +40,7 @@ import { UserManager } from "./components/UserManager";
 import { WorshipBuilderView } from "./components/WorshipBuilderView";
 import { featureModules, type FeatureModule, type ModuleId } from "./data/featureMap";
 import { appAssetUrl } from "./paths";
-import { isMobileOrTabletDevice } from "./presentationDevice";
+import { isMobileOrTabletDevice, isTabletDevice } from "./presentationDevice";
 import { ToastViewport } from "./toast";
 
 const iconMap = {
@@ -95,6 +95,7 @@ function App() {
       (navigator.maxTouchPoints > 1 && window.matchMedia("(pointer: coarse)").matches),
     [],
   );
+  const tabletDevice = useMemo(() => isTabletDevice(), []);
 
   const permissions = useMemo(() => new Set(sessionUser?.permissions ?? []), [sessionUser]);
   const roleNames = useMemo(() => new Set(sessionUser?.roles ?? []), [sessionUser?.roles]);
@@ -352,7 +353,7 @@ function App() {
   }
 
   return (
-    <main className={`shell ${mobileOrTabletDevice ? "is-mobile-device" : ""} ${mobileImmersive ? "is-mobile-immersive" : ""}`}>
+    <main className={`shell ${mobileOrTabletDevice ? "is-mobile-device" : ""} ${tabletDevice ? "is-tablet-device" : ""} ${mobileImmersive ? "is-mobile-immersive" : ""}`}>
       <ToastViewport />
       <aside className="sidebar" aria-label="Primary">
         <div className="brand">

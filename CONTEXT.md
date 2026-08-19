@@ -33,6 +33,7 @@
 - Worship live key dropdown keeps the current, original, and open absolute-key options available after alternatives are chosen.
 - Worship Live tablets default to Scroll view in portrait and Pages view in landscape after each rotation; musicians can still toggle modes manually until the next rotation.
 - Scroll-view song sections and each individually split section part navigate the live slideshow when selected.
+- Tablet top bars and Worship Live section-navigation bars use larger touch targets and type than their phone equivalents.
 - Service and Sunday School song search match lyrics as well as titles/metadata.
 - Bible reference search supports numbered books and compact references, e.g. `1Kings3:5` and `2Tim1:7`.
 - Bible import supports KJV JSON and eBible VPL zip; ASV is public domain and preferred default when available.

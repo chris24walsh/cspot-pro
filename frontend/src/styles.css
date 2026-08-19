@@ -9877,3 +9877,132 @@ h3 {
     width: 32px;
   }
 }
+
+/* Tablets use the compact mobile toolbars, but need larger touch targets and
+   typography than phones. Keep this after the phone rules so split-screen
+   tablet layouts retain tablet-sized controls. */
+.shell.is-tablet-device .topbar {
+  gap: 7px;
+  grid-template-columns: minmax(0, 1fr) 42px;
+  min-height: 50px;
+  padding: 5px 8px;
+}
+
+.shell.is-tablet-device .mobile-immersive-button {
+  height: 42px;
+  min-height: 42px;
+  min-width: 42px;
+  width: 42px;
+}
+
+.shell.is-tablet-device .presentation-topbar-tools,
+.shell.is-tablet-device .worship-topbar-tools {
+  gap: 6px;
+}
+
+.shell.is-tablet-device .date-navigator {
+  gap: 5px;
+  grid-template-columns: 40px minmax(0, 1fr) 40px 40px;
+}
+
+.shell.is-tablet-device .date-navigator.has-assignment {
+  grid-template-columns: 40px minmax(0, 1fr) 40px 40px 40px;
+}
+
+.shell.is-tablet-device .topbar-context-slot button,
+.shell.is-tablet-device .topbar-context-slot select {
+  font-size: 14px;
+  height: 40px;
+  min-height: 40px;
+}
+
+.shell.is-tablet-device .topbar-context-slot button svg,
+.shell.is-tablet-device .mobile-immersive-button svg {
+  height: 18px;
+  width: 18px;
+}
+
+.shell.is-tablet-device .date-navigator-date {
+  font-size: 14px;
+  padding-inline: 10px;
+}
+
+.shell.is-tablet-device .date-navigator-assignment {
+  font-size: 13px;
+  width: 40px;
+}
+
+.shell.is-tablet-device .worship-set-topbar-actions .topbar-primary-button {
+  gap: 6px;
+  min-width: 40px;
+  padding: 5px 10px;
+  width: auto;
+}
+
+.shell.is-tablet-device .worship-set-topbar-actions .topbar-primary-button span {
+  display: inline;
+}
+
+.shell.is-tablet-device .topbar-context-slot .musician-live-toolbar {
+  gap: 8px;
+  min-height: 40px;
+}
+
+.shell.is-tablet-device .musician-key-select-label {
+  gap: 6px;
+  grid-template-columns: auto minmax(108px, 148px);
+}
+
+.shell.is-tablet-device .musician-key-select-label span {
+  font-size: 13px;
+}
+
+.shell.is-tablet-device .musician-live-controls {
+  gap: 6px;
+}
+
+.shell.is-tablet-device .musician-reader-toggle,
+.shell.is-tablet-device .musician-edit-button,
+.shell.is-tablet-device .chord-toggle-button {
+  font-size: 14px;
+  padding-inline: 10px;
+}
+
+.shell.is-tablet-device .musician-fullscreen-button {
+  width: 44px;
+}
+
+.shell.is-tablet-device .musician-song-navigation {
+  gap: 5px;
+  grid-template-columns: 42px minmax(0, 1fr) 42px;
+  padding: 5px 7px;
+}
+
+.shell.is-tablet-device .musician-song-step-button {
+  height: 40px;
+  min-height: 40px;
+  width: 42px;
+}
+
+.shell.is-tablet-device .musician-sequence-strip {
+  gap: 4px;
+}
+
+.shell.is-tablet-device .musician-sequence-strip button {
+  font-size: 12px;
+  min-height: 40px;
+  min-width: 40px;
+  padding: 4px 8px;
+}
+
+.shell.is-tablet-device .musician-song-navigation svg {
+  height: 18px;
+  width: 18px;
+}
+
+.shell.is-tablet-device .broadcast-mode-switch button,
+.shell.is-tablet-device .worship-mobile-pane-tabs button {
+  font-size: 14px;
+  min-height: 40px;
+  padding-block: 6px;
+}
