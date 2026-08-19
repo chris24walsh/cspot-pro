@@ -435,7 +435,7 @@ export function MusicianLiveView({ controlPlanId, onEditSong, onExit, plan, song
   const liveItem = worshipItems.find((item) => item.id === liveSlide?.planItemId) ?? null;
   const liveSong = liveItem?.song_id ? songs.find((song) => song.id === liveItem.song_id) ?? null : null;
   const chordChart = useMemo(() => parseChordChart(liveSong?.chords ?? null).document, [liveSong?.chords]);
-  const pageColumnWidth = stageSize.width >= 700 ? stageSize.width * 0.58 : stageSize.width;
+  const pageColumnWidth = stageSize.width >= 700 ? stageSize.width / 2 : stageSize.width;
   const pageContentWidth = pageColumnWidth;
   const pageContentHeight = stageSize.height;
   const pageFontSizesByPlanItem = useMemo(() => {
