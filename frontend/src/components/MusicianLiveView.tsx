@@ -1,4 +1,4 @@
-import { BookOpen, ChevronLeft, ChevronRight, Guitar, LogOut, Music2, Pencil } from "lucide-react";
+import { BookOpen, ChevronLeft, ChevronRight, Guitar, LogOut, Music2, Pencil, ScrollText } from "lucide-react";
 import type { CSSProperties } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -372,9 +372,10 @@ export function MusicianLiveView({ controlPlanId, onEditSong, onExit, plan, song
   const [guitarKey, setGuitarKey] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [stageSize, setStageSize] = useState({ height: 650, width: 1120 });
-  const [readerMode, setReaderMode] = useState<"pages" | "song">(() =>
-    localStorage.getItem("cspot.worshipLiveReaderMode") === "song" ? "song" : "pages",
-  );
+  const [readerMode, setReaderMode] = useState<"pages" | "scroll">(() => {
+    const savedMode = localStorage.getItem("cspot.worshipLiveReaderMode");
+    return savedMode === "scroll" || savedMode === "song" ? "scroll" : "pages";
+  });
   const keyCaptureRef = useRef<HTMLInputElement | null>(null);
   const stageRef = useRef<HTMLDivElement | null>(null);
   const fullSongRef = useRef<HTMLDivElement | null>(null);
@@ -769,8 +770,20 @@ export function MusicianLiveView({ controlPlanId, onEditSong, onExit, plan, song
     ? currentSongContentSlideIndex - sequenceBlocks[currentSequenceBlockIndex].slideIndex
     : -1;
 
+  function navigateToSequenceBlock(blockIndex: number, partIndex = 0) {
+    const block = sequenceBlocks[blockIndex];
+    const firstContentIndex = slides.findIndex(
+      (slide) => slide.planItemId === liveSlide?.planItemId && slide.slideKind !== "title",
+    );
+    if (!block || firstContentIndex < 0) return;
+    const safePartIndex = boundedIndex(partIndex, block.parts.length);
+    const targetIndex = firstContentIndex + block.slideIndex + safePartIndex;
+    setLocalIndex(targetIndex);
+    void publishWorshipSlide(targetIndex);
+  }
+
   useEffect(() => {
-    if (readerMode !== "song" || !fullSongRef.current || !activeSongPartRef.current) {
+    if (readerMode !== "scroll" || !fullSongRef.current || !activeSongPartRef.current) {
       return undefined;
     }
     let secondFrame = 0;
@@ -827,15 +840,17 @@ export function MusicianLiveView({ controlPlanId, onEditSong, onExit, plan, song
       </div>
       <div className="musician-live-controls" aria-label="Musician display controls">
         <button
-          aria-label={`Switch to ${readerMode === "pages" ? "Song" : "Pages"} view`}
-          aria-pressed={readerMode === "song"}
-          className={`musician-reader-toggle ${readerMode === "song" ? "is-active" : ""}`}
-          onClick={() => setReaderMode((current) => current === "pages" ? "song" : "pages")}
-          title={`Showing ${readerMode === "pages" ? "Pages" : "Song"} view`}
+          aria-label={`Switch to ${readerMode === "pages" ? "Scroll" : "Pages"} view`}
+          aria-pressed={readerMode === "scroll"}
+          className={`musician-reader-toggle ${readerMode === "scroll" ? "is-active" : ""}`}
+          onClick={() => setReaderMode((current) => current === "pages" ? "scroll" : "pages")}
+          title={`Switch to ${readerMode === "pages" ? "Scroll" : "Pages"} view`}
           type="button"
         >
-          <BookOpen size={16} aria-hidden="true" />
-          <span className="musician-control-text">{readerMode === "pages" ? "Pages" : "Song"}</span>
+          {readerMode === "pages"
+            ? <ScrollText size={16} aria-hidden="true" />
+            : <BookOpen size={16} aria-hidden="true" />}
+          <span className="musician-control-text">{readerMode === "pages" ? "Scroll" : "Pages"}</span>
         </button>
         <button
           aria-label="Edit song"
@@ -927,17 +942,10 @@ export function MusicianLiveView({ controlPlanId, onEditSong, onExit, plan, song
               className={blockIndex === currentSequenceBlockIndex ? "is-active" : ""}
               key={`${block.label}-${blockIndex}`}
               onClick={() => {
-                const firstContentIndex = slides.findIndex(
-                  (slide) => slide.planItemId === liveSlide?.planItemId && slide.slideKind !== "title",
-                );
                 const nextPartIndex = blockIndex === currentSequenceBlockIndex
                   ? (currentSequencePartIndex + 1) % block.parts.length
                   : 0;
-                const targetIndex = firstContentIndex + block.slideIndex + nextPartIndex;
-                if (targetIndex >= 0) {
-                  setLocalIndex(targetIndex);
-                  void publishWorshipSlide(targetIndex);
-                }
+                navigateToSequenceBlock(blockIndex, nextPartIndex);
               }}
               style={blockIndex === currentSequenceBlockIndex ? {
                 "--sequence-active-end": `${((currentSequencePartIndex + 1) / block.parts.length) * 100}%`,
@@ -993,10 +1001,22 @@ export function MusicianLiveView({ controlPlanId, onEditSong, onExit, plan, song
             <h3>{liveSlide.sectionTitle}</h3>
             <p>The congregation view is not on a song right now.</p>
           </div>
-        ) : readerMode === "song" ? (
+        ) : readerMode === "scroll" ? (
           <div className="musician-full-song" aria-label="Full song lyrics" ref={fullSongRef}>
             {sequenceBlocks.map((block, blockIndex) => (
-              <section key={`${block.label}-${blockIndex}`}>
+              <section
+                aria-current={blockIndex === currentSequenceBlockIndex ? "step" : undefined}
+                aria-label={`Go to ${block.label}`}
+                key={`${block.label}-${blockIndex}`}
+                onClick={() => navigateToSequenceBlock(blockIndex)}
+                onKeyDown={(event) => {
+                  if (event.key !== "Enter" && event.key !== " ") return;
+                  event.preventDefault();
+                  navigateToSequenceBlock(blockIndex);
+                }}
+                role="button"
+                tabIndex={0}
+              >
                 <strong>{block.label}</strong>
                 {block.parts.map((part, partIndex) => {
                   const isCurrent = blockIndex === currentSequenceBlockIndex && partIndex === currentSequencePartIndex;
