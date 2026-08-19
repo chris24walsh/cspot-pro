@@ -33,7 +33,7 @@ import {
   type PresentationLiveState,
 } from "../presentation";
 import { isEditableKeyboardTarget, slideKeyboardDirection, type SlideKeyboardDirection } from "../keyboardNavigation";
-import { isTabletDevice } from "../presentationDevice";
+import { isMobileOrTabletDevice } from "../presentationDevice";
 import { worshipSequenceBlocks } from "../worshipText";
 
 interface MusicianLiveViewProps {
@@ -129,6 +129,13 @@ function playableSetups(targetKey: string | null) {
 
 function setupValue(setup: { capo: number; shapeKey: string }) {
   return `${setup.shapeKey}:${setup.capo}`;
+}
+
+export function keySetupLabel(setup: { absoluteKey: string; capo: number; shapeKey: string }, expanded: boolean) {
+  if (setup.capo <= 0) return expanded ? `${setup.shapeKey} (no capo)` : setup.shapeKey;
+  return expanded
+    ? `${setup.shapeKey} capo ${setup.capo} (${setup.absoluteKey})`
+    : `${setup.shapeKey}${setup.capo}`;
 }
 
 function uniqueKeySetups<T extends { capo: number; shapeKey: string }>(setups: T[]) {
@@ -371,12 +378,12 @@ export function MusicianLiveView({ controlPlanId, onEditSong, onExit, plan, song
   const [showChords, setShowChords] = useState(true);
   const [capo, setCapo] = useState(0);
   const [guitarKey, setGuitarKey] = useState<string | null>(null);
+  const [keySelectExpanded, setKeySelectExpanded] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [stageSize, setStageSize] = useState({ height: 650, width: 1120 });
-  const [readerMode, setReaderMode] = useState<"pages" | "scroll">(() => {
-    const savedMode = localStorage.getItem("cspot.worshipLiveReaderMode");
-    return savedMode === "scroll" || savedMode === "song" ? "scroll" : "pages";
-  });
+  const [readerMode, setReaderMode] = useState<"pages" | "scroll">(() =>
+    isMobileOrTabletDevice() && window.matchMedia("(orientation: portrait)").matches ? "scroll" : "pages",
+  );
   const keyCaptureRef = useRef<HTMLInputElement | null>(null);
   const stageRef = useRef<HTMLDivElement | null>(null);
   const fullSongRef = useRef<HTMLDivElement | null>(null);
@@ -492,11 +499,7 @@ export function MusicianLiveView({ controlPlanId, onEditSong, onExit, plan, song
   }, [liveSyncPlanId, plan?.id]);
 
   useEffect(() => {
-    localStorage.setItem("cspot.worshipLiveReaderMode", readerMode);
-  }, [readerMode]);
-
-  useEffect(() => {
-    if (!isTabletDevice()) return undefined;
+    if (!isMobileOrTabletDevice()) return undefined;
     const portraitQuery = window.matchMedia("(orientation: portrait)");
     const applyOrientationMode = () => setReaderMode(portraitQuery.matches ? "scroll" : "pages");
     applyOrientationMode();
@@ -704,11 +707,6 @@ export function MusicianLiveView({ controlPlanId, onEditSong, onExit, plan, song
   const currentGuitarKey = guitarKey ?? chordChart.absoluteKey ?? chordChart.capoKey ?? null;
   const currentAbsoluteKey = currentGuitarKey ? deriveAbsoluteKey(currentGuitarKey, capo) : null;
   const baseAbsoluteKey = chordChart.absoluteKey ?? chordChart.capoKey ?? currentGuitarKey ?? MUSICAL_KEYS[0];
-  const activeKeyLabel = currentGuitarKey
-    ? capo > 0
-      ? `${currentGuitarKey}c${capo}${currentAbsoluteKey ? ` (${currentAbsoluteKey})` : ""}`
-      : currentGuitarKey
-    : "unset";
   const originalCapo = normalizeCapo(chordChart.capo);
   const originalShapeKey = chordChart.absoluteKey ?? chordChart.capoKey ?? null;
   const originalAbsoluteKey = originalShapeKey ? deriveAbsoluteKey(originalShapeKey, originalCapo) : currentAbsoluteKey;
@@ -821,28 +819,25 @@ export function MusicianLiveView({ controlPlanId, onEditSong, onExit, plan, song
       <div className="musician-live-title">
         <strong>{liveSong?.title ?? liveSlide?.sectionTitle ?? "Waiting for a song"}</strong>
         <label className="musician-key-select-label">
-          <span>Key</span>
           <select
             aria-label="Choose guitar key and capo"
+            onBlur={() => setKeySelectExpanded(false)}
             onChange={(event) => {
               const parts = event.target.value.split(":");
               const [shapeKey, capoValue] = parts;
               if (!shapeKey) return;
               setGuitarKey(shapeKey);
               setCapo(normalizeCapo(Number(capoValue || 0)));
+              setKeySelectExpanded(false);
             }}
+            onFocus={() => setKeySelectExpanded(true)}
+            onPointerDown={() => setKeySelectExpanded(true)}
             value={selectedSetupValue}
           >
-            {!currentGuitarKey ? <option value="">Key</option> : null}
+            {!currentGuitarKey ? <option value="">{keySelectExpanded ? "Choose key" : "–"}</option> : null}
             {keySetupOptions.map((setup) => (
               <option key={setupValue(setup)} value={setupValue(setup)}>
-                {setup.isCurrent
-                  ? activeKeyLabel
-                  : setup.isAbsolute
-                    ? setup.absoluteKey
-                    : setup.capo > 0
-                      ? `${setup.shapeKey}c${setup.capo} (${setup.absoluteKey})`
-                      : setup.shapeKey}
+                {keySetupLabel(setup, keySelectExpanded)}
               </option>
             ))}
           </select>
@@ -851,8 +846,7 @@ export function MusicianLiveView({ controlPlanId, onEditSong, onExit, plan, song
       <div className="musician-live-controls" aria-label="Musician display controls">
         <button
           aria-label={`Switch to ${readerMode === "pages" ? "Scroll" : "Pages"} view`}
-          aria-pressed={readerMode === "scroll"}
-          className={`musician-reader-toggle ${readerMode === "scroll" ? "is-active" : ""}`}
+          className="musician-reader-toggle"
           onClick={() => setReaderMode((current) => current === "pages" ? "scroll" : "pages")}
           title={`Switch to ${readerMode === "pages" ? "Scroll" : "Pages"} view`}
           type="button"

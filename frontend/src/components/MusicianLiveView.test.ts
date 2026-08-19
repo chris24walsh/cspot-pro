@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { findSlideLineOffset } from "./MusicianLiveView";
+import { findSlideLineOffset, keySetupLabel } from "./MusicianLiveView";
 import { chordEditorLineLengthForWidth } from "./SongEditorDialog";
 
 describe("musician chord alignment", () => {
@@ -16,5 +16,14 @@ describe("chord editor line width", () => {
   it("uses nearly all of the available pane before wrapping", () => {
     expect(chordEditorLineLengthForWidth(800)).toBe(64);
     expect(chordEditorLineLengthForWidth(400)).toBe(31);
+  });
+});
+
+describe("musician key selector labels", () => {
+  it("uses compact closed labels and descriptive expanded labels", () => {
+    const setup = { absoluteKey: "F", capo: 5, shapeKey: "C" };
+
+    expect(keySetupLabel(setup, false)).toBe("C5");
+    expect(keySetupLabel(setup, true)).toBe("C capo 5 (F)");
   });
 });

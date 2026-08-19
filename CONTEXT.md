@@ -36,6 +36,8 @@
 - Tablet top bars and Worship Live section-navigation bars use larger touch targets and type than their phone equivalents.
 - Phone and tablet landscape layouts place primary navigation on the left; Worship Live Page mode also places its section navigation vertically on the left.
 - Portrait Worship Live toolbars use icon-only actions on phones and tablets, while compact worship builders show selected-song lyric previews inline whenever the separate review pane is hidden.
+- Worship Live Page mode moves both its key/action toolbar and section navigation into compact landscape side rails. Song titles stay hidden on phones and in landscape, and truncate on portrait tablets.
+- The key selector uses compact closed labels such as `C5` and expands them to descriptions such as `C capo 5 (F)` while focused. Device rotation always reapplies Scroll for portrait and Pages for landscape; manual changes last only until the next rotation.
 - Service and Sunday School song search match lyrics as well as titles/metadata.
 - Bible reference search supports numbered books and compact references, e.g. `1Kings3:5` and `2Tim1:7`.
 - Bible import supports KJV JSON and eBible VPL zip; ASV is public domain and preferred default when available.

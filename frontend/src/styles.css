@@ -2420,7 +2420,7 @@ h3 {
   align-items: center;
   display: inline-grid;
   gap: 5px;
-  grid-template-columns: auto minmax(96px, 132px);
+  grid-template-columns: minmax(72px, 112px);
   min-width: 0;
 }
 
@@ -2572,11 +2572,6 @@ h3 {
   gap: 5px;
   min-height: 32px;
   padding: 4px 8px;
-}
-
-.musician-reader-toggle.is-active {
-  background: #eaf5ef;
-  border-color: #8ebba9;
 }
 
 .chord-toggle-button {
@@ -9954,7 +9949,7 @@ h3 {
 
 .shell.is-tablet-device .musician-key-select-label {
   gap: 6px;
-  grid-template-columns: auto minmax(108px, 148px);
+  grid-template-columns: minmax(82px, 112px);
 }
 
 .shell.is-tablet-device .musician-key-select-label span {
@@ -10015,6 +10010,10 @@ h3 {
    primary navigation to the side, and Page mode gives its section navigation
    the same vertical treatment. */
 @media (orientation: landscape) {
+  .musician-live-title > strong {
+    display: none;
+  }
+
   .shell.is-mobile-device:not(.is-mobile-immersive) {
     --device-side-nav-width: 50px;
     grid-template-columns: var(--device-side-nav-width) minmax(0, 1fr);
@@ -10059,6 +10058,115 @@ h3 {
 
   .shell.is-mobile-device:not(.is-mobile-immersive) .nav-item {
     min-height: 42px;
+    width: 100%;
+  }
+
+  .shell.is-mobile-device .workspace:has(> .worship-live-shell .musician-reader-mode-pages) {
+    --worship-live-control-rail-width: 48px;
+    display: grid;
+    grid-template-columns: var(--worship-live-control-rail-width) minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr);
+  }
+
+  .shell.is-tablet-device .workspace:has(> .worship-live-shell .musician-reader-mode-pages) {
+    --worship-live-control-rail-width: 54px;
+  }
+
+  .shell.is-mobile-device .workspace:has(> .worship-live-shell .musician-reader-mode-pages) > .topbar {
+    border-bottom: 0;
+    border-right: 1px solid #ddd9ca;
+    display: grid;
+    grid-column: 1;
+    grid-row: 1;
+    grid-template-columns: 1fr;
+    grid-template-rows: minmax(0, 1fr) auto;
+    height: 100%;
+    min-height: 0;
+    padding: 4px;
+    width: var(--worship-live-control-rail-width);
+  }
+
+  .shell.is-mobile-device .workspace:has(> .worship-live-shell .musician-reader-mode-pages) > .topbar > .topbar-context-slot {
+    align-items: start;
+    grid-column: 1;
+    grid-row: 1;
+    height: 100%;
+    min-height: 0;
+    width: 100%;
+  }
+
+  .shell.is-mobile-device .workspace:has(> .worship-live-shell .musician-reader-mode-pages) > .topbar > .mobile-immersive-button {
+    grid-column: 1;
+    grid-row: 2;
+    width: 100%;
+  }
+
+  .shell.is-mobile-device .workspace:has(> .worship-live-shell .musician-reader-mode-pages) > .worship-live-shell {
+    grid-column: 2;
+    grid-row: 1;
+    min-height: 0;
+  }
+
+  .shell.is-mobile-device .workspace:has(> .worship-live-shell .musician-reader-mode-pages) .musician-live-toolbar {
+    align-items: stretch;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-height: 0;
+    width: 100%;
+  }
+
+  .shell.is-mobile-device .workspace:has(> .worship-live-shell .musician-reader-mode-pages) .musician-live-title {
+    display: block;
+    min-width: 0;
+    width: 100%;
+  }
+
+  .shell.is-mobile-device .workspace:has(> .worship-live-shell .musician-reader-mode-pages) .musician-live-title > strong {
+    display: none;
+  }
+
+  .shell.is-mobile-device .workspace:has(> .worship-live-shell .musician-reader-mode-pages) .musician-key-select-label {
+    display: block;
+    width: 100%;
+  }
+
+  .shell.is-mobile-device .workspace:has(> .worship-live-shell .musician-reader-mode-pages) .musician-key-select-label select {
+    font-size: 12px !important;
+    min-width: 0;
+    padding: 3px;
+    text-align: center;
+    width: 100%;
+  }
+
+  .shell.is-mobile-device .workspace:has(> .worship-live-shell .musician-reader-mode-pages) .musician-live-controls {
+    align-items: stretch;
+    flex: 1 1 auto;
+    flex-direction: column;
+    flex-wrap: nowrap;
+    justify-content: flex-start;
+    overflow-y: auto;
+    width: 100%;
+  }
+
+  .shell.is-mobile-device .workspace:has(> .worship-live-shell .musician-reader-mode-pages) .musician-control-text,
+  .shell.is-mobile-device .workspace:has(> .worship-live-shell .musician-reader-mode-pages) .chord-toggle-indicator {
+    display: none;
+  }
+
+  .shell.is-mobile-device .workspace:has(> .worship-live-shell .musician-reader-mode-pages) .chord-toggle-icon {
+    display: block;
+  }
+
+  .shell.is-mobile-device .workspace:has(> .worship-live-shell .musician-reader-mode-pages) .musician-reader-toggle,
+  .shell.is-mobile-device .workspace:has(> .worship-live-shell .musician-reader-mode-pages) .musician-edit-button,
+  .shell.is-mobile-device .workspace:has(> .worship-live-shell .musician-reader-mode-pages) .chord-toggle-button,
+  .shell.is-mobile-device .workspace:has(> .worship-live-shell .musician-reader-mode-pages) .musician-fullscreen-button {
+    align-items: center;
+    flex: 0 0 auto;
+    justify-content: center;
+    min-width: 0;
+    padding: 0;
     width: 100%;
   }
 
@@ -10166,4 +10274,28 @@ h3 {
     padding: 0;
     width: 40px;
   }
+
+  .shell.is-tablet-device .topbar-context-slot .musician-live-toolbar {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .shell.is-tablet-device .musician-live-title {
+    gap: 8px;
+    min-width: 0;
+  }
+
+  .shell.is-tablet-device .musician-live-title > strong {
+    flex: 1 1 0;
+    max-width: min(28vw, 220px);
+    min-width: 0;
+  }
+
+  .shell.is-tablet-device .musician-key-select-label {
+    flex: 0 0 92px;
+    grid-template-columns: minmax(0, 92px);
+  }
+}
+
+.shell.is-mobile-device:not(.is-tablet-device) .musician-live-title > strong {
+  display: none;
 }
