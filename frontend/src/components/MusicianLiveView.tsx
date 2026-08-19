@@ -33,6 +33,7 @@ import {
   type PresentationLiveState,
 } from "../presentation";
 import { isEditableKeyboardTarget, slideKeyboardDirection, type SlideKeyboardDirection } from "../keyboardNavigation";
+import { isTabletDevice } from "../presentationDevice";
 import { worshipSequenceBlocks } from "../worshipText";
 
 interface MusicianLiveViewProps {
@@ -493,6 +494,15 @@ export function MusicianLiveView({ controlPlanId, onEditSong, onExit, plan, song
   useEffect(() => {
     localStorage.setItem("cspot.worshipLiveReaderMode", readerMode);
   }, [readerMode]);
+
+  useEffect(() => {
+    if (!isTabletDevice()) return undefined;
+    const portraitQuery = window.matchMedia("(orientation: portrait)");
+    const applyOrientationMode = () => setReaderMode(portraitQuery.matches ? "scroll" : "pages");
+    applyOrientationMode();
+    portraitQuery.addEventListener("change", applyOrientationMode);
+    return () => portraitQuery.removeEventListener("change", applyOrientationMode);
+  }, []);
 
   useEffect(() => {
     keyCaptureRef.current?.focus({ preventScroll: true });
@@ -1006,18 +1016,16 @@ export function MusicianLiveView({ controlPlanId, onEditSong, onExit, plan, song
             {sequenceBlocks.map((block, blockIndex) => (
               <section
                 aria-current={blockIndex === currentSequenceBlockIndex ? "step" : undefined}
-                aria-label={`Go to ${block.label}`}
                 key={`${block.label}-${blockIndex}`}
-                onClick={() => navigateToSequenceBlock(blockIndex)}
-                onKeyDown={(event) => {
-                  if (event.key !== "Enter" && event.key !== " ") return;
-                  event.preventDefault();
-                  navigateToSequenceBlock(blockIndex);
-                }}
-                role="button"
-                tabIndex={0}
               >
-                <strong>{block.label}</strong>
+                <button
+                  aria-label={`Go to ${block.label}`}
+                  className="musician-scroll-section-heading"
+                  onClick={() => navigateToSequenceBlock(blockIndex)}
+                  type="button"
+                >
+                  <strong>{block.label}</strong>
+                </button>
                 {block.parts.map((part, partIndex) => {
                   const isCurrent = blockIndex === currentSequenceBlockIndex && partIndex === currentSequencePartIndex;
                   const partLines = lyricLines(part);
@@ -1029,10 +1037,19 @@ export function MusicianLiveView({ controlPlanId, onEditSong, onExit, plan, song
                   );
                   return (
                     <div
+                      aria-label={block.parts.length > 1 ? `Go to ${block.label}, part ${partIndex + 1}` : `Go to ${block.label}`}
                       className={`musician-song-part ${isCurrent ? "is-current" : ""}`}
                       key={`${block.label}-${blockIndex}-${partIndex}`}
+                      onClick={() => navigateToSequenceBlock(blockIndex, partIndex)}
+                      onKeyDown={(event) => {
+                        if (event.key !== "Enter" && event.key !== " ") return;
+                        event.preventDefault();
+                        navigateToSequenceBlock(blockIndex, partIndex);
+                      }}
                       ref={isCurrent || (isSongTitleSlide && blockIndex === 0 && partIndex === 0) ? activeSongPartRef : undefined}
+                      role="button"
                       style={{ "--musician-live-font-size": `${songModeFontSize}px` } as CSSProperties}
+                      tabIndex={0}
                     >
                       {showChords ? (
                         <div className="musician-song-chord-sheet">

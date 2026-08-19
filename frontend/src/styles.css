@@ -2786,19 +2786,30 @@ h3 {
 }
 
 .musician-full-song section {
-  border-radius: 8px;
   break-inside: avoid;
-  cursor: pointer;
   margin: 0 0 1.3em;
   padding: 0;
 }
 
-.musician-full-song section:focus-visible {
+.musician-scroll-section-heading {
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  display: block;
+  padding: 0;
+  text-align: left;
+  width: 100%;
+}
+
+.musician-scroll-section-heading:focus-visible,
+.musician-song-part:focus-visible {
   outline: 2px solid #245d4d;
   outline-offset: 3px;
 }
 
 .musician-song-part {
+  border-radius: 8px;
+  cursor: pointer;
   padding: 8px clamp(10px, 1.5vw, 18px);
 }
 
