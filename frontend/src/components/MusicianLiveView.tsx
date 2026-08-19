@@ -426,6 +426,11 @@ export function MusicianLiveView({ controlPlanId, onEditSong, onExit, plan, song
     : liveIndex;
   const pageLeadSlide = slides[pageLeadIndex] ?? liveSlide;
   const pageNextSlide = slides.find((slide, index) => index > pageLeadIndex && slide.slideKind === "content") ?? null;
+  const previousPageLeadIndexRef = useRef(pageLeadIndex);
+  const pageTurnDirection = pageLeadIndex < previousPageLeadIndexRef.current ? "backward" : "forward";
+  useEffect(() => {
+    previousPageLeadIndexRef.current = pageLeadIndex;
+  }, [pageLeadIndex]);
   const liveItem = worshipItems.find((item) => item.id === liveSlide?.planItemId) ?? null;
   const liveSong = liveItem?.song_id ? songs.find((song) => song.id === liveItem.song_id) ?? null : null;
   const chordChart = useMemo(() => parseChordChart(liveSong?.chords ?? null).document, [liveSong?.chords]);
@@ -1076,7 +1081,10 @@ export function MusicianLiveView({ controlPlanId, onEditSong, onExit, plan, song
             ))}
           </div>
         ) : (
-          <div className="musician-page-spread">
+          <div
+            className={`musician-page-spread page-turn-${pageTurnDirection}`}
+            key={pageLeadSlide?.id ?? "empty-page"}
+          >
             <section className="musician-page is-current" aria-label="Current lyrics">
               <span className="musician-page-label">Now</span>
               <div className="musician-chord-sheet" aria-label="Lyrics with chords">

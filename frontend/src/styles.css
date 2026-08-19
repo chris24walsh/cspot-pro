@@ -2688,6 +2688,47 @@ h3 {
   width: 100%;
 }
 
+.musician-page-spread.page-turn-forward {
+  animation: musician-page-turn-forward 280ms cubic-bezier(0.22, 0.72, 0.24, 1) both;
+  transform-origin: left center;
+}
+
+.musician-page-spread.page-turn-backward {
+  animation: musician-page-turn-backward 280ms cubic-bezier(0.22, 0.72, 0.24, 1) both;
+  transform-origin: right center;
+}
+
+@keyframes musician-page-turn-forward {
+  from {
+    opacity: 0.45;
+    transform: perspective(1200px) translateX(4%) rotateY(-3deg) scale(0.99);
+  }
+
+  to {
+    opacity: 1;
+    transform: perspective(1200px) translateX(0) rotateY(0) scale(1);
+  }
+}
+
+@keyframes musician-page-turn-backward {
+  from {
+    opacity: 0.45;
+    transform: perspective(1200px) translateX(-4%) rotateY(3deg) scale(0.99);
+  }
+
+  to {
+    opacity: 1;
+    transform: perspective(1200px) translateX(0) rotateY(0) scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .musician-page-spread.page-turn-forward,
+  .musician-page-spread.page-turn-backward {
+    animation: none;
+  }
+}
+
 .musician-page {
   align-items: center;
   background: rgba(255, 254, 250, 0.88);
