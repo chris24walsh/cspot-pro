@@ -363,8 +363,11 @@ Search modes:
   configurable stop countdown (60 seconds by default); blanking never starts it.
   Returning to a sermon slide cancels the countdown and retains one continuous
   recording. If the countdown expires or End now is chosen, the grace audio is
-  trimmed back to the departure point and the archive records the stop reason. Recorder
-  transitions run on one background worker with a separate database session;
+  trimmed back to the departure point and the archive records the stop reason.
+  Automatic captures shorter than 30 seconds are discarded after an automatic
+  departure instead of being saved as false-positive sermon archives. A deliberate
+  stop while still on the sermon retains even a short recording. Recorder transitions
+  run on one background worker with a separate database session;
   stream probing and FFmpeg startup never block presenter API requests. Failed
   source probes enter a cooldown instead of retrying on every heartbeat. Automatic
   recording can be disabled persistently from Broadcast settings, preventing

@@ -37,7 +37,9 @@ must be known before adding a protocol adapter.
   slide. Leaving the sermon, reaching End, or closing output starts a configurable
   stop countdown; blanking does not affect recording. Returning to the sermon
   cancels the countdown without splitting the file. Expiry trims the retained
-  audio back to the departure point and annotates the archive with the stop reason. Broadcast
+  audio back to the departure point and annotates the archive with the stop reason.
+  Automatic captures under 30 seconds are discarded after an automatic departure,
+  while a deliberate stop made on the sermon retains a short recording. Broadcast
   settings provide a persistent auto-record toggle; disabling it skips automatic
   source probes and recorder startup while keeping manual recording available.
 - Recorder timestamps are generated from actual audio samples. Finalization

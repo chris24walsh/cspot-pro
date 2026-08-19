@@ -12,14 +12,17 @@ from app.core.config import settings
 from app.core.database import Base
 from app.modules.broadcast.models import BroadcastRecording, BroadcastViewerSettings
 from app.modules.broadcast.recording import (
+    ActiveRecording,
     _finalize_recording_file,
     _media_duration,
     _recording_command,
+    _should_discard_short_automatic_recording,
     _source_has_audio,
     _source_url,
     _trim_recording_file,
     cancel_pending_recording_stop,
     request_recording_stop,
+    stop_recording,
     sync_sermon_recording,
 )
 from app.modules.broadcast.routes import (
@@ -142,7 +145,11 @@ def test_multi_camera_settings_are_normalized_and_returned() -> None:
         result = update_viewer_settings(
             BroadcastViewerSettingsUpdate(
                 camera_sources=[
-                    {"id": "lectern", "label": "Lectern", "url": "/app/camera/api/stream.m3u8?src=lectern"},
+                    {
+                        "id": "lectern",
+                        "label": "Lectern",
+                        "url": "/app/camera/api/stream.m3u8?src=lectern",
+                    },
                     {"id": "ptz", "label": "Room", "url": "/app/camera/api/stream.m3u8?src=ptz"},
                 ],
                 active_camera_id="ptz",
@@ -296,6 +303,68 @@ def test_grace_audio_can_be_trimmed_back_to_departure(tmp_path: Path) -> None:
     duration = _media_duration(recording)
     assert duration is not None
     assert 1.9 < duration < 2.1
+
+
+def test_short_automatic_recording_is_only_discarded_after_automatic_departure() -> None:
+    recording = BroadcastRecording(
+        title="Sermon",
+        source="automatic-sermon",
+        media_kind="audio-slides",
+        status="recording",
+        file_path="/tmp/sermon.webm",
+        file_name="sermon.webm",
+    )
+
+    assert _should_discard_short_automatic_recording(
+        recording, 29.999, automatic_departure=True
+    )
+    assert not _should_discard_short_automatic_recording(
+        recording, 30, automatic_departure=True
+    )
+    assert not _should_discard_short_automatic_recording(
+        recording, 2, automatic_departure=False
+    )
+    recording.source = "manual"
+    assert not _should_discard_short_automatic_recording(
+        recording, 2, automatic_departure=True
+    )
+
+
+def test_short_automatic_recording_and_file_are_deleted_after_grace(
+    monkeypatch, tmp_path: Path
+) -> None:
+    class CompletedProcess:
+        def poll(self) -> int:
+            return 0
+
+    engine = create_engine("sqlite://")
+    Base.metadata.create_all(engine, tables=[BroadcastRecording.__table__])
+    recording_path = tmp_path / "short-sermon.webm"
+    recording_path.write_bytes(b"short recording")
+    with Session(engine) as session:
+        recording = BroadcastRecording(
+            title="Sermon",
+            source="automatic-sermon",
+            media_kind="audio-slides",
+            status="recording",
+            file_path=str(recording_path),
+            file_name=recording_path.name,
+            audio_file_path=str(recording_path),
+            pending_stop_offset_ms=2_000,
+        )
+        session.add(recording)
+        session.commit()
+        recording_id = recording.id
+        monkeypatch.setattr(
+            "app.modules.broadcast.recording._active",
+            ActiveRecording(recording_id, "plan-1", CompletedProcess()),
+        )
+
+        result = stop_recording(session, "plan-1", "Left sermon; grace period elapsed")
+
+        assert result is None
+        assert session.get(BroadcastRecording, recording_id) is None
+        assert not recording_path.exists()
 
 
 def test_live_audio_relay_requires_a_fresh_output_heartbeat() -> None:

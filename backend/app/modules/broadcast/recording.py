@@ -38,6 +38,7 @@ _lock = threading.RLock()
 _active: ActiveRecording | None = None
 START_FAILURE_COOLDOWN_SECONDS = 60
 RECORDING_REPAIR_TIMEOUT_SECONDS = 300
+AUTOMATIC_RECORDING_MINIMUM_SECONDS = 30
 
 
 @dataclass(frozen=True)
@@ -280,7 +281,11 @@ def _repair_discontinuous_timestamps(path: Path) -> bool:
             check=False,
             timeout=RECORDING_REPAIR_TIMEOUT_SECONDS,
         )
-        if repair.returncode != 0 or not repaired_path.is_file() or repaired_path.stat().st_size == 0:
+        if (
+            repair.returncode != 0
+            or not repaired_path.is_file()
+            or repaired_path.stat().st_size == 0
+        ):
             return False
         repaired_path.replace(path)
         return True
@@ -346,6 +351,33 @@ def _finalize_recording_file(path: Path, expected_duration: float | None) -> flo
         else:
             logger.error("Could not repair discontinuous recording timestamps for %s", path)
     return media_duration
+
+
+def _should_discard_short_automatic_recording(
+    recording: BroadcastRecording,
+    duration_seconds: float | None,
+    *,
+    automatic_departure: bool,
+) -> bool:
+    return bool(
+        recording.source == "automatic-sermon"
+        and automatic_departure
+        and duration_seconds is not None
+        and duration_seconds < AUTOMATIC_RECORDING_MINIMUM_SECONDS
+    )
+
+
+def _delete_recording(session: Session, recording: BroadcastRecording) -> None:
+    paths = {recording.file_path, recording.audio_file_path}
+    session.delete(recording)
+    session.commit()
+    for value in paths:
+        if not value:
+            continue
+        try:
+            Path(value).unlink(missing_ok=True)
+        except OSError:
+            logger.exception("Could not delete discarded recording file %s", value)
 
 
 def start_recording(
@@ -474,7 +506,10 @@ def _watch_recording(recording_id: str, plan_id: str) -> None:
                         stop_recording(
                             session,
                             plan_id,
-                            f"{recording.pending_stop_reason or 'Left sermon'}; grace period elapsed",
+                            (
+                                f"{recording.pending_stop_reason or 'Left sermon'}; "
+                                "grace period elapsed"
+                            ),
                         )
                         return
 
@@ -623,14 +658,33 @@ def stop_recording(
                     - active.paused_seconds,
                 )
             path = Path(recording.audio_file_path or recording.file_path)
+            retained_duration = (
+                trim_at_seconds if trim_at_seconds is not None else expected_duration
+            )
+            if _should_discard_short_automatic_recording(
+                recording,
+                retained_duration,
+                automatic_departure=trim_at_seconds is not None or reason != "Stopped manually",
+            ):
+                logger.info(
+                    "Discarding short automatic sermon recording %s (%.3fs)",
+                    recording.id,
+                    retained_duration,
+                )
+                _delete_recording(session, recording)
+                return None
             if trim_at_seconds is not None and path.exists():
                 if _trim_recording_file(path, trim_at_seconds):
                     expected_duration = trim_at_seconds
                 else:
                     logger.error("Could not trim recording grace audio from %s", path)
-            media_duration = _finalize_recording_file(path, expected_duration) if path.exists() else None
+            media_duration = (
+                _finalize_recording_file(path, expected_duration) if path.exists() else None
+            )
             duration = media_duration if media_duration is not None else expected_duration
-            recording.duration_seconds = max(0, int(round(duration))) if duration is not None else None
+            recording.duration_seconds = (
+                max(0, int(round(duration))) if duration is not None else None
+            )
             recording.size_bytes = path.stat().st_size if path.exists() else None
             recording.status = "ready" if recording.size_bytes else "failed"
             session.commit()
