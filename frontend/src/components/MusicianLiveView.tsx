@@ -893,7 +893,7 @@ export function MusicianLiveView({ controlPlanId, onEditSong, onExit, plan, song
 
   return (
     <section
-      className={`musician-live-view ${isLastSongSlide ? "is-song-end" : ""}`}
+      className={`musician-live-view musician-reader-mode-${readerMode} ${isLastSongSlide ? "is-song-end" : ""}`}
       aria-label="Musician live view"
       onPointerDownCapture={(event) => {
         if (isEditableKeyboardTarget(event.target)) {
