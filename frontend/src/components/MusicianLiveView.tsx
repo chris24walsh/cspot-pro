@@ -1092,7 +1092,19 @@ export function MusicianLiveView({ controlPlanId, onEditSong, onExit, plan, song
                 <span>{pagePreviousSlide.text}</span>
               </div>
             ) : null}
-            <section className="musician-page is-current" aria-label="Current lyrics">
+            <button
+              aria-label={isSongTitleSlide ? "Start first lyrics" : "Current lyrics"}
+              className="musician-page is-current"
+              disabled={!isSongTitleSlide || !pageLeadSlide}
+              onClick={() => {
+                if (!isSongTitleSlide || !pageLeadSlide) return;
+                const firstLyricIndex = slides.findIndex((slide) => slide.id === pageLeadSlide.id);
+                if (firstLyricIndex < 0) return;
+                setLocalIndex(firstLyricIndex);
+                void publishWorshipSlide(firstLyricIndex);
+              }}
+              type="button"
+            >
               <span className="musician-page-label">{isSongTitleSlide ? "Title cue" : "Now"}</span>
               <div className="musician-chord-sheet" aria-label="Lyrics with chords">
                 {wrappedLyricLinesForSlide.map((segments, lineIndex) => (
@@ -1113,7 +1125,7 @@ export function MusicianLiveView({ controlPlanId, onEditSong, onExit, plan, song
                   </div>
                 ))}
               </div>
-            </section>
+            </button>
             <button
               className="musician-page is-next"
               disabled={!pageNextSlide}

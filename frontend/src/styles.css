@@ -2744,6 +2744,13 @@ h3 {
   position: relative;
 }
 
+button.musician-page {
+  appearance: none;
+  color: inherit;
+  font: inherit;
+  text-align: initial;
+}
+
 .musician-previous-page-leaf {
   background: linear-gradient(90deg, #eee8d9, #fffdf7 72%, #d8d2c5);
   border: 1px solid #d2cbbb;
@@ -2794,10 +2801,20 @@ h3 {
 .musician-page-spread.is-title-selected .musician-page.is-current {
   border-color: #b79a62;
   box-shadow: inset 0 0 0 2px rgba(151, 113, 43, 0.12);
+  cursor: pointer;
+  transition: background 160ms ease, border-color 160ms ease, transform 160ms ease;
 }
 
 .musician-page-spread.is-title-selected .musician-page.is-current .musician-page-label {
   background: #8a6a30;
+}
+
+.musician-page-spread.is-title-selected .musician-page.is-current:hover,
+.musician-page-spread.is-title-selected .musician-page.is-current:focus-visible {
+  background: rgba(255, 251, 240, 0.98);
+  border-color: #9f7b3c;
+  outline: none;
+  transform: translateX(2px);
 }
 
 .musician-page-spread.is-first-lyric-selected .musician-page.is-current {
