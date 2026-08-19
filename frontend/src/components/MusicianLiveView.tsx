@@ -426,6 +426,7 @@ export function MusicianLiveView({ controlPlanId, onEditSong, onExit, plan, song
     : liveIndex;
   const pageLeadSlide = slides[pageLeadIndex] ?? liveSlide;
   const pageNextSlide = slides.find((slide, index) => index > pageLeadIndex && slide.slideKind === "content") ?? null;
+  const pagePreviousSlide = [...slides.slice(0, pageLeadIndex)].reverse().find((slide) => slide.slideKind === "content") ?? null;
   const previousPageLeadIndexRef = useRef(pageLeadIndex);
   const pageTurnDirection = pageLeadIndex < previousPageLeadIndexRef.current ? "backward" : "forward";
   useEffect(() => {
@@ -434,7 +435,7 @@ export function MusicianLiveView({ controlPlanId, onEditSong, onExit, plan, song
   const liveItem = worshipItems.find((item) => item.id === liveSlide?.planItemId) ?? null;
   const liveSong = liveItem?.song_id ? songs.find((song) => song.id === liveItem.song_id) ?? null : null;
   const chordChart = useMemo(() => parseChordChart(liveSong?.chords ?? null).document, [liveSong?.chords]);
-  const pageColumnWidth = stageSize.width >= 700 ? stageSize.width / 2 : stageSize.width;
+  const pageColumnWidth = stageSize.width >= 700 ? stageSize.width * 0.58 : stageSize.width;
   const pageContentWidth = pageColumnWidth;
   const pageContentHeight = stageSize.height;
   const pageFontSizesByPlanItem = useMemo(() => {
@@ -761,6 +762,7 @@ export function MusicianLiveView({ controlPlanId, onEditSong, onExit, plan, song
   const currentSongContentSlideIndex = liveSlide
     ? currentSongContentSlides.findIndex((slide) => slide.id === liveSlide.id)
     : -1;
+  const isFirstLyricSlide = currentSongContentSlideIndex === 0;
   const sequenceBlocks = liveSong
     ? worshipSequenceBlocks(liveSong.lyrics, liveSong.sequence).map((block, blockIndex, blocks) => {
         const precedingSlideCount = blocks
@@ -1082,11 +1084,16 @@ export function MusicianLiveView({ controlPlanId, onEditSong, onExit, plan, song
           </div>
         ) : (
           <div
-            className={`musician-page-spread page-turn-${pageTurnDirection}`}
+            className={`musician-page-spread page-turn-${pageTurnDirection} ${isSongTitleSlide ? "is-title-selected" : ""} ${isFirstLyricSlide ? "is-first-lyric-selected" : ""}`}
             key={pageLeadSlide?.id ?? "empty-page"}
           >
+            {pagePreviousSlide ? (
+              <div aria-hidden="true" className="musician-previous-page-leaf">
+                <span>{pagePreviousSlide.text}</span>
+              </div>
+            ) : null}
             <section className="musician-page is-current" aria-label="Current lyrics">
-              <span className="musician-page-label">Now</span>
+              <span className="musician-page-label">{isSongTitleSlide ? "Title cue" : "Now"}</span>
               <div className="musician-chord-sheet" aria-label="Lyrics with chords">
                 {wrappedLyricLinesForSlide.map((segments, lineIndex) => (
                   <div className="musician-lyric-line-group" key={`${lineIndex}-${lyricLinesForSlide[lineIndex]}`}>
@@ -1107,10 +1114,19 @@ export function MusicianLiveView({ controlPlanId, onEditSong, onExit, plan, song
                 ))}
               </div>
             </section>
-            <section
+            <button
               className="musician-page is-next"
+              disabled={!pageNextSlide}
               aria-label="Next lyrics"
+              onClick={() => {
+                if (!pageNextSlide) return;
+                const nextIndex = slides.findIndex((slide) => slide.id === pageNextSlide.id);
+                if (nextIndex < 0) return;
+                setLocalIndex(nextIndex);
+                void publishWorshipSlide(nextIndex);
+              }}
               style={{ "--musician-live-font-size": `${nextFontSize}px` } as CSSProperties}
+              type="button"
             >
               <span className="musician-page-label">Next</span>
               {pageNextSlide && showChords && pageNextSlideUsesCurrentSong ? (
@@ -1138,7 +1154,7 @@ export function MusicianLiveView({ controlPlanId, onEditSong, onExit, plan, song
               ) : (
                 <div className="musician-next-lyrics is-end">End of set</div>
               )}
-            </section>
+            </button>
           </div>
         )}
         {liveSlide ? (
