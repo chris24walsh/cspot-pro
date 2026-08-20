@@ -17,7 +17,17 @@ describe("visibleCalendarDays", () => {
     { date: "2026-08-09" },
   ];
 
-  it("compacts the default view to Sundays in the selected month", () => {
+  it("uses the supplied continuous Sunday timeline", () => {
+    const sundayDays = [
+      { date: "2026-07-26" },
+      { date: "2026-08-02" },
+      { date: "2026-08-09" },
+      { date: "2026-08-16" },
+    ];
+    expect(visibleCalendarDays(days, "sundays", sundayDays)).toEqual(sundayDays);
+  });
+
+  it("falls back to Sundays in the selected month", () => {
     expect(visibleCalendarDays(days, "sundays").map((day) => day.date)).toEqual([
       "2026-08-02",
       "2026-08-09",

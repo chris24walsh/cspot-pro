@@ -473,6 +473,7 @@ function App() {
         ) : activeModule.id === "presentation" ? (
           <PresentationView
             canAttachDeck={canEditPlans && canCreateLibrary}
+            canAccessAdminTools={canManageUsers}
             canCreatePlan={canCreatePlans}
             canDeletePlan={canDeletePlans}
             canEditPlan={canEditPlans}
@@ -501,6 +502,7 @@ function App() {
         ) : (
           <PresentationView
             canAttachDeck={canEditPlans && canCreateLibrary}
+            canAccessAdminTools={canManageUsers}
             canCreatePlan={canCreatePlans}
             canDeletePlan={canDeletePlans}
             canEditPlan={canEditPlans}

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { buildMonthlyLeaderSchedule, sundayDatesForMonth } from "./leaderSchedule";
+import { buildMonthlyLeaderSchedule, sundayDatesAround, sundayDatesForMonth } from "./leaderSchedule";
 
 describe("Sunday leader rotation", () => {
   it("returns only the Sundays in a month", () => {
@@ -11,6 +11,14 @@ describe("Sunday leader rotation", () => {
       "2026-08-23",
       "2026-08-30",
     ]);
+  });
+
+  it("builds a continuous multi-month Sunday timeline around a selected date", () => {
+    const dates = sundayDatesAround("2026-08-20", 42, 10);
+    expect(dates).toHaveLength(42);
+    expect(dates[10]).toBe("2026-08-23");
+    expect(dates[11]).toBe("2026-08-30");
+    expect(new Date(`${dates[41]}T12:00:00`).getDay()).toBe(0);
   });
 
   it("round-robins leaders while respecting monthly limits", () => {
@@ -27,6 +35,18 @@ describe("Sunday leader rotation", () => {
     expect(assignments.filter((id) => id === "a")).toHaveLength(1);
     expect(assignments.filter((id) => id === "b")).toHaveLength(2);
     expect(assignments).toHaveLength(5);
+  });
+
+  it("keeps manual-only leaders out of automatic rotation", () => {
+    const schedule = buildMonthlyLeaderSchedule(
+      "2026-08",
+      [
+        { id: "tablet", name: "Tablet", maxSundaysPerMonth: 0 },
+        { id: "leader", name: "Worship Leader", maxSundaysPerMonth: null },
+      ],
+      new Map(),
+    );
+    expect([...schedule.values()]).not.toContain("tablet");
   });
 
   it("reserves capacity for explicit assignments before filling gaps", () => {

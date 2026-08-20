@@ -71,6 +71,7 @@ import {
   type PresentationTheme,
 } from "../presentation";
 import { isMobileOrTabletDevice } from "../presentationDevice";
+import { sundayDatesAround } from "../leaderSchedule";
 import { AutoFitSlideText } from "./AutoFitSlideText";
 import { useConfirmationDialog } from "./ConfirmationDialog";
 import { CalendarPopup } from "./CalendarPopup";
@@ -589,6 +590,7 @@ function recordingGraceCountdown(deadline: string, now: number) {
 
 export function PresentationView({
   canAttachDeck,
+  canAccessAdminTools,
   canCreatePlan,
   canDeletePlan,
   canEditPlan,
@@ -597,6 +599,7 @@ export function PresentationView({
   canEditSong,
 }: {
   canAttachDeck: boolean;
+  canAccessAdminTools: boolean;
   canCreatePlan: boolean;
   canDeletePlan: boolean;
   canEditPlan: boolean;
@@ -754,6 +757,10 @@ export function PresentationView({
     [servicePlans],
   );
   const calendarDays = useMemo(() => calendarDaysForMonth(serviceCalendarMonth), [serviceCalendarMonth]);
+  const sundayCalendarDates = useMemo(
+    () => sundayDatesAround(serviceDraftDate || nextSundayDateInput()),
+    [serviceDraftDate],
+  );
   const slides = useMemo(
     () => buildPresentationSlides(effectivePlanItems, songs, renderedSlidesByFileId),
     [effectivePlanItems, songs, renderedSlidesByFileId],
@@ -3440,6 +3447,14 @@ export function PresentationView({
             className: `${existing || isSunday ? "has-service" : ""} ${isToday ? "is-today" : ""}`.trim(),
           };
         })}
+        sundayDays={sundayCalendarDates.map((dateInput) => {
+          const existing = plansByDate.get(dateInput);
+          const isToday = dateInput === dateInputFromDate(new Date());
+          return {
+            date: dateInput,
+            className: `${existing ? "has-service" : ""} ${isToday ? "is-today" : ""}`.trim(),
+          };
+        })}
         selectedDate={serviceDraftDate}
         onDateSelect={(dateInput) => void openServiceDate(dateInput)}
         dayContent={(day) => {
@@ -3448,11 +3463,11 @@ export function PresentationView({
           return (
             <>
               <span>{date.getDate()}</span>
-              {existing ? <small>{existing.title}</small> : null}
+              <small>{existing ? `${existing.item_count} service items` : "Ready to plan"}</small>
             </>
           );
         }}
-        calendarAction={plan && canDeletePlan ? (
+        calendarAction={plan && canAccessAdminTools && canDeletePlan ? (
           <button className="danger-button" onClick={() => void archiveCurrentPlan()} type="button">
             Archive current
           </button>

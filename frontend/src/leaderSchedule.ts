@@ -8,6 +8,24 @@ function dateInput(value: Date) {
   return `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, "0")}-${String(value.getDate()).padStart(2, "0")}`;
 }
 
+export function sundayDatesAround(centerInput: string, count = 42, pastCount = 10) {
+  const parsedCenter = new Date(`${centerInput}T12:00:00`);
+  const center = Number.isNaN(parsedCenter.getTime()) ? new Date() : parsedCenter;
+  center.setHours(12, 0, 0, 0);
+  center.setDate(center.getDate() + ((7 - center.getDay()) % 7));
+
+  const safeCount = Math.max(1, Math.floor(count));
+  const safePastCount = Math.min(Math.max(0, Math.floor(pastCount)), safeCount - 1);
+  const firstSunday = new Date(center);
+  firstSunday.setDate(center.getDate() - safePastCount * 7);
+
+  return Array.from({ length: safeCount }, (_value, index) => {
+    const date = new Date(firstSunday);
+    date.setDate(firstSunday.getDate() + index * 7);
+    return dateInput(date);
+  });
+}
+
 export function sundayDatesForMonth(monthInput: string) {
   const [yearValue, monthValue] = monthInput.split("-").map(Number);
   const year = Number.isFinite(yearValue) ? yearValue : new Date().getFullYear();

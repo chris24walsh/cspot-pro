@@ -1,5 +1,5 @@
 import { ChevronLeft, ChevronRight, X } from "lucide-react";
-import { ReactNode, useMemo, useRef, useState, type WheelEvent } from "react";
+import { ReactNode, useEffect, useMemo, useRef, useState, type WheelEvent } from "react";
 import { useEscapeClose } from "./useEscapeClose";
 
 interface CalendarDay {
@@ -16,6 +16,7 @@ interface CalendarPopupProps {
   calendarMonth: string;
   onMonthChange: (month: string) => void;
   calendarDays: CalendarDay[];
+  sundayDays?: CalendarDay[];
   selectedDate: string;
   onDateSelect: (date: string) => void;
   dayContent: (day: CalendarDay) => ReactNode;
@@ -30,8 +31,13 @@ export function shiftCalendarMonth(calendarMonth: string, offset: -1 | 1) {
   return `${shifted.getFullYear()}-${String(shifted.getMonth() + 1).padStart(2, "0")}`;
 }
 
-export function visibleCalendarDays(calendarDays: CalendarDay[], mode: "sundays" | "all") {
+export function visibleCalendarDays(
+  calendarDays: CalendarDay[],
+  mode: "sundays" | "all",
+  sundayDays?: CalendarDay[],
+) {
   if (mode === "all") return calendarDays;
+  if (sundayDays) return sundayDays;
   return calendarDays.filter(
     (day) => !day.muted && new Date(`${day.date}T12:00:00`).getDay() === 0,
   );
@@ -45,6 +51,7 @@ export function CalendarPopup({
   calendarMonth,
   onMonthChange,
   calendarDays,
+  sundayDays,
   selectedDate,
   onDateSelect,
   dayContent,
@@ -56,11 +63,29 @@ export function CalendarPopup({
   const wheelDistanceRef = useRef(0);
   const wheelResetRef = useRef<number | null>(null);
   const touchStartYRef = useRef<number | null>(null);
+  const calendarGridRef = useRef<HTMLDivElement | null>(null);
   useEscapeClose(isOpen, onClose);
   const displayedDays = useMemo(
-    () => visibleCalendarDays(calendarDays, viewMode),
-    [calendarDays, viewMode],
+    () => visibleCalendarDays(calendarDays, viewMode, sundayDays),
+    [calendarDays, sundayDays, viewMode],
   );
+  const sundayTimelineStart = sundayDays?.[0]?.date;
+  const sundayTimelineEnd = sundayDays?.[sundayDays.length - 1]?.date;
+
+  useEffect(() => {
+    if (!isOpen || viewMode !== "sundays") return;
+    const frame = window.requestAnimationFrame(() => {
+      const grid = calendarGridRef.current;
+      if (!grid) return;
+      const dates = Array.from(grid.querySelectorAll<HTMLElement>("[data-calendar-date]"));
+      const selected = dates.find((element) => element.dataset.calendarDate === selectedDate);
+      const next = dates.find((element) => (element.dataset.calendarDate ?? "") >= selectedDate);
+      const target = selected ?? next ?? dates[0];
+      if (!target) return;
+      grid.scrollTop = Math.max(0, target.offsetTop - grid.offsetTop - grid.clientHeight / 3);
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [isOpen, selectedDate, sundayTimelineEnd, sundayTimelineStart, viewMode]);
 
   if (!isOpen) {
     return null;
@@ -71,6 +96,7 @@ export function CalendarPopup({
   }
 
   function handleCalendarWheel(event: WheelEvent<HTMLDivElement>) {
+    if (viewMode === "sundays") return;
     if (Math.abs(event.deltaY) <= Math.abs(event.deltaX)) return;
     event.preventDefault();
     wheelDistanceRef.current += event.deltaY;
@@ -103,19 +129,19 @@ export function CalendarPopup({
         <div className={`service-picker-grid calendar-popup-grid ${footerContent || actionButtons ? "" : "is-calendar-only"}`}>
           <section className="service-picker-panel service-calendar-panel">
             <div className="service-calendar-heading">
-              <div className="calendar-month-navigation">
-                <button aria-label="Previous month" className="section-icon-button" onClick={() => moveMonth(-1)} type="button">
+              <div className={`calendar-month-navigation ${viewMode === "sundays" ? "is-timeline" : ""}`}>
+                {viewMode === "all" ? <button aria-label="Previous month" className="section-icon-button" onClick={() => moveMonth(-1)} type="button">
                   <ChevronLeft size={16} aria-hidden="true" />
-                </button>
+                </button> : null}
                 <strong>
-                  {new Date(`${calendarMonth}-01T12:00:00`).toLocaleDateString(undefined, {
+                  {viewMode === "sundays" ? "Sunday schedule" : new Date(`${calendarMonth}-01T12:00:00`).toLocaleDateString(undefined, {
                     month: "long",
                     year: "numeric",
                   })}
                 </strong>
-                <button aria-label="Next month" className="section-icon-button" onClick={() => moveMonth(1)} type="button">
+                {viewMode === "all" ? <button aria-label="Next month" className="section-icon-button" onClick={() => moveMonth(1)} type="button">
                   <ChevronRight size={16} aria-hidden="true" />
-                </button>
+                </button> : null}
               </div>
               <div className="calendar-view-toggle" aria-label="Calendar days" role="group">
                 <button aria-pressed={viewMode === "sundays"} className={viewMode === "sundays" ? "active" : ""} onClick={() => setViewMode("sundays")} type="button">
@@ -134,6 +160,10 @@ export function CalendarPopup({
               className="service-calendar-grid is-scrollable"
               aria-label="Calendar date picker"
               onTouchEnd={(event) => {
+                if (viewMode === "sundays") {
+                  touchStartYRef.current = null;
+                  return;
+                }
                 const start = touchStartYRef.current;
                 touchStartYRef.current = null;
                 if (start === null) return;
@@ -142,21 +172,38 @@ export function CalendarPopup({
               }}
               onTouchStart={(event) => { touchStartYRef.current = event.touches[0].clientY; }}
               onWheel={handleCalendarWheel}
+              ref={calendarGridRef}
             >
-              {(viewMode === "sundays" ? ["Sunday"] : ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]).map((day) => (
+              {(viewMode === "sundays" ? [`${displayedDays.length} Sundays · scroll`] : ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]).map((day) => (
                 <span className="service-calendar-weekday" key={day}>
                   {day}
                 </span>
               ))}
               {displayedDays.map((day) => (
                 <button
+                  aria-label={new Date(`${day.date}T12:00:00`).toLocaleDateString(undefined, {
+                    day: "numeric",
+                    month: "long",
+                    weekday: "long",
+                    year: "numeric",
+                  })}
                   className={`service-calendar-day ${day.muted ? "is-muted" : ""} ${
                     selectedDate === day.date ? "is-selected" : ""
                   } ${day.className || ""}`}
+                  data-calendar-date={day.date}
                   key={day.date}
                   onClick={() => onDateSelect(day.date)}
                   type="button"
                 >
+                  {viewMode === "sundays" ? (
+                    <strong className="calendar-sunday-date-label">
+                      {new Date(`${day.date}T12:00:00`).toLocaleDateString(undefined, {
+                        day: "numeric",
+                        month: "short",
+                        weekday: "short",
+                      })}
+                    </strong>
+                  ) : null}
                   {dayContent(day)}
                 </button>
               ))}

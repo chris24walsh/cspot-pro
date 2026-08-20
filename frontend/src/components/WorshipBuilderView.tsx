@@ -53,7 +53,7 @@ import { analyzeImportedSongSlides, analyzeWorshipText, buildLyricsFromSections,
 import { dateKey, isWorshipSetPlan, preferredWorshipSetPlanId, worshipSetType } from "../worshipSets";
 import { lastUsedLabel, worshipRoleLabel } from "../worshipSongMetadata";
 import { calendarColor, calendarMarkers } from "../userCalendarStyle";
-import { effectiveLeaderIdForDate, type SundayLeader } from "../leaderSchedule";
+import { effectiveLeaderIdForDate, sundayDatesAround, type SundayLeader } from "../leaderSchedule";
 import { CalendarPopup } from "./CalendarPopup";
 import { AutoFitSlideText } from "./AutoFitSlideText";
 import { DateNavigator, formatNavigatorDate } from "./DateNavigator";
@@ -436,11 +436,13 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
     [users],
   );
   const worshipRotationLeaders = useMemo<SundayLeader[]>(
-    () => worshipLeaders.map((leader) => ({
-      id: leader.id,
-      name: leader.name,
-      maxSundaysPerMonth: leader.worship_max_sundays_per_month,
-    })),
+    () => worshipLeaders
+      .filter((leader) => leader.username.toLocaleLowerCase() !== "cspot_tablet")
+      .map((leader) => ({
+        id: leader.id,
+        name: leader.name,
+        maxSundaysPerMonth: leader.worship_max_sundays_per_month,
+      })),
     [worshipLeaders],
   );
   const worshipLeaderMarkers = useMemo(() => calendarMarkers(worshipLeaders), [worshipLeaders]);
@@ -478,6 +480,10 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
   }, [linkedServicePlanId]);
 
   const calendarDays = useMemo(() => calendarDaysForMonth(setCalendarMonth), [setCalendarMonth]);
+  const sundayCalendarDates = useMemo(
+    () => sundayDatesAround(setDraftDate || dateInputFromIso(new Date().toISOString())),
+    [setDraftDate],
+  );
 
   const worshipItems = useMemo(
     () => sortedWorshipItems(plan?.items ?? []),
@@ -2349,11 +2355,22 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
             }`.trim();
           })(),
         }))}
+        sundayDays={sundayCalendarDates.map((dateInput) => {
+          const existing = worshipSetsByDate.get(dateInput);
+          const leaderId = worshipLeaderIdForDate(dateInput);
+          return {
+            date: dateInput,
+            className: `${existing ? "has-service" : ""} ${
+              leaderId ? calendarColor(users.find((user) => user.id === leaderId)) : ""
+            }`.trim(),
+          };
+        })}
         selectedDate={setDraftDate}
         onDateSelect={(dateInput) => void openSetDate(dateInput)}
         dayContent={(day) => {
           const leaderId = worshipLeaderIdForDate(day.date);
           const leader = users.find((user) => user.id === leaderId);
+          const existing = worshipSetsByDate.get(day.date);
           const date = new Date(`${day.date}T12:00:00`);
           return (
             <>
@@ -2363,10 +2380,11 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
                   {worshipLeaderMarkers.get(leader.id)}
                 </span>
               ) : null}
+              <small>{existing ? `${existing.item_count} set items` : "Ready to plan"}</small>
             </>
           );
         }}
-        calendarAction={plan && canDeletePlan ? (
+        calendarAction={plan && canAccessAdminTools && canDeletePlan ? (
           <button className="danger-button" onClick={() => void archiveSelectedWorshipSet()} type="button">
             Archive current
           </button>

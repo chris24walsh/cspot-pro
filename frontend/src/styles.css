@@ -1325,6 +1325,14 @@ button {
   min-width: 0;
 }
 
+.calendar-month-navigation.is-timeline {
+  grid-template-columns: minmax(112px, 1fr);
+}
+
+.calendar-month-navigation.is-timeline strong {
+  text-align: left;
+}
+
 .service-calendar-heading strong {
   color: #17201b;
   font-size: 16px;
@@ -1394,17 +1402,44 @@ button {
 
 .calendar-view-sundays .service-calendar-grid {
   grid-template-columns: repeat(5, minmax(0, 1fr));
+  max-height: min(410px, calc(100dvh - 155px));
+  overflow-y: auto;
+  padding-right: 3px;
+  scrollbar-gutter: stable;
 }
 
 .calendar-view-sundays .service-calendar-weekday {
+  background: #fffdf7;
   grid-column: 1 / -1;
   padding-bottom: 0;
+  position: sticky;
   text-align: left;
+  top: 0;
+  z-index: 4;
 }
 
 .calendar-view-sundays .service-calendar-day {
-  height: 62px;
-  min-height: 62px;
+  height: 64px;
+  min-height: 64px;
+}
+
+.calendar-view-sundays .service-calendar-day > span:first-of-type {
+  display: none;
+}
+
+.calendar-view-sundays .service-calendar-day small {
+  display: block;
+  padding-right: 18px;
+}
+
+.calendar-sunday-date-label {
+  color: #17201b;
+  font-size: 12px;
+  font-weight: 950;
+  line-height: 1.08;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .service-calendar-weekday {
@@ -1762,6 +1797,10 @@ button {
     grid-template-columns: 28px minmax(88px, 1fr) 28px;
   }
 
+  .calendar-month-navigation.is-timeline {
+    grid-template-columns: minmax(88px, 1fr);
+  }
+
   .service-calendar-heading strong {
     font-size: 13px;
   }
@@ -1773,11 +1812,12 @@ button {
 
   .calendar-view-sundays .service-calendar-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
+    max-height: calc(100dvh - 145px);
   }
 
   .calendar-view-sundays .service-calendar-day {
-    height: 52px;
-    min-height: 52px;
+    height: 60px;
+    min-height: 60px;
   }
 
   .leader-option-grid,

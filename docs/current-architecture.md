@@ -356,14 +356,17 @@ Search modes:
 - Worship leader assignments are stored by service date independently of
   worship-set plans, allowing the calendar to schedule future leaders before
   any song set is created.
-- Shared calendar overlays default to a compact Sundays-only layout and can
-  switch to the full seven-day month. Selecting a missing service or worship
-  Sunday transparently creates and opens its plan.
+- Shared calendar overlays default to a continuous 42-Sunday timeline with
+  compact service, set, or lesson summaries and native vertical scrolling.
+  They can switch to the full seven-day, month-stepped view for exceptional
+  dates. Selecting a missing service or worship Sunday transparently creates
+  and opens its plan. Archive actions in these overlays are admin-only.
 - Worship and Sunday School leader defaults are deterministic monthly
   round-robin schedules. Each user can have a separate worship and Sunday
   School maximum (zero means manual-only; null means unlimited). Explicit
   assignments reserve capacity before automatic gaps are filled, and the
-  Leader dialog supports assignment and two-Sunday swaps.
+  Leader dialog supports assignment and two-Sunday swaps. `cspot_tablet` is
+  kept out of automatic worship rotation while remaining a manual option.
 - Sermon recording stores compact Opus audio plus timestamped presentation
   transitions. Automatic start is edge-triggered by a non-sermon-to-sermon move
   while the output session is active; it does not restart a manually stopped

@@ -234,8 +234,8 @@ back to the static wireframe data when it is not.
 
 ## Working Screens
 
-- Service: navigate Sunday planning slots without a separate create step, build the running order, add songs, Bible passages, and slide decks, and control the live output
-- Worship and Sunday School: Sunday slots use capacity-aware leader rotations, with assignment and two-Sunday swaps kept behind the compact Leader control
+- Service: use a continuous 42-Sunday planning timeline (or switch to a full month), open slots without a separate create step, build the running order, add songs, Bible passages, and slide decks, and control the live output
+- Worship and Sunday School: Sunday cards show compact plan/lesson summaries and use capacity-aware leader rotations, with assignment and two-Sunday swaps kept behind the compact Leader control; the `cspot_tablet` account remains available for manual worship assignment but is excluded from automatic rotation
 - Songs: create/edit/archive songs, import and clean lyrics, edit details/chords, and prepare song slides
 - Broadcast: viewer-first remote service page plus admin tabs for sermon recordings, low-latency multi-camera livestream settings, and shared mixer-desk integration; admins can start a public or admin-only test livestream without starting the slideshow, alongside synchronized slides, service-aware weighted camera pacing, selectable camera/independent audio, automatic stream recovery, holding messages, and pre-service audio
 - Admin: invite users, send password resets, deactivate/reactivate accounts, assign roles and per-area monthly Sunday limits, and test SMTP email
