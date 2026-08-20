@@ -1,5 +1,5 @@
-import { ChevronLeft, ChevronRight } from "lucide-react";
-import { ReactNode, useRef, type WheelEvent } from "react";
+import { ChevronLeft, ChevronRight, X } from "lucide-react";
+import { ReactNode, useMemo, useRef, useState, type WheelEvent } from "react";
 import { useEscapeClose } from "./useEscapeClose";
 
 interface CalendarDay {
@@ -19,6 +19,7 @@ interface CalendarPopupProps {
   selectedDate: string;
   onDateSelect: (date: string) => void;
   dayContent: (day: CalendarDay) => ReactNode;
+  calendarAction?: ReactNode;
   footerContent?: ReactNode;
   actionButtons?: ReactNode;
 }
@@ -27,6 +28,13 @@ export function shiftCalendarMonth(calendarMonth: string, offset: -1 | 1) {
   const [year, month] = calendarMonth.split("-").map(Number);
   const shifted = new Date(year, month - 1 + offset, 1);
   return `${shifted.getFullYear()}-${String(shifted.getMonth() + 1).padStart(2, "0")}`;
+}
+
+export function visibleCalendarDays(calendarDays: CalendarDay[], mode: "sundays" | "all") {
+  if (mode === "all") return calendarDays;
+  return calendarDays.filter(
+    (day) => !day.muted && new Date(`${day.date}T12:00:00`).getDay() === 0,
+  );
 }
 
 export function CalendarPopup({
@@ -40,13 +48,19 @@ export function CalendarPopup({
   selectedDate,
   onDateSelect,
   dayContent,
+  calendarAction,
   footerContent,
   actionButtons,
 }: CalendarPopupProps) {
+  const [viewMode, setViewMode] = useState<"sundays" | "all">("sundays");
   const wheelDistanceRef = useRef(0);
   const wheelResetRef = useRef<number | null>(null);
   const touchStartYRef = useRef<number | null>(null);
   useEscapeClose(isOpen, onClose);
+  const displayedDays = useMemo(
+    () => visibleCalendarDays(calendarDays, viewMode),
+    [calendarDays, viewMode],
+  );
 
   if (!isOpen) {
     return null;
@@ -70,7 +84,7 @@ export function CalendarPopup({
   return (
     <div className="app-dialog-backdrop" role="presentation" onMouseDown={onClose}>
       <section
-        className="app-dialog app-dialog-wide service-picker-dialog"
+        className={`app-dialog app-dialog-wide service-picker-dialog calendar-view-${viewMode}`}
         aria-label={eyebrow ? `${eyebrow} ${title}` : title}
         onKeyDownCapture={(event) => {
           if (event.key === "Enter" && event.target instanceof HTMLButtonElement) {
@@ -86,30 +100,33 @@ export function CalendarPopup({
         onMouseDown={(event) => event.stopPropagation()}
         role="dialog"
       >
-        <div className="service-picker-grid calendar-popup-grid">
+        <div className={`service-picker-grid calendar-popup-grid ${footerContent || actionButtons ? "" : "is-calendar-only"}`}>
           <section className="service-picker-panel service-calendar-panel">
             <div className="service-calendar-heading">
-              <button
-                aria-label="Previous month"
-                className="text-button"
-                onClick={() => moveMonth(-1)}
-                type="button"
-              >
-                <ChevronLeft size={16} aria-hidden="true" />
-              </button>
-              <strong>
-                {new Date(`${calendarMonth}-01T12:00:00`).toLocaleDateString(undefined, {
-                  month: "long",
-                  year: "numeric",
-                })}
-              </strong>
-              <button
-                aria-label="Next month"
-                className="text-button"
-                onClick={() => moveMonth(1)}
-                type="button"
-              >
-                <ChevronRight size={16} aria-hidden="true" />
+              <div className="calendar-month-navigation">
+                <button aria-label="Previous month" className="section-icon-button" onClick={() => moveMonth(-1)} type="button">
+                  <ChevronLeft size={16} aria-hidden="true" />
+                </button>
+                <strong>
+                  {new Date(`${calendarMonth}-01T12:00:00`).toLocaleDateString(undefined, {
+                    month: "long",
+                    year: "numeric",
+                  })}
+                </strong>
+                <button aria-label="Next month" className="section-icon-button" onClick={() => moveMonth(1)} type="button">
+                  <ChevronRight size={16} aria-hidden="true" />
+                </button>
+              </div>
+              <div className="calendar-view-toggle" aria-label="Calendar days" role="group">
+                <button aria-pressed={viewMode === "sundays"} className={viewMode === "sundays" ? "active" : ""} onClick={() => setViewMode("sundays")} type="button">
+                  Sundays
+                </button>
+                <button aria-pressed={viewMode === "all"} className={viewMode === "all" ? "active" : ""} onClick={() => setViewMode("all")} type="button">
+                  All days
+                </button>
+              </div>
+              <button aria-label="Close calendar" className="section-icon-button calendar-popup-close" onClick={onClose} type="button">
+                <X size={16} aria-hidden="true" />
               </button>
             </div>
 
@@ -126,12 +143,12 @@ export function CalendarPopup({
               onTouchStart={(event) => { touchStartYRef.current = event.touches[0].clientY; }}
               onWheel={handleCalendarWheel}
             >
-              {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day) => (
+              {(viewMode === "sundays" ? ["Sunday"] : ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]).map((day) => (
                 <span className="service-calendar-weekday" key={day}>
                   {day}
                 </span>
               ))}
-              {calendarDays.map((day) => (
+              {displayedDays.map((day) => (
                 <button
                   className={`service-calendar-day ${day.muted ? "is-muted" : ""} ${
                     selectedDate === day.date ? "is-selected" : ""
@@ -145,18 +162,16 @@ export function CalendarPopup({
               ))}
             </div>
 
+            {calendarAction ? <div className="calendar-popup-bottom-action">{calendarAction}</div> : null}
           </section>
 
-          <section className="service-picker-panel service-buttons-panel">
+          {footerContent || actionButtons ? <section className="service-picker-panel service-buttons-panel">
             {footerContent ? <div className="calendar-popup-footer">{footerContent}</div> : null}
 
             <div className="service-picker-buttons">
               {actionButtons}
-              <button className="text-button" onClick={onClose} type="button">
-                Close
-              </button>
             </div>
-          </section>
+          </section> : null}
         </div>
       </section>
     </div>

@@ -120,6 +120,14 @@ These preferences have been made explicit and should guide future changes.
 - Avoid persistent success banners that clutter the interface.
 - Keep error messages visible enough to be actionable.
 - Use keyboard navigation aggressively where it helps live operation.
+- Calendar navigation should default to a compact Sundays-only view while
+  retaining an all-days option for exceptional services.
+- Sunday services, worship sets, and lessons should behave as available
+  planning slots without requiring a separate create action. Records may be
+  materialized lazily when a slot is first opened or edited.
+- Worship and Sunday School leaders should be allocated by a simple,
+  capacity-aware monthly rotation. Manual assignment and Sunday swaps belong
+  behind the Leader control, not inside the calendar.
 
 ### Song handling
 

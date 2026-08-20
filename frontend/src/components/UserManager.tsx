@@ -28,6 +28,8 @@ interface UserFormState {
   start_page: string;
   calendar_color: string;
   calendar_avatar: string;
+  worship_max_sundays_per_month: string;
+  sunday_school_max_sundays_per_month: string;
   email_confirmed: boolean;
   active: boolean;
   role_names: string[];
@@ -41,6 +43,8 @@ function formFromUser(user: User): UserFormState {
     start_page: user.start_page ?? "",
     calendar_color: user.calendar_color || "teacher-a",
     calendar_avatar: user.calendar_avatar || "",
+    worship_max_sundays_per_month: user.worship_max_sundays_per_month?.toString() ?? "",
+    sunday_school_max_sundays_per_month: user.sunday_school_max_sundays_per_month?.toString() ?? "",
     email_confirmed: user.email_confirmed,
     active: user.active,
     role_names: user.roles,
@@ -58,6 +62,8 @@ function payloadFromForm(form: UserFormState): UserInvitePayload {
     start_page: form.start_page || null,
     calendar_color: form.calendar_color || null,
     calendar_avatar: form.calendar_avatar || null,
+    worship_max_sundays_per_month: form.worship_max_sundays_per_month === "" ? null : Number(form.worship_max_sundays_per_month),
+    sunday_school_max_sundays_per_month: form.sunday_school_max_sundays_per_month === "" ? null : Number(form.sunday_school_max_sundays_per_month),
     email_confirmed: form.email_confirmed,
     active: form.active,
     role_names: roleNames,
@@ -94,6 +100,8 @@ export function UserManager() {
     start_page: "",
     calendar_color: "teacher-a",
     calendar_avatar: "",
+    worship_max_sundays_per_month: "",
+    sunday_school_max_sundays_per_month: "",
     email_confirmed: false,
     active: true,
     role_names: ["viewer"],
@@ -146,6 +154,8 @@ export function UserManager() {
       start_page: "",
       calendar_color: "teacher-a",
       calendar_avatar: "",
+      worship_max_sundays_per_month: "",
+      sunday_school_max_sundays_per_month: "",
       email_confirmed: false,
       active: true,
       role_names: ["viewer"],
@@ -514,6 +524,41 @@ export function UserManager() {
               ))}
             </div>
           </fieldset>
+
+          {form.role_names.includes("worship_leader") || form.role_names.includes("sunday_school_teacher") ? (
+            <fieldset className="wide-field role-fieldset leader-capacity-fieldset">
+              <legend>Sunday rotation limits</legend>
+              <p className="muted-copy">Leave unlimited when this leader can take any remaining Sundays. Zero keeps them available for manual assignment only.</p>
+              <div className="leader-capacity-grid">
+                {form.role_names.includes("worship_leader") ? (
+                  <label>
+                    Worship per month
+                    <select
+                      onChange={(event) => setForm({ ...form, worship_max_sundays_per_month: event.target.value })}
+                      value={form.worship_max_sundays_per_month}
+                    >
+                      <option value="">Unlimited</option>
+                      <option value="0">Manual only</option>
+                      {[1, 2, 3, 4, 5].map((limit) => <option key={limit} value={limit}>{limit}</option>)}
+                    </select>
+                  </label>
+                ) : null}
+                {form.role_names.includes("sunday_school_teacher") ? (
+                  <label>
+                    Sunday School per month
+                    <select
+                      onChange={(event) => setForm({ ...form, sunday_school_max_sundays_per_month: event.target.value })}
+                      value={form.sunday_school_max_sundays_per_month}
+                    >
+                      <option value="">Unlimited</option>
+                      <option value="0">Manual only</option>
+                      {[1, 2, 3, 4, 5].map((limit) => <option key={limit} value={limit}>{limit}</option>)}
+                    </select>
+                  </label>
+                ) : null}
+              </div>
+            </fieldset>
+          ) : null}
         </div>
 
         <section className="subsection-panel">

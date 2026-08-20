@@ -155,7 +155,8 @@ This works operationally, but may still differ visually from PowerPoint.
 preparation. It stores structured lesson fields plus a lightweight resource
 catalog for purchased/local lesson files. Resource import stores metadata,
 classification, and file links rather than copying lesson packet body text into
-the database.
+the database. The frontend treats every Sunday as an available lesson slot and
+creates the persisted lesson lazily on its first save or assignment change.
 
 ## Frontend Architecture
 
@@ -355,6 +356,14 @@ Search modes:
 - Worship leader assignments are stored by service date independently of
   worship-set plans, allowing the calendar to schedule future leaders before
   any song set is created.
+- Shared calendar overlays default to a compact Sundays-only layout and can
+  switch to the full seven-day month. Selecting a missing service or worship
+  Sunday transparently creates and opens its plan.
+- Worship and Sunday School leader defaults are deterministic monthly
+  round-robin schedules. Each user can have a separate worship and Sunday
+  School maximum (zero means manual-only; null means unlimited). Explicit
+  assignments reserve capacity before automatic gaps are filled, and the
+  Leader dialog supports assignment and two-Sunday swaps.
 - Sermon recording stores compact Opus audio plus timestamped presentation
   transitions. Automatic start is edge-triggered by a non-sermon-to-sermon move
   while the output session is active; it does not restart a manually stopped

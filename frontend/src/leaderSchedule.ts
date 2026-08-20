@@ -1,0 +1,72 @@
+export interface SundayLeader {
+  id: string;
+  name: string;
+  maxSundaysPerMonth: number | null;
+}
+
+function dateInput(value: Date) {
+  return `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, "0")}-${String(value.getDate()).padStart(2, "0")}`;
+}
+
+export function sundayDatesForMonth(monthInput: string) {
+  const [yearValue, monthValue] = monthInput.split("-").map(Number);
+  const year = Number.isFinite(yearValue) ? yearValue : new Date().getFullYear();
+  const month = Number.isFinite(monthValue) ? monthValue - 1 : new Date().getMonth();
+  const cursor = new Date(year, month, 1);
+  cursor.setDate(1 + ((7 - cursor.getDay()) % 7));
+  const sundays: string[] = [];
+  while (cursor.getMonth() === month) {
+    sundays.push(dateInput(cursor));
+    cursor.setDate(cursor.getDate() + 7);
+  }
+  return sundays;
+}
+
+export function buildMonthlyLeaderSchedule(
+  monthInput: string,
+  leaders: SundayLeader[],
+  explicitAssignments: ReadonlyMap<string, string>,
+) {
+  const orderedLeaders = [...leaders].sort(
+    (left, right) => left.name.localeCompare(right.name) || left.id.localeCompare(right.id),
+  );
+  const schedule = new Map<string, string>();
+  if (!orderedLeaders.length) return schedule;
+
+  const sundays = sundayDatesForMonth(monthInput);
+  const counts = new Map(orderedLeaders.map((leader) => [leader.id, 0]));
+  for (const date of sundays) {
+    const assignedId = explicitAssignments.get(date);
+    if (!assignedId) continue;
+    schedule.set(date, assignedId);
+    if (counts.has(assignedId)) counts.set(assignedId, (counts.get(assignedId) ?? 0) + 1);
+  }
+
+  const [year, month] = monthInput.split("-").map(Number);
+  let cursor = Math.abs(((year || 0) * 12 + (month || 1) - 1) % orderedLeaders.length);
+  for (const date of sundays) {
+    if (schedule.has(date)) continue;
+    for (let offset = 0; offset < orderedLeaders.length; offset += 1) {
+      const leaderIndex = (cursor + offset) % orderedLeaders.length;
+      const leader = orderedLeaders[leaderIndex];
+      const assignedCount = counts.get(leader.id) ?? 0;
+      const capacity = leader.maxSundaysPerMonth ?? Number.POSITIVE_INFINITY;
+      if (assignedCount >= capacity) continue;
+      schedule.set(date, leader.id);
+      counts.set(leader.id, assignedCount + 1);
+      cursor = (leaderIndex + 1) % orderedLeaders.length;
+      break;
+    }
+  }
+  return schedule;
+}
+
+export function effectiveLeaderIdForDate(
+  date: string,
+  leaders: SundayLeader[],
+  explicitAssignments: ReadonlyMap<string, string>,
+) {
+  return explicitAssignments.get(date)
+    ?? buildMonthlyLeaderSchedule(date.slice(0, 7), leaders, explicitAssignments).get(date)
+    ?? null;
+}

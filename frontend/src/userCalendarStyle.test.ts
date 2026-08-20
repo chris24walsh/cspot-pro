@@ -8,6 +8,8 @@ function user(id: string, name: string, color = "teacher-a", avatar: string | nu
     active: true,
     calendar_avatar: avatar,
     calendar_color: color,
+    worship_max_sundays_per_month: null,
+    sunday_school_max_sundays_per_month: null,
     email: `${id}@example.com`,
     username: `user-${id}`,
     email_confirmed: true,

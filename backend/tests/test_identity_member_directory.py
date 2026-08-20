@@ -21,6 +21,8 @@ def test_member_directory_exposes_team_fields_without_admin_fields() -> None:
             start_page=None,
             calendar_color="teacher-b",
             calendar_avatar=None,
+            worship_max_sundays_per_month=2,
+            sunday_school_max_sundays_per_month=None,
             email_confirmed=True,
             active=True,
         )
@@ -35,6 +37,7 @@ def test_member_directory_exposes_team_fields_without_admin_fields() -> None:
     assert member.roles == ["worship_leader"]
     assert member.username == "leader"
     assert member.calendar_color == "teacher-b"
+    assert member.worship_max_sundays_per_month == 2
     assert "password_set" not in member.model_dump()
 
 

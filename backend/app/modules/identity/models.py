@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import Boolean, ForeignKey, String
+from sqlalchemy import Boolean, ForeignKey, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.database import Base
@@ -17,6 +17,8 @@ class User(IdMixin, TimestampMixin, Base):
     start_page: Mapped[str | None] = mapped_column(String(255))
     calendar_color: Mapped[str | None] = mapped_column(String(24))
     calendar_avatar: Mapped[str | None] = mapped_column(String(16))
+    worship_max_sundays_per_month: Mapped[int | None] = mapped_column(Integer)
+    sunday_school_max_sundays_per_month: Mapped[int | None] = mapped_column(Integer)
     email_confirmed: Mapped[bool] = mapped_column(Boolean, default=False)
     active: Mapped[bool] = mapped_column(Boolean, default=True)
 

@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class RoleRead(BaseModel):
@@ -18,6 +18,8 @@ class UserBase(BaseModel):
     start_page: str | None = None
     calendar_color: Literal["teacher-a", "teacher-b", "teacher-c", "teacher-d", "teacher-e", "teacher-f"] | None = None
     calendar_avatar: Literal["👤", "🎤", "🎸", "🎹", "🎶", "📖", "🌟", "🌿"] | None = None
+    worship_max_sundays_per_month: int | None = Field(default=None, ge=0, le=5)
+    sunday_school_max_sundays_per_month: int | None = Field(default=None, ge=0, le=5)
     email_confirmed: bool = False
     active: bool = True
 
@@ -34,6 +36,8 @@ class UserUpdate(BaseModel):
     start_page: str | None = None
     calendar_color: Literal["teacher-a", "teacher-b", "teacher-c", "teacher-d", "teacher-e", "teacher-f"] | None = None
     calendar_avatar: Literal["👤", "🎤", "🎸", "🎹", "🎶", "📖", "🌟", "🌿"] | None = None
+    worship_max_sundays_per_month: int | None = Field(default=None, ge=0, le=5)
+    sunday_school_max_sundays_per_month: int | None = Field(default=None, ge=0, le=5)
     email_confirmed: bool | None = None
     active: bool | None = None
     role_names: list[str] | None = None
@@ -56,6 +60,8 @@ class MemberRead(BaseModel):
     roles: list[str]
     calendar_color: str | None = None
     calendar_avatar: str | None = None
+    worship_max_sundays_per_month: int | None = None
+    sunday_school_max_sundays_per_month: int | None = None
 
 
 class SessionUserRead(UserRead):

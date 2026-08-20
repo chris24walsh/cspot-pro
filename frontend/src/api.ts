@@ -425,6 +425,8 @@ export interface User {
   start_page: string | null;
   calendar_color: string | null;
   calendar_avatar: string | null;
+  worship_max_sundays_per_month: number | null;
+  sunday_school_max_sundays_per_month: number | null;
   email_confirmed: boolean;
   active: boolean;
   roles: string[];
@@ -441,6 +443,8 @@ export interface Member {
   roles: string[];
   calendar_color: string | null;
   calendar_avatar: string | null;
+  worship_max_sundays_per_month: number | null;
+  sunday_school_max_sundays_per_month: number | null;
 }
 
 export interface SessionUser extends User {
@@ -488,6 +492,8 @@ export interface UserPayload {
   start_page: string | null;
   calendar_color: string | null;
   calendar_avatar: string | null;
+  worship_max_sundays_per_month: number | null;
+  sunday_school_max_sundays_per_month: number | null;
   email_confirmed: boolean;
   active: boolean;
   role_names: string[];
@@ -501,6 +507,8 @@ export interface UserInvitePayload {
   start_page: string | null;
   calendar_color: string | null;
   calendar_avatar: string | null;
+  worship_max_sundays_per_month: number | null;
+  sunday_school_max_sundays_per_month: number | null;
   email_confirmed: boolean;
   active: boolean;
   role_names: string[];

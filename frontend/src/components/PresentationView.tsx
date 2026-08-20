@@ -191,29 +191,6 @@ function serviceLongDateForInput(value: string) {
   return Number.isNaN(date.getTime()) ? serviceTitleForDate(value) : SERVICE_LONG_DATE_FORMATTER.format(date);
 }
 
-function replaceServiceTitleDate(title: string, nextDateInput: string, previousDateInput?: string) {
-  const nextDateText = serviceLongDateForInput(nextDateInput);
-  const previousDateText = previousDateInput ? serviceLongDateForInput(previousDateInput) : "";
-  if (previousDateText && title.includes(previousDateText)) {
-    return title.replace(previousDateText, nextDateText);
-  }
-
-  const numericDatePattern = /\b\d{1,2}\s*\/\s*\d{1,2}\s*\/\s*\d{2,4}\b/;
-  if (numericDatePattern.test(title)) {
-    const [year, month, day] = nextDateInput.split("-");
-    const compactYear = year?.slice(-2) ?? "";
-    return title.replace(numericDatePattern, `${Number(month)} / ${Number(day)} / ${compactYear}`);
-  }
-
-  const writtenDatePattern =
-    /\b(?:Sunday|Monday|Tuesday|Wednesday|Thursday|Friday|Saturday),?\s+(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2},?\s+\d{4}\b/i;
-  if (writtenDatePattern.test(title)) {
-    return title.replace(writtenDatePattern, nextDateText);
-  }
-
-  return title;
-}
-
 function monthInputFromDate(value: Date) {
   return `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, "0")}`;
 }
@@ -668,9 +645,7 @@ export function PresentationView({
   const [topbarSlot, setTopbarSlot] = useState<HTMLElement | null>(null);
   const [servicePickerOpen, setServicePickerOpen] = useState(false);
   const [serviceDraftDate, setServiceDraftDate] = useState("");
-  const [serviceDraftTitle, setServiceDraftTitle] = useState("");
   const [serviceCalendarMonth, setServiceCalendarMonth] = useState(monthInputFromDate(new Date()));
-  const [serviceDraftPlanId, setServiceDraftPlanId] = useState<string | null>(null);
   const [serviceHistoryOpen, setServiceHistoryOpen] = useState(false);
   const [serviceHistory, setServiceHistory] = useState<PlanHistoryEntry[]>([]);
   const [serviceHistoryLoading, setServiceHistoryLoading] = useState(false);
@@ -1563,8 +1538,6 @@ export function PresentationView({
   function openServicePicker() {
     const draftDate = dateInputFromIso(plan?.service_date) || nextSundayDateInput();
     setServiceDraftDate(draftDate);
-    setServiceDraftTitle(plan?.title ?? suggestedServiceTitle(draftDate));
-    setServiceDraftPlanId(plan?.id ?? null);
     setServiceCalendarMonth(draftDate.slice(0, 7) || monthInputFromDate(new Date()));
     setServicePickerOpen(true);
     setServiceHistoryOpen(false);
@@ -1599,11 +1572,10 @@ export function PresentationView({
   }
 
   async function stepService(offset: number) {
-    const currentIndex = sortedPlans.findIndex((candidate) => candidate.id === plan?.id);
-    const target = sortedPlans[currentIndex + offset];
-    if (target) {
-      await selectPlan(target.id);
-    }
+    const currentDate = dateInputFromIso(plan?.service_date) || nextSundayDateInput();
+    const target = new Date(`${currentDate}T12:00:00`);
+    target.setDate(target.getDate() - offset * 7);
+    await openServiceDate(dateInputFromIso(target.toISOString()));
   }
 
   function serviceHistoryContent() {
@@ -1690,38 +1662,6 @@ export function PresentationView({
     return `${type?.name ?? "Service"} ${serviceLongDateForInput(dateInput)}`;
   }
 
-  function updateServiceDraftDate(nextDate: string) {
-    setServiceDraftDate((previousDate) => {
-      setServiceDraftTitle((currentTitle) => {
-        if (!serviceDraftPlanId && !currentTitle.trim()) {
-          return suggestedServiceTitle(nextDate);
-        }
-        return replaceServiceTitleDate(currentTitle, nextDate, previousDate);
-      });
-      return nextDate;
-    });
-    setServiceCalendarMonth(nextDate.slice(0, 7) || serviceCalendarMonth);
-  }
-
-  function startNewServiceDraft(dateInput = serviceDraftDate || nextSundayDateInput()) {
-    setServiceDraftPlanId(null);
-    setServiceDraftDate(dateInput);
-    setServiceDraftTitle(suggestedServiceTitle(dateInput));
-    setServiceCalendarMonth(dateInput.slice(0, 7) || serviceCalendarMonth);
-  }
-
-  async function chooseServiceDate(dateInput: string) {
-    const existing = plansByDate.get(dateInput);
-    if (existing) {
-      setServiceDraftDate(dateInput);
-      setServiceCalendarMonth(dateInput.slice(0, 7) || serviceCalendarMonth);
-      setServiceDraftPlanId(existing.id);
-      setServiceDraftTitle(existing.title);
-      return;
-    }
-    startNewServiceDraft(dateInput);
-  }
-
   async function openServiceDate(dateInput: string) {
     const existing = plansByDate.get(dateInput);
     if (existing) {
@@ -1729,10 +1669,11 @@ export function PresentationView({
       await selectPlan(existing.id);
       return;
     }
-    startNewServiceDraft(dateInput);
+    setServicePickerOpen(false);
+    await createServiceForDate(dateInput);
   }
 
-  async function createServiceForDate(dateInput = serviceDraftDate || nextSundayDateInput(), title = serviceDraftTitle) {
+  async function createServiceForDate(dateInput: string) {
     if (!dateInput) {
       setMessage("Choose a date first.");
       return;
@@ -1749,11 +1690,10 @@ export function PresentationView({
     }
 
     try {
-      const serviceTitle = title.trim() || suggestedServiceTitle(dateInput);
       const created = await createPlan({
         plan_type_id: primaryPlanType.id,
         service_date: serviceIsoFromDateInput(dateInput),
-        title: serviceTitle,
+        title: suggestedServiceTitle(dateInput),
         subtitle: null,
         leader_id: null,
         teacher_id: null,
@@ -1765,56 +1705,6 @@ export function PresentationView({
       setMessage("New service created.");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Could not create a new service.");
-    }
-  }
-
-  async function openDraftService() {
-    if (serviceDraftPlanId) {
-      await selectPlan(serviceDraftPlanId);
-      return;
-    }
-
-    await createServiceForDate(serviceDraftDate, serviceDraftTitle);
-  }
-
-  async function saveDraftService() {
-    if (!serviceDraftDate) {
-      setMessage("Choose a date first.");
-      return;
-    }
-    if (!serviceDraftPlanId) {
-      await createServiceForDate(serviceDraftDate, serviceDraftTitle);
-      return;
-    }
-    if (!canEditPlan) {
-      setMessage("Only teachers, presenters, and administrators can edit services.");
-      return;
-    }
-
-    const target = plans.find((candidate) => candidate.id === serviceDraftPlanId);
-    const currentDetail = serviceDraftPlanId === plan?.id ? plan : null;
-    const primaryPlanType = serviceTypeForDate(serviceDraftDate);
-    if (!primaryPlanType || !target) {
-      setMessage("Could not find that service.");
-      return;
-    }
-
-    try {
-      await updatePlan(serviceDraftPlanId, {
-        plan_type_id: currentDetail?.plan_type_id ?? primaryPlanType.id,
-        service_date: serviceIsoFromDateInput(serviceDraftDate),
-        title: serviceDraftTitle.trim() || suggestedServiceTitle(serviceDraftDate),
-        subtitle: currentDetail?.subtitle ?? null,
-        leader_id: currentDetail?.leader_id ?? null,
-        teacher_id: currentDetail?.teacher_id ?? null,
-        status: currentDetail?.status ?? target.status,
-        info: currentDetail?.info ?? null,
-      });
-      await load(serviceDraftPlanId, { refreshCatalogs: true });
-      setServicePickerOpen(false);
-      setMessage("Service updated.");
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Could not update this service.");
     }
   }
 
@@ -3517,15 +3407,15 @@ export function PresentationView({
                 historyExpanded={serviceHistoryOpen}
                 historyLabel="Service edit history"
                 label={plan ? formatNavigatorDate(plan.service_date) : "Choose service"}
-                nextDisabled={loading || !plan || sortedPlans.findIndex((candidate) => candidate.id === plan.id) <= 0}
+                nextDisabled={loading || !plan}
                 nextLabel="Next service"
                 onHistory={() => void openServiceHistory()}
                 onNext={() => void stepService(-1)}
                 onOpenPicker={openServicePicker}
                 onPrevious={() => void stepService(1)}
-                pickerLabel="Choose or create a service"
+                pickerLabel="Choose service"
                 pickerDisabled={loading}
-                previousDisabled={loading || !plan || sortedPlans.findIndex((candidate) => candidate.id === plan.id) >= sortedPlans.length - 1}
+                previousDisabled={loading || !plan}
                 previousLabel="Previous service"
               />
             </div>,
@@ -3543,14 +3433,15 @@ export function PresentationView({
           const dateInput = dateInputFromDate(day);
           const existing = plansByDate.get(dateInput);
           const isToday = dateInput === dateInputFromDate(new Date());
+          const isSunday = day.getDay() === 0;
           return {
             date: dateInput,
             muted: !dateInput.startsWith(serviceCalendarMonth),
-            className: `${existing ? "has-service" : ""} ${isToday ? "is-today" : ""}`.trim(),
+            className: `${existing || isSunday ? "has-service" : ""} ${isToday ? "is-today" : ""}`.trim(),
           };
         })}
         selectedDate={serviceDraftDate}
-        onDateSelect={(dateInput) => void chooseServiceDate(dateInput)}
+        onDateSelect={(dateInput) => void openServiceDate(dateInput)}
         dayContent={(day) => {
           const date = new Date(`${day.date}T12:00:00`);
           const existing = plansByDate.get(day.date);
@@ -3561,51 +3452,11 @@ export function PresentationView({
             </>
           );
         }}
-        footerContent={
-          <label className="form-grid single-column">
-            Title
-            <input
-              onChange={(event) => setServiceDraftTitle(event.target.value)}
-              placeholder={suggestedServiceTitle(serviceDraftDate)}
-              value={serviceDraftTitle}
-            />
-          </label>
-        }
-        actionButtons={
-          <>
-            <button
-              className="primary-button"
-              disabled={!serviceDraftDate || (!serviceDraftPlanId && !canCreatePlan)}
-              onClick={() => void openDraftService()}
-              type="button"
-            >
-              {serviceDraftPlanId ? "Open Service" : "Create & Open"}
-            </button>
-            <button
-              className="text-button"
-              disabled={!serviceDraftDate || (!serviceDraftPlanId && !canCreatePlan) || (Boolean(serviceDraftPlanId) && !canEditPlan)}
-              onClick={() => void saveDraftService()}
-              type="button"
-            >
-              {serviceDraftPlanId ? "Save Changes" : "Create Service"}
-            </button>
-            {serviceDraftPlanId ? (
-              <button
-                className="text-button"
-                disabled={!canCreatePlan}
-                onClick={() => startNewServiceDraft(serviceDraftDate)}
-                type="button"
-              >
-                Deselect
-              </button>
-            ) : null}
-            {plan && canDeletePlan ? (
-              <button className="danger-button" onClick={() => void archiveCurrentPlan()} type="button">
-                Archive Current
-              </button>
-            ) : null}
-          </>
-        }
+        calendarAction={plan && canDeletePlan ? (
+          <button className="danger-button" onClick={() => void archiveCurrentPlan()} type="button">
+            Archive current
+          </button>
+        ) : null}
       />
       {!canEditPlan ? (
         <p className="empty-state presentation-readonly-note">

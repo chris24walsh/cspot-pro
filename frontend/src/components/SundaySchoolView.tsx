@@ -6,13 +6,11 @@ import {
   FileText,
   Gamepad2,
   Library,
-  Plus,
   Printer,
   RefreshCw,
   Save,
   Scissors,
   Search,
-  Shuffle,
   WandSparkles,
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -34,8 +32,10 @@ import {
   type SundaySchoolResource,
 } from "../api";
 import { calendarColor, calendarMarkers } from "../userCalendarStyle";
+import { effectiveLeaderIdForDate, type SundayLeader } from "../leaderSchedule";
 import { CalendarPopup } from "./CalendarPopup";
 import { DateNavigator, formatNavigatorDate } from "./DateNavigator";
+import { LeaderAssignmentDialog } from "./LeaderAssignmentDialog";
 
 type SundaySchoolPane = "library" | "set";
 type LessonElementKey = "passage" | "craft" | "activity" | "game" | "resources";
@@ -159,16 +159,6 @@ function teacherColor(name: string) {
   return TEACHER_COLORS[hash % TEACHER_COLORS.length];
 }
 
-function teacherInitials(name: string) {
-  const initials = name
-    .trim()
-    .split(/\s+/)
-    .slice(0, 2)
-    .map((part) => part[0]?.toUpperCase())
-    .join("");
-  return initials || "?";
-}
-
 function resourceMeta(resource: SundaySchoolResource) {
   const pages = resource.page_start
     ? resource.page_start === resource.page_end
@@ -231,7 +221,7 @@ export function SundaySchoolView({ canEdit }: { canEdit: boolean }) {
   const [selectedElementKey, setSelectedElementKey] = useState<LessonElementKey>("passage");
   const [expandedElementKey, setExpandedElementKey] = useState<LessonElementKey | null>(null);
   const [teacherPickerDate, setTeacherPickerDate] = useState<string | null>(null);
-  const [newTeacherName, setNewTeacherName] = useState("");
+  const [teacherSaving, setTeacherSaving] = useState(false);
   const [resourcePickerOpen, setResourcePickerOpen] = useState(false);
   const [resourceQuery, setResourceQuery] = useState("");
   const [loading, setLoading] = useState(true);
@@ -240,18 +230,16 @@ export function SundaySchoolView({ canEdit }: { canEdit: boolean }) {
   const [message, setMessage] = useState<string | null>(null);
   const lessonRefs = useRef<Record<string, HTMLButtonElement | null>>({});
 
-  useEscapeClose(Boolean(resourcePickerOpen || teacherPickerDate), () => {
-    if (resourcePickerOpen) setResourcePickerOpen(false);
-    else setTeacherPickerDate(null);
-  });
+  useEscapeClose(resourcePickerOpen, () => setResourcePickerOpen(false));
 
   const lessonsByDate = useMemo(
     () => new Map(lessons.map((lesson) => [dateInputFromIso(lesson.lesson_date), lesson])),
     [lessons],
   );
-  const selectedLesson = lessonsByDate.get(selectedDate) ?? null;
   const sundaySchoolTeachers = useMemo(
-    () => users.filter((user) => user.active && user.roles.includes("sunday_school_teacher")),
+    () => users
+      .filter((user) => user.active && user.roles.includes("sunday_school_teacher"))
+      .sort((left, right) => left.name.localeCompare(right.name)),
     [users],
   );
   const sundaySchoolTeacherByName = useMemo(
@@ -259,11 +247,33 @@ export function SundaySchoolView({ canEdit }: { canEdit: boolean }) {
     [sundaySchoolTeachers],
   );
   const sundaySchoolTeacherMarkers = useMemo(() => calendarMarkers(sundaySchoolTeachers), [sundaySchoolTeachers]);
-  const teacherNames = useMemo(
-    () => Array.from(new Set(lessons.map((lesson) => lesson.teacher_name.trim()).filter(Boolean))).sort((left, right) => left.localeCompare(right)),
-    [lessons],
+  const teacherRotationLeaders = useMemo<SundayLeader[]>(
+    () => sundaySchoolTeachers.map((teacher) => ({
+      id: teacher.id,
+      name: teacher.name,
+      maxSundaysPerMonth: teacher.sunday_school_max_sundays_per_month,
+    })),
+    [sundaySchoolTeachers],
   );
-  const teacherPickerLesson = teacherPickerDate ? lessonsByDate.get(teacherPickerDate) ?? null : null;
+  const explicitTeacherAssignments = useMemo(
+    () => new Map(
+      lessons.flatMap((lesson) => {
+        const teacher = sundaySchoolTeacherByName.get(lesson.teacher_name.trim().toLocaleLowerCase());
+        return teacher ? [[dateInputFromIso(lesson.lesson_date), teacher.id] as const] : [];
+      }),
+    ),
+    [lessons, sundaySchoolTeacherByName],
+  );
+  function teacherIdForDate(date: string) {
+    return effectiveLeaderIdForDate(date, teacherRotationLeaders, explicitTeacherAssignments);
+  }
+  function teacherNameForDate(date: string) {
+    const lessonName = lessonsByDate.get(date)?.teacher_name.trim();
+    if (lessonName) return lessonName;
+    const teacherId = teacherIdForDate(date);
+    return sundaySchoolTeachers.find((teacher) => teacher.id === teacherId)?.name ?? "";
+  }
+  const selectedTeacherName = draft.teacher_name.trim() || teacherNameForDate(selectedDate);
   const selectedElement = LESSON_ELEMENTS.find((element) => element.key === selectedElementKey) ?? LESSON_ELEMENTS[0];
   const calendarDays = useMemo(() => calendarDaysForMonth(calendarMonth), [calendarMonth]);
   const scheduleDates = useMemo(() => {
@@ -381,21 +391,22 @@ export function SundaySchoolView({ canEdit }: { canEdit: boolean }) {
     return saved;
   }
 
-  async function assignTeacher(date: string, teacherName: string) {
-    const name = teacherName.trim();
+  async function assignTeacher(date: string, teacherId: string | null) {
+    const name = sundaySchoolTeachers.find((teacher) => teacher.id === teacherId)?.name ?? "";
     const lesson = lessonsByDate.get(date);
     const nextDraft = lesson ? draftFromLesson(lesson) : blankLesson(date);
     nextDraft.teacher_name = name;
+    setTeacherSaving(true);
     try {
       const saved = await saveLessonDraft(nextDraft, date);
       if (saved && date === selectedDate) {
         setDraft(draftFromLesson(saved));
       }
-      setTeacherPickerDate(null);
-      setNewTeacherName("");
-      setMessage(name ? `Teacher set to ${name}.` : "Teacher cleared.");
+      setMessage(name ? `Teacher set to ${name}.` : "Automatic teacher rotation restored.");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Could not assign teacher.");
+    } finally {
+      setTeacherSaving(false);
     }
   }
 
@@ -407,9 +418,10 @@ export function SundaySchoolView({ canEdit }: { canEdit: boolean }) {
     const targetLesson = lessonsByDate.get(date);
     const sourceDraft = sourceLesson ? draftFromLesson(sourceLesson) : blankLesson(teacherPickerDate);
     const targetDraft = targetLesson ? draftFromLesson(targetLesson) : blankLesson(date);
-    const sourceTeacher = sourceDraft.teacher_name;
-    sourceDraft.teacher_name = targetDraft.teacher_name;
+    const sourceTeacher = teacherNameForDate(teacherPickerDate);
+    sourceDraft.teacher_name = teacherNameForDate(date);
     targetDraft.teacher_name = sourceTeacher;
+    setTeacherSaving(true);
     try {
       const [sourceSaved, targetSaved] = await Promise.all([
         saveLessonDraft(sourceDraft, teacherPickerDate),
@@ -421,6 +433,8 @@ export function SundaySchoolView({ canEdit }: { canEdit: boolean }) {
       setMessage("Teachers swapped.");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Could not swap teachers.");
+    } finally {
+      setTeacherSaving(false);
     }
   }
 
@@ -586,8 +600,8 @@ export function SundaySchoolView({ canEdit }: { canEdit: boolean }) {
             <div className="presentation-topbar-tools">
               <DateNavigator
                 assignmentDisabled={!canEdit}
-                assignmentLabel={draft.teacher_name || "Leader"}
-                assignmentTitle={draft.teacher_name ? `Leader: ${draft.teacher_name}` : "Assign leader"}
+                assignmentLabel={selectedTeacherName || "Leader"}
+                assignmentTitle={selectedTeacherName ? `Leader: ${selectedTeacherName}` : "Assign leader"}
                 historyLabel="Open Sunday School calendar history"
                 label={formatNavigatorDate(selectedDate)}
                 nextLabel="Next Sunday"
@@ -622,9 +636,10 @@ export function SundaySchoolView({ canEdit }: { canEdit: boolean }) {
         <div className="worship-song-list sunday-school-lesson-list">
           {scheduleDates.map((date) => {
             const lesson = lessonsByDate.get(date);
+            const teacherName = teacherNameForDate(date);
             const resourcesCount = resources.filter((resource) => dateInputFromIso(resource.lesson_date) === date).length;
             return (
-              <div className={`song-library-row ${selectedDate === date ? "selected" : ""} ${teacherColor(lesson?.teacher_name || "")}`} key={date}>
+              <div className={`song-library-row ${selectedDate === date ? "selected" : ""} ${teacherColor(teacherName)}`} key={date}>
                 <button
                   className="song-library-main"
                   onClick={() => chooseDate(date)}
@@ -637,7 +652,7 @@ export function SundaySchoolView({ canEdit }: { canEdit: boolean }) {
                     <strong>{lesson?.theme || "Unplanned"}</strong>
                     <small>
                       {shortDate(date)}
-                      {lesson?.teacher_name ? ` | ${lesson.teacher_name}` : " | No teacher"}
+                      {teacherName ? ` | ${teacherName}` : " | No teacher available"}
                       {resourcesCount ? ` | ${resourcesCount} resources` : ""}
                     </small>
                   </span>
@@ -664,8 +679,8 @@ export function SundaySchoolView({ canEdit }: { canEdit: boolean }) {
               Generate
             </button>
             <button className="primary-button" disabled={!canEdit || saving} onClick={() => void saveLesson()} type="button">
-              {selectedLesson ? <Save size={16} aria-hidden="true" /> : <Plus size={16} aria-hidden="true" />}
-              {saving ? "Saving..." : selectedLesson ? "Save" : "Create"}
+              <Save size={16} aria-hidden="true" />
+              {saving ? "Saving..." : "Save"}
             </button>
           </div>
         </div>
@@ -833,15 +848,17 @@ export function SundaySchoolView({ canEdit }: { canEdit: boolean }) {
           muted: day.muted,
           className: (() => {
             const lesson = lessonsByDate.get(day.date);
-            const teacher = sundaySchoolTeacherByName.get(lesson?.teacher_name.trim().toLocaleLowerCase() || "");
-            return `${lesson ? "has-service" : ""} ${teacher ? calendarColor(teacher) : teacherColor(lesson?.teacher_name || "")}`.trim();
+            const teacherName = teacherNameForDate(day.date);
+            const teacher = sundaySchoolTeacherByName.get(teacherName.toLocaleLowerCase());
+            const isSunday = new Date(`${day.date}T12:00:00`).getDay() === 0;
+            return `${lesson || isSunday ? "has-service" : ""} ${teacher ? calendarColor(teacher) : teacherColor(teacherName)}`.trim();
           })(),
         }))}
         selectedDate={selectedDate}
         onDateSelect={(dateInput) => chooseDate(dateInput)}
         dayContent={(day) => {
-          const lesson = lessonsByDate.get(day.date);
-          const teacher = sundaySchoolTeacherByName.get(lesson?.teacher_name.trim().toLocaleLowerCase() || "");
+          const teacherName = teacherNameForDate(day.date);
+          const teacher = sundaySchoolTeacherByName.get(teacherName.toLocaleLowerCase());
           const date = new Date(`${day.date}T12:00:00`);
           return (
             <>
@@ -850,15 +867,14 @@ export function SundaySchoolView({ canEdit }: { canEdit: boolean }) {
                 <span className={`calendar-user-marker ${teacher.calendar_avatar ? "is-avatar" : ""}`} aria-label={teacher.name}>
                   {sundaySchoolTeacherMarkers.get(teacher.id)}
                 </span>
-              ) : lesson?.teacher_name ? (
-                <span className="calendar-user-marker" aria-label={lesson.teacher_name}>
-                  {lesson.teacher_name.charAt(0).toUpperCase()}
+              ) : teacherName ? (
+                <span className="calendar-user-marker" aria-label={teacherName}>
+                  {teacherName.charAt(0).toUpperCase()}
                 </span>
               ) : null}
             </>
           );
         }}
-        actionButtons={null}
       />
 
       {resourcePickerOpen ? (
@@ -896,53 +912,20 @@ export function SundaySchoolView({ canEdit }: { canEdit: boolean }) {
         </div>
       ) : null}
 
-      {teacherPickerDate ? (
-        <div className="app-dialog-backdrop" role="presentation" onMouseDown={() => setTeacherPickerDate(null)}>
-          <section className="app-dialog sunday-school-teacher-dialog" onMouseDown={(event) => event.stopPropagation()} role="dialog">
-            <div className="section-heading">
-              <div>
-                <p className="eyebrow">Teacher</p>
-                <h2>{shortDate(teacherPickerDate)}</h2>
-              </div>
-              <button className="text-button" onClick={() => setTeacherPickerDate(null)} type="button">Close</button>
-            </div>
-            <div className="sunday-school-teacher-picker-list">
-              <button className={!teacherPickerLesson?.teacher_name ? "selected" : ""} disabled={!canEdit} onClick={() => void assignTeacher(teacherPickerDate, "")} type="button">
-                <span className="teacher-avatar">?</span>
-                <strong>Unassigned</strong>
-              </button>
-              {teacherNames.map((teacher) => (
-                <button className={`${teacherColor(teacher)} ${teacherPickerLesson?.teacher_name === teacher ? "selected" : ""}`} disabled={!canEdit} key={teacher} onClick={() => void assignTeacher(teacherPickerDate, teacher)} type="button">
-                  <span className="teacher-avatar">{teacherInitials(teacher)}</span>
-                  <strong>{teacher}</strong>
-                </button>
-              ))}
-            </div>
-            <div className="inline-input-action">
-              <input onChange={(event) => setNewTeacherName(event.target.value)} placeholder="Add teacher" value={newTeacherName} />
-              <button className="primary-button" disabled={!canEdit || !newTeacherName.trim()} onClick={() => void assignTeacher(teacherPickerDate, newTeacherName)} type="button">
-                Add
-              </button>
-            </div>
-            <div className="sunday-school-swap-list">
-              <h3>Swap With</h3>
-              {scheduleDates
-                .filter((date) => date !== teacherPickerDate)
-                .slice(20, 34)
-                .map((date) => {
-                  const lesson = lessonsByDate.get(date);
-                  return (
-                    <button className={`stack-row ${teacherColor(lesson?.teacher_name || "")}`} disabled={!canEdit} key={date} onClick={() => void swapTeacherWith(date)} type="button">
-                      <Shuffle size={14} aria-hidden="true" />
-                      <strong>{shortDate(date)}</strong>
-                      <span>{lesson?.teacher_name || "Unassigned"}</span>
-                    </button>
-                  );
-                })}
-            </div>
-          </section>
-        </div>
-      ) : null}
+      <LeaderAssignmentDialog
+        areaLabel="Sunday School"
+        busy={teacherSaving}
+        currentDate={teacherPickerDate}
+        explicitLeaderId={teacherPickerDate ? explicitTeacherAssignments.get(teacherPickerDate) ?? null : null}
+        leaderIdForDate={teacherIdForDate}
+        leaders={sundaySchoolTeachers}
+        maxSundaysForLeader={(teacher) => teacher.sunday_school_max_sundays_per_month}
+        onAssign={(teacherId) => {
+          if (teacherPickerDate) void assignTeacher(teacherPickerDate, teacherId);
+        }}
+        onClose={() => setTeacherPickerDate(null)}
+        onSwap={(targetDate) => void swapTeacherWith(targetDate)}
+      />
     </section>
   );
 }

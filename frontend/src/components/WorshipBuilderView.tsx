@@ -53,9 +53,11 @@ import { analyzeImportedSongSlides, analyzeWorshipText, buildLyricsFromSections,
 import { dateKey, isWorshipSetPlan, preferredWorshipSetPlanId, worshipSetType } from "../worshipSets";
 import { lastUsedLabel, worshipRoleLabel } from "../worshipSongMetadata";
 import { calendarColor, calendarMarkers } from "../userCalendarStyle";
+import { effectiveLeaderIdForDate, type SundayLeader } from "../leaderSchedule";
 import { CalendarPopup } from "./CalendarPopup";
 import { AutoFitSlideText } from "./AutoFitSlideText";
 import { DateNavigator, formatNavigatorDate } from "./DateNavigator";
+import { LeaderAssignmentDialog } from "./LeaderAssignmentDialog";
 import { MusicianLiveView } from "./MusicianLiveView";
 import { SongEditorDialog } from "./SongEditorDialog";
 import { useEscapeClose } from "./useEscapeClose";
@@ -360,11 +362,10 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
   const [selectedPlanId, setSelectedPlanId] = useState("");
   const [setPickerOpen, setSetPickerOpen] = useState(false);
   const [setCalendarMonth, setSetCalendarMonth] = useState(monthInputFromDate(new Date()));
-  const [setDraftPlanId, setSetDraftPlanId] = useState<string | null>(null);
   const [setDraftDate, setSetDraftDate] = useState(dateInputFromIso(new Date().toISOString()));
-  const [setDraftTitle, setSetDraftTitle] = useState(suggestedWorshipSetTitle(dateInputFromIso(new Date().toISOString())));
-  const [selectedLeaderId, setSelectedLeaderId] = useState<string | null>(null);
   const [leaderAssignments, setLeaderAssignments] = useState<WorshipLeaderAssignment[]>([]);
+  const [leaderPickerDate, setLeaderPickerDate] = useState<string | null>(null);
+  const [leaderSaving, setLeaderSaving] = useState(false);
   const [query, setQuery] = useState("");
   const [bookSourceFilter, setBookSourceFilter] = useState("all");
   const [loading, setLoading] = useState(true);
@@ -419,16 +420,6 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
 
   const worshipSetPlans = useMemo(() => plans.filter(isWorshipSetPlan), [plans]);
 
-  const sortedPlans = useMemo(
-    () =>
-      [...worshipSetPlans].sort((left, right) => {
-        const leftTime = new Date(left.service_date).getTime();
-        const rightTime = new Date(right.service_date).getTime();
-        return (Number.isNaN(rightTime) ? 0 : rightTime) - (Number.isNaN(leftTime) ? 0 : leftTime);
-      }),
-    [worshipSetPlans],
-  );
-
   const worshipSetsByDate = useMemo(
     () => new Map(worshipSetPlans.map((worshipSet) => [dateInputFromIso(worshipSet.service_date), worshipSet])),
     [worshipSetPlans],
@@ -444,8 +435,20 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
         .sort((left, right) => left.name.localeCompare(right.name)),
     [users],
   );
+  const worshipRotationLeaders = useMemo<SundayLeader[]>(
+    () => worshipLeaders.map((leader) => ({
+      id: leader.id,
+      name: leader.name,
+      maxSundaysPerMonth: leader.worship_max_sundays_per_month,
+    })),
+    [worshipLeaders],
+  );
   const worshipLeaderMarkers = useMemo(() => calendarMarkers(worshipLeaders), [worshipLeaders]);
-  const selectedWorshipLeader = worshipLeaders.find((user) => user.id === plan?.leader_id) ?? null;
+  function worshipLeaderIdForDate(date: string) {
+    return effectiveLeaderIdForDate(date, worshipRotationLeaders, leaderAssignmentsByDate);
+  }
+  const selectedWorshipLeaderId = plan ? worshipLeaderIdForDate(dateInputFromIso(plan.service_date)) : null;
+  const selectedWorshipLeader = worshipLeaders.find((user) => user.id === selectedWorshipLeaderId) ?? null;
   const servicePlansByDate = useMemo(
     () => new Map(plans.filter((candidate) => !isWorshipSetPlan(candidate)).map((servicePlan) => [dateInputFromIso(servicePlan.service_date), servicePlan])),
     [plans],
@@ -755,54 +758,64 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
   }
 
   async function stepWorshipSet(delta: number) {
-    const currentId = selectedPlanId || plan?.id;
-    const currentIndex = sortedPlans.findIndex((candidate) => candidate.id === currentId);
-    const nextPlan = sortedPlans[currentIndex + delta];
-    if (!nextPlan) {
-      return;
-    }
-    await selectPlan(nextPlan.id);
+    const currentDate = dateInputFromIso(plan?.service_date) || dateInputFromIso(new Date().toISOString());
+    const target = new Date(`${currentDate}T12:00:00`);
+    target.setDate(target.getDate() - delta * 7);
+    await openSetDate(dateInputFromIso(target.toISOString()));
   }
 
   function openSetPicker() {
     const draftDate = dateInputFromIso(plan?.service_date) || dateInputFromIso(new Date().toISOString());
     setSetDraftDate(draftDate);
-    setSetDraftPlanId(plan?.id ?? null);
-    setSetDraftTitle(plan?.title ?? suggestedWorshipSetTitle(draftDate));
-    setSelectedLeaderId(plan?.leader_id ?? leaderAssignmentsByDate.get(draftDate) ?? null);
     setSetCalendarMonth(draftDate.slice(0, 7) || monthInputFromDate(new Date()));
     setSetPickerOpen(true);
   }
 
-  function chooseSetDate(dateInput: string) {
-    const existing = worshipSetsByDate.get(dateInput);
-    setSetDraftDate(dateInput);
-    setSetCalendarMonth(dateInput.slice(0, 7) || setCalendarMonth);
-    if (existing) {
-      setSetDraftPlanId(existing.id);
-      setSetDraftTitle(existing.title);
-      setSelectedLeaderId(leaderAssignmentsByDate.get(dateInput) ?? existing.leader_id);
-      return;
-    }
-    setSetDraftPlanId(null);
-    setSetDraftTitle(suggestedWorshipSetTitle(dateInput));
-    setSelectedLeaderId(leaderAssignmentsByDate.get(dateInput) ?? null);
-  }
-
-  async function saveLeaderAssignment() {
+  async function assignWorshipLeader(leaderId: string | null) {
+    if (!leaderPickerDate) return;
     if (!canEditPlan) {
       setMessage("Only worship team members and leaders can assign worship leaders.");
       return;
     }
+    setLeaderSaving(true);
     try {
-      await setWorshipLeaderAssignment(setDraftDate, selectedLeaderId);
-      if (setDraftPlanId) {
-        await updatePlan(setDraftPlanId, { leader_id: selectedLeaderId });
+      await setWorshipLeaderAssignment(leaderPickerDate, leaderId);
+      const matchingPlan = worshipSetsByDate.get(leaderPickerDate);
+      if (matchingPlan) {
+        await updatePlan(matchingPlan.id, { leader_id: leaderId });
       }
-      setLeaderAssignments(await getWorshipLeaderAssignments());
-      setMessage(selectedLeaderId ? "Worship leader assigned." : "Worship leader assignment cleared.");
+      await load(plan?.id);
+      setMessage(leaderId ? "Worship leader assigned." : "Automatic worship rotation restored.");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Could not save worship leader assignment.");
+    } finally {
+      setLeaderSaving(false);
+    }
+  }
+
+  async function swapWorshipLeaders(targetDate: string) {
+    if (!leaderPickerDate || targetDate === leaderPickerDate) return;
+    const sourceLeaderId = worshipLeaderIdForDate(leaderPickerDate);
+    const targetLeaderId = worshipLeaderIdForDate(targetDate);
+    if (!sourceLeaderId || !targetLeaderId) return;
+    setLeaderSaving(true);
+    try {
+      await Promise.all([
+        setWorshipLeaderAssignment(leaderPickerDate, targetLeaderId),
+        setWorshipLeaderAssignment(targetDate, sourceLeaderId),
+      ]);
+      const sourcePlan = worshipSetsByDate.get(leaderPickerDate);
+      const targetPlan = worshipSetsByDate.get(targetDate);
+      await Promise.all([
+        sourcePlan ? updatePlan(sourcePlan.id, { leader_id: targetLeaderId }) : Promise.resolve(null),
+        targetPlan ? updatePlan(targetPlan.id, { leader_id: sourceLeaderId }) : Promise.resolve(null),
+      ]);
+      await load(plan?.id);
+      setMessage("Worship leaders swapped.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not swap worship leaders.");
+    } finally {
+      setLeaderSaving(false);
     }
   }
 
@@ -813,12 +826,8 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
       setSetPickerOpen(false);
       return;
     }
-    chooseSetDate(dateInput);
-  }
-
-  async function saveWorshipSetDraft(openAfterSave = false) {
     if (!canEditPlan) {
-      setMessage("Only worship team members and leaders can save worship sets.");
+      setMessage("Only worship team members and leaders can prepare worship sets.");
       return;
     }
     const planType = worshipSetType(planTypes);
@@ -826,27 +835,23 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
       setMessage("Worship Sets are temporarily unavailable. Ask an administrator to update and restart the app.");
       return;
     }
-
+    setSetPickerOpen(false);
     try {
-      const payload = {
+      const saved = await createPlan({
         plan_type_id: planType.id,
-        service_date: isoFromDateInput(setDraftDate),
-        title: setDraftTitle.trim() || suggestedWorshipSetTitle(setDraftDate),
+        service_date: isoFromDateInput(dateInput),
+        title: suggestedWorshipSetTitle(dateInput),
         subtitle: null,
-        leader_id: selectedLeaderId,
+        leader_id: null,
         teacher_id: null,
         status: "draft",
         info: null,
-      };
-      const saved = setDraftPlanId ? await updatePlan(setDraftPlanId, payload) : await createPlan(payload);
-      await setWorshipLeaderAssignment(setDraftDate, selectedLeaderId);
-      await absorbServiceSongsIntoWorshipSet(saved, setDraftDate);
-      await load(openAfterSave ? saved.id : selectedPlanId || saved.id);
-      setSetDraftPlanId(saved.id);
-      setSetPickerOpen(!openAfterSave);
-      setMessage(setDraftPlanId ? "Worship set saved." : "Worship set created.");
+      });
+      await absorbServiceSongsIntoWorshipSet(saved, dateInput);
+      await load(saved.id);
+      setMessage("Worship set ready.");
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Could not save worship set.");
+      setMessage(error instanceof Error ? error.message : "Could not prepare this worship set.");
     }
   }
 
@@ -880,26 +885,15 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
     }
   }
 
-  async function openDraftWorshipSet() {
-    if (setDraftPlanId) {
-      await selectPlan(setDraftPlanId);
-      setSetPickerOpen(false);
-      return;
-    }
-    await saveWorshipSetDraft(true);
-  }
-
   async function archiveSelectedWorshipSet() {
-    if (!setDraftPlanId || !canDeletePlan) {
+    if (!plan || !canDeletePlan) {
       return;
     }
 
     try {
-      await deletePlan(setDraftPlanId);
-      const nextPlanId = selectedPlanId === setDraftPlanId ? "" : selectedPlanId;
-      setSetDraftPlanId(null);
-      setSetDraftTitle(suggestedWorshipSetTitle(setDraftDate));
-      await load(nextPlanId);
+      await deletePlan(plan.id);
+      setSetPickerOpen(false);
+      await load("");
       setMessage("Worship set archived.");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Could not archive worship set.");
@@ -1723,16 +1717,16 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
                   historyExpanded={editHistoryOpen}
                   historyLabel="Worship set edit history"
                   label={plan ? formatNavigatorDate(plan.service_date) : "Choose worship set"}
-                  nextDisabled={loading || sortedPlans.findIndex((candidate) => candidate.id === (selectedPlanId || plan?.id)) <= 0}
+                  nextDisabled={loading || !plan}
                   nextLabel="Next worship set"
                   onHistory={() => void openEditHistory()}
-                  onAssignment={openSetPicker}
+                  onAssignment={() => setLeaderPickerDate(dateInputFromIso(plan?.service_date))}
                   onNext={() => void stepWorshipSet(-1)}
                   onOpenPicker={openSetPicker}
                   onPrevious={() => void stepWorshipSet(1)}
-                  pickerLabel="Choose or create a worship set"
+                  pickerLabel="Choose worship set"
                   pickerDisabled={loading}
-                  previousDisabled={loading || sortedPlans.findIndex((candidate) => candidate.id === (selectedPlanId || plan?.id)) >= sortedPlans.length - 1}
+                  previousDisabled={loading || !plan}
                   previousLabel="Previous worship set"
                   historyContent={editHistoryOpen ? (
                   <section className="worship-history-popover" aria-label="Worship set edit history">
@@ -2348,21 +2342,17 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
           muted: day.muted,
           className: (() => {
             const existing = worshipSetsByDate.get(day.key);
-            const leaderId = day.key === setDraftDate
-              ? selectedLeaderId
-              : leaderAssignmentsByDate.get(day.key) ?? existing?.leader_id;
-            return `${existing ? "has-service" : ""} ${
+            const leaderId = worshipLeaderIdForDate(day.key);
+            const isSunday = new Date(`${day.key}T12:00:00`).getDay() === 0;
+            return `${existing || isSunday ? "has-service" : ""} ${
               leaderId ? calendarColor(users.find((user) => user.id === leaderId)) : ""
             }`.trim();
           })(),
         }))}
         selectedDate={setDraftDate}
-        onDateSelect={(dateInput) => chooseSetDate(dateInput)}
+        onDateSelect={(dateInput) => void openSetDate(dateInput)}
         dayContent={(day) => {
-          const existing = worshipSetsByDate.get(day.date);
-          const leaderId = day.date === setDraftDate
-            ? selectedLeaderId
-            : leaderAssignmentsByDate.get(day.date) ?? existing?.leader_id;
+          const leaderId = worshipLeaderIdForDate(day.date);
           const leader = users.find((user) => user.id === leaderId);
           const date = new Date(`${day.date}T12:00:00`);
           return (
@@ -2376,63 +2366,23 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
             </>
           );
         }}
-        footerContent={
-          <div className="calendar-popup-fields">
-            <label className="field-block">
-              Leader
-              <select
-                value={selectedLeaderId || ""}
-                onChange={(event) => setSelectedLeaderId(event.target.value || null)}
-              >
-                <option value="">None</option>
-                {worshipLeaders.map((user) => (
-                  <option key={user.id} value={user.id}>
-                    {user.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="field-block">
-              Title
-              <input
-                onChange={(event) => setSetDraftTitle(event.target.value)}
-                placeholder={suggestedWorshipSetTitle(setDraftDate)}
-                type="text"
-                value={setDraftTitle}
-              />
-            </label>
-          </div>
-        }
-        actionButtons={
-          <>
-            <button className="primary-button" disabled={!canEditPlan} onClick={() => void saveLeaderAssignment()} type="button">
-              Save Leader
-            </button>
-            <button className="primary-button" disabled={!canEditPlan} onClick={() => void openDraftWorshipSet()} type="button">
-              {setDraftPlanId ? "Open Set" : "Create & Open"}
-            </button>
-            <button className="text-button" disabled={!canEditPlan} onClick={() => void saveWorshipSetDraft(false)} type="button">
-              {setDraftPlanId ? "Save Changes" : "Create Set"}
-            </button>
-            {setDraftPlanId ? (
-              <button
-                className="text-button"
-                onClick={() => {
-                  setSetDraftPlanId(null);
-                  setSetDraftTitle(suggestedWorshipSetTitle(setDraftDate));
-                }}
-                type="button"
-              >
-                Deselect
-              </button>
-            ) : null}
-            {setDraftPlanId && canDeletePlan ? (
-              <button className="danger-button" onClick={() => void archiveSelectedWorshipSet()} type="button">
-                Archive Set
-              </button>
-            ) : null}
-          </>
-        }
+        calendarAction={plan && canDeletePlan ? (
+          <button className="danger-button" onClick={() => void archiveSelectedWorshipSet()} type="button">
+            Archive current
+          </button>
+        ) : null}
+      />
+      <LeaderAssignmentDialog
+        areaLabel="Worship"
+        busy={leaderSaving}
+        currentDate={leaderPickerDate}
+        explicitLeaderId={leaderPickerDate ? leaderAssignmentsByDate.get(leaderPickerDate) ?? null : null}
+        leaderIdForDate={worshipLeaderIdForDate}
+        leaders={worshipLeaders}
+        maxSundaysForLeader={(leader) => leader.worship_max_sundays_per_month}
+        onAssign={(leaderId) => void assignWorshipLeader(leaderId)}
+        onClose={() => setLeaderPickerDate(null)}
+        onSwap={(targetDate) => void swapWorshipLeaders(targetDate)}
       />
       {historyImportOpen ? (
         <div className="app-dialog-backdrop" role="presentation" onMouseDown={() => setHistoryImportOpen(false)}>

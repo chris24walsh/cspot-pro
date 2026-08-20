@@ -121,6 +121,8 @@ def user_to_read(session: Session, user: User) -> UserRead:
         start_page=user.start_page,
         calendar_color=user.calendar_color or stable_calendar_color(user.id),
         calendar_avatar=user.calendar_avatar,
+        worship_max_sundays_per_month=user.worship_max_sundays_per_month,
+        sunday_school_max_sundays_per_month=user.sunday_school_max_sundays_per_month,
         email_confirmed=user.email_confirmed,
         active=user.active,
         roles=list_role_names(session, user.id),
@@ -178,6 +180,8 @@ def user_to_member_read(session: Session, user: User) -> MemberRead:
         roles=list_role_names(session, user.id),
         calendar_color=user.calendar_color or stable_calendar_color(user.id),
         calendar_avatar=user.calendar_avatar,
+        worship_max_sundays_per_month=user.worship_max_sundays_per_month,
+        sunday_school_max_sundays_per_month=user.sunday_school_max_sundays_per_month,
     )
 
 
@@ -505,6 +509,8 @@ def create_user(
             password_hash=hash_password(payload.password) if payload.password else None,
             calendar_color=payload.calendar_color,
             calendar_avatar=payload.calendar_avatar,
+            worship_max_sundays_per_month=payload.worship_max_sundays_per_month,
+            sunday_school_max_sundays_per_month=payload.sunday_school_max_sundays_per_month,
         )
         session.add(user)
         session.flush()
@@ -540,6 +546,8 @@ def invite_user(
             password_hash=None,
             calendar_color=payload.calendar_color,
             calendar_avatar=payload.calendar_avatar,
+            worship_max_sundays_per_month=payload.worship_max_sundays_per_month,
+            sunday_school_max_sundays_per_month=payload.sunday_school_max_sundays_per_month,
         )
         session.add(user)
         session.flush()
