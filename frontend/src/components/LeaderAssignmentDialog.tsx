@@ -26,14 +26,19 @@ function dialogDate(value: string) {
     : date.toLocaleDateString(undefined, { day: "numeric", month: "short", weekday: "short" });
 }
 
-function nearbySundays(value: string) {
+function todayDateInput() {
+  const today = new Date();
+  return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+}
+
+export function nearbyUpcomingSundays(value: string, todayInput = todayDateInput()) {
   const center = new Date(`${value}T12:00:00`);
   if (Number.isNaN(center.getTime())) return [];
-  return Array.from({ length: 9 }, (_unused, index) => {
+  return Array.from({ length: 13 }, (_unused, index) => {
     const date = new Date(center);
     date.setDate(center.getDate() + (index - 4) * 7);
     return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
-  }).filter((date) => date !== value);
+  }).filter((date) => date >= todayInput && date !== value).slice(0, 8);
 }
 
 export function LeaderAssignmentDialog({
@@ -59,6 +64,7 @@ export function LeaderAssignmentDialog({
   const currentLeader = leaders.find((leader) => leader.id === currentLeaderId) ?? null;
 
   if (!currentDate) return null;
+  const isPastDate = currentDate < todayDateInput();
 
   return (
     <div className="app-dialog-backdrop" role="presentation" onMouseDown={onClose}>
@@ -74,8 +80,8 @@ export function LeaderAssignmentDialog({
             <h2>{dialogDate(currentDate)}</h2>
             <p>
               {currentLeader
-                ? `${currentLeader.name} · ${explicitLeaderId ? "manually assigned" : "automatic rotation"}`
-                : "No leader available in the rotation"}
+                ? `${currentLeader.name} · ${explicitLeaderId || isPastDate ? "stored assignment" : "automatic rotation"}`
+                : isPastDate ? "No stored leader for this historical date" : "No leader available in the rotation"}
             </p>
           </div>
           <button aria-label="Close leader assignment" className="section-icon-button" onClick={onClose} type="button">
@@ -90,8 +96,8 @@ export function LeaderAssignmentDialog({
           </div>
           <div className="leader-option-grid">
             <button
-              className={!explicitLeaderId ? "leader-option is-selected" : "leader-option"}
-              disabled={busy}
+              className={!explicitLeaderId && !isPastDate ? "leader-option is-selected" : "leader-option"}
+              disabled={busy || isPastDate}
               onClick={() => onAssign(null)}
               type="button"
             >
@@ -117,13 +123,13 @@ export function LeaderAssignmentDialog({
           </div>
         </div>
 
-        <div className="leader-dialog-section">
+        {!isPastDate ? <div className="leader-dialog-section">
           <div className="leader-dialog-section-heading">
             <strong>Swap Sundays</strong>
             <span>Moves both leaders in one step</span>
           </div>
           <div className="leader-swap-list">
-            {nearbySundays(currentDate).map((date) => {
+            {nearbyUpcomingSundays(currentDate).map((date) => {
               const leaderId = leaderIdForDate(date);
               const leader = leaders.find((candidate) => candidate.id === leaderId) ?? null;
               return (
@@ -141,7 +147,7 @@ export function LeaderAssignmentDialog({
               );
             })}
           </div>
-        </div>
+        </div> : null}
       </section>
     </div>
   );

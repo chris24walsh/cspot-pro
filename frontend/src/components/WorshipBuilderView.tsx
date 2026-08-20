@@ -53,7 +53,7 @@ import { analyzeImportedSongSlides, analyzeWorshipText, buildLyricsFromSections,
 import { dateKey, isWorshipSetPlan, preferredWorshipSetPlanId, worshipSetType } from "../worshipSets";
 import { lastUsedLabel, worshipRoleLabel } from "../worshipSongMetadata";
 import { calendarColor, calendarMarkers } from "../userCalendarStyle";
-import { effectiveLeaderIdForDate, sundayDatesAround, type SundayLeader } from "../leaderSchedule";
+import { calendarDatesAround, effectiveLeaderIdForDate, sundayDatesAround, type SundayLeader } from "../leaderSchedule";
 import { CalendarPopup } from "./CalendarPopup";
 import { AutoFitSlideText } from "./AutoFitSlideText";
 import { DateNavigator, formatNavigatorDate } from "./DateNavigator";
@@ -101,35 +101,12 @@ function formatServiceDate(value: string) {
     : date.toLocaleDateString(undefined, { day: "numeric", month: "short", weekday: "short" });
 }
 
-function monthInputFromDate(date: Date) {
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
-}
-
 function dateInputFromIso(value: string | null | undefined) {
   return dateKey(value);
 }
 
 function isoFromDateInput(value: string) {
   return `${value}T10:30:00.000Z`;
-}
-
-function calendarDaysForMonth(monthInput: string) {
-  const [yearValue, monthValue] = monthInput.split("-").map(Number);
-  const year = Number.isFinite(yearValue) ? yearValue : new Date().getFullYear();
-  const month = Number.isFinite(monthValue) ? monthValue - 1 : new Date().getMonth();
-  const firstDay = new Date(year, month, 1);
-  const start = new Date(firstDay);
-  start.setDate(1 - firstDay.getDay());
-
-  return Array.from({ length: 42 }, (_, index) => {
-    const date = new Date(start);
-    date.setDate(start.getDate() + index);
-    return {
-      date,
-      key: dateInputFromIso(date.toISOString()),
-      muted: date.getMonth() !== month,
-    };
-  });
 }
 
 function longDateForInput(value: string) {
@@ -361,7 +338,6 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
   const [plan, setPlan] = useState<PlanDetail | null>(null);
   const [selectedPlanId, setSelectedPlanId] = useState("");
   const [setPickerOpen, setSetPickerOpen] = useState(false);
-  const [setCalendarMonth, setSetCalendarMonth] = useState(monthInputFromDate(new Date()));
   const [setDraftDate, setSetDraftDate] = useState(dateInputFromIso(new Date().toISOString()));
   const [leaderAssignments, setLeaderAssignments] = useState<WorshipLeaderAssignment[]>([]);
   const [leaderPickerDate, setLeaderPickerDate] = useState<string | null>(null);
@@ -424,10 +400,15 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
     () => new Map(worshipSetPlans.map((worshipSet) => [dateInputFromIso(worshipSet.service_date), worshipSet])),
     [worshipSetPlans],
   );
-  const leaderAssignmentsByDate = useMemo(
-    () => new Map(leaderAssignments.map((assignment) => [assignment.service_date, assignment.leader_id])),
-    [leaderAssignments],
-  );
+  const leaderAssignmentsByDate = useMemo(() => {
+    const assignments = new Map(
+      worshipSetPlans
+        .filter((worshipSet) => Boolean(worshipSet.leader_id))
+        .map((worshipSet) => [dateInputFromIso(worshipSet.service_date), worshipSet.leader_id!] as const),
+    );
+    leaderAssignments.forEach((assignment) => assignments.set(assignment.service_date, assignment.leader_id));
+    return assignments;
+  }, [leaderAssignments, worshipSetPlans]);
   const worshipLeaders = useMemo(
     () =>
       users
@@ -479,7 +460,10 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
     };
   }, [linkedServicePlanId]);
 
-  const calendarDays = useMemo(() => calendarDaysForMonth(setCalendarMonth), [setCalendarMonth]);
+  const allCalendarDates = useMemo(
+    () => calendarDatesAround(setDraftDate || dateInputFromIso(new Date().toISOString())),
+    [setDraftDate],
+  );
   const sundayCalendarDates = useMemo(
     () => sundayDatesAround(setDraftDate || dateInputFromIso(new Date().toISOString())),
     [setDraftDate],
@@ -773,7 +757,6 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
   function openSetPicker() {
     const draftDate = dateInputFromIso(plan?.service_date) || dateInputFromIso(new Date().toISOString());
     setSetDraftDate(draftDate);
-    setSetCalendarMonth(draftDate.slice(0, 7) || monthInputFromDate(new Date()));
     setSetPickerOpen(true);
   }
 
@@ -2341,15 +2324,12 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
         onClose={() => setSetPickerOpen(false)}
         title="Worship Sets"
         eyebrow="Calendar"
-        calendarMonth={setCalendarMonth}
-        onMonthChange={setSetCalendarMonth}
-        calendarDays={calendarDays.map((day) => ({
-          date: day.key,
-          muted: day.muted,
+        allDays={allCalendarDates.map((dateInput) => ({
+          date: dateInput,
           className: (() => {
-            const existing = worshipSetsByDate.get(day.key);
-            const leaderId = worshipLeaderIdForDate(day.key);
-            const isSunday = new Date(`${day.key}T12:00:00`).getDay() === 0;
+            const existing = worshipSetsByDate.get(dateInput);
+            const leaderId = worshipLeaderIdForDate(dateInput);
+            const isSunday = new Date(`${dateInput}T12:00:00`).getDay() === 0;
             return `${existing || isSunday ? "has-service" : ""} ${
               leaderId ? calendarColor(users.find((user) => user.id === leaderId)) : ""
             }`.trim();

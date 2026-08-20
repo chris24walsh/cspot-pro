@@ -26,6 +26,18 @@ export function sundayDatesAround(centerInput: string, count = 42, pastCount = 1
   });
 }
 
+export function calendarDatesAround(centerInput: string, monthsBefore = 2, monthsAfter = 7) {
+  const parsedCenter = new Date(`${centerInput}T12:00:00`);
+  const center = Number.isNaN(parsedCenter.getTime()) ? new Date() : parsedCenter;
+  const firstDate = new Date(center.getFullYear(), center.getMonth() - monthsBefore, 1, 12);
+  const lastDate = new Date(center.getFullYear(), center.getMonth() + monthsAfter + 1, 0, 12);
+  const dates: string[] = [];
+  for (const cursor = new Date(firstDate); cursor <= lastDate; cursor.setDate(cursor.getDate() + 1)) {
+    dates.push(dateInput(cursor));
+  }
+  return dates;
+}
+
 export function sundayDatesForMonth(monthInput: string) {
   const [yearValue, monthValue] = monthInput.split("-").map(Number);
   const year = Number.isFinite(yearValue) ? yearValue : new Date().getFullYear();
@@ -83,8 +95,10 @@ export function effectiveLeaderIdForDate(
   date: string,
   leaders: SundayLeader[],
   explicitAssignments: ReadonlyMap<string, string>,
+  todayInput = dateInput(new Date()),
 ) {
-  return explicitAssignments.get(date)
-    ?? buildMonthlyLeaderSchedule(date.slice(0, 7), leaders, explicitAssignments).get(date)
-    ?? null;
+  const explicitLeaderId = explicitAssignments.get(date);
+  if (explicitLeaderId) return explicitLeaderId;
+  if (date < todayInput) return null;
+  return buildMonthlyLeaderSchedule(date.slice(0, 7), leaders, explicitAssignments).get(date) ?? null;
 }

@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import { buildMonthlyLeaderSchedule, sundayDatesAround, sundayDatesForMonth } from "./leaderSchedule";
+import {
+  buildMonthlyLeaderSchedule,
+  calendarDatesAround,
+  effectiveLeaderIdForDate,
+  sundayDatesAround,
+  sundayDatesForMonth,
+} from "./leaderSchedule";
 
 describe("Sunday leader rotation", () => {
   it("returns only the Sundays in a month", () => {
@@ -19,6 +25,13 @@ describe("Sunday leader rotation", () => {
     expect(dates[10]).toBe("2026-08-23");
     expect(dates[11]).toBe("2026-08-30");
     expect(new Date(`${dates[41]}T12:00:00`).getDay()).toBe(0);
+  });
+
+  it("builds complete months for the continuous all-days timeline", () => {
+    const dates = calendarDatesAround("2026-08-20", 1, 1);
+    expect(dates[0]).toBe("2026-07-01");
+    expect(dates[dates.length - 1]).toBe("2026-09-30");
+    expect(dates).toHaveLength(92);
   });
 
   it("round-robins leaders while respecting monthly limits", () => {
@@ -60,5 +73,19 @@ describe("Sunday leader rotation", () => {
     );
     expect(schedule.get("2026-08-30")).toBe("a");
     expect([...schedule.values()].filter((id) => id === "a")).toHaveLength(1);
+  });
+
+  it("uses stored history but never recalculates an unassigned past date", () => {
+    const leaders = [{ id: "a", name: "Alex", maxSundaysPerMonth: null }];
+    expect(effectiveLeaderIdForDate("2026-08-09", leaders, new Map(), "2026-08-20")).toBeNull();
+    expect(
+      effectiveLeaderIdForDate(
+        "2026-08-09",
+        leaders,
+        new Map([["2026-08-09", "a"]]),
+        "2026-08-20",
+      ),
+    ).toBe("a");
+    expect(effectiveLeaderIdForDate("2026-08-23", leaders, new Map(), "2026-08-20")).toBe("a");
   });
 });

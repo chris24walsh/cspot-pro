@@ -32,7 +32,7 @@ import {
   type SundaySchoolResource,
 } from "../api";
 import { calendarColor, calendarMarkers } from "../userCalendarStyle";
-import { effectiveLeaderIdForDate, sundayDatesAround, type SundayLeader } from "../leaderSchedule";
+import { calendarDatesAround, effectiveLeaderIdForDate, sundayDatesAround, type SundayLeader } from "../leaderSchedule";
 import { CalendarPopup } from "./CalendarPopup";
 import { DateNavigator, formatNavigatorDate } from "./DateNavigator";
 import { LeaderAssignmentDialog } from "./LeaderAssignmentDialog";
@@ -72,10 +72,6 @@ function dateInputFromDate(value: Date) {
   return `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, "0")}-${String(value.getDate()).padStart(2, "0")}`;
 }
 
-function monthInputFromDate(value: Date) {
-  return `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, "0")}`;
-}
-
 function dateInputFromIso(value: string | null | undefined) {
   if (!value) {
     return "";
@@ -101,18 +97,6 @@ function longDate(value: string) {
 function shortDate(value: string) {
   const date = new Date(`${value}T12:00:00`);
   return Number.isNaN(date.getTime()) ? value : date.toLocaleDateString(undefined, { day: "numeric", month: "short" });
-}
-
-function calendarDaysForMonth(monthInput: string) {
-  const [year, month] = monthInput.split("-").map(Number);
-  const first = new Date(year, (month || 1) - 1, 1);
-  const start = new Date(first);
-  start.setDate(first.getDate() - first.getDay());
-  return Array.from({ length: 42 }, (_value, index) => {
-    const day = new Date(start);
-    day.setDate(start.getDate() + index);
-    return { date: dateInputFromDate(day), muted: day.getMonth() !== first.getMonth() };
-  });
 }
 
 function blankLesson(date: string): SundaySchoolLessonPayload {
@@ -214,7 +198,6 @@ export function SundaySchoolView({ canEdit }: { canEdit: boolean }) {
   const [users, setUsers] = useState<Member[]>([]);
   const [topbarSlot, setTopbarSlot] = useState<HTMLElement | null>(null);
   const [selectedDate, setSelectedDate] = useState(nextSundayDateInput());
-  const [calendarMonth, setCalendarMonth] = useState(monthInputFromDate(new Date()));
   const [draft, setDraft] = useState<SundaySchoolLessonPayload>(() => blankLesson(nextSundayDateInput()));
   const [mobilePane, setMobilePane] = useState<SundaySchoolPane>("library");
   const [calendarOpen, setCalendarOpen] = useState(false);
@@ -275,7 +258,7 @@ export function SundaySchoolView({ canEdit }: { canEdit: boolean }) {
   }
   const selectedTeacherName = draft.teacher_name.trim() || teacherNameForDate(selectedDate);
   const selectedElement = LESSON_ELEMENTS.find((element) => element.key === selectedElementKey) ?? LESSON_ELEMENTS[0];
-  const calendarDays = useMemo(() => calendarDaysForMonth(calendarMonth), [calendarMonth]);
+  const allCalendarDates = useMemo(() => calendarDatesAround(selectedDate), [selectedDate]);
   const sundayCalendarDates = useMemo(() => sundayDatesAround(selectedDate), [selectedDate]);
   const scheduleDates = useMemo(() => {
     const center = new Date(`${nextSundayDateInput()}T12:00:00`);
@@ -363,7 +346,6 @@ export function SundaySchoolView({ canEdit }: { canEdit: boolean }) {
 
   function chooseDate(date: string) {
     setSelectedDate(date);
-    setCalendarMonth(date.slice(0, 7));
     setCalendarOpen(false);
     setMobilePane("set");
   }
@@ -842,16 +824,13 @@ export function SundaySchoolView({ canEdit }: { canEdit: boolean }) {
         onClose={() => setCalendarOpen(false)}
         title="Sunday School"
         eyebrow="Calendar"
-        calendarMonth={calendarMonth}
-        onMonthChange={setCalendarMonth}
-        calendarDays={calendarDays.map((day) => ({
-          date: day.date,
-          muted: day.muted,
+        allDays={allCalendarDates.map((dateInput) => ({
+          date: dateInput,
           className: (() => {
-            const lesson = lessonsByDate.get(day.date);
-            const teacherName = teacherNameForDate(day.date);
+            const lesson = lessonsByDate.get(dateInput);
+            const teacherName = teacherNameForDate(dateInput);
             const teacher = sundaySchoolTeacherByName.get(teacherName.toLocaleLowerCase());
-            const isSunday = new Date(`${day.date}T12:00:00`).getDay() === 0;
+            const isSunday = new Date(`${dateInput}T12:00:00`).getDay() === 0;
             return `${lesson || isSunday ? "has-service" : ""} ${teacher ? calendarColor(teacher) : teacherColor(teacherName)}`.trim();
           })(),
         }))}

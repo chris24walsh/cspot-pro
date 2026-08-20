@@ -1,13 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { shiftCalendarMonth, visibleCalendarDays } from "./CalendarPopup";
-
-describe("shiftCalendarMonth", () => {
-  it("moves across year boundaries", () => {
-    expect(shiftCalendarMonth("2026-01", -1)).toBe("2025-12");
-    expect(shiftCalendarMonth("2026-12", 1)).toBe("2027-01");
-  });
-});
+import { groupCalendarDays, visibleCalendarDays } from "./CalendarPopup";
 
 describe("visibleCalendarDays", () => {
   const days = [
@@ -27,14 +20,17 @@ describe("visibleCalendarDays", () => {
     expect(visibleCalendarDays(days, "sundays", sundayDays)).toEqual(sundayDays);
   });
 
-  it("falls back to Sundays in the selected month", () => {
-    expect(visibleCalendarDays(days, "sundays").map((day) => day.date)).toEqual([
-      "2026-08-02",
-      "2026-08-09",
-    ]);
+  it("keeps the complete calendar available", () => {
+    expect(visibleCalendarDays(days, "all", [])).toEqual(days);
   });
 
-  it("keeps the complete calendar available", () => {
-    expect(visibleCalendarDays(days, "all")).toEqual(days);
+  it("groups continuous dates beneath their month", () => {
+    expect(groupCalendarDays(days).map((group) => ({
+      dates: group.days.map((day) => day.date),
+      key: group.key,
+    }))).toEqual([
+      { key: "2026-07", dates: ["2026-07-26"] },
+      { key: "2026-08", dates: ["2026-08-02", "2026-08-03", "2026-08-09"] },
+    ]);
   });
 });

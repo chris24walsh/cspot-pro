@@ -71,7 +71,7 @@ import {
   type PresentationTheme,
 } from "../presentation";
 import { isMobileOrTabletDevice } from "../presentationDevice";
-import { sundayDatesAround } from "../leaderSchedule";
+import { calendarDatesAround, sundayDatesAround } from "../leaderSchedule";
 import { AutoFitSlideText } from "./AutoFitSlideText";
 import { useConfirmationDialog } from "./ConfirmationDialog";
 import { CalendarPopup } from "./CalendarPopup";
@@ -190,26 +190,6 @@ function serviceTitleForDate(value: string) {
 function serviceLongDateForInput(value: string) {
   const date = new Date(serviceIsoFromDateInput(value));
   return Number.isNaN(date.getTime()) ? serviceTitleForDate(value) : SERVICE_LONG_DATE_FORMATTER.format(date);
-}
-
-function monthInputFromDate(value: Date) {
-  return `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, "0")}`;
-}
-
-function monthDateFromInput(value: string) {
-  const [year, month] = value.split("-").map(Number);
-  return new Date(year || new Date().getFullYear(), (month || 1) - 1, 1);
-}
-
-function calendarDaysForMonth(monthInput: string) {
-  const monthStart = monthDateFromInput(monthInput);
-  const firstVisible = new Date(monthStart);
-  firstVisible.setDate(firstVisible.getDate() - firstVisible.getDay());
-  return Array.from({ length: 42 }, (_, index) => {
-    const date = new Date(firstVisible);
-    date.setDate(firstVisible.getDate() + index);
-    return date;
-  });
 }
 
 function isTransientApiError(error: unknown) {
@@ -648,7 +628,6 @@ export function PresentationView({
   const [topbarSlot, setTopbarSlot] = useState<HTMLElement | null>(null);
   const [servicePickerOpen, setServicePickerOpen] = useState(false);
   const [serviceDraftDate, setServiceDraftDate] = useState("");
-  const [serviceCalendarMonth, setServiceCalendarMonth] = useState(monthInputFromDate(new Date()));
   const [serviceHistoryOpen, setServiceHistoryOpen] = useState(false);
   const [serviceHistory, setServiceHistory] = useState<PlanHistoryEntry[]>([]);
   const [serviceHistoryLoading, setServiceHistoryLoading] = useState(false);
@@ -756,7 +735,10 @@ export function PresentationView({
       ),
     [servicePlans],
   );
-  const calendarDays = useMemo(() => calendarDaysForMonth(serviceCalendarMonth), [serviceCalendarMonth]);
+  const allCalendarDates = useMemo(
+    () => calendarDatesAround(serviceDraftDate || nextSundayDateInput()),
+    [serviceDraftDate],
+  );
   const sundayCalendarDates = useMemo(
     () => sundayDatesAround(serviceDraftDate || nextSundayDateInput()),
     [serviceDraftDate],
@@ -1545,7 +1527,6 @@ export function PresentationView({
   function openServicePicker() {
     const draftDate = dateInputFromIso(plan?.service_date) || nextSundayDateInput();
     setServiceDraftDate(draftDate);
-    setServiceCalendarMonth(draftDate.slice(0, 7) || monthInputFromDate(new Date()));
     setServicePickerOpen(true);
     setServiceHistoryOpen(false);
   }
@@ -3434,16 +3415,12 @@ export function PresentationView({
         onClose={() => setServicePickerOpen(false)}
         title="Services"
         eyebrow="Calendar"
-        calendarMonth={serviceCalendarMonth}
-        onMonthChange={setServiceCalendarMonth}
-        calendarDays={calendarDays.map((day) => {
-          const dateInput = dateInputFromDate(day);
+        allDays={allCalendarDates.map((dateInput) => {
           const existing = plansByDate.get(dateInput);
           const isToday = dateInput === dateInputFromDate(new Date());
-          const isSunday = day.getDay() === 0;
+          const isSunday = new Date(`${dateInput}T12:00:00`).getDay() === 0;
           return {
             date: dateInput,
-            muted: !dateInput.startsWith(serviceCalendarMonth),
             className: `${existing || isSunday ? "has-service" : ""} ${isToday ? "is-today" : ""}`.trim(),
           };
         })}
