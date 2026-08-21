@@ -24,6 +24,7 @@ export function MyProfile({ onProfileChanged }: { onProfileChanged: () => void }
   const [away, setAway] = useState({ starts_on: "", ends_on: "", note: "" });
   const [message, setMessage] = useState<string | null>(null);
   const [savingServing, setSavingServing] = useState(false);
+  const [immediateAction, setImmediateAction] = useState<string | null>(null);
   const [profileSection, setProfileSection] = useState<"account" | "serving">("account");
   const initialSectionChosen = useRef(false);
   const initialInvitationFocused = useRef(false);
@@ -76,6 +77,45 @@ export function MyProfile({ onProfileChanged }: { onProfileChanged: () => void }
     finally { setSavingServing(false); }
   }
 
+  async function volunteerNow(areaKey: string, draft: ServingDraft) {
+    setImmediateAction(areaKey);
+    try {
+      await saveVolunteerPreference(areaKey, {
+        preferred_frequency: draft.frequency_period === "week" ? "weekly" : draft.frequency_period === "month" ? "monthly" : "quarterly",
+        frequency_count: draft.frequency_count,
+        frequency_period: draft.frequency_period,
+        availability_notes: draft.availability_notes || null,
+      });
+      await load();
+      onProfileChanged();
+      setMessage("Volunteer request sent.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not send volunteer request.");
+    } finally {
+      setImmediateAction(null);
+    }
+  }
+
+  async function acceptInvitationNow(areaKey: string, draft: ServingDraft) {
+    setImmediateAction(areaKey);
+    try {
+      await decideServingInvitation(areaKey, "approved");
+      await saveVolunteerPreference(areaKey, {
+        preferred_frequency: draft.frequency_period === "week" ? "weekly" : draft.frequency_period === "month" ? "monthly" : "quarterly",
+        frequency_count: draft.frequency_count,
+        frequency_period: draft.frequency_period,
+        availability_notes: draft.availability_notes || null,
+      });
+      await load();
+      onProfileChanged();
+      setMessage("Invitation accepted.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not accept invitation.");
+    } finally {
+      setImmediateAction(null);
+    }
+  }
+
   if (!data) return <section className="profile-workspace"><p>{message || "Loading your profile…"}</p></section>;
   const baseline = makeDrafts(data);
   const invitationCount = data.preferences.filter((preference) => preference.initiated_by === "admin" && preference.status === "pending").length;
@@ -88,7 +128,8 @@ export function MyProfile({ onProfileChanged }: { onProfileChanged: () => void }
     </form> : null}
     {profileSection === "serving" ? <section className={`profile-card serving-list-panel ${servingDirty ? "has-unsaved-changes" : ""}`}>
       <div className="section-heading"><div><p className="eyebrow">Serving</p><h2>How I can help</h2></div><div className="action-row">{invitationCount ? <span className="status-pill attention">{invitationCount} invitation{invitationCount === 1 ? "" : "s"} to answer</span> : null}{servingDirty ? <><span className="status-pill attention">Unsaved changes</span><button className="text-button" onClick={() => setDrafts(makeDrafts(data))} type="button">Discard</button></> : null}<button className="primary-button" disabled={!servingDirty || savingServing} onClick={() => void saveServing()} type="button">{savingServing ? "Saving…" : "Save serving"}</button></div></div>
-      <p className="muted-copy">Changes remain drafts until saved. Approved roles stay active while you adjust their workload.</p>
+      {message ? <p className="form-message">{message}</p> : null}
+      <p className="muted-copy">Volunteering and accepting invitations happen immediately. Changes to workload, notes, or removals remain drafts until saved.</p>
       <div className="serving-role-groups">{Array.from(new Set(data.areas.map((area) => area.category))).map((category) => <section className="serving-role-group" key={category}><h3>{category}</h3>{data.areas.filter((area) => area.category === category).map((area) => {
         const preference = data.preferences.find((item) => item.area.key === area.key);
         const directlyAssigned = Boolean(area.legacy_role_name && data.user.roles.includes(area.legacy_role_name));
@@ -96,7 +137,7 @@ export function MyProfile({ onProfileChanged }: { onProfileChanged: () => void }
         const invitationPending = preference?.initiated_by === "admin" && preference.status === "pending";
         return <details className={`serving-role-row ${draft.selected ? "selected" : ""} ${changed ? "is-dirty" : ""} ${invitationPending ? "is-pending" : ""}`} id={invitationPending ? `profile-invitation-${area.key}` : undefined} key={area.key}>
           <summary><span><strong>{area.name}</strong><small>{directlyAssigned ? "Assigned directly" : changed ? `Unsaved · ${preference ? preference.status : "new request"}` : preference ? `${preference.status} · ${draft.frequency_count} per ${draft.frequency_period}` : draft.selected ? `New request · ${draft.frequency_count} per ${draft.frequency_period}` : area.description}</small></span></summary>
-          <div className="serving-role-details">{directlyAssigned ? <p className="muted-copy">This role is already active through your assigned access role. An administrator can change it.</p> : draft.selected ? <><div className="frequency-input"><span>Up to</span><input aria-label={`${area.name} frequency`} min="0" max="52" type="number" value={draft.frequency_count} onChange={(event) => setDrafts({ ...drafts, [area.key]: { ...draft, frequency_count: Number(event.target.value) } })} /><span>per</span><select value={draft.frequency_period} onChange={(event) => setDrafts({ ...drafts, [area.key]: { ...draft, frequency_period: event.target.value as VolunteerFrequencyPeriod } })}><option value="week">week</option><option value="month">month</option><option value="quarter">quarter</option><option value="year">year</option></select></div><label>Notes<textarea value={draft.availability_notes} onChange={(event) => setDrafts({ ...drafts, [area.key]: { ...draft, availability_notes: event.target.value } })} placeholder="Times that suit, experience, or anything coordinators should know" /></label>{preference?.admin_notes ? <p className="field-help">Admin note: {preference.admin_notes}</p> : null}{preference?.initiated_by === "admin" && preference.status === "pending" ? <div className="action-row lifecycle-actions"><button className="text-button" onClick={() => setDrafts({ ...drafts, [area.key]: { ...draft, decision: "declined" } })} type="button">Reject invitation</button><button className="primary-button" onClick={() => setDrafts({ ...drafts, [area.key]: { ...draft, decision: "approved" } })} type="button">Accept invitation</button></div> : <button className="danger-button role-lifecycle-button" onClick={() => setDrafts({ ...drafts, [area.key]: { ...draft, selected: false } })} type="button">{preference?.status === "pending" ? "Cancel request" : preference?.status === "approved" ? "Leave role" : "Remove request"}</button>}</> : <button className="text-button role-lifecycle-button" onClick={() => setDrafts({ ...drafts, [area.key]: { ...draft, selected: true } })} type="button">{preference ? "Keep role" : "Volunteer for this role"}</button>}</div>
+          <div className="serving-role-details">{directlyAssigned ? <p className="muted-copy">This role is already active through your assigned access role. An administrator can change it.</p> : draft.selected ? <><div className="frequency-input"><span>Up to</span><input aria-label={`${area.name} frequency`} min="0" max="52" type="number" value={draft.frequency_count} onChange={(event) => setDrafts({ ...drafts, [area.key]: { ...draft, frequency_count: Number(event.target.value) } })} /><span>per</span><select value={draft.frequency_period} onChange={(event) => setDrafts({ ...drafts, [area.key]: { ...draft, frequency_period: event.target.value as VolunteerFrequencyPeriod } })}><option value="week">week</option><option value="month">month</option><option value="quarter">quarter</option><option value="year">year</option></select></div><label>Notes<textarea value={draft.availability_notes} onChange={(event) => setDrafts({ ...drafts, [area.key]: { ...draft, availability_notes: event.target.value } })} placeholder="Times that suit, experience, or anything coordinators should know" /></label>{preference?.admin_notes ? <p className="field-help">Admin note: {preference.admin_notes}</p> : null}{preference?.initiated_by === "admin" && preference.status === "pending" ? <div className="action-row lifecycle-actions"><button className="text-button" onClick={() => setDrafts({ ...drafts, [area.key]: { ...draft, decision: "declined" } })} type="button">Reject invitation</button><button className="primary-button" disabled={immediateAction === area.key} onClick={() => void acceptInvitationNow(area.key, draft)} type="button">{immediateAction === area.key ? "Accepting…" : "Accept invitation"}</button></div> : <button className="danger-button role-lifecycle-button" onClick={() => setDrafts({ ...drafts, [area.key]: { ...draft, selected: false } })} type="button">{preference?.status === "pending" ? "Cancel request" : preference?.status === "approved" ? "Leave role" : "Remove request"}</button>}</> : <button className="text-button role-lifecycle-button" disabled={immediateAction === area.key} onClick={() => void volunteerNow(area.key, draft)} type="button">{immediateAction === area.key ? "Sending…" : preference ? "Keep role" : "Volunteer for this role"}</button>}</div>
         </details>;
       })}</section>)}</div>
       <section className="serving-availability"><div className="section-heading"><div><p className="eyebrow">Availability</p><h2>Dates I cannot serve</h2></div></div><form className="availability-entry" onSubmit={async (event) => { event.preventDefault(); await addVolunteerUnavailability({ ...away, note: away.note || null }); setAway({ starts_on: "", ends_on: "", note: "" }); await load(); }}><label>From<input required type="date" value={away.starts_on} onChange={(event) => setAway({ ...away, starts_on: event.target.value })} /></label><label>To<input required type="date" min={away.starts_on} value={away.ends_on} onChange={(event) => setAway({ ...away, ends_on: event.target.value })} /></label><label>Note<input value={away.note} onChange={(event) => setAway({ ...away, note: event.target.value })} /></label><button className="text-button" type="submit">Add dates</button></form><div className="availability-list">{data.unavailable.map((item) => <div key={item.id}><span><strong>{item.starts_on}</strong> to <strong>{item.ends_on}</strong>{item.note ? ` · ${item.note}` : ""}</span><button className="text-button" type="button" onClick={async () => { await removeVolunteerUnavailability(item.id); await load(); }}>Remove</button></div>)}</div></section>

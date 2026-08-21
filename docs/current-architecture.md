@@ -158,6 +158,9 @@ row when Profile opens. Admin attention likewise opens the relevant user and
 expanded item on Roles & serving without clearing the alert before it has been
 handled. On desktop, the user list and user editor remain visible side by side;
 the Users/User settings switch is reserved for narrower screens.
+Volunteering and accepting an admin invitation are immediate actions and do not
+require a second save. Workload, note, rejection, and removal edits remain
+staged so consequential changes are still deliberate.
 
 `identity` now owns:
 
