@@ -451,7 +451,7 @@ export interface Member {
 
 export type VolunteerFrequency = "weekly" | "monthly" | "quarterly" | "semi_yearly" | "occasional";
 export type VolunteerStatus = "pending" | "approved" | "declined";
-export interface ServingArea { id: string; key: string; name: string; category: string; description: string | null; }
+export interface ServingArea { id: string; key: string; name: string; category: string; description: string | null; legacy_role_name: string | null; }
 export interface VolunteerPreference { id: string; user_id: string; area: ServingArea; status: VolunteerStatus; initiated_by: "volunteer" | "admin"; admin_attention_pending: boolean; preferred_frequency: VolunteerFrequency; frequency_count: number; frequency_period: VolunteerFrequencyPeriod; availability_notes: string | null; admin_notes: string | null; reviewed_at: string | null; }
 export type VolunteerFrequencyPeriod = "week" | "month" | "quarter" | "year";
 export interface VolunteerUnavailability { id: string; starts_on: string; ends_on: string; note: string | null; }

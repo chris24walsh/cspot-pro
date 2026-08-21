@@ -153,6 +153,17 @@ SERVING_AREA_ROLES: dict[str, str] = {
     "sound_av": "presenter",
 }
 
+# True semantic equivalents of older access roles. Other mappings above grant
+# suitable access without claiming that the responsibilities are identical.
+SERVING_AREA_LEGACY_ROLES: dict[str, str] = {
+    "worship": "worship_leader",
+    "worship_musician": "musician",
+    "sunday_school": "sunday_school_teacher",
+    "sunday_school_leader": "sunday_school_leader",
+    "service_teacher": "teacher",
+    "service_presenter": "presenter",
+}
+
 
 def normalize_role_name(role_name: str) -> str:
     return LEGACY_ROLE_ALIASES.get(role_name, role_name)

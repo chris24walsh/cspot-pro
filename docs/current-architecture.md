@@ -141,6 +141,11 @@ workload, note, status, and removal changes locally before an explicit save.
 Attention follows ownership: admin invitations alert the invited user, while
 admins are alerted by volunteer requests and by responses to invitations they
 sent. Outgoing invitations do not create an admin alert.
+True legacy-role equivalents are consolidated in the serving UI: Worship
+Leader, Musician, Sunday School teacher/leader, Service Teacher, and Presenter
+direct assignments suppress duplicate volunteer or invitation controls. Access
+grants that are not semantic equivalents (for example Sound/AV using Presenter
+permissions) remain distinct. Historical preference records are preserved.
 
 `identity` now owns:
 

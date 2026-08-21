@@ -28,7 +28,11 @@ from app.modules.identity.models import (
     VolunteerPreference,
     VolunteerUnavailability,
 )
-from app.modules.identity.permissions import ROLE_DEFINITIONS, canonical_role_names
+from app.modules.identity.permissions import (
+    ROLE_DEFINITIONS,
+    SERVING_AREA_LEGACY_ROLES,
+    canonical_role_names,
+)
 from app.modules.identity.schemas import (
     AuthActionCompleteRequest,
     AuthActionTokenRead,
@@ -259,6 +263,7 @@ def area_to_read(area: ServingArea) -> ServingAreaRead:
         name=area.name,
         category=area.category,
         description=area.description,
+        legacy_role_name=SERVING_AREA_LEGACY_ROLES.get(area.key),
     )
 
 
@@ -281,6 +286,14 @@ def preference_to_read(
         admin_notes=preference.admin_notes,
         reviewed_at=preference.reviewed_at,
     )
+
+
+def preference_duplicates_direct_role(
+    session: Session, preference: VolunteerPreference, user_id: str
+) -> bool:
+    area = session.get(ServingArea, preference.serving_area_id)
+    equivalent_role = SERVING_AREA_LEGACY_ROLES.get(area.key) if area else None
+    return bool(equivalent_role and equivalent_role in list_role_names(session, user_id))
 
 
 def build_public_app_url() -> str:
@@ -567,6 +580,11 @@ def get_serving_profile(
     preferences = session.scalars(
         select(VolunteerPreference).where(VolunteerPreference.user_id == current_user.id)
     ).all()
+    preferences = [
+        preference
+        for preference in preferences
+        if not preference_duplicates_direct_role(session, preference, current_user.id)
+    ]
     unavailable = session.scalars(
         select(VolunteerUnavailability)
         .where(VolunteerUnavailability.user_id == current_user.id)
@@ -610,6 +628,9 @@ def volunteer_for_area(
     )
     if area is None:
         raise HTTPException(status_code=404, detail="Serving area not found")
+    equivalent_role = SERVING_AREA_LEGACY_ROLES.get(area.key)
+    if equivalent_role and equivalent_role in list_role_names(session, current_user.id):
+        raise HTTPException(status_code=409, detail="This role is already assigned directly")
     preference = session.scalar(
         select(VolunteerPreference).where(
             VolunteerPreference.user_id == current_user.id,
@@ -721,6 +742,11 @@ def list_volunteer_requests(
         .join(User, User.id == VolunteerPreference.user_id)
         .order_by(VolunteerPreference.status.desc(), User.name)
     ).all()
+    rows = [
+        (preference, user)
+        for preference, user in rows
+        if not preference_duplicates_direct_role(session, preference, user.id)
+    ]
     return [
         VolunteerAdminRead(
             user_id=user.id,
@@ -794,6 +820,9 @@ def invite_volunteer(
     )
     if area is None:
         raise HTTPException(status_code=404, detail="Serving area not found")
+    equivalent_role = SERVING_AREA_LEGACY_ROLES.get(area.key)
+    if equivalent_role and equivalent_role in list_role_names(session, user_id):
+        raise HTTPException(status_code=409, detail="This role is already assigned directly")
     preference = session.scalar(
         select(VolunteerPreference).where(
             VolunteerPreference.user_id == user_id, VolunteerPreference.serving_area_id == area.id

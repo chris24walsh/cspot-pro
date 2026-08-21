@@ -93,6 +93,7 @@ class ServingAreaRead(BaseModel):
     name: str
     category: str
     description: str | None = None
+    legacy_role_name: str | None = None
 
 
 class VolunteerPreferenceRead(BaseModel):
