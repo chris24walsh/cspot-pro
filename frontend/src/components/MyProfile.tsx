@@ -36,7 +36,6 @@ export function MyProfile({ onProfileChanged }: { onProfileChanged: () => void }
   const [message, setMessage] = useState<string | null>(null);
   const [immediateAction, setImmediateAction] = useState<string | null>(null);
   const [profileSection, setProfileSection] = useState<"account" | "serving">(() => sessionStorage.getItem("cspot-profile-section") === "serving" ? "serving" : "account");
-  const [openArea, setOpenArea] = useState<string | null>(null);
   const initialSectionChosen = useRef(false);
   const initialInvitationFocused = useRef(false);
 
@@ -50,7 +49,6 @@ export function MyProfile({ onProfileChanged }: { onProfileChanged: () => void }
       if (invitation) {
         setProfileSection("serving");
         sessionStorage.setItem("cspot-profile-section", "serving");
-        setOpenArea(invitation.area.key);
       }
     }
   }
@@ -62,6 +60,7 @@ export function MyProfile({ onProfileChanged }: { onProfileChanged: () => void }
     initialInvitationFocused.current = true;
     requestAnimationFrame(() => {
       const element = document.getElementById(`profile-invitation-${invitation.area.key}`) as HTMLDetailsElement | null;
+      if (element) element.open = true;
       element?.scrollIntoView({ behavior: "smooth", block: "center" });
     });
   }, [data, profileSection]);
@@ -169,7 +168,7 @@ export function MyProfile({ onProfileChanged }: { onProfileChanged: () => void }
         const invitationPending = preference?.initiated_by === "admin" && preference.status === "pending";
         const stateLabel = directlyAssigned ? "Assigned" : invitationPending ? "Invitation" : preference?.status === "approved" ? "Active" : preference?.status === "pending" ? "Requested" : preference?.status === "declined" ? "Declined" : null;
         const destructiveLabel = preference?.status === "pending" ? "Cancel request" : preference?.status === "approved" ? "Leave role" : "Remove request";
-        return <details className={`serving-role-row ${draft.selected ? "selected" : ""} ${invitationPending ? "is-pending" : ""}`} id={invitationPending ? `profile-invitation-${area.key}` : undefined} key={area.key} onToggle={(event) => setOpenArea((current) => event.currentTarget.open ? area.key : current === area.key ? null : current)} open={openArea === area.key}>
+        return <details className={`serving-role-row profile-serving-role ${draft.selected ? "selected" : ""} ${invitationPending ? "is-pending" : ""}`} id={invitationPending ? `profile-invitation-${area.key}` : undefined} key={area.key} onToggle={(event) => { if (!event.currentTarget.open) return; document.querySelectorAll<HTMLDetailsElement>(".profile-serving-role[open]").forEach((row) => { if (row !== event.currentTarget) row.open = false; }); }}>
           <summary><span><strong>{area.name}</strong><small>{directlyAssigned ? "Assigned directly" : preference ? `${preference.status} · ${draft.frequency_count} per ${draft.frequency_period}` : area.description}</small></span>{stateLabel ? <span className={`role-state-flag ${invitationPending ? "attention" : ""}`}>{stateLabel}</span> : null}</summary>
           <div className="serving-role-details">{directlyAssigned ? <p className="muted-copy">This role is already active through your assigned access role. An administrator can change it.</p> : draft.selected ? <><div className="frequency-input"><span>Up to</span><input aria-label={`${area.name} frequency`} min="0" max="52" type="number" value={draft.frequency_count} onBlur={() => void updatePreferenceNow(area.key, drafts[area.key])} onChange={(event) => setDrafts({ ...drafts, [area.key]: { ...draft, frequency_count: Number(event.target.value) } })} /><span>per</span><select value={draft.frequency_period} onChange={(event) => { const next = { ...draft, frequency_period: event.target.value as VolunteerFrequencyPeriod }; setDrafts({ ...drafts, [area.key]: next }); void updatePreferenceNow(area.key, next); }}><option value="week">week</option><option value="month">month</option><option value="quarter">quarter</option><option value="year">year</option></select></div><label>Notes<textarea value={draft.availability_notes} onBlur={() => void updatePreferenceNow(area.key, drafts[area.key])} onChange={(event) => setDrafts({ ...drafts, [area.key]: { ...draft, availability_notes: event.target.value } })} placeholder="Times that suit, experience, or anything coordinators should know" /></label>{preference?.admin_notes ? <p className="field-help">Admin note: {preference.admin_notes}</p> : null}{invitationPending ? <div className="action-row lifecycle-actions"><button className="danger-button" disabled={immediateAction === area.key} onClick={() => void destructiveRoleAction(area.key, "reject", "Reject invitation")} type="button">Reject invitation</button><button className="primary-button" disabled={immediateAction === area.key} onClick={() => void acceptInvitationNow(area.key, draft)} type="button">{immediateAction === area.key ? "Working…" : "Accept invitation"}</button></div> : <button className="danger-button role-lifecycle-button" disabled={immediateAction === area.key} onClick={() => void destructiveRoleAction(area.key, "remove", destructiveLabel)} type="button">{destructiveLabel}</button>}</> : <button className="text-button role-lifecycle-button" disabled={immediateAction === area.key} onClick={() => void volunteerNow(area.key, draft)} type="button">{immediateAction === area.key ? "Sending…" : "Volunteer for this role"}</button>}</div>
         </details>;
