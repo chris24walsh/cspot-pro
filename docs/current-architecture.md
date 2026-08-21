@@ -367,6 +367,10 @@ Search modes:
   responses and live-state polls cannot overwrite a newer date selection.
 - Service calendar summaries count content supplied by the linked worship set,
   so a service with worship songs but no direct items does not appear empty.
+- The service calendar's populated styling is also content-based; merely
+  opening a date and creating an empty plan does not leave it highlighted.
+- Worship-set calendar styling follows the same content-based rule while
+  retaining leader markers independently of whether songs have been added.
 - Migration `0031_remove_empty_ends` removes legacy End slides only when they
   are the sole active item in an otherwise empty service; populated services
   and their intentional End slides are preserved.

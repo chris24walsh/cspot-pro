@@ -750,13 +750,15 @@ export function PresentationView({
     () => sundayDatesAround(serviceDraftDate || nextSundayDateInput()),
     [serviceDraftDate],
   );
+  function serviceCalendarItemCount(dateInput: string) {
+    if (dateInputFromIso(plan?.service_date) === dateInput) return effectivePlanItems.length;
+    return combinedPlanningItemCount(plansByDate.get(dateInput), worshipSetsByDate.get(dateInput));
+  }
   function serviceCalendarDay(dateInput: string) {
-    const existing = plansByDate.get(dateInput);
     const isToday = dateInput === dateInputFromDate(new Date());
-    const isSunday = new Date(`${dateInput}T12:00:00`).getDay() === 0;
     return {
       date: dateInput,
-      className: `${existing || isSunday ? "has-service" : ""} ${isToday ? "is-today" : ""}`.trim(),
+      className: `${serviceCalendarItemCount(dateInput) > 0 ? "has-service" : ""} ${isToday ? "is-today" : ""}`.trim(),
     };
   }
   const slides = useMemo(
@@ -3440,24 +3442,13 @@ export function PresentationView({
         title="Services"
         eyebrow="Calendar"
         allDays={allCalendarDates.map(serviceCalendarDay)}
-        sundayDays={sundayCalendarDates.map((dateInput) => {
-          const existing = plansByDate.get(dateInput);
-          const isToday = dateInput === dateInputFromDate(new Date());
-          return {
-            date: dateInput,
-            className: `${existing ? "has-service" : ""} ${isToday ? "is-today" : ""}`.trim(),
-          };
-        })}
+        sundayDays={sundayCalendarDates.map(serviceCalendarDay)}
         selectedDate={serviceDraftDate}
         resolveDay={serviceCalendarDay}
         onDateSelect={(dateInput) => void openServiceDate(dateInput)}
         dayContent={(day) => {
           const date = new Date(`${day.date}T12:00:00`);
-          const existing = plansByDate.get(day.date);
-          const isCurrentPlan = dateInputFromIso(plan?.service_date) === day.date;
-          const itemCount = isCurrentPlan
-            ? effectivePlanItems.length
-            : combinedPlanningItemCount(existing, worshipSetsByDate.get(day.date));
+          const itemCount = serviceCalendarItemCount(day.date);
           return (
             <>
               <span>{date.getDate()}</span>

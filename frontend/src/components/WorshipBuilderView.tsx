@@ -469,13 +469,15 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
     () => sundayDatesAround(setDraftDate || dateInputFromIso(new Date().toISOString())),
     [setDraftDate],
   );
+  function worshipCalendarItemCount(dateInput: string) {
+    if (dateInputFromIso(plan?.service_date) === dateInput) return worshipItems.length;
+    return worshipSetsByDate.get(dateInput)?.item_count ?? 0;
+  }
   function worshipCalendarDay(dateInput: string) {
-    const existing = worshipSetsByDate.get(dateInput);
     const leaderId = worshipLeaderIdForDate(dateInput);
-    const isSunday = new Date(`${dateInput}T12:00:00`).getDay() === 0;
     return {
       date: dateInput,
-      className: `${existing || isSunday ? "has-service" : ""} ${
+      className: `${worshipCalendarItemCount(dateInput) > 0 ? "has-service" : ""} ${
         leaderId ? calendarColor(users.find((user) => user.id === leaderId)) : ""
       }`.trim(),
     };
@@ -2340,23 +2342,14 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
         title="Worship Sets"
         eyebrow="Calendar"
         allDays={allCalendarDates.map(worshipCalendarDay)}
-        sundayDays={sundayCalendarDates.map((dateInput) => {
-          const existing = worshipSetsByDate.get(dateInput);
-          const leaderId = worshipLeaderIdForDate(dateInput);
-          return {
-            date: dateInput,
-            className: `${existing ? "has-service" : ""} ${
-              leaderId ? calendarColor(users.find((user) => user.id === leaderId)) : ""
-            }`.trim(),
-          };
-        })}
+        sundayDays={sundayCalendarDates.map(worshipCalendarDay)}
         selectedDate={setDraftDate}
         resolveDay={worshipCalendarDay}
         onDateSelect={(dateInput) => void openSetDate(dateInput)}
         dayContent={(day) => {
           const leaderId = worshipLeaderIdForDate(day.date);
           const leader = users.find((user) => user.id === leaderId);
-          const existing = worshipSetsByDate.get(day.date);
+          const itemCount = worshipCalendarItemCount(day.date);
           const date = new Date(`${day.date}T12:00:00`);
           return (
             <>
@@ -2366,7 +2359,7 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
                   {worshipLeaderMarkers.get(leader.id)}
                 </span>
               ) : null}
-              {existing && existing.item_count > 0 ? <small>{`${existing.item_count} set items`}</small> : null}
+              {itemCount > 0 ? <small>{`${itemCount} set item${itemCount === 1 ? "" : "s"}`}</small> : null}
             </>
           );
         }}
