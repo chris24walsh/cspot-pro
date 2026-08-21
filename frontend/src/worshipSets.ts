@@ -41,6 +41,13 @@ export function matchingWorshipSetForService(service: PlanDetail | null, sets: P
   return sets.find((candidate) => dateKey(candidate.service_date) === serviceDate) ?? null;
 }
 
+export function combinedPlanningItemCount(
+  service: Pick<PlanSummary, "item_count"> | null | undefined,
+  worshipSet: Pick<PlanSummary, "item_count"> | null | undefined,
+) {
+  return (service?.item_count ?? 0) + (worshipSet?.item_count ?? 0);
+}
+
 export function preferredWorshipSetPlanId(sets: PlanSummary[], now = new Date()) {
   const todayKey = dateKey(now.toISOString());
   const targetSunday = new Date(now);

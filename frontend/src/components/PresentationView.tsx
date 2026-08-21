@@ -83,6 +83,7 @@ import { isEditableKeyboardTarget, slideKeyboardDirection, type SlideKeyboardDir
 import { analyzeWorshipText, buildLyricsFromSections, canonicalizeWorshipLyrics } from "../worshipText";
 import {
   WORSHIP_SET_ANCHOR_ITEM_TYPE,
+  combinedPlanningItemCount,
   isWorshipSetPlan,
   matchingWorshipSetForService,
   mergeWorshipSetIntoService,
@@ -736,6 +737,10 @@ export function PresentationView({
           .filter(([date]) => Boolean(date)),
       ),
     [servicePlans],
+  );
+  const worshipSetsByDate = useMemo(
+    () => new Map(worshipSetPlans.map((setSummary) => [dateInputFromIso(setSummary.service_date), setSummary] as const)),
+    [worshipSetPlans],
   );
   const allCalendarDates = useMemo(
     () => calendarDatesAround(serviceDraftDate || nextSundayDateInput()),
@@ -3449,10 +3454,14 @@ export function PresentationView({
         dayContent={(day) => {
           const date = new Date(`${day.date}T12:00:00`);
           const existing = plansByDate.get(day.date);
+          const isCurrentPlan = dateInputFromIso(plan?.service_date) === day.date;
+          const itemCount = isCurrentPlan
+            ? effectivePlanItems.length
+            : combinedPlanningItemCount(existing, worshipSetsByDate.get(day.date));
           return (
             <>
               <span>{date.getDate()}</span>
-              {existing && existing.item_count > 0 ? <small>{`${existing.item_count} service items`}</small> : null}
+              {itemCount > 0 ? <small>{`${itemCount} service item${itemCount === 1 ? "" : "s"}`}</small> : null}
             </>
           );
         }}

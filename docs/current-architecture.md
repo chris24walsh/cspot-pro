@@ -365,6 +365,8 @@ Search modes:
   these overlays are admin-only.
 - Calendar-driven service and worship-set loads are request-ordered: stale
   responses and live-state polls cannot overwrite a newer date selection.
+- Service calendar summaries count content supplied by the linked worship set,
+  so a service with worship songs but no direct items does not appear empty.
 - Migration `0031_remove_empty_ends` removes legacy End slides only when they
   are the sole active item in an otherwise empty service; populated services
   and their intentional End slides are preserved.
