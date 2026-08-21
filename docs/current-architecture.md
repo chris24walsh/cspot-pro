@@ -158,9 +158,13 @@ row when Profile opens. Admin attention likewise opens the relevant user and
 expanded item on Roles & serving without clearing the alert before it has been
 handled. On desktop, the user list and user editor remain visible side by side;
 the Users/User settings switch is reserved for narrower screens.
-Volunteering and accepting an admin invitation are immediate actions and do not
-require a second save. Workload, note, rejection, and removal edits remain
-staged so consequential changes are still deliberate.
+All personal Serving actions apply immediately and do not require a second
+save. Workload and note edits persist on change; destructive actions such as
+rejecting an invitation, cancelling a request, leaving a role, or removing an
+unavailable range use an in-app confirmation. The last-open profile tab is
+retained across identity refreshes. Active/requested roles sort first within
+each ministry, show a persistent compact status flag, and use a one-row-open
+accordion on both mobile and desktop.
 
 `identity` now owns:
 

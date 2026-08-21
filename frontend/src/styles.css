@@ -2165,6 +2165,22 @@ h3 {
 .serving-list-panel.has-unsaved-changes { border-color: #dfb34e; }
 .serving-role-row > summary { cursor: pointer; list-style-position: inside; padding: 7px 9px; }
 .serving-role-row > summary::marker { color: #65716a; }
+.serving-role-row > summary { padding-right: 88px; position: relative; }
+.role-state-flag {
+  background: #dcefe6;
+  border: 1px solid #9fc9b7;
+  border-radius: 999px;
+  color: #245445;
+  font-size: 10px;
+  font-weight: 850;
+  line-height: 1;
+  padding: 4px 7px;
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+.role-state-flag.attention { background: #fff0cc; border-color: #dfb34e; color: #6f4b00; }
 .serving-role-row > summary label { align-items: center; cursor: pointer; display: inline-flex; gap: 8px; max-width: calc(100% - 18px); vertical-align: middle; }
 .serving-role-row > summary label > span, .serving-role-row > summary > span { display: inline-grid; gap: 1px; vertical-align: middle; }
 .serving-role-row > summary strong { color: #17201b; font-size: 13px; }
