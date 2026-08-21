@@ -2132,14 +2132,17 @@ h3 {
 .inline-notice { align-items: center; background: #f2f8f4; border-radius: 8px; display: flex; justify-content: space-between; margin: 8px 0; padding: 6px 9px; }
 .approved-volunteers { border-top: 1px solid #e8e2d3; padding-top: 7px; }
 .approved-volunteers summary { color: #53615a; cursor: pointer; font-size: 12px; font-weight: 850; padding: 4px 0; }
-.role-group-grid { display: grid; gap: 8px; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); margin-top: 8px; }
-.role-group { background: #fffdf7; border: 1px solid #e3dcc8; border-radius: 8px; display: grid; gap: 6px; padding: 8px; }
+.role-group-grid { display: grid; gap: 0; grid-template-columns: minmax(0, 1fr); margin-top: 8px; }
+.role-group { border-top: 1px solid #e3dcc8; display: grid; gap: 6px; padding: 11px 0; }
+.role-group:first-child { border-top: 0; padding-top: 3px; }
 .role-group > h3, .serving-role-group > h3 { color: #53615a; font-size: 12px; letter-spacing: .03em; margin: 0; text-transform: uppercase; }
-.capability-fieldset .volunteer-review { background: transparent; border: 0; border-top: 1px solid #ded8c7; border-radius: 0; margin-top: 10px; padding: 10px 0 0; }
+.capability-fieldset .volunteer-review { background: transparent; border: 0; border-radius: 0; margin: 0; padding: 0; }
 .capability-fieldset .volunteer-review .section-heading h3 { font-size: 13px; }
+.compact-pending-label { display: flex; justify-content: flex-end; margin: -24px 0 4px; }
 
 .serving-role-groups { display: grid; gap: 10px; margin-top: 10px; }
-.serving-role-group { background: #fffdf7; border: 1px solid #e3dcc8; border-radius: 8px; display: grid; gap: 5px; padding: 9px; }
+.serving-role-group { border-top: 1px solid #e3dcc8; display: grid; gap: 5px; padding: 11px 0; }
+.serving-role-group:first-child { border-top: 0; padding-top: 3px; }
 .serving-role-row { background: #fffefa; border: 1px solid #e3dcc8; border-radius: 7px; overflow: hidden; }
 .serving-role-row.selected { border-color: #8dc7b5; }
 .serving-role-row.is-pending { background: #fffaf0; border-left: 3px solid #e6a82f; }
