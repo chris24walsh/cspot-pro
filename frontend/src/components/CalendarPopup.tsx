@@ -137,18 +137,27 @@ export function CalendarPopup({
 
   useEffect(() => {
     if (!isOpen) return;
+    const timeline = calendarTimelineRef.current;
+    if (timeline) timeline.dataset.calendarPositioned = "false";
+    let positionedFrame: number | null = null;
     const frame = window.requestAnimationFrame(() => {
-      const timeline = calendarTimelineRef.current;
-      if (!timeline) return;
-      const dates = Array.from(timeline.querySelectorAll<HTMLElement>("[data-calendar-date]"));
+      const currentTimeline = calendarTimelineRef.current;
+      if (!currentTimeline) return;
+      const dates = Array.from(currentTimeline.querySelectorAll<HTMLElement>("[data-calendar-date]"));
       const selected = dates.find((element) => element.dataset.calendarDate === selectedDate);
       const next = dates.find((element) => (element.dataset.calendarDate ?? "") >= selectedDate);
       const target = selected ?? next ?? dates[0];
       if (!target) return;
-      const targetTop = target.getBoundingClientRect().top - timeline.getBoundingClientRect().top + timeline.scrollTop;
-      timeline.scrollTop = Math.max(0, targetTop - timeline.clientHeight / 3);
+      const targetTop = target.getBoundingClientRect().top - currentTimeline.getBoundingClientRect().top + currentTimeline.scrollTop;
+      currentTimeline.scrollTop = Math.max(0, targetTop - currentTimeline.clientHeight / 3);
+      positionedFrame = window.requestAnimationFrame(() => {
+        if (calendarTimelineRef.current === currentTimeline) currentTimeline.dataset.calendarPositioned = "true";
+      });
     });
-    return () => window.cancelAnimationFrame(frame);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      if (positionedFrame !== null) window.cancelAnimationFrame(positionedFrame);
+    };
   }, [isOpen, selectedDate, viewMode]);
 
   if (!isOpen) return null;
@@ -206,10 +215,16 @@ export function CalendarPopup({
                 <strong>{viewMode === "sundays" ? "Sunday schedule" : "All dates"}</strong>
               </div>
               <div className="calendar-view-toggle" aria-label="Calendar days" role="group">
-                <button aria-pressed={viewMode === "sundays"} className={viewMode === "sundays" ? "active" : ""} onClick={() => setViewMode("sundays")} type="button">
+                <button aria-pressed={viewMode === "sundays"} className={viewMode === "sundays" ? "active" : ""} onClick={() => {
+                  if (calendarTimelineRef.current) calendarTimelineRef.current.dataset.calendarPositioned = "false";
+                  setViewMode("sundays");
+                }} type="button">
                   Sundays
                 </button>
-                <button aria-pressed={viewMode === "all"} className={viewMode === "all" ? "active" : ""} onClick={() => setViewMode("all")} type="button">
+                <button aria-pressed={viewMode === "all"} className={viewMode === "all" ? "active" : ""} onClick={() => {
+                  if (calendarTimelineRef.current) calendarTimelineRef.current.dataset.calendarPositioned = "false";
+                  setViewMode("all");
+                }} type="button">
                   All days
                 </button>
               </div>
@@ -222,6 +237,7 @@ export function CalendarPopup({
               className="calendar-timeline"
               onScroll={(event) => {
                 const timeline = event.currentTarget;
+                if (timeline.dataset.calendarPositioned !== "true") return;
                 if (timeline.scrollTop < 160 && prependScrollHeightRef.current === null) {
                   prependScrollHeightRef.current = timeline.scrollHeight;
                   setExtensions((current) => viewMode === "all"
