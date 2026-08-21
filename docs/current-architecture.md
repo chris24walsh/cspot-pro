@@ -182,6 +182,12 @@ count into its valid range. The limits are centralized so serving-area-specific
 admin configuration can replace these defaults later without another UI
 rewrite. The dense ministry/role hierarchy is the baseline form factor for
 future management panels.
+Admin Roles & serving follows the same immediate-action model as Profile:
+access-role assignment, rotation limits, request decisions, invitations,
+frequency, and admin notes persist without a separate save. Destructive removal,
+rejection, and invitation cancellation retain compact confirmation. Account &
+identity edits remain deliberately separate behind Save User, and an immediate
+serving mutation does not submit any unrelated account draft.
 
 `identity` now owns:
 
