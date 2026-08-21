@@ -101,6 +101,8 @@ class VolunteerPreferenceRead(BaseModel):
     area: ServingAreaRead
     status: Literal["pending", "approved", "declined"]
     preferred_frequency: Literal["weekly", "monthly", "quarterly", "semi_yearly", "occasional"]
+    frequency_count: int = Field(default=1, ge=0, le=52)
+    frequency_period: Literal["week", "month", "quarter", "year"] = "month"
     availability_notes: str | None = None
     admin_notes: str | None = None
     reviewed_at: datetime | None = None
@@ -111,6 +113,8 @@ class VolunteerPreferenceUpdate(BaseModel):
         "monthly"
     )
     availability_notes: str | None = Field(default=None, max_length=2000)
+    frequency_count: int = Field(default=1, ge=0, le=52)
+    frequency_period: Literal["week", "month", "quarter", "year"] = "month"
 
 
 class VolunteerReviewUpdate(BaseModel):
@@ -119,6 +123,8 @@ class VolunteerReviewUpdate(BaseModel):
         Literal["weekly", "monthly", "quarterly", "semi_yearly", "occasional"] | None
     ) = None
     admin_notes: str | None = Field(default=None, max_length=2000)
+    frequency_count: int | None = Field(default=None, ge=0, le=52)
+    frequency_period: Literal["week", "month", "quarter", "year"] | None = None
 
 
 class ServingProfileRead(BaseModel):

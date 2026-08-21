@@ -114,8 +114,9 @@ Route -> schema validation -> ORM/session work -> response schema
 ### Authentication and authorization
 
 Administrative access and serving capabilities are deliberately separate. Signed-in users
-can maintain their own identity, volunteer preferences, preferred frequency,
-and unavailable date ranges. Administrators approve or decline those requests;
+can maintain their own identity, volunteer preferences, a flexible workload
+(`X` per week, month, quarter, or year), and unavailable date ranges.
+Administrators approve or decline those requests;
 approved ministry capabilities provide their matching non-admin workspace access
 without a second permissions step. Approved worship and Sunday School
 preferences are also exposed to the existing rotation selectors; the same
@@ -131,7 +132,9 @@ trade labels: Worship & Production owns music, sound, projection, livestream,
 and its equipment care; Hospitality & Care owns welcome and food; Property &
 Facilities owns cleaning, grounds, and building maintenance. Specific jobs sit
 under these areas, allowing equipment repairs and rota roles to share a team
-without pretending they are the same task.
+without pretending they are the same task. Profile and admin use the same
+grouped, expandable role-list pattern so requests and reviews remain visibly
+coordinated.
 
 `identity` now owns:
 

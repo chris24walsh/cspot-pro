@@ -2132,11 +2132,35 @@ h3 {
 .inline-notice { align-items: center; background: #f2f8f4; border-radius: 8px; display: flex; justify-content: space-between; margin: 8px 0; padding: 6px 9px; }
 .approved-volunteers { border-top: 1px solid #e8e2d3; padding-top: 7px; }
 .approved-volunteers summary { color: #53615a; cursor: pointer; font-size: 12px; font-weight: 850; padding: 4px 0; }
-.volunteer-review-list article.is-pending { background: #fffaf0; border-left: 3px solid #e6a82f; padding-left: 8px; }
 .role-group-grid { display: grid; gap: 8px; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); margin-top: 8px; }
 .role-group { background: #fffdf7; border: 1px solid #e3dcc8; border-radius: 8px; display: grid; gap: 6px; padding: 8px; }
-.role-group > strong { color: #53615a; font-size: 12px; text-transform: uppercase; }
+.role-group > h3, .serving-role-group > h3 { color: #53615a; font-size: 12px; letter-spacing: .03em; margin: 0; text-transform: uppercase; }
 .capability-fieldset .volunteer-review { background: transparent; border: 0; border-top: 1px solid #ded8c7; border-radius: 0; margin-top: 10px; padding: 10px 0 0; }
+.capability-fieldset .volunteer-review .section-heading h3 { font-size: 13px; }
+
+.serving-role-groups { display: grid; gap: 10px; margin-top: 10px; }
+.serving-role-group { background: #fffdf7; border: 1px solid #e3dcc8; border-radius: 8px; display: grid; gap: 5px; padding: 9px; }
+.serving-role-row { background: #fffefa; border: 1px solid #e3dcc8; border-radius: 7px; overflow: hidden; }
+.serving-role-row.selected { border-color: #8dc7b5; }
+.serving-role-row.is-pending { background: #fffaf0; border-left: 3px solid #e6a82f; }
+.serving-role-row > summary { cursor: pointer; list-style-position: inside; padding: 7px 9px; }
+.serving-role-row > summary::marker { color: #65716a; }
+.serving-role-row > summary label { align-items: center; cursor: pointer; display: inline-flex; gap: 8px; max-width: calc(100% - 18px); vertical-align: middle; }
+.serving-role-row > summary label > span, .serving-role-row > summary > span { display: inline-grid; gap: 1px; vertical-align: middle; }
+.serving-role-row > summary strong { color: #17201b; font-size: 13px; }
+.serving-role-row > summary small { color: #65716a; font-size: 11px; font-weight: 650; }
+.serving-role-row > summary input, .admin-role-row > input { min-height: auto; width: auto; }
+.serving-role-details { border-top: 1px solid #e8e2d3; display: grid; gap: 8px; padding: 8px 10px 10px 31px; }
+.serving-role-details label { display: grid; font-size: 12px; font-weight: 800; gap: 4px; }
+.serving-role-details textarea { min-height: 58px; resize: vertical; }
+.frequency-input { align-items: center; display: grid; gap: 5px; grid-template-columns: auto 62px auto minmax(90px, 130px); }
+.frequency-input input, .frequency-input select { min-height: 34px; padding: 5px 7px; }
+.admin-role-list, .volunteer-review-list { display: grid; gap: 5px; }
+.admin-role-row { align-items: center; background: #fffefa; border: 1px solid #e3dcc8; border-radius: 7px; cursor: pointer; display: flex; gap: 8px; padding: 7px 9px; }
+.admin-role-row.selected { background: #edf7f2; border-color: #8dc7b5; }
+.admin-role-row > span { display: grid; gap: 1px; }
+.admin-role-row strong { color: #17201b; font-size: 13px; }
+.admin-role-row small { color: #65716a; font-size: 11px; font-weight: 650; }
 
 .profile-workspace {
   display: grid;
@@ -2176,13 +2200,14 @@ h3 {
 .availability-entry label { display: grid; font-size: 12px; font-weight: 800; gap: 4px; }
 .availability-entry input { background: #fffdf7; border: 1px solid #cfc7b4; border-radius: 8px; min-height: 36px; padding: 7px 9px; }
 .availability-list { display: grid; gap: 6px; margin-top: 12px; }
-.availability-list > div, .volunteer-review-list article { align-items: center; border-top: 1px solid #e8e2d3; display: flex; justify-content: space-between; padding: 8px 0; }
-.volunteer-review-list article > div:first-child { display: grid; gap: 2px; }
+.availability-list > div { align-items: center; border-top: 1px solid #e8e2d3; display: flex; justify-content: space-between; padding: 8px 0; }
 .volunteer-review-list span, .volunteer-review-list small { color: #65716a; font-size: 12px; }
 
 @media (max-width: 860px) {
   .profile-workspace { padding: 10px; }
   .availability-entry { grid-template-columns: 1fr 1fr; }
+  .role-group-grid { grid-template-columns: 1fr; }
+  .frequency-input { grid-template-columns: auto 58px auto minmax(80px, 1fr); }
   .availability-entry label:nth-child(3) { grid-column: 1 / -1; }
   .admin-manager { grid-template-columns: 1fr; padding: 8px; }
   .admin-mobile-user-tabs { display: grid; }
