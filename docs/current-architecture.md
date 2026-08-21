@@ -175,6 +175,13 @@ so joining or accepting a role does not remount Profile. Role order also stays
 stable while its action and ministry count update in place. Confirmation
 dialogs remain compact and centered on narrow screens rather than inheriting
 the full-height mobile editor treatment.
+Serving frequency uses one shared adaptive dropdown control in Profile and
+Admin rather than free-form numbers. Current practical limits are 1–3 per week,
+1–5 per month, 1–8 per quarter, and 1–12 per year; changing period clamps the
+count into its valid range. The limits are centralized so serving-area-specific
+admin configuration can replace these defaults later without another UI
+rewrite. The dense ministry/role hierarchy is the baseline form factor for
+future management panels.
 
 `identity` now owns:
 

@@ -2225,6 +2225,7 @@ h3 {
 .inline-warning { background: #fff0e9; border-radius: 7px; color: #7a2e19; font-size: 12px; margin: 0; padding: 7px 9px; }
 .frequency-input { align-items: center; display: inline-flex; gap: 5px; justify-self: start; width: auto; }
 .frequency-input input { flex: 0 0 54px; width: 54px !important; }
+.frequency-input select:first-of-type { flex: 0 0 62px; width: 62px !important; }
 .frequency-input select { flex: 0 0 auto; width: auto !important; }
 .frequency-input input, .frequency-input select { min-height: 30px; padding: 3px 6px; }
 .admin-role-list, .volunteer-review-list { display: grid; gap: 5px; }
