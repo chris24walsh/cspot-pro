@@ -11164,3 +11164,25 @@ button.musician-page {
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+/* Confirmation dialogs stay intentionally small even where mobile editing
+   dialogs use the full available height. */
+.confirmation-dialog-backdrop {
+  align-items: center;
+  padding: 12px;
+}
+.confirmation-dialog {
+  align-self: auto;
+  gap: 12px;
+  max-height: min(420px, calc(100svh - 24px));
+  max-width: 360px;
+  padding: 14px;
+  width: min(360px, calc(100vw - 24px));
+}
+.confirmation-dialog .app-dialog-actions { flex-wrap: nowrap; }
+.confirmation-dialog .app-dialog-actions > button {
+  flex: 0 0 auto;
+  min-height: 34px;
+  padding: 5px 10px;
+  width: auto;
+}

@@ -170,6 +170,11 @@ Accept, Invite, or Remove actions visible while their workload, availability,
 and explanatory detail remain expandable. Profile role mutations update local
 state in place rather than refetching the full profile, preserving scroll and
 accordion position.
+Account changes refresh authentication data separately from Serving attention,
+so joining or accepting a role does not remount Profile. Role order also stays
+stable while its action and ministry count update in place. Confirmation
+dialogs remain compact and centered on narrow screens rather than inheriting
+the full-height mobile editor treatment.
 
 `identity` now owns:
 

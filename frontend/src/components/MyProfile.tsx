@@ -27,7 +27,7 @@ function makeDrafts(data: ServingProfile): Record<string, ServingDraft> {
   }));
 }
 
-export function MyProfile({ onProfileChanged }: { onProfileChanged: () => void }) {
+export function MyProfile({ onProfileChanged, onServingChanged }: { onProfileChanged: () => void; onServingChanged: () => void }) {
   const { confirm, confirmationDialog } = useConfirmationDialog();
   const [data, setData] = useState<ServingProfile | null>(null);
   const [drafts, setDrafts] = useState<Record<string, ServingDraft>>({});
@@ -90,7 +90,7 @@ export function MyProfile({ onProfileChanged }: { onProfileChanged: () => void }
     try {
       const preference = await saveVolunteerPreference(areaKey, preferencePayload(draft));
       applyPreference(preference);
-      onProfileChanged();
+      onServingChanged();
       setMessage("Volunteer request sent.");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Could not send volunteer request.");
@@ -105,7 +105,7 @@ export function MyProfile({ onProfileChanged }: { onProfileChanged: () => void }
       await saveVolunteerPreference(areaKey, preferencePayload(draft));
       const preference = await decideServingInvitation(areaKey, "approved");
       applyPreference(preference);
-      onProfileChanged();
+      onServingChanged();
       setMessage("Invitation accepted.");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Could not accept invitation.");
@@ -141,7 +141,7 @@ export function MyProfile({ onProfileChanged }: { onProfileChanged: () => void }
         setData((current) => current ? { ...current, preferences: current.preferences.filter((item) => item.area.key !== areaKey) } : current);
         setDrafts((current) => ({ ...current, [areaKey]: { selected: false, frequency_count: 1, frequency_period: "month", availability_notes: "" } }));
       }
-      onProfileChanged();
+      onServingChanged();
       setMessage(`${label} completed.`);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : `Could not ${label.toLowerCase()}.`);
@@ -177,7 +177,7 @@ export function MyProfile({ onProfileChanged }: { onProfileChanged: () => void }
       {message ? <p className="form-message">{message}</p> : null}
       <p className="muted-copy">Changes apply immediately. Active and requested roles are listed first; destructive actions ask for confirmation.</p>
       <div className="serving-role-groups">{Array.from(new Set(data.areas.map((area) => area.category))).map((category) => {
-        const categoryAreas = data.areas.filter((area) => area.category === category).sort((left, right) => Number(drafts[right.key]?.selected) - Number(drafts[left.key]?.selected));
+        const categoryAreas = data.areas.filter((area) => area.category === category);
         const activeCount = categoryAreas.filter((area) => drafts[area.key]?.selected).length;
         const categoryOpen = openCategory === category;
         return <section className={`serving-role-group role-category ${categoryOpen ? "is-open" : ""}`} key={category}><button className="role-category-heading" onClick={() => { setOpenCategory(categoryOpen ? null : category); setOpenArea(null); }} type="button"><span>{category}</span><small>{activeCount} active</small><span aria-hidden="true">{categoryOpen ? "−" : "+"}</span></button>{categoryOpen ? <div className="role-category-items">{categoryAreas.map((area) => {

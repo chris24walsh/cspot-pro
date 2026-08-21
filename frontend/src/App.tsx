@@ -540,7 +540,7 @@ function App() {
         ) : activeModule.id === "admin" ? (
           <UserManager adminSection={adminSection} onAdminSectionChange={setAdminSection} onAttentionChanged={loadAdminAttention} />
         ) : activeModule.id === "profile" ? (
-          <MyProfile onProfileChanged={() => { void loadAuth(); void loadProfileAttention(); }} />
+          <MyProfile onProfileChanged={() => { void loadAuth(); void loadProfileAttention(); }} onServingChanged={() => { void loadProfileAttention(); }} />
         ) : (
           <PresentationView
             canAttachDeck={canEditPlans && canCreateLibrary}
