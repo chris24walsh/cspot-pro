@@ -140,8 +140,17 @@ LEGACY_ROLE_ALIASES: dict[str, str] = {
 }
 
 ROLE_PERMISSIONS: dict[str, set[PermissionName]] = {
-    role_name: definition["permissions"]
-    for role_name, definition in ROLE_DEFINITIONS.items()
+    role_name: definition["permissions"] for role_name, definition in ROLE_DEFINITIONS.items()
+}
+
+SERVING_AREA_ROLES: dict[str, str] = {
+    "worship": "worship_leader",
+    "worship_musician": "musician",
+    "sunday_school": "sunday_school_teacher",
+    "sunday_school_leader": "sunday_school_leader",
+    "service_teacher": "teacher",
+    "service_presenter": "presenter",
+    "sound_av": "presenter",
 }
 
 

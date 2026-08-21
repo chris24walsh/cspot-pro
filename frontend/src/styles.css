@@ -2119,9 +2119,8 @@ h3 {
   padding: 16px 20px;
 }
 
-.admin-primary-tabs { grid-column: 1 / -1; justify-self: start; }
-.admin-primary-tabs button { align-items: center; display: flex; gap: 6px; }
-.admin-primary-tabs button span { align-items: center; background: #e6a82f; border-radius: 999px; display: inline-flex; font-size: 11px; justify-content: center; min-height: 19px; min-width: 19px; padding: 1px 5px; }
+.admin-topbar-tabs button { align-items: center; display: flex; gap: 6px; }
+.admin-topbar-tabs button span { align-items: center; background: #e6a82f; border-radius: 999px; display: inline-flex; font-size: 11px; justify-content: center; min-height: 19px; min-width: 19px; padding: 1px 5px; }
 .admin-mobile-user-tabs { display: none; grid-column: 1 / -1; }
 .admin-manager.is-settings .manager-list { display: none; }
 .admin-manager.is-settings .editor-panel { grid-column: 1 / -1; }
@@ -2134,6 +2133,10 @@ h3 {
 .approved-volunteers { border-top: 1px solid #e8e2d3; padding-top: 7px; }
 .approved-volunteers summary { color: #53615a; cursor: pointer; font-size: 12px; font-weight: 850; padding: 4px 0; }
 .volunteer-review-list article.is-pending { background: #fffaf0; border-left: 3px solid #e6a82f; padding-left: 8px; }
+.role-group-grid { display: grid; gap: 8px; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); margin-top: 8px; }
+.role-group { background: #fffdf7; border: 1px solid #e3dcc8; border-radius: 8px; display: grid; gap: 6px; padding: 8px; }
+.role-group > strong { color: #53615a; font-size: 12px; text-transform: uppercase; }
+.capability-fieldset .volunteer-review { background: transparent; border: 0; border-top: 1px solid #ded8c7; border-radius: 0; margin-top: 10px; padding: 10px 0 0; }
 
 .profile-workspace {
   display: grid;

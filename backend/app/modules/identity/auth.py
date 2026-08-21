@@ -11,8 +11,12 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.core.database import get_session
-from app.modules.identity.models import Role, User, UserRole
-from app.modules.identity.permissions import canonical_role_names, permissions_for_roles
+from app.modules.identity.models import Role, ServingArea, User, UserRole, VolunteerPreference
+from app.modules.identity.permissions import (
+    SERVING_AREA_ROLES,
+    canonical_role_names,
+    permissions_for_roles,
+)
 from app.modules.identity.security import build_session_token, decode_session_token
 
 SESSION_COOKIE_NAME = "cspot_pro_session"
@@ -31,7 +35,23 @@ def list_role_names(session: Session, user_id: str) -> list[str]:
 
 
 def list_permissions(session: Session, user_id: str) -> list[str]:
-    return sorted(permissions_for_roles(list_role_names(session, user_id)))
+    return sorted(permissions_for_roles(list_authorization_role_names(session, user_id)))
+
+
+def list_authorization_role_names(session: Session, user_id: str) -> list[str]:
+    role_names = set(list_role_names(session, user_id))
+    approved_area_keys = session.scalars(
+        select(ServingArea.key)
+        .join(VolunteerPreference, VolunteerPreference.serving_area_id == ServingArea.id)
+        .where(
+            VolunteerPreference.user_id == user_id,
+            VolunteerPreference.status == "approved",
+        )
+    ).all()
+    role_names.update(
+        SERVING_AREA_ROLES[key] for key in approved_area_keys if key in SERVING_AREA_ROLES
+    )
+    return canonical_role_names(role_names)
 
 
 def has_bootstrap_admin(session: Session) -> bool:
@@ -111,7 +131,7 @@ def require_permission(permission_name: str) -> Callable[[User, Session], User]:
         current_user: CurrentUser,
         session: Session = Depends(get_session),
     ) -> User:
-        permissions = permissions_for_roles(list_role_names(session, current_user.id))
+        permissions = permissions_for_roles(list_authorization_role_names(session, current_user.id))
         if permission_name not in permissions:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
@@ -127,7 +147,7 @@ def require_any_permission(*permission_names: str) -> Callable[[User, Session], 
         current_user: CurrentUser,
         session: Session = Depends(get_session),
     ) -> User:
-        permissions = permissions_for_roles(list_role_names(session, current_user.id))
+        permissions = permissions_for_roles(list_authorization_role_names(session, current_user.id))
         if permissions.intersection(permission_names):
             return current_user
         needed = " or ".join(permission_names)

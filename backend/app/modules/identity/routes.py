@@ -14,6 +14,7 @@ from app.modules.identity.auth import (
     clear_session_cookie,
     has_bootstrap_admin,
     list_permissions,
+    list_authorization_role_names,
     list_role_names,
     require_permission,
     set_session_cookie,
@@ -189,7 +190,9 @@ def set_user_roles(session: Session, user: User, role_names: list[str]) -> None:
 
 def user_to_session_read(session: Session, user: User) -> SessionUserRead:
     base = user_to_read(session, user)
-    return SessionUserRead(**base.model_dump(), permissions=list_permissions(session, user.id))
+    values = base.model_dump()
+    values["roles"] = list_authorization_role_names(session, user.id)
+    return SessionUserRead(**values, permissions=list_permissions(session, user.id))
 
 
 def user_to_member_read(session: Session, user: User) -> MemberRead:

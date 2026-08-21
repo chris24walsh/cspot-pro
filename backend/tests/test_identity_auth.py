@@ -3,7 +3,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
 from app.core.database import Base
-from app.modules.identity.models import Role, User, UserRole
+from app.modules.identity.models import Role, ServingArea, User, UserRole, VolunteerPreference
 from app.modules.identity.routes import login
 from app.modules.identity.schemas import LoginRequest
 from app.modules.identity.security import hash_password
@@ -11,7 +11,16 @@ from app.modules.identity.security import hash_password
 
 def _identity_session() -> Session:
     engine = create_engine("sqlite://")
-    Base.metadata.create_all(engine, tables=[User.__table__, Role.__table__, UserRole.__table__])
+    Base.metadata.create_all(
+        engine,
+        tables=[
+            User.__table__,
+            Role.__table__,
+            UserRole.__table__,
+            ServingArea.__table__,
+            VolunteerPreference.__table__,
+        ],
+    )
     session = Session(engine)
     session.add(
         User(

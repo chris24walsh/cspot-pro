@@ -94,6 +94,7 @@ function App() {
   const [broadcastWorkspace, setBroadcastWorkspace] = useState<"viewer" | "recordings" | "livestream" | "mixer">("viewer");
   const [mobileImmersive, setMobileImmersive] = useState(false);
   const [adminAttentionCount, setAdminAttentionCount] = useState(0);
+  const [adminSection, setAdminSection] = useState<"users" | "settings">("users");
   const initialViewChosen = useRef(false);
   const mobileOrTabletDevice = useMemo(
     () =>
@@ -422,6 +423,7 @@ function App() {
             <h1>{activeModule.label}</h1>
           </div>
           <div className="topbar-context-slot" id="workspace-topbar-slot">
+            {activeModule.id === "admin" ? <div className="segmented-control admin-topbar-tabs" role="tablist" aria-label="Admin sections"><button className={adminSection === "users" ? "is-active" : ""} onClick={() => setAdminSection("users")} type="button">Manage users{adminAttentionCount ? <span>{adminAttentionCount}</span> : null}</button><button className={adminSection === "settings" ? "is-active" : ""} onClick={() => setAdminSection("settings")} type="button">Settings</button></div> : null}
             {activeModule.id === "broadcast" && canWatchBroadcast ? (
               <div className="broadcast-mode-switch segmented-control" role="tablist" aria-label="Broadcast mode">
                 <button
@@ -526,7 +528,7 @@ function App() {
             </section>
           )
         ) : activeModule.id === "admin" ? (
-          <UserManager onAttentionChanged={loadAdminAttention} />
+          <UserManager adminSection={adminSection} onAdminSectionChange={setAdminSection} onAttentionChanged={loadAdminAttention} />
         ) : activeModule.id === "profile" ? (
           <MyProfile onProfileChanged={() => void loadAuth()} />
         ) : (

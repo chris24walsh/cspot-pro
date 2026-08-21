@@ -90,7 +90,17 @@ function formatUserStatus(user: User) {
   return "active";
 }
 
-export function UserManager({ onAttentionChanged }: { onAttentionChanged?: () => void | Promise<void> }) {
+const ROLE_GROUPS = [
+  { label: "Worship & Production", roles: ["musician", "worship_leader"] },
+  { label: "Sunday School", roles: ["sunday_school_teacher", "sunday_school_leader"] },
+  { label: "Service", roles: ["teacher", "presenter"] },
+  { label: "Hospitality & Care", roles: [] },
+  { label: "Property & Facilities", roles: [] },
+  { label: "General", roles: ["viewer"] },
+  { label: "Administration", roles: ["administrator"] },
+] as const;
+
+export function UserManager({ adminSection, onAdminSectionChange, onAttentionChanged }: { adminSection: "users" | "settings"; onAdminSectionChange: (section: "users" | "settings") => void; onAttentionChanged?: () => void | Promise<void> }) {
   const { confirm, confirmationDialog } = useConfirmationDialog();
   const [users, setUsers] = useState<User[]>([]);
   const [roles, setRoles] = useState<Role[]>([]);
@@ -115,7 +125,6 @@ export function UserManager({ onAttentionChanged }: { onAttentionChanged?: () =>
   const [showInactive, setShowInactive] = useState(true);
   const [driveStatus, setDriveStatus] = useState<GoogleDriveStatus | null>(null);
   const [volunteerRows, setVolunteerRows] = useState<VolunteerAdminRecord[]>([]);
-  const [adminSection, setAdminSection] = useState<"users" | "settings">("users");
   const [mobileUserPane, setMobileUserPane] = useState<"list" | "detail">("list");
   const [userFilter, setUserFilter] = useState<"all" | "attention" | "active" | "inactive">("all");
   const [userSort, setUserSort] = useState<"attention" | "name" | "recent">("attention");
@@ -325,7 +334,7 @@ export function UserManager({ onAttentionChanged }: { onAttentionChanged?: () =>
       return;
     }
 
-    setAdminSection("settings");
+    onAdminSectionChange("settings");
 
     if (result === "connected") {
       setMessage("Google Drive connected.");
@@ -367,10 +376,6 @@ export function UserManager({ onAttentionChanged }: { onAttentionChanged?: () =>
   return (
     <section className={`manager-grid admin-manager ${adminSection === "settings" ? "is-settings" : "is-users"}`} aria-label="User management">
       {confirmationDialog}
-      <div className="admin-primary-tabs segmented-control" role="tablist" aria-label="Admin sections">
-        <button className={adminSection === "users" ? "is-active" : ""} onClick={() => setAdminSection("users")} type="button">Users{pendingUserIds.size ? <span>{pendingUserIds.size}</span> : null}</button>
-        <button className={adminSection === "settings" ? "is-active" : ""} onClick={() => setAdminSection("settings")} type="button">Settings</button>
-      </div>
       {adminSection === "users" ? <div className="admin-mobile-user-tabs worship-mobile-pane-tabs" aria-label="User panels"><button className={mobileUserPane === "list" ? "active" : ""} onClick={() => setMobileUserPane("list")} type="button">Users <span>{filteredUsers.length}</span></button><button className={mobileUserPane === "detail" ? "active" : ""} onClick={() => setMobileUserPane("detail")} type="button">User settings {selectedUser && pendingUserIds.has(selectedUser.id) ? <span>!</span> : null}</button></div> : null}
       <aside className={`manager-list ${mobileUserPane === "list" ? "is-mobile-active" : ""}`}>
         <div className="section-heading">
@@ -434,8 +439,6 @@ export function UserManager({ onAttentionChanged }: { onAttentionChanged?: () =>
         </div>
 
         {message ? <p className="form-message">{message}</p> : null}
-        {mode === "edit" && selectedUser ? <VolunteerReview onChanged={() => load(selectedUser.id)} rows={volunteerRows.filter((row) => row.user_id === selectedUser.id)} /> : null}
-
         {actionLink ? (
           <div className="field-action-row">
             <label className="wide-field">
@@ -479,24 +482,11 @@ export function UserManager({ onAttentionChanged }: { onAttentionChanged?: () =>
             />
           </label>
 
-          <fieldset className="wide-field role-fieldset compact-role-fieldset">
-            <legend>Roles</legend>
-            <div className="role-chip-grid">
-              {roles.map((role) => (
-                <label
-                  className={`role-chip ${form.role_names.includes(role.name) ? "selected" : ""}`}
-                  key={role.id}
-                  title={role.description ?? formatRoleName(role.name)}
-                >
-                  <input
-                    checked={form.role_names.includes(role.name)}
-                    disabled={role.name === "viewer" && form.role_names.some((name) => name !== "viewer")}
-                    onChange={() => toggleRole(role.name)}
-                    type="checkbox"
-                  />
-                  <span>{formatRoleName(role.name)}</span>
-                </label>
-              ))}
+          <fieldset className="wide-field role-fieldset compact-role-fieldset capability-fieldset">
+            <legend>Capabilities, roles and volunteer requests</legend>
+            <p className="muted-copy">Serving roles are grouped by ministry. Approved requests automatically provide the matching workspace access; administration remains explicit.</p>
+            <div className="role-group-grid">
+              {ROLE_GROUPS.map((group) => { const groupRequests = volunteerRows.filter((row) => row.user_id === selectedUser?.id && row.preference.area.category === group.label); if (!group.roles.length && !groupRequests.length) return null; return <section className="role-group" key={group.label}><strong>{group.label}</strong>{group.roles.length ? <div className="role-chip-grid">{group.roles.map((roleName) => { const role = roles.find((candidate) => candidate.name === roleName); return role ? <label className={`role-chip ${form.role_names.includes(role.name) ? "selected" : ""}`} key={role.id} title={role.description ?? formatRoleName(role.name)}><input checked={form.role_names.includes(role.name)} disabled={role.name === "viewer" && form.role_names.some((name) => name !== "viewer")} onChange={() => toggleRole(role.name)} type="checkbox" /><span>{formatRoleName(role.name)}</span></label> : null; })}</div> : null}{mode === "edit" && selectedUser && groupRequests.length ? <VolunteerReview compact onChanged={() => load(selectedUser.id)} rows={groupRequests} /> : null}</section>; })}
             </div>
           </fieldset>
 
