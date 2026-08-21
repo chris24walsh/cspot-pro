@@ -528,7 +528,7 @@ export function UserManager() {
           {form.role_names.includes("worship_leader") || form.role_names.includes("sunday_school_teacher") ? (
             <fieldset className="wide-field role-fieldset leader-capacity-fieldset">
               <legend>Sunday rotation limits</legend>
-              <p className="muted-copy">Leave unlimited when this leader can take any remaining Sundays. Zero keeps them available for manual assignment only.</p>
+              <p className="muted-copy">Leave unlimited when this leader can take any remaining Sundays. Never in rotation keeps them available for direct manual assignment but removes them from automatic allocation and swaps.</p>
               <div className="leader-capacity-grid">
                 {form.role_names.includes("worship_leader") ? (
                   <label>
@@ -538,7 +538,7 @@ export function UserManager() {
                       value={form.worship_max_sundays_per_month}
                     >
                       <option value="">Unlimited</option>
-                      <option value="0">Manual only</option>
+                      <option value="0">Never in rotation</option>
                       {[1, 2, 3, 4, 5].map((limit) => <option key={limit} value={limit}>{limit}</option>)}
                     </select>
                   </label>
@@ -551,7 +551,7 @@ export function UserManager() {
                       value={form.sunday_school_max_sundays_per_month}
                     >
                       <option value="">Unlimited</option>
-                      <option value="0">Manual only</option>
+                      <option value="0">Never in rotation</option>
                       {[1, 2, 3, 4, 5].map((limit) => <option key={limit} value={limit}>{limit}</option>)}
                     </select>
                   </label>

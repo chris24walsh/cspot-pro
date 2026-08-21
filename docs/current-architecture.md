@@ -378,7 +378,9 @@ Search modes:
   and their intentional End slides are preserved.
 - Worship and Sunday School leader defaults are deterministic monthly
   round-robin schedules. Each user can have a separate worship and Sunday
-  School maximum (zero means manual-only; null means unlimited). Explicit
+  School maximum (zero means never in rotation; null means unlimited). Users
+  with a zero limit remain directly assignable but are omitted from automatic
+  allocation and from both sides of Sunday swaps. Explicit
   assignments reserve capacity before automatic gaps are filled. Automatic
   defaults only apply from today forward; historical dates show stored values
   and are omitted from swapping. The Leader dialog supports assignment and

@@ -41,6 +41,17 @@ export function nearbyUpcomingSundays(value: string, todayInput = todayDateInput
   }).filter((date) => date >= todayInput && date !== value).slice(0, 8);
 }
 
+export function swappableUpcomingSundays(
+  dates: string[],
+  leaderIdForDate: (date: string) => string | null,
+  isLeaderInRotation: (leaderId: string) => boolean,
+) {
+  return dates.filter((date) => {
+    const leaderId = leaderIdForDate(date);
+    return leaderId === null || isLeaderInRotation(leaderId);
+  });
+}
+
 export function LeaderAssignmentDialog({
   areaLabel,
   busy = false,
@@ -62,6 +73,7 @@ export function LeaderAssignmentDialog({
   ]));
   const currentLeaderId = currentDate ? leaderIdForDate(currentDate) : null;
   const currentLeader = leaders.find((leader) => leader.id === currentLeaderId) ?? null;
+  const currentLeaderIsInRotation = currentLeader ? maxSundaysForLeader(currentLeader) !== 0 : true;
 
   if (!currentDate) return null;
   const isPastDate = currentDate < todayDateInput();
@@ -116,20 +128,30 @@ export function LeaderAssignmentDialog({
                   type="button"
                 >
                   <span className={`leader-option-avatar ${leader.calendar_avatar ? "is-avatar" : ""}`}>{markers.get(leader.id)}</span>
-                  <span><strong>{leader.name}</strong><small>{assigned} / {maximum ?? "∞"} Sundays</small></span>
+                  <span>
+                    <strong>{leader.name}</strong>
+                    <small>{maximum === 0 ? "Never in rotation · manual assignment only" : `${assigned} / ${maximum ?? "∞"} Sundays`}</small>
+                  </span>
                 </button>
               );
             })}
           </div>
         </div>
 
-        {!isPastDate ? <div className="leader-dialog-section">
+        {!isPastDate && currentLeaderIsInRotation ? <div className="leader-dialog-section">
           <div className="leader-dialog-section-heading">
             <strong>Swap Sundays</strong>
             <span>Moves both leaders in one step</span>
           </div>
           <div className="leader-swap-list">
-            {nearbyUpcomingSundays(currentDate).map((date) => {
+            {swappableUpcomingSundays(
+              nearbyUpcomingSundays(currentDate),
+              leaderIdForDate,
+              (leaderId) => {
+                const leader = leaders.find((candidate) => candidate.id === leaderId);
+                return leader ? maxSundaysForLeader(leader) !== 0 : true;
+              },
+            ).map((date) => {
               const leaderId = leaderIdForDate(date);
               const leader = leaders.find((candidate) => candidate.id === leaderId) ?? null;
               return (
