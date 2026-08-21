@@ -18,7 +18,15 @@ from app.modules.identity.auth import (
     require_permission,
     set_session_cookie,
 )
-from app.modules.identity.models import AuthToken, Role, User, UserRole
+from app.modules.identity.models import (
+    AuthToken,
+    Role,
+    ServingArea,
+    User,
+    UserRole,
+    VolunteerPreference,
+    VolunteerUnavailability,
+)
 from app.modules.identity.permissions import ROLE_DEFINITIONS, canonical_role_names
 from app.modules.identity.schemas import (
     AuthActionCompleteRequest,
@@ -32,12 +40,21 @@ from app.modules.identity.schemas import (
     PasswordResetAdminRead,
     PasswordResetRequest,
     RoleRead,
+    SelfProfileUpdate,
+    ServingAreaRead,
+    ServingProfileRead,
     SessionUserRead,
     UserCreate,
     UserInviteRead,
     UserInviteRequest,
     UserRead,
     UserUpdate,
+    VolunteerAdminRead,
+    VolunteerPreferenceRead,
+    VolunteerPreferenceUpdate,
+    VolunteerReviewUpdate,
+    VolunteerUnavailabilityCreate,
+    VolunteerUnavailabilityRead,
 )
 from app.modules.identity.security import (
     generate_auth_token,
@@ -98,7 +115,9 @@ def stable_calendar_color(user_id: str) -> str:
 def ensure_system_roles(session: Session) -> None:
     existing_roles = {
         role.name: role
-        for role in session.scalars(select(Role).where(Role.name.in_(tuple(ROLE_DEFINITIONS.keys())))).all()
+        for role in session.scalars(
+            select(Role).where(Role.name.in_(tuple(ROLE_DEFINITIONS.keys())))
+        ).all()
     }
 
     for role_name, definition in ROLE_DEFINITIONS.items():
@@ -142,7 +161,10 @@ def set_user_roles(session: Session, user: User, role_names: list[str]) -> None:
     normalized_role_names = canonical_role_names(role_names)
     if not normalized_role_names:
         normalized_role_names = ["viewer"]
-    elif any(role_name != "viewer" for role_name in normalized_role_names) and "viewer" not in normalized_role_names:
+    elif (
+        any(role_name != "viewer" for role_name in normalized_role_names)
+        and "viewer" not in normalized_role_names
+    ):
         normalized_role_names.insert(0, "viewer")
     ensure_system_roles(session)
     session.flush()
@@ -171,6 +193,29 @@ def user_to_session_read(session: Session, user: User) -> SessionUserRead:
 
 
 def user_to_member_read(session: Session, user: User) -> MemberRead:
+    approved_preferences = {
+        area.key: preference.preferred_frequency
+        for preference, area in session.execute(
+            select(VolunteerPreference, ServingArea)
+            .join(ServingArea)
+            .where(
+                VolunteerPreference.user_id == user.id,
+                VolunteerPreference.status == "approved",
+            )
+        ).all()
+    }
+    frequency_limits = {
+        "weekly": None,
+        "monthly": 1,
+        "quarterly": 0,
+        "semi_yearly": 0,
+        "occasional": 0,
+    }
+    unavailable = session.scalars(
+        select(VolunteerUnavailability)
+        .where(VolunteerUnavailability.user_id == user.id)
+        .order_by(VolunteerUnavailability.starts_on)
+    ).all()
     return MemberRead(
         id=user.id,
         email=user.email,
@@ -180,8 +225,46 @@ def user_to_member_read(session: Session, user: User) -> MemberRead:
         roles=list_role_names(session, user.id),
         calendar_color=user.calendar_color or stable_calendar_color(user.id),
         calendar_avatar=user.calendar_avatar,
-        worship_max_sundays_per_month=user.worship_max_sundays_per_month,
-        sunday_school_max_sundays_per_month=user.sunday_school_max_sundays_per_month,
+        worship_max_sundays_per_month=user.worship_max_sundays_per_month
+        if user.worship_max_sundays_per_month is not None
+        else frequency_limits.get(approved_preferences.get("worship", "")),
+        sunday_school_max_sundays_per_month=user.sunday_school_max_sundays_per_month
+        if user.sunday_school_max_sundays_per_month is not None
+        else frequency_limits.get(approved_preferences.get("sunday_school", "")),
+        approved_serving_areas=list(approved_preferences),
+        unavailable=[
+            VolunteerUnavailabilityRead(
+                id=item.id, starts_on=item.starts_on, ends_on=item.ends_on, note=item.note
+            )
+            for item in unavailable
+        ],
+    )
+
+
+def area_to_read(area: ServingArea) -> ServingAreaRead:
+    return ServingAreaRead(
+        id=area.id,
+        key=area.key,
+        name=area.name,
+        category=area.category,
+        description=area.description,
+    )
+
+
+def preference_to_read(
+    session: Session, preference: VolunteerPreference
+) -> VolunteerPreferenceRead:
+    area = session.get(ServingArea, preference.serving_area_id)
+    assert area is not None
+    return VolunteerPreferenceRead(
+        id=preference.id,
+        user_id=preference.user_id,
+        area=area_to_read(area),
+        status=preference.status,
+        preferred_frequency=preference.preferred_frequency,
+        availability_notes=preference.availability_notes,
+        admin_notes=preference.admin_notes,
+        reviewed_at=preference.reviewed_at,
     )
 
 
@@ -267,7 +350,9 @@ def send_smtp_test_email(*, recipient: str, requested_by: User) -> bool:
 
 
 def get_valid_auth_token_or_404(session: Session, raw_token: str) -> AuthToken:
-    auth_token = session.scalar(select(AuthToken).where(AuthToken.token_hash == hash_auth_token(raw_token)))
+    auth_token = session.scalar(
+        select(AuthToken).where(AuthToken.token_hash == hash_auth_token(raw_token))
+    )
     if auth_token is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Token not found.")
     if auth_token.used_at is not None or auth_token.expires_at <= datetime.now(UTC):
@@ -287,12 +372,16 @@ def bootstrap_admin(
     session: Session = Depends(get_session),
 ) -> SessionUserRead:
     if has_bootstrap_admin(session):
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Bootstrap is no longer available.")
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail="Bootstrap is no longer available."
+        )
 
     try:
         validate_password_strength(payload.password)
     except ValueError as exc:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)
+        ) from exc
 
     ensure_system_roles(session)
     session.flush()
@@ -373,7 +462,9 @@ def complete_auth_action(
     try:
         validate_password_strength(payload.password)
     except ValueError as exc:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)
+        ) from exc
 
     auth_token = get_valid_auth_token_or_404(session, payload.token)
     user = get_user_or_404(session, auth_token.user_id)
@@ -422,6 +513,197 @@ def get_session_user(
     session: Session = Depends(get_session),
 ) -> SessionUserRead:
     return user_to_session_read(session, current_user)
+
+
+@router.patch("/auth/me", response_model=SessionUserRead)
+def update_session_user(
+    payload: SelfProfileUpdate, current_user: CurrentUser, session: Session = Depends(get_session)
+) -> SessionUserRead:
+    values = payload.model_dump(exclude_unset=True)
+    username = values.pop("username", current_user.username)
+    try:
+        current_user.username = resolve_username(
+            session,
+            username=username,
+            email=values.get("email", current_user.email),
+            exclude_user_id=current_user.id,
+        )
+        for field, value in values.items():
+            setattr(current_user, field, value)
+        session.commit()
+    except IntegrityError as exc:
+        session.rollback()
+        raise HTTPException(
+            status_code=409, detail="A user with that email or username already exists."
+        ) from exc
+    session.refresh(current_user)
+    return user_to_session_read(session, current_user)
+
+
+@router.get("/serving/profile", response_model=ServingProfileRead)
+def get_serving_profile(
+    current_user: CurrentUser, session: Session = Depends(get_session)
+) -> ServingProfileRead:
+    areas = session.scalars(
+        select(ServingArea)
+        .where(ServingArea.active.is_(True))
+        .order_by(ServingArea.category, ServingArea.name)
+    ).all()
+    preferences = session.scalars(
+        select(VolunteerPreference).where(VolunteerPreference.user_id == current_user.id)
+    ).all()
+    unavailable = session.scalars(
+        select(VolunteerUnavailability)
+        .where(VolunteerUnavailability.user_id == current_user.id)
+        .order_by(VolunteerUnavailability.starts_on)
+    ).all()
+    return ServingProfileRead(
+        user=user_to_read(session, current_user),
+        areas=[area_to_read(area) for area in areas],
+        preferences=[preference_to_read(session, item) for item in preferences],
+        unavailable=[
+            VolunteerUnavailabilityRead(
+                id=item.id, starts_on=item.starts_on, ends_on=item.ends_on, note=item.note
+            )
+            for item in unavailable
+        ],
+    )
+
+
+@router.put("/serving/preferences/{area_key}", response_model=VolunteerPreferenceRead)
+def volunteer_for_area(
+    area_key: str,
+    payload: VolunteerPreferenceUpdate,
+    current_user: CurrentUser,
+    session: Session = Depends(get_session),
+) -> VolunteerPreferenceRead:
+    area = session.scalar(
+        select(ServingArea).where(ServingArea.key == area_key, ServingArea.active.is_(True))
+    )
+    if area is None:
+        raise HTTPException(status_code=404, detail="Serving area not found")
+    preference = session.scalar(
+        select(VolunteerPreference).where(
+            VolunteerPreference.user_id == current_user.id,
+            VolunteerPreference.serving_area_id == area.id,
+        )
+    )
+    if preference is None:
+        preference = VolunteerPreference(
+            user_id=current_user.id, serving_area_id=area.id, status="pending"
+        )
+        session.add(preference)
+    preference.preferred_frequency = payload.preferred_frequency
+    preference.availability_notes = payload.availability_notes
+    if preference.status == "declined":
+        preference.status = "pending"
+        preference.reviewed_at = None
+        preference.reviewed_by_user_id = None
+    session.commit()
+    session.refresh(preference)
+    return preference_to_read(session, preference)
+
+
+@router.delete("/serving/preferences/{area_key}", status_code=204)
+def withdraw_from_area(
+    area_key: str, current_user: CurrentUser, session: Session = Depends(get_session)
+) -> Response:
+    preference = session.scalar(
+        select(VolunteerPreference)
+        .join(ServingArea)
+        .where(VolunteerPreference.user_id == current_user.id, ServingArea.key == area_key)
+    )
+    if preference is not None:
+        session.delete(preference)
+        session.commit()
+    return Response(status_code=204)
+
+
+@router.post("/serving/unavailability", response_model=VolunteerUnavailabilityRead, status_code=201)
+def add_unavailability(
+    payload: VolunteerUnavailabilityCreate,
+    current_user: CurrentUser,
+    session: Session = Depends(get_session),
+) -> VolunteerUnavailabilityRead:
+    if payload.ends_on < payload.starts_on:
+        raise HTTPException(status_code=422, detail="End date must be on or after start date.")
+    item = VolunteerUnavailability(user_id=current_user.id, **payload.model_dump())
+    session.add(item)
+    session.commit()
+    session.refresh(item)
+    return VolunteerUnavailabilityRead(
+        id=item.id, starts_on=item.starts_on, ends_on=item.ends_on, note=item.note
+    )
+
+
+@router.delete("/serving/unavailability/{item_id}", status_code=204)
+def remove_unavailability(
+    item_id: str, current_user: CurrentUser, session: Session = Depends(get_session)
+) -> Response:
+    item = session.scalar(
+        select(VolunteerUnavailability).where(
+            VolunteerUnavailability.id == item_id,
+            VolunteerUnavailability.user_id == current_user.id,
+        )
+    )
+    if item is None:
+        raise HTTPException(status_code=404, detail="Availability entry not found")
+    session.delete(item)
+    session.commit()
+    return Response(status_code=204)
+
+
+@router.get("/serving/admin/volunteers", response_model=list[VolunteerAdminRead])
+def list_volunteer_requests(
+    _current_user: User = Depends(require_permission("users:manage")),
+    session: Session = Depends(get_session),
+) -> list[VolunteerAdminRead]:
+    rows = session.execute(
+        select(VolunteerPreference, User)
+        .join(User, User.id == VolunteerPreference.user_id)
+        .order_by(VolunteerPreference.status.desc(), User.name)
+    ).all()
+    return [
+        VolunteerAdminRead(
+            user_id=user.id,
+            user_name=user.name,
+            user_email=user.email,
+            preference=preference_to_read(session, preference),
+            unavailable=[
+                VolunteerUnavailabilityRead(
+                    id=item.id, starts_on=item.starts_on, ends_on=item.ends_on, note=item.note
+                )
+                for item in session.scalars(
+                    select(VolunteerUnavailability).where(
+                        VolunteerUnavailability.user_id == user.id
+                    )
+                ).all()
+            ],
+        )
+        for preference, user in rows
+    ]
+
+
+@router.patch("/serving/admin/volunteers/{preference_id}", response_model=VolunteerPreferenceRead)
+def review_volunteer(
+    preference_id: str,
+    payload: VolunteerReviewUpdate,
+    current_user: CurrentUser,
+    _permission_user: User = Depends(require_permission("users:manage")),
+    session: Session = Depends(get_session),
+) -> VolunteerPreferenceRead:
+    preference = session.get(VolunteerPreference, preference_id)
+    if preference is None:
+        raise HTTPException(status_code=404, detail="Volunteer request not found")
+    preference.status = payload.status
+    if payload.preferred_frequency is not None:
+        preference.preferred_frequency = payload.preferred_frequency
+    preference.admin_notes = payload.admin_notes
+    preference.reviewed_at = datetime.now(UTC)
+    preference.reviewed_by_user_id = current_user.id
+    session.commit()
+    session.refresh(preference)
+    return preference_to_read(session, preference)
 
 
 @router.get("/roles", response_model=list[RoleRead])
@@ -496,7 +778,9 @@ def create_user(
         try:
             validate_password_strength(payload.password)
         except ValueError as exc:
-            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)
+            ) from exc
 
     try:
         user = User(
@@ -561,7 +845,9 @@ def invite_user(
             lifetime_hours=settings.auth_invite_hours,
         )
         action_url = build_auth_action_url(purpose="invite", token=raw_token)
-        email_sent = smtp_enabled() and send_auth_email(user=user, purpose="invite", action_url=action_url)
+        email_sent = smtp_enabled() and send_auth_email(
+            user=user, purpose="invite", action_url=action_url
+        )
         session.commit()
     except IntegrityError as exc:
         session.rollback()
@@ -605,7 +891,9 @@ def update_user(
         try:
             validate_password_strength(password)
         except ValueError as exc:
-            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)
+            ) from exc
 
     try:
         user.username = resolve_username(
@@ -663,7 +951,9 @@ def resend_invite(
         lifetime_hours=settings.auth_invite_hours,
     )
     action_url = build_auth_action_url(purpose="invite", token=raw_token)
-    email_sent = smtp_enabled() and send_auth_email(user=user, purpose="invite", action_url=action_url)
+    email_sent = smtp_enabled() and send_auth_email(
+        user=user, purpose="invite", action_url=action_url
+    )
     session.commit()
     return UserInviteRead(
         user=user_to_read(session, user),
@@ -689,7 +979,9 @@ def admin_password_reset(
         lifetime_hours=settings.auth_reset_hours,
     )
     action_url = build_auth_action_url(purpose="reset", token=raw_token)
-    email_sent = smtp_enabled() and send_auth_email(user=user, purpose="reset", action_url=action_url)
+    email_sent = smtp_enabled() and send_auth_email(
+        user=user, purpose="reset", action_url=action_url
+    )
     session.commit()
     return PasswordResetAdminRead(
         reset_url=action_url,

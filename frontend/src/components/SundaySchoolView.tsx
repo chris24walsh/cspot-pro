@@ -221,7 +221,7 @@ export function SundaySchoolView({ canEdit }: { canEdit: boolean }) {
   );
   const sundaySchoolTeachers = useMemo(
     () => users
-      .filter((user) => user.active && user.roles.includes("sunday_school_teacher"))
+      .filter((user) => user.active && (user.roles.includes("sunday_school_teacher") || user.approved_serving_areas.includes("sunday_school")))
       .sort((left, right) => left.name.localeCompare(right.name)),
     [users],
   );
@@ -235,6 +235,7 @@ export function SundaySchoolView({ canEdit }: { canEdit: boolean }) {
       id: teacher.id,
       name: teacher.name,
       maxSundaysPerMonth: teacher.sunday_school_max_sundays_per_month,
+      unavailable: teacher.unavailable,
     })),
     [sundaySchoolTeachers],
   );

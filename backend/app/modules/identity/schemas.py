@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date, datetime
 from typing import Literal
 
 from pydantic import BaseModel, Field
@@ -16,7 +16,9 @@ class UserBase(BaseModel):
     username: str | None = None
     name: str
     start_page: str | None = None
-    calendar_color: Literal["teacher-a", "teacher-b", "teacher-c", "teacher-d", "teacher-e", "teacher-f"] | None = None
+    calendar_color: (
+        Literal["teacher-a", "teacher-b", "teacher-c", "teacher-d", "teacher-e", "teacher-f"] | None
+    ) = None
     calendar_avatar: Literal["👤", "🎤", "🎸", "🎹", "🎶", "📖", "🌟", "🌿"] | None = None
     worship_max_sundays_per_month: int | None = Field(default=None, ge=0, le=5)
     sunday_school_max_sundays_per_month: int | None = Field(default=None, ge=0, le=5)
@@ -34,7 +36,9 @@ class UserUpdate(BaseModel):
     username: str | None = None
     name: str | None = None
     start_page: str | None = None
-    calendar_color: Literal["teacher-a", "teacher-b", "teacher-c", "teacher-d", "teacher-e", "teacher-f"] | None = None
+    calendar_color: (
+        Literal["teacher-a", "teacher-b", "teacher-c", "teacher-d", "teacher-e", "teacher-f"] | None
+    ) = None
     calendar_avatar: Literal["👤", "🎤", "🎸", "🎹", "🎶", "📖", "🌟", "🌿"] | None = None
     worship_max_sundays_per_month: int | None = Field(default=None, ge=0, le=5)
     sunday_school_max_sundays_per_month: int | None = Field(default=None, ge=0, le=5)
@@ -51,6 +55,16 @@ class UserRead(UserBase):
     invite_pending: bool
 
 
+class VolunteerUnavailabilityCreate(BaseModel):
+    starts_on: date
+    ends_on: date
+    note: str | None = Field(default=None, max_length=300)
+
+
+class VolunteerUnavailabilityRead(VolunteerUnavailabilityCreate):
+    id: str
+
+
 class MemberRead(BaseModel):
     id: str
     email: str
@@ -62,6 +76,64 @@ class MemberRead(BaseModel):
     calendar_avatar: str | None = None
     worship_max_sundays_per_month: int | None = None
     sunday_school_max_sundays_per_month: int | None = None
+    approved_serving_areas: list[str] = []
+    unavailable: list[VolunteerUnavailabilityRead] = []
+
+
+class SelfProfileUpdate(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=160)
+    email: str | None = Field(default=None, min_length=3, max_length=320)
+    username: str | None = None
+    calendar_avatar: Literal["👤", "🎤", "🎸", "🎹", "🎶", "📖", "🌟", "🌿"] | None = None
+
+
+class ServingAreaRead(BaseModel):
+    id: str
+    key: str
+    name: str
+    category: str
+    description: str | None = None
+
+
+class VolunteerPreferenceRead(BaseModel):
+    id: str
+    user_id: str
+    area: ServingAreaRead
+    status: Literal["pending", "approved", "declined"]
+    preferred_frequency: Literal["weekly", "monthly", "quarterly", "semi_yearly", "occasional"]
+    availability_notes: str | None = None
+    admin_notes: str | None = None
+    reviewed_at: datetime | None = None
+
+
+class VolunteerPreferenceUpdate(BaseModel):
+    preferred_frequency: Literal["weekly", "monthly", "quarterly", "semi_yearly", "occasional"] = (
+        "monthly"
+    )
+    availability_notes: str | None = Field(default=None, max_length=2000)
+
+
+class VolunteerReviewUpdate(BaseModel):
+    status: Literal["pending", "approved", "declined"]
+    preferred_frequency: (
+        Literal["weekly", "monthly", "quarterly", "semi_yearly", "occasional"] | None
+    ) = None
+    admin_notes: str | None = Field(default=None, max_length=2000)
+
+
+class ServingProfileRead(BaseModel):
+    user: UserRead
+    areas: list[ServingAreaRead]
+    preferences: list[VolunteerPreferenceRead]
+    unavailable: list[VolunteerUnavailabilityRead]
+
+
+class VolunteerAdminRead(BaseModel):
+    user_id: str
+    user_name: str
+    user_email: str
+    preference: VolunteerPreferenceRead
+    unavailable: list[VolunteerUnavailabilityRead] = []
 
 
 class SessionUserRead(UserRead):

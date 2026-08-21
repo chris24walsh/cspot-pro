@@ -1,6 +1,6 @@
-from datetime import datetime
+from datetime import date, datetime
 
-from sqlalchemy import Boolean, ForeignKey, Integer, String
+from sqlalchemy import Boolean, Date, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.database import Base
@@ -56,3 +56,40 @@ class AuthToken(IdMixin, TimestampMixin, Base):
     sent_to_email: Mapped[str] = mapped_column(String(320), index=True)
     expires_at: Mapped[datetime] = mapped_column(index=True)
     used_at: Mapped[datetime | None]
+
+
+class ServingArea(IdMixin, TimestampMixin, Base):
+    __tablename__ = "serving_areas"
+
+    key: Mapped[str] = mapped_column(String(80), unique=True, index=True)
+    name: Mapped[str] = mapped_column(String(120))
+    category: Mapped[str] = mapped_column(String(80), index=True)
+    description: Mapped[str | None] = mapped_column(String(500))
+    active: Mapped[bool] = mapped_column(Boolean, default=True)
+
+
+class VolunteerPreference(IdMixin, TimestampMixin, Base):
+    __tablename__ = "volunteer_preferences"
+    __table_args__ = (
+        UniqueConstraint("user_id", "serving_area_id", name="uq_volunteer_user_area"),
+    )
+
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    serving_area_id: Mapped[str] = mapped_column(
+        ForeignKey("serving_areas.id", ondelete="CASCADE"), index=True
+    )
+    status: Mapped[str] = mapped_column(String(24), default="pending", index=True)
+    preferred_frequency: Mapped[str] = mapped_column(String(24), default="monthly")
+    availability_notes: Mapped[str | None] = mapped_column(Text)
+    admin_notes: Mapped[str | None] = mapped_column(Text)
+    reviewed_by_user_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"), index=True)
+    reviewed_at: Mapped[datetime | None]
+
+
+class VolunteerUnavailability(IdMixin, TimestampMixin, Base):
+    __tablename__ = "volunteer_unavailability"
+
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    starts_on: Mapped[date] = mapped_column(Date, index=True)
+    ends_on: Mapped[date] = mapped_column(Date, index=True)
+    note: Mapped[str | None] = mapped_column(String(300))

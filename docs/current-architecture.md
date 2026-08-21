@@ -113,6 +113,14 @@ Route -> schema validation -> ORM/session work -> response schema
 
 ### Authentication and authorization
 
+Access roles and serving eligibility are deliberately separate. Signed-in users
+can maintain their own identity, volunteer preferences, preferred frequency,
+and unavailable date ranges. Administrators approve or decline those requests
+without granting application permissions. Approved worship and Sunday School
+preferences are exposed to the existing rotation selectors; the same
+data-backed serving-area catalogue also covers welcome, AV, cleaning, cooking,
+maintenance, and grounds work as the foundation for broader chore scheduling.
+
 `identity` now owns:
 
 - first-admin bootstrap

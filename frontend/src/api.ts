@@ -445,7 +445,17 @@ export interface Member {
   calendar_avatar: string | null;
   worship_max_sundays_per_month: number | null;
   sunday_school_max_sundays_per_month: number | null;
+  approved_serving_areas: string[];
+  unavailable: VolunteerUnavailability[];
 }
+
+export type VolunteerFrequency = "weekly" | "monthly" | "quarterly" | "semi_yearly" | "occasional";
+export type VolunteerStatus = "pending" | "approved" | "declined";
+export interface ServingArea { id: string; key: string; name: string; category: string; description: string | null; }
+export interface VolunteerPreference { id: string; user_id: string; area: ServingArea; status: VolunteerStatus; preferred_frequency: VolunteerFrequency; availability_notes: string | null; admin_notes: string | null; reviewed_at: string | null; }
+export interface VolunteerUnavailability { id: string; starts_on: string; ends_on: string; note: string | null; }
+export interface ServingProfile { user: User; areas: ServingArea[]; preferences: VolunteerPreference[]; unavailable: VolunteerUnavailability[]; }
+export interface VolunteerAdminRecord { user_id: string; user_name: string; user_email: string; preference: VolunteerPreference; unavailable: VolunteerUnavailability[]; }
 
 export interface SessionUser extends User {
   permissions: string[];
@@ -766,7 +776,7 @@ async function getJson<T>(
 
 async function sendJson<T>(
   path: string,
-  method: "POST" | "PATCH",
+  method: "POST" | "PATCH" | "PUT",
   body: unknown,
   options?: { suppressAuthEvent?: boolean; timeoutMs?: number },
 ): Promise<T> {
@@ -861,6 +871,18 @@ export async function logout(): Promise<void> {
 export async function getSessionUser(): Promise<SessionUser> {
   return getJson<SessionUser>("/api/v1/identity/auth/me", { suppressAuthEvent: true });
 }
+
+export async function updateMyProfile(payload: { name?: string; email?: string; username?: string; calendar_avatar?: string | null }): Promise<SessionUser> {
+  return sendJson<SessionUser>("/api/v1/identity/auth/me", "PATCH", payload);
+}
+
+export async function getServingProfile(): Promise<ServingProfile> { return getJson<ServingProfile>("/api/v1/identity/serving/profile"); }
+export async function saveVolunteerPreference(areaKey: string, payload: { preferred_frequency: VolunteerFrequency; availability_notes: string | null }): Promise<VolunteerPreference> { return sendJson<VolunteerPreference>(`/api/v1/identity/serving/preferences/${areaKey}`, "PUT", payload); }
+export async function withdrawVolunteerPreference(areaKey: string): Promise<void> { return deleteRequest(`/api/v1/identity/serving/preferences/${areaKey}`); }
+export async function addVolunteerUnavailability(payload: { starts_on: string; ends_on: string; note: string | null }): Promise<VolunteerUnavailability> { return sendJson<VolunteerUnavailability>("/api/v1/identity/serving/unavailability", "POST", payload); }
+export async function removeVolunteerUnavailability(id: string): Promise<void> { return deleteRequest(`/api/v1/identity/serving/unavailability/${id}`); }
+export async function getVolunteerAdminRecords(): Promise<VolunteerAdminRecord[]> { return getJson<VolunteerAdminRecord[]>("/api/v1/identity/serving/admin/volunteers"); }
+export async function reviewVolunteerPreference(id: string, payload: { status: VolunteerStatus; preferred_frequency?: VolunteerFrequency; admin_notes?: string | null }): Promise<VolunteerPreference> { return sendJson<VolunteerPreference>(`/api/v1/identity/serving/admin/volunteers/${id}`, "PATCH", payload); }
 
 export async function getPlanTypes(): Promise<PlanType[]> {
   return getJson<PlanType[]>("/api/v1/planning/plan-types");

@@ -2116,6 +2116,54 @@ h3 {
   padding: 16px 20px;
 }
 
+.profile-workspace {
+  display: grid;
+  gap: 14px;
+  min-height: 0;
+  overflow: auto;
+  padding: 16px 20px 28px;
+}
+
+.profile-card {
+  background: #fffefa;
+  border: 1px solid #ded8c7;
+  border-radius: 8px;
+  padding: 14px;
+}
+
+.serving-area-grid {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  margin-top: 12px;
+}
+
+.serving-area {
+  border: 1px solid #ded8c7;
+  border-radius: 8px;
+  padding: 10px;
+}
+
+.serving-area.selected { background: #f2f8f4; border-color: #8ebba9; }
+.serving-area-toggle { align-items: center; display: flex; gap: 9px; }
+.serving-area-toggle input { height: 18px; width: 18px; }
+.serving-area-toggle span { display: grid; }
+.serving-area-toggle small, .serving-area > p { color: #65716a; font-size: 12px; }
+.serving-area > p { min-height: 30px; }
+.availability-entry { align-items: end; display: grid; gap: 8px; grid-template-columns: 150px 150px minmax(160px, 1fr) auto; }
+.availability-entry label { display: grid; font-size: 12px; font-weight: 800; gap: 4px; }
+.availability-entry input { background: #fffdf7; border: 1px solid #cfc7b4; border-radius: 8px; min-height: 36px; padding: 7px 9px; }
+.availability-list { display: grid; gap: 6px; margin-top: 12px; }
+.availability-list > div, .volunteer-review-list article { align-items: center; border-top: 1px solid #e8e2d3; display: flex; justify-content: space-between; padding: 8px 0; }
+.volunteer-review-list article > div:first-child { display: grid; gap: 2px; }
+.volunteer-review-list span, .volunteer-review-list small { color: #65716a; font-size: 12px; }
+
+@media (max-width: 720px) {
+  .profile-workspace { padding: 10px; }
+  .availability-entry { grid-template-columns: 1fr 1fr; }
+  .availability-entry label:nth-child(3) { grid-column: 1 / -1; }
+}
+
 .manager-list,
 .editor-panel {
   background: #fffefa;

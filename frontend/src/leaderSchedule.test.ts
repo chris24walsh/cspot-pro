@@ -62,6 +62,18 @@ describe("Sunday leader rotation", () => {
     expect([...schedule.values()]).not.toContain("tablet");
   });
 
+  it("skips dates a volunteer has marked unavailable", () => {
+    const schedule = buildMonthlyLeaderSchedule(
+      "2026-08",
+      [
+        { id: "a", name: "Alex", maxSundaysPerMonth: null, unavailable: [{ starts_on: "2026-08-20", ends_on: "2026-08-25" }] },
+        { id: "b", name: "Beth", maxSundaysPerMonth: null },
+      ],
+      new Map(),
+    );
+    expect(schedule.get("2026-08-23")).not.toBe("a");
+  });
+
   it("reserves capacity for explicit assignments before filling gaps", () => {
     const schedule = buildMonthlyLeaderSchedule(
       "2026-08",

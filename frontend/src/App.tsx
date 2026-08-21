@@ -10,6 +10,7 @@ import {
   Music2,
   Radio,
   Settings,
+  UserRound,
   UploadCloud,
   UsersRound,
 } from "lucide-react";
@@ -37,6 +38,7 @@ import { PresentationView } from "./components/PresentationView";
 import { ServiceBroadcastView } from "./components/ServiceBroadcastView";
 import { SundaySchoolView } from "./components/SundaySchoolView";
 import { UserManager } from "./components/UserManager";
+import { MyProfile } from "./components/MyProfile";
 import { WorshipBuilderView } from "./components/WorshipBuilderView";
 import { featureModules, type FeatureModule, type ModuleId } from "./data/featureMap";
 import { appAssetUrl } from "./paths";
@@ -53,6 +55,7 @@ const iconMap = {
   presentation: Clapperboard,
   imports: UploadCloud,
   admin: Settings,
+  profile: UserRound,
 } satisfies Record<ModuleId, typeof CalendarDays>;
 
 interface ApiWorkspace {
@@ -499,6 +502,8 @@ function App() {
           )
         ) : activeModule.id === "admin" ? (
           <UserManager />
+        ) : activeModule.id === "profile" ? (
+          <MyProfile onProfileChanged={() => void loadAuth()} />
         ) : (
           <PresentationView
             canAttachDeck={canEditPlans && canCreateLibrary}

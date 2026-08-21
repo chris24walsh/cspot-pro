@@ -20,6 +20,7 @@ import {
 } from "../api";
 import { CALENDAR_AVATARS, CALENDAR_COLORS } from "../userCalendarStyle";
 import { useConfirmationDialog } from "./ConfirmationDialog";
+import { VolunteerReview } from "./VolunteerReview";
 
 interface UserFormState {
   name: string;
@@ -414,6 +415,7 @@ export function UserManager() {
         </div>
 
         {message ? <p className="form-message">{message}</p> : null}
+        <VolunteerReview />
 
         {actionLink ? (
           <div className="field-action-row">

@@ -2,6 +2,7 @@ export interface SundayLeader {
   id: string;
   name: string;
   maxSundaysPerMonth: number | null;
+  unavailable?: { starts_on: string; ends_on: string }[];
 }
 
 function dateInput(value: Date) {
@@ -82,6 +83,7 @@ export function buildMonthlyLeaderSchedule(
       const assignedCount = counts.get(leader.id) ?? 0;
       const capacity = leader.maxSundaysPerMonth ?? Number.POSITIVE_INFINITY;
       if (assignedCount >= capacity) continue;
+      if (leader.unavailable?.some((range) => range.starts_on <= date && range.ends_on >= date)) continue;
       schedule.set(date, leader.id);
       counts.set(leader.id, assignedCount + 1);
       cursor = (leaderIndex + 1) % orderedLeaders.length;

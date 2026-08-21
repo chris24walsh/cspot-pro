@@ -417,7 +417,7 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
   const worshipLeaders = useMemo(
     () =>
       users
-        .filter((user) => user.active && user.roles.includes("worship_leader"))
+        .filter((user) => user.active && (user.roles.includes("worship_leader") || user.approved_serving_areas.includes("worship")))
         .sort((left, right) => left.name.localeCompare(right.name)),
     [users],
   );
@@ -428,6 +428,7 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
         id: leader.id,
         name: leader.name,
         maxSundaysPerMonth: leader.worship_max_sundays_per_month,
+        unavailable: leader.unavailable,
       })),
     [worshipLeaders],
   );

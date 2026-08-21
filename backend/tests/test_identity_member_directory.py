@@ -2,7 +2,14 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
 from app.core.database import Base
-from app.modules.identity.models import Role, User, UserRole
+from app.modules.identity.models import (
+    Role,
+    ServingArea,
+    User,
+    UserRole,
+    VolunteerPreference,
+    VolunteerUnavailability,
+)
 from app.modules.identity.permissions import permissions_for_roles
 from app.modules.identity.auth import list_role_names
 from app.modules.identity.routes import set_user_roles, user_to_member_read
@@ -10,7 +17,17 @@ from app.modules.identity.routes import set_user_roles, user_to_member_read
 
 def test_member_directory_exposes_team_fields_without_admin_fields() -> None:
     engine = create_engine("sqlite://")
-    Base.metadata.create_all(engine, tables=[User.__table__, Role.__table__, UserRole.__table__])
+    Base.metadata.create_all(
+        engine,
+        tables=[
+            User.__table__,
+            Role.__table__,
+            UserRole.__table__,
+            ServingArea.__table__,
+            VolunteerPreference.__table__,
+            VolunteerUnavailability.__table__,
+        ],
+    )
 
     with Session(engine) as session:
         user = User(
@@ -38,6 +55,7 @@ def test_member_directory_exposes_team_fields_without_admin_fields() -> None:
     assert member.username == "leader"
     assert member.calendar_color == "teacher-b"
     assert member.worship_max_sundays_per_month == 2
+    assert member.approved_serving_areas == []
     assert "password_set" not in member.model_dump()
 
 
