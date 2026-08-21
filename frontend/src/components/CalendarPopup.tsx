@@ -149,9 +149,14 @@ export function CalendarPopup({
       const target = selected ?? next ?? dates[0];
       if (!target) return;
       const targetTop = target.getBoundingClientRect().top - currentTimeline.getBoundingClientRect().top + currentTimeline.scrollTop;
-      currentTimeline.scrollTop = Math.max(0, targetTop - currentTimeline.clientHeight / 3);
+      const previousScrollBehavior = currentTimeline.style.scrollBehavior;
+      currentTimeline.style.scrollBehavior = "auto";
+      currentTimeline.scrollTop = Math.max(0, targetTop - currentTimeline.clientHeight / 2 + target.offsetHeight / 2);
       positionedFrame = window.requestAnimationFrame(() => {
-        if (calendarTimelineRef.current === currentTimeline) currentTimeline.dataset.calendarPositioned = "true";
+        if (calendarTimelineRef.current === currentTimeline) {
+          currentTimeline.style.scrollBehavior = previousScrollBehavior;
+          currentTimeline.dataset.calendarPositioned = "true";
+        }
       });
     });
     return () => {

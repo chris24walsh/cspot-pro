@@ -1,6 +1,5 @@
 import json
 from datetime import UTC, date, datetime
-from decimal import Decimal
 
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy import func, or_, select
@@ -239,21 +238,9 @@ def create_plan(
 
     plan = Plan(**payload.model_dump())
     session.add(plan)
-    session.flush()
-    items: list[PlanItem] = []
-    if plan_type.name.strip().casefold() != "worship set":
-        end_item = PlanItem(
-            plan_id=plan.id,
-            item_type="end",
-            sequence=Decimal("999.00"),
-            title="End",
-            comment="End of service",
-        )
-        session.add(end_item)
-        items.append(end_item)
     session.commit()
     session.refresh(plan)
-    return plan_to_detail(session, plan, items)
+    return plan_to_detail(session, plan, [])
 
 
 @router.get("/plans/{plan_id}", response_model=PlanDetail)

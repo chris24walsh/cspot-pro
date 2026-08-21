@@ -361,7 +361,8 @@ Search modes:
   Both timelines extend in either direction near their scroll boundaries,
   preserve position when earlier dates are prepended, and omit status text from
   blank slots. Selecting a missing service or worship Sunday transparently creates
-  and opens its plan. Archive actions in these overlays are admin-only.
+  and opens its plan without inserting placeholder plan items. Archive actions in
+  these overlays are admin-only.
 - Worship and Sunday School leader defaults are deterministic monthly
   round-robin schedules. Each user can have a separate worship and Sunday
   School maximum (zero means manual-only; null means unlimited). Explicit
