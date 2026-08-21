@@ -147,6 +147,11 @@ direct assignments suppress duplicate volunteer or invitation controls. Access
 grants that are not semantic equivalents (for example Sound/AV using Presenter
 permissions) remain distinct. Historical preference records are preserved.
 
+Admin navigation uses up to three flat tab rows: Manage users/Settings, then
+Users/User settings, then Account & identity/Roles & serving. Google Drive is
+kept under Settings; Sunday rotation limits are inline on the applicable role
+rows rather than presented as a separate user-settings panel.
+
 `identity` now owns:
 
 - first-admin bootstrap

@@ -2113,7 +2113,7 @@ h3 {
 .manager-grid {
   display: grid;
   gap: 14px;
-  grid-template-columns: 300px minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr);
   min-height: 0;
   overflow: hidden;
   padding: 16px 20px;
@@ -2121,11 +2121,26 @@ h3 {
 
 .admin-topbar-tabs button { align-items: center; display: flex; gap: 6px; }
 .admin-topbar-tabs button span { align-items: center; background: #e6a82f; border-radius: 999px; display: inline-flex; font-size: 11px; justify-content: center; min-height: 19px; min-width: 19px; padding: 1px 5px; }
-.admin-mobile-user-tabs { display: none; grid-column: 1 / -1; }
+.flat-admin-tabs { background: transparent; border: 0; border-bottom: 1px solid #d8d1bf; border-radius: 0; display: flex; gap: 16px; margin: 0; padding: 0; width: 100%; }
+.flat-admin-tabs button { background: transparent; border: 0; border-bottom: 2px solid transparent; border-radius: 0; color: #53615a; cursor: pointer; font: inherit; font-size: 13px; font-weight: 850; min-height: 34px; padding: 5px 4px; }
+.flat-admin-tabs button.active { background: transparent; border-bottom-color: #245d4d; box-shadow: none; color: #17201b; }
+.admin-topbar-tabs { align-self: stretch; margin-bottom: -1px; width: auto; }
+.admin-mobile-user-tabs { display: flex; grid-column: 1 / -1; }
+.user-settings-tabs { margin: -2px 0 10px; }
+.admin-manager.is-users .manager-list,
+.admin-manager.is-users .editor-panel { display: none; grid-column: 1 / -1; }
+.admin-manager.is-users .manager-list.is-mobile-active,
+.admin-manager.is-users .editor-panel.is-mobile-active { display: block; }
 .admin-manager.is-settings .manager-list { display: none; }
+.admin-manager.is-settings .admin-mobile-user-tabs { display: none; }
 .admin-manager.is-settings .editor-panel { grid-column: 1 / -1; }
 .admin-manager.is-settings .editor-panel > :not(.admin-settings-panel) { display: none; }
+.admin-manager.is-users .admin-settings-panel { display: none; }
+.editor-panel.is-profile-settings .capability-fieldset { display: none; }
+.editor-panel.is-serving-settings .form-grid > label,
+.editor-panel.is-serving-settings .calendar-identity-fieldset { display: none; }
 .admin-user-filters { display: grid; gap: 6px; grid-template-columns: 1fr 1fr; margin-bottom: 9px; }
+.admin-manager .manager-list .stack-list { grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); }
 .admin-user-filters select { background: #fffdf7; border: 1px solid #cfc7b4; border-radius: 8px; min-height: 34px; padding: 5px 7px; width: 100%; }
 .user-attention-flag { align-items: center; background: #e6a82f; border-radius: 999px; color: #17201b !important; display: inline-flex; font-size: 11px !important; justify-content: center; margin-left: 6px; min-height: 17px; min-width: 17px; }
 .status-pill.attention { background: #fff0cc; border-color: #dfb34e; color: #6f4b00; }
@@ -2167,7 +2182,11 @@ h3 {
 .frequency-input input, .frequency-input select { min-height: 30px; padding: 3px 6px; }
 .admin-role-list, .volunteer-review-list { display: grid; gap: 5px; }
 .admin-role-row { align-items: center; background: #fffefa; border: 1px solid #e3dcc8; border-radius: 7px; cursor: pointer; display: flex; gap: 8px; min-height: 38px; padding: 5px 8px; }
-.admin-role-row > input[type="checkbox"] { appearance: auto; height: 16px; min-height: 16px; min-width: 16px; padding: 0; width: 16px; }
+.admin-role-toggle { align-items: center; cursor: pointer; display: flex; flex: 1; gap: 8px; min-width: 0; }
+.admin-role-toggle > input[type="checkbox"] { appearance: auto; height: 16px; min-height: 16px; min-width: 16px; padding: 0; width: 16px; }
+.admin-role-toggle > span { display: grid; gap: 1px; }
+.inline-role-limit { align-items: center; display: flex; flex-direction: row !important; font-size: 11px !important; gap: 5px !important; white-space: nowrap; }
+.inline-role-limit select { min-height: 29px; padding: 3px 6px; width: auto !important; }
 .admin-role-row.selected { background: #edf7f2; border-color: #8dc7b5; }
 .admin-role-row > span { display: grid; gap: 1px; }
 .admin-role-row strong { color: #17201b; font-size: 13px; }
@@ -2221,12 +2240,8 @@ h3 {
   .frequency-input { flex-wrap: wrap; }
   .availability-entry label:nth-child(3) { grid-column: 1 / -1; }
   .admin-manager { grid-template-columns: 1fr; padding: 8px; }
-  .admin-mobile-user-tabs { display: grid; }
-  .admin-manager.is-users .manager-list,
-  .admin-manager.is-users .editor-panel { display: none; }
-  .admin-manager.is-users .manager-list.is-mobile-active,
-  .admin-manager.is-users .editor-panel.is-mobile-active { display: block; }
-  .admin-manager.is-settings .admin-mobile-user-tabs { display: none; }
+  .admin-mobile-user-tabs { display: flex; }
+  .admin-manager .manager-list .stack-list { grid-template-columns: 1fr; }
 }
 
 .manager-list,
