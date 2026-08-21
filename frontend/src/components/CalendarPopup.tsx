@@ -110,6 +110,7 @@ export function CalendarPopup({
   const [extensions, setExtensions] = useState({ allBefore: 0, allAfter: 0, sundayBefore: 0, sundayAfter: 0 });
   const calendarTimelineRef = useRef<HTMLDivElement | null>(null);
   const prependScrollHeightRef = useRef<number | null>(null);
+  const prependRestoreFrameRef = useRef<number | null>(null);
   const appendPendingRef = useRef(false);
   useEscapeClose(isOpen, onClose);
   const initialDays = visibleCalendarDays(allDays, viewMode, sundayDays);
@@ -135,9 +136,24 @@ export function CalendarPopup({
     const timeline = calendarTimelineRef.current;
     const previousHeight = prependScrollHeightRef.current;
     if (!timeline || previousHeight === null) return;
+    const previousScrollBehavior = timeline.style.scrollBehavior;
+    timeline.dataset.calendarPositioned = "false";
+    timeline.style.scrollBehavior = "auto";
     timeline.scrollTop += timeline.scrollHeight - previousHeight;
     prependScrollHeightRef.current = null;
+    if (prependRestoreFrameRef.current !== null) window.cancelAnimationFrame(prependRestoreFrameRef.current);
+    prependRestoreFrameRef.current = window.requestAnimationFrame(() => {
+      if (calendarTimelineRef.current === timeline) {
+        timeline.style.scrollBehavior = previousScrollBehavior;
+        timeline.dataset.calendarPositioned = "true";
+      }
+      prependRestoreFrameRef.current = null;
+    });
   }, [displayedDays.length]);
+
+  useEffect(() => () => {
+    if (prependRestoreFrameRef.current !== null) window.cancelAnimationFrame(prependRestoreFrameRef.current);
+  }, []);
 
   useLayoutEffect(() => {
     appendPendingRef.current = false;

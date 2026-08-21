@@ -670,6 +670,8 @@ export function PresentationView({
   const currentLiveStateRef = useRef<PresentationLiveState | null>(null);
   const lastLiveStateRef = useRef<number>(0);
   const livePollInFlightRef = useRef(false);
+  const loadRequestIdRef = useRef(0);
+  const selectedPlanIdRef = useRef("");
   const suppressPublishRef = useRef(false);
   const suppressNextOperatorScrollRef = useRef(false);
   const scrollOperatorToSelectedSlideRef = useRef(false);
@@ -1008,6 +1010,7 @@ export function PresentationView({
   }
 
   async function load(planId?: string, options?: LoadOptions) {
+    const requestId = ++loadRequestIdRef.current;
     setMessage(null);
     if (!options?.silent) {
       setLoading(true);
@@ -1026,7 +1029,7 @@ export function PresentationView({
       const requestedPlanId =
         planId !== undefined
           ? planId
-          : sessionStorage.getItem(SELECTED_SERVICE_SESSION_KEY) || selectedPlanId;
+          : sessionStorage.getItem(SELECTED_SERVICE_SESSION_KEY) || selectedPlanIdRef.current;
       const nextServicePlans = nextPlans.filter((candidate) => !isWorshipSetPlan(candidate));
       const nextWorshipSetPlans = nextPlans.filter(isWorshipSetPlan);
       const requestedPlan = nextServicePlans.find((candidate) => candidate.id === requestedPlanId);
@@ -1041,6 +1044,8 @@ export function PresentationView({
       ]);
       const matchingWorshipSet = matchingWorshipSetForService(targetPlan, nextWorshipSetPlans);
       const nextWorshipSetPlan = matchingWorshipSet ? await getPlan(matchingWorshipSet.id) : null;
+      if (requestId !== loadRequestIdRef.current) return;
+      selectedPlanIdRef.current = targetPlanId;
       setSelectedPlanId(targetPlanId);
       if (targetPlanId) {
         sessionStorage.setItem(SELECTED_SERVICE_SESSION_KEY, targetPlanId);
@@ -1107,13 +1112,14 @@ export function PresentationView({
       }
       setLiveIndex(nextLiveIndex);
     } catch (error) {
+      if (requestId !== loadRequestIdRef.current) return;
       if (!isTransientApiError(error) || !plan) {
         setPlan(null);
         setWorshipSetPlan(null);
       }
       setMessage(error instanceof Error ? error.message : "Could not load presentation.");
     } finally {
-      if (!options?.silent) {
+      if (requestId === loadRequestIdRef.current && !options?.silent) {
         setLoading(false);
       }
     }
@@ -1528,6 +1534,7 @@ export function PresentationView({
   }
 
   async function selectPlan(planId: string) {
+    selectedPlanIdRef.current = planId;
     setServiceHistoryOpen(false);
     setServicePickerOpen(false);
     await load(planId);
@@ -1697,6 +1704,7 @@ export function PresentationView({
         status: "draft",
         info: null,
       });
+      selectedPlanIdRef.current = created.id;
       await load(created.id, { refreshCatalogs: true });
       setServicePickerOpen(false);
       setMessage("New service created.");
@@ -2958,6 +2966,7 @@ export function PresentationView({
         try {
           const previousPlanItemId = currentLiveStateRef.current?.planItemId ?? null;
           const remoteState = await getPresentationLiveState(selectedPlanId);
+          if (selectedPlanIdRef.current !== selectedPlanId) return;
           if (remoteState.updated_at <= lastLiveStateRef.current) {
             return;
           }
@@ -2975,6 +2984,7 @@ export function PresentationView({
             videoActionAt: remoteState.video_action_at ?? undefined,
           });
           if (remoteState.plan_item_id && remoteState.plan_item_id === previousPlanItemId) {
+            if (selectedPlanIdRef.current !== selectedPlanId) return;
             await load(selectedPlanId, {
               preserveLocation: {
                 planItemId: remoteState.plan_item_id,

@@ -385,6 +385,7 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
   const slideReviewRef = useRef<HTMLElement | null>(null);
   const setItemRefs = useRef<Record<string, HTMLElement | null>>({});
   const slideGroupRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const loadRequestIdRef = useRef(0);
 
   const hasDismissiblePopup = suggestionReviewOpen || newSongPromptOpen || historyImportOpen || editHistoryOpen;
   useEscapeClose(hasDismissiblePopup, () => {
@@ -676,6 +677,7 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
   }
 
   async function load(targetPlanId?: string) {
+    const requestId = ++loadRequestIdRef.current;
     setLoading(true);
     try {
       const [nextPlans, nextSongs, nextPlanTypes, nextUsers, nextLeaderAssignments, nextSongUsage] = await Promise.all([
@@ -700,6 +702,7 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
         : preferredPlanId;
       const nextPlan = resolvedPlanId ? await getPlan(resolvedPlanId) : null;
       const nextHistory = resolvedPlanId ? await getPlanHistory(resolvedPlanId) : [];
+      if (requestId !== loadRequestIdRef.current) return;
       const nextWorshipItems = sortedWorshipItems(nextPlan?.items ?? []);
       setPlans(nextPlans);
       setSongs(nextSongs);
@@ -722,9 +725,10 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
       );
       setMessage(null);
     } catch (error) {
+      if (requestId !== loadRequestIdRef.current) return;
       setMessage(error instanceof Error ? error.message : "Could not load worship builder.");
     } finally {
-      setLoading(false);
+      if (requestId === loadRequestIdRef.current) setLoading(false);
     }
   }
 
