@@ -11069,3 +11069,25 @@ button.musician-page {
   .shell.is-mobile-device .topbar-admin { padding-bottom: 0; }
   .manager-grid.admin-manager { padding: 0; }
 }
+
+/* Profile sections use the same compact, joined navigation language as admin. */
+.profile-workspace:has(.profile-section-tabs) { gap: 0; }
+.profile-section-tabs { flex: 0 0 auto; }
+.profile-section-tabs + .profile-card {
+  border-top: 0;
+  border-radius: 0 0 8px 8px;
+}
+.tab-attention-count {
+  align-items: center;
+  background: #efa91d;
+  border-radius: 999px;
+  color: #17352c;
+  display: inline-flex;
+  font-size: 11px;
+  justify-content: center;
+  line-height: 1;
+  margin-left: 5px;
+  min-height: 18px;
+  min-width: 18px;
+  padding: 2px 5px;
+}

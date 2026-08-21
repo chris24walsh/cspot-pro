@@ -1,4 +1,4 @@
-import { type FormEvent, useEffect, useState } from "react";
+import { type FormEvent, useEffect, useRef, useState } from "react";
 
 import {
   buildAbsoluteApiUrl,
@@ -133,6 +133,7 @@ export function UserManager({ adminSection, onAdminSectionChange, onAttentionCha
   const [userSettingsSection, setUserSettingsSection] = useState<"profile" | "serving">("profile");
   const [userFilter, setUserFilter] = useState<"all" | "attention" | "active" | "inactive">("all");
   const [userSort, setUserSort] = useState<"attention" | "name" | "recent">("attention");
+  const initialAttentionRouted = useRef(false);
   const formDirty = mode === "create" || Boolean(selectedUser && JSON.stringify(form) !== JSON.stringify(formFromUser(selectedUser)));
 
   const pendingUserIds = new Set(volunteerRows.filter((row) => row.preference.admin_attention_pending).map((row) => row.user_id));
@@ -160,7 +161,17 @@ export function UserManager({ adminSection, onAdminSectionChange, onAttentionCha
       setServingAreas(nextServingAreas);
       await onAttentionChanged?.();
 
-      const target = nextUsers.find((user) => user.id === selectedId) ?? nextUsers[0] ?? null;
+      const attentionUserId = !selectedId && !initialAttentionRouted.current
+        ? nextVolunteerRows.find((row) => row.preference.admin_attention_pending)?.user_id
+        : undefined;
+      const target = nextUsers.find((user) => user.id === (selectedId ?? attentionUserId)) ?? nextUsers[0] ?? null;
+      if (!initialAttentionRouted.current) {
+        initialAttentionRouted.current = true;
+        if (attentionUserId) {
+          setMobileUserPane("detail");
+          setUserSettingsSection("serving");
+        }
+      }
       if (target) {
         setSelectedUser(target);
         setForm(formFromUser(target));
