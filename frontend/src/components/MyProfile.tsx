@@ -3,7 +3,7 @@ import { type FormEvent, useEffect, useRef, useState } from "react";
 import {
   addVolunteerUnavailability, decideServingInvitation, getServingProfile, removeVolunteerUnavailability,
   saveVolunteerPreference, updateMyProfile, withdrawVolunteerPreference,
-  type ServingProfile, type VolunteerFrequencyPeriod,
+  type ServingProfile, type VolunteerFrequencyPeriod, type VolunteerPreference,
 } from "../api";
 import { CALENDAR_AVATARS } from "../userCalendarStyle";
 import { useConfirmationDialog } from "./ConfirmationDialog";
@@ -36,6 +36,8 @@ export function MyProfile({ onProfileChanged }: { onProfileChanged: () => void }
   const [message, setMessage] = useState<string | null>(null);
   const [immediateAction, setImmediateAction] = useState<string | null>(null);
   const [profileSection, setProfileSection] = useState<"account" | "serving">(() => sessionStorage.getItem("cspot-profile-section") === "serving" ? "serving" : "account");
+  const [openCategory, setOpenCategory] = useState<string | null>(null);
+  const [openArea, setOpenArea] = useState<string | null>(null);
   const initialSectionChosen = useRef(false);
   const initialInvitationFocused = useRef(false);
 
@@ -49,6 +51,8 @@ export function MyProfile({ onProfileChanged }: { onProfileChanged: () => void }
       if (invitation) {
         setProfileSection("serving");
         sessionStorage.setItem("cspot-profile-section", "serving");
+        setOpenCategory(invitation.area.category);
+        setOpenArea(invitation.area.key);
       }
     }
   }
@@ -70,6 +74,11 @@ export function MyProfile({ onProfileChanged }: { onProfileChanged: () => void }
     sessionStorage.setItem("cspot-profile-section", section);
   }
 
+  function applyPreference(preference: VolunteerPreference) {
+    setData((current) => current ? { ...current, preferences: [...current.preferences.filter((item) => item.area.key !== preference.area.key), preference] } : current);
+    setDrafts((current) => ({ ...current, [preference.area.key]: { selected: true, frequency_count: preference.frequency_count, frequency_period: preference.frequency_period, availability_notes: preference.availability_notes ?? "" } }));
+  }
+
   async function saveProfile(event: FormEvent) {
     event.preventDefault();
     try { await updateMyProfile({ ...form, calendar_avatar: form.calendar_avatar || null }); await load(); onProfileChanged(); setMessage("Profile saved."); }
@@ -79,8 +88,8 @@ export function MyProfile({ onProfileChanged }: { onProfileChanged: () => void }
   async function volunteerNow(areaKey: string, draft: ServingDraft) {
     setImmediateAction(areaKey);
     try {
-      await saveVolunteerPreference(areaKey, preferencePayload(draft));
-      await load();
+      const preference = await saveVolunteerPreference(areaKey, preferencePayload(draft));
+      applyPreference(preference);
       onProfileChanged();
       setMessage("Volunteer request sent.");
     } catch (error) {
@@ -94,8 +103,8 @@ export function MyProfile({ onProfileChanged }: { onProfileChanged: () => void }
     setImmediateAction(areaKey);
     try {
       await saveVolunteerPreference(areaKey, preferencePayload(draft));
-      await decideServingInvitation(areaKey, "approved");
-      await load();
+      const preference = await decideServingInvitation(areaKey, "approved");
+      applyPreference(preference);
       onProfileChanged();
       setMessage("Invitation accepted.");
     } catch (error) {
@@ -108,8 +117,8 @@ export function MyProfile({ onProfileChanged }: { onProfileChanged: () => void }
   async function updatePreferenceNow(areaKey: string, draft: ServingDraft) {
     setImmediateAction(areaKey);
     try {
-      await saveVolunteerPreference(areaKey, preferencePayload(draft));
-      await load();
+      const preference = await saveVolunteerPreference(areaKey, preferencePayload(draft));
+      applyPreference(preference);
       setMessage("Serving preference updated.");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Could not update serving preference.");
@@ -125,7 +134,13 @@ export function MyProfile({ onProfileChanged }: { onProfileChanged: () => void }
     try {
       if (action === "reject") await decideServingInvitation(areaKey, "declined");
       else await withdrawVolunteerPreference(areaKey);
-      await load();
+      if (action === "reject") {
+        const next = await getServingProfile();
+        setData(next); setDrafts(makeDrafts(next));
+      } else {
+        setData((current) => current ? { ...current, preferences: current.preferences.filter((item) => item.area.key !== areaKey) } : current);
+        setDrafts((current) => ({ ...current, [areaKey]: { selected: false, frequency_count: 1, frequency_period: "month", availability_notes: "" } }));
+      }
       onProfileChanged();
       setMessage(`${label} completed.`);
     } catch (error) {
@@ -161,18 +176,24 @@ export function MyProfile({ onProfileChanged }: { onProfileChanged: () => void }
       <div className="section-heading"><div><p className="eyebrow">Serving</p><h2>How I can help</h2></div><div className="action-row">{invitationCount ? <span className="status-pill attention">{invitationCount} invitation{invitationCount === 1 ? "" : "s"} to answer</span> : null}</div></div>
       {message ? <p className="form-message">{message}</p> : null}
       <p className="muted-copy">Changes apply immediately. Active and requested roles are listed first; destructive actions ask for confirmation.</p>
-      <div className="serving-role-groups">{Array.from(new Set(data.areas.map((area) => area.category))).map((category) => <section className="serving-role-group" key={category}><h3>{category}</h3>{data.areas.filter((area) => area.category === category).sort((left, right) => Number(drafts[right.key]?.selected) - Number(drafts[left.key]?.selected)).map((area) => {
+      <div className="serving-role-groups">{Array.from(new Set(data.areas.map((area) => area.category))).map((category) => {
+        const categoryAreas = data.areas.filter((area) => area.category === category).sort((left, right) => Number(drafts[right.key]?.selected) - Number(drafts[left.key]?.selected));
+        const activeCount = categoryAreas.filter((area) => drafts[area.key]?.selected).length;
+        const categoryOpen = openCategory === category;
+        return <section className={`serving-role-group role-category ${categoryOpen ? "is-open" : ""}`} key={category}><button className="role-category-heading" onClick={() => { setOpenCategory(categoryOpen ? null : category); setOpenArea(null); }} type="button"><span>{category}</span><small>{activeCount} active</small><span aria-hidden="true">{categoryOpen ? "−" : "+"}</span></button>{categoryOpen ? <div className="role-category-items">{categoryAreas.map((area) => {
         const preference = data.preferences.find((item) => item.area.key === area.key);
         const directlyAssigned = Boolean(area.legacy_role_name && data.user.roles.includes(area.legacy_role_name));
         const draft = drafts[area.key];
         const invitationPending = preference?.initiated_by === "admin" && preference.status === "pending";
         const stateLabel = directlyAssigned ? "Assigned" : invitationPending ? "Invitation" : preference?.status === "approved" ? "Active" : preference?.status === "pending" ? "Requested" : preference?.status === "declined" ? "Declined" : null;
         const destructiveLabel = preference?.status === "pending" ? "Cancel request" : preference?.status === "approved" ? "Leave role" : "Remove request";
-        return <details className={`serving-role-row profile-serving-role ${draft.selected ? "selected" : ""} ${invitationPending ? "is-pending" : ""}`} id={invitationPending ? `profile-invitation-${area.key}` : undefined} key={area.key} onToggle={(event) => { if (!event.currentTarget.open) return; document.querySelectorAll<HTMLDetailsElement>(".profile-serving-role[open]").forEach((row) => { if (row !== event.currentTarget) row.open = false; }); }}>
-          <summary><span><strong>{area.name}</strong><small>{directlyAssigned ? "Assigned directly" : preference ? `${preference.status} · ${draft.frequency_count} per ${draft.frequency_period}` : area.description}</small></span>{stateLabel ? <span className={`role-state-flag ${invitationPending ? "attention" : ""}`}>{stateLabel}</span> : null}</summary>
-          <div className="serving-role-details">{directlyAssigned ? <p className="muted-copy">This role is already active through your assigned access role. An administrator can change it.</p> : draft.selected ? <><div className="frequency-input"><span>Up to</span><input aria-label={`${area.name} frequency`} min="0" max="52" type="number" value={draft.frequency_count} onBlur={() => void updatePreferenceNow(area.key, drafts[area.key])} onChange={(event) => setDrafts({ ...drafts, [area.key]: { ...draft, frequency_count: Number(event.target.value) } })} /><span>per</span><select value={draft.frequency_period} onChange={(event) => { const next = { ...draft, frequency_period: event.target.value as VolunteerFrequencyPeriod }; setDrafts({ ...drafts, [area.key]: next }); void updatePreferenceNow(area.key, next); }}><option value="week">week</option><option value="month">month</option><option value="quarter">quarter</option><option value="year">year</option></select></div><label>Notes<textarea value={draft.availability_notes} onBlur={() => void updatePreferenceNow(area.key, drafts[area.key])} onChange={(event) => setDrafts({ ...drafts, [area.key]: { ...draft, availability_notes: event.target.value } })} placeholder="Times that suit, experience, or anything coordinators should know" /></label>{preference?.admin_notes ? <p className="field-help">Admin note: {preference.admin_notes}</p> : null}{invitationPending ? <div className="action-row lifecycle-actions"><button className="danger-button" disabled={immediateAction === area.key} onClick={() => void destructiveRoleAction(area.key, "reject", "Reject invitation")} type="button">Reject invitation</button><button className="primary-button" disabled={immediateAction === area.key} onClick={() => void acceptInvitationNow(area.key, draft)} type="button">{immediateAction === area.key ? "Working…" : "Accept invitation"}</button></div> : <button className="danger-button role-lifecycle-button" disabled={immediateAction === area.key} onClick={() => void destructiveRoleAction(area.key, "remove", destructiveLabel)} type="button">{destructiveLabel}</button>}</> : <button className="text-button role-lifecycle-button" disabled={immediateAction === area.key} onClick={() => void volunteerNow(area.key, draft)} type="button">{immediateAction === area.key ? "Sending…" : "Volunteer for this role"}</button>}</div>
-        </details>;
-      })}</section>)}</div>
+        const areaOpen = openArea === area.key;
+        return <article className={`compact-serving-role ${draft.selected ? "selected" : ""} ${invitationPending ? "is-pending" : ""}`} id={invitationPending ? `profile-invitation-${area.key}` : undefined} key={area.key}>
+          <div className="compact-serving-role-head"><button className="compact-serving-role-main" onClick={() => setOpenArea(areaOpen ? null : area.key)} type="button"><span aria-hidden="true">{areaOpen ? "▾" : "▸"}</span><span><strong>{area.name}</strong>{stateLabel ? <small>{stateLabel}</small> : null}</span></button>{directlyAssigned ? <span className="role-state-flag inline">Assigned</span> : invitationPending ? <button className="primary-button compact-role-action" disabled={immediateAction === area.key} onClick={() => void acceptInvitationNow(area.key, draft)} type="button">Accept</button> : draft.selected ? <button className="danger-button compact-role-action" disabled={immediateAction === area.key} onClick={() => void destructiveRoleAction(area.key, "remove", destructiveLabel)} type="button">{preference?.status === "approved" ? "Leave" : "Cancel"}</button> : <button className="text-button compact-role-action" disabled={immediateAction === area.key} onClick={() => void volunteerNow(area.key, draft)} type="button">Join</button>}</div>
+          {areaOpen ? <div className="serving-role-details"><p className="muted-copy">{area.description}</p>{directlyAssigned ? <p className="muted-copy">This role is active through your assigned access role. An administrator can change it.</p> : draft.selected ? <><div className="frequency-input"><span>Up to</span><input aria-label={`${area.name} frequency`} min="0" max="52" type="number" value={draft.frequency_count} onBlur={() => void updatePreferenceNow(area.key, drafts[area.key])} onChange={(event) => setDrafts({ ...drafts, [area.key]: { ...draft, frequency_count: Number(event.target.value) } })} /><span>per</span><select value={draft.frequency_period} onChange={(event) => { const next = { ...draft, frequency_period: event.target.value as VolunteerFrequencyPeriod }; setDrafts({ ...drafts, [area.key]: next }); void updatePreferenceNow(area.key, next); }}><option value="week">week</option><option value="month">month</option><option value="quarter">quarter</option><option value="year">year</option></select></div><label>Availability and notes<textarea value={draft.availability_notes} onBlur={() => void updatePreferenceNow(area.key, drafts[area.key])} onChange={(event) => setDrafts({ ...drafts, [area.key]: { ...draft, availability_notes: event.target.value } })} placeholder="Times that suit, experience, or anything coordinators should know" /></label>{preference?.admin_notes ? <p className="field-help">Admin note: {preference.admin_notes}</p> : null}{invitationPending ? <button className="danger-button role-lifecycle-button" disabled={immediateAction === area.key} onClick={() => void destructiveRoleAction(area.key, "reject", "Reject invitation")} type="button">Reject invitation</button> : null}</> : null}</div> : null}
+        </article>;
+      })}</div> : null}</section>;
+      })}</div>
       <section className="serving-availability"><div className="section-heading"><div><p className="eyebrow">Availability</p><h2>Dates I cannot serve</h2></div></div><form className="availability-entry" onSubmit={async (event) => { event.preventDefault(); await addVolunteerUnavailability({ ...away, note: away.note || null }); setAway({ starts_on: "", ends_on: "", note: "" }); await load(); setMessage("Unavailable dates added."); }}><label>From<input required type="date" value={away.starts_on} onChange={(event) => setAway({ ...away, starts_on: event.target.value })} /></label><label>To<input required type="date" min={away.starts_on} value={away.ends_on} onChange={(event) => setAway({ ...away, ends_on: event.target.value })} /></label><label>Note<input value={away.note} onChange={(event) => setAway({ ...away, note: event.target.value })} /></label><button className="text-button" type="submit">Add dates</button></form><div className="availability-list">{data.unavailable.map((item) => <div key={item.id}><span><strong>{item.starts_on}</strong> to <strong>{item.ends_on}</strong>{item.note ? ` · ${item.note}` : ""}</span><button className="danger-button" type="button" onClick={() => void removeAvailability(item.id)}>Remove</button></div>)}</div></section>
     </section> : null}
   </section>;

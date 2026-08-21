@@ -163,8 +163,13 @@ save. Workload and note edits persist on change; destructive actions such as
 rejecting an invitation, cancelling a request, leaving a role, or removing an
 unavailable range use an in-app confirmation. The last-open profile tab is
 retained across identity refreshes. Active/requested roles sort first within
-each ministry, show a persistent compact status flag, and use a one-row-open
-accordion on both mobile and desktop.
+each ministry. Both profile and admin collapse roles beneath ministry headings,
+show the number active in each heading, and allow only one ministry and one
+nested role to be expanded at a time. Compact role rows keep Join, Leave,
+Accept, Invite, or Remove actions visible while their workload, availability,
+and explanatory detail remain expandable. Profile role mutations update local
+state in place rather than refetching the full profile, preserving scroll and
+accordion position.
 
 `identity` now owns:
 
