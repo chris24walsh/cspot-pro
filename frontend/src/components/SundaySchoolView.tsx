@@ -260,6 +260,16 @@ export function SundaySchoolView({ canEdit }: { canEdit: boolean }) {
   const selectedElement = LESSON_ELEMENTS.find((element) => element.key === selectedElementKey) ?? LESSON_ELEMENTS[0];
   const allCalendarDates = useMemo(() => calendarDatesAround(selectedDate), [selectedDate]);
   const sundayCalendarDates = useMemo(() => sundayDatesAround(selectedDate), [selectedDate]);
+  function sundaySchoolCalendarDay(dateInput: string) {
+    const lesson = lessonsByDate.get(dateInput);
+    const teacherName = teacherNameForDate(dateInput);
+    const teacher = sundaySchoolTeacherByName.get(teacherName.toLocaleLowerCase());
+    const isSunday = new Date(`${dateInput}T12:00:00`).getDay() === 0;
+    return {
+      date: dateInput,
+      className: `${lesson || isSunday ? "has-service" : ""} ${teacher ? calendarColor(teacher) : teacherColor(teacherName)}`.trim(),
+    };
+  }
   const scheduleDates = useMemo(() => {
     const center = new Date(`${nextSundayDateInput()}T12:00:00`);
     return Array.from({ length: 53 }, (_value, index) => {
@@ -824,16 +834,7 @@ export function SundaySchoolView({ canEdit }: { canEdit: boolean }) {
         onClose={() => setCalendarOpen(false)}
         title="Sunday School"
         eyebrow="Calendar"
-        allDays={allCalendarDates.map((dateInput) => ({
-          date: dateInput,
-          className: (() => {
-            const lesson = lessonsByDate.get(dateInput);
-            const teacherName = teacherNameForDate(dateInput);
-            const teacher = sundaySchoolTeacherByName.get(teacherName.toLocaleLowerCase());
-            const isSunday = new Date(`${dateInput}T12:00:00`).getDay() === 0;
-            return `${lesson || isSunday ? "has-service" : ""} ${teacher ? calendarColor(teacher) : teacherColor(teacherName)}`.trim();
-          })(),
-        }))}
+        allDays={allCalendarDates.map(sundaySchoolCalendarDay)}
         sundayDays={sundayCalendarDates.map((dateInput) => {
           const lesson = lessonsByDate.get(dateInput);
           const teacherName = teacherNameForDate(dateInput);
@@ -844,6 +845,7 @@ export function SundaySchoolView({ canEdit }: { canEdit: boolean }) {
           };
         })}
         selectedDate={selectedDate}
+        resolveDay={sundaySchoolCalendarDay}
         onDateSelect={(dateInput) => chooseDate(dateInput)}
         dayContent={(day) => {
           const teacherName = teacherNameForDate(day.date);
@@ -862,7 +864,7 @@ export function SundaySchoolView({ canEdit }: { canEdit: boolean }) {
                   {teacherName.charAt(0).toUpperCase()}
                 </span>
               ) : null}
-              <small>{lesson?.theme || lesson?.bible_reference || (lesson ? "Lesson started" : "Ready to plan")}</small>
+              {lesson?.theme || lesson?.bible_reference ? <small>{lesson.theme || lesson.bible_reference}</small> : null}
             </>
           );
         }}

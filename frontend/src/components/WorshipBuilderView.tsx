@@ -468,6 +468,17 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
     () => sundayDatesAround(setDraftDate || dateInputFromIso(new Date().toISOString())),
     [setDraftDate],
   );
+  function worshipCalendarDay(dateInput: string) {
+    const existing = worshipSetsByDate.get(dateInput);
+    const leaderId = worshipLeaderIdForDate(dateInput);
+    const isSunday = new Date(`${dateInput}T12:00:00`).getDay() === 0;
+    return {
+      date: dateInput,
+      className: `${existing || isSunday ? "has-service" : ""} ${
+        leaderId ? calendarColor(users.find((user) => user.id === leaderId)) : ""
+      }`.trim(),
+    };
+  }
 
   const worshipItems = useMemo(
     () => sortedWorshipItems(plan?.items ?? []),
@@ -2324,17 +2335,7 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
         onClose={() => setSetPickerOpen(false)}
         title="Worship Sets"
         eyebrow="Calendar"
-        allDays={allCalendarDates.map((dateInput) => ({
-          date: dateInput,
-          className: (() => {
-            const existing = worshipSetsByDate.get(dateInput);
-            const leaderId = worshipLeaderIdForDate(dateInput);
-            const isSunday = new Date(`${dateInput}T12:00:00`).getDay() === 0;
-            return `${existing || isSunday ? "has-service" : ""} ${
-              leaderId ? calendarColor(users.find((user) => user.id === leaderId)) : ""
-            }`.trim();
-          })(),
-        }))}
+        allDays={allCalendarDates.map(worshipCalendarDay)}
         sundayDays={sundayCalendarDates.map((dateInput) => {
           const existing = worshipSetsByDate.get(dateInput);
           const leaderId = worshipLeaderIdForDate(dateInput);
@@ -2346,6 +2347,7 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
           };
         })}
         selectedDate={setDraftDate}
+        resolveDay={worshipCalendarDay}
         onDateSelect={(dateInput) => void openSetDate(dateInput)}
         dayContent={(day) => {
           const leaderId = worshipLeaderIdForDate(day.date);
@@ -2360,7 +2362,7 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
                   {worshipLeaderMarkers.get(leader.id)}
                 </span>
               ) : null}
-              <small>{existing ? `${existing.item_count} set items` : "Ready to plan"}</small>
+              {existing && existing.item_count > 0 ? <small>{`${existing.item_count} set items`}</small> : null}
             </>
           );
         }}

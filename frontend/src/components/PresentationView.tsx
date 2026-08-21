@@ -743,6 +743,15 @@ export function PresentationView({
     () => sundayDatesAround(serviceDraftDate || nextSundayDateInput()),
     [serviceDraftDate],
   );
+  function serviceCalendarDay(dateInput: string) {
+    const existing = plansByDate.get(dateInput);
+    const isToday = dateInput === dateInputFromDate(new Date());
+    const isSunday = new Date(`${dateInput}T12:00:00`).getDay() === 0;
+    return {
+      date: dateInput,
+      className: `${existing || isSunday ? "has-service" : ""} ${isToday ? "is-today" : ""}`.trim(),
+    };
+  }
   const slides = useMemo(
     () => buildPresentationSlides(effectivePlanItems, songs, renderedSlidesByFileId),
     [effectivePlanItems, songs, renderedSlidesByFileId],
@@ -3415,15 +3424,7 @@ export function PresentationView({
         onClose={() => setServicePickerOpen(false)}
         title="Services"
         eyebrow="Calendar"
-        allDays={allCalendarDates.map((dateInput) => {
-          const existing = plansByDate.get(dateInput);
-          const isToday = dateInput === dateInputFromDate(new Date());
-          const isSunday = new Date(`${dateInput}T12:00:00`).getDay() === 0;
-          return {
-            date: dateInput,
-            className: `${existing || isSunday ? "has-service" : ""} ${isToday ? "is-today" : ""}`.trim(),
-          };
-        })}
+        allDays={allCalendarDates.map(serviceCalendarDay)}
         sundayDays={sundayCalendarDates.map((dateInput) => {
           const existing = plansByDate.get(dateInput);
           const isToday = dateInput === dateInputFromDate(new Date());
@@ -3433,6 +3434,7 @@ export function PresentationView({
           };
         })}
         selectedDate={serviceDraftDate}
+        resolveDay={serviceCalendarDay}
         onDateSelect={(dateInput) => void openServiceDate(dateInput)}
         dayContent={(day) => {
           const date = new Date(`${day.date}T12:00:00`);
@@ -3440,7 +3442,7 @@ export function PresentationView({
           return (
             <>
               <span>{date.getDate()}</span>
-              <small>{existing ? `${existing.item_count} service items` : "Ready to plan"}</small>
+              {existing && existing.item_count > 0 ? <small>{`${existing.item_count} service items`}</small> : null}
             </>
           );
         }}

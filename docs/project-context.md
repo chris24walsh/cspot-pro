@@ -120,10 +120,11 @@ These preferences have been made explicit and should guide future changes.
 - Avoid persistent success banners that clutter the interface.
 - Keep error messages visible enough to be actionable.
 - Use keyboard navigation aggressively where it helps live operation.
-- Calendar navigation should default to a compact, continuously scrolling,
-  month-grouped 42-Sunday timeline while retaining an equivalent smooth
-  all-days timeline for exceptional services. Sunday cards should use their
-  available space for a terse service, set, or lesson status.
+- Calendar navigation should default to a continuously scrolling, month-grouped
+  all-days timeline, with a compact Sunday-only alternative. Both timelines
+  should extend seamlessly in either direction as the user scrolls. Populated
+  cards should use their available space for a terse service, set, or lesson
+  status, while blank cards remain visually quiet.
 - Sunday services, worship sets, and lessons should behave as available
   planning slots without requiring a separate create action. Records may be
   materialized lazily when a slot is first opened or edited.

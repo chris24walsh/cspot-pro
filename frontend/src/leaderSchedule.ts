@@ -100,5 +100,6 @@ export function effectiveLeaderIdForDate(
   const explicitLeaderId = explicitAssignments.get(date);
   if (explicitLeaderId) return explicitLeaderId;
   if (date < todayInput) return null;
+  if (new Date(`${date}T12:00:00`).getDay() !== 0) return null;
   return buildMonthlyLeaderSchedule(date.slice(0, 7), leaders, explicitAssignments).get(date) ?? null;
 }

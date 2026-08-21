@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { groupCalendarDays, visibleCalendarDays } from "./CalendarPopup";
+import { extendCalendarDays, groupCalendarDays, visibleCalendarDays } from "./CalendarPopup";
 
 describe("visibleCalendarDays", () => {
   const days = [
@@ -32,5 +32,17 @@ describe("visibleCalendarDays", () => {
       { key: "2026-07", dates: ["2026-07-26"] },
       { key: "2026-08", dates: ["2026-08-02", "2026-08-03", "2026-08-09"] },
     ]);
+  });
+
+  it("extends all-day and Sunday timelines in either direction", () => {
+    const allDays = extendCalendarDays([{ date: "2026-08-01" }], 1, 1, false);
+    expect(allDays).toHaveLength(367);
+    expect(allDays[0].date).toBe("2026-01-30");
+    expect(allDays[allDays.length - 1].date).toBe("2027-01-31");
+
+    const sundays = extendCalendarDays([{ date: "2026-08-02" }], 1, 1, true);
+    expect(sundays).toHaveLength(53);
+    expect(new Date(`${sundays[0].date}T12:00:00`).getDay()).toBe(0);
+    expect(new Date(`${sundays[sundays.length - 1].date}T12:00:00`).getDay()).toBe(0);
   });
 });

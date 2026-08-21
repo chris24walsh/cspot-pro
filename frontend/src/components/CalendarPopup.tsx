@@ -1,5 +1,5 @@
 import { X } from "lucide-react";
-import { ReactNode, useEffect, useMemo, useRef, useState } from "react";
+import { ReactNode, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import { useEscapeClose } from "./useEscapeClose";
 
@@ -16,6 +16,7 @@ interface CalendarPopupProps {
   eyebrow?: string;
   allDays: CalendarDay[];
   sundayDays: CalendarDay[];
+  resolveDay: (date: string) => CalendarDay;
   selectedDate: string;
   onDateSelect: (date: string) => void;
   dayContent: (day: CalendarDay) => ReactNode;
@@ -46,6 +47,36 @@ export function groupCalendarDays(calendarDays: CalendarDay[]) {
   return groups;
 }
 
+function shiftedDate(dateInput: string, dayOffset: number) {
+  const date = new Date(`${dateInput}T12:00:00`);
+  date.setDate(date.getDate() + dayOffset);
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+}
+
+export function extendCalendarDays(
+  baseDays: CalendarDay[],
+  beforeChunks: number,
+  afterChunks: number,
+  sundaysOnly: boolean,
+  resolveDay: (date: string) => CalendarDay = (date) => ({ date }),
+) {
+  if (!baseDays.length) return [];
+  const step = sundaysOnly ? 7 : 1;
+  const chunkSize = sundaysOnly ? 26 : 183;
+  const dates = new Map(baseDays.map((day) => [day.date, day]));
+  const firstDate = baseDays[0].date;
+  const lastDate = baseDays[baseDays.length - 1].date;
+  for (let index = 1; index <= beforeChunks * chunkSize; index += 1) {
+    const date = shiftedDate(firstDate, -index * step);
+    dates.set(date, resolveDay(date));
+  }
+  for (let index = 1; index <= afterChunks * chunkSize; index += 1) {
+    const date = shiftedDate(lastDate, index * step);
+    dates.set(date, resolveDay(date));
+  }
+  return [...dates.values()].sort((left, right) => left.date.localeCompare(right.date));
+}
+
 function monthLabel(monthInput: string) {
   return new Date(`${monthInput}-01T12:00:00`).toLocaleDateString(undefined, {
     month: "long",
@@ -60,6 +91,7 @@ export function CalendarPopup({
   eyebrow,
   allDays,
   sundayDays,
+  resolveDay,
   selectedDate,
   onDateSelect,
   dayContent,
@@ -67,16 +99,41 @@ export function CalendarPopup({
   footerContent,
   actionButtons,
 }: CalendarPopupProps) {
-  const [viewMode, setViewMode] = useState<"sundays" | "all">("sundays");
+  const [viewMode, setViewMode] = useState<"sundays" | "all">("all");
+  const [extensions, setExtensions] = useState({ allBefore: 0, allAfter: 0, sundayBefore: 0, sundayAfter: 0 });
   const calendarTimelineRef = useRef<HTMLDivElement | null>(null);
+  const prependScrollHeightRef = useRef<number | null>(null);
+  const appendPendingRef = useRef(false);
   useEscapeClose(isOpen, onClose);
-  const displayedDays = useMemo(
-    () => visibleCalendarDays(allDays, viewMode, sundayDays),
-    [allDays, sundayDays, viewMode],
-  );
+  const initialDays = visibleCalendarDays(allDays, viewMode, sundayDays);
+  const displayedDays = useMemo(() => extendCalendarDays(
+    initialDays,
+    viewMode === "all" ? extensions.allBefore : extensions.sundayBefore,
+    viewMode === "all" ? extensions.allAfter : extensions.sundayAfter,
+    viewMode === "sundays",
+    resolveDay,
+  ), [extensions, initialDays, resolveDay, viewMode]);
   const displayedGroups = useMemo(() => groupCalendarDays(displayedDays), [displayedDays]);
-  const timelineStart = displayedDays[0]?.date;
-  const timelineEnd = displayedDays[displayedDays.length - 1]?.date;
+
+  useEffect(() => {
+    setExtensions({ allBefore: 0, allAfter: 0, sundayBefore: 0, sundayAfter: 0 });
+  }, [allDays[0]?.date, allDays[allDays.length - 1]?.date, sundayDays[0]?.date, sundayDays[sundayDays.length - 1]?.date]);
+
+  useEffect(() => {
+    if (isOpen) setViewMode("all");
+  }, [isOpen]);
+
+  useLayoutEffect(() => {
+    const timeline = calendarTimelineRef.current;
+    const previousHeight = prependScrollHeightRef.current;
+    if (!timeline || previousHeight === null) return;
+    timeline.scrollTop += timeline.scrollHeight - previousHeight;
+    prependScrollHeightRef.current = null;
+  }, [displayedDays.length]);
+
+  useLayoutEffect(() => {
+    appendPendingRef.current = false;
+  }, [displayedDays.length]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -92,7 +149,7 @@ export function CalendarPopup({
       timeline.scrollTop = Math.max(0, targetTop - timeline.clientHeight / 3);
     });
     return () => window.cancelAnimationFrame(frame);
-  }, [isOpen, selectedDate, timelineEnd, timelineStart, viewMode]);
+  }, [isOpen, selectedDate, viewMode]);
 
   if (!isOpen) return null;
 
@@ -100,6 +157,7 @@ export function CalendarPopup({
     const date = new Date(`${day.date}T12:00:00`);
     return (
       <button
+        aria-current={selectedDate === day.date ? "date" : undefined}
         aria-label={date.toLocaleDateString(undefined, {
           day: "numeric",
           month: "long",
@@ -160,7 +218,25 @@ export function CalendarPopup({
               </button>
             </div>
 
-            <div className="calendar-timeline" ref={calendarTimelineRef}>
+            <div
+              className="calendar-timeline"
+              onScroll={(event) => {
+                const timeline = event.currentTarget;
+                if (timeline.scrollTop < 160 && prependScrollHeightRef.current === null) {
+                  prependScrollHeightRef.current = timeline.scrollHeight;
+                  setExtensions((current) => viewMode === "all"
+                    ? { ...current, allBefore: current.allBefore + 1 }
+                    : { ...current, sundayBefore: current.sundayBefore + 1 });
+                }
+                if (timeline.scrollHeight - timeline.scrollTop - timeline.clientHeight < 240 && !appendPendingRef.current) {
+                  appendPendingRef.current = true;
+                  setExtensions((current) => viewMode === "all"
+                    ? { ...current, allAfter: current.allAfter + 1 }
+                    : { ...current, sundayAfter: current.sundayAfter + 1 });
+                }
+              }}
+              ref={calendarTimelineRef}
+            >
               {displayedGroups.map((group) => (
                 <section className="calendar-month-group" key={group.key}>
                   <div className="calendar-month-label">

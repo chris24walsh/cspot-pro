@@ -356,10 +356,11 @@ Search modes:
 - Worship leader assignments are stored by service date independently of
   worship-set plans, allowing the calendar to schedule future leaders before
   any song set is created.
-- Shared calendar overlays default to a continuous, month-grouped 42-Sunday
-  timeline with compact service, set, or lesson summaries and native vertical
-  scrolling. They can switch to an equivalently smooth, month-grouped
-  seven-day timeline for exceptional dates. Selecting a missing service or worship Sunday transparently creates
+- Shared calendar overlays default to a continuous, month-grouped seven-day
+  timeline with native vertical scrolling and a compact Sunday-only alternative.
+  Both timelines extend in either direction near their scroll boundaries,
+  preserve position when earlier dates are prepended, and omit status text from
+  blank slots. Selecting a missing service or worship Sunday transparently creates
   and opens its plan. Archive actions in these overlays are admin-only.
 - Worship and Sunday School leader defaults are deterministic monthly
   round-robin schedules. Each user can have a separate worship and Sunday

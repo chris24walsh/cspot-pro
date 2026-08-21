@@ -234,7 +234,7 @@ back to the static wireframe data when it is not.
 
 ## Working Screens
 
-- Service: use a continuously scrolling, month-grouped Sunday timeline (or switch to the equivalent all-days timeline), open slots without a separate create step, build the running order, add songs, Bible passages, and slide decks, and control the live output
+- Service: use an endlessly extending, month-grouped all-days timeline (or switch to a compact Sunday-only timeline), open slots without a separate create step, build the running order, add songs, Bible passages, and slide decks, and control the live output
 - Worship and Sunday School: Sunday cards show compact plan/lesson summaries and use capacity-aware leader rotations for current and future dates, while historical assignments remain unchanged; assignment and upcoming-Sunday swaps stay behind the compact Leader control, and the `cspot_tablet` account remains available for manual worship assignment but is excluded from automatic rotation
 - Songs: create/edit/archive songs, import and clean lyrics, edit details/chords, and prepare song slides
 - Broadcast: viewer-first remote service page plus admin tabs for sermon recordings, low-latency multi-camera livestream settings, and shared mixer-desk integration; admins can start a public or admin-only test livestream without starting the slideshow, alongside synchronized slides, service-aware weighted camera pacing, selectable camera/independent audio, automatic stream recovery, holding messages, and pre-service audio
