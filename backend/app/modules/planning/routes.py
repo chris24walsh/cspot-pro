@@ -364,6 +364,26 @@ def delete_plan(
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
+@router.post("/plans/{plan_id}/restore", response_model=PlanDetail)
+def restore_plan(
+    plan_id: str,
+    _current_user: User = Depends(require_permission("plans:delete")),
+    session: Session = Depends(get_session),
+) -> PlanDetail:
+    plan = session.get(Plan, plan_id)
+    if plan is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Plan not found")
+    plan.deleted_at = None
+    session.commit()
+    session.refresh(plan)
+    items = session.scalars(
+        select(PlanItem)
+        .where(PlanItem.plan_id == plan.id, PlanItem.deleted_at.is_(None))
+        .order_by(PlanItem.sequence, PlanItem.created_at)
+    ).all()
+    return plan_to_detail(session, plan, list(items))
+
+
 @router.post(
     "/plans/{plan_id}/items",
     response_model=PlanItemRead,

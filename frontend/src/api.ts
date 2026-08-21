@@ -947,6 +947,10 @@ export async function deletePlan(planId: string): Promise<void> {
   return deleteRequest(`/api/v1/planning/plans/${planId}`);
 }
 
+export async function restorePlan(planId: string): Promise<PlanDetail> {
+  return sendJson<PlanDetail>(`/api/v1/planning/plans/${planId}/restore`, "POST", {});
+}
+
 export async function createPlanItem(planId: string, payload: PlanItemPayload): Promise<PlanItem> {
   return sendJson<PlanItem>(`/api/v1/planning/plans/${planId}/items`, "POST", payload);
 }

@@ -371,6 +371,8 @@ Search modes:
   opening a date and creating an empty plan does not leave it highlighted.
 - Worship-set calendar styling follows the same content-based rule while
   retaining leader markers independently of whether songs have been added.
+- Worship-set archive uses the shared confirmation dialog and offers an
+  immediate Undo action backed by the permission-checked plan restore endpoint.
 - Migration `0031_remove_empty_ends` removes legacy End slides only when they
   are the sole active item in an otherwise empty service; populated services
   and their intentional End slides are preserved.

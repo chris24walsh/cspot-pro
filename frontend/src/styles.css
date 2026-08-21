@@ -4457,6 +4457,29 @@ button.musician-page {
   z-index: 100;
 }
 
+.archive-undo-banner {
+  align-items: center;
+  background: #173d32;
+  border: 1px solid #0f2d25;
+  border-radius: 8px;
+  bottom: 16px;
+  box-shadow: 0 8px 24px rgba(17, 24, 22, 0.28);
+  color: #fff;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  max-width: min(420px, calc(100vw - 24px));
+  padding: 9px 10px 9px 13px;
+  position: fixed;
+  right: 16px;
+  z-index: 95;
+}
+
+.archive-undo-banner .text-button {
+  background: #fff;
+  flex: 0 0 auto;
+}
+
 .app-dialog {
   background: #fffefa;
   border: 1px solid #cfc7b4;

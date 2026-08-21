@@ -22,6 +22,7 @@ import {
   getWorshipSongUsage,
   parseGoogleDriveDeck,
   recordWorshipSuggestionRejection,
+  restorePlan,
   runCustomProviderSearch,
   searchGoogleDriveFiles,
   selectCustomProviderMatch,
@@ -55,6 +56,7 @@ import { lastUsedLabel, worshipRoleLabel } from "../worshipSongMetadata";
 import { calendarColor, calendarMarkers } from "../userCalendarStyle";
 import { calendarDatesAround, effectiveLeaderIdForDate, sundayDatesAround, type SundayLeader } from "../leaderSchedule";
 import { CalendarPopup } from "./CalendarPopup";
+import { useConfirmationDialog } from "./ConfirmationDialog";
 import { AutoFitSlideText } from "./AutoFitSlideText";
 import { DateNavigator, formatNavigatorDate } from "./DateNavigator";
 import { LeaderAssignmentDialog } from "./LeaderAssignmentDialog";
@@ -331,6 +333,7 @@ function detectMissingSongsInDeck(deck: ParsedSlideDeck, songs: Song[]) {
 }
 
 export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCreateSong, canDeletePlan, canEditSong, canEditPlan }: WorshipBuilderViewProps) {
+  const { confirm, confirmationDialog } = useConfirmationDialog();
   const [plans, setPlans] = useState<PlanSummary[]>([]);
   const [planTypes, setPlanTypes] = useState<PlanType[]>([]);
   const [songs, setSongs] = useState<Song[]>([]);
@@ -342,6 +345,7 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
   const [leaderAssignments, setLeaderAssignments] = useState<WorshipLeaderAssignment[]>([]);
   const [leaderPickerDate, setLeaderPickerDate] = useState<string | null>(null);
   const [leaderSaving, setLeaderSaving] = useState(false);
+  const [archivedSetUndo, setArchivedSetUndo] = useState<{ id: string; title: string } | null>(null);
   const [query, setQuery] = useState("");
   const [bookSourceFilter, setBookSourceFilter] = useState("all");
   const [loading, setLoading] = useState(true);
@@ -896,13 +900,35 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
       return;
     }
 
+    const archived = { id: plan.id, title: plan.title };
+    const confirmed = await confirm({
+      confirmLabel: "Archive",
+      message: `Archive worship set “${plan.title}”?`,
+      title: "Archive Worship Set",
+      tone: "danger",
+    });
+    if (!confirmed) return;
+
     try {
       await deletePlan(plan.id);
+      setArchivedSetUndo(archived);
       setSetPickerOpen(false);
       await load("");
       setMessage("Worship set archived.");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Could not archive worship set.");
+    }
+  }
+
+  async function undoArchivedWorshipSet() {
+    if (!archivedSetUndo) return;
+    try {
+      const restored = await restorePlan(archivedSetUndo.id);
+      setArchivedSetUndo(null);
+      await load(restored.id);
+      setMessage("Worship set restored.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not restore worship set.");
     }
   }
 
@@ -1710,6 +1736,13 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
 
   return (
     <section className={`worship-builder worship-builder-pane-${mobileBuilderPane}`} aria-label="Worship builder">
+      {confirmationDialog}
+      {archivedSetUndo ? (
+        <div className="archive-undo-banner" role="status">
+          <span>Archived “{archivedSetUndo.title}”</span>
+          <button className="text-button" onClick={() => void undoArchivedWorshipSet()} type="button">Undo</button>
+        </div>
+      ) : null}
       {topbarSlot
           ? createPortal(
             <div className="presentation-topbar-tools worship-topbar-tools">
