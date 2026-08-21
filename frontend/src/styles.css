@@ -1567,6 +1567,12 @@ button {
   border-color: var(--teacher-accent);
 }
 
+.service-calendar-day.is-selected-week {
+  background: #f4edd8;
+  border-color: #c6ad68;
+  box-shadow: 0 0 0 1px rgba(150, 116, 30, 0.34) inset;
+}
+
 .service-calendar-day.is-selected {
   background: #dceee5;
   border-color: #173d32;

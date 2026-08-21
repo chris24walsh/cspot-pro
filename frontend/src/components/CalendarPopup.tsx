@@ -53,6 +53,13 @@ function shiftedDate(dateInput: string, dayOffset: number) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 }
 
+export function calendarWeekBounds(dateInput: string) {
+  const date = new Date(`${dateInput}T12:00:00`);
+  if (Number.isNaN(date.getTime())) return null;
+  const start = shiftedDate(dateInput, -date.getDay());
+  return { start, end: shiftedDate(start, 6) };
+}
+
 export function extendCalendarDays(
   baseDays: CalendarDay[],
   beforeChunks: number,
@@ -114,6 +121,7 @@ export function CalendarPopup({
     resolveDay,
   ), [extensions, initialDays, resolveDay, viewMode]);
   const displayedGroups = useMemo(() => groupCalendarDays(displayedDays), [displayedDays]);
+  const selectedWeek = useMemo(() => calendarWeekBounds(selectedDate), [selectedDate]);
 
   useEffect(() => {
     setExtensions({ allBefore: 0, allAfter: 0, sundayBefore: 0, sundayAfter: 0 });
@@ -169,6 +177,10 @@ export function CalendarPopup({
 
   function renderCalendarDay(day: CalendarDay) {
     const date = new Date(`${day.date}T12:00:00`);
+    const isSelectedWeek = viewMode === "all"
+      && selectedWeek !== null
+      && day.date >= selectedWeek.start
+      && day.date <= selectedWeek.end;
     return (
       <button
         aria-current={selectedDate === day.date ? "date" : undefined}
@@ -180,7 +192,7 @@ export function CalendarPopup({
         })}
         className={`service-calendar-day ${day.muted ? "is-muted" : ""} ${
           selectedDate === day.date ? "is-selected" : ""
-        } ${day.className || ""}`}
+        } ${isSelectedWeek ? "is-selected-week" : ""} ${day.className || ""}`}
         data-calendar-date={day.date}
         key={day.date}
         onClick={() => onDateSelect(day.date)}

@@ -124,7 +124,8 @@ These preferences have been made explicit and should guide future changes.
   all-days timeline, with a compact Sunday-only alternative. Both timelines
   should extend seamlessly in either direction as the user scrolls. Populated
   cards should use their available space for a terse service, set, or lesson
-  status, while blank cards remain visually quiet.
+  status, while blank cards remain visually quiet. In the all-days view, the
+  selected date's full Sunday-to-Saturday week should be visually grouped.
 - Sunday services, worship sets, and lessons should behave as available
   planning slots without requiring a separate create action. Records may be
   materialized lazily when a slot is first opened or edited.

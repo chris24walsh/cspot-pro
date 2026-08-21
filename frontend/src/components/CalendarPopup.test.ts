@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { extendCalendarDays, groupCalendarDays, visibleCalendarDays } from "./CalendarPopup";
+import { calendarWeekBounds, extendCalendarDays, groupCalendarDays, visibleCalendarDays } from "./CalendarPopup";
 
 describe("visibleCalendarDays", () => {
   const days = [
@@ -44,5 +44,10 @@ describe("visibleCalendarDays", () => {
     expect(sundays).toHaveLength(53);
     expect(new Date(`${sundays[0].date}T12:00:00`).getDay()).toBe(0);
     expect(new Date(`${sundays[sundays.length - 1].date}T12:00:00`).getDay()).toBe(0);
+  });
+
+  it("finds the complete Sunday-to-Saturday week around a selection", () => {
+    expect(calendarWeekBounds("2026-08-21")).toEqual({ start: "2026-08-16", end: "2026-08-22" });
+    expect(calendarWeekBounds("2026-08-16")).toEqual({ start: "2026-08-16", end: "2026-08-22" });
   });
 });
