@@ -363,6 +363,9 @@ Search modes:
   blank slots. Selecting a missing service or worship Sunday transparently creates
   and opens its plan without inserting placeholder plan items. Archive actions in
   these overlays are admin-only.
+- Migration `0031_remove_empty_ends` removes legacy End slides only when they
+  are the sole active item in an otherwise empty service; populated services
+  and their intentional End slides are preserved.
 - Worship and Sunday School leader defaults are deterministic monthly
   round-robin schedules. Each user can have a separate worship and Sunday
   School maximum (zero means manual-only; null means unlimited). Explicit
