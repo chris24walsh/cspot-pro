@@ -112,6 +112,9 @@ button {
   white-space: nowrap;
 }
 
+.nav-item.has-attention { background: rgba(235, 176, 62, 0.13); position: relative; }
+.nav-attention-badge { align-items: center; background: #e6a82f; border-radius: 999px; color: #13352d; display: flex !important; height: 16px; justify-content: center; opacity: 1 !important; position: absolute; right: 4px; top: 3px; transform: none !important; width: 16px; }
+
 .nav-item svg {
   flex: 0 0 auto;
 }
@@ -2116,6 +2119,22 @@ h3 {
   padding: 16px 20px;
 }
 
+.admin-primary-tabs { grid-column: 1 / -1; justify-self: start; }
+.admin-primary-tabs button { align-items: center; display: flex; gap: 6px; }
+.admin-primary-tabs button span { align-items: center; background: #e6a82f; border-radius: 999px; display: inline-flex; font-size: 11px; justify-content: center; min-height: 19px; min-width: 19px; padding: 1px 5px; }
+.admin-mobile-user-tabs { display: none; grid-column: 1 / -1; }
+.admin-manager.is-settings .manager-list { display: none; }
+.admin-manager.is-settings .editor-panel { grid-column: 1 / -1; }
+.admin-manager.is-settings .editor-panel > :not(.admin-settings-panel) { display: none; }
+.admin-user-filters { display: grid; gap: 6px; grid-template-columns: 1fr 1fr; margin-bottom: 9px; }
+.admin-user-filters select { background: #fffdf7; border: 1px solid #cfc7b4; border-radius: 8px; min-height: 34px; padding: 5px 7px; width: 100%; }
+.user-attention-flag { align-items: center; background: #e6a82f; border-radius: 999px; color: #17201b !important; display: inline-flex; font-size: 11px !important; justify-content: center; margin-left: 6px; min-height: 17px; min-width: 17px; }
+.status-pill.attention { background: #fff0cc; border-color: #dfb34e; color: #6f4b00; }
+.inline-notice { align-items: center; background: #f2f8f4; border-radius: 8px; display: flex; justify-content: space-between; margin: 8px 0; padding: 6px 9px; }
+.approved-volunteers { border-top: 1px solid #e8e2d3; padding-top: 7px; }
+.approved-volunteers summary { color: #53615a; cursor: pointer; font-size: 12px; font-weight: 850; padding: 4px 0; }
+.volunteer-review-list article.is-pending { background: #fffaf0; border-left: 3px solid #e6a82f; padding-left: 8px; }
+
 .profile-workspace {
   display: grid;
   gap: 14px;
@@ -2158,10 +2177,17 @@ h3 {
 .volunteer-review-list article > div:first-child { display: grid; gap: 2px; }
 .volunteer-review-list span, .volunteer-review-list small { color: #65716a; font-size: 12px; }
 
-@media (max-width: 720px) {
+@media (max-width: 860px) {
   .profile-workspace { padding: 10px; }
   .availability-entry { grid-template-columns: 1fr 1fr; }
   .availability-entry label:nth-child(3) { grid-column: 1 / -1; }
+  .admin-manager { grid-template-columns: 1fr; padding: 8px; }
+  .admin-mobile-user-tabs { display: grid; }
+  .admin-manager.is-users .manager-list,
+  .admin-manager.is-users .editor-panel { display: none; }
+  .admin-manager.is-users .manager-list.is-mobile-active,
+  .admin-manager.is-users .editor-panel.is-mobile-active { display: block; }
+  .admin-manager.is-settings .admin-mobile-user-tabs { display: none; }
 }
 
 .manager-list,

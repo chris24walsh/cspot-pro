@@ -883,6 +883,7 @@ export async function addVolunteerUnavailability(payload: { starts_on: string; e
 export async function removeVolunteerUnavailability(id: string): Promise<void> { return deleteRequest(`/api/v1/identity/serving/unavailability/${id}`); }
 export async function getVolunteerAdminRecords(): Promise<VolunteerAdminRecord[]> { return getJson<VolunteerAdminRecord[]>("/api/v1/identity/serving/admin/volunteers"); }
 export async function reviewVolunteerPreference(id: string, payload: { status: VolunteerStatus; preferred_frequency?: VolunteerFrequency; admin_notes?: string | null }): Promise<VolunteerPreference> { return sendJson<VolunteerPreference>(`/api/v1/identity/serving/admin/volunteers/${id}`, "PATCH", payload); }
+export async function removeVolunteerPreference(id: string): Promise<void> { return deleteRequest(`/api/v1/identity/serving/admin/volunteers/${id}`); }
 
 export async function getPlanTypes(): Promise<PlanType[]> {
   return getJson<PlanType[]>("/api/v1/planning/plan-types");

@@ -120,6 +120,10 @@ without granting application permissions. Approved worship and Sunday School
 preferences are exposed to the existing rotation selectors; the same
 data-backed serving-area catalogue also covers welcome, AV, cleaning, cooking,
 maintenance, and grounds work as the foundation for broader chore scheduling.
+Admin attention is surfaced as a quiet navigation badge and per-user flag;
+requests are reviewed within the relevant user rather than in a separate global
+queue. Unavailable ranges are shared by automatic allocation, direct assignment,
+and swap validation.
 
 `identity` now owns:
 

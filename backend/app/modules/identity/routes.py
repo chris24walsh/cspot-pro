@@ -706,6 +706,20 @@ def review_volunteer(
     return preference_to_read(session, preference)
 
 
+@router.delete("/serving/admin/volunteers/{preference_id}", status_code=204)
+def remove_volunteer(
+    preference_id: str,
+    _current_user: User = Depends(require_permission("users:manage")),
+    session: Session = Depends(get_session),
+) -> Response:
+    preference = session.get(VolunteerPreference, preference_id)
+    if preference is None:
+        raise HTTPException(status_code=404, detail="Volunteer assignment not found")
+    session.delete(preference)
+    session.commit()
+    return Response(status_code=204)
+
+
 @router.get("/roles", response_model=list[RoleRead])
 def list_roles(
     _current_user: User = Depends(require_permission("users:manage")),

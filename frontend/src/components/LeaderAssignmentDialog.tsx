@@ -66,6 +66,10 @@ export function LeaderAssignmentDialog({
 }: LeaderAssignmentDialogProps) {
   useEscapeClose(Boolean(currentDate), onClose);
   const markers = useMemo(() => calendarMarkers(leaders), [leaders]);
+  const rotatingLeaders = useMemo(
+    () => leaders.filter((leader) => maxSundaysForLeader(leader) !== 0),
+    [leaders, maxSundaysForLeader],
+  );
   const monthDates = currentDate ? sundayDatesForMonth(currentDate.slice(0, 7)) : [];
   const usage = new Map(leaders.map((leader) => [
     leader.id,
@@ -74,6 +78,8 @@ export function LeaderAssignmentDialog({
   const currentLeaderId = currentDate ? leaderIdForDate(currentDate) : null;
   const currentLeader = leaders.find((leader) => leader.id === currentLeaderId) ?? null;
   const currentLeaderIsInRotation = currentLeader ? maxSundaysForLeader(currentLeader) !== 0 : true;
+  const leaderIsAvailable = (leader: Member | null, date: string) =>
+    !leader || !leader.unavailable.some((range) => range.starts_on <= date && range.ends_on >= date);
 
   if (!currentDate) return null;
   const isPastDate = currentDate < todayDateInput();
@@ -116,13 +122,13 @@ export function LeaderAssignmentDialog({
               <span className="leader-option-avatar"><UserRound size={17} aria-hidden="true" /></span>
               <span><strong>Automatic</strong><small>Use the rotation</small></span>
             </button>
-            {leaders.map((leader) => {
+            {rotatingLeaders.map((leader) => {
               const maximum = maxSundaysForLeader(leader);
               const assigned = usage.get(leader.id) ?? 0;
               return (
                 <button
                   className={`leader-option ${calendarColor(leader)} ${explicitLeaderId === leader.id ? "is-selected" : ""}`}
-                  disabled={busy}
+                  disabled={busy || !leaderIsAvailable(leader, currentDate)}
                   key={leader.id}
                   onClick={() => onAssign(leader.id)}
                   type="button"
@@ -130,7 +136,7 @@ export function LeaderAssignmentDialog({
                   <span className={`leader-option-avatar ${leader.calendar_avatar ? "is-avatar" : ""}`}>{markers.get(leader.id)}</span>
                   <span>
                     <strong>{leader.name}</strong>
-                    <small>{maximum === 0 ? "Never in rotation · manual assignment only" : `${assigned} / ${maximum ?? "∞"} Sundays`}</small>
+                    <small>{leaderIsAvailable(leader, currentDate) ? `${assigned} / ${maximum ?? "∞"} Sundays` : "Unavailable on this date"}</small>
                   </span>
                 </button>
               );
@@ -151,7 +157,10 @@ export function LeaderAssignmentDialog({
                 const leader = leaders.find((candidate) => candidate.id === leaderId);
                 return leader ? maxSundaysForLeader(leader) !== 0 : true;
               },
-            ).map((date) => {
+            ).filter((date) => {
+              const targetLeader = leaders.find((candidate) => candidate.id === leaderIdForDate(date)) ?? null;
+              return leaderIsAvailable(currentLeader, date) && leaderIsAvailable(targetLeader, currentDate);
+            }).map((date) => {
               const leaderId = leaderIdForDate(date);
               const leader = leaders.find((candidate) => candidate.id === leaderId) ?? null;
               return (

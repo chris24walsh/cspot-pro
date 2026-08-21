@@ -7,6 +7,7 @@ import {
   getGoogleDriveStatus,
   getRoles,
   getUsers,
+  getVolunteerAdminRecords,
   type GoogleDriveStatus,
   inviteUser,
   resendInvite,
@@ -17,6 +18,7 @@ import {
   type User,
   type UserInvitePayload,
   type UserInviteResponse,
+  type VolunteerAdminRecord,
 } from "../api";
 import { CALENDAR_AVATARS, CALENDAR_COLORS } from "../userCalendarStyle";
 import { useConfirmationDialog } from "./ConfirmationDialog";
@@ -88,7 +90,7 @@ function formatUserStatus(user: User) {
   return "active";
 }
 
-export function UserManager() {
+export function UserManager({ onAttentionChanged }: { onAttentionChanged?: () => void | Promise<void> }) {
   const { confirm, confirmationDialog } = useConfirmationDialog();
   const [users, setUsers] = useState<User[]>([]);
   const [roles, setRoles] = useState<Role[]>([]);
@@ -110,24 +112,36 @@ export function UserManager() {
   const [message, setMessage] = useState<string | null>(null);
   const [actionLink, setActionLink] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [showInactive, setShowInactive] = useState(false);
+  const [showInactive, setShowInactive] = useState(true);
   const [driveStatus, setDriveStatus] = useState<GoogleDriveStatus | null>(null);
+  const [volunteerRows, setVolunteerRows] = useState<VolunteerAdminRecord[]>([]);
+  const [adminSection, setAdminSection] = useState<"users" | "settings">("users");
+  const [mobileUserPane, setMobileUserPane] = useState<"list" | "detail">("list");
+  const [userFilter, setUserFilter] = useState<"all" | "attention" | "active" | "inactive">("all");
+  const [userSort, setUserSort] = useState<"attention" | "name" | "recent">("attention");
 
-  const filteredUsers = showInactive ? users : users.filter((user) => user.active);
+  const pendingUserIds = new Set(volunteerRows.filter((row) => row.preference.status === "pending").map((row) => row.user_id));
+  const filteredUsers = users
+    .filter((user) => showInactive || user.active)
+    .filter((user) => userFilter === "all" || (userFilter === "attention" ? pendingUserIds.has(user.id) : userFilter === "active" ? user.active : !user.active))
+    .sort((left, right) => userSort === "attention" ? Number(pendingUserIds.has(right.id)) - Number(pendingUserIds.has(left.id)) || left.name.localeCompare(right.name) : userSort === "recent" ? left.username.localeCompare(right.username) : left.name.localeCompare(right.name));
 
   async function load(selectedId?: string) {
     setLoading(true);
     setMessage(null);
 
     try {
-      const [nextRoles, nextUsers, nextDriveStatus] = await Promise.all([
+      const [nextRoles, nextUsers, nextDriveStatus, nextVolunteerRows] = await Promise.all([
         getRoles(),
         getUsers(),
         getGoogleDriveStatus(),
+        getVolunteerAdminRecords(),
       ]);
       setRoles(nextRoles);
       setUsers(nextUsers);
       setDriveStatus(nextDriveStatus);
+      setVolunteerRows(nextVolunteerRows);
+      await onAttentionChanged?.();
 
       const target = nextUsers.find((user) => user.id === selectedId) ?? nextUsers[0] ?? null;
       if (target) {
@@ -169,6 +183,7 @@ export function UserManager() {
     setMode("edit");
     setActionLink(null);
     setMessage(null);
+    setMobileUserPane("detail");
   }
 
   function toggleRole(roleName: string) {
@@ -310,6 +325,8 @@ export function UserManager() {
       return;
     }
 
+    setAdminSection("settings");
+
     if (result === "connected") {
       setMessage("Google Drive connected.");
     } else if (result.startsWith("error:")) {
@@ -348,24 +365,26 @@ export function UserManager() {
   }
 
   return (
-    <section className="manager-grid" aria-label="User management">
+    <section className={`manager-grid admin-manager ${adminSection === "settings" ? "is-settings" : "is-users"}`} aria-label="User management">
       {confirmationDialog}
-      <aside className="manager-list">
+      <div className="admin-primary-tabs segmented-control" role="tablist" aria-label="Admin sections">
+        <button className={adminSection === "users" ? "is-active" : ""} onClick={() => setAdminSection("users")} type="button">Users{pendingUserIds.size ? <span>{pendingUserIds.size}</span> : null}</button>
+        <button className={adminSection === "settings" ? "is-active" : ""} onClick={() => setAdminSection("settings")} type="button">Settings</button>
+      </div>
+      {adminSection === "users" ? <div className="admin-mobile-user-tabs worship-mobile-pane-tabs" aria-label="User panels"><button className={mobileUserPane === "list" ? "active" : ""} onClick={() => setMobileUserPane("list")} type="button">Users <span>{filteredUsers.length}</span></button><button className={mobileUserPane === "detail" ? "active" : ""} onClick={() => setMobileUserPane("detail")} type="button">User settings {selectedUser && pendingUserIds.has(selectedUser.id) ? <span>!</span> : null}</button></div> : null}
+      <aside className={`manager-list ${mobileUserPane === "list" ? "is-mobile-active" : ""}`}>
         <div className="section-heading">
           <h2>Users</h2>
           <div className="action-row">
-            <label className="inline-toggle">
-              <input
-                checked={showInactive}
-                onChange={(event) => setShowInactive(event.target.checked)}
-                type="checkbox"
-              />
-              <span>Show inactive</span>
-            </label>
             <button className="text-button" onClick={startCreate} type="button">
               New User
             </button>
           </div>
+        </div>
+
+        <div className="admin-user-filters">
+          <select aria-label="Filter users" value={userFilter} onChange={(event) => { const next = event.target.value as typeof userFilter; setUserFilter(next); setShowInactive(next === "inactive" || next === "all"); }}><option value="all">All users</option><option value="attention">Needs attention</option><option value="active">Active</option><option value="inactive">Inactive</option></select>
+          <select aria-label="Sort users" value={userSort} onChange={(event) => setUserSort(event.target.value as typeof userSort)}><option value="attention">Attention first</option><option value="name">Name</option><option value="recent">Username</option></select>
         </div>
 
         <div className="stack-list">
@@ -376,7 +395,7 @@ export function UserManager() {
               onClick={() => selectUser(user)}
               type="button"
             >
-              <strong>{user.name}</strong>
+              <strong>{user.name}{pendingUserIds.has(user.id) ? <span className="user-attention-flag" aria-label="Volunteer request pending">!</span> : null}</strong>
               <span>
                 @{user.username} · {user.email} · {formatUserStatus(user)}
               </span>
@@ -385,7 +404,7 @@ export function UserManager() {
         </div>
       </aside>
 
-      <form className="editor-panel" onSubmit={(event) => void submitUser(event)}>
+      <form className={`editor-panel ${mobileUserPane === "detail" ? "is-mobile-active" : ""}`} onSubmit={(event) => void submitUser(event)}>
         <div className="section-heading">
           <div>
             <p className="eyebrow">{mode === "create" ? "Invite" : "Edit"}</p>
@@ -415,7 +434,7 @@ export function UserManager() {
         </div>
 
         {message ? <p className="form-message">{message}</p> : null}
-        <VolunteerReview />
+        {mode === "edit" && selectedUser ? <VolunteerReview onChanged={() => load(selectedUser.id)} rows={volunteerRows.filter((row) => row.user_id === selectedUser.id)} /> : null}
 
         {actionLink ? (
           <div className="field-action-row">
@@ -563,7 +582,7 @@ export function UserManager() {
           ) : null}
         </div>
 
-        <section className="subsection-panel">
+        <section className="subsection-panel admin-settings-panel">
           <div className="section-heading">
             <div>
               <p className="eyebrow">Integrations</p>

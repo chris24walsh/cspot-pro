@@ -10,11 +10,12 @@ import {
   Music2,
   Radio,
   Settings,
+  CircleAlert,
   UserRound,
   UploadCloud,
   UsersRound,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import {
   AUTH_REQUIRED_EVENT,
@@ -24,6 +25,7 @@ import {
   getPlans,
   getSessionUser,
   getSongs,
+  getVolunteerAdminRecords,
   logout,
   type PlanDetail,
   type PlanSummary,
@@ -91,6 +93,8 @@ function App() {
   });
   const [broadcastWorkspace, setBroadcastWorkspace] = useState<"viewer" | "recordings" | "livestream" | "mixer">("viewer");
   const [mobileImmersive, setMobileImmersive] = useState(false);
+  const [adminAttentionCount, setAdminAttentionCount] = useState(0);
+  const initialViewChosen = useRef(false);
   const mobileOrTabletDevice = useMemo(
     () =>
       isMobileOrTabletDevice() ||
@@ -219,7 +223,7 @@ function App() {
           return canManageUsers;
         }
         return true;
-      }),
+      }).sort((left, right) => Number(left.id === "profile") - Number(right.id === "profile")),
     [canManageUsers, canUseServiceOperator, canUseSundaySchool, canUseWorshipTools, canWatchBroadcast, workspace],
   );
 
@@ -256,6 +260,26 @@ function App() {
       setActiveModuleId(modules[0].id);
     }
   }, [activeModuleId, modules]);
+
+  useEffect(() => {
+    if (!sessionUser || initialViewChosen.current || !modules.length) return;
+    const preferred = (isWorshipLeader || isMusician) && modules.some((module) => module.id === "worship")
+      ? "worship"
+      : (isSundaySchoolTeacher || isSundaySchoolLeader) && modules.some((module) => module.id === "sunday_school")
+        ? "sunday_school"
+        : (isPresenter || isTeacher) && modules.some((module) => module.id === "presentation")
+          ? "presentation"
+          : modules.some((module) => module.id === "broadcast") ? "broadcast" : modules[0].id;
+    initialViewChosen.current = true;
+    setActiveModuleId(preferred);
+  }, [isMusician, isPresenter, isSundaySchoolLeader, isSundaySchoolTeacher, isTeacher, isWorshipLeader, modules, sessionUser]);
+
+  const loadAdminAttention = useCallback(async () => {
+    if (!canManageUsers) { setAdminAttentionCount(0); return; }
+    try { setAdminAttentionCount((await getVolunteerAdminRecords()).filter((row) => row.preference.status === "pending").length); } catch { setAdminAttentionCount(0); }
+  }, [canManageUsers]);
+
+  useEffect(() => { void loadAdminAttention(); }, [loadAdminAttention]);
 
   useEffect(() => {
     if (sessionUser && isViewerOnly && canWatchBroadcast && modules.some((module) => module.id === "broadcast")) {
@@ -373,12 +397,13 @@ function App() {
             const Icon = iconMap[module.id];
             return (
               <button
-                className={`nav-item ${module.id === activeModule.id ? "active" : ""}`}
+                className={`nav-item ${module.id === activeModule.id ? "active" : ""} ${module.id === "admin" && adminAttentionCount ? "has-attention" : ""}`}
                 key={module.id}
                 onClick={() => setActiveModuleId(module.id)}
                 title={module.kicker}
               >
                 <Icon size={18} aria-hidden="true" />
+                {module.id === "admin" && adminAttentionCount ? <span className="nav-attention-badge" aria-label={`${adminAttentionCount} admin items need attention`}><CircleAlert size={11} aria-hidden="true" /></span> : null}
                 <span>{module.label}</span>
               </button>
             );
@@ -501,7 +526,7 @@ function App() {
             </section>
           )
         ) : activeModule.id === "admin" ? (
-          <UserManager />
+          <UserManager onAttentionChanged={loadAdminAttention} />
         ) : activeModule.id === "profile" ? (
           <MyProfile onProfileChanged={() => void loadAuth()} />
         ) : (
