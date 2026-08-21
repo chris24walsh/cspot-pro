@@ -11091,3 +11091,29 @@ button.musician-page {
   min-width: 18px;
   padding: 2px 5px;
 }
+
+.serving-availability {
+  border-top: 1px solid #d8d1bf;
+  margin-top: 14px;
+  padding-top: 12px;
+}
+
+/* Keep the mobile Users/User settings switch, but use the available width on
+   desktop for the persistent list-and-editor workspace. */
+@media (min-width: 861px) {
+  .manager-grid.admin-manager.is-users {
+    grid-template-columns: minmax(280px, 360px) minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr);
+  }
+
+  .admin-manager.is-users .admin-mobile-user-tabs { display: none; }
+  .admin-manager.is-users .manager-list,
+  .admin-manager.is-users .editor-panel {
+    display: block;
+    grid-column: auto;
+  }
+
+  .admin-manager.is-users .manager-list .stack-list {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

@@ -1,16 +1,24 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { inviteVolunteer, removeVolunteerPreference, reviewVolunteerPreference, type ServingArea, type VolunteerAdminRecord, type VolunteerFrequencyPeriod, type VolunteerStatus } from "../api";
 
 interface ReviewDraft { status: VolunteerStatus; frequency_count: number; frequency_period: VolunteerFrequencyPeriod; admin_notes: string; remove: boolean; }
 const makeDraft = (row: VolunteerAdminRecord): ReviewDraft => ({ status: row.preference.status, frequency_count: row.preference.frequency_count, frequency_period: row.preference.frequency_period, admin_notes: row.preference.admin_notes ?? "", remove: false });
 
-function AdminVolunteerRow({ onChanged, row }: { onChanged: () => Promise<void>; row: VolunteerAdminRecord }) {
+function AdminVolunteerRow({ autoFocus = false, onChanged, row }: { autoFocus?: boolean; onChanged: () => Promise<void>; row: VolunteerAdminRecord }) {
   const [draft, setDraft] = useState<ReviewDraft>(() => makeDraft(row));
   const [saving, setSaving] = useState(false);
+  const rowRef = useRef<HTMLDetailsElement>(null);
   const baseline = makeDraft(row);
   const dirty = JSON.stringify(draft) !== JSON.stringify(baseline);
   useEffect(() => setDraft(makeDraft(row)), [row.preference.status, row.preference.frequency_count, row.preference.frequency_period, row.preference.admin_notes]);
+  useEffect(() => {
+    if (!autoFocus) return;
+    requestAnimationFrame(() => {
+      if (rowRef.current) rowRef.current.open = true;
+      rowRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+    });
+  }, [autoFocus, row.preference.id]);
 
   async function save() {
     if (!dirty) return;
@@ -22,7 +30,7 @@ function AdminVolunteerRow({ onChanged, row }: { onChanged: () => Promise<void>;
     } finally { setSaving(false); }
   }
 
-  return <details className={`serving-role-row admin-serving-role ${row.preference.admin_attention_pending ? "is-pending" : ""} ${dirty ? "is-dirty" : ""}`}>
+  return <details className={`serving-role-row admin-serving-role ${row.preference.admin_attention_pending ? "is-pending" : ""} ${dirty ? "is-dirty" : ""}`} ref={rowRef}>
     <summary><span><strong>{row.preference.area.name}</strong><small>{dirty ? "Unsaved · " : ""}{draft.remove ? "Will be removed" : `${row.preference.initiated_by === "admin" && draft.status === "pending" ? "invitation pending" : draft.status} · ${draft.frequency_count} per ${draft.frequency_period}`}</small></span></summary>
     <div className="serving-role-details">
       {!draft.remove ? <><div className="frequency-input"><span>Up to</span><input min="0" max="52" type="number" value={draft.frequency_count} onChange={(event) => setDraft({ ...draft, frequency_count: Number(event.target.value) })} /><span>per</span><select value={draft.frequency_period} onChange={(event) => setDraft({ ...draft, frequency_period: event.target.value as VolunteerFrequencyPeriod })}><option value="week">week</option><option value="month">month</option><option value="quarter">quarter</option><option value="year">year</option></select></div><label>Admin note<textarea value={draft.admin_notes} onChange={(event) => setDraft({ ...draft, admin_notes: event.target.value })} placeholder="Optional note visible to the volunteer" /></label>{row.preference.availability_notes ? <small>Volunteer note: {row.preference.availability_notes}</small> : null}{row.unavailable.length ? <small>Away: {row.unavailable.map((item) => `${item.starts_on}–${item.ends_on}`).join(", ")}</small> : null}</> : <p className="inline-warning">This request or acceptance will be removed when you save.</p>}
@@ -45,7 +53,7 @@ function AdminInviteRow({ area, onChanged, userId }: { area: ServingArea; onChan
 export function VolunteerReview({ areas = [], compact = false, directRoleNames = [], onChanged, rows, userId }: { areas?: ServingArea[]; compact?: boolean; directRoleNames?: string[]; onChanged: () => Promise<void>; rows: VolunteerAdminRecord[]; userId?: string }) {
   const pending = rows.filter((row) => row.preference.admin_attention_pending);
   const reviewed = rows.filter((row) => !row.preference.admin_attention_pending);
-  const renderRow = (row: VolunteerAdminRecord) => <AdminVolunteerRow key={row.preference.id} onChanged={onChanged} row={row} />;
+  const renderRow = (row: VolunteerAdminRecord, autoFocus = false) => <AdminVolunteerRow autoFocus={autoFocus} key={row.preference.id} onChanged={onChanged} row={row} />;
   const missingAreas = areas.filter((area) => !rows.some((row) => row.preference.area.key === area.key) && !(area.legacy_role_name && directRoleNames.includes(area.legacy_role_name)));
-  return <section className={`${compact ? "volunteer-review-compact" : "subsection-panel"} volunteer-review`}>{compact ? pending.length ? <div className="compact-pending-label"><span className="status-pill attention">{pending.length} pending</span></div> : null : <div className="section-heading"><div><p className="eyebrow">Serving</p><h3>Roles and tasks</h3></div>{pending.length ? <span className="status-pill attention">{pending.length} pending</span> : null}</div>}<div className="volunteer-review-list">{pending.map(renderRow)}{compact ? reviewed.map(renderRow) : reviewed.length ? <details className="approved-volunteers"><summary>{reviewed.length} reviewed role{reviewed.length === 1 ? "" : "s"}</summary>{reviewed.map(renderRow)}</details> : null}{userId ? missingAreas.map((area) => <AdminInviteRow area={area} key={area.id} onChanged={onChanged} userId={userId} />) : null}{!rows.length && !missingAreas.length ? <p className="muted-copy">No serving roles or requests for this user.</p> : null}</div></section>;
+  return <section className={`${compact ? "volunteer-review-compact" : "subsection-panel"} volunteer-review`}>{compact ? pending.length ? <div className="compact-pending-label"><span className="status-pill attention">{pending.length} pending</span></div> : null : <div className="section-heading"><div><p className="eyebrow">Serving</p><h3>Roles and tasks</h3></div>{pending.length ? <span className="status-pill attention">{pending.length} pending</span> : null}</div>}<div className="volunteer-review-list">{pending.map((row, index) => renderRow(row, index === 0))}{compact ? reviewed.map((row) => renderRow(row)) : reviewed.length ? <details className="approved-volunteers"><summary>{reviewed.length} reviewed role{reviewed.length === 1 ? "" : "s"}</summary>{reviewed.map((row) => renderRow(row))}</details> : null}{userId ? missingAreas.map((area) => <AdminInviteRow area={area} key={area.id} onChanged={onChanged} userId={userId} />) : null}{!rows.length && !missingAreas.length ? <p className="muted-copy">No serving roles or requests for this user.</p> : null}</div></section>;
 }

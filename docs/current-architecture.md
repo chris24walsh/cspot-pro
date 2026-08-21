@@ -151,10 +151,13 @@ Admin navigation uses up to three flat tab rows: Manage users/Settings, then
 Users/User settings, then Account & identity/Roles & serving. Google Drive is
 kept under Settings; Sunday rotation limits are inline on the applicable role
 rows rather than presented as a separate user-settings panel.
-The personal profile follows the same compact navigation pattern with Account,
-Serving, and Availability tabs. Pending invitations route the user directly to
-Serving when Profile opens; admin attention likewise opens the relevant user on
-Roles & serving without clearing the alert before it has been handled.
+The personal profile follows the same compact navigation pattern with Account
+and Serving tabs; availability remains inside Serving because it directly
+affects rota allocation. Pending invitations route to and expand the exact role
+row when Profile opens. Admin attention likewise opens the relevant user and
+expanded item on Roles & serving without clearing the alert before it has been
+handled. On desktop, the user list and user editor remain visible side by side;
+the Users/User settings switch is reserved for narrower screens.
 
 `identity` now owns:
 
