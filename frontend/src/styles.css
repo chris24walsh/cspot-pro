@@ -4453,6 +4453,10 @@ button.musician-page {
   z-index: 40;
 }
 
+.confirmation-dialog-backdrop {
+  z-index: 100;
+}
+
 .app-dialog {
   background: #fffefa;
   border: 1px solid #cfc7b4;

@@ -53,7 +53,7 @@ export function useConfirmationDialog() {
   useEscapeClose(Boolean(pending), () => close(false));
 
   const dialog = pending ? (
-    <div className="app-dialog-backdrop" role="presentation" onMouseDown={() => close(false)}>
+    <div className="app-dialog-backdrop confirmation-dialog-backdrop" role="presentation" onMouseDown={() => close(false)}>
       <section
         aria-labelledby="confirmation-dialog-title"
         aria-modal="true"
