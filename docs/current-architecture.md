@@ -135,6 +135,9 @@ under these areas, allowing equipment repairs and rota roles to share a team
 without pretending they are the same task. Profile and admin use the same
 grouped, expandable role-list pattern so requests and reviews remain visibly
 coordinated.
+Serving relationships can begin as either a volunteer request or an admin
+invitation. The opposite party accepts or rejects it, and both sides stage
+workload, note, status, and removal changes locally before an explicit save.
 
 `identity` now owns:
 

@@ -53,6 +53,7 @@ from app.modules.identity.schemas import (
     VolunteerAdminRead,
     VolunteerPreferenceRead,
     VolunteerPreferenceUpdate,
+    VolunteerDecisionUpdate,
     VolunteerReviewUpdate,
     VolunteerUnavailabilityCreate,
     VolunteerUnavailabilityRead,
@@ -271,6 +272,7 @@ def preference_to_read(
         user_id=preference.user_id,
         area=area_to_read(area),
         status=preference.status,
+        initiated_by=preference.initiated_by,
         preferred_frequency=preference.preferred_frequency,
         frequency_count=preference.frequency_count,
         frequency_period=preference.frequency_period,
@@ -582,6 +584,19 @@ def get_serving_profile(
     )
 
 
+@router.get("/serving/areas", response_model=list[ServingAreaRead])
+def list_serving_areas(
+    _current_user: CurrentUser,
+    session: Session = Depends(get_session),
+) -> list[ServingAreaRead]:
+    areas = session.scalars(
+        select(ServingArea)
+        .where(ServingArea.active.is_(True))
+        .order_by(ServingArea.category, ServingArea.name)
+    ).all()
+    return [area_to_read(area) for area in areas]
+
+
 @router.put("/serving/preferences/{area_key}", response_model=VolunteerPreferenceRead)
 def volunteer_for_area(
     area_key: str,
@@ -602,7 +617,10 @@ def volunteer_for_area(
     )
     if preference is None:
         preference = VolunteerPreference(
-            user_id=current_user.id, serving_area_id=area.id, status="pending"
+            user_id=current_user.id,
+            serving_area_id=area.id,
+            status="pending",
+            initiated_by="volunteer",
         )
         session.add(preference)
     preference.preferred_frequency = payload.preferred_frequency
@@ -613,6 +631,28 @@ def volunteer_for_area(
         preference.status = "pending"
         preference.reviewed_at = None
         preference.reviewed_by_user_id = None
+    session.commit()
+    session.refresh(preference)
+    return preference_to_read(session, preference)
+
+
+@router.patch("/serving/preferences/{area_key}/decision", response_model=VolunteerPreferenceRead)
+def decide_serving_invitation(
+    area_key: str,
+    payload: VolunteerDecisionUpdate,
+    current_user: CurrentUser,
+    session: Session = Depends(get_session),
+) -> VolunteerPreferenceRead:
+    preference = session.scalar(
+        select(VolunteerPreference)
+        .join(ServingArea)
+        .where(VolunteerPreference.user_id == current_user.id, ServingArea.key == area_key)
+    )
+    if preference is None or preference.initiated_by != "admin" or preference.status != "pending":
+        raise HTTPException(status_code=409, detail="No pending serving invitation found")
+    preference.status = payload.status
+    preference.reviewed_at = datetime.now(UTC)
+    preference.reviewed_by_user_id = current_user.id
     session.commit()
     session.refresh(preference)
     return preference_to_read(session, preference)
@@ -709,6 +749,14 @@ def review_volunteer(
     preference = session.get(VolunteerPreference, preference_id)
     if preference is None:
         raise HTTPException(status_code=404, detail="Volunteer request not found")
+    if (
+        preference.initiated_by == "admin"
+        and preference.status == "pending"
+        and payload.status != "pending"
+    ):
+        raise HTTPException(
+            status_code=409, detail="The invited user must accept or reject this invitation"
+        )
     preference.status = payload.status
     if payload.preferred_frequency is not None:
         preference.preferred_frequency = payload.preferred_frequency
@@ -720,6 +768,48 @@ def review_volunteer(
         preference.admin_notes = payload.admin_notes
     preference.reviewed_at = datetime.now(UTC)
     preference.reviewed_by_user_id = current_user.id
+    session.commit()
+    session.refresh(preference)
+    return preference_to_read(session, preference)
+
+
+@router.put(
+    "/serving/admin/users/{user_id}/preferences/{area_key}", response_model=VolunteerPreferenceRead
+)
+def invite_volunteer(
+    user_id: str,
+    area_key: str,
+    payload: VolunteerPreferenceUpdate,
+    _current_user: User = Depends(require_permission("users:manage")),
+    session: Session = Depends(get_session),
+) -> VolunteerPreferenceRead:
+    get_user_or_404(session, user_id)
+    area = session.scalar(
+        select(ServingArea).where(ServingArea.key == area_key, ServingArea.active.is_(True))
+    )
+    if area is None:
+        raise HTTPException(status_code=404, detail="Serving area not found")
+    preference = session.scalar(
+        select(VolunteerPreference).where(
+            VolunteerPreference.user_id == user_id, VolunteerPreference.serving_area_id == area.id
+        )
+    )
+    if preference is not None:
+        raise HTTPException(
+            status_code=409, detail="This user already has a serving relationship for that role"
+        )
+    preference = VolunteerPreference(
+        user_id=user_id, serving_area_id=area.id, status="pending", initiated_by="admin"
+    )
+    session.add(preference)
+    preference.preferred_frequency = payload.preferred_frequency
+    preference.frequency_count = payload.frequency_count
+    preference.frequency_period = payload.frequency_period
+    preference.availability_notes = payload.availability_notes
+    preference.status = "pending"
+    preference.initiated_by = "admin"
+    preference.reviewed_at = None
+    preference.reviewed_by_user_id = None
     session.commit()
     session.refresh(preference)
     return preference_to_read(session, preference)

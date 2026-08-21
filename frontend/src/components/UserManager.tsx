@@ -6,6 +6,7 @@ import {
   disconnectGoogleDrive,
   getGoogleDriveStatus,
   getRoles,
+  getServingAreas,
   getUsers,
   getVolunteerAdminRecords,
   type GoogleDriveStatus,
@@ -15,6 +16,7 @@ import {
   updateUser,
   type PasswordResetAdminResponse,
   type Role,
+  type ServingArea,
   type User,
   type UserInvitePayload,
   type UserInviteResponse,
@@ -125,9 +127,11 @@ export function UserManager({ adminSection, onAdminSectionChange, onAttentionCha
   const [showInactive, setShowInactive] = useState(true);
   const [driveStatus, setDriveStatus] = useState<GoogleDriveStatus | null>(null);
   const [volunteerRows, setVolunteerRows] = useState<VolunteerAdminRecord[]>([]);
+  const [servingAreas, setServingAreas] = useState<ServingArea[]>([]);
   const [mobileUserPane, setMobileUserPane] = useState<"list" | "detail">("list");
   const [userFilter, setUserFilter] = useState<"all" | "attention" | "active" | "inactive">("all");
   const [userSort, setUserSort] = useState<"attention" | "name" | "recent">("attention");
+  const formDirty = mode === "create" || Boolean(selectedUser && JSON.stringify(form) !== JSON.stringify(formFromUser(selectedUser)));
 
   const pendingUserIds = new Set(volunteerRows.filter((row) => row.preference.status === "pending").map((row) => row.user_id));
   const filteredUsers = users
@@ -140,16 +144,18 @@ export function UserManager({ adminSection, onAdminSectionChange, onAttentionCha
     setMessage(null);
 
     try {
-      const [nextRoles, nextUsers, nextDriveStatus, nextVolunteerRows] = await Promise.all([
+      const [nextRoles, nextUsers, nextDriveStatus, nextVolunteerRows, nextServingAreas] = await Promise.all([
         getRoles(),
         getUsers(),
         getGoogleDriveStatus(),
         getVolunteerAdminRecords(),
+        getServingAreas(),
       ]);
       setRoles(nextRoles);
       setUsers(nextUsers);
       setDriveStatus(nextDriveStatus);
       setVolunteerRows(nextVolunteerRows);
+      setServingAreas(nextServingAreas);
       await onAttentionChanged?.();
 
       const target = nextUsers.find((user) => user.id === selectedId) ?? nextUsers[0] ?? null;
@@ -165,6 +171,12 @@ export function UserManager({ adminSection, onAdminSectionChange, onAttentionCha
     } finally {
       setLoading(false);
     }
+  }
+
+  async function refreshVolunteerRows() {
+    const nextVolunteerRows = await getVolunteerAdminRecords();
+    setVolunteerRows(nextVolunteerRows);
+    await onAttentionChanged?.();
   }
 
   function startCreate() {
@@ -186,7 +198,8 @@ export function UserManager({ adminSection, onAdminSectionChange, onAttentionCha
     });
   }
 
-  function selectUser(user: User) {
+  async function selectUser(user: User) {
+    if (formDirty && mode === "edit" && !(await confirm({ title: "Discard unsaved changes?", message: "This user's unsaved account and access changes will be lost.", confirmLabel: "Discard changes", tone: "danger" }))) return;
     setSelectedUser(user);
     setForm(formFromUser(user));
     setMode("edit");
@@ -397,7 +410,7 @@ export function UserManager({ adminSection, onAdminSectionChange, onAttentionCha
             <button
               className={`stack-row ${user.id === selectedUser?.id ? "selected" : ""}`}
               key={user.id}
-              onClick={() => selectUser(user)}
+              onClick={() => void selectUser(user)}
               type="button"
             >
               <strong>{user.name}{pendingUserIds.has(user.id) ? <span className="user-attention-flag" aria-label="Volunteer request pending">!</span> : null}</strong>
@@ -416,6 +429,7 @@ export function UserManager({ adminSection, onAdminSectionChange, onAttentionCha
             <h2>{mode === "create" ? "New User" : selectedUser?.name ?? "User"}</h2>
           </div>
           <div className="action-row">
+            {mode === "edit" && formDirty ? <><span className="status-pill attention">Unsaved changes</span><button className="text-button" onClick={() => selectedUser && setForm(formFromUser(selectedUser))} type="button">Discard</button></> : null}
             {mode === "edit" && selectedUser?.active ? (
               <>
                 {selectedUser.invite_pending ? (
@@ -432,7 +446,7 @@ export function UserManager({ adminSection, onAdminSectionChange, onAttentionCha
                 </button>
               </>
             ) : null}
-            <button className="primary-button" disabled={loading} type="submit">
+            <button className="primary-button" disabled={loading || (mode === "edit" && !formDirty)} type="submit">
               {mode === "create" ? "Invite User" : "Save User"}
             </button>
           </div>
@@ -486,7 +500,7 @@ export function UserManager({ adminSection, onAdminSectionChange, onAttentionCha
             <legend>Capabilities, roles and volunteer requests</legend>
             <p className="muted-copy">Serving roles are grouped by ministry. Approved requests automatically provide the matching workspace access; administration remains explicit.</p>
             <div className="role-group-grid">
-              {ROLE_GROUPS.map((group) => { const groupRequests = volunteerRows.filter((row) => row.user_id === selectedUser?.id && row.preference.area.category === group.label); if (!group.roles.length && !groupRequests.length) return null; return <section className="role-group" key={group.label}><h3>{group.label}</h3>{group.roles.length ? <div className="admin-role-list">{group.roles.map((roleName) => { const role = roles.find((candidate) => candidate.name === roleName); return role ? <label className={`admin-role-row ${form.role_names.includes(role.name) ? "selected" : ""}`} key={role.id}><input checked={form.role_names.includes(role.name)} disabled={role.name === "viewer" && form.role_names.some((name) => name !== "viewer")} onChange={() => toggleRole(role.name)} type="checkbox" /><span><strong>{formatRoleName(role.name)}</strong><small>{role.description ?? "Workspace access"}</small></span></label> : null; })}</div> : null}{mode === "edit" && selectedUser && groupRequests.length ? <VolunteerReview compact onChanged={() => load(selectedUser.id)} rows={groupRequests} /> : null}</section>; })}
+              {ROLE_GROUPS.map((group) => { const groupRequests = volunteerRows.filter((row) => row.user_id === selectedUser?.id && row.preference.area.category === group.label); const groupAreas = servingAreas.filter((area) => area.category === group.label); if (!group.roles.length && !groupRequests.length && !groupAreas.length) return null; return <section className="role-group" key={group.label}><h3>{group.label}</h3>{group.roles.length ? <div className="admin-role-list">{group.roles.map((roleName) => { const role = roles.find((candidate) => candidate.name === roleName); return role ? <label className={`admin-role-row ${form.role_names.includes(role.name) ? "selected" : ""}`} key={role.id}><input checked={form.role_names.includes(role.name)} disabled={role.name === "viewer" && form.role_names.some((name) => name !== "viewer")} onChange={() => toggleRole(role.name)} type="checkbox" /><span><strong>{formatRoleName(role.name)}</strong><small>{role.description ?? "Workspace access"}</small></span></label> : null; })}</div> : null}{mode === "edit" && selectedUser && (groupRequests.length || groupAreas.length) ? <VolunteerReview areas={groupAreas} compact onChanged={refreshVolunteerRows} rows={groupRequests} userId={selectedUser.id} /> : null}</section>; })}
             </div>
           </fieldset>
 

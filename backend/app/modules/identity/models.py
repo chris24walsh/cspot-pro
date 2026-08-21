@@ -79,6 +79,7 @@ class VolunteerPreference(IdMixin, TimestampMixin, Base):
         ForeignKey("serving_areas.id", ondelete="CASCADE"), index=True
     )
     status: Mapped[str] = mapped_column(String(24), default="pending", index=True)
+    initiated_by: Mapped[str] = mapped_column(String(24), default="volunteer")
     preferred_frequency: Mapped[str] = mapped_column(String(24), default="monthly")
     frequency_count: Mapped[int] = mapped_column(Integer, default=1)
     frequency_period: Mapped[str] = mapped_column(String(16), default="month")

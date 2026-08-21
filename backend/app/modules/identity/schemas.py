@@ -100,6 +100,7 @@ class VolunteerPreferenceRead(BaseModel):
     user_id: str
     area: ServingAreaRead
     status: Literal["pending", "approved", "declined"]
+    initiated_by: Literal["volunteer", "admin"] = "volunteer"
     preferred_frequency: Literal["weekly", "monthly", "quarterly", "semi_yearly", "occasional"]
     frequency_count: int = Field(default=1, ge=0, le=52)
     frequency_period: Literal["week", "month", "quarter", "year"] = "month"
@@ -125,6 +126,10 @@ class VolunteerReviewUpdate(BaseModel):
     admin_notes: str | None = Field(default=None, max_length=2000)
     frequency_count: int | None = Field(default=None, ge=0, le=52)
     frequency_period: Literal["week", "month", "quarter", "year"] | None = None
+
+
+class VolunteerDecisionUpdate(BaseModel):
+    status: Literal["approved", "declined"]
 
 
 class ServingProfileRead(BaseModel):
