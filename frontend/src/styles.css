@@ -10999,3 +10999,73 @@ button.musician-page {
 .shell.is-mobile-device:not(.is-tablet-device) .musician-live-title > strong {
   display: none;
 }
+
+/* Admin uses joined, flat navigation rows. Keep this final so the shared
+   tab-row and responsive workspace rules cannot restore card styling. */
+.tab-row.flat-admin-tabs {
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid #d8d1bf;
+  border-radius: 0;
+  display: flex;
+  gap: 14px;
+  margin: 0;
+  padding: 0;
+  width: 100%;
+}
+
+.tab-row.flat-admin-tabs > button {
+  background: transparent;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  box-shadow: none;
+  color: #53615a;
+  min-height: 34px;
+  padding: 5px 4px;
+}
+
+.tab-row.flat-admin-tabs > button.active {
+  background: transparent;
+  border-bottom-color: #245d4d;
+  box-shadow: none;
+  color: #17201b;
+}
+
+.topbar-admin { padding-bottom: 0; }
+.topbar-admin .topbar-context-slot { align-self: stretch; align-items: flex-end; }
+.topbar-admin .admin-topbar-tabs { align-self: stretch; margin-bottom: -1px; width: auto; }
+
+.manager-grid.admin-manager {
+  flex: 1 1 0;
+  gap: 0;
+  grid-template-rows: auto minmax(0, 1fr);
+  height: 100%;
+  min-height: 0;
+  overscroll-behavior: none;
+  overflow: hidden;
+  padding: 0;
+}
+
+.admin-manager.is-settings { grid-template-rows: minmax(0, 1fr); }
+.admin-manager .manager-list,
+.admin-manager .editor-panel {
+  border-radius: 0;
+  height: 100%;
+  max-height: none;
+  overscroll-behavior: contain;
+}
+
+.admin-manager .editor-panel { padding: 0; }
+.admin-manager .editor-panel > .section-heading,
+.admin-manager .editor-panel > .form-message,
+.admin-manager .editor-panel > .field-action-row,
+.admin-manager .editor-panel > .form-grid { margin-left: 12px; margin-right: 12px; }
+.admin-manager .editor-panel > .section-heading { margin-top: 10px; }
+.admin-manager .editor-panel > .form-grid { margin-bottom: 12px; }
+.admin-manager .user-settings-tabs { margin: 0; }
+
+@media (max-width: 860px) {
+  .shell.is-mobile-device .topbar-admin { padding-bottom: 0; }
+  .manager-grid.admin-manager { padding: 0; }
+}
