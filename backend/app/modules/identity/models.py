@@ -80,6 +80,7 @@ class VolunteerPreference(IdMixin, TimestampMixin, Base):
     )
     status: Mapped[str] = mapped_column(String(24), default="pending", index=True)
     initiated_by: Mapped[str] = mapped_column(String(24), default="volunteer")
+    admin_attention_pending: Mapped[bool] = mapped_column(Boolean, default=True)
     preferred_frequency: Mapped[str] = mapped_column(String(24), default="monthly")
     frequency_count: Mapped[int] = mapped_column(Integer, default=1)
     frequency_period: Mapped[str] = mapped_column(String(16), default="month")

@@ -2,6 +2,7 @@ import { type FormEvent, useEffect, useState } from "react";
 
 import {
   buildAbsoluteApiUrl,
+  acknowledgeVolunteerAttention,
   deactivateUser,
   disconnectGoogleDrive,
   getGoogleDriveStatus,
@@ -133,7 +134,7 @@ export function UserManager({ adminSection, onAdminSectionChange, onAttentionCha
   const [userSort, setUserSort] = useState<"attention" | "name" | "recent">("attention");
   const formDirty = mode === "create" || Boolean(selectedUser && JSON.stringify(form) !== JSON.stringify(formFromUser(selectedUser)));
 
-  const pendingUserIds = new Set(volunteerRows.filter((row) => row.preference.status === "pending").map((row) => row.user_id));
+  const pendingUserIds = new Set(volunteerRows.filter((row) => row.preference.admin_attention_pending).map((row) => row.user_id));
   const filteredUsers = users
     .filter((user) => showInactive || user.active)
     .filter((user) => userFilter === "all" || (userFilter === "attention" ? pendingUserIds.has(user.id) : userFilter === "active" ? user.active : !user.active))
@@ -206,6 +207,10 @@ export function UserManager({ adminSection, onAdminSectionChange, onAttentionCha
     setActionLink(null);
     setMessage(null);
     setMobileUserPane("detail");
+    if (pendingUserIds.has(user.id)) {
+      await acknowledgeVolunteerAttention(user.id);
+      await refreshVolunteerRows();
+    }
   }
 
   function toggleRole(roleName: string) {

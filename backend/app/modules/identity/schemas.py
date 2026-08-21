@@ -101,6 +101,7 @@ class VolunteerPreferenceRead(BaseModel):
     area: ServingAreaRead
     status: Literal["pending", "approved", "declined"]
     initiated_by: Literal["volunteer", "admin"] = "volunteer"
+    admin_attention_pending: bool = False
     preferred_frequency: Literal["weekly", "monthly", "quarterly", "semi_yearly", "occasional"]
     frequency_count: int = Field(default=1, ge=0, le=52)
     frequency_period: Literal["week", "month", "quarter", "year"] = "month"

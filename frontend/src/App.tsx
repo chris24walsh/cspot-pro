@@ -25,6 +25,7 @@ import {
   getPlans,
   getSessionUser,
   getSongs,
+  getServingProfile,
   getVolunteerAdminRecords,
   logout,
   type PlanDetail,
@@ -94,6 +95,7 @@ function App() {
   const [broadcastWorkspace, setBroadcastWorkspace] = useState<"viewer" | "recordings" | "livestream" | "mixer">("viewer");
   const [mobileImmersive, setMobileImmersive] = useState(false);
   const [adminAttentionCount, setAdminAttentionCount] = useState(0);
+  const [profileAttentionCount, setProfileAttentionCount] = useState(0);
   const [adminSection, setAdminSection] = useState<"users" | "settings">("users");
   const initialViewChosen = useRef(false);
   const mobileOrTabletDevice = useMemo(
@@ -277,10 +279,17 @@ function App() {
 
   const loadAdminAttention = useCallback(async () => {
     if (!canManageUsers) { setAdminAttentionCount(0); return; }
-    try { setAdminAttentionCount((await getVolunteerAdminRecords()).filter((row) => row.preference.status === "pending").length); } catch { setAdminAttentionCount(0); }
+    try { setAdminAttentionCount((await getVolunteerAdminRecords()).filter((row) => row.preference.admin_attention_pending).length); } catch { setAdminAttentionCount(0); }
   }, [canManageUsers]);
 
   useEffect(() => { void loadAdminAttention(); }, [loadAdminAttention]);
+
+  const loadProfileAttention = useCallback(async () => {
+    if (!sessionUser) { setProfileAttentionCount(0); return; }
+    try { setProfileAttentionCount((await getServingProfile()).preferences.filter((preference) => preference.initiated_by === "admin" && preference.status === "pending").length); } catch { setProfileAttentionCount(0); }
+  }, [sessionUser]);
+
+  useEffect(() => { void loadProfileAttention(); }, [loadProfileAttention]);
 
   useEffect(() => {
     if (sessionUser && isViewerOnly && canWatchBroadcast && modules.some((module) => module.id === "broadcast")) {
@@ -398,13 +407,14 @@ function App() {
             const Icon = iconMap[module.id];
             return (
               <button
-                className={`nav-item ${module.id === activeModule.id ? "active" : ""} ${module.id === "admin" && adminAttentionCount ? "has-attention" : ""}`}
+                className={`nav-item ${module.id === activeModule.id ? "active" : ""} ${(module.id === "admin" && adminAttentionCount) || (module.id === "profile" && profileAttentionCount) ? "has-attention" : ""}`}
                 key={module.id}
                 onClick={() => setActiveModuleId(module.id)}
                 title={module.kicker}
               >
                 <Icon size={18} aria-hidden="true" />
                 {module.id === "admin" && adminAttentionCount ? <span className="nav-attention-badge" aria-label={`${adminAttentionCount} admin items need attention`}><CircleAlert size={11} aria-hidden="true" /></span> : null}
+                {module.id === "profile" && profileAttentionCount ? <span className="nav-attention-badge" aria-label={`${profileAttentionCount} serving invitations need a response`}><CircleAlert size={11} aria-hidden="true" /></span> : null}
                 <span>{module.label}</span>
               </button>
             );
@@ -530,7 +540,7 @@ function App() {
         ) : activeModule.id === "admin" ? (
           <UserManager adminSection={adminSection} onAdminSectionChange={setAdminSection} onAttentionChanged={loadAdminAttention} />
         ) : activeModule.id === "profile" ? (
-          <MyProfile onProfileChanged={() => void loadAuth()} />
+          <MyProfile onProfileChanged={() => { void loadAuth(); void loadProfileAttention(); }} />
         ) : (
           <PresentationView
             canAttachDeck={canEditPlans && canCreateLibrary}

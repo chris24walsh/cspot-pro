@@ -273,6 +273,7 @@ def preference_to_read(
         area=area_to_read(area),
         status=preference.status,
         initiated_by=preference.initiated_by,
+        admin_attention_pending=preference.admin_attention_pending,
         preferred_frequency=preference.preferred_frequency,
         frequency_count=preference.frequency_count,
         frequency_period=preference.frequency_period,
@@ -621,6 +622,7 @@ def volunteer_for_area(
             serving_area_id=area.id,
             status="pending",
             initiated_by="volunteer",
+            admin_attention_pending=True,
         )
         session.add(preference)
     preference.preferred_frequency = payload.preferred_frequency
@@ -629,6 +631,7 @@ def volunteer_for_area(
     preference.availability_notes = payload.availability_notes
     if preference.status == "declined":
         preference.status = "pending"
+        preference.admin_attention_pending = True
         preference.reviewed_at = None
         preference.reviewed_by_user_id = None
     session.commit()
@@ -651,6 +654,7 @@ def decide_serving_invitation(
     if preference is None or preference.initiated_by != "admin" or preference.status != "pending":
         raise HTTPException(status_code=409, detail="No pending serving invitation found")
     preference.status = payload.status
+    preference.admin_attention_pending = True
     preference.reviewed_at = datetime.now(UTC)
     preference.reviewed_by_user_id = current_user.id
     session.commit()
@@ -758,6 +762,7 @@ def review_volunteer(
             status_code=409, detail="The invited user must accept or reject this invitation"
         )
     preference.status = payload.status
+    preference.admin_attention_pending = False
     if payload.preferred_frequency is not None:
         preference.preferred_frequency = payload.preferred_frequency
     if payload.frequency_count is not None:
@@ -799,7 +804,11 @@ def invite_volunteer(
             status_code=409, detail="This user already has a serving relationship for that role"
         )
     preference = VolunteerPreference(
-        user_id=user_id, serving_area_id=area.id, status="pending", initiated_by="admin"
+        user_id=user_id,
+        serving_area_id=area.id,
+        status="pending",
+        initiated_by="admin",
+        admin_attention_pending=False,
     )
     session.add(preference)
     preference.preferred_frequency = payload.preferred_frequency
@@ -813,6 +822,26 @@ def invite_volunteer(
     session.commit()
     session.refresh(preference)
     return preference_to_read(session, preference)
+
+
+@router.post("/serving/admin/users/{user_id}/attention/read")
+def acknowledge_volunteer_attention(
+    user_id: str,
+    _current_user: User = Depends(require_permission("users:manage")),
+    session: Session = Depends(get_session),
+) -> dict[str, bool]:
+    preferences = session.scalars(
+        select(VolunteerPreference).where(
+            VolunteerPreference.user_id == user_id,
+            VolunteerPreference.initiated_by == "admin",
+            VolunteerPreference.status != "pending",
+            VolunteerPreference.admin_attention_pending.is_(True),
+        )
+    ).all()
+    for preference in preferences:
+        preference.admin_attention_pending = False
+    session.commit()
+    return {"ok": True}
 
 
 @router.delete("/serving/admin/volunteers/{preference_id}", status_code=204)

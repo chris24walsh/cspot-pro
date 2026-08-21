@@ -2155,16 +2155,19 @@ h3 {
 .serving-role-row > summary strong { color: #17201b; font-size: 13px; }
 .serving-role-row > summary small { color: #65716a; font-size: 11px; font-weight: 650; }
 .serving-role-row > summary input, .admin-role-row > input { min-height: auto; width: auto; }
-.serving-role-details { border-top: 1px solid #e8e2d3; display: grid; gap: 8px; padding: 8px 10px 10px 31px; }
+.serving-role-details { border-top: 1px solid #e8e2d3; display: grid; gap: 7px; padding: 7px 9px 9px 26px; }
 .serving-role-details label { display: grid; font-size: 12px; font-weight: 800; gap: 4px; }
 .serving-role-details textarea { min-height: 58px; resize: vertical; }
 .role-lifecycle-button { justify-self: start; }
 .lifecycle-actions { border-top: 1px solid #e8e2d3; padding-top: 8px; }
 .inline-warning { background: #fff0e9; border-radius: 7px; color: #7a2e19; font-size: 12px; margin: 0; padding: 7px 9px; }
-.frequency-input { align-items: center; display: grid; gap: 5px; grid-template-columns: auto 62px auto minmax(90px, 130px); }
-.frequency-input input, .frequency-input select { min-height: 34px; padding: 5px 7px; }
+.frequency-input { align-items: center; display: inline-flex; gap: 5px; justify-self: start; width: auto; }
+.frequency-input input { flex: 0 0 54px; width: 54px !important; }
+.frequency-input select { flex: 0 0 auto; width: auto !important; }
+.frequency-input input, .frequency-input select { min-height: 30px; padding: 3px 6px; }
 .admin-role-list, .volunteer-review-list { display: grid; gap: 5px; }
-.admin-role-row { align-items: center; background: #fffefa; border: 1px solid #e3dcc8; border-radius: 7px; cursor: pointer; display: flex; gap: 8px; padding: 7px 9px; }
+.admin-role-row { align-items: center; background: #fffefa; border: 1px solid #e3dcc8; border-radius: 7px; cursor: pointer; display: flex; gap: 8px; min-height: 38px; padding: 5px 8px; }
+.admin-role-row > input[type="checkbox"] { appearance: auto; height: 16px; min-height: 16px; min-width: 16px; padding: 0; width: 16px; }
 .admin-role-row.selected { background: #edf7f2; border-color: #8dc7b5; }
 .admin-role-row > span { display: grid; gap: 1px; }
 .admin-role-row strong { color: #17201b; font-size: 13px; }
@@ -2215,7 +2218,7 @@ h3 {
   .profile-workspace { padding: 10px; }
   .availability-entry { grid-template-columns: 1fr 1fr; }
   .role-group-grid { grid-template-columns: 1fr; }
-  .frequency-input { grid-template-columns: auto 58px auto minmax(80px, 1fr); }
+  .frequency-input { flex-wrap: wrap; }
   .availability-entry label:nth-child(3) { grid-column: 1 / -1; }
   .admin-manager { grid-template-columns: 1fr; padding: 8px; }
   .admin-mobile-user-tabs { display: grid; }
@@ -4752,11 +4755,20 @@ button.musician-page {
   gap: 5px;
   min-height: 28px;
   padding: 4px 8px;
+  position: relative;
 }
 
 .checkbox-pill input {
   accent-color: #245d4d;
+  height: 1px;
+  opacity: 0;
+  padding: 0;
+  position: absolute;
+  width: 1px;
 }
+
+.checkbox-pill.selected { background: #e7f4ee; border-color: #78ad9b; }
+.checkbox-pill.selected span::before { content: "✓ "; }
 
 .checkbox-pill span {
   font-size: 11px;

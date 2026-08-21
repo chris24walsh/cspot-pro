@@ -662,7 +662,7 @@ export function SongEditorDialog({
                   {WORSHIP_SLOT_OPTIONS.map((option) => {
                     const selectedValues = worshipRoleValues(form.worship_role);
                     return (
-                      <label className="checkbox-pill" key={option.value}>
+                      <label className={`checkbox-pill ${selectedValues.has(option.value) ? "selected" : ""}`} key={option.value}>
                         <input
                           checked={selectedValues.has(option.value)}
                           disabled={!canEdit}

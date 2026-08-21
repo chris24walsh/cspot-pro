@@ -138,6 +138,9 @@ coordinated.
 Serving relationships can begin as either a volunteer request or an admin
 invitation. The opposite party accepts or rejects it, and both sides stage
 workload, note, status, and removal changes locally before an explicit save.
+Attention follows ownership: admin invitations alert the invited user, while
+admins are alerted by volunteer requests and by responses to invitations they
+sent. Outgoing invitations do not create an admin alert.
 
 `identity` now owns:
 
