@@ -432,7 +432,12 @@ export interface User {
   roles: string[];
   password_set: boolean;
   invite_pending: boolean;
+  registration_pending: boolean;
+  registration_requested_at: string | null;
 }
+
+export interface SelfRegistrationStatus { enabled: boolean; registration_url: string | null; }
+export interface SelfRegistrationResult { detail: string; email_sent: boolean; }
 
 export interface Member {
   id: string;
@@ -867,6 +872,18 @@ export async function requestPasswordReset(payload: { email: string }): Promise<
   });
 }
 
+export async function getSelfRegistrationStatus(): Promise<SelfRegistrationStatus> {
+  return getJson<SelfRegistrationStatus>("/api/v1/identity/auth/registration-status", { suppressAuthEvent: true });
+}
+
+export async function selfRegister(payload: { name: string; email: string; username: string | null; password: string }): Promise<SelfRegistrationResult> {
+  return sendJson<SelfRegistrationResult>("/api/v1/identity/auth/register", "POST", payload, { suppressAuthEvent: true });
+}
+
+export async function verifyRegistrationEmail(token: string): Promise<SelfRegistrationResult> {
+  return sendJson<SelfRegistrationResult>("/api/v1/identity/auth/email-verification/complete", "POST", { token }, { suppressAuthEvent: true });
+}
+
 export async function logout(): Promise<void> {
   return deleteRequest("/api/v1/identity/auth/logout", { suppressAuthEvent: true });
 }
@@ -1060,6 +1077,14 @@ export async function updateUser(userId: string, payload: Partial<UserPayload>):
 
 export async function deactivateUser(userId: string): Promise<void> {
   return deleteRequest(`/api/v1/identity/users/${userId}`);
+}
+
+export async function approveSelfRegistration(userId: string): Promise<User> {
+  return sendJson<User>(`/api/v1/identity/users/${userId}/registration/approve`, "POST", {});
+}
+
+export async function rejectSelfRegistration(userId: string): Promise<void> {
+  return deleteRequest(`/api/v1/identity/users/${userId}/registration`);
 }
 
 export async function resendInvite(userId: string): Promise<UserInviteResponse> {

@@ -2136,6 +2136,15 @@ h3 {
 .admin-manager.is-settings .editor-panel { grid-column: 1 / -1; }
 .admin-manager.is-settings .editor-panel > :not(.admin-settings-panel) { display: none; }
 .admin-manager.is-users .admin-settings-panel { display: none; }
+
+.registration-share-panel { display: grid; grid-template-columns: 132px minmax(0, 1fr); gap: 0.8rem; align-items: center; }
+.registration-share-panel img { width: 132px; height: 132px; padding: 0.35rem; border: 1px solid #ded8c7; border-radius: 0.55rem; background: #fff; }
+.registration-share-panel .stack { min-width: 0; }
+
+@media (max-width: 560px) {
+  .registration-share-panel { grid-template-columns: 92px minmax(0, 1fr); }
+  .registration-share-panel img { width: 92px; height: 92px; }
+}
 .editor-panel.is-profile-settings .capability-fieldset { display: none; }
 .editor-panel.is-serving-settings .form-grid > label,
 .editor-panel.is-serving-settings .calendar-identity-fieldset { display: none; }

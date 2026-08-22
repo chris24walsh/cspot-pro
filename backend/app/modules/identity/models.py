@@ -21,6 +21,8 @@ class User(IdMixin, TimestampMixin, Base):
     sunday_school_max_sundays_per_month: Mapped[int | None] = mapped_column(Integer)
     email_confirmed: Mapped[bool] = mapped_column(Boolean, default=False)
     active: Mapped[bool] = mapped_column(Boolean, default=True)
+    registration_pending: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
+    registration_requested_at: Mapped[datetime | None]
 
 
 class Role(IdMixin, TimestampMixin, Base):

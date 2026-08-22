@@ -53,6 +53,29 @@ class UserRead(UserBase):
     roles: list[str]
     password_set: bool
     invite_pending: bool
+    registration_pending: bool = False
+    registration_requested_at: datetime | None = None
+
+
+class SelfRegistrationRequest(BaseModel):
+    name: str = Field(min_length=1, max_length=160)
+    email: str = Field(min_length=3, max_length=320)
+    username: str | None = None
+    password: str
+
+
+class SelfRegistrationStatusRead(BaseModel):
+    enabled: bool
+    registration_url: str | None = None
+
+
+class SelfRegistrationResultRead(BaseModel):
+    detail: str
+    email_sent: bool = False
+
+
+class EmailVerificationRequest(BaseModel):
+    token: str
 
 
 class VolunteerUnavailabilityCreate(BaseModel):

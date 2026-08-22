@@ -1,20 +1,22 @@
 import re
 from datetime import UTC, datetime, timedelta
+from io import BytesIO
 
-from fastapi import APIRouter, Depends, HTTPException, Response, status
-from sqlalchemy import func, or_, select
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
+from sqlalchemy import delete, func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.core.database import get_session
 from app.core.email import send_email, smtp_enabled
+from app.core.rate_limit import enforce_rate_limit
 from app.modules.identity.auth import (
     CurrentUser,
     clear_session_cookie,
     has_bootstrap_admin,
-    list_permissions,
     list_authorization_role_names,
+    list_permissions,
     list_role_names,
     require_permission,
     set_session_cookie,
@@ -40,12 +42,16 @@ from app.modules.identity.schemas import (
     BootstrapStatusRead,
     EmailTestRead,
     EmailTestRequest,
+    EmailVerificationRequest,
     LoginRequest,
     MemberRead,
     PasswordResetAdminRead,
     PasswordResetRequest,
     RoleRead,
     SelfProfileUpdate,
+    SelfRegistrationRequest,
+    SelfRegistrationResultRead,
+    SelfRegistrationStatusRead,
     ServingAreaRead,
     ServingProfileRead,
     SessionUserRead,
@@ -55,9 +61,9 @@ from app.modules.identity.schemas import (
     UserRead,
     UserUpdate,
     VolunteerAdminRead,
+    VolunteerDecisionUpdate,
     VolunteerPreferenceRead,
     VolunteerPreferenceUpdate,
-    VolunteerDecisionUpdate,
     VolunteerReviewUpdate,
     VolunteerUnavailabilityCreate,
     VolunteerUnavailabilityRead,
@@ -69,6 +75,7 @@ from app.modules.identity.security import (
     validate_password_strength,
     verify_password,
 )
+from app.modules.site.models import SiteContentBlock
 
 router = APIRouter()
 CALENDAR_COLORS = ("teacher-a", "teacher-b", "teacher-c", "teacher-d", "teacher-e", "teacher-f")
@@ -153,6 +160,8 @@ def user_to_read(session: Session, user: User) -> UserRead:
         roles=list_role_names(session, user.id),
         password_set=bool(user.password_hash),
         invite_pending=not bool(user.password_hash),
+        registration_pending=user.registration_pending,
+        registration_requested_at=user.registration_requested_at,
     )
 
 
@@ -202,7 +211,11 @@ def user_to_session_read(session: Session, user: User) -> SessionUserRead:
 
 def user_to_member_read(session: Session, user: User) -> MemberRead:
     approved_preferences = {
-        area.key: (preference.frequency_count, preference.frequency_period, preference.rotation_mode)
+        area.key: (
+            preference.frequency_count,
+            preference.frequency_period,
+            preference.rotation_mode,
+        )
         for preference, area in session.execute(
             select(VolunteerPreference, ServingArea)
             .join(ServingArea)
@@ -240,8 +253,16 @@ def user_to_member_read(session: Session, user: User) -> MemberRead:
         roles=list_role_names(session, user.id),
         calendar_color=user.calendar_color or stable_calendar_color(user.id),
         calendar_avatar=user.calendar_avatar,
-        worship_max_sundays_per_month=monthly_limit("worship") if "worship" in approved_preferences else user.worship_max_sundays_per_month,
-        sunday_school_max_sundays_per_month=monthly_limit("sunday_school") if "sunday_school" in approved_preferences else user.sunday_school_max_sundays_per_month,
+        worship_max_sundays_per_month=(
+            monthly_limit("worship")
+            if "worship" in approved_preferences
+            else user.worship_max_sundays_per_month
+        ),
+        sunday_school_max_sundays_per_month=(
+            monthly_limit("sunday_school")
+            if "sunday_school" in approved_preferences
+            else user.sunday_school_max_sundays_per_month
+        ),
         approved_serving_areas=list(approved_preferences),
         serving_rotation_modes={key: values[2] for key, values in approved_preferences.items()},
         unavailable=[
@@ -352,6 +373,13 @@ def send_auth_email(*, user: User, purpose: str, action_url: str) -> bool:
             f"Set your password here:\n{action_url}\n\n"
             f"This link will expire soon."
         )
+    elif purpose == "verify":
+        subject = f"Verify your {settings.app_name} email"
+        body = (
+            f"Hello {user.name},\n\n"
+            f"Confirm your email address here:\n{action_url}\n\n"
+            "An administrator must also approve your account before you can sign in."
+        )
     else:
         subject = f"Reset your {settings.app_name} password"
         body = (
@@ -389,6 +417,124 @@ def get_valid_auth_token_or_404(session: Session, raw_token: str) -> AuthToken:
 @router.get("/auth/bootstrap-status", response_model=BootstrapStatusRead)
 def bootstrap_status(session: Session = Depends(get_session)) -> BootstrapStatusRead:
     return BootstrapStatusRead(available=not has_bootstrap_admin(session))
+
+
+def self_registration_enabled(session: Session) -> bool:
+    block = session.scalar(
+        select(SiteContentBlock).where(SiteContentBlock.key == "identity.self_registration")
+    )
+    return bool(block and block.published and block.value.strip().lower() == "enabled")
+
+
+def self_registration_url() -> str | None:
+    return f"{settings.public_app_url.rstrip('/')}/?signup=1" if settings.public_app_url else None
+
+
+@router.get("/auth/registration-status", response_model=SelfRegistrationStatusRead)
+def registration_status(session: Session = Depends(get_session)) -> SelfRegistrationStatusRead:
+    return SelfRegistrationStatusRead(
+        enabled=self_registration_enabled(session), registration_url=self_registration_url()
+    )
+
+
+@router.post(
+    "/auth/register",
+    response_model=SelfRegistrationResultRead,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+def self_register(
+    payload: SelfRegistrationRequest,
+    request: Request,
+    session: Session = Depends(get_session),
+) -> SelfRegistrationResultRead:
+    enforce_rate_limit(request, "register", attempts=5, minutes=30)
+    if not self_registration_enabled(session):
+        raise HTTPException(status_code=403, detail="Self-registration is not currently open.")
+    try:
+        validate_password_strength(payload.password)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    normalized_email = payload.email.strip().lower()
+    if session.scalar(select(User.id).where(func.lower(User.email) == normalized_email)):
+        raise HTTPException(status_code=409, detail="An account already exists for that email.")
+    try:
+        user = User(
+            email=normalized_email,
+            username=resolve_username(session, username=payload.username, email=normalized_email),
+            name=payload.name.strip(),
+            start_page="broadcast",
+            password_hash=hash_password(payload.password),
+            email_confirmed=False,
+            active=False,
+            registration_pending=True,
+            registration_requested_at=datetime.now(UTC),
+        )
+        session.add(user)
+        session.flush()
+        user.calendar_color = stable_calendar_color(user.id)
+        set_user_roles(session, user, ["viewer"])
+        email_sent = False
+        if settings.public_app_url:
+            _token, raw_token = issue_auth_token(
+                session,
+                user=user,
+                purpose="verify",
+                created_by_user_id=None,
+                lifetime_hours=24,
+            )
+            verification_url = build_auth_action_url(purpose="verify", token=raw_token)
+            email_sent = smtp_enabled() and send_auth_email(
+                user=user, purpose="verify", action_url=verification_url
+            )
+        session.commit()
+    except IntegrityError as exc:
+        session.rollback()
+        raise HTTPException(
+            status_code=409, detail="That email or username is already in use."
+        ) from exc
+    return SelfRegistrationResultRead(
+        detail=(
+            "Registration received. An administrator must approve your account "
+            "before you can sign in."
+        ),
+        email_sent=email_sent,
+    )
+
+
+@router.post("/auth/email-verification/complete", response_model=SelfRegistrationResultRead)
+def complete_email_verification(
+    payload: EmailVerificationRequest,
+    request: Request,
+    session: Session = Depends(get_session),
+) -> SelfRegistrationResultRead:
+    enforce_rate_limit(request, "verify", attempts=10, minutes=30)
+    auth_token = get_valid_auth_token_or_404(session, payload.token)
+    if auth_token.purpose != "verify":
+        raise HTTPException(status_code=409, detail="This is not an email verification link.")
+    user = get_user_or_404(session, auth_token.user_id)
+    user.email_confirmed = True
+    auth_token.used_at = datetime.now(UTC)
+    session.commit()
+    return SelfRegistrationResultRead(
+        detail="Email verified. Your account is waiting for administrator approval."
+    )
+
+
+@router.get("/auth/registration-qr")
+def registration_qr(_current_user: User = Depends(require_permission("users:manage"))) -> Response:
+    url = self_registration_url()
+    if not url:
+        raise HTTPException(status_code=503, detail="PUBLIC_APP_URL is not configured.")
+    import qrcode
+    import qrcode.image.svg
+
+    output = BytesIO()
+    qrcode.make(url, image_factory=qrcode.image.svg.SvgPathImage, box_size=8, border=2).save(output)
+    return Response(
+        content=output.getvalue(),
+        media_type="image/svg+xml",
+        headers={"Cache-Control": "no-store"},
+    )
 
 
 @router.post("/auth/bootstrap", response_model=SessionUserRead, status_code=status.HTTP_201_CREATED)
@@ -444,7 +590,9 @@ def login(
     payload: LoginRequest,
     response: Response,
     session: Session = Depends(get_session),
+    request: Request = None,
 ) -> SessionUserRead:
+    enforce_rate_limit(request, "login", attempts=12, minutes=15)
     identifier = (payload.identifier or payload.email or "").strip().lower()
     if not identifier:
         raise HTTPException(
@@ -508,7 +656,9 @@ def complete_auth_action(
 def request_password_reset(
     payload: PasswordResetRequest,
     session: Session = Depends(get_session),
+    request: Request = None,
 ) -> dict[str, str]:
+    enforce_rate_limit(request, "password-reset", attempts=5, minutes=30)
     user = session.scalar(select(User).where(User.email == payload.email, User.active.is_(True)))
     if user is not None:
         _auth_token, raw_token = issue_auth_token(
@@ -1114,6 +1264,44 @@ def deactivate_user(
 ) -> Response:
     user = get_user_or_404(session, user_id)
     user.active = False
+    session.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.post("/users/{user_id}/registration/approve", response_model=UserRead)
+def approve_registration(
+    user_id: str,
+    _current_user: User = Depends(require_permission("users:manage")),
+    session: Session = Depends(get_session),
+) -> UserRead:
+    user = get_user_or_404(session, user_id)
+    if not user.registration_pending:
+        raise HTTPException(
+            status_code=409, detail="This account is not awaiting registration approval."
+        )
+    user.registration_pending = False
+    user.active = True
+    # Admin approval acts as an identity override if SMTP verification was not available.
+    user.email_confirmed = True
+    set_user_roles(session, user, ["viewer"])
+    session.commit()
+    session.refresh(user)
+    return user_to_read(session, user)
+
+
+@router.delete("/users/{user_id}/registration", status_code=status.HTTP_204_NO_CONTENT)
+def reject_registration(
+    user_id: str,
+    _current_user: User = Depends(require_permission("users:manage")),
+    session: Session = Depends(get_session),
+) -> Response:
+    user = get_user_or_404(session, user_id)
+    if not user.registration_pending:
+        raise HTTPException(
+            status_code=409, detail="This account is not awaiting registration approval."
+        )
+    session.execute(delete(AuthToken).where(AuthToken.user_id == user.id))
+    session.delete(user)
     session.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 

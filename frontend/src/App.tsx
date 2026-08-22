@@ -25,6 +25,7 @@ import {
   getPlans,
   getSessionUser,
   getSongs,
+  getUsers,
   getServingProfile,
   getVolunteerAdminRecords,
   logout,
@@ -279,7 +280,10 @@ function App() {
 
   const loadAdminAttention = useCallback(async () => {
     if (!canManageUsers) { setAdminAttentionCount(0); return; }
-    try { setAdminAttentionCount((await getVolunteerAdminRecords()).filter((row) => row.preference.admin_attention_pending).length); } catch { setAdminAttentionCount(0); }
+    try {
+      const [requests, users] = await Promise.all([getVolunteerAdminRecords(), getUsers()]);
+      setAdminAttentionCount(requests.filter((row) => row.preference.admin_attention_pending).length + users.filter((user) => user.registration_pending).length);
+    } catch { setAdminAttentionCount(0); }
   }, [canManageUsers]);
 
   useEffect(() => { void loadAdminAttention(); }, [loadAdminAttention]);

@@ -81,7 +81,7 @@ ALL_PERMISSIONS: set[PermissionName] = (
 ROLE_DEFINITIONS: dict[str, RoleDefinition] = {
     "viewer": {
         "description": "Church member remote-viewer access for the livestream broadcast.",
-        "permissions": READ_PERMISSIONS,
+        "permissions": set(),
     },
     "musician": {
         "description": "Read-only worship access for musicians who need the worship plan and live musician view.",

@@ -5,8 +5,11 @@ import {
   bootstrapAdmin,
   completeAuthAction,
   getAuthActionToken,
+  getSelfRegistrationStatus,
   login,
   requestPasswordReset,
+  selfRegister,
+  verifyRegistrationEmail,
   type AuthActionToken,
   type SessionUser,
 } from "../api";
@@ -18,7 +21,7 @@ interface AuthScreenProps {
   rememberByDefault?: boolean;
 }
 
-type AuthMode = "login" | "bootstrap" | "forgot" | "password_setup";
+type AuthMode = "login" | "bootstrap" | "forgot" | "password_setup" | "signup" | "email_verify";
 const REMEMBER_EMAIL_KEY = "cspot-pro:remember-email";
 
 function tokenHeading(tokenMeta: AuthActionToken | null) {
@@ -42,9 +45,12 @@ function tokenHeading(tokenMeta: AuthActionToken | null) {
 export function AuthScreen({ bootstrapAvailable, onAuthenticated, rememberByDefault = false }: AuthScreenProps) {
   const params = useMemo(() => new URLSearchParams(window.location.search), []);
   const actionToken = params.get("token");
-  const [mode, setMode] = useState<AuthMode>(actionToken ? "password_setup" : bootstrapAvailable ? "bootstrap" : "login");
+  const signupRequested = params.get("signup") === "1";
+  const [mode, setMode] = useState<AuthMode>(actionToken ? "password_setup" : signupRequested ? "signup" : bootstrapAvailable ? "bootstrap" : "login");
   const [tokenMeta, setTokenMeta] = useState<AuthActionToken | null>(null);
   const [name, setName] = useState("");
+  const [username, setUsername] = useState("");
+  const [signupEnabled, setSignupEnabled] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -55,6 +61,13 @@ export function AuthScreen({ bootstrapAvailable, onAuthenticated, rememberByDefa
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    void getSelfRegistrationStatus().then((result) => {
+      setSignupEnabled(result.enabled);
+      if (signupRequested && !result.enabled) setMessage("Self-registration is not currently open.");
+    }).catch(() => setSignupEnabled(false));
+  }, [signupRequested]);
 
   useEffect(() => {
     const rememberedEmail = localStorage.getItem(REMEMBER_EMAIL_KEY);
@@ -71,9 +84,9 @@ export function AuthScreen({ bootstrapAvailable, onAuthenticated, rememberByDefa
       if (current === "forgot") {
         return current;
       }
-      return bootstrapAvailable ? "bootstrap" : "login";
+      return signupRequested ? "signup" : bootstrapAvailable ? "bootstrap" : "login";
     });
-  }, [actionToken, bootstrapAvailable]);
+  }, [actionToken, bootstrapAvailable, signupRequested]);
 
   useEffect(() => {
     if (!actionToken) {
@@ -91,7 +104,7 @@ export function AuthScreen({ bootstrapAvailable, onAuthenticated, rememberByDefa
         }
         setTokenMeta(result);
         setEmail(result.email);
-        setMode("password_setup");
+        setMode(result.purpose === "verify" ? "email_verify" : "password_setup");
       })
       .catch((error) => {
         if (cancelled) {
@@ -125,6 +138,21 @@ export function AuthScreen({ bootstrapAvailable, onAuthenticated, rememberByDefa
         }
         const user = await completeAuthAction({ token: actionToken, password });
         onAuthenticated(user);
+        return;
+      }
+
+      if (mode === "email_verify") {
+        if (!actionToken) throw new Error("That verification link is incomplete.");
+        const result = await verifyRegistrationEmail(actionToken);
+        setMessage(result.detail);
+        return;
+      }
+
+      if (mode === "signup") {
+        if (password !== confirmPassword) throw new Error("Passwords do not match.");
+        const result = await selfRegister({ name, email, username: username || null, password });
+        setMessage(`${result.detail}${result.email_sent ? " Check your email for a verification link." : ""}`);
+        setPassword(""); setConfirmPassword("");
         return;
       }
 
@@ -168,7 +196,7 @@ export function AuthScreen({ bootstrapAvailable, onAuthenticated, rememberByDefa
 
         <div className="auth-lockup">
           <p className="eyebrow">
-            {mode === "password_setup"
+            {mode === "email_verify" ? "Email verification" : mode === "signup" ? "Join the church workspace" : mode === "password_setup"
               ? setupCopy?.eyebrow
               : mode === "bootstrap"
                 ? "First-time setup"
@@ -177,7 +205,7 @@ export function AuthScreen({ bootstrapAvailable, onAuthenticated, rememberByDefa
                   : "Welcome back"}
           </p>
           <h1>
-            {mode === "password_setup"
+            {mode === "email_verify" ? "Verify your email" : mode === "signup" ? "Request an account" : mode === "password_setup"
               ? setupCopy?.title
               : mode === "bootstrap"
                 ? "Create the first admin"
@@ -186,7 +214,7 @@ export function AuthScreen({ bootstrapAvailable, onAuthenticated, rememberByDefa
                   : "Sign in"}
           </h1>
           <p>
-            {mode === "password_setup"
+            {mode === "email_verify" ? "Confirm your email, then an administrator will review your account." : mode === "signup" ? "Create your details. Access begins only after administrator approval." : mode === "password_setup"
               ? setupCopy?.body
               : mode === "bootstrap"
                 ? "This only appears while no administrator password has been set."
@@ -197,7 +225,7 @@ export function AuthScreen({ bootstrapAvailable, onAuthenticated, rememberByDefa
         </div>
 
         <form className="auth-form" onSubmit={(event) => void submit(event)}>
-          {mode === "bootstrap" ? (
+          {mode === "bootstrap" || mode === "signup" ? (
             <label>
               Name
               <input onChange={(event) => setName(event.target.value)} required value={name} />
@@ -207,7 +235,7 @@ export function AuthScreen({ bootstrapAvailable, onAuthenticated, rememberByDefa
           <label>
             {mode === "login" ? "Email or username" : "Email"}
             <input
-              disabled={mode === "password_setup"}
+              disabled={mode === "password_setup" || mode === "email_verify"}
               onChange={(event) => setEmail(event.target.value)}
               required
               type={mode === "login" ? "text" : "email"}
@@ -215,7 +243,9 @@ export function AuthScreen({ bootstrapAvailable, onAuthenticated, rememberByDefa
             />
           </label>
 
-          {mode === "password_setup" ? (
+          {mode === "signup" ? <label>Username <input autoCapitalize="none" onChange={(event) => setUsername(event.target.value.toLowerCase())} pattern="[a-z0-9][a-z0-9._-]{1,79}" placeholder="Optional" value={username} /></label> : null}
+
+          {mode === "password_setup" || mode === "signup" ? (
             <>
               <label>
                 Password
@@ -258,7 +288,7 @@ export function AuthScreen({ bootstrapAvailable, onAuthenticated, rememberByDefa
                 </span>
               </label>
             </>
-          ) : mode === "forgot" ? null : (
+          ) : mode === "forgot" || mode === "email_verify" ? null : (
             <label>
               Password
               <span className="password-input-wrap">
@@ -291,7 +321,7 @@ export function AuthScreen({ bootstrapAvailable, onAuthenticated, rememberByDefa
           {message ? <p className="form-message">{message}</p> : null}
 
           <button className="primary-button auth-submit" disabled={submitting} type="submit">
-            {mode === "password_setup"
+            {mode === "email_verify" ? "Verify Email" : mode === "signup" ? "Request Account" : mode === "password_setup"
               ? setupCopy?.submit
               : mode === "bootstrap"
                 ? "Create Admin"
@@ -301,7 +331,7 @@ export function AuthScreen({ bootstrapAvailable, onAuthenticated, rememberByDefa
           </button>
         </form>
 
-        {mode === "password_setup" ? null : (
+        {mode === "password_setup" || mode === "email_verify" ? null : (
           <div className="auth-switch">
             {bootstrapAvailable ? (
               <button
@@ -321,6 +351,7 @@ export function AuthScreen({ bootstrapAvailable, onAuthenticated, rememberByDefa
             >
               {mode === "forgot" ? "Back to sign in" : "Forgot your password?"}
             </button>
+            {signupEnabled && !bootstrapAvailable ? <button className="text-button" onClick={() => setMode((current) => current === "signup" ? "login" : "signup")} type="button">{mode === "signup" ? "Back to sign in" : "Create an account"}</button> : null}
           </div>
         )}
       </section>

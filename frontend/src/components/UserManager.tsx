@@ -3,9 +3,11 @@ import { type FormEvent, useEffect, useRef, useState } from "react";
 import {
   buildAbsoluteApiUrl,
   acknowledgeVolunteerAttention,
+  approveSelfRegistration,
   deactivateUser,
   disconnectGoogleDrive,
   getGoogleDriveStatus,
+  getAdminSiteContent,
   getRoles,
   getServingAreas,
   getUsers,
@@ -13,8 +15,10 @@ import {
   type GoogleDriveStatus,
   inviteUser,
   resendInvite,
+  rejectSelfRegistration,
   sendPasswordReset,
   updateUser,
+  updateSiteContentBlock,
   type PasswordResetAdminResponse,
   type Role,
   type ServingArea,
@@ -84,6 +88,9 @@ function formatRoleName(roleName: string) {
 }
 
 function formatUserStatus(user: User) {
+  if (user.registration_pending) {
+    return "registration pending";
+  }
   if (!user.active) {
     return "inactive";
   }
@@ -127,6 +134,8 @@ export function UserManager({ adminSection, onAdminSectionChange, onAttentionCha
   const [loading, setLoading] = useState(true);
   const [showInactive, setShowInactive] = useState(true);
   const [driveStatus, setDriveStatus] = useState<GoogleDriveStatus | null>(null);
+  const [selfRegistrationEnabled, setSelfRegistrationEnabled] = useState(false);
+  const registrationUrl = `${window.location.origin}${window.location.pathname}?signup=1`;
   const [volunteerRows, setVolunteerRows] = useState<VolunteerAdminRecord[]>([]);
   const [servingAreas, setServingAreas] = useState<ServingArea[]>([]);
   const [mobileUserPane, setMobileUserPane] = useState<"list" | "detail">("list");
@@ -137,7 +146,7 @@ export function UserManager({ adminSection, onAdminSectionChange, onAttentionCha
   const initialAttentionRouted = useRef(false);
   const formDirty = mode === "create" || Boolean(selectedUser && JSON.stringify(form) !== JSON.stringify(formFromUser(selectedUser)));
 
-  const pendingUserIds = new Set(volunteerRows.filter((row) => row.preference.admin_attention_pending).map((row) => row.user_id));
+  const pendingUserIds = new Set([...users.filter((user) => user.registration_pending).map((user) => user.id), ...volunteerRows.filter((row) => row.preference.admin_attention_pending).map((row) => row.user_id)]);
   const filteredUsers = users
     .filter((user) => showInactive || user.active)
     .filter((user) => userFilter === "all" || (userFilter === "attention" ? pendingUserIds.has(user.id) : userFilter === "active" ? user.active : !user.active))
@@ -148,30 +157,33 @@ export function UserManager({ adminSection, onAdminSectionChange, onAttentionCha
     setMessage(null);
 
     try {
-      const [nextRoles, nextUsers, nextDriveStatus, nextVolunteerRows, nextServingAreas] = await Promise.all([
+      const [nextRoles, nextUsers, nextDriveStatus, nextVolunteerRows, nextServingAreas, siteContent] = await Promise.all([
         getRoles(),
         getUsers(),
         getGoogleDriveStatus(),
         getVolunteerAdminRecords(),
         getServingAreas(),
+        getAdminSiteContent(),
       ]);
       setRoles(nextRoles);
       setUsers(nextUsers);
       setDriveStatus(nextDriveStatus);
       setVolunteerRows(nextVolunteerRows);
       setServingAreas(nextServingAreas);
+      setSelfRegistrationEnabled(siteContent.find((block) => block.key === "identity.self_registration")?.value === "enabled");
       await onAttentionChanged?.();
 
       const attentionRow = !selectedId && !initialAttentionRouted.current
         ? nextVolunteerRows.find((row) => row.preference.admin_attention_pending)
         : undefined;
-      const attentionUserId = attentionRow?.user_id;
+      const registrationUser = !selectedId && !initialAttentionRouted.current ? nextUsers.find((user) => user.registration_pending) : undefined;
+      const attentionUserId = registrationUser?.id ?? attentionRow?.user_id;
       const target = nextUsers.find((user) => user.id === (selectedId ?? attentionUserId)) ?? nextUsers[0] ?? null;
       if (!initialAttentionRouted.current) {
         initialAttentionRouted.current = true;
         if (attentionUserId) {
           setMobileUserPane("detail");
-          setUserSettingsSection("serving");
+          setUserSettingsSection(registrationUser ? "profile" : "serving");
           setOpenRoleGroup(attentionRow?.preference.area.category ?? null);
         }
       }
@@ -225,7 +237,9 @@ export function UserManager({ adminSection, onAdminSectionChange, onAttentionCha
     setMessage(null);
     setMobileUserPane("detail");
     const attentionRow = volunteerRows.find((row) => row.user_id === user.id && row.preference.admin_attention_pending);
-    if (attentionRow) {
+    if (user.registration_pending) {
+      setUserSettingsSection("profile");
+    } else if (attentionRow) {
       setUserSettingsSection("serving");
       setOpenRoleGroup(attentionRow.preference.area.category);
     }
@@ -233,6 +247,30 @@ export function UserManager({ adminSection, onAdminSectionChange, onAttentionCha
       await acknowledgeVolunteerAttention(user.id);
       await refreshVolunteerRows();
     }
+  }
+
+  async function decideRegistration(approve: boolean) {
+    if (!selectedUser?.registration_pending) return;
+    if (!approve && !(await confirm({ title: "Reject registration", message: `Permanently remove ${selectedUser.name}'s registration request?`, confirmLabel: "Reject and remove", tone: "danger" }))) return;
+    try {
+      if (approve) await approveSelfRegistration(selectedUser.id); else await rejectSelfRegistration(selectedUser.id);
+      await load();
+      setMessage(approve ? "Registration approved." : "Registration rejected and removed.");
+    } catch (error) { setMessage(error instanceof Error ? error.message : "Could not review registration."); }
+  }
+
+  async function toggleSelfRegistration() {
+    const enabled = !selfRegistrationEnabled;
+    try {
+      await updateSiteContentBlock("identity.self_registration", { label: "Public self-registration", block_type: "setting", value: enabled ? "enabled" : "disabled", published: true });
+      setSelfRegistrationEnabled(enabled);
+      setMessage(enabled ? "Public registration enabled." : "Public registration disabled.");
+    } catch (error) { setMessage(error instanceof Error ? error.message : "Could not change registration setting."); }
+  }
+
+  async function copyRegistrationLink() {
+    await navigator.clipboard.writeText(registrationUrl);
+    setMessage("Registration link copied.");
   }
 
   async function persistServingAccess(changes: Partial<Pick<UserFormState, "role_names" | "worship_max_sundays_per_month" | "sunday_school_max_sundays_per_month">>) {
@@ -464,6 +502,7 @@ export function UserManager({ adminSection, onAdminSectionChange, onAttentionCha
           </div>
           <div className="action-row">
             {mode === "edit" && formDirty ? <><span className="status-pill attention">Unsaved changes</span><button className="text-button" onClick={() => selectedUser && setForm(formFromUser(selectedUser))} type="button">Discard</button></> : null}
+            {mode === "edit" && selectedUser?.registration_pending ? <><span className="status-pill attention">Registration pending</span><button className="primary-button" onClick={() => void decideRegistration(true)} type="button">Approve</button><button className="danger-button" onClick={() => void decideRegistration(false)} type="button">Reject</button></> : null}
             {mode === "edit" && selectedUser?.active ? (
               <>
                 {selectedUser.invite_pending ? (
@@ -585,6 +624,12 @@ export function UserManager({ adminSection, onAdminSectionChange, onAttentionCha
           </fieldset>
 
         </div>
+
+        <section className="subsection-panel admin-settings-panel self-registration-settings">
+          <div className="section-heading"><div><p className="eyebrow">Access</p><h3>Self-registration</h3></div><button className={selfRegistrationEnabled ? "danger-button" : "primary-button"} onClick={() => void toggleSelfRegistration()} type="button">{selfRegistrationEnabled ? "Disable" : "Enable"}</button></div>
+          <p className="muted-copy">Anyone with this link can request an account. Requests remain inactive until an administrator approves them.</p>
+          <div className="registration-share-panel"><img alt="QR code for account registration" src={buildAbsoluteApiUrl("/api/v1/identity/auth/registration-qr")} /><div className="stack"><input aria-label="Registration link" readOnly value={registrationUrl} /><div className="action-row"><button className="text-button" onClick={() => void copyRegistrationLink()} type="button">Copy link</button><a className="text-button" download="cspot-registration-qr.svg" href={buildAbsoluteApiUrl("/api/v1/identity/auth/registration-qr")}>Download QR</a></div><small>{selfRegistrationEnabled ? "Open for registration" : "Link disabled until registration is enabled"}</small></div></div>
+        </section>
 
         <section className="subsection-panel admin-settings-panel">
           <div className="section-heading">

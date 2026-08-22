@@ -138,6 +138,9 @@ These preferences have been made explicit and should guide future changes.
   Rotation defaults apply only to current and future
   dates; historical dates retain their stored assignments and are excluded
   from swapping.
+- General account onboarding uses an admin-toggleable QR/link. Self-registered
+  accounts remain inactive and alert admins until explicitly approved; the
+  baseline Viewer role opens the livestream only, not internal planning data.
 
 ### Song handling
 

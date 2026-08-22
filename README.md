@@ -238,7 +238,7 @@ back to the static wireframe data when it is not.
 - Worship and Sunday School: Sunday cards show compact plan/lesson summaries and use capacity-aware leader rotations for current and future dates, while historical assignments remain unchanged; assignment and upcoming-Sunday swaps stay behind the compact Leader control, and the `cspot_tablet` account remains available for manual worship assignment but is excluded from automatic rotation
 - Songs: create/edit/archive songs, import and clean lyrics, edit details/chords, and prepare song slides
 - Broadcast: viewer-first remote service page plus admin tabs for sermon recordings, low-latency multi-camera livestream settings, and shared mixer-desk integration; admins can start a public or admin-only test livestream without starting the slideshow, alongside synchronized slides, service-aware weighted camera pacing, selectable camera/independent audio, automatic stream recovery, holding messages, and pre-service audio
-- Admin: invite users, send password resets, deactivate/reactivate accounts, manage grouped role lists, volunteer workloads (`X` per week/month/quarter/year), and Automatic/Manual/Disabled rotation eligibility, and test SMTP email
+- Admin: share an optional self-registration link/QR code, approve or reject inactive registration requests, invite users, send password resets, manage grouped roles and rotation eligibility, configure Google Drive, and test SMTP email
 
 ## Access Control
 

@@ -131,6 +131,17 @@ requests are reviewed within the relevant user rather than in a separate global
 queue. Unavailable ranges are shared by automatic allocation, direct assignment,
 and swap validation.
 
+Public self-registration is opt-in and controlled from Admin Settings. The
+stable share link and downloadable QR code open the compact authentication
+screen in registration mode. A submitted account receives a strong password
+and Viewer role but remains inactive until an administrator approves it;
+registration requests participate in the existing admin attention routing.
+SMTP-enabled deployments send a one-day email-verification link, while admin
+approval remains an explicit identity override for installations without SMTP.
+Rejection permanently removes only the still-pending account after confirmation.
+Public registration, login, verification, and password-reset requests have a
+small per-client in-process rate-limit guard.
+
 Serving capabilities are grouped by owning ministry rather than by ambiguous
 trade labels: Worship & Production owns music, sound, projection, livestream,
 and its equipment care; Hospitality & Care owns welcome and food; Property &
@@ -209,6 +220,10 @@ swapping available; Disabled also hides it from those pickers. Both retain the
 serving capability and its workspace access. This is how dedicated accounts
 such as `cspot_tablet` retain worship planning/control access without entering
 the automatic worship-leader rota.
+
+Viewer is deliberately livestream-only and grants no internal plan, song,
+library, or message permissions. Broader workspace access comes from approved
+serving relationships or explicit administration.
 
 `identity` now owns:
 

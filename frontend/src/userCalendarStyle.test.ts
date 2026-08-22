@@ -15,6 +15,8 @@ function user(id: string, name: string, color = "teacher-a", avatar: string | nu
     email_confirmed: true,
     id,
     invite_pending: false,
+    registration_pending: false,
+    registration_requested_at: null,
     name,
     password_set: true,
     roles: [],
