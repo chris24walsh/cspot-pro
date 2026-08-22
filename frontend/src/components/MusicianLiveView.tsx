@@ -18,6 +18,7 @@ import {
   deriveAbsoluteKey,
   lyricLines,
   parseChordChart,
+  resolveChordAnnotations,
   semitoneDistance,
   transposeChordSymbol,
   type ChordAnnotation,
@@ -360,8 +361,8 @@ function chordAnnotationsBySlideLine(
   const lineOffset = findSlideLineOffset(sourceLyrics, slideText, slideKind);
   if (lineOffset < 0) return grouped;
 
-  for (const annotation of annotations) {
-    const slideLineIndex = annotation.lineIndex - lineOffset;
+  for (const annotation of resolveChordAnnotations(annotations, sourceLyrics)) {
+    const slideLineIndex = annotation.absoluteLineIndex - lineOffset;
     if (slideLineIndex < 0) continue;
     const existing = grouped.get(slideLineIndex) ?? [];
     existing.push(annotation);
@@ -434,7 +435,10 @@ export function MusicianLiveView({ controlPlanId, onEditSong, onExit, plan, song
   }, [pageLeadIndex]);
   const liveItem = worshipItems.find((item) => item.id === liveSlide?.planItemId) ?? null;
   const liveSong = liveItem?.song_id ? songs.find((song) => song.id === liveItem.song_id) ?? null : null;
-  const chordChart = useMemo(() => parseChordChart(liveSong?.chords ?? null).document, [liveSong?.chords]);
+  const chordChart = useMemo(
+    () => parseChordChart(liveSong?.chords ?? null, liveSong?.lyrics ?? null).document,
+    [liveSong?.chords, liveSong?.lyrics],
+  );
   const pageColumnWidth = stageSize.width >= 700 ? stageSize.width / 2 : stageSize.width;
   const pageContentWidth = pageColumnWidth;
   const pageContentHeight = stageSize.height;
@@ -488,7 +492,10 @@ export function MusicianLiveView({ controlPlanId, onEditSong, onExit, plan, song
   );
   const pageNextItem = worshipItems.find((item) => item.id === pageNextSlide?.planItemId) ?? null;
   const pageNextSong = pageNextItem?.song_id ? songs.find((song) => song.id === pageNextItem.song_id) ?? null : null;
-  const pageNextChordChart = useMemo(() => parseChordChart(pageNextSong?.chords ?? null).document, [pageNextSong?.chords]);
+  const pageNextChordChart = useMemo(
+    () => parseChordChart(pageNextSong?.chords ?? null, pageNextSong?.lyrics ?? null).document,
+    [pageNextSong?.chords, pageNextSong?.lyrics],
+  );
   const pageNextShapeKey = pageNextChordChart.capo > 0
     ? pageNextChordChart.capoKey ?? pageNextChordChart.absoluteKey
     : pageNextChordChart.absoluteKey ?? pageNextChordChart.capoKey;

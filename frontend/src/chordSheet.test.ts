@@ -1,6 +1,17 @@
 import { describe, expect, it } from "vitest";
 
-import { cappedCapoForKeys, clearChordAnnotations, createEmptyChordChart, normalizeKeySignature, setChordChartAbsoluteKey, wrapChordEditorLine } from "./chordSheet";
+import {
+  cappedCapoForKeys,
+  chordPositionForLine,
+  clearChordAnnotations,
+  createEmptyChordChart,
+  normalizeKeySignature,
+  parseChordChart,
+  resolveChordAnnotations,
+  serializeChordChart,
+  setChordChartAbsoluteKey,
+  wrapChordEditorLine,
+} from "./chordSheet";
 
 describe("normalizeKeySignature", () => {
   it("uses C# rather than Db in the chord editor", () => {
@@ -15,7 +26,7 @@ describe("setChordChartAbsoluteKey", () => {
       ...createEmptyChordChart(),
       absoluteKey: "C",
       capo: 2,
-      annotations: [{ id: "one", lineIndex: 0, anchorIndex: 0, chord: "C" }],
+      annotations: [{ id: "one", section: "V1", lineIndex: 0, anchorIndex: 0, chord: "C" }],
     };
 
     const changed = setChordChartAbsoluteKey(chart, "D");
@@ -41,12 +52,69 @@ describe("clearChordAnnotations", () => {
       absoluteKey: "D",
       capo: 2,
       annotations: [
-        { id: "one", lineIndex: 0, anchorIndex: 2, chord: "D" },
-        { id: "two", lineIndex: 1, anchorIndex: 4, chord: "G" },
+        { id: "one", section: "V1", lineIndex: 0, anchorIndex: 2, chord: "D" },
+        { id: "two", section: "C", lineIndex: 1, anchorIndex: 4, chord: "G" },
       ],
     };
 
     expect(clearChordAnnotations(chart)).toEqual({ ...chart, annotations: [] });
+  });
+});
+
+describe("section-relative chord annotations", () => {
+  const originalLyrics = "[V1]\nFirst verse line\n\n[C]\nChorus line";
+
+  it("stores a lyric-line offset within its section", () => {
+    expect(chordPositionForLine(originalLyrics, 3)).toEqual({ section: "C", lineIndex: 0 });
+
+    const chart = {
+      ...createEmptyChordChart(),
+      absoluteKey: "G",
+      annotations: [{ id: "chorus-g", section: "C", lineIndex: 0, anchorIndex: 3, chord: "G" }],
+    };
+    const serialized = serializeChordChart(chart);
+
+    expect(JSON.parse(serialized ?? "null")).toMatchObject({
+      version: 3,
+      annotations: [{ section: "C", lineIndex: 0, anchorIndex: 3, chord: "G" }],
+    });
+  });
+
+  it("keeps later chords attached when sections and lines are inserted earlier", () => {
+    const annotation = { id: "chorus-g", section: "C", lineIndex: 0, anchorIndex: 3, chord: "G" };
+    const expandedLyrics = [
+      "[V1]",
+      "First verse line",
+      "A previously missing line",
+      "[V2]",
+      "Another verse",
+      "[T]",
+      "A new tag",
+      "[C]",
+      "Chorus line",
+    ].join("\n");
+
+    expect(resolveChordAnnotations([annotation], originalLyrics)[0]?.absoluteLineIndex).toBe(3);
+    expect(resolveChordAnnotations([annotation], expandedLyrics)[0]?.absoluteLineIndex).toBe(8);
+  });
+
+  it("migrates absolute version 2 positions using the current lyrics", () => {
+    const legacy = JSON.stringify({
+      version: 2,
+      capo: 0,
+      absoluteKey: "G",
+      capoKey: null,
+      keyAnchor: "absolute",
+      annotations: [{ id: "legacy-g", lineIndex: 3, anchorIndex: 3, chord: "G" }],
+    });
+
+    expect(parseChordChart(legacy, originalLyrics).document.annotations[0]).toMatchObject({
+      id: "legacy-g",
+      section: "C",
+      lineIndex: 0,
+      anchorIndex: 3,
+      chord: "G",
+    });
   });
 });
 

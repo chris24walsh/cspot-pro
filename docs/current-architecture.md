@@ -453,6 +453,12 @@ Search modes:
   labels, and keep lyric and sequence verse numbers contiguous and aligned.
   Longer sequences retain their deliberate repeated-section arrangement, while
   shorter stale sequences are rebuilt from the current lyric structure.
+- Chord-chart JSON version 3 anchors each annotation to a canonical song-section
+  label and a line offset within that section. Inserting an earlier verse, tag,
+  or missing line therefore leaves annotations in later sections attached to
+  their intended lyrics. Version 1 and 2 absolute line positions are converted
+  against the current lyrics when read and saved in the new format on the next
+  song edit.
 
 ### Keyboard behavior
 

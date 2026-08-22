@@ -7,13 +7,18 @@ export const MUSICAL_KEYS = ["C", "C#", "D", "Eb", "E", "F", "F#", "G", "Ab", "A
 
 export interface ChordAnnotation {
   id: string;
+  section: string | null;
   lineIndex: number;
   anchorIndex: number;
   chord: string;
 }
 
+export interface ResolvedChordAnnotation extends ChordAnnotation {
+  absoluteLineIndex: number;
+}
+
 export interface ChordChartDocument {
-  version: 2;
+  version: 3;
   capo: number;
   absoluteKey: string | null;
   capoKey: string | null;
@@ -66,8 +71,8 @@ function slug(value: string) {
   return value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
 }
 
-function makeId(lineIndex: number, wordIndex: number, chord: string) {
-  return `${lineIndex}-${wordIndex}-${slug(chord)}-${Math.random().toString(36).slice(2, 7)}`;
+function makeId(section: string | null, lineIndex: number, anchorIndex: number, chord: string) {
+  return `${section ?? "root"}-${lineIndex}-${anchorIndex}-${slug(chord)}-${Math.random().toString(36).slice(2, 7)}`;
 }
 
 function normalizeNote(note: string) {
@@ -230,9 +235,81 @@ export function lyricLines(lyrics: string | null) {
     .filter((line) => line.length > 0);
 }
 
+interface ChordLyricSection {
+  key: string | null;
+  lineIndexes: number[];
+}
+
+function normalizeChordSectionKey(value: string) {
+  const label = value.trim().replace(/^\[|\]$/g, "").replace(/:$/, "");
+  const compact = label.toLowerCase().replace(/[\s-]+/g, "");
+  const match = compact.match(/^(v|verse|c|chorus|refrain|b|bridge|p|pc|prechorus|t|tag|e|ending|o|outro|i|intro)(\d+)?$/);
+  if (!match) return label;
+
+  const [, kind, number = ""] = match;
+  const prefix =
+    kind === "v" || kind === "verse"
+      ? "V"
+      : kind === "c" || kind === "chorus" || kind === "refrain"
+        ? "C"
+        : kind === "b" || kind === "bridge"
+          ? "B"
+          : kind === "p" || kind === "pc" || kind === "prechorus"
+            ? "P"
+            : kind === "t" || kind === "tag"
+              ? "T"
+              : kind === "e" || kind === "ending"
+                ? "E"
+                : kind === "o" || kind === "outro"
+                  ? "O"
+                  : "I";
+  return `${prefix}${number}`;
+}
+
+function chordLyricSections(lyrics: string | null) {
+  const sections: ChordLyricSection[] = [{ key: null, lineIndexes: [] }];
+  let current = sections[0];
+
+  lyricLines(lyrics).forEach((line, lineIndex) => {
+    const sectionMatch = line.trim().match(/^\[([^\]]+)\]$/);
+    if (sectionMatch?.[1]) {
+      current = { key: normalizeChordSectionKey(sectionMatch[1]), lineIndexes: [] };
+      sections.push(current);
+      return;
+    }
+    current.lineIndexes.push(lineIndex);
+  });
+
+  return sections;
+}
+
+export function chordPositionForLine(lyrics: string | null, absoluteLineIndex: number) {
+  for (const section of chordLyricSections(lyrics)) {
+    const lineIndex = section.lineIndexes.indexOf(absoluteLineIndex);
+    if (lineIndex >= 0) {
+      return { section: section.key, lineIndex };
+    }
+  }
+  return null;
+}
+
+export function resolveChordAnnotations(annotations: ChordAnnotation[], lyrics: string | null) {
+  const sections = chordLyricSections(lyrics);
+  return annotations.flatMap((annotation): ResolvedChordAnnotation[] => {
+    const section = sections.find((candidate) => candidate.key === annotation.section);
+    const absoluteLineIndex = section?.lineIndexes[annotation.lineIndex];
+    if (absoluteLineIndex == null) return [];
+    return [{ ...annotation, absoluteLineIndex }];
+  });
+}
+
+function relativePositionForLegacyLine(lyrics: string | null, absoluteLineIndex: number) {
+  return chordPositionForLine(lyrics, absoluteLineIndex) ?? { section: null, lineIndex: absoluteLineIndex };
+}
+
 export function createEmptyChordChart(): ChordChartDocument {
   return {
-    version: 2,
+    version: 3,
     capo: 0,
     absoluteKey: null,
     capoKey: null,
@@ -305,7 +382,7 @@ export function transposeChordAnnotations(
   }));
 }
 
-export function parseChordChart(raw: string | null): ParsedChordChart {
+export function parseChordChart(raw: string | null, lyrics: string | null = null): ParsedChordChart {
   if (!raw?.trim()) {
     return { document: createEmptyChordChart(), legacyText: null };
   }
@@ -313,36 +390,36 @@ export function parseChordChart(raw: string | null): ParsedChordChart {
   try {
     const parsed = JSON.parse(raw) as Partial<ChordChartDocument> & { version?: number };
     const parsedVersion = Number(parsed?.version ?? 0);
-    if (parsed && (parsedVersion === 1 || parsedVersion === 2) && Array.isArray(parsed.annotations)) {
+    if (parsed && (parsedVersion === 1 || parsedVersion === 2 || parsedVersion === 3) && Array.isArray(parsed.annotations)) {
       return {
         document: {
-          version: 2,
+          version: 3,
           capo: Math.max(0, Math.trunc(parsed.capo ?? 0)),
           absoluteKey: normalizeKeySignature(parsed.absoluteKey),
           capoKey: normalizeKeySignature(parsed.capoKey),
           keyAnchor: parsed.keyAnchor === "absolute" ? "absolute" : "capo",
           annotations: parsed.annotations
-            .map((annotation) => ({
-              id:
-                annotation.id ||
-                makeId(
-                  annotation.lineIndex ?? 0,
-                  (annotation as Partial<ChordAnnotation> & { wordIndex?: number }).anchorIndex ??
-                    (annotation as Partial<ChordAnnotation> & { wordIndex?: number }).wordIndex ??
-                    0,
-                  annotation.chord ?? "chord",
-                ),
-              lineIndex: Math.max(0, Math.trunc(annotation.lineIndex ?? 0)),
-              anchorIndex: Math.max(
+            .map((annotation) => {
+              const legacyAnnotation = annotation as Partial<ChordAnnotation> & { wordIndex?: number };
+              const storedLineIndex = Math.max(0, Math.trunc(annotation.lineIndex ?? 0));
+              const position = parsedVersion === 3
+                ? {
+                    section: typeof annotation.section === "string" ? normalizeChordSectionKey(annotation.section) : null,
+                    lineIndex: storedLineIndex,
+                  }
+                : relativePositionForLegacyLine(lyrics, storedLineIndex);
+              const anchorIndex = Math.max(
                 0,
-                Math.trunc(
-                  (annotation as Partial<ChordAnnotation> & { wordIndex?: number }).anchorIndex ??
-                    (annotation as Partial<ChordAnnotation> & { wordIndex?: number }).wordIndex ??
-                    0,
-                ),
-              ),
-              chord: String(annotation.chord ?? "").trim(),
-            }))
+                Math.trunc(legacyAnnotation.anchorIndex ?? legacyAnnotation.wordIndex ?? 0),
+              );
+              const chord = String(annotation.chord ?? "").trim();
+              return {
+                id: annotation.id || makeId(position.section, position.lineIndex, anchorIndex, chord || "chord"),
+                ...position,
+                anchorIndex,
+                chord,
+              };
+            })
             .filter((annotation) => annotation.chord),
         },
         legacyText: null,
@@ -352,7 +429,7 @@ export function parseChordChart(raw: string | null): ParsedChordChart {
     // fall through to ChordPro / legacy parsing
   }
 
-  const chordPro = parseChordProToAnnotations(raw);
+  const chordPro = parseChordProToAnnotations(raw, lyrics);
   if (chordPro.annotations.length) {
     return { document: chordPro, legacyText: null };
   }
@@ -360,7 +437,7 @@ export function parseChordChart(raw: string | null): ParsedChordChart {
   return { document: createEmptyChordChart(), legacyText: raw };
 }
 
-function parseChordProToAnnotations(raw: string): ChordChartDocument {
+function parseChordProToAnnotations(raw: string, lyrics: string | null): ChordChartDocument {
   const annotations: ChordAnnotation[] = [];
   const lines = raw.split(/\r?\n/);
 
@@ -373,9 +450,10 @@ function parseChordProToAnnotations(raw: string): ChordChartDocument {
         continue;
       }
       const followingText = match[2] ?? "";
+      const position = relativePositionForLegacyLine(lyrics, lineIndex);
       annotations.push({
-        id: makeId(lineIndex, anchorIndex, chord),
-        lineIndex,
+        id: makeId(position.section, position.lineIndex, anchorIndex, chord),
+        ...position,
         anchorIndex,
         chord,
       });
@@ -384,7 +462,7 @@ function parseChordProToAnnotations(raw: string): ChordChartDocument {
   });
 
   return {
-    version: 2,
+    version: 3,
     capo: 0,
     absoluteKey: null,
     capoKey: null,
@@ -411,13 +489,17 @@ export function serializeChordChart(document: ChordChartDocument, legacyText: st
 
   return JSON.stringify(
     {
-      version: 2,
+      version: 3,
       capo: document.capo,
       absoluteKey: document.absoluteKey,
       capoKey: document.capoKey,
       keyAnchor: document.keyAnchor,
       annotations: [...document.annotations].sort(
-        (left, right) => left.lineIndex - right.lineIndex || left.anchorIndex - right.anchorIndex || left.chord.localeCompare(right.chord),
+        (left, right) =>
+          (left.section ?? "").localeCompare(right.section ?? "") ||
+          left.lineIndex - right.lineIndex ||
+          left.anchorIndex - right.anchorIndex ||
+          left.chord.localeCompare(right.chord),
       ),
     },
     null,
@@ -427,10 +509,11 @@ export function serializeChordChart(document: ChordChartDocument, legacyText: st
 
 export function upsertChordAnnotation(
   document: ChordChartDocument,
-  input: { chord: string; id?: string | null; lineIndex: number; anchorIndex: number },
+  input: { chord: string; id?: string | null; section: string | null; lineIndex: number; anchorIndex: number },
 ) {
   const next: ChordAnnotation = {
-    id: input.id || makeId(input.lineIndex, input.anchorIndex, input.chord),
+    id: input.id || makeId(input.section, input.lineIndex, input.anchorIndex, input.chord),
+    section: input.section,
     lineIndex: input.lineIndex,
     anchorIndex: input.anchorIndex,
     chord: input.chord.trim(),
@@ -486,7 +569,8 @@ export function displayChord(
 
 export function annotationLabel(annotation: ChordAnnotation, lyrics: string | null) {
   const lines = lyricLines(lyrics);
-  const line = lines[annotation.lineIndex] ?? "";
+  const resolved = resolveChordAnnotations([annotation], lyrics)[0];
+  const line = lines[resolved?.absoluteLineIndex ?? -1] ?? "";
   const relativeIndex = annotation.anchorIndex - LEADING_CHORD_ANCHORS;
   const clippedIndex = Math.max(-LEADING_CHORD_ANCHORS, Math.min(relativeIndex, line.length + TRAILING_CHORD_ANCHORS));
   if (clippedIndex < 0) {

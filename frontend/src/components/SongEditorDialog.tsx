@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 import { createSong, updateSong, type Song } from "../api";
 import {
+  chordPositionForLine,
   createEmptyChordChart,
   clearChordAnnotations,
   deriveCapoKey,
@@ -13,6 +14,7 @@ import {
   normalizeChordSymbolInput,
   parseChordChart,
   removeChordAnnotation,
+  resolveChordAnnotations,
   serializeChordChart,
   setChordChartAbsoluteKey,
   TRAILING_CHORD_ANCHORS,
@@ -126,6 +128,11 @@ function normalizeForm(form: SongForm, chords: string | null): SongForm {
     tempo: form.tempo || null,
     theme_tags: form.theme_tags || null,
   };
+}
+
+function savedSongSignature(song: Song) {
+  const parsed = parseChordChart(song.chords, song.lyrics);
+  return JSON.stringify(normalizeForm(formFromSong(song), serializeChordChart(parsed.document, parsed.legacyText)));
 }
 
 function worshipRoleValues(value: string | null | undefined) {
@@ -278,8 +285,8 @@ export function SongEditorDialog({
   useEscapeClose(true, onClose);
   const [tab, setTab] = useState<SongEditorTab>("lyrics");
   const [form, setForm] = useState<SongForm>(() => formFromSong(song));
-  const [chordChart, setChordChart] = useState<ChordChartDocument>(() => parseChordChart(song.chords).document);
-  const [legacyChords, setLegacyChords] = useState<string | null>(() => parseChordChart(song.chords).legacyText);
+  const [chordChart, setChordChart] = useState<ChordChartDocument>(() => parseChordChart(song.chords, song.lyrics).document);
+  const [legacyChords, setLegacyChords] = useState<string | null>(() => parseChordChart(song.chords, song.lyrics).legacyText);
   const [selectedLineIndex, setSelectedLineIndex] = useState(0);
   const [selectedAnchorIndex, setSelectedAnchorIndex] = useState(0);
   const [editingAnnotationId, setEditingAnnotationId] = useState<string | null>(null);
@@ -294,13 +301,17 @@ export function SongEditorDialog({
   const chordChartPanelRef = useRef<HTMLDivElement | null>(null);
   const [persistedSongId, setPersistedSongId] = useState<string | null>(mode === "edit" ? song.id : null);
   const [lastSavedSong, setLastSavedSong] = useState(song);
-  const [savedSignature, setSavedSignature] = useState(() => mode === "create" ? "" : JSON.stringify(normalizeForm(formFromSong(song), song.chords)));
+  const [savedSignature, setSavedSignature] = useState(() => mode === "create" ? "" : savedSongSignature(song));
   const displayMode: ChordDisplayMode = "absolute";
   const detailMode: ChordDetailMode = "advanced";
-  const lines = useMemo(() => lyricLines(form.lyrics), [form.lyrics]);
-  const lineAnnotations = chordChart.annotations
+  const chordLyrics = useMemo(
+    () => form.lyrics ? canonicalizeWorshipLyrics(form.lyrics, form.sequence) : null,
+    [form.lyrics, form.sequence],
+  );
+  const lines = useMemo(() => lyricLines(chordLyrics), [chordLyrics]);
+  const lineAnnotations = resolveChordAnnotations(chordChart.annotations, chordLyrics)
     .slice()
-    .sort((left, right) => left.lineIndex - right.lineIndex || left.anchorIndex - right.anchorIndex);
+    .sort((left, right) => left.absoluteLineIndex - right.absoluteLineIndex || left.anchorIndex - right.anchorIndex);
   const activeChordAnnotation =
     lineAnnotations.find((annotation) => annotation.id === editingAnnotationId) ??
     lineAnnotations.find((annotation) => annotation.id === hoveredChordId) ??
@@ -314,24 +325,17 @@ export function SongEditorDialog({
 
   useEffect(() => {
     setForm(formFromSong(song));
-    const parsed = parseChordChart(song.chords);
+    const parsed = parseChordChart(song.chords, song.lyrics);
     setChordChart(parsed.document);
     setLegacyChords(parsed.legacyText);
     setTab("lyrics");
     setMessage(null);
     setPersistedSongId(mode === "edit" ? song.id : null);
     setLastSavedSong(song);
-    setSavedSignature(mode === "create" ? "" : JSON.stringify(normalizeForm(formFromSong(song), song.chords)));
+    setSavedSignature(mode === "create" ? "" : savedSongSignature(song));
   }, [mode, song]);
 
   useEffect(() => {
-    setChordChart((current) => ({
-      ...current,
-      annotations: current.annotations.filter((annotation) => {
-        const line = lines[annotation.lineIndex];
-        return line != null && annotation.anchorIndex <= line.length + LEADING_CHORD_ANCHORS + TRAILING_CHORD_ANCHORS;
-      }),
-    }));
     setSelectedLineIndex((current) => Math.min(current, Math.max(lines.length - 1, 0)));
   }, [lines]);
 
@@ -413,11 +417,16 @@ export function SongEditorDialog({
       detailMode: "advanced",
       preferFlats: chordChart.absoluteKey?.includes("b") || chordChart.capoKey?.includes("b"),
     });
+    const position = chordPositionForLine(chordLyrics, selectedLineIndex);
+    if (!position) {
+      setMessage("Choose a lyric line before adding a chord.");
+      return;
+    }
     setChordChart((current) =>
       upsertChordAnnotation(current, {
         chord: storedChord,
         id: editingAnnotationId,
-        lineIndex: selectedLineIndex,
+        ...position,
         anchorIndex: selectedAnchorIndex,
       }),
     );
@@ -439,8 +448,9 @@ export function SongEditorDialog({
 
   function moveAnnotation(annotationId: string, lineIndex: number, anchorIndex: number) {
     const annotation = chordChart.annotations.find((candidate) => candidate.id === annotationId);
-    if (!annotation) return;
-    setChordChart((current) => upsertChordAnnotation(current, { id: annotation.id, chord: annotation.chord, lineIndex, anchorIndex }));
+    const position = chordPositionForLine(chordLyrics, lineIndex);
+    if (!annotation || !position) return;
+    setChordChart((current) => upsertChordAnnotation(current, { id: annotation.id, chord: annotation.chord, ...position, anchorIndex }));
     setLegacyChords(null);
   }
 
@@ -454,14 +464,14 @@ export function SongEditorDialog({
     const sourceSection =
       selectedSection ??
       sections.find((section) =>
-        chordChart.annotations.some((annotation) => annotation.lineIndex >= section.start && annotation.lineIndex < section.end),
+        lineAnnotations.some((annotation) => annotation.absoluteLineIndex >= section.start && annotation.absoluteLineIndex < section.end),
       );
     if (!sourceSection) {
       setMessage("Add chords to one verse before copying them.");
       return;
     }
-    const sourceAnnotations = chordChart.annotations.filter(
-      (annotation) => annotation.lineIndex >= sourceSection.start && annotation.lineIndex < sourceSection.end,
+    const sourceAnnotations = lineAnnotations.filter(
+      (annotation) => annotation.absoluteLineIndex >= sourceSection.start && annotation.absoluteLineIndex < sourceSection.end,
     );
     if (!sourceAnnotations.length) {
       setMessage("Add chords to the selected verse before copying them.");
@@ -476,17 +486,25 @@ export function SongEditorDialog({
           targetLineIndexes.add(section.start + offset);
         }
       }
-      const retained = current.annotations.filter((annotation) => !targetLineIndexes.has(annotation.lineIndex));
+      const replacedAnnotationIds = new Set(
+        lineAnnotations
+          .filter((annotation) => targetLineIndexes.has(annotation.absoluteLineIndex))
+          .map((annotation) => annotation.id),
+      );
+      const retained = current.annotations.filter((annotation) => !replacedAnnotationIds.has(annotation.id));
       const copied = targetSections.flatMap((section) =>
         sourceAnnotations.flatMap((annotation) => {
-          const offset = annotation.lineIndex - sourceSection.start;
+          const offset = annotation.absoluteLineIndex - sourceSection.start;
           const targetLineIndex = section.start + offset;
           const targetLine = lines[targetLineIndex];
           if (targetLine == null || targetLineIndex >= section.end) return [];
+          const position = chordPositionForLine(chordLyrics, targetLineIndex);
+          if (!position) return [];
           return [{
-            ...annotation,
             id: `${targetLineIndex}-${annotation.anchorIndex}-${annotation.chord}-${Math.random().toString(36).slice(2, 7)}`,
-            lineIndex: targetLineIndex,
+            ...position,
+            anchorIndex: annotation.anchorIndex,
+            chord: annotation.chord,
           }];
         }),
       );
@@ -525,7 +543,7 @@ export function SongEditorDialog({
       const saved = persistedSongId ? await updateSong(persistedSongId, payload) : await createSong(payload);
       setPersistedSongId(saved.id);
       setLastSavedSong(saved);
-      setSavedSignature(JSON.stringify(normalizeForm(formFromSong(saved), saved.chords)));
+      setSavedSignature(savedSongSignature(saved));
       await onSaved(saved);
       setMessage("Saved.");
     } catch (error) {
@@ -547,7 +565,7 @@ export function SongEditorDialog({
       });
       setForm(formFromSong(saved));
       setLastSavedSong(saved);
-      setSavedSignature(JSON.stringify(normalizeForm(formFromSong(saved), saved.chords)));
+      setSavedSignature(savedSongSignature(saved));
       await onSaved(saved);
       setMessage("Formatted lyric labels and sequence.");
     } catch (error) {
@@ -744,7 +762,7 @@ export function SongEditorDialog({
                       if (/^\[[^\]]+\]$/.test(line.trim())) {
                         return <div className="musician-section-marker" key={`${lineIndex}-${line}`}>{line}</div>;
                       }
-                      const annotations = lineAnnotations.filter((annotation) => annotation.lineIndex === lineIndex);
+                      const annotations = lineAnnotations.filter((annotation) => annotation.absoluteLineIndex === lineIndex);
                       const totalSlots = line.length + LEADING_CHORD_ANCHORS + TRAILING_CHORD_ANCHORS;
                       const renderSlot = (slotIndex: number, gridColumn: number) => {
                         const annotation = annotations.find((candidate) => candidate.anchorIndex === slotIndex);

@@ -154,7 +154,7 @@ function compactSongTitle(song: Song) {
 
 function songLibraryStatusClass(song: Song) {
   const hasLyrics = Boolean(song.lyrics?.trim());
-  const chordChart = parseChordChart(song.chords).document;
+  const chordChart = parseChordChart(song.chords, song.lyrics).document;
   const hasKey = Boolean(chordChart.absoluteKey ?? chordChart.capoKey);
   const hasChords = chordChart.annotations.length > 0;
   if (!hasLyrics) {
