@@ -213,6 +213,7 @@ coverage map. For durable product and architecture context, also see:
 
 - [docs/project-context.md](docs/project-context.md)
 - [docs/current-architecture.md](docs/current-architecture.md)
+- [docs/security-todo.md](docs/security-todo.md)
 - [AGENTS.md](AGENTS.md)
 
 The first persistent slice is now in place for:
