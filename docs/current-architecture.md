@@ -199,6 +199,11 @@ row is removed only after an approved replacement exists, while Viewer and
 Administrator remain direct system roles. Each future rename, merge, or split
 should use a new additive mapping migration rather than editing the historical
 0037 snapshot.
+Rotation frequency is independent of authorization. A zero/“Never” frequency
+means the approved person or device is excluded from automatic allocation, not
+that its serving capability is disabled. This is how dedicated accounts such
+as `cspot_tablet` retain worship planning/control access without ever entering
+the worship-leader rota.
 
 `identity` now owns:
 
