@@ -189,6 +189,17 @@ rejection, and invitation cancellation retain compact confirmation. Account &
 identity edits remain deliberately separate behind Save User, and an immediate
 serving mutation does not submit any unrelated account draft.
 
+Legacy operational roles are migrated into approved serving relationships by
+revision `0037_migrate_roles`. Worship leader/team aliases, musician, Sunday
+School teacher/leader, service teacher/leader aliases, and presenter map to
+their semantic serving areas. Existing notes and frequency preferences win;
+otherwise Sunday limits seed the worship/children frequencies (including zero
+for accounts excluded from rotation). The corresponding direct `user_roles`
+row is removed only after an approved replacement exists, while Viewer and
+Administrator remain direct system roles. Each future rename, merge, or split
+should use a new additive mapping migration rather than editing the historical
+0037 snapshot.
+
 `identity` now owns:
 
 - first-admin bootstrap

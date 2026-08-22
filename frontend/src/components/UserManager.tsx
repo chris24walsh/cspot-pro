@@ -93,15 +93,15 @@ function formatUserStatus(user: User) {
   return "active";
 }
 
-const ROLE_GROUPS = [
-  { label: "Worship & Production", roles: ["musician", "worship_leader"] },
-  { label: "Sunday School", roles: ["sunday_school_teacher", "sunday_school_leader"] },
-  { label: "Service", roles: ["teacher", "presenter"] },
+const ROLE_GROUPS: Array<{ label: string; roles: string[] }> = [
+  { label: "Worship & Production", roles: [] },
+  { label: "Sunday School", roles: [] },
+  { label: "Service", roles: [] },
   { label: "Hospitality & Care", roles: [] },
   { label: "Property & Facilities", roles: [] },
   { label: "General", roles: ["viewer"] },
   { label: "Administration", roles: ["administrator"] },
-] as const;
+];
 
 export function UserManager({ adminSection, onAdminSectionChange, onAttentionChanged }: { adminSection: "users" | "settings"; onAdminSectionChange: (section: "users" | "settings") => void; onAttentionChanged?: () => void | Promise<void> }) {
   const { confirm, confirmationDialog } = useConfirmationDialog();
