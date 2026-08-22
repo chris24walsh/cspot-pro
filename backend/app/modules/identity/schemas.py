@@ -77,6 +77,7 @@ class MemberRead(BaseModel):
     worship_max_sundays_per_month: int | None = None
     sunday_school_max_sundays_per_month: int | None = None
     approved_serving_areas: list[str] = []
+    serving_rotation_modes: dict[str, Literal["auto", "manual", "disabled"]] = {}
     unavailable: list[VolunteerUnavailabilityRead] = []
 
 
@@ -106,6 +107,7 @@ class VolunteerPreferenceRead(BaseModel):
     preferred_frequency: Literal["weekly", "monthly", "quarterly", "semi_yearly", "occasional"]
     frequency_count: int = Field(default=1, ge=0, le=52)
     frequency_period: Literal["week", "month", "quarter", "year"] = "month"
+    rotation_mode: Literal["auto", "manual", "disabled"] = "auto"
     availability_notes: str | None = None
     admin_notes: str | None = None
     reviewed_at: datetime | None = None
@@ -118,6 +120,7 @@ class VolunteerPreferenceUpdate(BaseModel):
     availability_notes: str | None = Field(default=None, max_length=2000)
     frequency_count: int = Field(default=1, ge=0, le=52)
     frequency_period: Literal["week", "month", "quarter", "year"] = "month"
+    rotation_mode: Literal["auto", "manual", "disabled"] = "auto"
 
 
 class VolunteerReviewUpdate(BaseModel):
@@ -128,6 +131,7 @@ class VolunteerReviewUpdate(BaseModel):
     admin_notes: str | None = Field(default=None, max_length=2000)
     frequency_count: int | None = Field(default=None, ge=0, le=52)
     frequency_period: Literal["week", "month", "quarter", "year"] | None = None
+    rotation_mode: Literal["auto", "manual", "disabled"] | None = None
 
 
 class VolunteerDecisionUpdate(BaseModel):

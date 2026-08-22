@@ -446,13 +446,15 @@ export interface Member {
   worship_max_sundays_per_month: number | null;
   sunday_school_max_sundays_per_month: number | null;
   approved_serving_areas: string[];
+  serving_rotation_modes: Record<string, VolunteerRotationMode>;
   unavailable: VolunteerUnavailability[];
 }
 
 export type VolunteerFrequency = "weekly" | "monthly" | "quarterly" | "semi_yearly" | "occasional";
 export type VolunteerStatus = "pending" | "approved" | "declined";
+export type VolunteerRotationMode = "auto" | "manual" | "disabled";
 export interface ServingArea { id: string; key: string; name: string; category: string; description: string | null; legacy_role_name: string | null; }
-export interface VolunteerPreference { id: string; user_id: string; area: ServingArea; status: VolunteerStatus; initiated_by: "volunteer" | "admin"; admin_attention_pending: boolean; preferred_frequency: VolunteerFrequency; frequency_count: number; frequency_period: VolunteerFrequencyPeriod; availability_notes: string | null; admin_notes: string | null; reviewed_at: string | null; }
+export interface VolunteerPreference { id: string; user_id: string; area: ServingArea; status: VolunteerStatus; initiated_by: "volunteer" | "admin"; admin_attention_pending: boolean; preferred_frequency: VolunteerFrequency; frequency_count: number; frequency_period: VolunteerFrequencyPeriod; rotation_mode: VolunteerRotationMode; availability_notes: string | null; admin_notes: string | null; reviewed_at: string | null; }
 export type VolunteerFrequencyPeriod = "week" | "month" | "quarter" | "year";
 export interface VolunteerUnavailability { id: string; starts_on: string; ends_on: string; note: string | null; }
 export interface ServingProfile { user: User; areas: ServingArea[]; preferences: VolunteerPreference[]; unavailable: VolunteerUnavailability[]; }
@@ -879,14 +881,14 @@ export async function updateMyProfile(payload: { name?: string; email?: string; 
 
 export async function getServingProfile(): Promise<ServingProfile> { return getJson<ServingProfile>("/api/v1/identity/serving/profile"); }
 export async function getServingAreas(): Promise<ServingArea[]> { return getJson<ServingArea[]>("/api/v1/identity/serving/areas"); }
-export async function saveVolunteerPreference(areaKey: string, payload: { preferred_frequency: VolunteerFrequency; frequency_count: number; frequency_period: VolunteerFrequencyPeriod; availability_notes: string | null }): Promise<VolunteerPreference> { return sendJson<VolunteerPreference>(`/api/v1/identity/serving/preferences/${areaKey}`, "PUT", payload); }
+export async function saveVolunteerPreference(areaKey: string, payload: { preferred_frequency: VolunteerFrequency; frequency_count: number; frequency_period: VolunteerFrequencyPeriod; rotation_mode: VolunteerRotationMode; availability_notes: string | null }): Promise<VolunteerPreference> { return sendJson<VolunteerPreference>(`/api/v1/identity/serving/preferences/${areaKey}`, "PUT", payload); }
 export async function withdrawVolunteerPreference(areaKey: string): Promise<void> { return deleteRequest(`/api/v1/identity/serving/preferences/${areaKey}`); }
 export async function decideServingInvitation(areaKey: string, status: "approved" | "declined"): Promise<VolunteerPreference> { return sendJson<VolunteerPreference>(`/api/v1/identity/serving/preferences/${areaKey}/decision`, "PATCH", { status }); }
 export async function addVolunteerUnavailability(payload: { starts_on: string; ends_on: string; note: string | null }): Promise<VolunteerUnavailability> { return sendJson<VolunteerUnavailability>("/api/v1/identity/serving/unavailability", "POST", payload); }
 export async function removeVolunteerUnavailability(id: string): Promise<void> { return deleteRequest(`/api/v1/identity/serving/unavailability/${id}`); }
 export async function getVolunteerAdminRecords(): Promise<VolunteerAdminRecord[]> { return getJson<VolunteerAdminRecord[]>("/api/v1/identity/serving/admin/volunteers"); }
-export async function reviewVolunteerPreference(id: string, payload: { status: VolunteerStatus; preferred_frequency?: VolunteerFrequency; frequency_count?: number; frequency_period?: VolunteerFrequencyPeriod; admin_notes?: string | null }): Promise<VolunteerPreference> { return sendJson<VolunteerPreference>(`/api/v1/identity/serving/admin/volunteers/${id}`, "PATCH", payload); }
-export async function inviteVolunteer(userId: string, areaKey: string, payload: { preferred_frequency: VolunteerFrequency; frequency_count: number; frequency_period: VolunteerFrequencyPeriod; availability_notes: string | null }): Promise<VolunteerPreference> { return sendJson<VolunteerPreference>(`/api/v1/identity/serving/admin/users/${userId}/preferences/${areaKey}`, "PUT", payload); }
+export async function reviewVolunteerPreference(id: string, payload: { status: VolunteerStatus; preferred_frequency?: VolunteerFrequency; frequency_count?: number; frequency_period?: VolunteerFrequencyPeriod; rotation_mode?: VolunteerRotationMode; admin_notes?: string | null }): Promise<VolunteerPreference> { return sendJson<VolunteerPreference>(`/api/v1/identity/serving/admin/volunteers/${id}`, "PATCH", payload); }
+export async function inviteVolunteer(userId: string, areaKey: string, payload: { preferred_frequency: VolunteerFrequency; frequency_count: number; frequency_period: VolunteerFrequencyPeriod; rotation_mode: VolunteerRotationMode; availability_notes: string | null }): Promise<VolunteerPreference> { return sendJson<VolunteerPreference>(`/api/v1/identity/serving/admin/users/${userId}/preferences/${areaKey}`, "PUT", payload); }
 export async function acknowledgeVolunteerAttention(userId: string): Promise<void> { await sendJson<{ ok: boolean }>(`/api/v1/identity/serving/admin/users/${userId}/attention/read`, "POST", {}); }
 export async function removeVolunteerPreference(id: string): Promise<void> { return deleteRequest(`/api/v1/identity/serving/admin/volunteers/${id}`); }
 

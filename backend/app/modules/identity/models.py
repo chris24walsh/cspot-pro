@@ -84,6 +84,7 @@ class VolunteerPreference(IdMixin, TimestampMixin, Base):
     preferred_frequency: Mapped[str] = mapped_column(String(24), default="monthly")
     frequency_count: Mapped[int] = mapped_column(Integer, default=1)
     frequency_period: Mapped[str] = mapped_column(String(16), default="month")
+    rotation_mode: Mapped[str] = mapped_column(String(16), default="auto", index=True)
     availability_notes: Mapped[str | None] = mapped_column(Text)
     admin_notes: Mapped[str | None] = mapped_column(Text)
     reviewed_by_user_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"), index=True)

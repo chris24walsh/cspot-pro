@@ -422,12 +422,11 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
     [users],
   );
   const worshipRotationLeaders = useMemo<SundayLeader[]>(
-    () => worshipLeaders
-      .filter((leader) => leader.username.toLocaleLowerCase() !== "cspot_tablet")
-      .map((leader) => ({
+    () => worshipLeaders.map((leader) => ({
         id: leader.id,
         name: leader.name,
         maxSundaysPerMonth: leader.worship_max_sundays_per_month,
+        rotationMode: leader.serving_rotation_modes.worship ?? "auto",
         unavailable: leader.unavailable,
       })),
     [worshipLeaders],
@@ -2411,6 +2410,7 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
         leaderIdForDate={worshipLeaderIdForDate}
         leaders={worshipLeaders}
         maxSundaysForLeader={(leader) => leader.worship_max_sundays_per_month}
+        rotationModeForLeader={(leader) => leader.serving_rotation_modes.worship ?? "auto"}
         onAssign={(leaderId) => void assignWorshipLeader(leaderId)}
         onClose={() => setLeaderPickerDate(null)}
         onSwap={(targetDate) => void swapWorshipLeaders(targetDate)}

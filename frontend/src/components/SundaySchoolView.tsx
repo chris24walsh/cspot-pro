@@ -235,6 +235,7 @@ export function SundaySchoolView({ canEdit }: { canEdit: boolean }) {
       id: teacher.id,
       name: teacher.name,
       maxSundaysPerMonth: teacher.sunday_school_max_sundays_per_month,
+      rotationMode: teacher.serving_rotation_modes.sunday_school ?? "auto",
       unavailable: teacher.unavailable,
     })),
     [sundaySchoolTeachers],
@@ -914,6 +915,7 @@ export function SundaySchoolView({ canEdit }: { canEdit: boolean }) {
         leaderIdForDate={teacherIdForDate}
         leaders={sundaySchoolTeachers}
         maxSundaysForLeader={(teacher) => teacher.sunday_school_max_sundays_per_month}
+        rotationModeForLeader={(teacher) => teacher.serving_rotation_modes.sunday_school ?? "auto"}
         onAssign={(teacherId) => {
           if (teacherPickerDate) void assignTeacher(teacherPickerDate, teacherId);
         }}

@@ -10,16 +10,17 @@ describe("nearbyUpcomingSundays", () => {
     expect(dates).toHaveLength(8);
   });
 
-  it("omits Sundays assigned to users who are never in rotation", () => {
+  it("keeps manual assignees but omits disabled assignees from swaps", () => {
     const assignments = new Map<string, string | null>([
       ["2026-08-23", "rotation-leader"],
       ["2026-08-30", "manual-only-leader"],
-      ["2026-09-06", null],
+      ["2026-09-06", "disabled-leader"],
+      ["2026-09-13", null],
     ]);
     expect(swappableUpcomingSundays(
       [...assignments.keys()],
       (date) => assignments.get(date) ?? null,
-      (leaderId) => leaderId !== "manual-only-leader",
-    )).toEqual(["2026-08-23", "2026-09-06"]);
+      (leaderId) => leaderId !== "disabled-leader",
+    )).toEqual(["2026-08-23", "2026-08-30", "2026-09-13"]);
   });
 });

@@ -54,12 +54,24 @@ describe("Sunday leader rotation", () => {
     const schedule = buildMonthlyLeaderSchedule(
       "2026-08",
       [
-        { id: "tablet", name: "Tablet", maxSundaysPerMonth: 0 },
+        { id: "tablet", name: "Tablet", maxSundaysPerMonth: null, rotationMode: "manual" },
         { id: "leader", name: "Worship Leader", maxSundaysPerMonth: null },
       ],
       new Map(),
     );
     expect([...schedule.values()]).not.toContain("tablet");
+  });
+
+  it("keeps disabled leaders out of automatic rotation", () => {
+    const schedule = buildMonthlyLeaderSchedule(
+      "2026-08",
+      [
+        { id: "disabled", name: "Disabled", maxSundaysPerMonth: null, rotationMode: "disabled" },
+        { id: "leader", name: "Leader", maxSundaysPerMonth: null },
+      ],
+      new Map(),
+    );
+    expect([...schedule.values()]).not.toContain("disabled");
   });
 
   it("skips dates a volunteer has marked unavailable", () => {

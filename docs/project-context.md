@@ -132,8 +132,10 @@ These preferences have been made explicit and should guide future changes.
 - Worship and Sunday School leaders should be allocated by a simple,
   capacity-aware monthly rotation. Manual assignment and Sunday swaps belong
   behind the Leader control, not inside the calendar. Dedicated service
-  accounts such as `cspot_tablet` remain manually assignable but do not enter
-  the automatic rotation. Rotation defaults apply only to current and future
+  accounts such as `cspot_tablet` use Manual mode: they remain assignable and
+  swappable but do not enter automatic rotation. Disabled roles are hidden from
+  assignment and swap controls without removing their workspace access.
+  Rotation defaults apply only to current and future
   dates; historical dates retain their stored assignments and are excluded
   from swapping.
 

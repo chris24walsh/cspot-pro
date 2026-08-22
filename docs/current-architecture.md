@@ -119,7 +119,11 @@ can maintain their own identity, volunteer preferences, a flexible workload
 Administrators approve or decline those requests;
 approved ministry capabilities provide their matching non-admin workspace access
 without a second permissions step. Approved worship and Sunday School
-preferences are also exposed to the existing rotation selectors; the same
+preferences are also exposed to the existing rotation selectors. Each approved
+relationship has an independent scheduling mode: Automatic participates in
+allocation, Manual is available only for direct assignment and swaps, and
+Disabled is hidden from all assignment controls while retaining workspace
+access. The same
 data-backed serving-area catalogue also covers welcome, AV, cleaning, cooking,
 maintenance, and grounds work as the foundation for broader chore scheduling.
 Admin attention is surfaced as a quiet navigation badge and per-user flag;
@@ -193,17 +197,18 @@ Legacy operational roles are migrated into approved serving relationships by
 revision `0037_migrate_roles`. Worship leader/team aliases, musician, Sunday
 School teacher/leader, service teacher/leader aliases, and presenter map to
 their semantic serving areas. Existing notes and frequency preferences win;
-otherwise Sunday limits seed the worship/children frequencies (including zero
-for accounts excluded from rotation). The corresponding direct `user_roles`
+otherwise Sunday limits seed the worship/children frequencies. Revision
+`0038_rotation_modes` converts the former zero/“Never” value to Manual. The corresponding direct `user_roles`
 row is removed only after an approved replacement exists, while Viewer and
 Administrator remain direct system roles. Each future rename, merge, or split
 should use a new additive mapping migration rather than editing the historical
 0037 snapshot.
-Rotation frequency is independent of authorization. A zero/“Never” frequency
-means the approved person or device is excluded from automatic allocation, not
-that its serving capability is disabled. This is how dedicated accounts such
-as `cspot_tablet` retain worship planning/control access without ever entering
-the worship-leader rota.
+Rotation mode and frequency are independent of authorization. Manual excludes
+a person or device from automatic allocation but leaves direct assignment and
+swapping available; Disabled also hides it from those pickers. Both retain the
+serving capability and its workspace access. This is how dedicated accounts
+such as `cspot_tablet` retain worship planning/control access without entering
+the automatic worship-leader rota.
 
 `identity` now owns:
 
@@ -470,9 +475,10 @@ Search modes:
   and their intentional End slides are preserved.
 - Worship and Sunday School leader defaults are deterministic monthly
   round-robin schedules. Each user can have a separate worship and Sunday
-  School maximum (zero means never in rotation; null means unlimited). Users
-  with a zero limit remain directly assignable but are omitted from automatic
-  allocation and from both sides of Sunday swaps. Explicit
+  School maximum (null means unlimited), plus an explicit Automatic, Manual,
+  or Disabled rotation mode. Manual users remain directly assignable and can
+  participate in swaps; Disabled users are omitted from assignment and swap
+  controls. Both are omitted from automatic allocation. Explicit
   assignments reserve capacity before automatic gaps are filled. Automatic
   defaults only apply from today forward; historical dates show stored values
   and are omitted from swapping. The Leader dialog supports assignment and

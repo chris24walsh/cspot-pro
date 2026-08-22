@@ -202,7 +202,7 @@ def user_to_session_read(session: Session, user: User) -> SessionUserRead:
 
 def user_to_member_read(session: Session, user: User) -> MemberRead:
     approved_preferences = {
-        area.key: (preference.frequency_count, preference.frequency_period)
+        area.key: (preference.frequency_count, preference.frequency_period, preference.rotation_mode)
         for preference, area in session.execute(
             select(VolunteerPreference, ServingArea)
             .join(ServingArea)
@@ -217,8 +217,8 @@ def user_to_member_read(session: Session, user: User) -> MemberRead:
         frequency = approved_preferences.get(area_key)
         if frequency is None:
             return None
-        count, period = frequency
-        if count == 0:
+        count, period, rotation_mode = frequency
+        if rotation_mode != "auto":
             return 0
         if period == "week":
             return min(5, count * 5)
@@ -240,13 +240,10 @@ def user_to_member_read(session: Session, user: User) -> MemberRead:
         roles=list_role_names(session, user.id),
         calendar_color=user.calendar_color or stable_calendar_color(user.id),
         calendar_avatar=user.calendar_avatar,
-        worship_max_sundays_per_month=user.worship_max_sundays_per_month
-        if user.worship_max_sundays_per_month is not None
-        else monthly_limit("worship"),
-        sunday_school_max_sundays_per_month=user.sunday_school_max_sundays_per_month
-        if user.sunday_school_max_sundays_per_month is not None
-        else monthly_limit("sunday_school"),
+        worship_max_sundays_per_month=monthly_limit("worship") if "worship" in approved_preferences else user.worship_max_sundays_per_month,
+        sunday_school_max_sundays_per_month=monthly_limit("sunday_school") if "sunday_school" in approved_preferences else user.sunday_school_max_sundays_per_month,
         approved_serving_areas=list(approved_preferences),
+        serving_rotation_modes={key: values[2] for key, values in approved_preferences.items()},
         unavailable=[
             VolunteerUnavailabilityRead(
                 id=item.id, starts_on=item.starts_on, ends_on=item.ends_on, note=item.note
@@ -282,6 +279,7 @@ def preference_to_read(
         preferred_frequency=preference.preferred_frequency,
         frequency_count=preference.frequency_count,
         frequency_period=preference.frequency_period,
+        rotation_mode=preference.rotation_mode,
         availability_notes=preference.availability_notes,
         admin_notes=preference.admin_notes,
         reviewed_at=preference.reviewed_at,
@@ -649,6 +647,7 @@ def volunteer_for_area(
     preference.preferred_frequency = payload.preferred_frequency
     preference.frequency_count = payload.frequency_count
     preference.frequency_period = payload.frequency_period
+    preference.rotation_mode = payload.rotation_mode
     preference.availability_notes = payload.availability_notes
     if preference.status == "declined":
         preference.status = "pending"
@@ -795,6 +794,8 @@ def review_volunteer(
         preference.frequency_count = payload.frequency_count
     if payload.frequency_period is not None:
         preference.frequency_period = payload.frequency_period
+    if payload.rotation_mode is not None:
+        preference.rotation_mode = payload.rotation_mode
     if "admin_notes" in payload.model_fields_set:
         preference.admin_notes = payload.admin_notes
     preference.reviewed_at = datetime.now(UTC)
@@ -843,6 +844,7 @@ def invite_volunteer(
     preference.preferred_frequency = payload.preferred_frequency
     preference.frequency_count = payload.frequency_count
     preference.frequency_period = payload.frequency_period
+    preference.rotation_mode = payload.rotation_mode
     preference.availability_notes = payload.availability_notes
     preference.status = "pending"
     preference.initiated_by = "admin"

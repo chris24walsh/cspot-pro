@@ -66,6 +66,45 @@ def test_worship_and_sunday_school_roles_can_read_the_member_directory() -> None
         assert "users:manage" not in permissions
 
 
+def test_serving_rotation_mode_is_exposed_without_changing_access() -> None:
+    engine = create_engine("sqlite://")
+    Base.metadata.create_all(
+        engine,
+        tables=[
+            User.__table__,
+            Role.__table__,
+            UserRole.__table__,
+            ServingArea.__table__,
+            VolunteerPreference.__table__,
+            VolunteerUnavailability.__table__,
+        ],
+    )
+    with Session(engine) as session:
+        user = User(
+            email="tablet@example.com",
+            username="tablet",
+            name="Worship Tablet",
+            password_hash=None,
+            start_page=None,
+            calendar_color=None,
+            calendar_avatar=None,
+            email_confirmed=True,
+            active=True,
+        )
+        area = ServingArea(key="worship", name="Worship Leader", category="Worship", description=None, active=True)
+        session.add_all([user, area])
+        session.flush()
+        session.add(VolunteerPreference(user_id=user.id, serving_area_id=area.id, status="approved", frequency_count=1, frequency_period="month", rotation_mode="manual"))
+        session.flush()
+
+        member = user_to_member_read(session, user)
+        authorization_roles = list_authorization_role_names(session, user.id)
+
+    assert member.serving_rotation_modes == {"worship": "manual"}
+    assert member.worship_max_sundays_per_month == 0
+    assert "worship_leader" in authorization_roles
+
+
 def test_approved_serving_area_provides_matching_workspace_role() -> None:
     engine = create_engine("sqlite://")
     Base.metadata.create_all(

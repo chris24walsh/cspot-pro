@@ -3,19 +3,20 @@ import { type FormEvent, useEffect, useRef, useState } from "react";
 import {
   addVolunteerUnavailability, decideServingInvitation, getServingProfile, removeVolunteerUnavailability,
   saveVolunteerPreference, updateMyProfile, withdrawVolunteerPreference,
-  type ServingProfile, type VolunteerFrequencyPeriod, type VolunteerPreference,
+  type ServingProfile, type VolunteerFrequencyPeriod, type VolunteerPreference, type VolunteerRotationMode,
 } from "../api";
 import { CALENDAR_AVATARS } from "../userCalendarStyle";
 import { useConfirmationDialog } from "./ConfirmationDialog";
 import { ServingFrequencyInput } from "./ServingFrequencyInput";
 
-interface ServingDraft { selected: boolean; frequency_count: number; frequency_period: VolunteerFrequencyPeriod; availability_notes: string; }
+interface ServingDraft { selected: boolean; frequency_count: number; frequency_period: VolunteerFrequencyPeriod; rotation_mode: VolunteerRotationMode; availability_notes: string; }
 
 function preferencePayload(draft: ServingDraft) {
   return {
     preferred_frequency: draft.frequency_period === "week" ? "weekly" as const : draft.frequency_period === "month" ? "monthly" as const : "quarterly" as const,
     frequency_count: draft.frequency_count,
     frequency_period: draft.frequency_period,
+    rotation_mode: draft.rotation_mode,
     availability_notes: draft.availability_notes || null,
   };
 }
@@ -24,7 +25,7 @@ function makeDrafts(data: ServingProfile): Record<string, ServingDraft> {
   return Object.fromEntries(data.areas.map((area) => {
     const preference = data.preferences.find((item) => item.area.key === area.key);
     const directlyAssigned = Boolean(area.legacy_role_name && data.user.roles.includes(area.legacy_role_name));
-    return [area.key, { selected: Boolean(preference) || directlyAssigned, frequency_count: preference?.frequency_count ?? 1, frequency_period: preference?.frequency_period ?? "month", availability_notes: preference?.availability_notes ?? "" }];
+    return [area.key, { selected: Boolean(preference) || directlyAssigned, frequency_count: preference?.frequency_count ?? 1, frequency_period: preference?.frequency_period ?? "month", rotation_mode: preference?.rotation_mode ?? "auto", availability_notes: preference?.availability_notes ?? "" }];
   }));
 }
 
@@ -77,7 +78,7 @@ export function MyProfile({ onProfileChanged, onServingChanged }: { onProfileCha
 
   function applyPreference(preference: VolunteerPreference) {
     setData((current) => current ? { ...current, preferences: [...current.preferences.filter((item) => item.area.key !== preference.area.key), preference] } : current);
-    setDrafts((current) => ({ ...current, [preference.area.key]: { selected: true, frequency_count: preference.frequency_count, frequency_period: preference.frequency_period, availability_notes: preference.availability_notes ?? "" } }));
+    setDrafts((current) => ({ ...current, [preference.area.key]: { selected: true, frequency_count: preference.frequency_count, frequency_period: preference.frequency_period, rotation_mode: preference.rotation_mode, availability_notes: preference.availability_notes ?? "" } }));
   }
 
   async function saveProfile(event: FormEvent) {
@@ -140,7 +141,7 @@ export function MyProfile({ onProfileChanged, onServingChanged }: { onProfileCha
         setData(next); setDrafts(makeDrafts(next));
       } else {
         setData((current) => current ? { ...current, preferences: current.preferences.filter((item) => item.area.key !== areaKey) } : current);
-        setDrafts((current) => ({ ...current, [areaKey]: { selected: false, frequency_count: 1, frequency_period: "month", availability_notes: "" } }));
+        setDrafts((current) => ({ ...current, [areaKey]: { selected: false, frequency_count: 1, frequency_period: "month", rotation_mode: "auto", availability_notes: "" } }));
       }
       onServingChanged();
       setMessage(`${label} completed.`);
@@ -191,7 +192,7 @@ export function MyProfile({ onProfileChanged, onServingChanged }: { onProfileCha
         const areaOpen = openArea === area.key;
         return <article className={`compact-serving-role ${draft.selected ? "selected" : ""} ${invitationPending ? "is-pending" : ""}`} id={invitationPending ? `profile-invitation-${area.key}` : undefined} key={area.key}>
           <div className="compact-serving-role-head"><button className="compact-serving-role-main" onClick={() => setOpenArea(areaOpen ? null : area.key)} type="button"><span aria-hidden="true">{areaOpen ? "▾" : "▸"}</span><span><strong>{area.name}</strong>{stateLabel ? <small>{stateLabel}</small> : null}</span></button>{directlyAssigned ? <span className="role-state-flag inline">Assigned</span> : invitationPending ? <button className="primary-button compact-role-action" disabled={immediateAction === area.key} onClick={() => void acceptInvitationNow(area.key, draft)} type="button">Accept</button> : draft.selected ? <button className="danger-button compact-role-action" disabled={immediateAction === area.key} onClick={() => void destructiveRoleAction(area.key, "remove", destructiveLabel)} type="button">{preference?.status === "approved" ? "Leave" : "Cancel"}</button> : <button className="text-button compact-role-action" disabled={immediateAction === area.key} onClick={() => void volunteerNow(area.key, draft)} type="button">Join</button>}</div>
-          {areaOpen ? <div className="serving-role-details"><p className="muted-copy">{area.description}</p>{directlyAssigned ? <p className="muted-copy">This role is active through your assigned access role. An administrator can change it.</p> : draft.selected ? <><ServingFrequencyInput count={draft.frequency_count} label={area.name} onChange={(frequency_count, frequency_period) => { const next = { ...draft, frequency_count, frequency_period }; setDrafts({ ...drafts, [area.key]: next }); void updatePreferenceNow(area.key, next); }} period={draft.frequency_period} /><label>Availability and notes<textarea value={draft.availability_notes} onBlur={() => void updatePreferenceNow(area.key, drafts[area.key])} onChange={(event) => setDrafts({ ...drafts, [area.key]: { ...draft, availability_notes: event.target.value } })} placeholder="Times that suit, experience, or anything coordinators should know" /></label>{preference?.admin_notes ? <p className="field-help">Admin note: {preference.admin_notes}</p> : null}{invitationPending ? <button className="danger-button role-lifecycle-button" disabled={immediateAction === area.key} onClick={() => void destructiveRoleAction(area.key, "reject", "Reject invitation")} type="button">Reject invitation</button> : null}</> : null}</div> : null}
+          {areaOpen ? <div className="serving-role-details"><p className="muted-copy">{area.description}</p>{directlyAssigned ? <p className="muted-copy">This role is active through your assigned access role. An administrator can change it.</p> : draft.selected ? <><ServingFrequencyInput count={draft.frequency_count} label={area.name} mode={draft.rotation_mode} onChange={(frequency_count, frequency_period, rotation_mode) => { const next = { ...draft, frequency_count, frequency_period, rotation_mode }; setDrafts({ ...drafts, [area.key]: next }); void updatePreferenceNow(area.key, next); }} period={draft.frequency_period} /><label>Availability and notes<textarea value={draft.availability_notes} onBlur={() => void updatePreferenceNow(area.key, drafts[area.key])} onChange={(event) => setDrafts({ ...drafts, [area.key]: { ...draft, availability_notes: event.target.value } })} placeholder="Times that suit, experience, or anything coordinators should know" /></label>{preference?.admin_notes ? <p className="field-help">Admin note: {preference.admin_notes}</p> : null}{invitationPending ? <button className="danger-button role-lifecycle-button" disabled={immediateAction === area.key} onClick={() => void destructiveRoleAction(area.key, "reject", "Reject invitation")} type="button">Reject invitation</button> : null}</> : null}</div> : null}
         </article>;
       })}</div> : null}</section>;
       })}</div>

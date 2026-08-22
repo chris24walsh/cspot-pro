@@ -14,6 +14,7 @@ interface LeaderAssignmentDialogProps {
   leaderIdForDate: (date: string) => string | null;
   leaders: Member[];
   maxSundaysForLeader: (leader: Member) => number | null;
+  rotationModeForLeader: (leader: Member) => "auto" | "manual" | "disabled";
   onAssign: (leaderId: string | null) => void;
   onClose: () => void;
   onSwap: (targetDate: string) => void;
@@ -44,11 +45,11 @@ export function nearbyUpcomingSundays(value: string, todayInput = todayDateInput
 export function swappableUpcomingSundays(
   dates: string[],
   leaderIdForDate: (date: string) => string | null,
-  isLeaderInRotation: (leaderId: string) => boolean,
+  isLeaderAssignable: (leaderId: string) => boolean,
 ) {
   return dates.filter((date) => {
     const leaderId = leaderIdForDate(date);
-    return leaderId === null || isLeaderInRotation(leaderId);
+    return leaderId === null || isLeaderAssignable(leaderId);
   });
 }
 
@@ -60,15 +61,16 @@ export function LeaderAssignmentDialog({
   leaderIdForDate,
   leaders,
   maxSundaysForLeader,
+  rotationModeForLeader,
   onAssign,
   onClose,
   onSwap,
 }: LeaderAssignmentDialogProps) {
   useEscapeClose(Boolean(currentDate), onClose);
   const markers = useMemo(() => calendarMarkers(leaders), [leaders]);
-  const rotatingLeaders = useMemo(
-    () => leaders.filter((leader) => maxSundaysForLeader(leader) !== 0),
-    [leaders, maxSundaysForLeader],
+  const assignableLeaders = useMemo(
+    () => leaders.filter((leader) => rotationModeForLeader(leader) !== "disabled"),
+    [leaders, rotationModeForLeader],
   );
   const monthDates = currentDate ? sundayDatesForMonth(currentDate.slice(0, 7)) : [];
   const usage = new Map(leaders.map((leader) => [
@@ -77,7 +79,7 @@ export function LeaderAssignmentDialog({
   ]));
   const currentLeaderId = currentDate ? leaderIdForDate(currentDate) : null;
   const currentLeader = leaders.find((leader) => leader.id === currentLeaderId) ?? null;
-  const currentLeaderIsInRotation = currentLeader ? maxSundaysForLeader(currentLeader) !== 0 : true;
+  const currentLeaderIsAssignable = currentLeader ? rotationModeForLeader(currentLeader) !== "disabled" : true;
   const leaderIsAvailable = (leader: Member | null, date: string) =>
     !leader || !leader.unavailable.some((range) => range.starts_on <= date && range.ends_on >= date);
 
@@ -122,7 +124,7 @@ export function LeaderAssignmentDialog({
               <span className="leader-option-avatar"><UserRound size={17} aria-hidden="true" /></span>
               <span><strong>Automatic</strong><small>Use the rotation</small></span>
             </button>
-            {rotatingLeaders.map((leader) => {
+            {assignableLeaders.map((leader) => {
               const maximum = maxSundaysForLeader(leader);
               const assigned = usage.get(leader.id) ?? 0;
               return (
@@ -136,7 +138,7 @@ export function LeaderAssignmentDialog({
                   <span className={`leader-option-avatar ${leader.calendar_avatar ? "is-avatar" : ""}`}>{markers.get(leader.id)}</span>
                   <span>
                     <strong>{leader.name}</strong>
-                    <small>{leaderIsAvailable(leader, currentDate) ? `${assigned} / ${maximum ?? "∞"} Sundays` : "Unavailable on this date"}</small>
+                    <small>{leaderIsAvailable(leader, currentDate) ? rotationModeForLeader(leader) === "manual" ? `${assigned} Sundays · manual only` : `${assigned} / ${maximum ?? "∞"} Sundays` : "Unavailable on this date"}</small>
                   </span>
                 </button>
               );
@@ -144,7 +146,7 @@ export function LeaderAssignmentDialog({
           </div>
         </div>
 
-        {!isPastDate && currentLeaderIsInRotation ? <div className="leader-dialog-section">
+        {!isPastDate && currentLeaderIsAssignable ? <div className="leader-dialog-section">
           <div className="leader-dialog-section-heading">
             <strong>Swap Sundays</strong>
             <span>Moves both leaders in one step</span>
@@ -155,7 +157,7 @@ export function LeaderAssignmentDialog({
               leaderIdForDate,
               (leaderId) => {
                 const leader = leaders.find((candidate) => candidate.id === leaderId);
-                return leader ? maxSundaysForLeader(leader) !== 0 : true;
+                return leader ? rotationModeForLeader(leader) !== "disabled" : true;
               },
             ).filter((date) => {
               const targetLeader = leaders.find((candidate) => candidate.id === leaderIdForDate(date)) ?? null;

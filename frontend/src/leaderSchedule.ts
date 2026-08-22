@@ -2,6 +2,7 @@ export interface SundayLeader {
   id: string;
   name: string;
   maxSundaysPerMonth: number | null;
+  rotationMode?: "auto" | "manual" | "disabled";
   unavailable?: { starts_on: string; ends_on: string }[];
 }
 
@@ -58,7 +59,7 @@ export function buildMonthlyLeaderSchedule(
   leaders: SundayLeader[],
   explicitAssignments: ReadonlyMap<string, string>,
 ) {
-  const orderedLeaders = [...leaders].sort(
+  const orderedLeaders = leaders.filter((leader) => (leader.rotationMode ?? "auto") === "auto").sort(
     (left, right) => left.name.localeCompare(right.name) || left.id.localeCompare(right.id),
   );
   const schedule = new Map<string, string>();
