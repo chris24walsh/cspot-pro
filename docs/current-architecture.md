@@ -221,8 +221,10 @@ serving capability and its workspace access. This is how dedicated accounts
 such as `cspot_tablet` retain worship planning/control access without entering
 the automatic worship-leader rota.
 
-Viewer is deliberately livestream-only and grants no internal plan, song,
-library, or message permissions. Broader workspace access comes from approved
+Viewer is deliberately limited to the Broadcast workspace. It grants the
+plan, song, and library read permissions required to render synchronized live
+slides and sermon recordings, but no edit, team, message, presentation-control,
+or broadcast-control permissions. Broader workspace access comes from approved
 serving relationships or explicit administration.
 
 `identity` now owns:

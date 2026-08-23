@@ -140,7 +140,9 @@ These preferences have been made explicit and should guide future changes.
   from swapping.
 - General account onboarding uses an admin-toggleable QR/link. Self-registered
   accounts remain inactive and alert admins until explicitly approved; the
-  baseline Viewer role opens the livestream only, not internal planning data.
+  baseline Viewer role opens only the Broadcast workspace and has the minimum
+  plan, song, and library read permissions needed for livestream and recording
+  playback.
 
 ### Song handling
 

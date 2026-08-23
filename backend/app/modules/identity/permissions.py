@@ -59,6 +59,12 @@ BROADCAST_CONTROL_PERMISSIONS: set[PermissionName] = {
     "broadcast:use",
 }
 
+BROADCAST_VIEW_PERMISSIONS: set[PermissionName] = {
+    "plans:read",
+    "songs:read",
+    "library:read",
+}
+
 ADMIN_PERMISSIONS: set[PermissionName] = {
     "users:manage",
     "site:edit",
@@ -81,7 +87,7 @@ ALL_PERMISSIONS: set[PermissionName] = (
 ROLE_DEFINITIONS: dict[str, RoleDefinition] = {
     "viewer": {
         "description": "Church member remote-viewer access for the livestream broadcast.",
-        "permissions": set(),
+        "permissions": BROADCAST_VIEW_PERMISSIONS,
     },
     "musician": {
         "description": "Read-only worship access for musicians who need the worship plan and live musician view.",

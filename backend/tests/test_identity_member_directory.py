@@ -66,6 +66,12 @@ def test_worship_and_sunday_school_roles_can_read_the_member_directory() -> None
         assert "users:manage" not in permissions
 
 
+def test_viewer_has_the_read_permissions_required_for_broadcast() -> None:
+    permissions = permissions_for_roles(["viewer"])
+
+    assert permissions == {"plans:read", "songs:read", "library:read"}
+
+
 def test_serving_rotation_mode_is_exposed_without_changing_access() -> None:
     engine = create_engine("sqlite://")
     Base.metadata.create_all(

@@ -64,7 +64,11 @@ def test_self_registration_stays_inactive_until_admin_approval() -> None:
         assert approved.registration_pending is False
         assert approved.active is True
         assert approved.roles == ["viewer"]
-        assert permissions_for_roles(approved.roles) == set()
+        assert permissions_for_roles(approved.roles) == {
+            "plans:read",
+            "songs:read",
+            "library:read",
+        }
 
 
 def test_registration_qr_is_generated_as_svg() -> None:
