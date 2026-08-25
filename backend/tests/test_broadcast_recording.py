@@ -16,12 +16,13 @@ from app.modules.broadcast.audio_mix import (
     audio_mix_inputs,
     ffmpeg_live_mix_command,
     ffmpeg_recording_mix_command,
+    live_audio_mix_inputs,
 )
 from app.modules.broadcast.models import BroadcastRecording, BroadcastViewerSettings
 from app.modules.broadcast.recording import (
     ActiveRecording,
-    _finalize_recording_file,
     _assemble_recording_segments,
+    _finalize_recording_file,
     _media_duration,
     _recording_command,
     _should_discard_short_automatic_recording,
@@ -29,8 +30,8 @@ from app.modules.broadcast.recording import (
     _source_url,
     _trim_recording_file,
     cancel_pending_recording_stop,
-    request_recording_stop,
     reconfigure_active_recording,
+    request_recording_stop,
     stop_recording,
     sync_sermon_recording,
 )
@@ -248,10 +249,32 @@ def test_enabled_independent_sources_are_combined_with_saved_gain() -> None:
     ]
     assert command.count("-i") == 2
     filter_graph = command[command.index("-filter_complex") + 1]
-    assert "volume=-15dB" in filter_graph
-    assert "volume=4dB" in filter_graph
+    assert "volume@input0=-15dB" in filter_graph
+    assert "volume@input1=4dB" in filter_graph
     assert "amix=inputs=2" in filter_graph
     assert "alimiter=limit=0.95" in filter_graph
+
+
+def test_live_audio_keeps_muted_inputs_connected_for_runtime_control() -> None:
+    settings_row = BroadcastViewerSettings(
+        stream_title="Service",
+        audio_sources_json=json.dumps(
+            [
+                {"id": "room", "label": "Room", "url": "http://audio/room", "gain_db": -12},
+                {"id": "desk", "label": "Desk", "url": "http://audio/desk", "gain_db": 3},
+            ]
+        ),
+        live_audio_source="desk",
+    )
+
+    inputs = live_audio_mix_inputs(settings_row)
+    command = ffmpeg_live_mix_command(inputs, control_port=23456)
+    filter_graph = command[command.index("-filter_complex") + 1]
+
+    assert [(item.source_id, item.gain_db) for item in inputs] == [("room", -120), ("desk", 3)]
+    assert "volume@input0=-120dB" in filter_graph
+    assert "volume@input1=3dB" in filter_graph
+    assert "azmq=b=tcp\\\\://127.0.0.1\\\\:23456" in filter_graph
 
 
 def test_legacy_independent_audio_url_is_returned_as_a_source() -> None:

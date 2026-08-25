@@ -5,6 +5,8 @@ from urllib.parse import urljoin
 from app.core.config import settings as app_settings
 from app.modules.broadcast.models import BroadcastViewerSettings
 from app.modules.broadcast.settings import (
+    audio_sources,
+    effective_audio_source,
     selected_camera_url,
     selected_independent_audio_sources,
 )
@@ -38,6 +40,29 @@ def audio_mix_inputs(settings: BroadcastViewerSettings) -> list[AudioMixInput]:
     return []
 
 
+def live_audio_mix_inputs(settings: BroadcastViewerSettings) -> list[AudioMixInput]:
+    """Keep every configured input open so its level can change at runtime."""
+    independent = [
+        source for source in audio_sources(settings)
+        if source.url.strip().startswith(("http://", "https://"))
+    ]
+    if not independent:
+        return audio_mix_inputs(settings)
+    selected = effective_audio_source(settings, [], independent)
+    return [
+        AudioMixInput(
+            source_id=source.id,
+            url=source.url.strip(),
+            gain_db=(
+                source.gain_db
+                if (selected == "mix" and source.mix_enabled) or selected == source.id
+                else -120
+            ),
+        )
+        for source in independent
+    ]
+
+
 def audio_mix_signature(inputs: list[AudioMixInput]) -> tuple[tuple[str, str, float], ...]:
     return tuple((source.source_id, source.url, source.gain_db) for source in inputs)
 
@@ -50,29 +75,36 @@ def ffmpeg_audio_input_args(inputs: list[AudioMixInput]) -> list[str]:
 
 
 def ffmpeg_audio_filter_args(
-    inputs: list[AudioMixInput], *, reset_timestamps: bool = False
+    inputs: list[AudioMixInput], *, reset_timestamps: bool = False, control_port: int | None = None
 ) -> list[str]:
-    if len(inputs) == 1 and abs(inputs[0].gain_db) < 0.01:
+    if control_port is None and len(inputs) == 1 and abs(inputs[0].gain_db) < 0.01:
         return ["-map", "0:a:0", *(["-af", "asetpts=N/SR/TB"] if reset_timestamps else [])]
 
     filters = [
-        f"[{index}:a:0]aresample=48000,volume={source.gain_db:g}dB[input{index}]"
+        f"[{index}:a:0]aresample=48000,volume@input{index}={source.gain_db:g}dB[input{index}]"
         for index, source in enumerate(inputs)
     ]
     labels = "".join(f"[input{index}]" for index in range(len(inputs)))
     timestamp_filter = ",asetpts=N/SR/TB" if reset_timestamps else ""
     if len(inputs) == 1:
-        filters.append(f"{labels}alimiter=limit=0.95{timestamp_filter}[audio]")
+        output = f"{labels}alimiter=limit=0.95{timestamp_filter}"
     else:
-        filters.append(
+        output = (
             f"{labels}amix=inputs={len(inputs)}:duration=longest:"
             "dropout_transition=2:normalize=0,alimiter=limit=0.95"
-            f"{timestamp_filter}[audio]"
+            f"{timestamp_filter}"
         )
+    if control_port is not None:
+        # The filter graph parser consumes one escaping layer before azmq
+        # parses its endpoint, so the argument passed to FFmpeg needs two.
+        output += f",azmq=b=tcp\\\\://127.0.0.1\\\\:{control_port}"
+    filters.append(f"{output}[audio]")
     return ["-filter_complex", ";".join(filters), "-map", "[audio]"]
 
 
-def ffmpeg_live_mix_command(inputs: list[AudioMixInput]) -> list[str]:
+def ffmpeg_live_mix_command(
+    inputs: list[AudioMixInput], control_port: int | None = None
+) -> list[str]:
     return [
         "ffmpeg",
         "-hide_banner",
@@ -80,7 +112,7 @@ def ffmpeg_live_mix_command(inputs: list[AudioMixInput]) -> list[str]:
         "error",
         *ffmpeg_audio_input_args(inputs),
         "-vn",
-        *ffmpeg_audio_filter_args(inputs),
+        *ffmpeg_audio_filter_args(inputs, control_port=control_port),
         "-ac",
         "1",
         "-ar",

@@ -381,9 +381,11 @@ CSpot reconciles each configured input into go2rtc as an FFmpeg-backed AAC
 stream, so viewers receive independent and camera audio through the same
 fragmented-MP4 MSE path and HLS compatibility path. The source URL and any
 listener token stay server-side. The authenticated raw API relay at
-`/api/v1/broadcast/live-audio` remains available as a browser fallback; the
-same raw upstream remains available to the sermon-recording pipeline. Raw MP3
-is not the preferred desktop playback transport. The administrator's per-source
+`/api/v1/broadcast/live-audio` owns the server-side mix used for independent
+audio playback. Its FFmpeg filter graph keeps all configured inputs connected
+and accepts runtime gain and mute commands, so mixer changes reach an existing
+browser stream without reconnecting it. The same raw upstream remains available
+to the sermon-recording pipeline. The administrator's per-source
 Listen preview uses the normalized transport as well when the gateway is
 available.
 The Broadcast Mixer can combine enabled independent sources into one mono live

@@ -146,6 +146,8 @@ These preferences have been made explicit and should guide future changes.
 - Broadcast audio can use one independent source or a limited multi-source mix.
   Per-source digital trim and mute state are shared by livestream and sermon
   recording, with compact live controls available beside the admin camera view.
+  Runtime mix changes update the active server-side audio filter graph and do
+  not replace the viewer's browser stream.
 
 ### Song handling
 

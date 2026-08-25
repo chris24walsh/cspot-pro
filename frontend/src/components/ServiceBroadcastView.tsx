@@ -142,7 +142,6 @@ export function ServiceBroadcastView({ canControl = false, onOpenSettings }: { c
   const [fullscreen, setFullscreen] = useState(false);
   const [cameraClock, setCameraClock] = useState(() => Date.now());
   const [controlBusy, setControlBusy] = useState(false);
-  const [audioRevision, setAudioRevision] = useState(0);
   const lastCameraCycleSecondsRef = useRef(30);
 
   const slides = useMemo(
@@ -166,15 +165,11 @@ export function ServiceBroadcastView({ canControl = false, onOpenSettings }: { c
   );
   const selectedAudioCamera = settings.camera_sources.find((source) => source.id === settings.live_audio_source) ?? null;
   const selectedIndependentAudio = settings.audio_sources.find((source) => source.id === settings.live_audio_source) ?? null;
-  // Draft mixer changes update `settings` on every slider movement. Only rotate
-  // the relay URL after the server has accepted a committed change, otherwise
-  // dragging a level control tears down playback for every intermediate value.
-  const audioMixKey = String(audioRevision);
-  const useMixedRelay = settings.live_audio_source === "mix" || Boolean(selectedIndependentAudio && Math.abs(selectedIndependentAudio.gain_db) >= 0.01);
+  const useMixedRelay = settings.live_audio_source === "mix" || Boolean(selectedIndependentAudio);
   const liveAudioUrl = useMixedRelay
-    ? broadcastLiveAudioUrl(audioMixKey)
+    ? broadcastLiveAudioUrl()
     : selectedIndependentAudio
-    ? (settings.live_audio_stream_name ? go2RtcAudioStreamUrl(settings.live_audio_stream_name) : null) ?? broadcastLiveAudioUrl(audioMixKey)
+    ? (settings.live_audio_stream_name ? go2RtcAudioStreamUrl(settings.live_audio_stream_name) : null) ?? broadcastLiveAudioUrl()
     : selectedAudioCamera
       ? cameraAudioUrl(selectedAudioCamera.url)
       : null;
@@ -188,7 +183,6 @@ export function ServiceBroadcastView({ canControl = false, onOpenSettings }: { c
     setControlBusy(true);
     try {
       setSettings(await updateBroadcastViewerSettings(patch));
-      if (patch.audio_sources || patch.live_audio_source) setAudioRevision((current) => current + 1);
       setMessage(null);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Could not update livestream controls.");

@@ -12,14 +12,20 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.database import get_session
+from app.modules.broadcast.audio_mix import ffmpeg_live_mix_command, live_audio_mix_inputs
+from app.modules.broadcast.live_audio import (
+    allocate_control_port,
+    register_live_audio_control,
+    unregister_live_audio_control,
+    update_live_audio_controls,
+)
 from app.modules.broadcast.models import BroadcastRecording, BroadcastViewerSettings
-from app.modules.broadcast.audio_mix import audio_mix_inputs, ffmpeg_live_mix_command
 from app.modules.broadcast.recording import (
     pause_recording,
+    reconfigure_active_recording,
     resume_recording,
     start_recording,
     stop_recording,
-    reconfigure_active_recording,
 )
 from app.modules.broadcast.schemas import (
     BroadcastAudioSourceRead,
@@ -399,15 +405,16 @@ def live_audio(
             status_code=status.HTTP_409_CONFLICT,
             detail="Live audio is available only while the livestream is running",
         )
-    inputs = audio_mix_inputs(settings)
+    inputs = live_audio_mix_inputs(settings)
     if not inputs:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Live audio is not configured",
         )
     try:
+        control_port = allocate_control_port()
         process = subprocess.Popen(
-            ffmpeg_live_mix_command(inputs),
+            ffmpeg_live_mix_command(inputs, control_port),
             stdout=subprocess.PIPE,
             stderr=subprocess.DEVNULL,
         )
@@ -417,6 +424,8 @@ def live_audio(
             detail="The live audio mixer is unavailable",
         ) from error
 
+    control = register_live_audio_control(control_port, inputs)
+
     def audio_chunks():
         try:
             if process.stdout is None:
@@ -424,6 +433,7 @@ def live_audio(
             while chunk := process.stdout.read(2 * 1024):
                 yield chunk
         finally:
+            unregister_live_audio_control(control)
             if process.stdout:
                 process.stdout.close()
             if process.poll() is None:
@@ -599,6 +609,7 @@ def update_viewer_settings(
         settings.active_camera_id = None
     session.commit()
     session.refresh(settings)
+    update_live_audio_controls(live_audio_mix_inputs(settings))
     reconfigure_active_recording(session)
     result = settings_read(settings)
     reconcile_audio_sources(independent_sources)
