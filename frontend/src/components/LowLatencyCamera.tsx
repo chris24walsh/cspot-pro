@@ -489,6 +489,7 @@ function LowLatencyMseAudio({
 
 function FallbackLiveStreamAudio({ label, url }: { label: string; url: string }) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const soundEnabledRef = useRef(false);
   const [soundEnabled, setSoundEnabled] = useState(false);
   const [playbackFailed, setPlaybackFailed] = useState(false);
   const [retryToken, setRetryToken] = useState(0);
@@ -499,6 +500,7 @@ function FallbackLiveStreamAudio({ label, url }: { label: string; url: string })
     if (!audio) return;
     if (soundEnabled) {
       audio.muted = true;
+      soundEnabledRef.current = false;
       setSoundEnabled(false);
       return;
     }
@@ -508,10 +510,13 @@ function FallbackLiveStreamAudio({ label, url }: { label: string; url: string })
     if (audio.error) {
       audio.load();
     }
+    soundEnabledRef.current = true;
+    setSoundEnabled(true);
     void audio.play()
-      .then(() => setSoundEnabled(true))
+      .then(() => setPlaybackFailed(false))
       .catch(() => {
         audio.muted = true;
+        soundEnabledRef.current = false;
         setSoundEnabled(false);
         setPlaybackFailed(true);
         setRetryToken((current) => current + 1);
@@ -523,16 +528,25 @@ function FallbackLiveStreamAudio({ label, url }: { label: string; url: string })
     if (!audio) return undefined;
     let cancelled = false;
     let hls: InstanceType<typeof import("hls.js").default> | null = null;
+    const resumeEnabledSound = () => {
+      if (!soundEnabledRef.current || cancelled) return;
+      audio.muted = false;
+      audio.volume = 1;
+      void audio.play()
+        .then(() => setPlaybackFailed(false))
+        .catch(() => setPlaybackFailed(true));
+    };
     const handlePlaybackError = () => {
-      audio.muted = true;
-      setSoundEnabled(false);
       setPlaybackFailed(true);
     };
-    audio.muted = true;
-    audio.defaultMuted = true;
+    audio.muted = !soundEnabledRef.current;
+    audio.defaultMuted = !soundEnabledRef.current;
     audio.addEventListener("error", handlePlaybackError);
+    audio.addEventListener("canplay", resumeEnabledSound);
+    audio.addEventListener("loadeddata", resumeEnabledSound);
     if (!isHls || audio.canPlayType("application/vnd.apple.mpegurl")) {
       audio.src = url;
+      resumeEnabledSound();
     } else {
       void import("hls.js").then(({ default: Hls }) => {
         if (cancelled || !Hls.isSupported()) return;
@@ -551,6 +565,8 @@ function FallbackLiveStreamAudio({ label, url }: { label: string; url: string })
       cancelled = true;
       hls?.destroy();
       audio.removeEventListener("error", handlePlaybackError);
+      audio.removeEventListener("canplay", resumeEnabledSound);
+      audio.removeEventListener("loadeddata", resumeEnabledSound);
       audio.removeAttribute("src");
       audio.load();
     };
@@ -558,7 +574,7 @@ function FallbackLiveStreamAudio({ label, url }: { label: string; url: string })
 
   return (
     <div className="service-broadcast-preservice-audio service-broadcast-live-audio">
-      <audio className="service-broadcast-audio-element" preload="none" ref={audioRef} />
+      <audio autoPlay className="service-broadcast-audio-element" preload="auto" ref={audioRef} />
       <button aria-pressed={soundEnabled} className="text-button icon-text-button service-broadcast-sound-button" onClick={toggleSound} title={label} type="button">
         {soundEnabled ? <VolumeX size={15} aria-hidden="true" /> : <Volume2 size={15} aria-hidden="true" />}
         {soundEnabled ? "Mute sound" : playbackFailed ? "Retry sound" : "Turn on sound"}

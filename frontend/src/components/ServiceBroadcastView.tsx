@@ -166,7 +166,10 @@ export function ServiceBroadcastView({ canControl = false, onOpenSettings }: { c
   );
   const selectedAudioCamera = settings.camera_sources.find((source) => source.id === settings.live_audio_source) ?? null;
   const selectedIndependentAudio = settings.audio_sources.find((source) => source.id === settings.live_audio_source) ?? null;
-  const audioMixKey = `${audioRevision}|${settings.audio_sources.map((source) => `${source.id}:${source.gain_db}:${source.mix_enabled}`).join("|")}`;
+  // Draft mixer changes update `settings` on every slider movement. Only rotate
+  // the relay URL after the server has accepted a committed change, otherwise
+  // dragging a level control tears down playback for every intermediate value.
+  const audioMixKey = String(audioRevision);
   const useMixedRelay = settings.live_audio_source === "mix" || Boolean(selectedIndependentAudio && Math.abs(selectedIndependentAudio.gain_db) >= 0.01);
   const liveAudioUrl = useMixedRelay
     ? broadcastLiveAudioUrl(audioMixKey)

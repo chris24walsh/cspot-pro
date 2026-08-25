@@ -81,8 +81,8 @@ export function AudioMixerPanel({
                 disabled={disabled}
                 max={24}
                 min={-30}
-                onBlur={(event) => setGain(source.id, Number(event.currentTarget.value), true)}
                 onChange={(event) => setGain(source.id, Number(event.currentTarget.value), false)}
+                onKeyUp={(event) => setGain(source.id, Number(event.currentTarget.value), true)}
                 onPointerUp={(event) => setGain(source.id, Number(event.currentTarget.value), true)}
                 step={1}
                 type="range"
