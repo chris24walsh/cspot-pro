@@ -143,6 +143,9 @@ These preferences have been made explicit and should guide future changes.
   baseline Viewer role opens only the Broadcast workspace and has the minimum
   plan, song, and library read permissions needed for livestream and recording
   playback.
+- Broadcast audio can use one independent source or a limited multi-source mix.
+  Per-source digital trim and mute state are shared by livestream and sermon
+  recording, with compact live controls available beside the admin camera view.
 
 ### Song handling
 

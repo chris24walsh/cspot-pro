@@ -561,6 +561,8 @@ export interface BroadcastAudioSource {
   label: string;
   url: string | null;
   stream_name: string | null;
+  gain_db: number;
+  mix_enabled: boolean;
 }
 
 export interface BroadcastViewerSettings {
@@ -1146,8 +1148,9 @@ export function broadcastRecordingAudioUrl(recordingId: string) {
   return buildApiUrl(`/api/v1/broadcast/recordings/${recordingId}/audio`);
 }
 
-export function broadcastLiveAudioUrl() {
-  return buildApiUrl("/api/v1/broadcast/live-audio");
+export function broadcastLiveAudioUrl(mixKey?: string) {
+  const query = mixKey ? `?mix=${encodeURIComponent(mixKey)}` : "";
+  return buildApiUrl(`/api/v1/broadcast/live-audio${query}`);
 }
 
 export function broadcastAudioSourceTestUrl(sourceId: string) {

@@ -59,6 +59,10 @@ def effective_audio_source(
     independent_sources = independent_sources if independent_sources is not None else audio_sources(settings)
     source_ids = {source.id for source in [*sources, *independent_sources]}
     configured = settings.live_audio_source or ""
+    if configured == "none":
+        return "none"
+    if configured == "mix" and independent_sources:
+        return "mix"
     if configured in source_ids:
         return configured
     if configured == "independent" and independent_sources:
@@ -73,6 +77,17 @@ def selected_audio_url(settings: BroadcastViewerSettings) -> str | None:
     selected_id = effective_audio_source(settings, independent_sources=sources)
     selected = next((source for source in sources if source.id == selected_id), None)
     return selected.url if selected else None
+
+
+def selected_independent_audio_sources(
+    settings: BroadcastViewerSettings,
+) -> list[BroadcastAudioSource]:
+    sources = audio_sources(settings)
+    selected_id = effective_audio_source(settings, independent_sources=sources)
+    if selected_id == "mix":
+        return [source for source in sources if source.mix_enabled]
+    selected = next((source for source in sources if source.id == selected_id), None)
+    return [selected] if selected else []
 
 
 def selected_camera_url(settings: BroadcastViewerSettings) -> str | None:

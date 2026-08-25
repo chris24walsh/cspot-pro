@@ -15,6 +15,8 @@ class BroadcastAudioSource(BaseModel):
     id: str = Field(min_length=1, max_length=80, pattern=r"^[a-zA-Z0-9_-]+$")
     label: str = Field(min_length=1, max_length=120)
     url: str = Field(min_length=1, max_length=2000)
+    gain_db: float = Field(default=0, ge=-30, le=24)
+    mix_enabled: bool = True
 
 
 class BroadcastAudioSourceRead(BaseModel):
@@ -22,6 +24,8 @@ class BroadcastAudioSourceRead(BaseModel):
     label: str
     url: str | None = None
     stream_name: str | None = None
+    gain_db: float = 0
+    mix_enabled: bool = True
 
 
 class BroadcastViewerSettingsRead(BaseModel):

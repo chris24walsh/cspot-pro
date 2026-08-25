@@ -17,6 +17,7 @@ import {
 } from "../api";
 import { go2RtcAudioStreamUrl } from "../broadcastCamera";
 import { recordingTimestampTitle, SermonRecordingPlayer } from "./SermonRecordingPlayer";
+import { AudioMixerPanel } from "./AudioMixerPanel";
 import { useConfirmationDialog } from "./ConfirmationDialog";
 import { LiveStreamAudio, LowLatencyCamera } from "./LowLatencyCamera";
 
@@ -246,6 +247,8 @@ export function BroadcastManager({
           label: `Audio ${current.audio_sources.length + 1}`,
           stream_name: null,
           url: "",
+          gain_db: 0,
+          mix_enabled: true,
         },
       ],
     }));
@@ -298,6 +301,26 @@ export function BroadcastManager({
       setMessage(`${settings.audio_sources.find((source) => source.id === sourceId)?.label ?? "Audio source"} is now live.`);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Could not change the live audio source.");
+    }
+  }
+
+  async function commitAudioMix(
+    audioSources: BroadcastViewerSettings["audio_sources"],
+    liveAudioSource: string,
+  ) {
+    setSaving(true);
+    setMessage(null);
+    try {
+      const settings = await updateBroadcastViewerSettings({
+        audio_sources: audioSources,
+        live_audio_source: liveAudioSource,
+      });
+      setForm((current) => ({ ...current, ...settings }));
+      setMessage(liveAudioSource === "mix" ? "The source mix is now live." : "Audio mix updated.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not update the source mix.");
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -534,6 +557,7 @@ export function BroadcastManager({
           Live audio source
           <select disabled={loading} onChange={(event) => setForm({ ...form, live_audio_source: event.target.value })} value={form.live_audio_source}>
             <option value="none">No live audio</option>
+            {form.audio_sources.some((source) => source.mix_enabled) ? <option value="mix">Source mix</option> : null}
             {form.audio_sources.length ? <optgroup label="Independent audio">
               {form.audio_sources.map((source) => <option key={source.id} value={source.id}>{source.label}</option>)}
             </optgroup> : null}
@@ -642,6 +666,13 @@ export function BroadcastManager({
 
       {canManage && activeTab === "mixer" ? (
         <section className="broadcast-mixer broadcast-tab-panel" aria-label="Musician audio mixer" role="tabpanel">
+          <AudioMixerPanel
+            disabled={loading || saving}
+            liveAudioSource={form.live_audio_source}
+            onChange={(audio_sources) => setForm((current) => ({ ...current, audio_sources }))}
+            onCommit={commitAudioMix}
+            sources={form.audio_sources}
+          />
           <div className="broadcast-mixer-heading">
             <div>
               <p className="eyebrow">Musician audio</p>
@@ -698,6 +729,8 @@ export function BroadcastManager({
             <span>Current broadcast audio</span>
             <strong>{form.live_audio_source === "none"
               ? "No live audio"
+              : form.live_audio_source === "mix"
+                ? "Source mix"
               : form.audio_sources.find((source) => source.id === form.live_audio_source)?.label
                 ?? `${form.camera_sources.find((source) => source.id === form.live_audio_source)?.label ?? form.live_audio_source} camera`}</strong>
             <button className="text-button" onClick={() => onSelectTab("livestream")} type="button">Change audio routing</button>

@@ -1,4 +1,5 @@
 import json
+import subprocess
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Annotated
@@ -12,11 +13,13 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_session
 from app.modules.broadcast.models import BroadcastRecording, BroadcastViewerSettings
+from app.modules.broadcast.audio_mix import audio_mix_inputs, ffmpeg_live_mix_command
 from app.modules.broadcast.recording import (
     pause_recording,
     resume_recording,
     start_recording,
     stop_recording,
+    reconfigure_active_recording,
 )
 from app.modules.broadcast.schemas import (
     BroadcastAudioSourceRead,
@@ -30,7 +33,6 @@ from app.modules.broadcast.settings import (
     audio_sources,
     camera_sources,
     effective_audio_source,
-    selected_audio_url,
 )
 from app.modules.broadcast.transport import (
     audio_stream_name,
@@ -219,6 +221,8 @@ def settings_read(
                     if include_audio_source_urls and audio_transport_available()
                     else None
                 ),
+                gain_db=source.gain_db,
+                mix_enabled=source.mix_enabled,
             )
             for source in independent_sources
         ],
@@ -395,32 +399,43 @@ def live_audio(
             status_code=status.HTTP_409_CONFLICT,
             detail="Live audio is available only while the livestream is running",
         )
-    source_url = selected_audio_url(settings)
-    if not source_url:
+    inputs = audio_mix_inputs(settings)
+    if not inputs:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Live audio is not configured",
         )
     try:
-        upstream = requests.get(source_url, stream=True, timeout=(5, None))
-        upstream.raise_for_status()
-    except requests.RequestException as error:
+        process = subprocess.Popen(
+            ffmpeg_live_mix_command(inputs),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+        )
+    except OSError as error:
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
-            detail="The live audio source is unavailable",
+            detail="The live audio mixer is unavailable",
         ) from error
 
     def audio_chunks():
         try:
-            # Keep the relay responsive for live speech. A 32 KiB buffer is
-            # roughly four seconds of 64 kbps MP3 audio before proxy overhead.
-            yield from upstream.iter_content(chunk_size=2 * 1024)
+            if process.stdout is None:
+                return
+            while chunk := process.stdout.read(2 * 1024):
+                yield chunk
         finally:
-            upstream.close()
+            if process.stdout:
+                process.stdout.close()
+            if process.poll() is None:
+                process.terminate()
+                try:
+                    process.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    process.kill()
 
     return StreamingResponse(
         audio_chunks(),
-        media_type=upstream.headers.get("content-type", "audio/mpeg").split(";", 1)[0],
+        media_type="audio/mpeg",
         headers={"Cache-Control": "no-store", "X-Accel-Buffering": "no"},
     )
 
@@ -522,11 +537,16 @@ def update_viewer_settings(
         "live_audio_source",
         effective_audio_source(settings, sources, independent_sources),
     )
-    if requested_audio_source not in {"none", *source_ids, *audio_ids}:
+    if requested_audio_source not in {"none", "mix", *source_ids, *audio_ids}:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="The selected live audio source is not configured",
         )
+    if requested_audio_source == "mix" and not any(
+        source.mix_enabled for source in independent_sources
+    ):
+        requested_audio_source = "none"
+    updates["live_audio_source"] = requested_audio_source
     selected_independent = next(
         (source for source in independent_sources if source.id == requested_audio_source),
         None,
@@ -579,6 +599,7 @@ def update_viewer_settings(
         settings.active_camera_id = None
     session.commit()
     session.refresh(settings)
+    reconfigure_active_recording(session)
     result = settings_read(settings)
     reconcile_audio_sources(independent_sources)
     return result

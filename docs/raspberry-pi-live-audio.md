@@ -82,5 +82,13 @@ in viewer. If a camera is also configured, its audio is muted to avoid echo.
 Sermon recording prefers the independent source and falls back to the camera
 audio track when the dedicated source is empty.
 
+Choose **Source mix** in Broadcast → Mixer to combine multiple independent
+inputs. Each source has an inclusion/mute control and −30 dB to +24 dB digital
+trim. A practical starting point is 0 dB for the desk and −15 dB for the room
+microphone. CSpot applies a limiter after mixing and uses the same result for
+livestream and recording. This trim replaces routine trips into Windows sound
+settings, although severely clipped or extremely low analogue input should
+still be corrected at the interface or mixer desk.
+
 Keep Icecast private, use synthetic credentials during testing, and do not put
 the source password in the listener URL entered in CSpot.

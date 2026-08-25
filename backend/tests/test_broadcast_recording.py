@@ -1,4 +1,5 @@
 import json
+import signal
 import subprocess
 from datetime import UTC, datetime
 from pathlib import Path
@@ -10,10 +11,17 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.core.database import Base
+from app.modules.broadcast.audio_mix import (
+    AudioMixInput,
+    audio_mix_inputs,
+    ffmpeg_live_mix_command,
+    ffmpeg_recording_mix_command,
+)
 from app.modules.broadcast.models import BroadcastRecording, BroadcastViewerSettings
 from app.modules.broadcast.recording import (
     ActiveRecording,
     _finalize_recording_file,
+    _assemble_recording_segments,
     _media_duration,
     _recording_command,
     _should_discard_short_automatic_recording,
@@ -22,6 +30,7 @@ from app.modules.broadcast.recording import (
     _trim_recording_file,
     cancel_pending_recording_stop,
     request_recording_stop,
+    reconfigure_active_recording,
     stop_recording,
     sync_sermon_recording,
 )
@@ -200,6 +209,51 @@ def test_independent_audio_sources_are_grouped_and_selected() -> None:
         assert _source_url(session) == "http://audio/desk.mp3"
 
 
+def test_enabled_independent_sources_are_combined_with_saved_gain() -> None:
+    settings_row = BroadcastViewerSettings(
+        stream_title="Service",
+        audio_sources_json=json.dumps(
+            [
+                {
+                    "id": "room-mic",
+                    "label": "Room mic",
+                    "url": "http://audio/room.mp3",
+                    "gain_db": -15,
+                    "mix_enabled": True,
+                },
+                {
+                    "id": "desk",
+                    "label": "Desk",
+                    "url": "http://audio/desk.mp3",
+                    "gain_db": 4,
+                    "mix_enabled": True,
+                },
+                {
+                    "id": "spare",
+                    "label": "Spare",
+                    "url": "http://audio/spare.mp3",
+                    "mix_enabled": False,
+                },
+            ]
+        ),
+        live_audio_source="mix",
+    )
+
+    inputs = audio_mix_inputs(settings_row)
+    command = ffmpeg_live_mix_command(inputs)
+
+    assert [(source.source_id, source.gain_db) for source in inputs] == [
+        ("room-mic", -15),
+        ("desk", 4),
+    ]
+    assert command.count("-i") == 2
+    filter_graph = command[command.index("-filter_complex") + 1]
+    assert "volume=-15dB" in filter_graph
+    assert "volume=4dB" in filter_graph
+    assert "amix=inputs=2" in filter_graph
+    assert "alimiter=limit=0.95" in filter_graph
+
+
 def test_legacy_independent_audio_url_is_returned_as_a_source() -> None:
     engine = create_engine("sqlite://")
     Base.metadata.create_all(engine, tables=[BroadcastViewerSettings.__table__])
@@ -249,6 +303,80 @@ def test_recorder_generates_timestamps_from_audio_samples() -> None:
     command = _recording_command("http://camera/audio", Path("sermon.webm"))
 
     assert command[command.index("-af") + 1] == "asetpts=N/SR/TB"
+
+
+def test_mixed_recorder_resets_timestamps_inside_filter_graph() -> None:
+    command = ffmpeg_recording_mix_command(
+        [
+            AudioMixInput("room", "http://audio/room.mp3", -15),
+            AudioMixInput("desk", "http://audio/desk.mp3", 0),
+        ],
+        Path("sermon.webm"),
+    )
+
+    assert "asetpts=N/SR/TB" in command[command.index("-filter_complex") + 1]
+
+
+def test_active_recording_restarts_into_a_new_segment_when_mix_changes(
+    monkeypatch, tmp_path: Path
+) -> None:
+    class Process:
+        def __init__(self) -> None:
+            self.signals: list[int] = []
+
+        def poll(self) -> None:
+            return None
+
+        def send_signal(self, value: int) -> None:
+            self.signals.append(value)
+
+        def wait(self, timeout: int) -> int:
+            return 0
+
+    old_process = Process()
+    new_process = Process()
+    file_path = tmp_path / "sermon.webm"
+    active = ActiveRecording(
+        "recording-1",
+        "plan-1",
+        old_process,  # type: ignore[arg-type]
+        file_path=file_path,
+        inputs=[AudioMixInput("room", "http://audio/room.mp3", 0)],
+        segment_paths=[tmp_path / "sermon.part-000.webm"],
+    )
+    monkeypatch.setattr("app.modules.broadcast.recording._active", active)
+    monkeypatch.setattr(
+        "app.modules.broadcast.recording._audio_inputs",
+        lambda _session: [AudioMixInput("desk", "http://audio/desk.mp3", 3)],
+    )
+    monkeypatch.setattr("app.modules.broadcast.recording._source_has_audio", lambda _url: True)
+    monkeypatch.setattr(
+        "app.modules.broadcast.recording.subprocess.Popen",
+        lambda *args, **kwargs: new_process,
+    )
+
+    assert reconfigure_active_recording(SimpleNamespace()) is True  # type: ignore[arg-type]
+    assert old_process.signals == [signal.SIGINT]
+    assert active.process is new_process
+    assert active.inputs == [AudioMixInput("desk", "http://audio/desk.mp3", 3)]
+    assert active.segment_paths[-1].name == "sermon.part-001.webm"
+
+
+def test_single_recording_segment_becomes_final_file(tmp_path: Path) -> None:
+    segment = tmp_path / "sermon.part-000.webm"
+    final = tmp_path / "sermon.webm"
+    segment.write_bytes(b"audio")
+    active = ActiveRecording(
+        "recording-1",
+        "plan-1",
+        SimpleNamespace(),  # type: ignore[arg-type]
+        file_path=final,
+        segment_paths=[segment],
+    )
+
+    assert _assemble_recording_segments(active) is True
+    assert final.read_bytes() == b"audio"
+    assert not segment.exists()
 
 
 def test_finalization_repairs_a_large_timestamp_gap(tmp_path: Path) -> None:

@@ -5721,7 +5721,18 @@ button.musician-page {
 }
 
 .service-broadcast-camera-pane {
+  grid-template-rows: minmax(0, 1fr) auto;
   place-items: stretch;
+}
+
+.service-broadcast-camera-visual {
+  aspect-ratio: 16 / 9;
+  display: grid;
+  max-height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  place-items: center;
+  width: 100%;
 }
 
 .service-broadcast-camera-player {
@@ -5735,11 +5746,121 @@ button.musician-page {
 
 .service-broadcast-camera-switcher {
   aspect-ratio: 16 / 9;
-  height: 100%;
+  height: auto;
   max-height: 100%;
   overflow: hidden;
   position: relative;
   width: 100%;
+}
+
+.audio-mixer-panel {
+  background: linear-gradient(145deg, #15251f, #0c1713);
+  border: 1px solid #355046;
+  border-radius: 8px;
+  color: #edf6f1;
+  display: grid;
+  gap: 10px;
+  padding: 10px;
+}
+
+.audio-mixer-panel > header {
+  align-items: center;
+  display: flex;
+  gap: 10px;
+  justify-content: space-between;
+}
+
+.audio-mixer-panel > header > div {
+  display: grid;
+  gap: 2px;
+}
+
+.audio-mixer-panel small,
+.audio-mixer-panel > p {
+  color: #afc1b8;
+  font-size: 11px;
+  margin: 0;
+}
+
+.audio-mixer-channels {
+  display: grid;
+  gap: 7px;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+}
+
+.audio-mixer-channels article {
+  align-items: center;
+  background: rgba(4, 10, 8, 0.46);
+  border: 1px solid rgba(112, 145, 131, 0.34);
+  border-radius: 6px;
+  display: grid;
+  gap: 7px;
+  grid-template-columns: auto minmax(0, 1fr);
+  padding: 7px;
+}
+
+.audio-mixer-channels article.is-muted {
+  opacity: 0.58;
+}
+
+.audio-mixer-channels label,
+.audio-mixer-channels label > span {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+}
+
+.audio-mixer-channels label > span {
+  align-items: center;
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.audio-mixer-channels label strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.audio-mixer-channels output {
+  color: #d8b66d;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 850;
+}
+
+.audio-mixer-channels input[type="range"] {
+  accent-color: #d8b66d;
+  margin: 0;
+  min-height: 20px;
+  padding: 0;
+  width: 100%;
+}
+
+.audio-mixer-panel.is-compact {
+  border-color: rgba(92, 127, 111, 0.62);
+  border-radius: 0;
+  border-width: 1px 0 0;
+  gap: 5px;
+  padding: 5px 7px;
+}
+
+.audio-mixer-panel.is-compact > header strong {
+  font-size: 11px;
+}
+
+.audio-mixer-panel.is-compact .audio-mixer-channels {
+  gap: 5px;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+}
+
+.audio-mixer-panel.is-compact .audio-mixer-channels article {
+  gap: 4px;
+  padding: 4px 5px;
+}
+
+.audio-mixer-panel.is-compact .audio-mixer-channels label strong,
+.audio-mixer-panel.is-compact .audio-mixer-channels output {
+  font-size: 10px;
 }
 
 .service-broadcast-camera-layer {
@@ -6050,6 +6171,14 @@ button.musician-page {
   .service-broadcast-slide-pane,
   .service-broadcast-camera-pane {
     min-height: 0;
+  }
+
+  .service-broadcast-camera-pane:has(.audio-mixer-panel) {
+    aspect-ratio: auto;
+  }
+
+  .audio-mixer-panel.is-compact .audio-mixer-channels {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .service-broadcast-slide,

@@ -31,6 +31,7 @@ import {
 import { isBroadcastStartingSoon } from "../broadcastTiming";
 import { isWorshipSetPlan, matchingWorshipSetForService, mergeWorshipSetIntoService } from "../worshipSets";
 import { AutoFitSlideText } from "./AutoFitSlideText";
+import { AudioMixerPanel } from "./AudioMixerPanel";
 import { LiveStreamAudio, LowLatencyCamera } from "./LowLatencyCamera";
 import { ScaledSlideImage } from "./ScaledSlideImage";
 
@@ -141,6 +142,7 @@ export function ServiceBroadcastView({ canControl = false, onOpenSettings }: { c
   const [fullscreen, setFullscreen] = useState(false);
   const [cameraClock, setCameraClock] = useState(() => Date.now());
   const [controlBusy, setControlBusy] = useState(false);
+  const [audioRevision, setAudioRevision] = useState(0);
   const lastCameraCycleSecondsRef = useRef(30);
 
   const slides = useMemo(
@@ -164,8 +166,12 @@ export function ServiceBroadcastView({ canControl = false, onOpenSettings }: { c
   );
   const selectedAudioCamera = settings.camera_sources.find((source) => source.id === settings.live_audio_source) ?? null;
   const selectedIndependentAudio = settings.audio_sources.find((source) => source.id === settings.live_audio_source) ?? null;
-  const liveAudioUrl = selectedIndependentAudio
-    ? (settings.live_audio_stream_name ? go2RtcAudioStreamUrl(settings.live_audio_stream_name) : null) ?? broadcastLiveAudioUrl()
+  const audioMixKey = `${audioRevision}|${settings.audio_sources.map((source) => `${source.id}:${source.gain_db}:${source.mix_enabled}`).join("|")}`;
+  const useMixedRelay = settings.live_audio_source === "mix" || Boolean(selectedIndependentAudio && Math.abs(selectedIndependentAudio.gain_db) >= 0.01);
+  const liveAudioUrl = useMixedRelay
+    ? broadcastLiveAudioUrl(audioMixKey)
+    : selectedIndependentAudio
+    ? (settings.live_audio_stream_name ? go2RtcAudioStreamUrl(settings.live_audio_stream_name) : null) ?? broadcastLiveAudioUrl(audioMixKey)
     : selectedAudioCamera
       ? cameraAudioUrl(selectedAudioCamera.url)
       : null;
@@ -179,6 +185,7 @@ export function ServiceBroadcastView({ canControl = false, onOpenSettings }: { c
     setControlBusy(true);
     try {
       setSettings(await updateBroadcastViewerSettings(patch));
+      if (patch.audio_sources || patch.live_audio_source) setAudioRevision((current) => current + 1);
       setMessage(null);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Could not update livestream controls.");
@@ -196,6 +203,13 @@ export function ServiceBroadcastView({ canControl = false, onOpenSettings }: { c
 
   function putAudioOnAir(sourceId: string) {
     void updateLiveControls({ live_audio_source: sourceId });
+  }
+
+  function commitAudioMix(
+    audioSources: BroadcastViewerSettings["audio_sources"],
+    liveAudioSource: string,
+  ) {
+    return updateLiveControls({ audio_sources: audioSources, live_audio_source: liveAudioSource });
   }
 
   function setCameraCycleMode(mode: "manual" | "automatic") {
@@ -398,29 +412,41 @@ export function ServiceBroadcastView({ canControl = false, onOpenSettings }: { c
         </section>
 
         <section className="service-broadcast-camera-pane" aria-label="Live camera">
-          {hasLiveBroadcast && settings.camera_sources.length ? (
-            <div
-              className="service-broadcast-camera-switcher"
-              style={{ "--camera-fade-duration": `${settings.camera_fade_ms}ms` } as CSSProperties}
-            >
-              {settings.camera_sources.map((source) => (
-                <div
-                  aria-hidden={source.id !== activeCameraId}
-                  className={`service-broadcast-camera-layer ${source.id === activeCameraId ? "is-active" : ""}`}
-                  key={source.id}
-                >
-                  <LowLatencyCamera label={`${source.label} camera`} url={source.url} />
-                  <span className="service-broadcast-camera-label">{source.label}</span>
-                </div>
-              ))}
-            </div>
-          ) : hasLiveBroadcast ? (
-            <HoldingPane message="Camera stream is not configured" startingSoon={false} />
-          ) : startingSoon && preServiceYouTubeId ? (
-            <PreServiceYouTubePane videoId={preServiceYouTubeId} />
-          ) : (
-            <HoldingPane message={holdingMessage} startingSoon={startingSoon} />
-          )}
+          <div className="service-broadcast-camera-visual">
+            {hasLiveBroadcast && settings.camera_sources.length ? (
+              <div
+                className="service-broadcast-camera-switcher"
+                style={{ "--camera-fade-duration": `${settings.camera_fade_ms}ms` } as CSSProperties}
+              >
+                {settings.camera_sources.map((source) => (
+                  <div
+                    aria-hidden={source.id !== activeCameraId}
+                    className={`service-broadcast-camera-layer ${source.id === activeCameraId ? "is-active" : ""}`}
+                    key={source.id}
+                  >
+                    <LowLatencyCamera label={`${source.label} camera`} url={source.url} />
+                    <span className="service-broadcast-camera-label">{source.label}</span>
+                  </div>
+                ))}
+              </div>
+            ) : hasLiveBroadcast ? (
+              <HoldingPane message="Camera stream is not configured" startingSoon={false} />
+            ) : startingSoon && preServiceYouTubeId ? (
+              <PreServiceYouTubePane videoId={preServiceYouTubeId} />
+            ) : (
+              <HoldingPane message={holdingMessage} startingSoon={startingSoon} />
+            )}
+          </div>
+          {canControl && settings.audio_sources.length ? (
+            <AudioMixerPanel
+              compact
+              disabled={controlBusy}
+              liveAudioSource={settings.live_audio_source}
+              onChange={(audio_sources) => setSettings((current) => ({ ...current, audio_sources }))}
+              onCommit={commitAudioMix}
+              sources={settings.audio_sources}
+            />
+          ) : null}
         </section>
       </div>
 
@@ -450,6 +476,7 @@ export function ServiceBroadcastView({ canControl = false, onOpenSettings }: { c
                   value={settings.live_audio_source}
                 >
                   <option value="none">No audio</option>
+                  {settings.audio_sources.some((source) => source.mix_enabled) ? <option value="mix">Source mix</option> : null}
                   {settings.audio_sources.length ? <optgroup label="Independent audio">
                     {settings.audio_sources.map((source) => <option key={source.id} value={source.id}>{source.label}</option>)}
                   </optgroup> : null}

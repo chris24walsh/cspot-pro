@@ -386,6 +386,13 @@ same raw upstream remains available to the sermon-recording pipeline. Raw MP3
 is not the preferred desktop playback transport. The administrator's per-source
 Listen preview uses the normalized transport as well when the gateway is
 available.
+The Broadcast Mixer can combine enabled independent sources into one mono live
+feed with a saved −30 dB to +24 dB digital trim per source and output limiting.
+The same mix drives viewer audio and sermon recording. Changing routing, mute,
+or gain during a sermon closes the current recording segment and starts another;
+the segments are joined losslessly when recording ends so playback remains one
+continuous item. The full mixer lives in the Mixer subtab, with a compact copy
+under the admin camera preview for live operation.
 
 Gateway entries owned by CSpot use opaque names in the reserved
 `cspot-audio-*` namespace. Reconciliation creates or updates entries for the

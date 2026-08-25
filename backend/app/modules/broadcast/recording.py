@@ -8,7 +8,6 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from queue import Queue
-from urllib.parse import urljoin
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from sqlalchemy import select
@@ -16,8 +15,13 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.core.database import SessionLocal
+from app.modules.broadcast.audio_mix import (
+    AudioMixInput,
+    audio_mix_inputs,
+    audio_mix_signature,
+    ffmpeg_recording_mix_command,
+)
 from app.modules.broadcast.models import BroadcastRecording, BroadcastViewerSettings
-from app.modules.broadcast.settings import selected_audio_url, selected_camera_url
 from app.modules.planning.models import PlanItem
 from app.modules.presentation.models import PresentationPosition, PresentationSession
 
@@ -26,10 +30,22 @@ logger = logging.getLogger(__name__)
 
 
 class ActiveRecording:
-    def __init__(self, recording_id: str, plan_id: str, process: subprocess.Popen[bytes]):
+    def __init__(
+        self,
+        recording_id: str,
+        plan_id: str,
+        process: subprocess.Popen[bytes],
+        *,
+        file_path: Path | None = None,
+        inputs: list[AudioMixInput] | None = None,
+        segment_paths: list[Path] | None = None,
+    ):
         self.recording_id = recording_id
         self.plan_id = plan_id
         self.process = process
+        self.file_path = file_path
+        self.inputs = inputs or []
+        self.segment_paths = segment_paths or []
         self.paused_at: datetime | None = None
         self.paused_seconds = 0.0
 
@@ -140,21 +156,13 @@ def _clear_start_failure(plan_id: str, plan_item_id: str) -> None:
 
 def _source_url(session: Session) -> str | None:
     viewer = session.scalar(select(BroadcastViewerSettings).limit(1))
-    if not viewer:
-        return None
-    audio_url = (selected_audio_url(viewer) or "").strip()
-    if audio_url.startswith(("http://", "https://")):
-        return audio_url
-    camera_url = (selected_camera_url(viewer) or "").strip()
-    if not camera_url:
-        return None
-    if camera_url.startswith("/app/camera/"):
-        if not settings.camera_proxy_upstream:
-            return None
-        return urljoin(settings.camera_proxy_upstream.rstrip("/") + "/", camera_url[12:])
-    if camera_url.startswith(("http://", "https://", "rtsp://")):
-        return camera_url
-    return None
+    inputs = audio_mix_inputs(viewer) if viewer else []
+    return inputs[0].url if inputs else None
+
+
+def _audio_inputs(session: Session) -> list[AudioMixInput]:
+    viewer = session.scalar(select(BroadcastViewerSettings).limit(1))
+    return audio_mix_inputs(viewer) if viewer else []
 
 
 def _auto_recording_enabled(session: Session) -> bool:
@@ -206,27 +214,127 @@ def _source_has_audio(source_url: str) -> bool:
 
 
 def _recording_command(source_url: str, file_path: Path) -> list[str]:
-    return [
-        "ffmpeg",
-        "-hide_banner",
-        "-loglevel",
-        "error",
-        "-y",
-        "-i",
-        source_url,
-        "-vn",
-        "-map",
-        "0:a:0",
-        "-af",
-        "asetpts=N/SR/TB",
-        "-ac",
-        "1",
-        "-c:a",
-        "libopus",
-        "-b:a",
-        "48k",
-        str(file_path),
-    ]
+    return ffmpeg_recording_mix_command(
+        [AudioMixInput(source_id="recording", url=source_url)], file_path
+    )
+
+
+def _segment_path(file_path: Path, index: int) -> Path:
+    return file_path.with_name(f"{file_path.stem}.part-{index:03d}{file_path.suffix}")
+
+
+def _stop_process(process: subprocess.Popen[bytes]) -> None:
+    if process.poll() is not None:
+        return
+    process.send_signal(signal.SIGINT)
+    try:
+        process.wait(timeout=10)
+    except subprocess.TimeoutExpired:
+        process.terminate()
+        process.wait(timeout=5)
+
+
+def _assemble_recording_segments(active: ActiveRecording) -> bool:
+    if active.file_path is None or not active.segment_paths:
+        return True
+    existing = [path for path in active.segment_paths if path.is_file()]
+    if not existing:
+        return False
+    if len(existing) == 1:
+        existing[0].replace(active.file_path)
+        return True
+
+    concat_path = active.file_path.with_suffix(f"{active.file_path.suffix}.concat.txt")
+    entries: list[str] = []
+    for path in existing:
+        escaped_path = str(path).replace("'", "'\\''")
+        entries.append(f"file '{escaped_path}'\n")
+    concat_path.write_text("".join(entries), encoding="utf-8")
+    assembled = False
+    try:
+        combined = subprocess.run(
+            [
+                "ffmpeg",
+                "-hide_banner",
+                "-loglevel",
+                "error",
+                "-y",
+                "-f",
+                "concat",
+                "-safe",
+                "0",
+                "-i",
+                str(concat_path),
+                "-c",
+                "copy",
+                str(active.file_path),
+            ],
+            capture_output=True,
+            check=False,
+            timeout=RECORDING_REPAIR_TIMEOUT_SECONDS,
+        )
+        if combined.returncode != 0 or not active.file_path.is_file():
+            logger.error("Could not join recording source segments")
+            return False
+        assembled = True
+        return True
+    except (OSError, subprocess.TimeoutExpired):
+        logger.exception("Could not join recording source segments")
+        return False
+    finally:
+        concat_path.unlink(missing_ok=True)
+        if assembled:
+            for path in existing:
+                path.unlink(missing_ok=True)
+
+
+def reconfigure_active_recording(session: Session) -> bool:
+    """Apply current source, mix, and gain settings to an active recorder."""
+    inputs = _audio_inputs(session)
+    if not inputs:
+        return False
+    with _lock:
+        active = _active
+        if (
+            not active
+            or active.file_path is None
+            or active.paused_at is not None
+            or audio_mix_signature(inputs) == audio_mix_signature(active.inputs)
+        ):
+            return False
+    with _lock:
+        active = _active
+        if not active or active.file_path is None or active.paused_at is not None:
+            return False
+        if audio_mix_signature(inputs) == audio_mix_signature(active.inputs):
+            return False
+        next_path = _segment_path(active.file_path, len(active.segment_paths))
+        previous_inputs = active.inputs
+        _stop_process(active.process)
+        try:
+            process = subprocess.Popen(
+                ffmpeg_recording_mix_command(inputs, next_path),
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+        except OSError:
+            logger.exception("Could not reconfigure the active recorder")
+            try:
+                process = subprocess.Popen(
+                    ffmpeg_recording_mix_command(previous_inputs, next_path),
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                )
+            except OSError:
+                logger.exception("Could not restore the previous recorder input")
+                return False
+            active.process = process
+            active.segment_paths.append(next_path)
+            return False
+        active.process = process
+        active.inputs = inputs
+        active.segment_paths.append(next_path)
+        return True
 
 
 def _media_duration(path: Path) -> float | None:
@@ -398,15 +506,17 @@ def start_recording(
                 session.commit()
             _active = None
 
-        source_url = _source_url(session)
-        if not source_url:
+        inputs = _audio_inputs(session)
+        if not inputs:
             raise RuntimeError("A recordable camera or audio stream is not configured")
-        if not _source_has_audio(source_url):
+        inputs = [source for source in inputs if _source_has_audio(source.url)]
+        if not inputs:
             raise RuntimeError("The configured stream has no usable audio track")
         now = datetime.now(UTC)
         RECORDING_ROOT.mkdir(parents=True, exist_ok=True)
         file_name = f"sermon-{now:%Y%m%d-%H%M%S}.webm"
         file_path = RECORDING_ROOT / file_name
+        segment_path = _segment_path(file_path, 0)
         recording = BroadcastRecording(
             plan_id=plan_id,
             plan_item_id=plan_item_id,
@@ -426,7 +536,7 @@ def start_recording(
         session.add(recording)
         session.commit()
         session.refresh(recording)
-        command = _recording_command(source_url, file_path)
+        command = ffmpeg_recording_mix_command(inputs, segment_path)
         try:
             process = subprocess.Popen(
                 command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
@@ -436,7 +546,14 @@ def start_recording(
             recording.ended_at = datetime.now(UTC)
             session.commit()
             raise RuntimeError("Could not start the audio recorder") from error
-        _active = ActiveRecording(recording.id, plan_id, process)
+        _active = ActiveRecording(
+            recording.id,
+            plan_id,
+            process,
+            file_path=file_path,
+            inputs=inputs,
+            segment_paths=[segment_path],
+        )
         threading.Thread(
             target=_watch_recording,
             args=(recording.id, plan_id),
@@ -628,12 +745,8 @@ def stop_recording(
                 active.paused_seconds += (datetime.now(UTC) - active.paused_at).total_seconds()
                 active.paused_at = None
                 active.process.send_signal(signal.SIGCONT)
-            active.process.send_signal(signal.SIGINT)
-            try:
-                active.process.wait(timeout=10)
-            except subprocess.TimeoutExpired:
-                active.process.terminate()
-                active.process.wait(timeout=5)
+            _stop_process(active.process)
+        segments_ready = _assemble_recording_segments(active)
         if recording:
             recording.ended_at = datetime.now(UTC)
             pending_stop_reason = recording.pending_stop_reason
@@ -686,7 +799,7 @@ def stop_recording(
                 max(0, int(round(duration))) if duration is not None else None
             )
             recording.size_bytes = path.stat().st_size if path.exists() else None
-            recording.status = "ready" if recording.size_bytes else "failed"
+            recording.status = "ready" if segments_ready and recording.size_bytes else "failed"
             session.commit()
             session.refresh(recording)
         return recording
@@ -723,6 +836,7 @@ def resume_recording(session: Session) -> BroadcastRecording | None:
             recording.pending_stop_offset_ms = None
             session.commit()
             session.refresh(recording)
+        reconfigure_active_recording(session)
         return recording
 
 
