@@ -390,6 +390,11 @@ Listen preview uses the normalized transport as well when the gateway is
 available.
 The Broadcast Mixer can combine enabled independent sources into one mono live
 feed with a saved −30 dB to +24 dB digital trim per source and output limiting.
+Four saved audio scenes (Pastor, Congregation, Worship, and Media) retain an
+independent level/mute choice for every source. With presentation following
+enabled, song slides select Worship, ordinary speaking slides select Pastor,
+and playing video or song media selects Media; stopping, finishing, or leaving
+the media restores the scene appropriate to the current service item.
 The same mix drives viewer audio and sermon recording. Changing routing, mute,
 or gain during a sermon closes the current recording segment and starts another;
 the segments are joined losslessly when recording ends so playback remains one

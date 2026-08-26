@@ -7,6 +7,8 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.core.database import get_session
+from app.modules.broadcast.audio_scenes import activate_audio_scene, automatic_scene_for_item
+from app.modules.broadcast.models import BroadcastViewerSettings
 from app.modules.broadcast.recording import schedule_sermon_recording
 from app.modules.identity.auth import require_any_permission, require_permission
 from app.modules.identity.models import User
@@ -264,6 +266,7 @@ def update_presentation_live_state(
         session.add(position)
 
     existing_payload = _position_payload(position)
+    previous_video_action = existing_payload.get("video_action")
     previous_live_item_id = existing_payload.get("output_recording_item_id")
     previous_slide_offset = existing_payload.get("slide_offset", 0)
     now = int(datetime.now(UTC).timestamp() * 1000)
@@ -302,6 +305,16 @@ def update_presentation_live_state(
             payload.slide_offset,
             current_user.id,
         )
+    media_state_changed = previous_video_action != payload.video_action
+    if output_active and (previous_item_id != payload.plan_item_id or media_state_changed):
+        broadcast_settings = session.scalar(select(BroadcastViewerSettings).limit(1))
+        if broadcast_settings and broadcast_settings.audio_scene_automation:
+            item = session.get(PlanItem, payload.plan_item_id) if payload.plan_item_id else None
+            activate_audio_scene(
+                session,
+                broadcast_settings,
+                automatic_scene_for_item(item.item_type if item else None, payload.video_action),
+            )
     return _serialize_live_state(presentation_session, position, plan_id)
 
 

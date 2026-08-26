@@ -46,6 +46,9 @@ const DEFAULT_SETTINGS: BroadcastViewerSettings = {
   camera_fade_ms: 1200,
   camera_sources: [],
   audio_sources: [],
+  audio_scenes: [],
+  active_audio_scene: "pastor",
+  audio_scene_automation: true,
   camera_url: null,
   live_audio_url: null,
   live_audio_source: "none",
@@ -436,11 +439,16 @@ export function ServiceBroadcastView({ canControl = false, onOpenSettings }: { c
           </div>
           {canControl && settings.audio_sources.length ? (
             <AudioMixerPanel
+              activeScene={settings.active_audio_scene}
+              automation={settings.audio_scene_automation}
               compact
               disabled={controlBusy}
               liveAudioSource={settings.live_audio_source}
               onChange={(audio_sources) => setSettings((current) => ({ ...current, audio_sources }))}
               onCommit={commitAudioMix}
+              onAutomationChange={(audio_scene_automation) => updateLiveControls({ audio_scene_automation })}
+              onSceneChange={(active_audio_scene) => updateLiveControls({ active_audio_scene })}
+              scenes={settings.audio_scenes}
               sources={settings.audio_sources}
             />
           ) : null}

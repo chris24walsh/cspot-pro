@@ -27,6 +27,9 @@ const EMPTY_SETTINGS: BroadcastViewerSettings = {
   camera_url: null,
   camera_sources: [],
   audio_sources: [],
+  audio_scenes: [],
+  active_audio_scene: "pastor",
+  audio_scene_automation: true,
   active_camera_id: null,
   camera_cycle_seconds: 0,
   camera_cycle_started_at: null,
@@ -667,10 +670,21 @@ export function BroadcastManager({
       {canManage && activeTab === "mixer" ? (
         <section className="broadcast-mixer broadcast-tab-panel" aria-label="Musician audio mixer" role="tabpanel">
           <AudioMixerPanel
+            activeScene={form.active_audio_scene}
+            automation={form.audio_scene_automation}
             disabled={loading || saving}
             liveAudioSource={form.live_audio_source}
             onChange={(audio_sources) => setForm((current) => ({ ...current, audio_sources }))}
             onCommit={commitAudioMix}
+            onAutomationChange={async (audio_scene_automation) => {
+              const settings = await updateBroadcastViewerSettings({ audio_scene_automation });
+              setForm((current) => ({ ...current, ...settings }));
+            }}
+            onSceneChange={async (active_audio_scene) => {
+              const settings = await updateBroadcastViewerSettings({ active_audio_scene });
+              setForm((current) => ({ ...current, ...settings }));
+            }}
+            scenes={form.audio_scenes}
             sources={form.audio_sources}
           />
           <div className="broadcast-mixer-heading">

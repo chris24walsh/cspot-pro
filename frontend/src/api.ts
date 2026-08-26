@@ -565,12 +565,21 @@ export interface BroadcastAudioSource {
   mix_enabled: boolean;
 }
 
+export interface BroadcastAudioScene {
+  id: "pastor" | "congregation" | "worship" | "media";
+  label: string;
+  channels: Record<string, { gain_db: number; enabled: boolean }>;
+}
+
 export interface BroadcastViewerSettings {
   stream_title: string;
   stream_description: string | null;
   camera_url: string | null;
   camera_sources: BroadcastCameraSource[];
   audio_sources: BroadcastAudioSource[];
+  audio_scenes: BroadcastAudioScene[];
+  active_audio_scene: string;
+  audio_scene_automation: boolean;
   active_camera_id: string | null;
   camera_cycle_seconds: number;
   camera_cycle_started_at: string | null;

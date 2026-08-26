@@ -148,6 +148,8 @@ These preferences have been made explicit and should guide future changes.
   recording, with compact live controls available beside the admin camera view.
   Runtime mix changes update the active server-side audio filter graph and do
   not replace the viewer's browser stream.
+  Saved Pastor, Congregation, Worship, and Media scenes can be recalled manually;
+  presenter item and media-playback state can recall them automatically.
 
 ### Song handling
 

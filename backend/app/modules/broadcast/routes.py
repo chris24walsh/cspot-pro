@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_session
 from app.modules.broadcast.audio_mix import ffmpeg_live_mix_command, live_audio_mix_inputs
+from app.modules.broadcast.audio_scenes import activate_audio_scene
 from app.modules.broadcast.live_audio import (
     allocate_control_port,
     register_live_audio_control,
@@ -28,6 +29,7 @@ from app.modules.broadcast.recording import (
     stop_recording,
 )
 from app.modules.broadcast.schemas import (
+    BroadcastAudioSceneChannel,
     BroadcastAudioSourceRead,
     BroadcastRecordingRead,
     BroadcastRecordingStart,
@@ -36,6 +38,7 @@ from app.modules.broadcast.schemas import (
     ManualLivestreamUpdate,
 )
 from app.modules.broadcast.settings import (
+    audio_scenes,
     audio_sources,
     camera_sources,
     effective_audio_source,
@@ -232,6 +235,9 @@ def settings_read(
             )
             for source in independent_sources
         ],
+        audio_scenes=audio_scenes(settings),
+        active_audio_scene=settings.active_audio_scene or "pastor",
+        audio_scene_automation=settings.audio_scene_automation is not False,
         active_camera_id=active_camera_id,
         camera_cycle_seconds=settings.camera_cycle_seconds or 0,
         camera_cycle_started_at=settings.camera_cycle_started_at,
@@ -498,6 +504,7 @@ def update_viewer_settings(
     updates = payload.model_dump(exclude_unset=True)
     camera_source_payload = updates.pop("camera_sources", ...)
     audio_source_payload = updates.pop("audio_sources", ...)
+    audio_scene_payload = updates.pop("audio_scenes", ...)
     if camera_source_payload is None:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
@@ -527,6 +534,37 @@ def update_viewer_settings(
                 detail="Audio source IDs must be unique",
             )
         settings.audio_sources_json = json.dumps(audio_source_payload, separators=(",", ":"))
+
+    if audio_scene_payload is None:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="audio_scenes cannot be empty",
+        )
+    if audio_scene_payload is not ...:
+        scene_ids = [scene["id"] for scene in audio_scene_payload]
+        if len(scene_ids) != len(set(scene_ids)):
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="Audio scene IDs must be unique",
+            )
+        settings.audio_scenes_json = json.dumps(audio_scene_payload, separators=(",", ":"))
+
+    if audio_source_payload is not ... and audio_scene_payload is ...:
+        current_scene = settings.active_audio_scene or "pastor"
+        scenes = audio_scenes(settings)
+        for scene in scenes:
+            if scene.id != current_scene:
+                continue
+            scene.channels = {
+                source["id"]: BroadcastAudioSceneChannel(
+                    gain_db=source.get("gain_db", 0),
+                    enabled=source.get("mix_enabled", True),
+                )
+                for source in audio_source_payload
+            }
+        settings.audio_scenes_json = json.dumps(
+            [scene.model_dump() for scene in scenes], separators=(",", ":")
+        )
 
     sources = camera_sources(settings)
     independent_sources = audio_sources(settings)
@@ -609,8 +647,15 @@ def update_viewer_settings(
         settings.active_camera_id = None
     session.commit()
     session.refresh(settings)
-    update_live_audio_controls(live_audio_mix_inputs(settings))
-    reconfigure_active_recording(session)
+    requested_scene = payload.active_audio_scene
+    if requested_scene and not activate_audio_scene(session, settings, requested_scene):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="The selected audio scene is not configured",
+        )
+    else:
+        update_live_audio_controls(live_audio_mix_inputs(settings))
+        reconfigure_active_recording(session)
     result = settings_read(settings)
     reconcile_audio_sources(independent_sources)
     return result

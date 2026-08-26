@@ -394,6 +394,24 @@ export function PresentationOutput({ networkDisplay = false }: PresentationOutpu
   }, [liveMediaProvider, liveMediaUrl, liveState?.videoAction, liveState?.videoActionAt]);
 
   useEffect(() => {
+    if (liveMediaProvider !== "youtube") return undefined;
+    function handleYouTubeState(event: MessageEvent) {
+      if (!event.origin.includes("youtube")) return;
+      let payload: { event?: string; info?: number };
+      try {
+        payload = typeof event.data === "string" ? JSON.parse(event.data) : event.data;
+      } catch {
+        return;
+      }
+      if (payload?.event === "onStateChange" && payload.info === 0) {
+        void publishLiveState({ videoAction: "stop", videoActionAt: Date.now() });
+      }
+    }
+    window.addEventListener("message", handleYouTubeState);
+    return () => window.removeEventListener("message", handleYouTubeState);
+  }, [liveMediaProvider, publishLiveState]);
+
+  useEffect(() => {
     if (!liveState?.planId) {
       return;
     }
@@ -599,7 +617,13 @@ export function PresentationOutput({ networkDisplay = false }: PresentationOutpu
         ) : liveSlide?.videoUrl ? (
           <div className="stage-video-frame">
             {liveSlide.videoProvider === "file" ? (
-              <video controls ref={videoElementRef} src={liveSlide.videoUrl} title={liveSlide.title} />
+              <video
+                controls
+                onEnded={() => void publishLiveState({ videoAction: "stop", videoActionAt: Date.now() })}
+                ref={videoElementRef}
+                src={liveSlide.videoUrl}
+                title={liveSlide.title}
+              />
             ) : (
               <iframe
                 allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"

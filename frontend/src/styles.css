@@ -5782,6 +5782,36 @@ button.musician-page {
   margin: 0;
 }
 
+.audio-mixer-scenes {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.audio-mixer-scenes button {
+  min-height: 1.85rem;
+  padding: 0.25rem 0.55rem;
+}
+
+.audio-scene-automation {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin-left: auto;
+  font-size: 0.78rem;
+}
+
+.audio-mixer-panel.is-compact .audio-mixer-scenes {
+  gap: 0.2rem;
+}
+
+.audio-mixer-panel.is-compact .audio-mixer-scenes button {
+  min-height: 1.55rem;
+  padding: 0.15rem 0.35rem;
+  font-size: 0.68rem;
+}
+
 .audio-mixer-channels {
   display: grid;
   gap: 7px;

@@ -1,14 +1,19 @@
 import { Radio, Volume2, VolumeX } from "lucide-react";
 
-import type { BroadcastAudioSource } from "../api";
+import type { BroadcastAudioScene, BroadcastAudioSource } from "../api";
 
 interface AudioMixerPanelProps {
   compact?: boolean;
   disabled?: boolean;
+  activeScene: string;
+  automation: boolean;
+  onAutomationChange: (enabled: boolean) => Promise<void> | void;
+  onSceneChange: (sceneId: string) => Promise<void> | void;
   liveAudioSource: string;
   onChange: (sources: BroadcastAudioSource[]) => void;
   onCommit: (sources: BroadcastAudioSource[], liveAudioSource: string) => Promise<void> | void;
   sources: BroadcastAudioSource[];
+  scenes: BroadcastAudioScene[];
 }
 
 function sourceWith(
@@ -22,9 +27,14 @@ function sourceWith(
 export function AudioMixerPanel({
   compact = false,
   disabled = false,
+  activeScene,
+  automation,
   liveAudioSource,
   onChange,
   onCommit,
+  onAutomationChange,
+  onSceneChange,
+  scenes,
   sources,
 }: AudioMixerPanelProps) {
   function setGain(sourceId: string, gainDb: number, commit: boolean) {
@@ -60,6 +70,26 @@ export function AudioMixerPanel({
           <Radio size={14} aria-hidden="true" /> {liveAudioSource === "mix" ? "Mix live" : "Use mix"}
         </button>
       </header>
+      <div className="audio-mixer-scenes" aria-label="Audio scenes">
+        {scenes.map((scene) => (
+          <button
+            aria-pressed={activeScene === scene.id}
+            className={activeScene === scene.id ? "primary-button" : "text-button"}
+            disabled={disabled}
+            key={scene.id}
+            onClick={() => void onSceneChange(scene.id)}
+            type="button"
+          >
+            {scene.label}
+          </button>
+        ))}
+        {!compact ? (
+          <label className="audio-scene-automation">
+            <input checked={automation} disabled={disabled} onChange={(event) => void onAutomationChange(event.target.checked)} type="checkbox" />
+            Follow presentation
+          </label>
+        ) : null}
+      </div>
       <div className="audio-mixer-channels">
         {sources.map((source) => (
           <article className={!source.mix_enabled ? "is-muted" : ""} key={source.id}>
@@ -92,7 +122,7 @@ export function AudioMixerPanel({
           </article>
         ))}
       </div>
-      {!compact ? <p>Start with the desk at 0 dB and the room mic around −15 dB. Raise a quiet PC feed here instead of using Windows sound settings; the limiter protects the combined output from clipping.</p> : null}
+      {!compact ? <p>Changes are saved to the selected scene. Pastor and Worship follow service slides; Media follows play/stop controls. Use Congregation manually for someone speaking from their seat.</p> : null}
     </section>
   );
 }
