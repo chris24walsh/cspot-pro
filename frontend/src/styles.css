@@ -7960,6 +7960,38 @@ button.musician-page {
   width: 100%;
 }
 
+.lcf-background-slide,
+.lcf-background-surface {
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: cover;
+  height: 100%;
+  width: 100%;
+}
+
+.lcf-background-slide {
+  align-items: center;
+  color: #fff;
+  display: flex;
+  justify-content: center;
+  min-height: 0;
+  overflow: hidden;
+  position: relative;
+}
+
+.lcf-background-slide::before {
+  background: linear-gradient(180deg, rgba(8, 13, 18, 0.05), rgba(8, 13, 18, 0.36));
+  content: "";
+  inset: 0;
+  position: absolute;
+}
+
+.lcf-background-slide > * {
+  position: relative;
+  text-shadow: 0 2px 12px rgba(0, 0, 0, 0.9);
+  z-index: 1;
+}
+
 .preview-blank-stage {
   background: #fff;
 }

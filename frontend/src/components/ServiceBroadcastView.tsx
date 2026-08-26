@@ -23,6 +23,7 @@ import { activeCameraIdAt, cameraAudioUrl, cameraServicePhase, go2RtcAudioStream
 import {
   buildPresentationSlides,
   extractYouTubeId,
+  LCF_BACKGROUND_URL,
   presentationTypeClass,
   resolveLiveIndex,
   suggestedSlideFontCap,
@@ -390,8 +391,21 @@ export function ServiceBroadcastView({ canControl = false, onOpenSettings }: { c
           <div className={`service-broadcast-slide ${presentationTypeClass(liveSlide?.itemType ?? "generic")} stage-theme-${liveState?.theme ?? "dark"}`}>
             {!hasLiveBroadcast ? (
               <HoldingPane message={holdingMessage} startingSoon={startingSoon} />
+            ) : liveState?.blanked ? (
+              <div
+                className="lcf-background-surface"
+                aria-label="LCF background"
+                style={{ backgroundImage: `url(${LCF_BACKGROUND_URL})` }}
+              />
             ) : !liveSlide ? (
               <HoldingPane message="The livestream is live" startingSoon />
+            ) : liveSlide.backgroundImageUrl ? (
+              <div
+                className="lcf-background-slide"
+                style={{ backgroundImage: `url(${liveSlide.backgroundImageUrl})` }}
+              >
+                <AutoFitSlideText className="is-title-slide" text={liveSlide.text} maxFontSize={textFontCap} />
+              </div>
             ) : liveSlide.imageUrl ? (
               <ScaledSlideImage alt={liveSlide.title} src={liveSlide.imageUrl} />
             ) : liveSlide.videoUrl ? (

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { PlanItem, RenderedSlide, Song } from "./api";
-import { buildPresentationSections, buildPresentationSlides, resolveLiveIndex, splitOversizedLyricSlide, suggestedSlideFontCap, suggestUniformSlideGroupFontCap } from "./presentation";
+import { LCF_BACKGROUND_URL, buildPresentationSections, buildPresentationSlides, resolveLiveIndex, splitOversizedLyricSlide, suggestedSlideFontCap, suggestUniformSlideGroupFontCap } from "./presentation";
 
 function planItem(overrides: Partial<PlanItem>): PlanItem {
   return {
@@ -75,8 +75,18 @@ describe("presentation slide derivation", () => {
 
     expect(sections.map((section) => section.id)).toEqual(["late-item", "end"]);
     expect(sections[1].slides).toMatchObject([
-      { text: "End", title: "End", slideKind: "title" },
+      { backgroundImageUrl: LCF_BACKGROUND_URL, text: "End", title: "End", slideKind: "title" },
     ]);
+  });
+
+  it("uses the LCF background for contentless transition sections", () => {
+    const slides = buildPresentationSlides([
+      planItem({ id: "welcome", item_type: "welcome", title: "Welcome and prayer" }),
+      planItem({ id: "reading", item_type: "reading", title: "John 3:16", comment: "For God so loved the world." }),
+    ], []);
+
+    expect(slides[0]).toMatchObject({ backgroundImageUrl: LCF_BACKGROUND_URL, text: "Welcome and prayer" });
+    expect(slides[1].backgroundImageUrl).toBeUndefined();
   });
 
   it("expands worship songs from sequence without duplicating stored lyrics", () => {

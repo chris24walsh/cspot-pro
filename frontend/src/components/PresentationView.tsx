@@ -59,6 +59,7 @@ import {
 } from "../api";
 import {
   PRESENTATION_CHANNEL,
+  LCF_BACKGROUND_URL,
   PRESENTATION_STORAGE_KEY,
   buildPresentationSections,
   buildPresentationSlides,
@@ -433,7 +434,14 @@ function renderMiniSlide(
 
   return (
     <div className={`mini-slide-surface stage-theme-${theme} ${presentationTypeClass(slide.itemType)}`}>
-      {slide.imageUrl ? (
+      {slide.backgroundImageUrl ? (
+        <div
+          className="lcf-background-slide"
+          style={{ backgroundImage: `url(${slide.backgroundImageUrl})` }}
+        >
+          <SlideTextBlock compact maxFontSize={maxFontSize} text={slide.text} />
+        </div>
+      ) : slide.imageUrl ? (
         <DeferredMiniSlideImage src={slide.imageUrl} />
       ) : slide.videoUrl ? (
         <div className="mini-video-slide">
@@ -3570,14 +3578,29 @@ export function PresentationView({
                 <span className="stage-slide-counter">{stageSlideCounter}</span>
               </div>
             </div>
-            <div className={`presentation-stage ${liveSlide?.imageUrl || liveSlide?.videoUrl ? "presentation-stage-image" : ""} ${liveBlanked ? "stage-preview-blanked" : ""}`}>
-              {liveBlanked ? null : liveSlide?.imageUrl || liveSlide?.videoUrl || liveSlide?.itemType === "song" || liveSlide?.itemType === "reading" ? null : (
+            <div className={`presentation-stage ${liveSlide?.backgroundImageUrl || liveSlide?.imageUrl || liveSlide?.videoUrl ? "presentation-stage-image" : ""} ${liveBlanked ? "stage-preview-blanked" : ""}`}>
+              {liveBlanked ? null : liveSlide?.backgroundImageUrl || liveSlide?.imageUrl || liveSlide?.videoUrl || liveSlide?.itemType === "song" || liveSlide?.itemType === "reading" ? null : (
                 <div className="stage-title">
                   <span>{liveSlide?.title ?? "Ready"}</span>
                 </div>
               )}
               {liveBlanked ? (
-                <div className="blank-stage preview-blank-stage" aria-label="Blank preview" />
+                <div
+                  className="blank-stage lcf-background-surface"
+                  aria-label="LCF background preview"
+                  style={{ backgroundImage: `url(${LCF_BACKGROUND_URL})` }}
+                />
+              ) : liveSlide?.backgroundImageUrl ? (
+                <div
+                  className="lcf-background-slide"
+                  style={{ backgroundImage: `url(${liveSlide.backgroundImageUrl})` }}
+                >
+                  <SlideTextBlock
+                    className="is-title-slide"
+                    maxFontSize={liveTextFontCap}
+                    text={liveSlide.text}
+                  />
+                </div>
               ) : liveSlide?.imageUrl ? (
                 <ScaledSlideImage alt={liveSlide.title} className="stage-image-frame-preview" src={liveSlide.imageUrl} />
               ) : liveSlide?.videoUrl ? (

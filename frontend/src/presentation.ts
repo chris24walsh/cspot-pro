@@ -1,10 +1,11 @@
 import type { PlanItem, RenderedSlide, Song } from "./api";
-import { appApiBasePath } from "./paths";
+import { appApiBasePath, appAssetUrl } from "./paths";
 import { expandWorshipSlides } from "./worshipText";
 
 export const PRESENTATION_CHANNEL = "cspot-pro-presentation-live";
 export const PRESENTATION_STORAGE_KEY = "cspot-pro:presentation-live";
 export const PRESENTATION_OUTPUT_STATUS_KEY = "cspot-pro:presentation-output-status";
+export const LCF_BACKGROUND_URL = appAssetUrl("images/lcf-background.jpg");
 export type PresentationTheme = "dark" | "light";
 
 export interface PresentationLiveState {
@@ -27,6 +28,7 @@ export interface PresentationSlide {
   sectionTitle: string;
   title: string;
   text: string;
+  backgroundImageUrl?: string;
   imageUrl?: string;
   videoUrl?: string;
   videoProvider?: "youtube" | "file";
@@ -298,6 +300,9 @@ export function buildPresentationSections(
     const song = item.song_id ? songs.find((candidate) => candidate.id === item.song_id) : null;
     const sectionTitle = song?.title ?? item.title;
     const sectionBase = { id: item.id, title: sectionTitle, itemType: item.item_type, plannedStart: item.planned_start };
+    const hasSectionContent = Boolean(
+      item.comment?.trim() || song?.lyrics?.trim() || (item.files ?? []).length,
+    );
 
     const deckSlides = (item.files ?? []).flatMap((file) =>
       (renderedSlidesByFileId[file.file_id] ?? []).map((slide) => {
@@ -356,6 +361,7 @@ export function buildPresentationSections(
           sectionTitle,
           title: sectionTitle,
           text: sectionTitle,
+          backgroundImageUrl: LCF_BACKGROUND_URL,
           itemType: item.item_type,
           sequence: item.sequence,
           slideKind: "title" as const,
@@ -374,6 +380,7 @@ export function buildPresentationSections(
           sectionTitle,
           title: sectionTitle,
           text: sectionTitle,
+          backgroundImageUrl: LCF_BACKGROUND_URL,
           itemType: item.item_type,
           sequence: item.sequence,
           slideKind: "title" as const,
@@ -406,6 +413,7 @@ export function buildPresentationSections(
       sectionTitle,
       title: sectionTitle,
       text: slideTextForItem(item, songs),
+      backgroundImageUrl: hasSectionContent ? undefined : LCF_BACKGROUND_URL,
       itemType: item.item_type,
       sequence: item.sequence,
     };

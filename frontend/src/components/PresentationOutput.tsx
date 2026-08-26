@@ -17,6 +17,7 @@ import {
 } from "../api";
 import {
   PRESENTATION_CHANNEL,
+  LCF_BACKGROUND_URL,
   PRESENTATION_STORAGE_KEY,
   buildPresentationSlides,
   presentationTypeClass,
@@ -601,17 +602,32 @@ export function PresentationOutput({ networkDisplay = false }: PresentationOutpu
       ) : null}
 
       <section
-        className={`slideshow-stage ${liveSlide?.imageUrl || liveSlide?.videoUrl ? "slideshow-stage-image" : ""} stage-theme-${
+        className={`slideshow-stage ${liveSlide?.backgroundImageUrl || liveSlide?.imageUrl || liveSlide?.videoUrl ? "slideshow-stage-image" : ""} stage-theme-${
           liveState?.theme ?? "light"
         } ${liveSlide ? presentationTypeClass(liveSlide.itemType) : "type-generic"} ${blanked ? "stage-blanked" : ""}`}
       >
-        {blanked ? null : !liveSlide?.imageUrl && !liveSlide?.videoUrl && liveSlide?.itemType !== "song" ? (
+        {blanked ? null : !liveSlide?.backgroundImageUrl && !liveSlide?.imageUrl && !liveSlide?.videoUrl && liveSlide?.itemType !== "song" ? (
           <div className="stage-title">
             <span>{liveSlide?.title ?? (networkDisplay ? "TV display ready" : "Ready")}</span>
           </div>
         ) : null}
         {blanked ? (
-          <div className="blank-stage" aria-label="Blank live output" />
+          <div
+            className="blank-stage lcf-background-surface"
+            aria-label="LCF background live output"
+            style={{ backgroundImage: `url(${LCF_BACKGROUND_URL})` }}
+          />
+        ) : liveSlide?.backgroundImageUrl ? (
+          <div
+            className="lcf-background-slide"
+            style={{ backgroundImage: `url(${liveSlide.backgroundImageUrl})` }}
+          >
+            <AutoFitSlideText
+              className="is-title-slide"
+              maxFontSize={liveTextFontCap}
+              text={liveSlide.text}
+            />
+          </div>
         ) : liveSlide?.imageUrl ? (
           <ScaledSlideImage alt={liveSlide.title} src={liveSlide.imageUrl} />
         ) : liveSlide?.videoUrl ? (
