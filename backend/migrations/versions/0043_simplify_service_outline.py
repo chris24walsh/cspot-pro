@@ -16,7 +16,7 @@ depends_on: str | Sequence[str] | None = None
 
 def upgrade() -> None:
     op.execute(
-        "DELETE FROM plan_items WHERE item_type = 'welcome' "
+        "UPDATE plan_items SET deleted_at = CURRENT_TIMESTAMP WHERE item_type = 'welcome' "
         "AND title = 'Welcome, opening word and prayer' "
         "AND comment IS NULL AND song_id IS NULL "
         "AND NOT EXISTS (SELECT 1 FROM item_files WHERE item_files.plan_item_id = plan_items.id)"
@@ -61,7 +61,7 @@ def upgrade() -> None:
         "AND target.comment IS NULL AND target.deleted_at IS NULL)"
     )
     op.execute(
-        "DELETE FROM plan_items WHERE item_type = 'response' "
+        "UPDATE plan_items SET deleted_at = CURRENT_TIMESTAMP WHERE item_type = 'response' "
         "AND title = 'Response, closing song or prayer' "
         "AND comment IS NULL AND song_id IS NULL "
         "AND NOT EXISTS (SELECT 1 FROM item_files WHERE item_files.plan_item_id = plan_items.id)"
