@@ -46,6 +46,7 @@ export interface PresentationSection {
   id: string;
   title: string;
   itemType: string;
+  plannedStart?: string | null;
   slides: PresentationSlide[];
 }
 
@@ -296,6 +297,7 @@ export function buildPresentationSections(
   return orderedItems.map((item) => {
     const song = item.song_id ? songs.find((candidate) => candidate.id === item.song_id) : null;
     const sectionTitle = song?.title ?? item.title;
+    const sectionBase = { id: item.id, title: sectionTitle, itemType: item.item_type, plannedStart: item.planned_start };
 
     const deckSlides = (item.files ?? []).flatMap((file) =>
       (renderedSlidesByFileId[file.file_id] ?? []).map((slide) => {
@@ -322,7 +324,7 @@ export function buildPresentationSections(
     );
 
     if (deckSlides.length) {
-      return { id: item.id, title: sectionTitle, itemType: item.item_type, slides: deckSlides };
+      return { ...sectionBase, slides: deckSlides };
     }
 
     if (item.item_type === "video") {
@@ -341,14 +343,12 @@ export function buildPresentationSections(
         itemType: item.item_type,
         sequence: item.sequence,
       };
-      return { id: item.id, title: sectionTitle, itemType: item.item_type, slides: [slide] };
+      return { ...sectionBase, slides: [slide] };
     }
 
     if (item.item_type === "end") {
       return {
-        id: item.id,
-        title: sectionTitle,
-        itemType: item.item_type,
+        ...sectionBase,
         slides: [{
           id: item.id,
           planItemId: item.id,
@@ -395,7 +395,7 @@ export function buildPresentationSections(
             youtubeAudioUrl: youtubeAudioId ? youtubeEmbedUrl(youtubeAudioId) : undefined,
           };
         });
-        return { id: item.id, title: sectionTitle, itemType: item.item_type, slides: [titleSlide, ...slides] };
+        return { ...sectionBase, slides: [titleSlide, ...slides] };
       }
     }
 
@@ -411,9 +411,7 @@ export function buildPresentationSections(
     };
 
     return {
-      id: item.id,
-      title: sectionTitle,
-      itemType: item.item_type,
+      ...sectionBase,
       slides: [{ ...slide }],
     };
   });

@@ -31,6 +31,7 @@ from app.modules.planning.schemas import (
     WorshipLeaderAssignmentRead,
     WorshipLeaderAssignmentUpdate,
 )
+from app.modules.planning.service_scaffold import ensure_service_scaffold
 
 router = APIRouter()
 PLAN_HISTORY_ACTION = "item_snapshot"
@@ -111,6 +112,7 @@ def plan_item_to_read(session: Session, item: PlanItem) -> PlanItemRead:
         item_type=item.item_type,
         sequence=item.sequence,
         title=item.title,
+        planned_start=item.planned_start,
         comment=item.comment,
         key_signature=item.key_signature,
         files=files,
@@ -240,7 +242,26 @@ def create_plan(
     session.add(plan)
     session.commit()
     session.refresh(plan)
-    return plan_to_detail(session, plan, [])
+    items = ensure_service_scaffold(session, plan)
+    return plan_to_detail(session, plan, items)
+
+
+@router.post("/plans/{plan_id}/service-scaffold", response_model=PlanDetail)
+def add_missing_service_sections(
+    plan_id: str,
+    _current_user: User = Depends(require_any_permission("plans:edit", "plans:create")),
+    session: Session = Depends(get_session),
+) -> PlanDetail:
+    plan = get_plan_or_404(session, plan_id)
+    ensure_service_scaffold(session, plan)
+    items = list(
+        session.scalars(
+            select(PlanItem)
+            .where(PlanItem.plan_id == plan.id, PlanItem.deleted_at.is_(None))
+            .order_by(PlanItem.sequence, PlanItem.created_at)
+        ).all()
+    )
+    return plan_to_detail(session, plan, items)
 
 
 @router.get("/plans/{plan_id}", response_model=PlanDetail)
@@ -307,7 +328,7 @@ def create_plan_history(
     current_user: User = Depends(require_any_permission("plans:edit", "plans:create")),
     session: Session = Depends(get_session),
 ) -> PlanHistoryRead:
-    plan = get_plan_or_404(session, plan_id)
+    get_plan_or_404(session, plan_id)
     details = payload.model_dump(mode="json")
     entry = HistoryEntry(
         actor_id=current_user.id,
@@ -395,11 +416,13 @@ def create_plan_item(
     _current_user: User = Depends(require_any_permission("plans:edit", "plans:create")),
     session: Session = Depends(get_session),
 ) -> PlanItemRead:
-    get_plan_or_404(session, plan_id)
+    plan = get_plan_or_404(session, plan_id)
     item = PlanItem(plan_id=plan_id, **payload.model_dump())
     session.add(item)
     session.commit()
     session.refresh(item)
+    if item.item_type in {"song", "worship_set", "sermon", "message"}:
+        ensure_service_scaffold(session, plan)
     return plan_item_to_read(session, item)
 
 

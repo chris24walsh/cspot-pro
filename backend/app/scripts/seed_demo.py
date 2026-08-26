@@ -64,7 +64,7 @@ def seed_reference_data(session: Session) -> PlanType:
         defaults={
             "description": "Main weekly worship service.",
             "starts_at": "10:30",
-            "default_duration_minutes": 90,
+            "default_duration_minutes": 135,
             "active": True,
         },
     )

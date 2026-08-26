@@ -315,6 +315,15 @@ Slides are derived from plan items by content type:
 - deck-backed items -> one rendered image slide per deck page
 - generic sections -> single text slide
 
+Sunday-service plans are initially populated by
+`planning/service_scaffold.py`. Each standard section carries an optional
+`planned_start` (`HH:mm`) used as a soft running-order cue in planning and in the
+presenter's section rail. Scaffold completion is idempotent and recognizes
+common legacy aliases such as `song`, `message`, and `notices`, so adding missing
+sections does not overwrite or duplicate existing service content. Section type
+also supplies the default automatic broadcast-audio scene; active media playback
+takes precedence.
+
 ### Local presenter sync
 
 The current live output model uses:

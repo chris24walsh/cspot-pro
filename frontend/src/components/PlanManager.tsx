@@ -1,6 +1,7 @@
 import { type FormEvent, useEffect, useMemo, useState } from "react";
 
 import {
+  addMissingServiceSections,
   createPlan,
   createPlanItem,
   deletePlan,
@@ -34,6 +35,7 @@ interface ItemFormState {
   item_type: string;
   sequence: string;
   title: string;
+  planned_start: string;
   comment: string;
   key_signature: string;
   song_id: string;
@@ -85,6 +87,7 @@ function itemFormFromItem(item: PlanItem): ItemFormState {
     item_type: item.item_type,
     sequence: item.sequence,
     title: item.title,
+    planned_start: item.planned_start ?? "",
     comment: item.comment ?? "",
     key_signature: item.key_signature ?? "",
     song_id: item.song_id ?? "",
@@ -96,6 +99,7 @@ function payloadFromItemForm(form: ItemFormState): PlanItemPayload {
     item_type: form.item_type,
     sequence: form.sequence,
     title: form.title,
+    planned_start: form.planned_start || null,
     comment: form.comment || null,
     key_signature: form.key_signature || null,
     song_id: form.song_id || null,
@@ -116,6 +120,7 @@ function blankItemForm(plan: PlanDetail | null): ItemFormState {
     item_type: "custom",
     sequence: nextItemSequence(plan),
     title: "",
+    planned_start: "",
     comment: "",
     key_signature: "",
     song_id: "",
@@ -362,6 +367,19 @@ export function PlanManager({ canCreate, canEdit, onDataChange }: PlanManagerPro
     }
   }
 
+  async function completeServiceScaffold() {
+    if (!selectedPlan) return;
+    setMessage(null);
+    try {
+      const detail = await addMissingServiceSections(selectedPlan.id);
+      setSelectedPlan(detail);
+      onDataChange();
+      setMessage("Missing Sunday service sections added; existing sections were preserved.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not add service sections.");
+    }
+  }
+
   async function removeItem() {
     if (!selectedPlan || !selectedItem) {
       return;
@@ -574,7 +592,7 @@ export function PlanManager({ canCreate, canEdit, onDataChange }: PlanManagerPro
                     <button className="row-main-button" onClick={() => selectItem(item)} type="button">
                       <strong>{item.title}</strong>
                       <span>
-                        {item.sequence} · {item.item_type}
+                        {item.planned_start ? `${item.planned_start} · ` : ""}{item.sequence} · {item.item_type}
                         {item.key_signature ? ` · ${item.key_signature}` : ""}
                       </span>
                     </button>
@@ -602,6 +620,11 @@ export function PlanManager({ canCreate, canEdit, onDataChange }: PlanManagerPro
             <div className="section-heading">
               <h2>{itemMode === "create" ? "New Item" : "Edit Item"}</h2>
               <div className="action-row">
+                {selectedPlan && planTypes.find((type) => type.id === selectedPlan.plan_type_id)?.name === "Sunday Service" ? (
+                  <button className="text-button" disabled={!canEdit} onClick={() => void completeServiceScaffold()} type="button">
+                    Add missing service sections
+                  </button>
+                ) : null}
                 {itemMode === "edit" ? (
                   <button className="danger-button" disabled={!canCreate} onClick={() => void removeItem()} type="button">
                     Remove
@@ -645,12 +668,31 @@ export function PlanManager({ canCreate, canEdit, onDataChange }: PlanManagerPro
                 >
                   <option value="custom">Custom</option>
                   <option value="welcome">Welcome</option>
+                  <option value="pre_service">Pre-service fellowship</option>
+                  <option value="seating">Call to seats</option>
+                  <option value="worship_set">Worship</option>
                   <option value="song">Song</option>
                   <option value="reading">Reading</option>
                   <option value="message">Message</option>
+                  <option value="sermon">Sermon</option>
                   <option value="prayer">Prayer</option>
+                  <option value="sunday_school">Sunday school</option>
+                  <option value="testimony">Testimony / sharing</option>
+                  <option value="response">Response / closing</option>
+                  <option value="announcements">Announcements</option>
                   <option value="video">Video</option>
+                  <option value="end">Dismissal / fellowship</option>
                 </select>
+              </label>
+
+              <label>
+                Planned start
+                <input
+                  disabled={!canEdit}
+                  onChange={(event) => setItemForm({ ...itemForm, planned_start: event.target.value })}
+                  type="time"
+                  value={itemForm.planned_start}
+                />
               </label>
 
               <label>

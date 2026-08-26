@@ -3769,7 +3769,7 @@ export function PresentationView({
                       type="button"
                     >
                       {["song", "reading", "sermon"].includes(section.itemType) ? null : <span>{section.itemType}</span>}
-                      <strong>{section.title}</strong>
+                      <strong>{section.plannedStart ? `${section.plannedStart} · ` : ""}{section.title}</strong>
                       {section.slides.some(
                         (slide) =>
                           !slide.imageUrl &&
@@ -3929,7 +3929,7 @@ export function PresentationView({
                       title={section.title}
                     >
                       <span>{(sectionIndex + 1).toString().padStart(2, "0")}</span>
-                      <strong>{section.title}</strong>
+                      <strong>{section.plannedStart ? `${section.plannedStart} · ` : ""}{section.title}</strong>
                     </button>
                     {canEditPlan || sectionAudioSlide ? (
                       <div className="section-actions">

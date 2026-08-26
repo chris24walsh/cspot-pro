@@ -67,6 +67,12 @@ The app should treat sections as meaningful units such as:
 
 Sections should remain visible and directly navigable while presenting.
 
+New Sunday-service plans begin with a soft-timed scaffold covering pre-service
+fellowship, seating, welcome and prayer, worship, Sunday-school dismissal,
+testimony, sermon, response, announcements, and dismissal. These are editable
+planning cues rather than enforced clock transitions. Existing Sunday plans can
+add only their missing standard sections, preserving their current content.
+
 ### 3. Different content types behave differently
 
 Not all service content should be processed the same way.

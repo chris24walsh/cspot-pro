@@ -17,6 +17,7 @@ class PlanItemBase(BaseModel):
     item_type: str = "custom"
     sequence: Decimal = Field(decimal_places=2)
     title: str
+    planned_start: str | None = Field(default=None, pattern=r"^([01]\d|2[0-3]):[0-5]\d$")
     comment: str | None = None
     key_signature: str | None = None
     song_id: str | None = None
@@ -30,6 +31,7 @@ class PlanItemUpdate(BaseModel):
     item_type: str | None = None
     sequence: Decimal | None = Field(default=None, decimal_places=2)
     title: str | None = None
+    planned_start: str | None = Field(default=None, pattern=r"^([01]\d|2[0-3]):[0-5]\d$")
     comment: str | None = None
     key_signature: str | None = None
     song_id: str | None = None
@@ -48,6 +50,7 @@ class PlanItemHistorySnapshot(BaseModel):
     item_type: str
     sequence: str
     title: str
+    planned_start: str | None = None
     comment: str | None = None
     key_signature: str | None = None
     song_id: str | None = None

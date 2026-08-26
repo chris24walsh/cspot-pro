@@ -47,6 +47,7 @@ class PlanItem(IdMixin, TimestampMixin, Base):
     item_type: Mapped[str] = mapped_column(String(80), default="custom")
     sequence: Mapped[Decimal] = mapped_column(Numeric(8, 2))
     title: Mapped[str] = mapped_column(String(180))
+    planned_start: Mapped[str | None] = mapped_column(String(5))
     comment: Mapped[str | None] = mapped_column(Text)
     key_signature: Mapped[str | None] = mapped_column(String(20))
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

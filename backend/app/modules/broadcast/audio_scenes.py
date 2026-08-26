@@ -35,4 +35,6 @@ def automatic_scene_for_item(item_type: str | None, video_action: str | None) ->
         return "media"
     if item_type == "song":
         return "worship"
+    if item_type in {"pre_service", "seating", "testimony", "sharing", "end", "post_service"}:
+        return "congregation"
     return "pastor"
