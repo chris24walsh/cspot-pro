@@ -102,7 +102,7 @@ def _auth_error(detail: str = "Authentication required") -> HTTPException:
 
 
 def get_current_user(
-    session: Session = Depends(get_session),
+    session: Session = Depends(get_session, scope="function"),
     session_token: Annotated[str | None, Cookie(alias=SESSION_COOKIE_NAME)] = None,
 ) -> User:
     if not session_token:
@@ -123,13 +123,13 @@ def get_current_user(
     return user
 
 
-CurrentUser = Annotated[User, Depends(get_current_user)]
+CurrentUser = Annotated[User, Depends(get_current_user, scope="function")]
 
 
 def require_permission(permission_name: str) -> Callable[[User, Session], User]:
     def dependency(
         current_user: CurrentUser,
-        session: Session = Depends(get_session),
+        session: Session = Depends(get_session, scope="function"),
     ) -> User:
         permissions = permissions_for_roles(list_authorization_role_names(session, current_user.id))
         if permission_name not in permissions:
@@ -145,7 +145,7 @@ def require_permission(permission_name: str) -> Callable[[User, Session], User]:
 def require_any_permission(*permission_names: str) -> Callable[[User, Session], User]:
     def dependency(
         current_user: CurrentUser,
-        session: Session = Depends(get_session),
+        session: Session = Depends(get_session, scope="function"),
     ) -> User:
         permissions = permissions_for_roles(list_authorization_role_names(session, current_user.id))
         if permissions.intersection(permission_names):

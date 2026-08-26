@@ -399,7 +399,7 @@ def update_manual_livestream(
 @router.get("/live-audio")
 def live_audio(
     current_user: CurrentUser,
-    session: Session = Depends(get_session),
+    session: Session = Depends(get_session, scope="function"),
 ) -> StreamingResponse:
     settings = viewer_settings(session)
     manual_audience = settings.manual_live_audience or "off"
@@ -465,7 +465,7 @@ def live_audio(
 def test_audio_source(
     source_id: str,
     _current_user: User = Depends(require_permission("broadcast:use")),
-    session: Session = Depends(get_session),
+    session: Session = Depends(get_session, scope="function"),
 ) -> StreamingResponse:
     source = next(
         (
