@@ -27,6 +27,7 @@ import {
 } from "../presentation";
 import { isWorshipSetPlan, matchingWorshipSetForService, mergeWorshipSetIntoService } from "../worshipSets";
 import { AutoFitSlideText } from "./AutoFitSlideText";
+import { CountdownSlide } from "./CountdownSlide";
 import { ScaledSlideImage } from "./ScaledSlideImage";
 
 const AUDIO_FADE_DURATION_MS = 2000;
@@ -617,6 +618,8 @@ export function PresentationOutput({ networkDisplay = false }: PresentationOutpu
             aria-label="LCF background live output"
             style={{ backgroundImage: `url(${LCF_BACKGROUND_URL})` }}
           />
+        ) : liveSlide?.countdownSeconds ? (
+          <CountdownSlide durationSeconds={liveSlide.countdownSeconds} startAt={liveState?.updatedAt} />
         ) : liveSlide?.backgroundImageUrl ? (
           <div
             className="lcf-background-slide"

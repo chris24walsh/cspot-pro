@@ -77,6 +77,7 @@ import { calendarDatesAround, sundayDatesAround } from "../leaderSchedule";
 import { AutoFitSlideText } from "./AutoFitSlideText";
 import { useConfirmationDialog } from "./ConfirmationDialog";
 import { CalendarPopup } from "./CalendarPopup";
+import { CountdownSlide } from "./CountdownSlide";
 import { DateNavigator, formatNavigatorDate } from "./DateNavigator";
 import { ScaledSlideImage } from "./ScaledSlideImage";
 import { SongEditorDialog } from "./SongEditorDialog";
@@ -434,7 +435,12 @@ function renderMiniSlide(
 
   return (
     <div className={`mini-slide-surface stage-theme-${theme} ${presentationTypeClass(slide.itemType)}`}>
-      {slide.backgroundImageUrl ? (
+      {slide.countdownSeconds ? (
+        <div className="mini-countdown-slide">
+          <span>Starts in</span>
+          <strong>5:00</strong>
+        </div>
+      ) : slide.backgroundImageUrl ? (
         <div
           className="lcf-background-slide"
           style={{ backgroundImage: `url(${slide.backgroundImageUrl})` }}
@@ -3588,6 +3594,11 @@ export function PresentationView({
                   className="blank-stage lcf-background-surface"
                   aria-label="LCF background preview"
                   style={{ backgroundImage: `url(${LCF_BACKGROUND_URL})` }}
+                />
+              ) : liveSlide?.countdownSeconds ? (
+                <CountdownSlide
+                  durationSeconds={liveSlide.countdownSeconds}
+                  startAt={currentLiveStateRef.current?.updatedAt}
                 />
               ) : liveSlide?.backgroundImageUrl ? (
                 <div

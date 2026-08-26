@@ -6,6 +6,7 @@ export const PRESENTATION_CHANNEL = "cspot-pro-presentation-live";
 export const PRESENTATION_STORAGE_KEY = "cspot-pro:presentation-live";
 export const PRESENTATION_OUTPUT_STATUS_KEY = "cspot-pro:presentation-output-status";
 export const LCF_BACKGROUND_URL = appAssetUrl("images/lcf-background.jpg");
+export const SUNDAY_SCHOOL_BACKGROUND_URL = appAssetUrl("images/sunday-school-transition.png");
 export type PresentationTheme = "dark" | "light";
 
 export interface PresentationLiveState {
@@ -29,6 +30,7 @@ export interface PresentationSlide {
   title: string;
   text: string;
   backgroundImageUrl?: string;
+  countdownSeconds?: number;
   imageUrl?: string;
   videoUrl?: string;
   videoProvider?: "youtube" | "file";
@@ -300,6 +302,7 @@ export function buildPresentationSections(
     const song = item.song_id ? songs.find((candidate) => candidate.id === item.song_id) : null;
     const sectionTitle = song?.title ?? item.title;
     const sectionBase = { id: item.id, title: sectionTitle, itemType: item.item_type, plannedStart: item.planned_start };
+    const normalizedItemType = item.item_type.trim().toLowerCase();
     const hasSectionContent = Boolean(
       item.comment?.trim() || song?.lyrics?.trim() || (item.files ?? []).length,
     );
@@ -380,7 +383,6 @@ export function buildPresentationSections(
           sectionTitle,
           title: sectionTitle,
           text: sectionTitle,
-          backgroundImageUrl: LCF_BACKGROUND_URL,
           itemType: item.item_type,
           sequence: item.sequence,
           slideKind: "title" as const,
@@ -412,8 +414,13 @@ export function buildPresentationSections(
       sectionId: item.id,
       sectionTitle,
       title: sectionTitle,
-      text: slideTextForItem(item, songs),
-      backgroundImageUrl: hasSectionContent ? undefined : LCF_BACKGROUND_URL,
+      text: ["seating", "countdown"].includes(normalizedItemType) ? "" : slideTextForItem(item, songs),
+      backgroundImageUrl: normalizedItemType === "sunday_school"
+        ? SUNDAY_SCHOOL_BACKGROUND_URL
+        : !hasSectionContent && !["seating", "countdown"].includes(normalizedItemType)
+          ? LCF_BACKGROUND_URL
+          : undefined,
+      countdownSeconds: ["seating", "countdown"].includes(normalizedItemType) ? 300 : undefined,
       itemType: item.item_type,
       sequence: item.sequence,
     };

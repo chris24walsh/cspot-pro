@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { PlanItem, RenderedSlide, Song } from "./api";
-import { LCF_BACKGROUND_URL, buildPresentationSections, buildPresentationSlides, resolveLiveIndex, splitOversizedLyricSlide, suggestedSlideFontCap, suggestUniformSlideGroupFontCap } from "./presentation";
+import { LCF_BACKGROUND_URL, SUNDAY_SCHOOL_BACKGROUND_URL, buildPresentationSections, buildPresentationSlides, resolveLiveIndex, splitOversizedLyricSlide, suggestedSlideFontCap, suggestUniformSlideGroupFontCap } from "./presentation";
 
 function planItem(overrides: Partial<PlanItem>): PlanItem {
   return {
@@ -89,6 +89,17 @@ describe("presentation slide derivation", () => {
     expect(slides[1].backgroundImageUrl).toBeUndefined();
   });
 
+  it("uses dedicated countdown and Sunday-school transition slides", () => {
+    const slides = buildPresentationSlides([
+      planItem({ id: "seating", item_type: "seating", title: "Call to seats" }),
+      planItem({ id: "sunday-school", item_type: "sunday_school", title: "Sunday school prayer and dismissal" }),
+    ], []);
+
+    expect(slides[0]).toMatchObject({ countdownSeconds: 300, text: "" });
+    expect(slides[0].backgroundImageUrl).toBeUndefined();
+    expect(slides[1].backgroundImageUrl).toBe(SUNDAY_SCHOOL_BACKGROUND_URL);
+  });
+
   it("expands worship songs from sequence without duplicating stored lyrics", () => {
     const item = planItem({ id: "song-item", item_type: "song", song_id: "song-1", title: "Ignored" });
     const songs = [
@@ -136,6 +147,7 @@ describe("presentation slide derivation", () => {
     const songContent = slides.find((slide) => slide.itemType === "song" && slide.slideKind === "content");
     const reading = slides.find((slide) => slide.itemType === "reading");
 
+    expect(songTitle?.backgroundImageUrl).toBeUndefined();
     expect(suggestedSlideFontCap(songTitle)).toBe(64);
     expect(suggestedSlideFontCap(songContent)).toBe(52);
     expect(suggestedSlideFontCap(reading)).toBe(68);

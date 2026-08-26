@@ -33,6 +33,7 @@ import { isBroadcastStartingSoon } from "../broadcastTiming";
 import { isWorshipSetPlan, matchingWorshipSetForService, mergeWorshipSetIntoService } from "../worshipSets";
 import { AutoFitSlideText } from "./AutoFitSlideText";
 import { AudioMixerPanel } from "./AudioMixerPanel";
+import { CountdownSlide } from "./CountdownSlide";
 import { LiveStreamAudio, LowLatencyCamera } from "./LowLatencyCamera";
 import { ScaledSlideImage } from "./ScaledSlideImage";
 
@@ -399,6 +400,8 @@ export function ServiceBroadcastView({ canControl = false, onOpenSettings }: { c
               />
             ) : !liveSlide ? (
               <HoldingPane message="The livestream is live" startingSoon />
+            ) : liveSlide.countdownSeconds ? (
+              <CountdownSlide durationSeconds={liveSlide.countdownSeconds} startAt={liveState?.updatedAt} />
             ) : liveSlide.backgroundImageUrl ? (
               <div
                 className="lcf-background-slide"
