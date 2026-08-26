@@ -10,7 +10,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
-from app.core.database import get_session
+from app.core.database import SessionLocal, get_session
 from app.modules.identity.models import Role, ServingArea, User, UserRole, VolunteerPreference
 from app.modules.identity.permissions import (
     SERVING_AREA_ROLES,
@@ -102,7 +102,6 @@ def _auth_error(detail: str = "Authentication required") -> HTTPException:
 
 
 def get_current_user(
-    session: Session = Depends(get_session, scope="function"),
     session_token: Annotated[str | None, Cookie(alias=SESSION_COOKIE_NAME)] = None,
 ) -> User:
     if not session_token:
@@ -117,19 +116,21 @@ def get_current_user(
     if not isinstance(user_id, str):
         raise _auth_error("Invalid session")
 
-    user = session.get(User, user_id)
-    if user is None or not user.active:
-        raise _auth_error("User is not active")
-    return user
+    with SessionLocal() as session:
+        user = session.get(User, user_id)
+        if user is None or not user.active:
+            raise _auth_error("User is not active")
+        session.expunge(user)
+        return user
 
 
-CurrentUser = Annotated[User, Depends(get_current_user, scope="function")]
+CurrentUser = Annotated[User, Depends(get_current_user)]
 
 
 def require_permission(permission_name: str) -> Callable[[User, Session], User]:
     def dependency(
         current_user: CurrentUser,
-        session: Session = Depends(get_session, scope="function"),
+        session: Session = Depends(get_session),
     ) -> User:
         permissions = permissions_for_roles(list_authorization_role_names(session, current_user.id))
         if permission_name not in permissions:
@@ -145,7 +146,7 @@ def require_permission(permission_name: str) -> Callable[[User, Session], User]:
 def require_any_permission(*permission_names: str) -> Callable[[User, Session], User]:
     def dependency(
         current_user: CurrentUser,
-        session: Session = Depends(get_session, scope="function"),
+        session: Session = Depends(get_session),
     ) -> User:
         permissions = permissions_for_roles(list_authorization_role_names(session, current_user.id))
         if permissions.intersection(permission_names):

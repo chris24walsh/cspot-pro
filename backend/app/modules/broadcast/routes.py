@@ -465,7 +465,7 @@ def live_audio(
 def test_audio_source(
     source_id: str,
     _current_user: User = Depends(require_permission("broadcast:use")),
-    session: Session = Depends(get_session, scope="function"),
+    session: Session = Depends(get_session),
 ) -> StreamingResponse:
     source = next(
         (
