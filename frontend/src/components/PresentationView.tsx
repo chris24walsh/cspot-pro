@@ -438,9 +438,8 @@ function renderMiniSlide(
         <div
           className="lcf-background-slide"
           style={{ backgroundImage: `url(${slide.backgroundImageUrl})` }}
-        >
-          <SlideTextBlock compact maxFontSize={maxFontSize} text={slide.text} />
-        </div>
+          aria-label={slide.title}
+        />
       ) : slide.imageUrl ? (
         <DeferredMiniSlideImage src={slide.imageUrl} />
       ) : slide.videoUrl ? (
@@ -3594,13 +3593,8 @@ export function PresentationView({
                 <div
                   className="lcf-background-slide"
                   style={{ backgroundImage: `url(${liveSlide.backgroundImageUrl})` }}
-                >
-                  <SlideTextBlock
-                    className="is-title-slide"
-                    maxFontSize={liveTextFontCap}
-                    text={liveSlide.text}
-                  />
-                </div>
+                  aria-label={liveSlide.title}
+                />
               ) : liveSlide?.imageUrl ? (
                 <ScaledSlideImage alt={liveSlide.title} className="stage-image-frame-preview" src={liveSlide.imageUrl} />
               ) : liveSlide?.videoUrl ? (

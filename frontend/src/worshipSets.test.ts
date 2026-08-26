@@ -65,8 +65,28 @@ describe("worship set merge", () => {
     );
 
     expect(merged.map((entry) => entry.id)).toEqual(["welcome", "song-a", "song-b", "sermon"]);
-    expect(merged[1].sequence).toBe("20.0001");
-    expect(merged[2].sequence).toBe("20.0002");
+    expect(merged[1].sequence).toBe("10.0001");
+    expect(merged[2].sequence).toBe("10.0002");
+  });
+
+  it("always places worship immediately after welcome even when its placeholder was moved later", () => {
+    const merged = mergeWorshipSetIntoService(
+      [
+        item("welcome", "30.00", "welcome"),
+        item("sunday-school", "40.00", "sunday_school"),
+        item("anchor", "50.00", WORSHIP_SET_ANCHOR_ITEM_TYPE),
+        item("sermon", "70.00", "sermon"),
+      ],
+      [item("song-a", "10.00", "song", "song-a"), item("song-b", "20.00", "song", "song-b")],
+    );
+
+    expect(merged.map((entry) => entry.id)).toEqual([
+      "welcome",
+      "song-a",
+      "song-b",
+      "sunday-school",
+      "sermon",
+    ]);
   });
 
   it("falls back to service items without anchors when no worship songs exist", () => {

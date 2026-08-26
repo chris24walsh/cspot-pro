@@ -84,14 +84,29 @@ export function mergeWorshipSetIntoService(serviceItems: PlanItem[], worshipSetI
     .filter((item) => item.item_type === "song")
     .map((item) => Number.parseFloat(item.sequence))
     .find((sequence) => Number.isFinite(sequence));
-  const insertionSequence = anchorSequence ?? firstServiceSongSequence ?? 30;
   const serviceWithoutSongs = sortedServiceItems.filter((item) => item.item_type !== "song" && item.item_type !== WORSHIP_SET_ANCHOR_ITEM_TYPE);
-  const serviceBeforeWorship = serviceWithoutSongs.filter((item) => (Number.parseFloat(item.sequence) || 0) < insertionSequence);
-  const serviceAfterWorship = serviceWithoutSongs.filter((item) => (Number.parseFloat(item.sequence) || 0) >= insertionSequence);
+  const welcomeIndex = serviceWithoutSongs.findIndex((item) => ["welcome", "opening"].includes(normalized(item.item_type)));
+  const welcomeSequence = welcomeIndex >= 0
+    ? Number.parseFloat(serviceWithoutSongs[welcomeIndex]?.sequence ?? "")
+    : Number.NaN;
+  const insertionSequence = Number.isFinite(welcomeSequence)
+    ? welcomeSequence
+    : anchorSequence ?? firstServiceSongSequence ?? 30;
   const mergedSongs = songs.map((item, index) => ({
     ...item,
     sequence: (insertionSequence + (index + 1) / 10000).toFixed(4),
   }));
+
+  if (welcomeIndex >= 0) {
+    return [
+      ...serviceWithoutSongs.slice(0, welcomeIndex + 1),
+      ...mergedSongs,
+      ...serviceWithoutSongs.slice(welcomeIndex + 1),
+    ];
+  }
+
+  const serviceBeforeWorship = serviceWithoutSongs.filter((item) => (Number.parseFloat(item.sequence) || 0) < insertionSequence);
+  const serviceAfterWorship = serviceWithoutSongs.filter((item) => (Number.parseFloat(item.sequence) || 0) >= insertionSequence);
 
   return [...serviceBeforeWorship, ...mergedSongs, ...serviceAfterWorship];
 }

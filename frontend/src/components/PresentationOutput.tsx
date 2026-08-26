@@ -621,13 +621,8 @@ export function PresentationOutput({ networkDisplay = false }: PresentationOutpu
           <div
             className="lcf-background-slide"
             style={{ backgroundImage: `url(${liveSlide.backgroundImageUrl})` }}
-          >
-            <AutoFitSlideText
-              className="is-title-slide"
-              maxFontSize={liveTextFontCap}
-              text={liveSlide.text}
-            />
-          </div>
+            aria-label={liveSlide.title}
+          />
         ) : liveSlide?.imageUrl ? (
           <ScaledSlideImage alt={liveSlide.title} src={liveSlide.imageUrl} />
         ) : liveSlide?.videoUrl ? (

@@ -403,9 +403,8 @@ export function ServiceBroadcastView({ canControl = false, onOpenSettings }: { c
               <div
                 className="lcf-background-slide"
                 style={{ backgroundImage: `url(${liveSlide.backgroundImageUrl})` }}
-              >
-                <AutoFitSlideText className="is-title-slide" text={liveSlide.text} maxFontSize={textFontCap} />
-              </div>
+                aria-label={liveSlide.title}
+              />
             ) : liveSlide.imageUrl ? (
               <ScaledSlideImage alt={liveSlide.title} src={liveSlide.imageUrl} />
             ) : liveSlide.videoUrl ? (
