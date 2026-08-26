@@ -169,9 +169,10 @@ def recording_audio(
     path = Path(recording.audio_file_path or recording.file_path) if recording else None
     if not recording or not path or not path.is_file() or recording.status != "ready":
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Recording not found")
-    return FileResponse(
-        path, media_type=recording.content_type or "audio/webm", filename=recording.file_name
-    )
+    content_type = recording.content_type or "audio/webm"
+    file_name = recording.file_name
+    session.close()
+    return FileResponse(path, media_type=content_type, filename=file_name)
 
 
 def viewer_settings(session: Session) -> BroadcastViewerSettings:
@@ -417,6 +418,10 @@ def live_audio(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Live audio is not configured",
         )
+    # Streaming responses can remain open for hours. Release the request's
+    # pooled database connection before starting FFmpeg so every listener does
+    # not occupy one connection for the lifetime of the stream.
+    session.close()
     try:
         control_port = allocate_control_port()
         process = subprocess.Popen(
@@ -472,6 +477,7 @@ def test_audio_source(
     )
     if source is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Audio source not found")
+    session.close()
     try:
         upstream = requests.get(source.url, stream=True, timeout=(5, None))
         upstream.raise_for_status()
