@@ -33,7 +33,6 @@ export function PreServiceSlide({
   const images = imageUrls.filter(Boolean);
   const phase = preServicePhaseAt(serviceDate, now);
   const montageImageUrl = images[Math.floor(now / 12_000) % Math.max(images.length, 1)];
-  const imageUrl = phase === "montage" || phase === "countdown" ? montageImageUrl : backgroundImageUrl;
   const remaining = Math.max(0, Math.ceil((serviceDayTimestamp(serviceDate, 11, 0) - now) / 1000));
 
   useEffect(() => {
@@ -44,8 +43,14 @@ export function PreServiceSlide({
   return (
     <div
       className={`pre-service-slide is-${phase}`}
-      style={imageUrl ? { backgroundImage: `url(${imageUrl})` } : undefined}
+      style={backgroundImageUrl ? { backgroundImage: `url(${backgroundImageUrl})` } : undefined}
     >
+      {images.length && phase !== "waiting" ? (
+        <div
+          className="pre-service-photo-layer"
+          style={{ backgroundImage: `url(${montageImageUrl})` }}
+        />
+      ) : null}
       {phase === "countdown" ? <div className="pre-service-shade" /> : null}
       {phase === "countdown" ? (
         <div className="pre-service-countdown" aria-live="off">

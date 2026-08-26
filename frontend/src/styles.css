@@ -7960,6 +7960,32 @@ button.musician-page {
   width: 100%;
 }
 
+@keyframes slide-visual-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.slide-visual-transition {
+  animation: slide-visual-fade-in 320ms ease-out both;
+  display: grid;
+  height: 100%;
+  min-height: 0;
+  place-items: center;
+  width: 100%;
+}
+
+.service-broadcast-slide > .slide-visual-transition {
+  aspect-ratio: 16 / 9;
+  max-height: 100%;
+  max-width: 100%;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .slide-visual-transition {
+    animation-duration: 1ms;
+  }
+}
+
 .lcf-background-slide,
 .lcf-background-surface {
   background-position: center;
@@ -8035,6 +8061,20 @@ button.musician-page {
   overflow: hidden;
   position: relative;
   width: 100%;
+}
+
+.pre-service-photo-layer {
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: cover;
+  inset: 0;
+  opacity: 1;
+  position: absolute;
+  transition: opacity 420ms ease-out;
+}
+
+.pre-service-slide.is-complete .pre-service-photo-layer {
+  opacity: 0;
 }
 
 .pre-service-shade {

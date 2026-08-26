@@ -624,6 +624,7 @@ export function PresentationOutput({ networkDisplay = false }: PresentationOutpu
             <span>{liveSlide?.title ?? (networkDisplay ? "TV display ready" : "Ready")}</span>
           </div>
         ) : null}
+        <div className="slide-visual-transition" key={blanked ? "blank" : liveSlide?.id ?? "ready"}>
         {blanked ? (
           <div
             className="blank-stage lcf-background-surface"
@@ -702,6 +703,7 @@ export function PresentationOutput({ networkDisplay = false }: PresentationOutpu
             />
           </>
         )}
+        </div>
       </section>
       {liveSlide?.itemType === "pre_service" && preServiceAudioUrl && plan ? <PreServiceMusic serviceDate={plan.service_date} url={preServiceAudioUrl} /> : null}
     </main>

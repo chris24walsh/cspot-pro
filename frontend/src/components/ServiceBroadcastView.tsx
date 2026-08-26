@@ -121,7 +121,9 @@ export function ServiceBroadcastView({ canControl = false, onOpenSettings }: { c
     () => buildPresentationSlides(mergeWorshipSetIntoService(plan?.items ?? [], worshipSetPlan?.items ?? []), songs, renderedSlidesByFileId),
     [plan, worshipSetPlan, renderedSlidesByFileId, songs],
   );
-  const liveSlide = !liveState || liveState.blanked ? null : slides[resolveLiveIndex(slides, liveState)] ?? null;
+  // Blanking is a visual overlay, not the end of the underlying live slide.
+  // Keeping the slide selected also keeps its camera/audio routing alive.
+  const liveSlide = !liveState ? null : slides[resolveLiveIndex(slides, liveState)] ?? null;
   const preServiceLive = liveSlide?.itemType === "pre_service";
   const hasLiveBroadcast = Boolean((plan && remoteLiveState) || settings.manual_live_audience !== "off");
   const upcomingService = plan ?? nextService;
@@ -360,6 +362,7 @@ export function ServiceBroadcastView({ canControl = false, onOpenSettings }: { c
       <div className="service-broadcast-grid">
         <section className="service-broadcast-slide-pane" aria-label="Live presentation">
           <div className={`service-broadcast-slide ${presentationTypeClass(liveSlide?.itemType ?? "generic")} stage-theme-${liveState?.theme ?? "dark"}`}>
+            <div className="slide-visual-transition" key={!hasLiveBroadcast ? "offline" : liveState?.blanked ? "blank" : liveSlide?.id ?? "live"}>
             {!hasLiveBroadcast ? (
               <HoldingPane message={holdingMessage} startingSoon={startingSoon} />
             ) : liveState?.blanked ? (
@@ -396,6 +399,7 @@ export function ServiceBroadcastView({ canControl = false, onOpenSettings }: { c
                 />
               </div>
             )}
+            </div>
           </div>
         </section>
 

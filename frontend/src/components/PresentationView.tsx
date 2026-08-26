@@ -3691,6 +3691,7 @@ export function PresentationView({
                   <span>{liveSlide?.title ?? "Ready"}</span>
                 </div>
               )}
+              <div className="slide-visual-transition" key={liveBlanked ? "blank" : liveSlide?.id ?? "ready"}>
               {liveBlanked ? (
                 <div
                   className="blank-stage lcf-background-surface"
@@ -3732,6 +3733,7 @@ export function PresentationView({
                   text={liveSlide?.text ?? "No live slide selected"}
                 />
               )}
+              </div>
             </div>
           </div>
 
