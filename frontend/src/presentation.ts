@@ -6,7 +6,6 @@ export const PRESENTATION_CHANNEL = "cspot-pro-presentation-live";
 export const PRESENTATION_STORAGE_KEY = "cspot-pro:presentation-live";
 export const PRESENTATION_OUTPUT_STATUS_KEY = "cspot-pro:presentation-output-status";
 export const LCF_BACKGROUND_URL = appAssetUrl("images/lcf-background.jpg");
-export const CHURCH_FAMILY_BACKGROUND_URL = appAssetUrl("images/church-family-transition.png");
 export type PresentationTheme = "dark" | "light";
 
 export interface PresentationLiveState {
@@ -436,9 +435,7 @@ export function buildPresentationSections(
       sectionTitle,
       title: sectionTitle,
       text: ["seating", "countdown"].includes(normalizedItemType) ? "" : slideTextForItem(item, songs),
-      backgroundImageUrl: ["community", "sunday_school", "testimony", "sharing"].includes(normalizedItemType)
-        ? CHURCH_FAMILY_BACKGROUND_URL
-        : !hasSectionContent && !["seating", "countdown"].includes(normalizedItemType)
+      backgroundImageUrl: !hasSectionContent && !["seating", "countdown"].includes(normalizedItemType)
           ? LCF_BACKGROUND_URL
           : undefined,
       countdownSeconds: ["seating", "countdown"].includes(normalizedItemType) ? 300 : undefined,

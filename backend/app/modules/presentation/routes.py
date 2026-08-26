@@ -118,6 +118,19 @@ def ensure_scheduled_pre_service(session: Session) -> None:
         return
     latest = _latest_session(session, plan.id)
     if latest and latest.status == "live" and latest.ended_at is None:
+        position = _latest_position(session, latest.id)
+        payload = _position_payload(position)
+        active_item = session.get(PlanItem, position.plan_item_id) if position else None
+        if (
+            payload.get("auto_started") is True
+            and active_item is not None
+            and active_item.item_type == "pre_service"
+        ):
+            broadcast_settings = session.scalar(select(BroadcastViewerSettings).limit(1))
+            if broadcast_settings and broadcast_settings.audio_scene_automation:
+                desired_scene = "pastor" if now_local.hour >= 11 else "media"
+                if broadcast_settings.active_audio_scene != desired_scene:
+                    activate_audio_scene(session, broadcast_settings, desired_scene)
         return
     first_item = session.scalar(
         select(PlanItem)

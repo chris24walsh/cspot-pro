@@ -631,7 +631,7 @@ export function PresentationOutput({ networkDisplay = false }: PresentationOutpu
             style={{ backgroundImage: `url(${LCF_BACKGROUND_URL})` }}
           />
         ) : liveSlide?.montageImageUrls && plan ? (
-          <PreServiceSlide imageUrls={liveSlide.montageImageUrls} serviceDate={plan.service_date} />
+          <PreServiceSlide backgroundImageUrl={LCF_BACKGROUND_URL} imageUrls={liveSlide.montageImageUrls} serviceDate={plan.service_date} />
         ) : liveSlide?.countdownSeconds ? (
           <CountdownSlide durationSeconds={liveSlide.countdownSeconds} startAt={liveState?.updatedAt} />
         ) : liveSlide?.backgroundImageUrl ? (
@@ -703,7 +703,7 @@ export function PresentationOutput({ networkDisplay = false }: PresentationOutpu
           </>
         )}
       </section>
-      {liveSlide?.itemType === "pre_service" && preServiceAudioUrl ? <PreServiceMusic url={preServiceAudioUrl} /> : null}
+      {liveSlide?.itemType === "pre_service" && preServiceAudioUrl && plan ? <PreServiceMusic serviceDate={plan.service_date} url={preServiceAudioUrl} /> : null}
     </main>
   );
 }

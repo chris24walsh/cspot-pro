@@ -44,7 +44,7 @@ def test_empty_sunday_service_gets_complete_timed_scaffold() -> None:
     session, plan = scaffold_session()
     try:
         created = ensure_service_scaffold(session, plan)
-        assert len(created) == 7
+        assert len(created) == 5
         assert [(item.item_type, item.planned_start) for item in created] == [
             (section.item_type, section.planned_start) for section in SUNDAY_SERVICE_SCAFFOLD
         ]

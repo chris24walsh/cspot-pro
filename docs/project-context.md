@@ -67,14 +67,13 @@ The app should treat sections as meaningful units such as:
 
 Sections should remain visible and directly navigable while presenting.
 
-New Sunday-service plans begin with seven soft-timed sections. The opening
-Welcome merges fellowship and seating into a 10:30 photo montage with relaxing
-music and a countdown that grows prominent for the final five minutes. Church
-Family is the neutral transition for children, prayer, testimony, or other
-congregational participation. Announcements and fellowship merges the closing
-segments and provides the slot for an imported announcements deck. These are
-editable planning cues rather than enforced clock transitions. Existing Sunday
-plans can add only their missing standard sections, preserving their content.
+New Sunday-service plans begin with five simple sections: Welcome, Worship,
+Open time, Sermon, and Announcements. Welcome merges fellowship and seating: its
+photo montage and relaxing music begin at 10:30, its countdown appears only at
+10:55, and the LCF background replaces both at 11:00. Open time is a neutral LCF
+background transition. Empty Sermon and Announcements sections are clickable
+deck placeholders; imported decks replace their filler backgrounds. Existing
+Sunday plans can add only their missing standard sections, preserving content.
 
 ### 3. Different content types behave differently
 

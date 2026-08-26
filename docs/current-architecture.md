@@ -316,11 +316,11 @@ Slides are derived from plan items by content type:
 - generic sections -> single text slide
 
 Sunday-service plans are initially populated by
-`planning/service_scaffold.py`. Each standard section carries an optional
-`planned_start` (`HH:mm`) used as a soft running-order cue in planning and in the
-presenter's section rail. The seven-section scaffold combines pre-service and
-seating as Welcome, Sunday-school/sharing as Church Family, and announcements/
-dismissal as Announcements and fellowship. Scaffold completion is idempotent and
+`planning/service_scaffold.py`. `planned_start` remains available as plan-item
+metadata, but the five-section scaffold leaves it unset and the presenter keeps
+headings uncluttered. The scaffold is Welcome, Worship, Open time, Sermon, and
+Announcements.
+Scaffold completion is idempotent and
 recognizes the older item aliases, so adding missing sections does not overwrite
 or duplicate existing service content. Section type also supplies the default
 automatic broadcast-audio scene; active media playback takes precedence.
@@ -329,15 +329,18 @@ Pre-service montage images are global `StoredFile` records in the
 `Pre-service Montage` category. Admins and presenters can manage them from the
 Welcome section. At 10:30 Europe/Dublin time, an open network display or viewer
 poll creates the scheduled live presentation for that day's Sunday service,
-selects its first item, and activates the Media audio scene. The montage rotates
-every 12 seconds, its 11:00 countdown becomes dominant in the final five
-minutes, and the configured pre-service audio URL loops alongside it. The
+selects Welcome, and activates the Media audio scene. The montage and configured
+music begin at 10:30. The 11:00 countdown appears at 10:55; when it expires,
+music and montage stop and Welcome displays the LCF background. The
 scheduled session is exposed only during that service day's 10:30–13:30 window.
 Browser policy may require one sound-enabling click for YouTube sources; direct
 audio URLs can autoplay.
 
-The combined announcements section accepts an imported Google Drive deck on the
-existing item. Building that deck from website events or rota/maintenance data
+Empty Sermon and Announcements sections open Google Drive deck search when
+clicked. A general deck import targets the canonical Sermon placeholder; an
+Announcements click targets Announcements. Existing standalone Google Drive
+sermon imports are folded into the placeholder by migration. Building an
+announcements deck from website events or rota/maintenance data
 is an integration boundary: those upstream systems must expose dated structured
 records before cSpot can reliably generate the slides.
 

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { PlanItem, RenderedSlide, Song } from "./api";
-import { CHURCH_FAMILY_BACKGROUND_URL, LCF_BACKGROUND_URL, buildPresentationSections, buildPresentationSlides, resolveLiveIndex, splitOversizedLyricSlide, suggestedSlideFontCap, suggestUniformSlideGroupFontCap } from "./presentation";
+import { LCF_BACKGROUND_URL, buildPresentationSections, buildPresentationSlides, resolveLiveIndex, splitOversizedLyricSlide, suggestedSlideFontCap, suggestUniformSlideGroupFontCap } from "./presentation";
 
 function planItem(overrides: Partial<PlanItem>): PlanItem {
   return {
@@ -89,15 +89,12 @@ describe("presentation slide derivation", () => {
     expect(slides[1].backgroundImageUrl).toBeUndefined();
   });
 
-  it("uses dedicated countdown and Church Family transition slides", () => {
+  it("uses the LCF background for Open time", () => {
     const slides = buildPresentationSlides([
-      planItem({ id: "seating", item_type: "seating", title: "Call to seats" }),
-      planItem({ id: "community", item_type: "community", title: "Church Family" }),
+      planItem({ id: "open-time", item_type: "open_time", title: "Open time" }),
     ], []);
 
-    expect(slides[0]).toMatchObject({ countdownSeconds: 300, text: "" });
-    expect(slides[0].backgroundImageUrl).toBeUndefined();
-    expect(slides[1].backgroundImageUrl).toBe(CHURCH_FAMILY_BACKGROUND_URL);
+    expect(slides[0]).toMatchObject({ backgroundImageUrl: LCF_BACKGROUND_URL, text: "Open time" });
   });
 
   it("turns pre-service photos into one montage slide", () => {

@@ -14,7 +14,7 @@ class ServiceSectionTemplate:
     sequence: Decimal
     item_type: str
     title: str
-    planned_start: str
+    planned_start: str | None
     aliases: frozenset[str]
 
 
@@ -23,41 +23,27 @@ SUNDAY_SERVICE_SCAFFOLD = (
         Decimal("10"),
         "pre_service",
         "Welcome",
-        "10:30",
-        frozenset({"pre_service", "seating", "countdown"}),
+        None,
+        frozenset({"pre_service", "welcome", "opening", "seating", "countdown"}),
     ),
     ServiceSectionTemplate(
-        Decimal("20"),
-        "welcome",
-        "Welcome, opening word and prayer",
-        "11:00",
-        frozenset({"welcome", "opening"}),
+        Decimal("20"), "worship_set", "Worship", None, frozenset({"worship_set", "song"})
     ),
     ServiceSectionTemplate(
-        Decimal("30"), "worship_set", "Worship", "11:05", frozenset({"worship_set", "song"})
+        Decimal("30"),
+        "open_time",
+        "Open time",
+        None,
+        frozenset({"open_time", "community", "sunday_school", "testimony", "sharing"}),
     ),
     ServiceSectionTemplate(
-        Decimal("40"),
-        "community",
-        "Church Family",
-        "11:35",
-        frozenset({"community", "sunday_school", "testimony", "sharing"}),
+        Decimal("40"), "sermon", "Sermon", None, frozenset({"sermon", "message"})
     ),
     ServiceSectionTemplate(
-        Decimal("50"), "sermon", "Sermon / message", "11:50", frozenset({"sermon", "message"})
-    ),
-    ServiceSectionTemplate(
-        Decimal("60"),
-        "response",
-        "Response, closing song or prayer",
-        "12:30",
-        frozenset({"response", "closing"}),
-    ),
-    ServiceSectionTemplate(
-        Decimal("70"),
+        Decimal("50"),
         "announcements",
-        "Announcements and fellowship",
-        "12:40",
+        "Announcements",
+        None,
         frozenset({"announcements", "notices", "end", "dismissal", "post_service"}),
     ),
 )

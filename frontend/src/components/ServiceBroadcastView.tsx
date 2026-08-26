@@ -22,7 +22,6 @@ import {
 import { activeCameraIdAt, cameraAudioUrl, cameraServicePhase, go2RtcAudioStreamUrl } from "../broadcastCamera";
 import {
   buildPresentationSlides,
-  extractYouTubeId,
   LCF_BACKGROUND_URL,
   presentationTypeClass,
   resolveLiveIndex,
@@ -99,39 +98,6 @@ function HoldingPane({ message, startingSoon }: { message: string; startingSoon:
   );
 }
 
-function preServiceYouTubeUrl(videoId: string) {
-  return `https://www.youtube-nocookie.com/embed/${videoId}?autoplay=1&mute=1&loop=1&playlist=${videoId}&rel=0&modestbranding=1&playsinline=1&enablejsapi=1`;
-}
-
-function PreServiceYouTubePane({ videoId }: { videoId: string }) {
-  const frameRef = useRef<HTMLIFrameElement | null>(null);
-  const [muted, setMuted] = useState(true);
-
-  function enableSound() {
-    frameRef.current?.contentWindow?.postMessage(JSON.stringify({ event: "command", func: "unMute", args: [] }), "*");
-    frameRef.current?.contentWindow?.postMessage(JSON.stringify({ event: "command", func: "playVideo", args: [] }), "*");
-    setMuted(false);
-  }
-
-  return (
-    <div className="service-broadcast-camera-player">
-      <iframe
-        allow="autoplay; encrypted-media; picture-in-picture"
-        allowFullScreen
-        className="service-broadcast-camera-media service-broadcast-preservice-video"
-        ref={frameRef}
-        src={preServiceYouTubeUrl(videoId)}
-        title="Pre-service worship"
-      />
-      {muted ? (
-        <button className="service-broadcast-camera-overlay" onClick={enableSound} type="button">
-          Turn on sound
-        </button>
-      ) : null}
-    </div>
-  );
-}
-
 export function ServiceBroadcastView({ canControl = false, onOpenSettings }: { canControl?: boolean; onOpenSettings?: () => void }) {
   const shellRef = useRef<HTMLElement | null>(null);
   const pollInFlightRef = useRef(false);
@@ -161,7 +127,6 @@ export function ServiceBroadcastView({ canControl = false, onOpenSettings }: { c
   const upcomingService = plan ?? nextService;
   const startingSoon = !hasLiveBroadcast && isBroadcastStartingSoon(upcomingService?.service_date, Date.now(), settings.pre_service_minutes);
   const holdingMessage = startingSoon ? settings.starting_soon_message : settings.offline_message;
-  const preServiceYouTubeId = extractYouTubeId(settings.pre_service_audio_url);
   const currentCameraPhase = cameraServicePhase(liveSlide?.itemType, liveSlide?.sectionTitle);
   const activeCameraId = activeCameraIdAt(
     settings.camera_sources,
@@ -406,7 +371,7 @@ export function ServiceBroadcastView({ canControl = false, onOpenSettings }: { c
             ) : !liveSlide ? (
               <HoldingPane message="The livestream is live" startingSoon />
             ) : liveSlide.montageImageUrls && plan ? (
-              <PreServiceSlide imageUrls={liveSlide.montageImageUrls} serviceDate={plan.service_date} />
+              <PreServiceSlide backgroundImageUrl={LCF_BACKGROUND_URL} imageUrls={liveSlide.montageImageUrls} serviceDate={plan.service_date} />
             ) : liveSlide.countdownSeconds ? (
               <CountdownSlide durationSeconds={liveSlide.countdownSeconds} startAt={liveState?.updatedAt} />
             ) : liveSlide.backgroundImageUrl ? (
@@ -454,8 +419,6 @@ export function ServiceBroadcastView({ canControl = false, onOpenSettings }: { c
               </div>
             ) : hasLiveBroadcast ? (
               <HoldingPane message="Camera stream is not configured" startingSoon={false} />
-            ) : startingSoon && preServiceYouTubeId ? (
-              <PreServiceYouTubePane videoId={preServiceYouTubeId} />
             ) : (
               <HoldingPane message={holdingMessage} startingSoon={startingSoon} />
             )}
@@ -478,10 +441,10 @@ export function ServiceBroadcastView({ canControl = false, onOpenSettings }: { c
         </section>
       </div>
 
-      {hasLiveBroadcast && ((preServiceLive && settings.pre_service_audio_url) || liveAudioUrl || canControl) ? (
+      {hasLiveBroadcast && ((preServiceLive && settings.pre_service_audio_url && plan) || liveAudioUrl || canControl) ? (
         <div className={`service-broadcast-viewer-controls ${canControl ? "has-admin-controls" : ""}`}>
-          {preServiceLive && settings.pre_service_audio_url ? (
-            <PreServiceMusic url={settings.pre_service_audio_url} />
+          {preServiceLive && settings.pre_service_audio_url && plan ? (
+            <PreServiceMusic serviceDate={plan.service_date} url={settings.pre_service_audio_url} />
           ) : liveAudioUrl ? (
             <LiveStreamAudio label={selectedAudioCamera ? `${selectedAudioCamera.label} audio` : selectedIndependentAudio?.label ?? "Live service audio"} url={liveAudioUrl} />
           ) : null}
@@ -544,12 +507,6 @@ export function ServiceBroadcastView({ canControl = false, onOpenSettings }: { c
         </div>
       ) : null}
 
-      {startingSoon && settings.pre_service_audio_url && !preServiceYouTubeId ? (
-        <div className="service-broadcast-preservice-audio">
-          <span>Pre-service worship</span>
-          <audio autoPlay controls loop src={settings.pre_service_audio_url} />
-        </div>
-      ) : null}
     </section>
   );
 }
