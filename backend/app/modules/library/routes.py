@@ -1,23 +1,23 @@
-from hashlib import sha256
 import json
-from pathlib import Path
 import re
 import shutil
 import subprocess
 import tempfile
+from hashlib import sha256
+from pathlib import Path
 from threading import Lock
 from uuid import uuid4
+from xml.etree import ElementTree
 from zipfile import ZIP_DEFLATED, ZipFile
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Response, UploadFile, status
 from fastapi.responses import FileResponse
 from sqlalchemy import case, or_, select
 from sqlalchemy.orm import Session
-from xml.etree import ElementTree
 
 from app.core.database import get_session
+from app.modules.identity.auth import require_any_permission, require_permission
 from app.modules.identity.models import User
-from app.modules.identity.auth import CurrentUser, require_any_permission, require_permission
 from app.modules.library.bible_data import normalize_book_name
 from app.modules.library.models import (
     BibleBook,
@@ -30,20 +30,20 @@ from app.modules.library.models import (
     StoredFile,
 )
 from app.modules.library.schemas import (
-    BibleVersionRead,
     BibleBookRead,
     BiblePassageRead,
     BibleSearchHitRead,
+    BibleVersionRead,
     FileCategoryRead,
     ItemFileCreate,
     ItemFileRead,
     PlanResourceCreate,
     PlanResourceRead,
     PlanResourceUpdate,
+    RenderedSlideRead,
     ResourceCreate,
     ResourceRead,
     ResourceUpdate,
-    RenderedSlideRead,
     StoredFileRead,
 )
 from app.modules.planning.routes import get_item_or_404, get_plan_or_404
@@ -52,6 +52,7 @@ router = APIRouter()
 UPLOAD_ROOT = Path("/app/storage/uploads")
 RENDER_ROOT = Path("/app/storage/rendered")
 RENDER_PIPELINE_VERSION = "libreoffice-pdf-png-v5"
+PRE_SERVICE_CATEGORY_NAME = "Pre-service Montage"
 LIBREOFFICE_RENDER_TIMEOUT_SECONDS = 300
 PDF_TO_PNG_RENDER_TIMEOUT_SECONDS = 300
 PDF_TO_PNG_DPI = 120
@@ -117,6 +118,20 @@ def stored_file_to_read(file: StoredFile) -> StoredFileRead:
         checksum=file.checksum,
         flatten_builds=file.flatten_builds,
     )
+
+
+def pre_service_category(session: Session) -> FileCategory:
+    category = session.scalar(
+        select(FileCategory).where(FileCategory.name == PRE_SERVICE_CATEGORY_NAME)
+    )
+    if category is None:
+        category = FileCategory(
+            name=PRE_SERVICE_CATEGORY_NAME,
+            description="Photos shown during the pre-service welcome montage.",
+        )
+        session.add(category)
+        session.flush()
+    return category
 
 
 def item_file_to_read(session: Session, row: ItemFile) -> ItemFileRead:
@@ -922,10 +937,85 @@ async def upload_file(
     return stored_file_to_read(stored)
 
 
+@router.get("/pre-service-media", response_model=list[StoredFileRead])
+def list_pre_service_media(
+    _current_user: User = Depends(require_any_permission("plans:read", "presentation:use")),
+    session: Session = Depends(get_session),
+) -> list[StoredFileRead]:
+    category = session.scalar(
+        select(FileCategory).where(FileCategory.name == PRE_SERVICE_CATEGORY_NAME)
+    )
+    if category is None:
+        return []
+    files = session.scalars(
+        select(StoredFile)
+        .where(StoredFile.category_id == category.id, StoredFile.content_type.like("image/%"))
+        .order_by(StoredFile.created_at, StoredFile.display_name)
+    ).all()
+    return [stored_file_to_read(stored) for stored in files]
+
+
+@router.post(
+    "/pre-service-media",
+    response_model=StoredFileRead,
+    status_code=status.HTTP_201_CREATED,
+)
+async def upload_pre_service_media(
+    upload: UploadFile = File(...),
+    display_name: str | None = Form(default=None),
+    current_user: User = Depends(require_any_permission("presentation:use", "users:manage")),
+    session: Session = Depends(get_session),
+) -> StoredFileRead:
+    if not upload.content_type or not upload.content_type.startswith("image/"):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Pre-service montage files must be images.",
+        )
+    category = pre_service_category(session)
+    UPLOAD_ROOT.mkdir(parents=True, exist_ok=True)
+    original_name = upload.filename or "pre-service-photo"
+    storage_name = f"{uuid4()}-{Path(original_name).name}"
+    storage_path = UPLOAD_ROOT / storage_name
+    digest = sha256()
+    with storage_path.open("wb") as output:
+        while chunk := await upload.read(1024 * 1024):
+            digest.update(chunk)
+            output.write(chunk)
+    stored = StoredFile(
+        category_id=category.id,
+        uploaded_by_id=current_user.id,
+        display_name=display_name or original_name,
+        storage_path=str(storage_path),
+        content_type=upload.content_type,
+        checksum=digest.hexdigest(),
+    )
+    session.add(stored)
+    session.commit()
+    session.refresh(stored)
+    return stored_file_to_read(stored)
+
+
+@router.delete("/pre-service-media/{file_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_pre_service_media(
+    file_id: str,
+    _current_user: User = Depends(require_any_permission("presentation:use", "users:manage")),
+    session: Session = Depends(get_session),
+) -> Response:
+    stored = _stored_file_or_404(session, file_id)
+    category = session.get(FileCategory, stored.category_id) if stored.category_id else None
+    if category is None or category.name != PRE_SERVICE_CATEGORY_NAME:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Photo not found")
+    storage_path = Path(stored.storage_path)
+    session.delete(stored)
+    session.commit()
+    storage_path.unlink(missing_ok=True)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
 @router.get("/files/{file_id}/download")
 def download_file(
     file_id: str,
-    _current_user: User = Depends(require_permission("library:read")),
+    _current_user: User = Depends(require_any_permission("library:read", "plans:read")),
     session: Session = Depends(get_session),
 ) -> FileResponse:
     stored = _stored_file_or_404(session, file_id)

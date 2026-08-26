@@ -1406,6 +1406,21 @@ export async function uploadStoredFile(payload: {
   return uploadForm<StoredFile>("/api/v1/library/files", body);
 }
 
+export async function getPreServiceMedia(): Promise<StoredFile[]> {
+  return getJson<StoredFile[]>("/api/v1/library/pre-service-media");
+}
+
+export async function uploadPreServiceMedia(file: File): Promise<StoredFile> {
+  const body = new FormData();
+  body.set("upload", file);
+  body.set("display_name", file.name);
+  return uploadForm<StoredFile>("/api/v1/library/pre-service-media", body);
+}
+
+export async function deletePreServiceMedia(fileId: string): Promise<void> {
+  return deleteRequest(`/api/v1/library/pre-service-media/${fileId}`);
+}
+
 export async function getItemFiles(planItemId: string): Promise<ItemFile[]> {
   return getJson<ItemFile[]>(`/api/v1/library/items/${planItemId}/files`);
 }

@@ -12,9 +12,27 @@ from app.modules.presentation.routes import (
     PresentationOutputStatusWrite,
     _serialize_live_state,
     _serialize_output_status,
+    scheduled_service_window_active,
     update_presentation_live_state,
     update_presentation_output_status,
 )
+
+
+def test_scheduled_service_window_is_limited_to_the_service_day() -> None:
+    plan = SimpleNamespace(service_date=datetime(2026, 8, 30, 9, 30, tzinfo=UTC))
+
+    assert scheduled_service_window_active(
+        plan, datetime(2026, 8, 30, 10, 30, tzinfo=UTC)
+    )
+    assert scheduled_service_window_active(
+        plan, datetime(2026, 8, 30, 12, 30, tzinfo=UTC)
+    )
+    assert not scheduled_service_window_active(
+        plan, datetime(2026, 8, 30, 12, 31, tzinfo=UTC)
+    )
+    assert not scheduled_service_window_active(
+        plan, datetime(2026, 9, 6, 10, 30, tzinfo=UTC)
+    )
 
 
 def test_live_state_serializes_payload_over_legacy_columns() -> None:

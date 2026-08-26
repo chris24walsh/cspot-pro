@@ -1,9 +1,10 @@
 import json
 from datetime import UTC, datetime
+from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
-from sqlalchemy import func, select
+from sqlalchemy import case, func, select
 from sqlalchemy.orm import Session
 
 from app.core.database import get_session
@@ -79,6 +80,87 @@ class PresentationLiveServiceRead(BaseModel):
 
 
 OUTPUT_STALE_MS = 7000
+SERVICE_TIME_ZONE = ZoneInfo("Europe/Dublin")
+
+
+def scheduled_service_window_active(plan: Plan, now: datetime | None = None) -> bool:
+    now_local = now.astimezone(SERVICE_TIME_ZONE) if now else datetime.now(SERVICE_TIME_ZONE)
+    service_local = plan.service_date.astimezone(SERVICE_TIME_ZONE)
+    if service_local.date() != now_local.date():
+        return False
+    scheduled_start = now_local.replace(hour=10, minute=30, second=0, microsecond=0)
+    scheduled_end = now_local.replace(hour=13, minute=30, second=0, microsecond=0)
+    return scheduled_start <= now_local <= scheduled_end
+
+
+def ensure_scheduled_pre_service(session: Session) -> None:
+    now_local = datetime.now(SERVICE_TIME_ZONE)
+    scheduled_start = now_local.replace(hour=10, minute=30, second=0, microsecond=0)
+    scheduled_end = now_local.replace(hour=13, minute=30, second=0, microsecond=0)
+    if not scheduled_start <= now_local <= scheduled_end:
+        return
+    plan_type = session.scalar(select(PlanType).where(PlanType.name == "Sunday Service"))
+    if plan_type is None:
+        return
+    day_start = now_local.replace(hour=0, minute=0, second=0, microsecond=0).astimezone(UTC)
+    day_end = now_local.replace(hour=23, minute=59, second=59, microsecond=999999).astimezone(UTC)
+    plan = session.scalar(
+        select(Plan)
+        .where(
+            Plan.plan_type_id == plan_type.id,
+            Plan.deleted_at.is_(None),
+            Plan.service_date >= day_start,
+            Plan.service_date <= day_end,
+        )
+        .order_by(Plan.service_date)
+    )
+    if plan is None:
+        return
+    latest = _latest_session(session, plan.id)
+    if latest and latest.status == "live" and latest.ended_at is None:
+        return
+    first_item = session.scalar(
+        select(PlanItem)
+        .where(PlanItem.plan_id == plan.id, PlanItem.deleted_at.is_(None))
+        .order_by(
+            case((PlanItem.item_type == "pre_service", 0), else_=1),
+            PlanItem.sequence,
+            PlanItem.created_at,
+        )
+    )
+    if first_item is None:
+        return
+    presentation_session = PresentationSession(
+        plan_id=plan.id,
+        status="live",
+        started_at=datetime.now(UTC),
+    )
+    session.add(presentation_session)
+    session.flush()
+    now_ms = int(datetime.now(UTC).timestamp() * 1000)
+    session.add(
+        PresentationPosition(
+            session_id=presentation_session.id,
+            plan_item_id=first_item.id,
+            slide_index=0,
+            payload_json=json.dumps(
+                {
+                    "index": 0,
+                    "plan_item_id": first_item.id,
+                    "slide_offset": 0,
+                    "updated_at": now_ms,
+                    "theme": "dark",
+                    "blanked": False,
+                    "fullscreen": False,
+                    "auto_started": True,
+                }
+            ),
+        )
+    )
+    session.commit()
+    broadcast_settings = session.scalar(select(BroadcastViewerSettings).limit(1))
+    if broadcast_settings and broadcast_settings.audio_scene_automation:
+        activate_audio_scene(session, broadcast_settings, "media")
 
 
 def _position_payload(position: PresentationPosition | None) -> dict[str, object]:
@@ -169,6 +251,7 @@ def list_live_presentation_services(
     _current_user: User = Depends(require_permission("plans:read")),
     session: Session = Depends(get_session),
 ) -> list[PresentationLiveServiceRead]:
+    ensure_scheduled_pre_service(session)
     now = int(datetime.now(UTC).timestamp() * 1000)
     presentation_sessions = session.scalars(
         select(PresentationSession)
@@ -189,13 +272,19 @@ def list_live_presentation_services(
             continue
         position = _latest_position(session, presentation_session.id)
         output_status = _serialize_output_status(plan.id, position, now)
+        payload = _position_payload(position)
+        auto_started = payload.get("auto_started") is True
+        if auto_started and not scheduled_service_window_active(plan):
+            continue
         if (
-            not output_status.active
-            or not output_status.owner_id
-            or output_status.heartbeat_at is None
+            not auto_started
+            and (
+                not output_status.active
+                or not output_status.owner_id
+                or output_status.heartbeat_at is None
+            )
         ):
             continue
-        payload = _position_payload(position)
         plan_type = session.get(PlanType, plan.plan_type_id)
         item_count = session.scalar(
             select(func.count(PlanItem.id)).where(
@@ -220,8 +309,8 @@ def list_live_presentation_services(
                 ),
                 slide_offset=int(payload.get("slide_offset", 0)),
                 updated_at=int(payload.get("updated_at", 0)),
-                output_owner_id=output_status.owner_id,
-                output_heartbeat_at=output_status.heartbeat_at,
+                output_owner_id=output_status.owner_id or "scheduled",
+                output_heartbeat_at=output_status.heartbeat_at or now,
             )
         )
         seen_plan_ids.add(plan.id)

@@ -6,7 +6,7 @@ export const PRESENTATION_CHANNEL = "cspot-pro-presentation-live";
 export const PRESENTATION_STORAGE_KEY = "cspot-pro:presentation-live";
 export const PRESENTATION_OUTPUT_STATUS_KEY = "cspot-pro:presentation-output-status";
 export const LCF_BACKGROUND_URL = appAssetUrl("images/lcf-background.jpg");
-export const SUNDAY_SCHOOL_BACKGROUND_URL = appAssetUrl("images/sunday-school-transition.png");
+export const CHURCH_FAMILY_BACKGROUND_URL = appAssetUrl("images/church-family-transition.png");
 export type PresentationTheme = "dark" | "light";
 
 export interface PresentationLiveState {
@@ -31,6 +31,7 @@ export interface PresentationSlide {
   text: string;
   backgroundImageUrl?: string;
   countdownSeconds?: number;
+  montageImageUrls?: string[];
   imageUrl?: string;
   videoUrl?: string;
   videoProvider?: "youtube" | "file";
@@ -307,6 +308,26 @@ export function buildPresentationSections(
       item.comment?.trim() || song?.lyrics?.trim() || (item.files ?? []).length,
     );
 
+    if (normalizedItemType === "pre_service") {
+      const montageImageUrls = (item.files ?? [])
+        .filter((file) => file.content_type?.startsWith("image/"))
+        .map((file) => storedFileDownloadUrl(file.file_id));
+      return {
+        ...sectionBase,
+        slides: [{
+          id: item.id,
+          planItemId: item.id,
+          sectionId: item.id,
+          sectionTitle,
+          title: sectionTitle,
+          text: "",
+          montageImageUrls: montageImageUrls.length ? montageImageUrls : [LCF_BACKGROUND_URL],
+          itemType: item.item_type,
+          sequence: item.sequence,
+        }],
+      };
+    }
+
     const deckSlides = (item.files ?? []).flatMap((file) =>
       (renderedSlidesByFileId[file.file_id] ?? []).map((slide) => {
         const originalIndex = slide.original_index ?? slide.index;
@@ -415,8 +436,8 @@ export function buildPresentationSections(
       sectionTitle,
       title: sectionTitle,
       text: ["seating", "countdown"].includes(normalizedItemType) ? "" : slideTextForItem(item, songs),
-      backgroundImageUrl: normalizedItemType === "sunday_school"
-        ? SUNDAY_SCHOOL_BACKGROUND_URL
+      backgroundImageUrl: ["community", "sunday_school", "testimony", "sharing"].includes(normalizedItemType)
+        ? CHURCH_FAMILY_BACKGROUND_URL
         : !hasSectionContent && !["seating", "countdown"].includes(normalizedItemType)
           ? LCF_BACKGROUND_URL
           : undefined,

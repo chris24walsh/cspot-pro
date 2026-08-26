@@ -521,6 +521,7 @@ function App() {
             canCreatePlan={canCreatePlans}
             canDeletePlan={canDeletePlans}
             canEditPlan={canEditPlans}
+            canManagePreServiceMedia={canUsePresentation || canManageUsers}
             canCreateSong={canCreateSongs}
             canEditSong={canEditSongs}
             canEditSlideNotes={canEditSlideNotes}
@@ -552,6 +553,7 @@ function App() {
             canCreatePlan={canCreatePlans}
             canDeletePlan={canDeletePlans}
             canEditPlan={canEditPlans}
+            canManagePreServiceMedia={canUsePresentation || canManageUsers}
             canCreateSong={canCreateSongs}
             canEditSong={canEditSongs}
             canEditSlideNotes={canEditSlideNotes}

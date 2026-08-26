@@ -33,8 +33,10 @@ def activate_audio_scene(
 def automatic_scene_for_item(item_type: str | None, video_action: str | None) -> str:
     if video_action == "play":
         return "media"
+    if item_type == "pre_service":
+        return "media"
     if item_type == "song":
         return "worship"
-    if item_type in {"pre_service", "seating", "testimony", "sharing", "end", "post_service"}:
+    if item_type in {"seating", "testimony", "sharing", "community", "end", "post_service"}:
         return "congregation"
     return "pastor"

@@ -34,6 +34,8 @@ import { isWorshipSetPlan, matchingWorshipSetForService, mergeWorshipSetIntoServ
 import { AutoFitSlideText } from "./AutoFitSlideText";
 import { AudioMixerPanel } from "./AudioMixerPanel";
 import { CountdownSlide } from "./CountdownSlide";
+import { PreServiceSlide } from "./PreServiceSlide";
+import { PreServiceMusic } from "./PreServiceMusic";
 import { LiveStreamAudio, LowLatencyCamera } from "./LowLatencyCamera";
 import { ScaledSlideImage } from "./ScaledSlideImage";
 
@@ -154,6 +156,7 @@ export function ServiceBroadcastView({ canControl = false, onOpenSettings }: { c
     [plan, worshipSetPlan, renderedSlidesByFileId, songs],
   );
   const liveSlide = !liveState || liveState.blanked ? null : slides[resolveLiveIndex(slides, liveState)] ?? null;
+  const preServiceLive = liveSlide?.itemType === "pre_service";
   const hasLiveBroadcast = Boolean((plan && remoteLiveState) || settings.manual_live_audience !== "off");
   const upcomingService = plan ?? nextService;
   const startingSoon = !hasLiveBroadcast && isBroadcastStartingSoon(upcomingService?.service_date, Date.now(), settings.pre_service_minutes);
@@ -340,7 +343,9 @@ export function ServiceBroadcastView({ canControl = false, onOpenSettings }: { c
     const deckFiles = mergeWorshipSetIntoService(plan?.items ?? [], worshipSetPlan?.items ?? []).flatMap((item) =>
       item.item_type === "video"
         ? []
-        : (item.files ?? []).filter((file) => !file.content_type?.startsWith("video/")),
+        : (item.files ?? []).filter(
+            (file) => !file.content_type?.startsWith("video/") && !file.content_type?.startsWith("image/"),
+          ),
     );
     if (!deckFiles.length) {
       setRenderedSlidesByFileId({});
@@ -400,6 +405,8 @@ export function ServiceBroadcastView({ canControl = false, onOpenSettings }: { c
               />
             ) : !liveSlide ? (
               <HoldingPane message="The livestream is live" startingSoon />
+            ) : liveSlide.montageImageUrls && plan ? (
+              <PreServiceSlide imageUrls={liveSlide.montageImageUrls} serviceDate={plan.service_date} />
             ) : liveSlide.countdownSeconds ? (
               <CountdownSlide durationSeconds={liveSlide.countdownSeconds} startAt={liveState?.updatedAt} />
             ) : liveSlide.backgroundImageUrl ? (
@@ -471,9 +478,13 @@ export function ServiceBroadcastView({ canControl = false, onOpenSettings }: { c
         </section>
       </div>
 
-      {hasLiveBroadcast && (liveAudioUrl || canControl) ? (
+      {hasLiveBroadcast && ((preServiceLive && settings.pre_service_audio_url) || liveAudioUrl || canControl) ? (
         <div className={`service-broadcast-viewer-controls ${canControl ? "has-admin-controls" : ""}`}>
-          {liveAudioUrl ? <LiveStreamAudio label={selectedAudioCamera ? `${selectedAudioCamera.label} audio` : selectedIndependentAudio?.label ?? "Live service audio"} url={liveAudioUrl} /> : null}
+          {preServiceLive && settings.pre_service_audio_url ? (
+            <PreServiceMusic url={settings.pre_service_audio_url} />
+          ) : liveAudioUrl ? (
+            <LiveStreamAudio label={selectedAudioCamera ? `${selectedAudioCamera.label} audio` : selectedIndependentAudio?.label ?? "Live service audio"} url={liveAudioUrl} />
+          ) : null}
           {canControl ? (
             <div className="service-broadcast-admin-live-controls" aria-label="Quick livestream controls">
               <label className="service-broadcast-live-select">

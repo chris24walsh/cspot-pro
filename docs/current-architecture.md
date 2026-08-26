@@ -318,11 +318,28 @@ Slides are derived from plan items by content type:
 Sunday-service plans are initially populated by
 `planning/service_scaffold.py`. Each standard section carries an optional
 `planned_start` (`HH:mm`) used as a soft running-order cue in planning and in the
-presenter's section rail. Scaffold completion is idempotent and recognizes
-common legacy aliases such as `song`, `message`, and `notices`, so adding missing
-sections does not overwrite or duplicate existing service content. Section type
-also supplies the default automatic broadcast-audio scene; active media playback
-takes precedence.
+presenter's section rail. The seven-section scaffold combines pre-service and
+seating as Welcome, Sunday-school/sharing as Church Family, and announcements/
+dismissal as Announcements and fellowship. Scaffold completion is idempotent and
+recognizes the older item aliases, so adding missing sections does not overwrite
+or duplicate existing service content. Section type also supplies the default
+automatic broadcast-audio scene; active media playback takes precedence.
+
+Pre-service montage images are global `StoredFile` records in the
+`Pre-service Montage` category. Admins and presenters can manage them from the
+Welcome section. At 10:30 Europe/Dublin time, an open network display or viewer
+poll creates the scheduled live presentation for that day's Sunday service,
+selects its first item, and activates the Media audio scene. The montage rotates
+every 12 seconds, its 11:00 countdown becomes dominant in the final five
+minutes, and the configured pre-service audio URL loops alongside it. The
+scheduled session is exposed only during that service day's 10:30–13:30 window.
+Browser policy may require one sound-enabling click for YouTube sources; direct
+audio URLs can autoplay.
+
+The combined announcements section accepts an imported Google Drive deck on the
+existing item. Building that deck from website events or rota/maintenance data
+is an integration boundary: those upstream systems must expose dated structured
+records before cSpot can reliably generate the slides.
 
 ### Local presenter sync
 

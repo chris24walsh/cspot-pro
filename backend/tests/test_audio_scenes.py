@@ -13,6 +13,8 @@ from app.modules.broadcast.schemas import BroadcastViewerSettingsUpdate
 def test_presentation_state_selects_expected_scene() -> None:
     assert automatic_scene_for_item("song", None) == "worship"
     assert automatic_scene_for_item("sermon", None) == "pastor"
+    assert automatic_scene_for_item("pre_service", None) == "media"
+    assert automatic_scene_for_item("community", None) == "congregation"
     assert automatic_scene_for_item("song", "play") == "media"
     assert automatic_scene_for_item("video", "stop") == "pastor"
 

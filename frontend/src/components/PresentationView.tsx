@@ -11,6 +11,7 @@ import {
   createPlanItem,
   attachItemFile,
   deletePlan,
+  deletePreServiceMedia,
   getGoogleDriveStatus,
   deletePlanItem,
   getFileSlides,
@@ -22,6 +23,7 @@ import {
   getPlan,
   getPlans,
   getPlanTypes,
+  getPreServiceMedia,
   getPresentationLiveState,
   getBroadcastRecordings,
   getPlanHistory,
@@ -35,6 +37,7 @@ import {
   startBroadcastRecording,
   stopBroadcastRecording,
   uploadStoredFile,
+  uploadPreServiceMedia,
   updatePlan,
   updatePresentationOutputStatus,
   updatePresentationLiveState,
@@ -56,6 +59,7 @@ import {
   type PlanSummary,
   type PlanType,
   type Song,
+  type StoredFile,
 } from "../api";
 import {
   PRESENTATION_CHANNEL,
@@ -68,6 +72,7 @@ import {
   resolveLiveIndex,
   suggestSlideGroupFontCap,
   suggestedSlideFontCap,
+  storedFileDownloadUrl,
   type PresentationSlide,
   type PresentationLiveState,
   type PresentationTheme,
@@ -78,6 +83,7 @@ import { AutoFitSlideText } from "./AutoFitSlideText";
 import { useConfirmationDialog } from "./ConfirmationDialog";
 import { CalendarPopup } from "./CalendarPopup";
 import { CountdownSlide } from "./CountdownSlide";
+import { PreServiceSlide } from "./PreServiceSlide";
 import { DateNavigator, formatNavigatorDate } from "./DateNavigator";
 import { ScaledSlideImage } from "./ScaledSlideImage";
 import { SongEditorDialog } from "./SongEditorDialog";
@@ -435,7 +441,15 @@ function renderMiniSlide(
 
   return (
     <div className={`mini-slide-surface stage-theme-${theme} ${presentationTypeClass(slide.itemType)}`}>
-      {slide.countdownSeconds ? (
+      {slide.montageImageUrls ? (
+        <div
+          className="mini-slide-photo"
+          style={{ backgroundImage: `url(${slide.montageImageUrls[0]})` }}
+        >
+          <strong>Welcome</strong>
+          <span>30:00</span>
+        </div>
+      ) : slide.countdownSeconds ? (
         <div className="mini-countdown-slide">
           <span>Starts in</span>
           <strong>5:00</strong>
@@ -589,6 +603,7 @@ export function PresentationView({
   canCreatePlan,
   canDeletePlan,
   canEditPlan,
+  canManagePreServiceMedia,
   canEditSlideNotes,
   canCreateSong,
   canEditSong,
@@ -598,6 +613,7 @@ export function PresentationView({
   canCreatePlan: boolean;
   canDeletePlan: boolean;
   canEditPlan: boolean;
+  canManagePreServiceMedia: boolean;
   canEditSlideNotes: boolean;
   canCreateSong: boolean;
   canEditSong: boolean;
@@ -611,6 +627,9 @@ export function PresentationView({
   const [worshipSetPlan, setWorshipSetPlan] = useState<PlanDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [addingServiceOutline, setAddingServiceOutline] = useState(false);
+  const [preServiceMediaOpen, setPreServiceMediaOpen] = useState(false);
+  const [preServiceMedia, setPreServiceMedia] = useState<StoredFile[]>([]);
+  const [preServiceMediaBusy, setPreServiceMediaBusy] = useState(false);
   const [liveIndex, setLiveIndex] = useState(0);
   const [message, setMessage] = useState<string | null>(null);
   const [screens, setScreens] = useState<PresentationScreen[]>([]);
@@ -1760,6 +1779,56 @@ export function PresentationView({
     }
   }
 
+  async function openPreServiceMedia() {
+    setPreServiceMediaBusy(true);
+    try {
+      setPreServiceMedia(await getPreServiceMedia());
+      setPreServiceMediaOpen(true);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not load pre-service photos.");
+    } finally {
+      setPreServiceMediaBusy(false);
+    }
+  }
+
+  async function addPreServicePhotos(files: FileList | null) {
+    if (!files?.length || !plan) return;
+    setPreServiceMediaBusy(true);
+    try {
+      for (const file of Array.from(files)) {
+        await uploadPreServiceMedia(file);
+      }
+      setPreServiceMedia(await getPreServiceMedia());
+      await load(plan.id, { silent: true });
+      setMessage(`${files.length} pre-service photo${files.length === 1 ? "" : "s"} added.`);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not add pre-service photos.");
+    } finally {
+      setPreServiceMediaBusy(false);
+    }
+  }
+
+  async function removePreServicePhoto(file: StoredFile) {
+    const confirmed = await confirm({
+      confirmLabel: "Remove photo",
+      message: `Remove "${file.display_name}" from every pre-service montage?`,
+      title: "Remove pre-service photo",
+      tone: "danger",
+    });
+    if (!confirmed || !plan) return;
+    setPreServiceMediaBusy(true);
+    try {
+      await deletePreServiceMedia(file.id);
+      setPreServiceMedia((current) => current.filter((candidate) => candidate.id !== file.id));
+      await load(plan.id, { silent: true });
+      setMessage("Pre-service photo removed.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not remove the photo.");
+    } finally {
+      setPreServiceMediaBusy(false);
+    }
+  }
+
   async function archiveCurrentPlan() {
     if (!plan) {
       return;
@@ -2585,10 +2654,12 @@ export function PresentationView({
     try {
       setImportingDriveFileId(file.id);
       const resolvedDeckTitle = deckTitle.trim() || file.name.replace(/\.[^.]+$/, "") || "Sermon";
+      const targetSection = sections[searchInsertIndex ?? sections.length - 1];
+      const attachToAnnouncements = targetSection?.itemType === "announcements";
       if (
         plan.items.some(
           (item) =>
-            item.item_type === "sermon" &&
+            item.item_type === (attachToAnnouncements ? "announcements" : "sermon") &&
             (item.title.trim().toLowerCase() === resolvedDeckTitle.toLowerCase() ||
               item.comment?.trim().toLowerCase() === `imported from google drive: ${file.name}`.toLowerCase()),
         )
@@ -2601,6 +2672,16 @@ export function PresentationView({
         display_name: resolvedDeckTitle,
         flatten_builds: deckFlattenBuilds,
       });
+      if (attachToAnnouncements) {
+        await attachItemFile(targetSection.id, { file_id: imported.file.id, sort_order: 0 });
+        void recordServiceHistory(`attaching announcements deck "${resolvedDeckTitle}"`, targetSection.title, "slide_deck");
+        await load(plan.id, {
+          preserveLocation: { planItemId: targetSection.id, slideOffset: 0 },
+          silent: true,
+        });
+        closeSearchOverlay();
+        return;
+      }
       const item = await createPlanItem(plan.id, {
         item_type: "sermon",
         sequence: sequenceForInsert(searchInsertIndex ?? sections.length - 1),
@@ -2883,13 +2964,17 @@ export function PresentationView({
     const files = (plan?.items ?? []).flatMap((item) =>
       item.item_type === "video"
         ? []
-        : (item.files ?? []).filter((file) => !file.content_type?.startsWith("video/")),
+        : (item.files ?? []).filter(
+            (file) => !file.content_type?.startsWith("video/") && !file.content_type?.startsWith("image/"),
+          ),
     );
     const activeFileIds = new Set(
       currentPlanItem?.item_type === "video"
         ? []
         : (currentPlanItem?.files ?? [])
-            .filter((file) => !file.content_type?.startsWith("video/"))
+            .filter(
+              (file) => !file.content_type?.startsWith("video/") && !file.content_type?.startsWith("image/"),
+            )
             .map((file) => file.file_id),
     );
     const uniqueFiles = Array.from(new Map(files.map((file) => [file.file_id, file])).values());
@@ -3583,8 +3668,8 @@ export function PresentationView({
                 <span className="stage-slide-counter">{stageSlideCounter}</span>
               </div>
             </div>
-            <div className={`presentation-stage ${liveSlide?.backgroundImageUrl || liveSlide?.imageUrl || liveSlide?.videoUrl ? "presentation-stage-image" : ""} ${liveBlanked ? "stage-preview-blanked" : ""}`}>
-              {liveBlanked ? null : liveSlide?.backgroundImageUrl || liveSlide?.imageUrl || liveSlide?.videoUrl || liveSlide?.itemType === "song" || liveSlide?.itemType === "reading" ? null : (
+            <div className={`presentation-stage ${liveSlide?.montageImageUrls || liveSlide?.backgroundImageUrl || liveSlide?.imageUrl || liveSlide?.videoUrl ? "presentation-stage-image" : ""} ${liveBlanked ? "stage-preview-blanked" : ""}`}>
+              {liveBlanked ? null : liveSlide?.montageImageUrls || liveSlide?.backgroundImageUrl || liveSlide?.imageUrl || liveSlide?.videoUrl || liveSlide?.itemType === "song" || liveSlide?.itemType === "reading" ? null : (
                 <div className="stage-title">
                   <span>{liveSlide?.title ?? "Ready"}</span>
                 </div>
@@ -3595,6 +3680,8 @@ export function PresentationView({
                   aria-label="LCF background preview"
                   style={{ backgroundImage: `url(${LCF_BACKGROUND_URL})` }}
                 />
+              ) : liveSlide?.montageImageUrls && plan ? (
+                <PreServiceSlide imageUrls={liveSlide.montageImageUrls} serviceDate={plan.service_date} />
               ) : liveSlide?.countdownSeconds ? (
                 <CountdownSlide
                   durationSeconds={liveSlide.countdownSeconds}
@@ -4000,7 +4087,7 @@ export function PresentationView({
                       <span>{(sectionIndex + 1).toString().padStart(2, "0")}</span>
                       <strong>{section.plannedStart ? `${section.plannedStart} · ` : ""}{section.title}</strong>
                     </button>
-                    {canEditPlan || sectionAudioSlide ? (
+                    {canEditPlan || sectionAudioSlide || (canManagePreServiceMedia && section.itemType === "pre_service") ? (
                       <div className="section-actions">
                         {sectionAudioSlide ? (
                           <button
@@ -4015,8 +4102,31 @@ export function PresentationView({
                             {sectionAudioPlaying ? <Pause size={14} aria-hidden="true" /> : <Play size={14} aria-hidden="true" />}
                           </button>
                         ) : null}
+                        {canManagePreServiceMedia && section.itemType === "pre_service" ? (
+                          <button
+                            aria-label="Manage pre-service montage photos"
+                            className="section-icon-button"
+                            disabled={preServiceMediaBusy}
+                            onClick={() => void openPreServiceMedia()}
+                            title="Manage pre-service montage photos"
+                            type="button"
+                          >
+                            <Pencil size={14} aria-hidden="true" />
+                          </button>
+                        ) : null}
                         {canEditPlan ? (
                           <>
+                            {section.itemType === "announcements" ? (
+                              <button
+                                aria-label="Add announcements deck"
+                                className="section-icon-button"
+                                onClick={() => openSearchOverlay(sectionIndex, "deck", { selectInserted: false })}
+                                title="Add announcements deck"
+                                type="button"
+                              >
+                                <Plus size={14} aria-hidden="true" />
+                              </button>
+                            ) : null}
                             <button
                               aria-label={`Move ${section.title} up`}
                               className="section-icon-button"
@@ -4470,6 +4580,50 @@ export function PresentationView({
                   (!googleDriveStatus?.connected || (googleDriveFiles.length === 0 && !googleDriveLoading)))) ? (
                 <p className="search-empty">No matches yet.</p>
               ) : null}
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {preServiceMediaOpen ? (
+        <div className="app-dialog-backdrop" role="presentation">
+          <div aria-labelledby="pre-service-media-title" aria-modal="true" className="app-dialog app-dialog-wide" role="dialog">
+            <div>
+              <h2 id="pre-service-media-title">Pre-service montage</h2>
+              <p>These photos are shared by every Sunday service and rotate automatically before the service.</p>
+            </div>
+            <label className="pre-service-upload-control">
+              Add church or relaxing photos
+              <input
+                accept="image/*"
+                disabled={preServiceMediaBusy}
+                multiple
+                onChange={(event) => {
+                  void addPreServicePhotos(event.target.files);
+                  event.target.value = "";
+                }}
+                type="file"
+              />
+            </label>
+            <div className="pre-service-media-grid">
+              {preServiceMedia.map((file) => (
+                <article key={file.id}>
+                  <img alt={file.display_name} src={storedFileDownloadUrl(file.id)} />
+                  <span>{file.display_name}</span>
+                  <button
+                    className="danger-button"
+                    disabled={preServiceMediaBusy}
+                    onClick={() => void removePreServicePhoto(file)}
+                    type="button"
+                  >
+                    Remove
+                  </button>
+                </article>
+              ))}
+              {!preServiceMedia.length ? <p className="empty-state">No uploaded photos yet; the LCF background is used as the fallback.</p> : null}
+            </div>
+            <div className="app-dialog-actions">
+              <button className="primary-button" onClick={() => setPreServiceMediaOpen(false)} type="button">Done</button>
             </div>
           </div>
         </div>

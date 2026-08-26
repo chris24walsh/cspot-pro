@@ -67,11 +67,14 @@ The app should treat sections as meaningful units such as:
 
 Sections should remain visible and directly navigable while presenting.
 
-New Sunday-service plans begin with a soft-timed scaffold covering pre-service
-fellowship, seating, welcome and prayer, worship, Sunday-school dismissal,
-testimony, sermon, response, announcements, and dismissal. These are editable
-planning cues rather than enforced clock transitions. Existing Sunday plans can
-add only their missing standard sections, preserving their current content.
+New Sunday-service plans begin with seven soft-timed sections. The opening
+Welcome merges fellowship and seating into a 10:30 photo montage with relaxing
+music and a countdown that grows prominent for the final five minutes. Church
+Family is the neutral transition for children, prayer, testimony, or other
+congregational participation. Announcements and fellowship merges the closing
+segments and provides the slot for an imported announcements deck. These are
+editable planning cues rather than enforced clock transitions. Existing Sunday
+plans can add only their missing standard sections, preserving their content.
 
 ### 3. Different content types behave differently
 

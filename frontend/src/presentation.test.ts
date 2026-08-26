@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { PlanItem, RenderedSlide, Song } from "./api";
-import { LCF_BACKGROUND_URL, SUNDAY_SCHOOL_BACKGROUND_URL, buildPresentationSections, buildPresentationSlides, resolveLiveIndex, splitOversizedLyricSlide, suggestedSlideFontCap, suggestUniformSlideGroupFontCap } from "./presentation";
+import { CHURCH_FAMILY_BACKGROUND_URL, LCF_BACKGROUND_URL, buildPresentationSections, buildPresentationSlides, resolveLiveIndex, splitOversizedLyricSlide, suggestedSlideFontCap, suggestUniformSlideGroupFontCap } from "./presentation";
 
 function planItem(overrides: Partial<PlanItem>): PlanItem {
   return {
@@ -89,15 +89,30 @@ describe("presentation slide derivation", () => {
     expect(slides[1].backgroundImageUrl).toBeUndefined();
   });
 
-  it("uses dedicated countdown and Sunday-school transition slides", () => {
+  it("uses dedicated countdown and Church Family transition slides", () => {
     const slides = buildPresentationSlides([
       planItem({ id: "seating", item_type: "seating", title: "Call to seats" }),
-      planItem({ id: "sunday-school", item_type: "sunday_school", title: "Sunday school prayer and dismissal" }),
+      planItem({ id: "community", item_type: "community", title: "Church Family" }),
     ], []);
 
     expect(slides[0]).toMatchObject({ countdownSeconds: 300, text: "" });
     expect(slides[0].backgroundImageUrl).toBeUndefined();
-    expect(slides[1].backgroundImageUrl).toBe(SUNDAY_SCHOOL_BACKGROUND_URL);
+    expect(slides[1].backgroundImageUrl).toBe(CHURCH_FAMILY_BACKGROUND_URL);
+  });
+
+  it("turns pre-service photos into one montage slide", () => {
+    const slides = buildPresentationSlides([
+      planItem({
+        files: [{ content_type: "image/jpeg", display_name: "Church", file_id: "photo-1", id: "photo-link", sort_order: 0 }],
+        id: "pre-service",
+        item_type: "pre_service",
+        title: "Welcome",
+      }),
+    ], []);
+
+    expect(slides).toHaveLength(1);
+    expect(slides[0].montageImageUrls).toHaveLength(1);
+    expect(slides[0].montageImageUrls?.[0]).toContain("photo-1");
   });
 
   it("expands worship songs from sequence without duplicating stored lyrics", () => {

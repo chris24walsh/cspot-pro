@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from app.core.database import get_session
 from app.modules.identity.auth import require_any_permission, require_permission
 from app.modules.identity.models import User
-from app.modules.library.models import ItemFile, StoredFile
+from app.modules.library.models import FileCategory, ItemFile, StoredFile
 from app.modules.planning.models import (
     HistoryEntry,
     ItemNote,
@@ -103,6 +103,30 @@ def plan_item_to_read(session: Session, item: PlanItem) -> PlanItemRead:
                     "display_name": stored_file.display_name,
                     "content_type": stored_file.content_type,
                 }
+            )
+
+    if item.item_type == "pre_service":
+        montage_category = session.scalar(
+            select(FileCategory).where(FileCategory.name == "Pre-service Montage")
+        )
+        if montage_category:
+            montage_files = session.scalars(
+                select(StoredFile)
+                .where(
+                    StoredFile.category_id == montage_category.id,
+                    StoredFile.content_type.like("image/%"),
+                )
+                .order_by(StoredFile.created_at, StoredFile.display_name)
+            ).all()
+            files.extend(
+                {
+                    "id": f"pre-service:{stored.id}",
+                    "file_id": stored.id,
+                    "sort_order": index,
+                    "display_name": stored.display_name,
+                    "content_type": stored.content_type,
+                }
+                for index, stored in enumerate(montage_files)
             )
 
     return PlanItemRead(

@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import {
   getFileSlides,
+  getBroadcastViewerSettings,
   getLivePresentationServices,
   getPlan,
   getPlans,
@@ -28,6 +29,8 @@ import {
 import { isWorshipSetPlan, matchingWorshipSetForService, mergeWorshipSetIntoService } from "../worshipSets";
 import { AutoFitSlideText } from "./AutoFitSlideText";
 import { CountdownSlide } from "./CountdownSlide";
+import { PreServiceSlide } from "./PreServiceSlide";
+import { PreServiceMusic } from "./PreServiceMusic";
 import { ScaledSlideImage } from "./ScaledSlideImage";
 
 const AUDIO_FADE_DURATION_MS = 2000;
@@ -85,6 +88,7 @@ export function PresentationOutput({ networkDisplay = false }: PresentationOutpu
   const [fullscreenReady, setFullscreenReady] = useState(true);
   const [renderedSlidesByFileId, setRenderedSlidesByFileId] = useState<Record<string, RenderedSlide[]>>({});
   const [blanked, setBlanked] = useState(false);
+  const [preServiceAudioUrl, setPreServiceAudioUrl] = useState<string | null>(null);
   const lastLiveStateRef = useRef(0);
   const networkPlanIdRef = useRef<string | null>(null);
   const lastReadingRefreshRef = useRef("");
@@ -188,12 +192,18 @@ export function PresentationOutput({ networkDisplay = false }: PresentationOutpu
     }
 
     try {
-      const [nextPlan, nextSongs, nextPlans] = await Promise.all([getPlan(state.planId), getSongs(), getPlans()]);
+      const [nextPlan, nextSongs, nextPlans, broadcastSettings] = await Promise.all([
+        getPlan(state.planId),
+        getSongs(),
+        getPlans(),
+        getBroadcastViewerSettings().catch(() => null),
+      ]);
       const matchingWorshipSet = matchingWorshipSetForService(nextPlan, nextPlans.filter(isWorshipSetPlan));
       const nextWorshipSetPlan = matchingWorshipSet ? await getPlan(matchingWorshipSet.id) : null;
       setPlan(nextPlan);
       setWorshipSetPlan(nextWorshipSetPlan);
       setSongs(nextSongs);
+      setPreServiceAudioUrl(broadcastSettings?.pre_service_audio_url ?? null);
       setMessage(null);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Could not load slideshow output.");
@@ -460,7 +470,9 @@ export function PresentationOutput({ networkDisplay = false }: PresentationOutpu
       const files = (plan?.items ?? []).flatMap((item) =>
         item.item_type === "video"
           ? []
-          : (item.files ?? []).filter((file) => !file.content_type?.startsWith("video/")),
+          : (item.files ?? []).filter(
+              (file) => !file.content_type?.startsWith("video/") && !file.content_type?.startsWith("image/"),
+            ),
       );
       const uniqueFiles = Array.from(new Map(files.map((file) => [file.file_id, file])).values());
       const nextSlides: Record<string, RenderedSlide[]> = {};
@@ -603,11 +615,11 @@ export function PresentationOutput({ networkDisplay = false }: PresentationOutpu
       ) : null}
 
       <section
-        className={`slideshow-stage ${liveSlide?.backgroundImageUrl || liveSlide?.imageUrl || liveSlide?.videoUrl ? "slideshow-stage-image" : ""} stage-theme-${
+        className={`slideshow-stage ${liveSlide?.montageImageUrls || liveSlide?.backgroundImageUrl || liveSlide?.imageUrl || liveSlide?.videoUrl ? "slideshow-stage-image" : ""} stage-theme-${
           liveState?.theme ?? "light"
         } ${liveSlide ? presentationTypeClass(liveSlide.itemType) : "type-generic"} ${blanked ? "stage-blanked" : ""}`}
       >
-        {blanked ? null : !liveSlide?.backgroundImageUrl && !liveSlide?.imageUrl && !liveSlide?.videoUrl && liveSlide?.itemType !== "song" ? (
+        {blanked ? null : !liveSlide?.montageImageUrls && !liveSlide?.backgroundImageUrl && !liveSlide?.imageUrl && !liveSlide?.videoUrl && liveSlide?.itemType !== "song" ? (
           <div className="stage-title">
             <span>{liveSlide?.title ?? (networkDisplay ? "TV display ready" : "Ready")}</span>
           </div>
@@ -618,6 +630,8 @@ export function PresentationOutput({ networkDisplay = false }: PresentationOutpu
             aria-label="LCF background live output"
             style={{ backgroundImage: `url(${LCF_BACKGROUND_URL})` }}
           />
+        ) : liveSlide?.montageImageUrls && plan ? (
+          <PreServiceSlide imageUrls={liveSlide.montageImageUrls} serviceDate={plan.service_date} />
         ) : liveSlide?.countdownSeconds ? (
           <CountdownSlide durationSeconds={liveSlide.countdownSeconds} startAt={liveState?.updatedAt} />
         ) : liveSlide?.backgroundImageUrl ? (
@@ -689,6 +703,7 @@ export function PresentationOutput({ networkDisplay = false }: PresentationOutpu
           </>
         )}
       </section>
+      {liveSlide?.itemType === "pre_service" && preServiceAudioUrl ? <PreServiceMusic url={preServiceAudioUrl} /> : null}
     </main>
   );
 }
