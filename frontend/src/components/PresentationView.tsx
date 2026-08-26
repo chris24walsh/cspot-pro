@@ -4,6 +4,7 @@ import { createPortal } from "react-dom";
 
 import {
   ApiError,
+  addMissingServiceSections,
   createPlanHistoryEntry,
   createSong,
   createPlan,
@@ -596,6 +597,7 @@ export function PresentationView({
   const [plan, setPlan] = useState<PlanDetail | null>(null);
   const [worshipSetPlan, setWorshipSetPlan] = useState<PlanDetail | null>(null);
   const [loading, setLoading] = useState(true);
+  const [addingServiceOutline, setAddingServiceOutline] = useState(false);
   const [liveIndex, setLiveIndex] = useState(0);
   const [message, setMessage] = useState<string | null>(null);
   const [screens, setScreens] = useState<PresentationScreen[]>([]);
@@ -689,6 +691,10 @@ export function PresentationView({
 
   const servicePlans = useMemo(() => plans.filter((candidate) => !isWorshipSetPlan(candidate)), [plans]);
   const worshipSetPlans = useMemo(() => plans.filter(isWorshipSetPlan), [plans]);
+  const isSundayService = useMemo(
+    () => planTypes.find((type) => type.id === plan?.plan_type_id)?.name === "Sunday Service",
+    [plan?.plan_type_id, planTypes],
+  );
   const effectivePlanItems = useMemo(
     () => mergeWorshipSetIntoService(plan?.items ?? [], worshipSetPlan?.items ?? []),
     [plan?.items, worshipSetPlan?.items],
@@ -1717,6 +1723,27 @@ export function PresentationView({
       setMessage("New service created.");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Could not create a new service.");
+    }
+  }
+
+  async function completeServiceOutline() {
+    if (!plan || !canEditPlan || addingServiceOutline) {
+      return;
+    }
+    setAddingServiceOutline(true);
+    try {
+      const updated = await addMissingServiceSections(plan.id);
+      setPlan(updated);
+      setPlans((current) => current.map((summary) => (
+        summary.id === updated.id
+          ? { ...summary, item_count: updated.items.filter((item) => item.item_type !== WORSHIP_SET_ANCHOR_ITEM_TYPE).length }
+          : summary
+      )));
+      setMessage("Missing Sunday service sections added; existing content was preserved.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not add the Sunday service outline.");
+    } finally {
+      setAddingServiceOutline(false);
     }
   }
 
@@ -3879,7 +3906,21 @@ export function PresentationView({
               {railCatchUpDirection === "up" ? <ChevronUp size={18} aria-hidden="true" /> : <ChevronDown size={18} aria-hidden="true" />}
             </button>
           ) : null}
-          <div className="section-rail-title">Sections</div>
+          <div className="section-rail-title">
+            <span>Sections</span>
+            {isSundayService && canEditPlan ? (
+              <button
+                className="section-scaffold-button"
+                disabled={addingServiceOutline}
+                onClick={() => void completeServiceOutline()}
+                title="Add any missing standard Sunday service sections"
+                type="button"
+              >
+                <Plus size={12} aria-hidden="true" />
+                {addingServiceOutline ? "Adding…" : "Add outline"}
+              </button>
+            ) : null}
+          </div>
           <div
             className="section-rail-list"
             onScroll={() => {
