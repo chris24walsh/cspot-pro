@@ -5707,6 +5707,11 @@ button.musician-page {
   place-items: center;
 }
 
+.service-broadcast-slide-pane {
+  container-name: broadcast-slide-pane;
+  container-type: size;
+}
+
 .service-broadcast-slide {
   display: grid;
   height: 100%;
@@ -6039,12 +6044,21 @@ button.musician-page {
 .service-broadcast-holding-slide strong {
   color: #fffdf5;
   font-family: Georgia, "Times New Roman", serif;
-  font-size: clamp(28px, 4vw, 54px);
+  font-size: clamp(24px, 6cqw, 54px);
   font-weight: 700;
   line-height: 1.08;
-  max-width: min(20ch, 100%);
-  overflow-wrap: anywhere;
+  max-width: 100%;
+  overflow-wrap: break-word;
+  padding-inline: clamp(4px, 2cqw, 20px);
   text-wrap: balance;
+  white-space: normal;
+  width: 100%;
+}
+
+@supports not (font-size: 1cqw) {
+  .service-broadcast-holding-slide strong {
+    font-size: clamp(24px, 3vw, 46px);
+  }
 }
 
 .service-broadcast-holding-slide p {
