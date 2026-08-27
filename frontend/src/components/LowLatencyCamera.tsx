@@ -299,10 +299,12 @@ export function LowLatencyCamera({ label, url }: { label: string; url: string })
 function LowLatencyMseAudio({
   label,
   onFallback,
+  onSoundEnabledChange,
   url,
 }: {
   label: string;
   onFallback: () => void;
+  onSoundEnabledChange?: (enabled: boolean) => void;
   url: string;
 }) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -316,16 +318,21 @@ function LowLatencyMseAudio({
     if (soundEnabled) {
       audio.muted = true;
       setSoundEnabled(false);
+      onSoundEnabledChange?.(false);
       return;
     }
     setPlaybackFailed(false);
     audio.muted = false;
     audio.volume = 1;
     void audio.play()
-      .then(() => setSoundEnabled(true))
+      .then(() => {
+        setSoundEnabled(true);
+        onSoundEnabledChange?.(true);
+      })
       .catch(() => {
         audio.muted = true;
         setSoundEnabled(false);
+        onSoundEnabledChange?.(false);
         setPlaybackFailed(true);
       });
   }
@@ -487,7 +494,7 @@ function LowLatencyMseAudio({
   );
 }
 
-function FallbackLiveStreamAudio({ label, url }: { label: string; url: string }) {
+function FallbackLiveStreamAudio({ label, onSoundEnabledChange, url }: { label: string; onSoundEnabledChange?: (enabled: boolean) => void; url: string }) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const soundEnabledRef = useRef(false);
   const [soundEnabled, setSoundEnabled] = useState(false);
@@ -502,6 +509,7 @@ function FallbackLiveStreamAudio({ label, url }: { label: string; url: string })
       audio.muted = true;
       soundEnabledRef.current = false;
       setSoundEnabled(false);
+      onSoundEnabledChange?.(false);
       return;
     }
     setPlaybackFailed(false);
@@ -512,12 +520,14 @@ function FallbackLiveStreamAudio({ label, url }: { label: string; url: string })
     }
     soundEnabledRef.current = true;
     setSoundEnabled(true);
+    onSoundEnabledChange?.(true);
     void audio.play()
       .then(() => setPlaybackFailed(false))
       .catch(() => {
         audio.muted = true;
         soundEnabledRef.current = false;
         setSoundEnabled(false);
+        onSoundEnabledChange?.(false);
         setPlaybackFailed(true);
         setRetryToken((current) => current + 1);
       });
@@ -583,12 +593,12 @@ function FallbackLiveStreamAudio({ label, url }: { label: string; url: string })
   );
 }
 
-export function LiveStreamAudio({ label, url }: { label: string; url: string }) {
+export function LiveStreamAudio({ label, onSoundEnabledChange, url }: { label: string; onSoundEnabledChange?: (enabled: boolean) => void; url: string }) {
   const websocketUrl = useMemo(() => go2RtcWebSocketUrl(url), [url]);
   const [failedMseUrl, setFailedMseUrl] = useState<string | null>(null);
   const fallBack = useCallback(() => setFailedMseUrl(url), [url]);
   if (websocketUrl && failedMseUrl !== url && typeof MediaSource !== "undefined") {
-    return <LowLatencyMseAudio label={label} onFallback={fallBack} url={url} />;
+    return <LowLatencyMseAudio label={label} onFallback={fallBack} onSoundEnabledChange={onSoundEnabledChange} url={url} />;
   }
-  return <FallbackLiveStreamAudio label={label} url={url} />;
+  return <FallbackLiveStreamAudio label={label} onSoundEnabledChange={onSoundEnabledChange} url={url} />;
 }

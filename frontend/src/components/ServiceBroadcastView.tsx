@@ -102,6 +102,7 @@ function HoldingPane({ message, startingSoon }: { message: string; startingSoon:
 
 export function ServiceBroadcastView({ canControl = false, onOpenSettings }: { canControl?: boolean; onOpenSettings?: () => void }) {
   const shellRef = useRef<HTMLElement | null>(null);
+  const backingAudioFrameRef = useRef<HTMLIFrameElement | null>(null);
   const pollInFlightRef = useRef(false);
   const [settings, setSettings] = useState(DEFAULT_SETTINGS);
   const [liveServices, setLiveServices] = useState<PresentationLiveService[]>([]);
@@ -156,6 +157,25 @@ export function ServiceBroadcastView({ canControl = false, onOpenSettings }: { c
   useEffect(() => {
     if (settings.camera_cycle_seconds > 0) lastCameraCycleSecondsRef.current = settings.camera_cycle_seconds;
   }, [settings.camera_cycle_seconds]);
+
+  function controlBackingAudio(command: "playVideo" | "pauseVideo" | "stopVideo" | "unMute" | "mute") {
+    backingAudioFrameRef.current?.contentWindow?.postMessage(
+      JSON.stringify({ event: "command", func: command, args: [] }),
+      "*",
+    );
+  }
+
+  function setLivestreamSound(enabled: boolean) {
+    controlBackingAudio(enabled ? "unMute" : "mute");
+    if (enabled && liveState?.videoAction === "play") controlBackingAudio("playVideo");
+  }
+
+  useEffect(() => {
+    if (!liveSlide?.youtubeAudioUrl) return;
+    if (liveState?.videoAction === "play") controlBackingAudio("playVideo");
+    else if (liveState?.videoAction === "pause") controlBackingAudio("pauseVideo");
+    else if (liveState?.videoAction === "stop" || liveState?.videoAction === "fade-stop") controlBackingAudio("stopVideo");
+  }, [liveSlide?.youtubeAudioUrl, liveState?.videoAction, liveState?.videoActionAt]);
 
   async function updateLiveControls(patch: Partial<BroadcastViewerSettings>) {
     setControlBusy(true);
@@ -458,7 +478,21 @@ export function ServiceBroadcastView({ canControl = false, onOpenSettings }: { c
               url={settings.pre_service_audio_url}
             />
           ) : liveAudioUrl ? (
-            <LiveStreamAudio label={selectedAudioCamera ? `${selectedAudioCamera.label} audio` : selectedIndependentAudio?.label ?? "Live service audio"} url={liveAudioUrl} />
+            <LiveStreamAudio label={selectedAudioCamera ? `${selectedAudioCamera.label} audio` : selectedIndependentAudio?.label ?? "Live service audio"} onSoundEnabledChange={setLivestreamSound} url={liveAudioUrl} />
+          ) : null}
+          {liveSlide?.youtubeAudioUrl ? (
+            <iframe
+              allow="autoplay; encrypted-media"
+              aria-hidden="true"
+              className="youtube-audio-frame"
+              onLoad={() => {
+                if (liveState?.videoAction === "play") controlBackingAudio("playVideo");
+              }}
+              ref={backingAudioFrameRef}
+              src={liveSlide.youtubeAudioUrl}
+              tabIndex={-1}
+              title={`${liveSlide.title} livestream backing audio`}
+            />
           ) : null}
           {canControl ? (
             <div className="service-broadcast-admin-live-controls" aria-label="Quick livestream controls">
@@ -511,7 +545,7 @@ export function ServiceBroadcastView({ canControl = false, onOpenSettings }: { c
                   Desk isolated · rehearsal stays in-room
                 </span>
               ) : null}
-              {rehearsalIsolated ? (
+              {ambientMusicStage || rehearsalIsolated ? (
                 <button
                   aria-pressed={!settings.pre_service_room_audio_enabled}
                   className={!settings.pre_service_room_audio_enabled ? "primary-button" : "text-button"}
