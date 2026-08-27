@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.core.database import Base
 from app.modules.identity.models import Role, ServingArea, User, UserRole, VolunteerPreference
-from app.modules.identity.routes import login
+from app.modules.identity.routes import login, resolve_username
 from app.modules.identity.schemas import LoginRequest
 from app.modules.identity.security import hash_password
 
@@ -38,6 +38,54 @@ def _identity_session() -> Session:
     )
     session.commit()
     return session
+
+
+def test_generated_username_uses_first_name_then_surname_initials() -> None:
+    with _identity_session() as session:
+        assert resolve_username(
+            session, username=None, email="john.one@example.com", name="John Smith"
+        ) == "john"
+        session.add(
+            User(
+                email="john.one@example.com",
+                username="john",
+                name="John Smith",
+                password_hash=None,
+                start_page=None,
+                calendar_color=None,
+                calendar_avatar=None,
+                email_confirmed=True,
+                active=True,
+            )
+        )
+        session.flush()
+
+        assert resolve_username(
+            session, username=None, email="john.two@example.com", name="John Paul Jones"
+        ) == "johnpj"
+
+
+def test_generated_username_adds_number_after_initials_also_clash() -> None:
+    with _identity_session() as session:
+        for username in ("sarah", "sarahs"):
+            session.add(
+                User(
+                    email=f"{username}@example.com",
+                    username=username,
+                    name="Sarah Smith",
+                    password_hash=None,
+                    start_page=None,
+                    calendar_color=None,
+                    calendar_avatar=None,
+                    email_confirmed=True,
+                    active=True,
+                )
+            )
+        session.flush()
+
+        assert resolve_username(
+            session, username=None, email="another@example.com", name="Sarah Smith"
+        ) == "sarahs-2"
 
 
 def test_login_accepts_username_or_email() -> None:

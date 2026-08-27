@@ -79,6 +79,23 @@ function payloadFromForm(form: UserFormState): UserInvitePayload {
   };
 }
 
+function suggestedUsername(name: string, users: User[]) {
+  const parts = name.trim().toLowerCase().split(/\s+/).map((part) => part.replace(/[^a-z0-9]/g, "")).filter(Boolean);
+  if (!parts.length) return "";
+  const base = parts[0].length >= 2 ? parts[0].slice(0, 72) : `user-${parts[0]}`;
+  const used = new Set(users.map((user) => user.username));
+  if (!used.has(base)) return base;
+
+  const initials = parts.slice(1).map((part) => part[0]).join("");
+  const collisionBase = initials ? `${base.slice(0, 80 - initials.length)}${initials}` : base;
+  if (!used.has(collisionBase)) return collisionBase;
+
+  for (let suffix = 2; ; suffix += 1) {
+    const candidate = `${collisionBase.slice(0, 79 - String(suffix).length)}-${suffix}`;
+    if (!used.has(candidate)) return candidate;
+  }
+}
+
 function formatRoleName(roleName: string) {
   return roleName
     .split("_")
@@ -542,7 +559,13 @@ export function UserManager({ adminSection, onAdminSectionChange, onAttentionCha
             Full name
             <input
               autoComplete="name"
-              onChange={(event) => setForm({ ...form, name: event.target.value })}
+              onChange={(event) => {
+                const name = event.target.value;
+                const username = mode === "create" && form.username === suggestedUsername(form.name, users)
+                  ? suggestedUsername(name, users)
+                  : form.username;
+                setForm({ ...form, name, username });
+              }}
               placeholder="First name and surname"
               required
               value={form.name}

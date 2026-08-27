@@ -87,6 +87,7 @@ def resolve_username(
     *,
     username: str | None,
     email: str,
+    name: str | None = None,
     exclude_user_id: str | None = None,
 ) -> str:
     if username and username.strip():
@@ -107,17 +108,34 @@ def resolve_username(
             )
         return candidate
 
-    base = re.sub(r"[^a-z0-9._-]+", "-", email.split("@", 1)[0].strip().lower()).strip(".-_")
+    name_parts = [
+        re.sub(r"[^a-z0-9]+", "", part.lower())
+        for part in (name or "").strip().split()
+    ]
+    name_parts = [part for part in name_parts if part]
+    base = name_parts[0] if name_parts else re.sub(
+        r"[^a-z0-9._-]+", "-", email.split("@", 1)[0].strip().lower()
+    ).strip(".-_")
     if len(base) < 2:
         base = f"user-{base}".rstrip("-")
     base = base[:72]
-    candidate = base
-    suffix = 2
-    while True:
+    candidates = [base]
+    if len(name_parts) > 1:
+        surname_initials = "".join(part[0] for part in name_parts[1:])
+        candidates.append(f"{base[: 80 - len(surname_initials)]}{surname_initials}")
+
+    for candidate in candidates:
         existing_id = session.scalar(select(User.id).where(User.username == candidate))
         if existing_id is None or existing_id == exclude_user_id:
             return candidate
-        candidate = f"{base[: 79 - len(str(suffix))]}-{suffix}"
+
+    collision_base = candidates[-1]
+    suffix = 2
+    while True:
+        candidate = f"{collision_base[: 79 - len(str(suffix))]}-{suffix}"
+        existing_id = session.scalar(select(User.id).where(User.username == candidate))
+        if existing_id is None or existing_id == exclude_user_id:
+            return candidate
         suffix += 1
 
 
@@ -460,7 +478,9 @@ def self_register(
     try:
         user = User(
             email=normalized_email,
-            username=resolve_username(session, username=payload.username, email=normalized_email),
+            username=resolve_username(
+                session, username=payload.username, email=normalized_email, name=payload.name
+            ),
             name=payload.name.strip(),
             start_page="broadcast",
             password_hash=hash_password(payload.password),
@@ -562,7 +582,9 @@ def bootstrap_admin(
     if user is None:
         user = User(
             email=payload.email,
-            username=resolve_username(session, username=None, email=payload.email),
+            username=resolve_username(
+                session, username=None, email=payload.email, name=payload.name
+            ),
             name=payload.name,
             start_page="presentation",
             email_confirmed=True,
@@ -712,6 +734,7 @@ def update_session_user(
             session,
             username=username,
             email=values.get("email", current_user.email),
+            name=values.get("name", current_user.name),
             exclude_user_id=current_user.id,
         )
         for field, value in values.items():
@@ -1128,7 +1151,9 @@ def create_user(
     try:
         user = User(
             email=payload.email,
-            username=resolve_username(session, username=payload.username, email=payload.email),
+            username=resolve_username(
+                session, username=payload.username, email=payload.email, name=payload.name
+            ),
             name=payload.name,
             start_page=payload.start_page,
             email_confirmed=payload.email_confirmed,
@@ -1165,7 +1190,9 @@ def invite_user(
     try:
         user = User(
             email=payload.email,
-            username=resolve_username(session, username=payload.username, email=payload.email),
+            username=resolve_username(
+                session, username=payload.username, email=payload.email, name=payload.name
+            ),
             name=payload.name,
             start_page=payload.start_page,
             email_confirmed=False,
@@ -1243,6 +1270,7 @@ def update_user(
             session,
             username=username,
             email=values.get("email", user.email),
+            name=values.get("name", user.name),
             exclude_user_id=user.id,
         )
         for field, value in values.items():
