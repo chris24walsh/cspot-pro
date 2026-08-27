@@ -31,7 +31,7 @@ import {
   type SundaySchoolLessonPayload,
   type SundaySchoolResource,
 } from "../api";
-import { calendarColor, calendarMarkers } from "../userCalendarStyle";
+import { calendarColors, calendarMarkers } from "../userCalendarStyle";
 import { calendarDatesAround, effectiveLeaderIdForDate, sundayDatesAround, type SundayLeader } from "../leaderSchedule";
 import { CalendarPopup } from "./CalendarPopup";
 import { DateNavigator, formatNavigatorDate } from "./DateNavigator";
@@ -230,6 +230,7 @@ export function SundaySchoolView({ canEdit }: { canEdit: boolean }) {
     [sundaySchoolTeachers],
   );
   const sundaySchoolTeacherMarkers = useMemo(() => calendarMarkers(sundaySchoolTeachers), [sundaySchoolTeachers]);
+  const sundaySchoolTeacherColors = useMemo(() => calendarColors(sundaySchoolTeachers), [sundaySchoolTeachers]);
   const teacherRotationLeaders = useMemo<SundayLeader[]>(
     () => sundaySchoolTeachers.map((teacher) => ({
       id: teacher.id,
@@ -269,7 +270,7 @@ export function SundaySchoolView({ canEdit }: { canEdit: boolean }) {
     const isSunday = new Date(`${dateInput}T12:00:00`).getDay() === 0;
     return {
       date: dateInput,
-      className: `${lesson || isSunday ? "has-service" : ""} ${teacher ? calendarColor(teacher) : teacherColor(teacherName)}`.trim(),
+      className: `${lesson || isSunday ? "has-service" : ""} ${teacher ? sundaySchoolTeacherColors.get(teacher.id) ?? "" : teacherColor(teacherName)}`.trim(),
     };
   }
   const scheduleDates = useMemo(() => {
@@ -843,7 +844,7 @@ export function SundaySchoolView({ canEdit }: { canEdit: boolean }) {
           const teacher = sundaySchoolTeacherByName.get(teacherName.toLocaleLowerCase());
           return {
             date: dateInput,
-            className: `${lesson ? "has-service" : ""} ${teacher ? calendarColor(teacher) : teacherColor(teacherName)}`.trim(),
+            className: `${lesson ? "has-service" : ""} ${teacher ? sundaySchoolTeacherColors.get(teacher.id) ?? "" : teacherColor(teacherName)}`.trim(),
           };
         })}
         selectedDate={selectedDate}
@@ -858,11 +859,11 @@ export function SundaySchoolView({ canEdit }: { canEdit: boolean }) {
             <>
               <span>{date.getDate()}</span>
               {teacher ? (
-                <span className={`calendar-user-marker ${teacher.calendar_avatar ? "is-avatar" : ""}`} aria-label={teacher.name}>
+                <span className="calendar-user-marker" aria-label={teacher.name} title={teacher.name}>
                   {sundaySchoolTeacherMarkers.get(teacher.id)}
                 </span>
               ) : teacherName ? (
-                <span className="calendar-user-marker" aria-label={teacherName}>
+                <span className="calendar-user-marker" aria-label={teacherName} title={teacherName}>
                   {teacherName.charAt(0).toUpperCase()}
                 </span>
               ) : null}

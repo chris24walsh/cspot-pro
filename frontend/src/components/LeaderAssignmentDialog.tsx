@@ -3,7 +3,7 @@ import { useMemo } from "react";
 
 import type { Member } from "../api";
 import { sundayDatesForMonth } from "../leaderSchedule";
-import { calendarColor, calendarMarkers } from "../userCalendarStyle";
+import { calendarColors, calendarMarkers } from "../userCalendarStyle";
 import { useEscapeClose } from "./useEscapeClose";
 
 interface LeaderAssignmentDialogProps {
@@ -68,6 +68,7 @@ export function LeaderAssignmentDialog({
 }: LeaderAssignmentDialogProps) {
   useEscapeClose(Boolean(currentDate), onClose);
   const markers = useMemo(() => calendarMarkers(leaders), [leaders]);
+  const colors = useMemo(() => calendarColors(leaders), [leaders]);
   const assignableLeaders = useMemo(
     () => leaders.filter((leader) => rotationModeForLeader(leader) !== "disabled"),
     [leaders, rotationModeForLeader],
@@ -129,13 +130,14 @@ export function LeaderAssignmentDialog({
               const assigned = usage.get(leader.id) ?? 0;
               return (
                 <button
-                  className={`leader-option ${calendarColor(leader)} ${explicitLeaderId === leader.id ? "is-selected" : ""}`}
+                  className={`leader-option ${colors.get(leader.id) ?? ""} ${explicitLeaderId === leader.id ? "is-selected" : ""}`}
                   disabled={busy || !leaderIsAvailable(leader, currentDate)}
                   key={leader.id}
                   onClick={() => onAssign(leader.id)}
+                  title={leader.name}
                   type="button"
                 >
-                  <span className={`leader-option-avatar ${leader.calendar_avatar ? "is-avatar" : ""}`}>{markers.get(leader.id)}</span>
+                  <span className="leader-option-avatar" title={leader.name}>{markers.get(leader.id)}</span>
                   <span>
                     <strong>{leader.name}</strong>
                     <small>{leaderIsAvailable(leader, currentDate) ? rotationModeForLeader(leader) === "manual" ? `${assigned} Sundays · manual only` : `${assigned} / ${maximum ?? "∞"} Sundays` : "Unavailable on this date"}</small>
@@ -167,7 +169,7 @@ export function LeaderAssignmentDialog({
               const leader = leaders.find((candidate) => candidate.id === leaderId) ?? null;
               return (
                 <button
-                  className={`leader-swap-row ${leader ? calendarColor(leader) : ""}`}
+                  className={`leader-swap-row ${leader ? colors.get(leader.id) ?? "" : ""}`}
                   disabled={busy || !currentLeaderId || !leaderId}
                   key={date}
                   onClick={() => onSwap(date)}

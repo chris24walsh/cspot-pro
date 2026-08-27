@@ -173,6 +173,9 @@ row when Profile opens. Admin attention likewise opens the relevant user and
 expanded item on Roles & serving without clearing the alert before it has been
 handled. On desktop, the user list and user editor remain visible side by side;
 the Users/User settings switch is reserved for narrower screens.
+Calendar assignments use automatically derived first/surname initials. Colours
+are assigned from the full palette per visible user set, avoiding reuse until
+the palette is exhausted, and assignment markers expose the full name on hover.
 All personal Serving actions apply immediately and do not require a second
 save. Workload and note edits persist on change; destructive actions such as
 rejecting an invitation, cancelling a request, leaving a role, or removing an

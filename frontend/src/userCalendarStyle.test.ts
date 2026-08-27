@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { User } from "./api";
-import { calendarColor, calendarMarkers } from "./userCalendarStyle";
+import { calendarColor, calendarColors, calendarMarkers, userInitials } from "./userCalendarStyle";
 
 function user(id: string, name: string, color = "teacher-a", avatar: string | null = null): User {
   return {
@@ -25,20 +25,23 @@ function user(id: string, name: string, color = "teacher-a", avatar: string | nu
 }
 
 describe("calendar user identity", () => {
-  it("uses a single capital when there is no conflict", () => {
-    expect(calendarMarkers([user("1", "Hanna")]).get("1")).toBe("H");
+  it("uses first and surname initials for a full name", () => {
+    expect(calendarMarkers([user("1", "Hanna Baker")]).get("1")).toBe("HB");
   });
 
-  it("adds a lower-case differentiator when initials conflict", () => {
-    const markers = calendarMarkers([user("1", "Hanna"), user("2", "Helen")]);
-    expect(markers.get("1")).toMatch(/^H[a-z]$/);
-    expect(markers.get("2")).toMatch(/^H[a-z]$/);
-    expect(markers.get("1")).not.toBe(markers.get("2"));
+  it("handles single names and extra whitespace", () => {
+    expect(userInitials("  Hanna  ")).toBe("H");
+    expect(userInitials("Hanna Mary Baker")).toBe("HB");
   });
 
-  it("uses an avatar instead of the assigned colour and initial", () => {
+  it("ignores legacy avatar and colour choices", () => {
     const leader = user("1", "Hanna", "teacher-c", "🎤");
-    expect(calendarMarkers([leader]).get("1")).toBe("🎤");
-    expect(calendarColor(leader)).toBe("");
+    expect(calendarMarkers([leader]).get("1")).toBe("H");
+    expect(calendarColor(leader)).toMatch(/^teacher-[a-f]$/);
+  });
+
+  it("spreads users across every available shade before reusing one", () => {
+    const colors = calendarColors(Array.from({ length: 6 }, (_, index) => user(String(index), `User ${index}`)));
+    expect(new Set(colors.values())).toHaveLength(6);
   });
 });

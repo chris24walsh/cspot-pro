@@ -34,7 +34,7 @@ export interface FeatureModule {
 export const featureModules: FeatureModule[] = [
   {
     id: "profile", label: "My Profile", kicker: "Details, serving and availability", status: "Ready", metrics: [],
-    lanes: [{ title: "Profile", items: ["Personal details", "Avatar"] }, { title: "Serving", items: ["Volunteer interests", "Preferred frequency"] }, { title: "Availability", items: ["Unavailable dates"] }],
+    lanes: [{ title: "Profile", items: ["Personal details", "Auto initials"] }, { title: "Serving", items: ["Volunteer interests", "Preferred frequency"] }, { title: "Availability", items: ["Unavailable dates"] }],
   },
   {
     id: "presentation",

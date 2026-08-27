@@ -5,7 +5,6 @@ import {
   saveVolunteerPreference, updateMyProfile, withdrawVolunteerPreference,
   type ServingProfile, type VolunteerFrequencyPeriod, type VolunteerPreference, type VolunteerRotationMode,
 } from "../api";
-import { CALENDAR_AVATARS } from "../userCalendarStyle";
 import { useConfirmationDialog } from "./ConfirmationDialog";
 import { ServingFrequencyInput } from "./ServingFrequencyInput";
 
@@ -33,7 +32,7 @@ export function MyProfile({ onProfileChanged, onServingChanged }: { onProfileCha
   const { confirm, confirmationDialog } = useConfirmationDialog();
   const [data, setData] = useState<ServingProfile | null>(null);
   const [drafts, setDrafts] = useState<Record<string, ServingDraft>>({});
-  const [form, setForm] = useState({ name: "", email: "", username: "", calendar_avatar: "" });
+  const [form, setForm] = useState({ name: "", email: "", username: "" });
   const [away, setAway] = useState({ starts_on: "", ends_on: "", note: "" });
   const [message, setMessage] = useState<string | null>(null);
   const [immediateAction, setImmediateAction] = useState<string | null>(null);
@@ -46,7 +45,7 @@ export function MyProfile({ onProfileChanged, onServingChanged }: { onProfileCha
   async function load() {
     const next = await getServingProfile();
     setData(next); setDrafts(makeDrafts(next));
-    setForm({ name: next.user.name, email: next.user.email, username: next.user.username, calendar_avatar: next.user.calendar_avatar || "" });
+    setForm({ name: next.user.name, email: next.user.email, username: next.user.username });
     if (!initialSectionChosen.current) {
       initialSectionChosen.current = true;
       const invitation = next.preferences.find((preference) => preference.initiated_by === "admin" && preference.status === "pending");
@@ -83,7 +82,7 @@ export function MyProfile({ onProfileChanged, onServingChanged }: { onProfileCha
 
   async function saveProfile(event: FormEvent) {
     event.preventDefault();
-    try { await updateMyProfile({ ...form, calendar_avatar: form.calendar_avatar || null }); await load(); onProfileChanged(); setMessage("Profile saved."); }
+    try { await updateMyProfile(form); await load(); onProfileChanged(); setMessage("Profile saved."); }
     catch (error) { setMessage(error instanceof Error ? error.message : "Could not save profile."); }
   }
 
@@ -172,7 +171,7 @@ export function MyProfile({ onProfileChanged, onServingChanged }: { onProfileCha
     {profileSection === "account" ? <form className="profile-card" onSubmit={(event) => void saveProfile(event)}>
       <div className="section-heading"><div><p className="eyebrow">Account</p><h2>My details</h2></div><button className="primary-button" type="submit">Save profile</button></div>
       {message ? <p className="form-message">{message}</p> : null}
-      <div className="form-grid"><label>Name<input required value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} /></label><label>Email<input required type="email" value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} /></label><label>Username<input required pattern="[a-z0-9][a-z0-9._-]{1,79}" value={form.username} onChange={(event) => setForm({ ...form, username: event.target.value.toLowerCase() })} /></label><fieldset className="role-fieldset"><legend>Avatar</legend><div className="calendar-avatar-options"><label className={!form.calendar_avatar ? "selected" : ""}><input type="radio" checked={!form.calendar_avatar} onChange={() => setForm({ ...form, calendar_avatar: "" })} /><span>Initial</span></label>{CALENDAR_AVATARS.map((avatar) => <label className={form.calendar_avatar === avatar ? "selected" : ""} key={avatar}><input type="radio" checked={form.calendar_avatar === avatar} onChange={() => setForm({ ...form, calendar_avatar: avatar })} /><span>{avatar}</span></label>)}</div></fieldset></div>
+      <div className="form-grid"><label>Full name<input autoComplete="name" required value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} /></label><label>Email<input required type="email" value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} /></label><label>Username<input required pattern="[a-z0-9][a-z0-9._-]{1,79}" value={form.username} onChange={(event) => setForm({ ...form, username: event.target.value.toLowerCase() })} /></label></div>
     </form> : null}
     {profileSection === "serving" ? <section className="profile-card serving-list-panel">
       <div className="section-heading"><div><p className="eyebrow">Serving</p><h2>How I can help</h2></div><div className="action-row">{invitationCount ? <span className="status-pill attention">{invitationCount} invitation{invitationCount === 1 ? "" : "s"} to answer</span> : null}</div></div>

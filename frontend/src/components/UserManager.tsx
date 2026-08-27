@@ -27,7 +27,6 @@ import {
   type UserInviteResponse,
   type VolunteerAdminRecord,
 } from "../api";
-import { CALENDAR_AVATARS, CALENDAR_COLORS } from "../userCalendarStyle";
 import { useConfirmationDialog } from "./ConfirmationDialog";
 import { VolunteerReview } from "./VolunteerReview";
 
@@ -540,9 +539,11 @@ export function UserManager({ adminSection, onAdminSectionChange, onAttentionCha
 
         <div className="form-grid">
           <label>
-            Name
+            Full name
             <input
+              autoComplete="name"
               onChange={(event) => setForm({ ...form, name: event.target.value })}
+              placeholder="First name and surname"
               required
               value={form.name}
             />
@@ -574,52 +575,6 @@ export function UserManager({ adminSection, onAdminSectionChange, onAttentionCha
             <p className="muted-copy">Serving roles are grouped by ministry. Approved requests automatically provide the matching workspace access; administration remains explicit.</p>
             <div className="role-group-grid">
               {ROLE_GROUPS.map((group) => { const groupRequests = volunteerRows.filter((row) => row.user_id === selectedUser?.id && row.preference.area.category === group.label); const groupAreas = servingAreas.filter((area) => area.category === group.label); if (!group.roles.length && !groupRequests.length && !groupAreas.length) return null; const groupOpen = openRoleGroup === group.label; const activeCount = group.roles.filter((roleName) => form.role_names.includes(roleName)).length + groupRequests.filter((row) => row.preference.status === "approved" || row.preference.status === "pending").length; return <section className={`role-group role-category ${groupOpen ? "is-open" : ""}`} key={group.label}><button className="role-category-heading" onClick={() => setOpenRoleGroup(groupOpen ? null : group.label)} type="button"><span>{group.label}</span><small>{activeCount} active</small><span aria-hidden="true">{groupOpen ? "−" : "+"}</span></button>{groupOpen ? <div className="role-category-items">{group.roles.length ? <div className="admin-role-list">{group.roles.map((roleName) => { const role = roles.find((candidate) => candidate.name === roleName); const selected = Boolean(role && form.role_names.includes(role.name)); const limit = roleName === "worship_leader" ? form.worship_max_sundays_per_month : roleName === "sunday_school_teacher" ? form.sunday_school_max_sundays_per_month : null; return role ? <div className={`admin-role-row ${selected ? "selected" : ""}`} key={role.id}><label className="admin-role-toggle"><input checked={selected} disabled={role.name === "viewer" && form.role_names.some((name) => name !== "viewer")} onChange={() => void toggleRole(role.name)} type="checkbox" /><span><strong>{formatRoleName(role.name)}</strong><small>{role.description ?? "Workspace access"}</small></span></label>{selected && limit !== null ? <label className="inline-role-limit"><span>Sundays</span><select onChange={(event) => { const value = event.target.value; void persistServingAccess(roleName === "worship_leader" ? { worship_max_sundays_per_month: value } : { sunday_school_max_sundays_per_month: value }).catch((error) => setMessage(error instanceof Error ? error.message : "Could not update rotation limit.")); }} value={limit}><option value="">Unlimited</option><option value="0">Never</option>{[1, 2, 3, 4, 5].map((value) => <option key={value} value={value}>{value}/month</option>)}</select></label> : null}</div> : null; })}</div> : null}{mode === "edit" && selectedUser && (groupRequests.length || groupAreas.length) ? <VolunteerReview areas={groupAreas} compact directRoleNames={selectedUser.roles} onChanged={refreshVolunteerRows} rows={groupRequests} userId={selectedUser.id} /> : null}</div> : null}</section>; })}
-            </div>
-          </fieldset>
-
-          <fieldset className="wide-field role-fieldset calendar-identity-fieldset">
-            <legend>Calendar identity</legend>
-            <p className="muted-copy">Choose a fixed colour and initial, or use an avatar instead.</p>
-            <div className="calendar-identity-preview">
-              <span className={form.calendar_avatar ? "calendar-admin-avatar" : `calendar-admin-avatar ${form.calendar_color}`}>
-                {form.calendar_avatar || form.name.trim().charAt(0).toUpperCase() || "?"}
-              </span>
-              <span>{form.calendar_avatar ? "Avatar" : "Colour and initial"}</span>
-            </div>
-            <div className="calendar-color-options" aria-label="Calendar colour">
-              {CALENDAR_COLORS.map((color) => (
-                <label className={`${color} ${form.calendar_color === color ? "selected" : ""}`} key={color}>
-                  <input
-                    checked={form.calendar_color === color}
-                    name="calendar-color"
-                    onChange={() => setForm({ ...form, calendar_color: color, calendar_avatar: "" })}
-                    type="radio"
-                  />
-                  <span aria-hidden="true" />
-                </label>
-              ))}
-            </div>
-            <div className="calendar-avatar-options" aria-label="Calendar avatar">
-              <label className={!form.calendar_avatar ? "selected" : ""}>
-                <input
-                  checked={!form.calendar_avatar}
-                  name="calendar-avatar"
-                  onChange={() => setForm({ ...form, calendar_avatar: "" })}
-                  type="radio"
-                />
-                <span>Initial</span>
-              </label>
-              {CALENDAR_AVATARS.map((avatar) => (
-                <label className={form.calendar_avatar === avatar ? "selected" : ""} key={avatar}>
-                  <input
-                    checked={form.calendar_avatar === avatar}
-                    name="calendar-avatar"
-                    onChange={() => setForm({ ...form, calendar_avatar: avatar })}
-                    type="radio"
-                  />
-                  <span aria-hidden="true">{avatar}</span>
-                </label>
-              ))}
             </div>
           </fieldset>
 

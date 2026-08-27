@@ -227,8 +227,8 @@ export function AuthScreen({ bootstrapAvailable, onAuthenticated, rememberByDefa
         <form className="auth-form" onSubmit={(event) => void submit(event)}>
           {mode === "bootstrap" || mode === "signup" ? (
             <label>
-              Name
-              <input onChange={(event) => setName(event.target.value)} required value={name} />
+              Full name
+              <input autoComplete="name" onChange={(event) => setName(event.target.value)} placeholder="First name and surname" required value={name} />
             </label>
           ) : null}
 

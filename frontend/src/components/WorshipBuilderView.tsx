@@ -53,7 +53,7 @@ import { showToast } from "../toast";
 import { analyzeImportedSongSlides, analyzeWorshipText, buildLyricsFromSections, canonicalizeWorshipLyrics } from "../worshipText";
 import { dateKey, isWorshipSetPlan, preferredWorshipSetPlanId, worshipSetType } from "../worshipSets";
 import { lastUsedLabel, worshipRoleLabel } from "../worshipSongMetadata";
-import { calendarColor, calendarMarkers } from "../userCalendarStyle";
+import { calendarColors, calendarMarkers } from "../userCalendarStyle";
 import { calendarDatesAround, effectiveLeaderIdForDate, sundayDatesAround, type SundayLeader } from "../leaderSchedule";
 import { CalendarPopup } from "./CalendarPopup";
 import { useConfirmationDialog } from "./ConfirmationDialog";
@@ -432,6 +432,7 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
     [worshipLeaders],
   );
   const worshipLeaderMarkers = useMemo(() => calendarMarkers(worshipLeaders), [worshipLeaders]);
+  const worshipLeaderColors = useMemo(() => calendarColors(worshipLeaders), [worshipLeaders]);
   function worshipLeaderIdForDate(date: string) {
     return effectiveLeaderIdForDate(date, worshipRotationLeaders, leaderAssignmentsByDate);
   }
@@ -482,7 +483,7 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
     return {
       date: dateInput,
       className: `${worshipCalendarItemCount(dateInput) > 0 ? "has-service" : ""} ${
-        leaderId ? calendarColor(users.find((user) => user.id === leaderId)) : ""
+        leaderId ? worshipLeaderColors.get(leaderId) ?? "" : ""
       }`.trim(),
     };
   }
@@ -2392,7 +2393,7 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
             <>
               <span>{date.getDate()}</span>
               {leader ? (
-                <span className={`calendar-user-marker ${leader.calendar_avatar ? "is-avatar" : ""}`} aria-label={leader.name}>
+                <span className="calendar-user-marker" aria-label={leader.name} title={leader.name}>
                   {worshipLeaderMarkers.get(leader.id)}
                 </span>
               ) : null}
