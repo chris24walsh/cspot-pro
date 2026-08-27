@@ -602,7 +602,17 @@ def login(
     user = session.scalar(
         select(User).where(or_(func.lower(User.email) == identifier, User.username == identifier))
     )
-    if user is None or not user.active or not verify_password(payload.password, user.password_hash):
+    if user is None or not verify_password(payload.password, user.password_hash):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid email/username or password.",
+        )
+    if user.registration_pending and not user.active:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Your account is awaiting administrator approval.",
+        )
+    if not user.active:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid email/username or password.",

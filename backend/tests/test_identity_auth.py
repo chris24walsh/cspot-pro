@@ -1,5 +1,6 @@
-from fastapi import Response
-from sqlalchemy import create_engine
+import pytest
+from fastapi import HTTPException, Response
+from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session
 
 from app.core.database import Base
@@ -77,3 +78,41 @@ def test_remembered_login_sets_legacy_compatible_expiry() -> None:
     assert "expires=" in remembered_cookie
     assert "max-age=" not in session_cookie
     assert "expires=" not in session_cookie
+
+
+def test_pending_self_registration_gets_approval_message_after_valid_password() -> None:
+    with _identity_session() as session:
+        user = session.scalar(select(User).where(User.email == "screen@example.com"))
+        assert user is not None
+        user.active = False
+        user.registration_pending = True
+        session.commit()
+
+        with pytest.raises(HTTPException) as exc_info:
+            login(
+                LoginRequest(identifier="screen@example.com", password="test-password"),
+                Response(),
+                session,
+            )
+
+        assert exc_info.value.status_code == 403
+        assert exc_info.value.detail == "Your account is awaiting administrator approval."
+
+
+def test_pending_registration_does_not_disclose_status_for_wrong_password() -> None:
+    with _identity_session() as session:
+        user = session.scalar(select(User).where(User.email == "screen@example.com"))
+        assert user is not None
+        user.active = False
+        user.registration_pending = True
+        session.commit()
+
+        with pytest.raises(HTTPException) as exc_info:
+            login(
+                LoginRequest(identifier="screen@example.com", password="wrong-password"),
+                Response(),
+                session,
+            )
+
+        assert exc_info.value.status_code == 401
+        assert exc_info.value.detail == "Invalid email/username or password."
