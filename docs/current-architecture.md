@@ -365,9 +365,11 @@ The stable `/tv` display route (with `?presentation=tv` retained for
 compatibility) is a passive, authenticated slideshow renderer for a television
 browser. Public HTTP requests are upgraded by the browser bootstrap using the
 client-visible URL, which avoids ambiguity across nested TLS-terminating proxies.
-When the presenter selects **Start Slideshow**, the presenter control page
-creates a server-authoritative output session. On a desktop it also opens the
-local slideshow window; on a phone or tablet it only enables the network output.
+When the presenter selects **Start**, the presenter control page
+creates a server-authoritative output session. The presenter Start control is a
+split button: by default it enables network output without opening a local
+window, while its dropdown can make the next start also open a local slideshow
+window.
 The session remains active if controller tabs, local output windows, or TV
 browsers close or become suspended. Another presenter can reconnect and stop it
 explicitly, which causes open desktop output windows to close and TV browsers to

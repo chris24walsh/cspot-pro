@@ -681,6 +681,8 @@ export function PresentationView({
   const [playingAudioSectionId, setPlayingAudioSectionId] = useState<string | null>(null);
   const [localAudioUrl, setLocalAudioUrl] = useState<string | null>(null);
   const [slideshowOpen, setSlideshowOpen] = useState(false);
+  const [openSlideshowWindowOnStart, setOpenSlideshowWindowOnStart] = useState(false);
+  const [slideshowStartMenuOpen, setSlideshowStartMenuOpen] = useState(false);
   const [broadcastRecordings, setBroadcastRecordings] = useState<BroadcastRecording[]>([]);
   const [recordingAction, setRecordingAction] = useState(false);
   const [recordingClock, setRecordingClock] = useState(Date.now());
@@ -696,6 +698,7 @@ export function PresentationView({
   const keyCaptureRef = useRef<HTMLInputElement | null>(null);
   const outputWindowRef = useRef<Window | null>(null);
   const outputOwnerIdRef = useRef<string | null>(null);
+  const slideshowStartControlRef = useRef<HTMLDivElement | null>(null);
   const localAudioFrameRef = useRef<HTMLIFrameElement | null>(null);
   const channelRef = useRef<BroadcastChannel | null>(null);
   const slideGridRef = useRef<HTMLDivElement | null>(null);
@@ -1484,7 +1487,7 @@ export function PresentationView({
       if (slideshowOpen) {
         setMessage("Use the Fullscreen button on the display; remote browsers cannot enter fullscreen without a click on that device.");
       } else {
-        await startSlideshow();
+        await startSlideshow(true);
       }
       return;
     }
@@ -1500,7 +1503,7 @@ export function PresentationView({
     }
   }
 
-  async function startSlideshow() {
+  async function startSlideshow(openLocalWindow = openSlideshowWindowOnStart) {
     if (!plan) {
       setMessage("Select a plan before starting the slideshow.");
       return;
@@ -1536,12 +1539,12 @@ export function PresentationView({
     setLiveBlanked(startOnBackground);
     await publishLiveState(liveIndex, { blanked: startOnBackground, serviceStage: "service" });
 
-    if (isMobileOrTabletDevice()) {
-      setMessage("Slideshow started. The TV presentation is active.");
+    if (!openLocalWindow) {
+      setMessage("Slideshow started. Connected TV and browser displays are active.");
       return;
     }
 
-    const detectedScreens = screens.length ? screens : await detectDisplays();
+    const detectedScreens = isMobileOrTabletDevice() ? [] : screens.length ? screens : await detectDisplays();
     const detectedPreferredIndex = detectedScreens.findIndex((screen) => !screen.current);
     const targetIndex = screens.length
       ? selectedScreenIndex
@@ -3291,6 +3294,21 @@ export function PresentationView({
   }, [editingSongId, plan?.id, searchOverlayOpen, servicePickerOpen]);
 
   useEffect(() => {
+    if (!slideshowStartMenuOpen) {
+      return;
+    }
+
+    function closeSlideshowStartMenu(event: PointerEvent) {
+      if (!slideshowStartControlRef.current?.contains(event.target as Node)) {
+        setSlideshowStartMenuOpen(false);
+      }
+    }
+
+    window.addEventListener("pointerdown", closeSlideshowStartMenu);
+    return () => window.removeEventListener("pointerdown", closeSlideshowStartMenu);
+  }, [slideshowStartMenuOpen]);
+
+  useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
       if (event.type !== "keydown") {
         return;
@@ -3318,6 +3336,11 @@ export function PresentationView({
       if (event.key === "Escape" && servicePickerOpen) {
         event.preventDefault();
         setServicePickerOpen(false);
+        return;
+      }
+      if (event.key === "Escape" && slideshowStartMenuOpen) {
+        event.preventDefault();
+        setSlideshowStartMenuOpen(false);
         return;
       }
       if ((event.key === "s" || event.key === "S") && !editing) {
@@ -3366,7 +3389,8 @@ export function PresentationView({
       if (event.key === "F5") {
         event.preventDefault();
         clearHotkeyButtonFocus();
-        void startSlideshow();
+        setSlideshowStartMenuOpen(false);
+        void startSlideshow(openSlideshowWindowOnStart);
         return;
       }
       if (event.key === "f" || event.key === "F") {
@@ -3422,6 +3446,8 @@ export function PresentationView({
     googleDriveFiles,
     selectedScreenIndex,
     servicePickerOpen,
+    slideshowStartMenuOpen,
+    openSlideshowWindowOnStart,
     slides,
     sections,
   ]);
@@ -3744,16 +3770,69 @@ export function PresentationView({
 
           <div className="presenter-controls" aria-label="Slide controls">
             <div className="action-row presenter-mobile-command-row">
-              <button
-                className={slideshowOpen ? "primary-button" : "text-button"}
-                disabled={loading || !plan}
-                onClick={() => void startSlideshow()}
-                title={slideshowOpen ? "Stop slideshow on every display" : "Start slideshow and TV presentation"}
-                type="button"
-              >
-                {slideshowOpen ? <CircleStop size={16} aria-hidden="true" /> : <MonitorUp size={16} aria-hidden="true" />}
-                <span className="mobile-button-label">{slideshowOpen ? "Stop Slideshow" : "Start Slideshow"}</span>
-              </button>
+              <div className="slideshow-split-control" ref={slideshowStartControlRef}>
+                <button
+                  className={`slideshow-start-button ${slideshowOpen ? "primary-button" : "text-button"}`}
+                  disabled={loading || !plan}
+                  onClick={() => {
+                    setSlideshowStartMenuOpen(false);
+                    void startSlideshow(openSlideshowWindowOnStart);
+                  }}
+                  title={
+                    slideshowOpen
+                      ? "Stop slideshow on every display"
+                      : openSlideshowWindowOnStart
+                        ? "Start slideshow and open it in a new window"
+                        : "Start slideshow without opening a new window"
+                  }
+                  type="button"
+                >
+                  {slideshowOpen ? <CircleStop size={16} aria-hidden="true" /> : <MonitorUp size={16} aria-hidden="true" />}
+                  <span className="mobile-button-label">{slideshowOpen ? "Stop" : "Start"}</span>
+                </button>
+                <button
+                  aria-expanded={slideshowStartMenuOpen}
+                  aria-haspopup="menu"
+                  aria-label="Choose how the slideshow starts"
+                  className={`slideshow-start-menu-button ${slideshowOpen ? "primary-button" : "text-button"}`}
+                  disabled={loading || !plan}
+                  onClick={() => setSlideshowStartMenuOpen((open) => !open)}
+                  title="Choose how the slideshow starts"
+                  type="button"
+                >
+                  <ChevronDown size={15} aria-hidden="true" />
+                </button>
+                {slideshowStartMenuOpen ? (
+                  <div aria-label="Slideshow start options" className="slideshow-start-menu" role="menu">
+                    <button
+                      aria-checked={!openSlideshowWindowOnStart}
+                      className={!openSlideshowWindowOnStart ? "selected" : undefined}
+                      onClick={() => {
+                        setOpenSlideshowWindowOnStart(false);
+                        setSlideshowStartMenuOpen(false);
+                      }}
+                      role="menuitemradio"
+                      type="button"
+                    >
+                      <span aria-hidden="true">{!openSlideshowWindowOnStart ? "✓" : ""}</span>
+                      Don&apos;t open slideshow window
+                    </button>
+                    <button
+                      aria-checked={openSlideshowWindowOnStart}
+                      className={openSlideshowWindowOnStart ? "selected" : undefined}
+                      onClick={() => {
+                        setOpenSlideshowWindowOnStart(true);
+                        setSlideshowStartMenuOpen(false);
+                      }}
+                      role="menuitemradio"
+                      type="button"
+                    >
+                      <span aria-hidden="true">{openSlideshowWindowOnStart ? "✓" : ""}</span>
+                      Open slideshow in new window
+                    </button>
+                  </div>
+                ) : null}
+              </div>
               {canEditPlan ? (
                 <button className="text-button" disabled={!plan} onClick={() => openSearchOverlay()} title="Search" type="button">
                   <Search size={16} aria-hidden="true" />
