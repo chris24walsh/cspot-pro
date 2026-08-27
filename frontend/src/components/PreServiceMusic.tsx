@@ -7,7 +7,17 @@ function loopingYouTubeUrl(videoId: string) {
   return `https://www.youtube-nocookie.com/embed/${videoId}?autoplay=1&mute=1&loop=1&playlist=${videoId}&rel=0&modestbranding=1&playsinline=1&enablejsapi=1`;
 }
 
-export function PreServiceMusic({ serviceDate, url }: { serviceDate: string; url: string }) {
+export function PreServiceMusic({
+  continuous = false,
+  label = "Pre-service music",
+  serviceDate,
+  url,
+}: {
+  continuous?: boolean;
+  label?: string;
+  serviceDate: string;
+  url: string;
+}) {
   const videoId = extractYouTubeId(url);
   const frameRef = useRef<HTMLIFrameElement | null>(null);
   const [muted, setMuted] = useState(Boolean(videoId));
@@ -19,14 +29,14 @@ export function PreServiceMusic({ serviceDate, url }: { serviceDate: string; url
     return () => window.clearInterval(timer);
   }, []);
 
-  if (phase !== "montage" && phase !== "countdown") {
+  if (!continuous && phase !== "montage" && phase !== "countdown") {
     return null;
   }
 
   if (!videoId) {
     return (
       <div className="pre-service-music-control">
-        <span>Pre-service music</span>
+        <span>{label}</span>
         <audio autoPlay controls loop src={url} />
       </div>
     );
@@ -47,9 +57,9 @@ export function PreServiceMusic({ serviceDate, url }: { serviceDate: string; url
         ref={frameRef}
         src={loopingYouTubeUrl(videoId)}
         tabIndex={-1}
-        title="Pre-service music"
+        title={label}
       />
-      <span>Pre-service music</span>
+      <span>{label}</span>
       {muted ? <button className="primary-button" onClick={enableSound} type="button">Enable sound</button> : <strong>Playing</strong>}
     </div>
   );

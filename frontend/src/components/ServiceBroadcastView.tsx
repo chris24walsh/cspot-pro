@@ -82,6 +82,7 @@ function liveStateFromApi(state: Awaited<ReturnType<typeof getPresentationLiveSt
     updatedAt: state.updated_at,
     videoAction: state.video_action,
     videoActionAt: state.video_action_at ?? undefined,
+    serviceStage: state.service_stage ?? "ready",
   };
 }
 
@@ -124,7 +125,7 @@ export function ServiceBroadcastView({ canControl = false, onOpenSettings }: { c
   // Blanking is a visual overlay, not the end of the underlying live slide.
   // Keeping the slide selected also keeps its camera/audio routing alive.
   const liveSlide = !liveState ? null : slides[resolveLiveIndex(slides, liveState)] ?? null;
-  const preServiceLive = liveSlide?.itemType === "pre_service";
+  const ambientMusicStage = liveState?.serviceStage === "pre_service" || liveState?.serviceStage === "post_service";
   const hasLiveBroadcast = Boolean((plan && remoteLiveState) || settings.manual_live_audience !== "off");
   const upcomingService = plan ?? nextService;
   const startingSoon = !hasLiveBroadcast && isBroadcastStartingSoon(upcomingService?.service_date, Date.now(), settings.pre_service_minutes);
@@ -445,10 +446,15 @@ export function ServiceBroadcastView({ canControl = false, onOpenSettings }: { c
         </section>
       </div>
 
-      {hasLiveBroadcast && ((preServiceLive && settings.pre_service_audio_url && plan) || liveAudioUrl || canControl) ? (
+      {hasLiveBroadcast && ((ambientMusicStage && settings.pre_service_audio_url && plan) || liveAudioUrl || canControl) ? (
         <div className={`service-broadcast-viewer-controls ${canControl ? "has-admin-controls" : ""}`}>
-          {preServiceLive && settings.pre_service_audio_url && plan ? (
-            <PreServiceMusic serviceDate={plan.service_date} url={settings.pre_service_audio_url} />
+          {ambientMusicStage && settings.pre_service_audio_url && plan ? (
+            <PreServiceMusic
+              continuous={liveState?.serviceStage === "post_service"}
+              label={liveState?.serviceStage === "post_service" ? "Post-service music" : "Pre-service music"}
+              serviceDate={plan.service_date}
+              url={settings.pre_service_audio_url}
+            />
           ) : liveAudioUrl ? (
             <LiveStreamAudio label={selectedAudioCamera ? `${selectedAudioCamera.label} audio` : selectedIndependentAudio?.label ?? "Live service audio"} url={liveAudioUrl} />
           ) : null}

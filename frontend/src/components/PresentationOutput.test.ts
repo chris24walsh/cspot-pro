@@ -20,6 +20,7 @@ describe("network TV display", () => {
       updated_at: 12345,
       output_owner_id: "tv-controller-1",
       output_heartbeat_at: 12346,
+      service_stage: "post_service",
     };
 
     expect(networkDisplayState(service)).toMatchObject({
@@ -28,6 +29,7 @@ describe("network TV display", () => {
       planItemId: "sermon-1",
       slideOffset: 3,
       updatedAt: 12345,
+      serviceStage: "post_service",
     });
   });
 });

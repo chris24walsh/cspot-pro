@@ -2,10 +2,11 @@ from datetime import UTC, datetime
 from types import SimpleNamespace
 from unittest.mock import patch
 
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session
 
 from app.core.database import Base
+from app.modules.broadcast.models import BroadcastViewerSettings
 from app.modules.presentation.models import PresentationPosition, PresentationSession
 from app.modules.presentation.routes import (
     PresentationLiveStateWrite,
@@ -131,7 +132,11 @@ def test_remote_release_prevents_the_closed_output_from_reclaiming() -> None:
     engine = create_engine("sqlite://")
     Base.metadata.create_all(
         engine,
-        tables=[PresentationSession.__table__, PresentationPosition.__table__],
+        tables=[
+            PresentationSession.__table__,
+            PresentationPosition.__table__,
+            BroadcastViewerSettings.__table__,
+        ],
     )
     scheduled: list[tuple[str | None, str | None]] = []
     with Session(engine) as session:
@@ -146,6 +151,7 @@ def test_remote_release_prevents_the_closed_output_from_reclaiming() -> None:
                 ),
             )
         )
+        session.add(BroadcastViewerSettings(audio_scene_automation=True))
         session.commit()
 
         with patch(
@@ -153,7 +159,7 @@ def test_remote_release_prevents_the_closed_output_from_reclaiming() -> None:
             side_effect=lambda _plan_id, previous_id, item_id, _offset, _user_id: scheduled.append(
                 (previous_id, item_id)
             ),
-        ):
+        ), patch("app.modules.presentation.routes.activate_audio_scene") as activate_scene:
             released = update_presentation_output_status(
                 "plan-1",
                 PresentationOutputStatusWrite(
@@ -168,18 +174,30 @@ def test_remote_release_prevents_the_closed_output_from_reclaiming() -> None:
                 SimpleNamespace(id="user-1"),  # type: ignore[arg-type]
                 session,
             )
+            released_payload = session.scalar(
+                select(PresentationPosition.payload_json).limit(1)
+            )
 
     assert released.active is False
     assert reclaimed.active is False
     assert reclaimed.claimed is False
     assert scheduled == [(None, None)]
+    assert released_payload is not None
+    assert '"service_stage": "post_service"' in released_payload
+    assert '"blanked": true' in released_payload
+    activate_scene.assert_called_once()
+    assert activate_scene.call_args.args[2] == "media"
 
 
 def test_routine_output_heartbeat_does_not_schedule_recording(monkeypatch) -> None:
     engine = create_engine("sqlite://")
     Base.metadata.create_all(
         engine,
-        tables=[PresentationSession.__table__, PresentationPosition.__table__],
+        tables=[
+            PresentationSession.__table__,
+            PresentationPosition.__table__,
+            BroadcastViewerSettings.__table__,
+        ],
     )
     scheduled: list[tuple[str | None, str | None]] = []
     monkeypatch.setattr(
@@ -224,7 +242,11 @@ def test_new_output_on_sermon_schedules_one_recording_start(monkeypatch) -> None
     engine = create_engine("sqlite://")
     Base.metadata.create_all(
         engine,
-        tables=[PresentationSession.__table__, PresentationPosition.__table__],
+        tables=[
+            PresentationSession.__table__,
+            PresentationPosition.__table__,
+            BroadcastViewerSettings.__table__,
+        ],
     )
     scheduled: list[tuple[str | None, str | None, int]] = []
     monkeypatch.setattr(
@@ -245,24 +267,37 @@ def test_new_output_on_sermon_schedules_one_recording_start(monkeypatch) -> None
                 payload_json='{"plan_item_id": "sermon-a", "slide_offset": 3}',
             )
         )
+        session.add(BroadcastViewerSettings(audio_scene_automation=True))
         session.commit()
 
-        status = update_presentation_output_status(
-            "plan-1",
-            PresentationOutputStatusWrite(owner_id="output-1", heartbeat_at=12000),
-            SimpleNamespace(id="user-1"),  # type: ignore[arg-type]
-            session,
+        with patch("app.modules.presentation.routes.activate_audio_scene") as activate_scene:
+            status = update_presentation_output_status(
+                "plan-1",
+                PresentationOutputStatusWrite(owner_id="output-1", heartbeat_at=12000),
+                SimpleNamespace(id="user-1"),  # type: ignore[arg-type]
+                session,
+            )
+        claimed_payload = session.scalar(
+            select(PresentationPosition.payload_json).limit(1)
         )
 
     assert status.claimed is True
     assert scheduled == [(None, "sermon-a", 3)]
+    assert claimed_payload is not None
+    assert '"service_stage": "service"' in claimed_payload
+    activate_scene.assert_called_once()
+    assert activate_scene.call_args.args[2] == "pastor"
 
 
 def test_live_state_only_schedules_real_sermon_slide_changes(monkeypatch) -> None:
     engine = create_engine("sqlite://")
     Base.metadata.create_all(
         engine,
-        tables=[PresentationSession.__table__, PresentationPosition.__table__],
+        tables=[
+            PresentationSession.__table__,
+            PresentationPosition.__table__,
+            BroadcastViewerSettings.__table__,
+        ],
     )
     scheduled: list[tuple[str | None, str | None, int]] = []
     monkeypatch.setattr(

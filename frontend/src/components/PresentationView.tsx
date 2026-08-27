@@ -1114,6 +1114,7 @@ export function PresentationView({
             fullscreen: liveState.fullscreen,
             videoAction: liveState.video_action,
             videoActionAt: liveState.video_action_at ?? undefined,
+            serviceStage: liveState.service_stage ?? "ready",
           }
         : null;
       const preservedIndex = options?.preserveLocation
@@ -1470,6 +1471,7 @@ export function PresentationView({
       closeLocalSlideshowWindow();
       outputOwnerIdRef.current = null;
       setSlideshowOpen(false);
+      setLiveBlanked(true);
       setMessage(null);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Could not stop the slideshow.");
@@ -1530,7 +1532,9 @@ export function PresentationView({
 
     outputOwnerIdRef.current = ownerId;
     setSlideshowOpen(true);
-    await publishLiveState(liveIndex);
+    const startOnBackground = liveSlide?.itemType === "pre_service";
+    setLiveBlanked(startOnBackground);
+    await publishLiveState(liveIndex, { blanked: startOnBackground, serviceStage: "service" });
 
     if (isMobileOrTabletDevice()) {
       setMessage("Slideshow started. The TV presentation is active.");
@@ -3131,6 +3135,7 @@ export function PresentationView({
             fullscreen: remoteState.fullscreen,
             videoAction: remoteState.video_action,
             videoActionAt: remoteState.video_action_at ?? undefined,
+            serviceStage: remoteState.service_stage ?? "ready",
           });
           if (remoteState.plan_item_id && remoteState.plan_item_id === previousPlanItemId) {
             if (selectedPlanIdRef.current !== selectedPlanId) return;

@@ -33,6 +33,7 @@ class PresentationLiveStateRead(BaseModel):
     fullscreen: bool = False
     video_action: str | None = None
     video_action_at: int | None = None
+    service_stage: str = "ready"
 
 
 class PresentationLiveStateWrite(BaseModel):
@@ -77,6 +78,7 @@ class PresentationLiveServiceRead(BaseModel):
     updated_at: int = 0
     output_owner_id: str
     output_heartbeat_at: int
+    service_stage: str = "ready"
 
 
 OUTPUT_STALE_MS = 7000
@@ -126,11 +128,25 @@ def ensure_scheduled_pre_service(session: Session) -> None:
             and active_item is not None
             and active_item.item_type == "pre_service"
         ):
+            # Once a leader claims the output, or explicitly ends the service,
+            # the scheduled pre-service clock no longer owns presentation or
+            # audio state.
+            if (
+                payload.get("output_active") is True
+                or payload.get("service_stage") == "post_service"
+            ):
+                return
             broadcast_settings = session.scalar(select(BroadcastViewerSettings).limit(1))
             if broadcast_settings and broadcast_settings.audio_scene_automation:
-                desired_scene = "pastor" if now_local.hour >= 11 else "media"
+                desired_scene = "media"
                 if broadcast_settings.active_audio_scene != desired_scene:
                     activate_audio_scene(session, broadcast_settings, desired_scene)
+            desired_stage = "ready" if now_local.hour >= 11 else "pre_service"
+            if payload.get("service_stage") != desired_stage:
+                payload["service_stage"] = desired_stage
+                payload["updated_at"] = int(datetime.now(UTC).timestamp() * 1000)
+                position.payload_json = json.dumps(payload)
+                session.commit()
         return
     first_item = session.scalar(
         select(PlanItem)
@@ -166,6 +182,7 @@ def ensure_scheduled_pre_service(session: Session) -> None:
                     "blanked": False,
                     "fullscreen": False,
                     "auto_started": True,
+                    "service_stage": "pre_service",
                 }
             ),
         )
@@ -212,6 +229,7 @@ def _serialize_live_state(
         video_action_at=int(payload["video_action_at"])
         if payload.get("video_action_at") is not None
         else None,
+        service_stage=str(payload.get("service_stage", "ready")),
     )
 
 
@@ -324,6 +342,7 @@ def list_live_presentation_services(
                 updated_at=int(payload.get("updated_at", 0)),
                 output_owner_id=output_status.owner_id or "scheduled",
                 output_heartbeat_at=output_status.heartbeat_at or now,
+                service_stage=str(payload.get("service_stage", "ready")),
             )
         )
         seen_plan_ids.add(plan.id)
@@ -468,6 +487,9 @@ def update_presentation_output_status(
         next_payload.pop("output_heartbeat_at", None)
         next_payload.pop("output_active", None)
         next_payload.pop("output_recording_item_id", None)
+        next_payload["service_stage"] = "post_service"
+        next_payload["blanked"] = True
+        next_payload["updated_at"] = payload.heartbeat_at
     elif next_payload.get("output_closed_owner_id") == payload.owner_id:
         return PresentationOutputStatusRead(plan_id=plan_id)
     elif current_owner and current_owner != payload.owner_id:
@@ -478,6 +500,7 @@ def update_presentation_output_status(
         next_payload["output_owner_id"] = payload.owner_id
         next_payload["output_heartbeat_at"] = payload.heartbeat_at
         next_payload["output_active"] = True
+        next_payload["service_stage"] = "service"
         if new_output:
             next_payload["output_recording_item_id"] = next_payload.get("plan_item_id")
 
@@ -485,6 +508,9 @@ def update_presentation_output_status(
     session.commit()
     session.refresh(position)
     if payload.release:
+        broadcast_settings = session.scalar(select(BroadcastViewerSettings).limit(1))
+        if broadcast_settings and broadcast_settings.audio_scene_automation:
+            activate_audio_scene(session, broadcast_settings, "media")
         release_slide_offset = next_payload.get("slide_offset", 0)
         schedule_sermon_recording(
             plan_id,
@@ -498,6 +524,9 @@ def update_presentation_output_status(
             current_user.id,
         )
     elif new_output:
+        broadcast_settings = session.scalar(select(BroadcastViewerSettings).limit(1))
+        if broadcast_settings and broadcast_settings.audio_scene_automation:
+            activate_audio_scene(session, broadcast_settings, "pastor")
         current_item_id = next_payload.get("plan_item_id")
         slide_offset = next_payload.get("slide_offset", 0)
         schedule_sermon_recording(

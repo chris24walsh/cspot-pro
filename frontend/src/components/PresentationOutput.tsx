@@ -62,6 +62,7 @@ export function networkDisplayState(service: PresentationLiveService): Presentat
     blanked: false,
     fullscreen: true,
     videoAction: null,
+    serviceStage: service.service_stage ?? "ready",
   };
 }
 
@@ -110,6 +111,7 @@ export function PresentationOutput({ networkDisplay = false }: PresentationOutpu
   const liveMediaUrl = liveSlide?.videoUrl ?? liveSlide?.youtubeAudioUrl;
   const liveMediaProvider = liveSlide?.videoProvider ?? (liveSlide?.youtubeAudioUrl ? "youtube" : undefined);
   const liveTextFontCap = suggestedSlideFontCap(liveSlide);
+  const ambientMusicStage = liveState?.serviceStage === "pre_service" || liveState?.serviceStage === "post_service";
 
   const checkOutputStatus = useCallback(() => {
     if (!liveState?.planId || outputHeartbeatInFlightRef.current) {
@@ -450,6 +452,7 @@ export function PresentationOutput({ networkDisplay = false }: PresentationOutpu
             fullscreen: remoteState.fullscreen,
             videoAction: remoteState.video_action,
             videoActionAt: remoteState.video_action_at ?? undefined,
+            serviceStage: remoteState.service_stage ?? "ready",
           });
         } catch {
           // Keep showing the last known slide if remote polling drops briefly.
@@ -705,7 +708,14 @@ export function PresentationOutput({ networkDisplay = false }: PresentationOutpu
         )}
         </div>
       </section>
-      {liveSlide?.itemType === "pre_service" && preServiceAudioUrl && plan ? <PreServiceMusic serviceDate={plan.service_date} url={preServiceAudioUrl} /> : null}
+      {ambientMusicStage && preServiceAudioUrl && plan ? (
+        <PreServiceMusic
+          continuous={liveState?.serviceStage === "post_service"}
+          label={liveState?.serviceStage === "post_service" ? "Post-service music" : "Pre-service music"}
+          serviceDate={plan.service_date}
+          url={preServiceAudioUrl}
+        />
+      ) : null}
     </main>
   );
 }

@@ -19,6 +19,7 @@ export interface PresentationLiveState {
   fullscreen?: boolean;
   videoAction?: "play" | "pause" | "stop" | "fade-stop" | null;
   videoActionAt?: number;
+  serviceStage?: "pre_service" | "ready" | "service" | "post_service";
 }
 
 export interface PresentationSlide {

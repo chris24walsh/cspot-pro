@@ -331,7 +331,12 @@ Welcome section. At 10:30 Europe/Dublin time, an open network display or viewer
 poll creates the scheduled live presentation for that day's Sunday service,
 selects Welcome, and activates the Media audio scene. The montage and configured
 music begin at 10:30. The 11:00 countdown appears at 10:55; when it expires,
-music and montage stop and Welcome displays the LCF background. The
+music and montage stop and Welcome displays the LCF background in a ready state;
+this does not claim or start the main slideshow. Starting slideshow is the human
+service-start signal. It starts the selected slide, or keeps the static background
+when Welcome is selected, and hands audio-scene inference to the live service.
+Stopping slideshow enters a post-service background/music state and returns audio
+to the safe Media scene rather than taking the scheduled broadcast offline. The
 scheduled session is exposed only during that service day's 10:30–13:30 window.
 Browser policy may require one sound-enabling click for YouTube sources; direct
 audio URLs can autoplay.
@@ -378,8 +383,8 @@ Sign-in accepts either identifier, and remembered sessions include both
 ### Remote service viewer
 
 The Broadcast area is viewer-first. Eligible users land on the viewer even when
-they can edit its settings. An explicitly active slideshow output session normally
-opens the gate for:
+they can edit its settings. The scheduled pre-service/ready/post-service state or
+an explicitly active slideshow output session opens the gate for:
 
 - the active service slideshow
 - multiple named camera/stream sources with manual or synchronized weighted cross-fades; automatic pacing uses deterministic jitter and service-aware worship, prayer, sermon, and announcement profiles, with a lectern/pulpit bias
@@ -423,7 +428,9 @@ Four saved audio scenes (Pastor, Congregation, Worship, and Media) retain an
 independent level/mute choice for every source. With presentation following
 enabled, song slides select Worship, ordinary speaking slides select Pastor,
 and playing video or song media selects Media; stopping, finishing, or leaving
-the media restores the scene appropriate to the current service item.
+the media restores the scene appropriate to the current service item. Claiming
+the main slideshow selects Pastor as a safe opening default; releasing it selects
+Media so speech microphones are removed from the livestream during post-service.
 The same mix drives viewer audio and sermon recording. Changing routing, mute,
 or gain during a sermon closes the current recording segment and starts another;
 the segments are joined losslessly when recording ends so playback remains one

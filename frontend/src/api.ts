@@ -273,6 +273,7 @@ export interface PresentationLiveSyncState {
   fullscreen: boolean;
   video_action: "play" | "pause" | "stop" | "fade-stop" | null;
   video_action_at: number | null;
+  service_stage?: "pre_service" | "ready" | "service" | "post_service";
 }
 
 export interface PresentationLiveService {
@@ -290,6 +291,7 @@ export interface PresentationLiveService {
   updated_at: number;
   output_owner_id: string;
   output_heartbeat_at: number;
+  service_stage?: "pre_service" | "ready" | "service" | "post_service";
 }
 
 export interface PresentationOutputStatus {
