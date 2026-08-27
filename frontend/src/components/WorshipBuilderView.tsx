@@ -88,6 +88,7 @@ type WorshipHistoryMissingSong = {
 };
 
 interface WorshipBuilderViewProps {
+  active?: boolean;
   canAccessAdminTools: boolean;
   canArchiveSong: boolean;
   canCreateSong: boolean;
@@ -332,7 +333,7 @@ function detectMissingSongsInDeck(deck: ParsedSlideDeck, songs: Song[]) {
   return missing;
 }
 
-export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCreateSong, canDeletePlan, canEditSong, canEditPlan }: WorshipBuilderViewProps) {
+export function WorshipBuilderView({ active = true, canAccessAdminTools, canArchiveSong, canCreateSong, canDeletePlan, canEditSong, canEditPlan }: WorshipBuilderViewProps) {
   const { confirm, confirmationDialog } = useConfirmationDialog();
   const [plans, setPlans] = useState<PlanSummary[]>([]);
   const [planTypes, setPlanTypes] = useState<PlanType[]>([]);
@@ -1748,7 +1749,7 @@ export function WorshipBuilderView({ canAccessAdminTools, canArchiveSong, canCre
           <button className="text-button" onClick={() => void undoArchivedWorshipSet()} type="button">Undo</button>
         </div>
       ) : null}
-      {topbarSlot
+      {active && topbarSlot
           ? createPortal(
             <div className="presentation-topbar-tools worship-topbar-tools">
               <div className="worship-set-picker-tools">

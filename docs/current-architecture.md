@@ -309,6 +309,11 @@ application navigation. Date/history/assignment controls, broadcast mode tabs,
 and musician live controls share this toolbar rather than adding view-specific
 rows.
 
+Primary workspaces are mounted on first use and retained for the rest of the
+authenticated app session. Switching modules therefore preserves fetched
+resources, selections, scroll context, and draft UI state without giving up the
+initial lazy load for workspaces the user has not opened.
+
 ### Presentation derivation
 
 Slides are derived from plan items by content type:

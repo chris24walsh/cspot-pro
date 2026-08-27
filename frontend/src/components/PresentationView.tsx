@@ -598,6 +598,7 @@ function recordingGraceCountdown(deadline: string, now: number) {
 }
 
 export function PresentationView({
+  active = true,
   canAttachDeck,
   canAccessAdminTools,
   canCreatePlan,
@@ -608,6 +609,7 @@ export function PresentationView({
   canCreateSong,
   canEditSong,
 }: {
+  active?: boolean;
   canAttachDeck: boolean;
   canAccessAdminTools: boolean;
   canCreatePlan: boolean;
@@ -3288,10 +3290,12 @@ export function PresentationView({
   }, [liveIndex, sections, slides]);
 
   useEffect(() => {
+    if (!active) return undefined;
     if (!searchOverlayOpen && !servicePickerOpen && !editingSongId) {
       keyCaptureRef.current?.focus({ preventScroll: true });
     }
-  }, [editingSongId, plan?.id, searchOverlayOpen, servicePickerOpen]);
+    return undefined;
+  }, [active, editingSongId, plan?.id, searchOverlayOpen, servicePickerOpen]);
 
   useEffect(() => {
     if (!slideshowStartMenuOpen) {
@@ -3309,6 +3313,7 @@ export function PresentationView({
   }, [slideshowStartMenuOpen]);
 
   useEffect(() => {
+    if (!active) return undefined;
     function onKeyDown(event: KeyboardEvent) {
       if (event.type !== "keydown") {
         return;
@@ -3426,6 +3431,7 @@ export function PresentationView({
       window.removeEventListener("keydown", onKeyDown, { capture: true });
     };
   }, [
+    active,
     canEditPlan,
     currentPlanItem,
     editingSongId,
@@ -3585,7 +3591,7 @@ export function PresentationView({
         spellCheck={false}
         tabIndex={-1}
       />
-      {topbarSlot
+      {active && topbarSlot
         ? createPortal(
             <div className="presentation-topbar-tools">
               <DateNavigator

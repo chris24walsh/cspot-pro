@@ -84,6 +84,7 @@ function App() {
   const isNetworkDisplay = isNetworkDisplayLocation(window.location);
   const publicWebsiteUrl = import.meta.env.VITE_PUBLIC_WEBSITE_URL || "/";
   const [activeModuleId, setActiveModuleId] = useState<ModuleId>("presentation");
+  const [mountedModuleIds, setMountedModuleIds] = useState<Set<ModuleId>>(() => new Set(["presentation"]));
   const [sessionUser, setSessionUser] = useState<SessionUser | null>(null);
   const [bootstrapAvailable, setBootstrapAvailable] = useState(false);
   const [authLoading, setAuthLoading] = useState(true);
@@ -264,6 +265,16 @@ function App() {
       setActiveModuleId(modules[0].id);
     }
   }, [activeModuleId, modules]);
+
+  useEffect(() => {
+    if (!activeModule) return;
+    setMountedModuleIds((current) => {
+      if (current.has(activeModule.id)) return current;
+      const next = new Set(current);
+      next.add(activeModule.id);
+      return next;
+    });
+  }, [activeModule]);
 
   useEffect(() => {
     if (!sessionUser || initialViewChosen.current || !modules.length) return;
@@ -503,8 +514,9 @@ function App() {
           ) : null}
         </header>
 
-        {activeModule.id === "worship" ? (
+        {mountedModuleIds.has("worship") ? <div className="workspace-panel" hidden={activeModule.id !== "worship"}>
           <WorshipBuilderView
+            active={activeModule.id === "worship"}
             canAccessAdminTools={canManageUsers}
             canArchiveSong={canDeleteSongs}
             canCreateSong={canCreateSongs}
@@ -512,10 +524,13 @@ function App() {
             canEditSong={canEditSongs}
             canEditPlan={canEditPlans}
           />
-        ) : activeModule.id === "sunday_school" ? (
-          <SundaySchoolView canEdit={canEditPlans || canCreatePlans} />
-        ) : activeModule.id === "presentation" ? (
+        </div> : null}
+        {mountedModuleIds.has("sunday_school") ? <div className="workspace-panel" hidden={activeModule.id !== "sunday_school"}>
+          <SundaySchoolView active={activeModule.id === "sunday_school"} canEdit={canEditPlans || canCreatePlans} />
+        </div> : null}
+        {mountedModuleIds.has("presentation") ? <div className="workspace-panel" hidden={activeModule.id !== "presentation"}>
           <PresentationView
+            active={activeModule.id === "presentation"}
             canAttachDeck={canEditPlans && canCreateLibrary}
             canAccessAdminTools={canManageUsers}
             canCreatePlan={canCreatePlans}
@@ -526,7 +541,8 @@ function App() {
             canEditSong={canEditSongs}
             canEditSlideNotes={canEditSlideNotes}
           />
-        ) : activeModule.id === "broadcast" ? (
+        </div> : null}
+        {activeModule.id === "broadcast" ? (
           broadcastWorkspace !== "viewer" && (broadcastWorkspace === "recordings" || canUseBroadcast) ? (
             <BroadcastManager activeTab={broadcastWorkspace} canManage={canUseBroadcast} onSelectTab={setBroadcastWorkspace} />
           ) : canWatchBroadcast ? (
@@ -542,23 +558,13 @@ function App() {
               <p>This remote service view is temporarily limited to accounts with the viewer role.</p>
             </section>
           )
-        ) : activeModule.id === "admin" ? (
+        ) : null}
+        {mountedModuleIds.has("admin") ? <div className="workspace-panel" hidden={activeModule.id !== "admin"}>
           <UserManager adminSection={adminSection} onAdminSectionChange={setAdminSection} onAttentionChanged={loadAdminAttention} />
-        ) : activeModule.id === "profile" ? (
+        </div> : null}
+        {mountedModuleIds.has("profile") ? <div className="workspace-panel" hidden={activeModule.id !== "profile"}>
           <MyProfile onProfileChanged={() => { void loadAuth(); void loadProfileAttention(); }} onServingChanged={() => { void loadProfileAttention(); }} />
-        ) : (
-          <PresentationView
-            canAttachDeck={canEditPlans && canCreateLibrary}
-            canAccessAdminTools={canManageUsers}
-            canCreatePlan={canCreatePlans}
-            canDeletePlan={canDeletePlans}
-            canEditPlan={canEditPlans}
-            canManagePreServiceMedia={canUsePresentation || canManageUsers}
-            canCreateSong={canCreateSongs}
-            canEditSong={canEditSongs}
-            canEditSlideNotes={canEditSlideNotes}
-          />
-        )}
+        </div> : null}
       </section>
     </main>
   );

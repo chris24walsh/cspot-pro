@@ -192,7 +192,7 @@ function firstLine(value: string) {
     .find(Boolean);
 }
 
-export function SundaySchoolView({ canEdit }: { canEdit: boolean }) {
+export function SundaySchoolView({ active = true, canEdit }: { active?: boolean; canEdit: boolean }) {
   const [lessons, setLessons] = useState<SundaySchoolLesson[]>([]);
   const [resources, setResources] = useState<SundaySchoolResource[]>([]);
   const [users, setUsers] = useState<Member[]>([]);
@@ -591,7 +591,7 @@ export function SundaySchoolView({ canEdit }: { canEdit: boolean }) {
 
   return (
     <section className={`worship-builder sunday-school-as-worship worship-builder-pane-${mobilePane}`} aria-label="Sunday School lessons">
-      {topbarSlot
+      {active && topbarSlot
         ? createPortal(
             <div className="presentation-topbar-tools">
               <DateNavigator
