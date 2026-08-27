@@ -481,19 +481,18 @@ export function ServiceBroadcastView({ canControl = false, onOpenSettings }: { c
             <LiveStreamAudio label={selectedAudioCamera ? `${selectedAudioCamera.label} audio` : selectedIndependentAudio?.label ?? "Live service audio"} onSoundEnabledChange={setLivestreamSound} url={liveAudioUrl} />
           ) : null}
           {liveSlide?.youtubeAudioUrl ? (
-            <div className="service-broadcast-backing-player">
-              <span>Backing track · use Play here if the browser blocks remote start</span>
-              <iframe
-                allow="autoplay; encrypted-media"
-                className="youtube-backing-player-frame"
-                onLoad={() => {
-                  if (liveState?.videoAction === "play") controlBackingAudio("playVideo");
-                }}
-                ref={backingAudioFrameRef}
-                src={liveSlide.youtubeAudioUrl}
-                title={`${liveSlide.title} backing audio`}
-              />
-            </div>
+            <iframe
+              allow="autoplay; encrypted-media"
+              aria-hidden="true"
+              className="youtube-audio-frame"
+              onLoad={() => {
+                if (liveState?.videoAction === "play") controlBackingAudio("playVideo");
+              }}
+              ref={backingAudioFrameRef}
+              src={liveSlide.youtubeAudioUrl}
+              tabIndex={-1}
+              title={`${liveSlide.title} livestream backing audio`}
+            />
           ) : null}
           {canControl ? (
             <div className="service-broadcast-admin-live-controls" aria-label="Quick livestream controls">

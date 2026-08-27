@@ -4856,55 +4856,6 @@ button.musician-page {
   width: 1px;
 }
 
-.youtube-backing-player-frame {
-  aspect-ratio: 16 / 9;
-  background: #000;
-  border: 0;
-  border-radius: 6px;
-  display: block;
-  min-height: 112px;
-  width: 200px;
-}
-
-.service-broadcast-backing-player,
-.presenter-local-backing-player {
-  align-items: center;
-  background: #13231d;
-  border: 1px solid #355448;
-  border-radius: 8px;
-  color: #dce9e3;
-  display: flex;
-  flex: 0 0 auto;
-  gap: 8px;
-  padding: 5px 7px;
-}
-
-.service-broadcast-backing-player > span,
-.presenter-local-backing-player > span {
-  font-size: 10px;
-  font-weight: 800;
-  max-width: 145px;
-}
-
-.presenter-local-backing-player {
-  margin: 0 10px 8px;
-  width: max-content;
-}
-
-@media (max-width: 700px) {
-  .service-broadcast-backing-player,
-  .presenter-local-backing-player {
-    align-items: stretch;
-    flex-direction: column;
-    width: 100%;
-  }
-
-  .youtube-backing-player-frame {
-    max-width: 100%;
-    width: 240px;
-  }
-}
-
 .app-dialog p {
   color: #3b4741;
   font-size: 15px;
