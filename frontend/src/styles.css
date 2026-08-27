@@ -148,21 +148,11 @@ button {
 }
 
 .workspace-panel {
-  display: flex;
-  flex: 1 1 auto;
-  min-height: 0;
-  min-width: 0;
-  overflow: hidden;
+  display: contents;
 }
 
 .workspace-panel[hidden] {
   display: none;
-}
-
-.workspace-panel > * {
-  flex: 1 1 auto;
-  min-height: 0;
-  min-width: 0;
 }
 
 .topbar {
@@ -6023,6 +6013,9 @@ button.musician-page {
   gap: clamp(12px, 2.2vw, 24px);
   justify-items: center;
   max-height: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow: hidden;
   padding: 12px;
   text-align: center;
   width: 100%;
@@ -6049,7 +6042,8 @@ button.musician-page {
   font-size: clamp(28px, 4vw, 54px);
   font-weight: 700;
   line-height: 1.08;
-  max-width: 20ch;
+  max-width: min(20ch, 100%);
+  overflow-wrap: anywhere;
   text-wrap: balance;
 }
 
