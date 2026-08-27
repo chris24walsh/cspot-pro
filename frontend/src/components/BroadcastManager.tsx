@@ -45,6 +45,7 @@ const EMPTY_SETTINGS: BroadcastViewerSettings = {
   slide_delay_ms: 800,
   offline_message: "No service is streaming right now",
   pre_service_audio_url: null,
+  pre_service_room_audio_enabled: true,
   pre_service_minutes: 60,
   starting_soon_message: "Our service will begin shortly",
   stream_description: "Join us online for worship, prayer, Scripture, and teaching.",
@@ -252,12 +253,13 @@ export function BroadcastManager({
           url: "",
           gain_db: 0,
           mix_enabled: true,
+          role: "other",
         },
       ],
     }));
   }
 
-  function updateAudioSource(id: string, field: "label" | "url", value: string) {
+  function updateAudioSource(id: string, field: "label" | "url" | "role", value: string) {
     setForm((current) => ({
       ...current,
       audio_sources: current.audio_sources.map((source) => source.id === id
@@ -476,7 +478,7 @@ export function BroadcastManager({
           <div className="broadcast-camera-settings-heading">
             <div>
               <strong>Audio sources</strong>
-              <small>Add independent room microphones, mixer feeds, or other audio streams. Listen here before putting one live.</small>
+              <small>Add room, desk, or church-PC playback feeds. Choosing PC media directly keeps desk rehearsals in-room and out of pre-service livestream audio.</small>
             </div>
             <button className="text-button icon-text-button" disabled={loading || form.audio_sources.length >= 8} onClick={addAudioSource} type="button">
               <Plus size={14} aria-hidden="true" /> Add audio
@@ -501,6 +503,17 @@ export function BroadcastManager({
                   type="text"
                   value={source.url ?? ""}
                 />
+                <select
+                  aria-label={`${source.label} role`}
+                  disabled={loading}
+                  onChange={(event) => updateAudioSource(source.id, "role", event.target.value)}
+                  value={source.role ?? "other"}
+                >
+                  <option value="desk">Sound desk</option>
+                  <option value="media">Church PC media</option>
+                  <option value="room">Room microphone</option>
+                  <option value="other">Other</option>
+                </select>
                 <button className="text-button icon-text-button" disabled={loading || !source.url} onClick={() => void testAudioSource(source.id)} type="button">
                   <Headphones size={14} aria-hidden="true" /> {testingAudioId === source.id ? "Stop" : "Listen"}
                 </button>
@@ -572,6 +585,14 @@ export function BroadcastManager({
         <label className="wide-field">
           Pre-service worship audio or YouTube URL
           <input disabled={loading} onChange={(event) => setForm({ ...form, pre_service_audio_url: event.target.value || null })} placeholder="YouTube link or https://…/music.mp3" type="url" value={form.pre_service_audio_url || ""} />
+        </label>
+        <label>
+          Church PC line-out
+          <select disabled={loading} onChange={(event) => setForm({ ...form, pre_service_room_audio_enabled: event.target.value === "on" })} value={form.pre_service_room_audio_enabled ? "on" : "muted"}>
+            <option value="on">Play through desk / speakers</option>
+            <option value="muted">Muted during rehearsal</option>
+          </select>
+          <small>This affects only the presentation PC output. Online pre-service audio continues playing.</small>
         </label>
         <label>
           Starting-soon message

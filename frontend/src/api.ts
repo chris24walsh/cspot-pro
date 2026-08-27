@@ -568,6 +568,7 @@ export interface BroadcastAudioSource {
   stream_name: string | null;
   gain_db: number;
   mix_enabled: boolean;
+  role: "room" | "desk" | "media" | "other";
 }
 
 export interface BroadcastAudioScene {
@@ -601,6 +602,7 @@ export interface BroadcastViewerSettings {
   auto_record_sermons: boolean;
   recording_grace_seconds: number;
   pre_service_audio_url: string | null;
+  pre_service_room_audio_enabled: boolean;
   pre_service_minutes: number;
   starting_soon_message: string;
   offline_message: string;

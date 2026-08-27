@@ -45,3 +45,34 @@ def test_media_scene_mutes_room_and_keeps_desk_return() -> None:
     assert room.mix_enabled is False
     assert desk.mix_enabled is True
     assert desk.gain_db == 0
+
+
+def test_pc_media_source_can_replace_the_desk_feed() -> None:
+    engine = create_engine("sqlite://")
+    Base.metadata.create_all(engine, tables=[BroadcastViewerSettings.__table__])
+    with Session(engine) as session:
+        result = update_viewer_settings(
+            BroadcastViewerSettingsUpdate(
+                audio_sources=[
+                    {
+                        "id": "desk",
+                        "label": "Desk feed",
+                        "url": "http://audio/desk",
+                        "role": "desk",
+                    },
+                    {
+                        "id": "pc-media",
+                        "label": "Church PC media",
+                        "url": "http://audio/pc-media",
+                        "role": "media",
+                    },
+                ],
+                live_audio_source="pc-media",
+            ),
+            SimpleNamespace(id="operator"),
+            session,
+        )
+
+    assert result.live_audio_source == "pc-media"
+    assert result.live_audio_url == "http://audio/pc-media"
+    assert [source.role for source in result.audio_sources] == ["desk", "media"]

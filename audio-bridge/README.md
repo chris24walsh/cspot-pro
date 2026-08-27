@@ -40,6 +40,7 @@ Test locally:
 curl.exe http://localhost:8091/health
 ffplay "http://localhost:8091/audio/room-mic.mp3?token=YOUR_TOKEN"
 ffplay "http://localhost:8091/audio/desk.mp3?token=YOUR_TOKEN"
+ffplay "http://localhost:8091/audio/pc-media.mp3?token=YOUR_TOKEN"
 ```
 
 Use a private-LAN or tailnet address, never expose the bridge directly to the
@@ -49,7 +50,27 @@ stream** and enter one of these URLs:
 ```text
 http://CHURCH-DESKTOP:8091/audio/room-mic.mp3?token=YOUR_TOKEN
 http://CHURCH-DESKTOP:8091/audio/desk.mp3?token=YOUR_TOKEN
+http://CHURCH-DESKTOP:8091/audio/pc-media.mp3?token=YOUR_TOKEN
 ```
+
+For direct church-PC playback, enable Windows **Stereo Mix** (sometimes named
+**What U Hear**) in Sound settings, use its exact DirectShow device name for a
+`pc-media` bridge source, and mark that source as **Church PC media** in CSpot.
+During a service, choose that source in the viewer's **Audio** control when the
+desk is off. Selecting it directly replaces the desk feed rather than mixing
+the two, avoiding doubled or echoed media. Switch back to the desk explicitly
+when it is available again. If the PC's audio driver does not expose a loopback
+device, install a virtual audio cable and configure its recording endpoint as
+the bridge device.
+
+For a musicians' pre-service rehearsal, the livestream operator can also set
+**PC line-out** to **Muted during rehearsal**. This mutes pre-service playback
+only on the church presentation output, so it does not enter the desk or room
+speakers; remote viewers continue receiving pre-service audio. Restore the
+line-out before it is needed in the room. For arbitrary desktop apps whose
+audio must be streamed while the physical line-out remains silent, use a
+virtual audio cable: send the app to the cable, capture the cable in the bridge,
+and do not monitor it to the physical output.
 
 The hostname must be reachable from the CSpot API host. The URL is relayed by
 CSpot, so browsers do not need direct access to the Windows machine.

@@ -6162,6 +6162,17 @@ button.musician-page {
   white-space: nowrap;
 }
 
+.service-broadcast-audio-isolation {
+  background: rgba(34, 197, 94, 0.14);
+  border: 1px solid rgba(74, 222, 128, 0.42);
+  border-radius: 999px;
+  color: #b9f6ca;
+  font-size: 10px;
+  font-weight: 850;
+  padding: 4px 8px;
+  white-space: nowrap;
+}
+
 @media (max-width: 900px) {
   .broadcast-settings {
     margin: 0 8px 8px;

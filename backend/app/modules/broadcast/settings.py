@@ -63,20 +63,24 @@ def audio_sources(settings: BroadcastViewerSettings) -> list[BroadcastAudioSourc
 
 
 def _source_kind(source: BroadcastAudioSource) -> str:
+    if source.role != "other":
+        return source.role
     name = f"{source.id} {source.label}".lower()
     if any(token in name for token in ("room", "ambient", "audience", "congregation")):
         return "room"
     if any(token in name for token in ("desk", "mixer", "board", "console")):
         return "desk"
+    if any(token in name for token in ("media", "playback", "computer", "pc")):
+        return "media"
     return "other"
 
 
 def default_audio_scenes(sources: list[BroadcastAudioSource]) -> list[BroadcastAudioScene]:
     scene_levels = {
-        "pastor": {"room": (-18, True), "desk": (0, True)},
-        "congregation": {"room": (0, True), "desk": (-12, True)},
-        "worship": {"room": (-12, True), "desk": (0, True)},
-        "media": {"room": (-30, False), "desk": (0, True)},
+        "pastor": {"room": (-18, True), "desk": (0, True), "media": (0, False)},
+        "congregation": {"room": (0, True), "desk": (-12, True), "media": (0, False)},
+        "worship": {"room": (-12, True), "desk": (0, True), "media": (0, False)},
+        "media": {"room": (-30, False), "desk": (0, True), "media": (0, True)},
     }
     return [
         BroadcastAudioScene(

@@ -12,11 +12,13 @@ export function PreServiceMusic({
   label = "Pre-service music",
   serviceDate,
   url,
+  outputMuted = false,
 }: {
   continuous?: boolean;
   label?: string;
   serviceDate: string;
   url: string;
+  outputMuted?: boolean;
 }) {
   const videoId = extractYouTubeId(url);
   const frameRef = useRef<HTMLIFrameElement | null>(null);
@@ -37,7 +39,7 @@ export function PreServiceMusic({
     return (
       <div className="pre-service-music-control">
         <span>{label}</span>
-        <audio autoPlay controls loop src={url} />
+        <audio autoPlay controls loop muted={outputMuted} src={url} />
       </div>
     );
   }
@@ -60,7 +62,7 @@ export function PreServiceMusic({
         title={label}
       />
       <span>{label}</span>
-      {muted ? <button className="primary-button" onClick={enableSound} type="button">Enable sound</button> : <strong>Playing</strong>}
+      {outputMuted ? <strong>Room sound muted</strong> : muted ? <button className="primary-button" onClick={enableSound} type="button">Enable sound</button> : <strong>Playing</strong>}
     </div>
   );
 }

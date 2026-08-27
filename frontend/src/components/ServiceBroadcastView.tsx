@@ -63,6 +63,7 @@ const DEFAULT_SETTINGS: BroadcastViewerSettings = {
   mixer_notes: null,
   offline_message: "No service is streaming right now",
   pre_service_audio_url: null,
+  pre_service_room_audio_enabled: true,
   pre_service_minutes: 60,
   starting_soon_message: "Our service will begin shortly",
   slide_delay_ms: 800,
@@ -141,6 +142,7 @@ export function ServiceBroadcastView({ canControl = false, onOpenSettings }: { c
   );
   const selectedAudioCamera = settings.camera_sources.find((source) => source.id === settings.live_audio_source) ?? null;
   const selectedIndependentAudio = settings.audio_sources.find((source) => source.id === settings.live_audio_source) ?? null;
+  const rehearsalIsolated = selectedIndependentAudio?.role === "media";
   const useMixedRelay = settings.live_audio_source === "mix" || Boolean(selectedIndependentAudio);
   const liveAudioUrl = useMixedRelay
     ? broadcastLiveAudioUrl()
@@ -503,6 +505,23 @@ export function ServiceBroadcastView({ canControl = false, onOpenSettings }: { c
                     <option value="automatic">Auto · {currentCameraPhase}</option>
                   </select>
                 </label>
+              ) : null}
+              {rehearsalIsolated ? (
+                <span className="service-broadcast-audio-isolation" role="status">
+                  Desk isolated · rehearsal stays in-room
+                </span>
+              ) : null}
+              {rehearsalIsolated ? (
+                <button
+                  aria-pressed={!settings.pre_service_room_audio_enabled}
+                  className={!settings.pre_service_room_audio_enabled ? "primary-button" : "text-button"}
+                  disabled={controlBusy}
+                  onClick={() => void updateLiveControls({ pre_service_room_audio_enabled: !settings.pre_service_room_audio_enabled })}
+                  title="Mute only the church PC presentation output; livestream audio is unaffected"
+                  type="button"
+                >
+                  PC line-out {settings.pre_service_room_audio_enabled ? "on" : "muted"}
+                </button>
               ) : null}
               <span className="service-broadcast-timing-summary">
                 Fade {(settings.camera_fade_ms / 1000).toFixed(1)}s · slides +{(settings.slide_delay_ms / 1000).toFixed(1)}s

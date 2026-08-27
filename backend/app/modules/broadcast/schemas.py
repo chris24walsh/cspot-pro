@@ -17,6 +17,7 @@ class BroadcastAudioSource(BaseModel):
     url: str = Field(min_length=1, max_length=2000)
     gain_db: float = Field(default=0, ge=-30, le=24)
     mix_enabled: bool = True
+    role: Literal["room", "desk", "media", "other"] = "other"
 
 
 class BroadcastAudioSourceRead(BaseModel):
@@ -26,6 +27,7 @@ class BroadcastAudioSourceRead(BaseModel):
     stream_name: str | None = None
     gain_db: float = 0
     mix_enabled: bool = True
+    role: Literal["room", "desk", "media", "other"] = "other"
 
 
 class BroadcastAudioSceneChannel(BaseModel):
@@ -64,6 +66,7 @@ class BroadcastViewerSettingsRead(BaseModel):
     auto_record_sermons: bool
     recording_grace_seconds: int
     pre_service_audio_url: str | None = None
+    pre_service_room_audio_enabled: bool = True
     pre_service_minutes: int
     starting_soon_message: str
     offline_message: str
@@ -91,6 +94,7 @@ class BroadcastViewerSettingsUpdate(BaseModel):
     auto_record_sermons: bool | None = None
     recording_grace_seconds: int | None = Field(default=None, ge=0, le=600)
     pre_service_audio_url: str | None = None
+    pre_service_room_audio_enabled: bool | None = None
     pre_service_minutes: int | None = Field(default=None, ge=0, le=180)
     starting_soon_message: str | None = Field(default=None, max_length=240)
     offline_message: str | None = Field(default=None, max_length=240)

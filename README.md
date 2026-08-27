@@ -19,7 +19,10 @@ migration planning; this project starts clean with a container-first stack.
 
 CSpot can take live and recorded service audio from the portable
 [CSpot Audio Bridge](audio-bridge/README.md), with independent USB microphone
-and mixing-desk inputs on Windows or Raspberry Pi. The original
+and mixing-desk inputs on Windows or Raspberry Pi. A Windows playback-loopback
+source can send church-PC media directly to the livestream while keeping a
+musicians' desk rehearsal local to the room; a separate PC line-out control
+mutes pre-service playback at the desk without muting online viewers. The original
 [single-input Pi/Icecast setup](docs/raspberry-pi-live-audio.md) remains
 supported. Independent HTTP/MP3 inputs are normalized to AAC by go2rtc for the
 same fragmented-MP4 MSE/HLS browser transport used by camera audio; the raw

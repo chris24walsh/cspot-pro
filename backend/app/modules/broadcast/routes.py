@@ -233,6 +233,7 @@ def settings_read(
                 ),
                 gain_db=source.gain_db,
                 mix_enabled=source.mix_enabled,
+                role=source.role,
             )
             for source in independent_sources
         ],
@@ -259,6 +260,7 @@ def settings_read(
         auto_record_sermons=settings.auto_record_sermons,
         recording_grace_seconds=settings.recording_grace_seconds or 0,
         pre_service_audio_url=settings.pre_service_audio_url,
+        pre_service_room_audio_enabled=settings.pre_service_room_audio_enabled is not False,
         pre_service_minutes=settings.pre_service_minutes,
         starting_soon_message=settings.starting_soon_message,
         offline_message=settings.offline_message,

@@ -90,6 +90,7 @@ export function PresentationOutput({ networkDisplay = false }: PresentationOutpu
   const [renderedSlidesByFileId, setRenderedSlidesByFileId] = useState<Record<string, RenderedSlide[]>>({});
   const [blanked, setBlanked] = useState(false);
   const [preServiceAudioUrl, setPreServiceAudioUrl] = useState<string | null>(null);
+  const [preServiceRoomAudioEnabled, setPreServiceRoomAudioEnabled] = useState(true);
   const lastLiveStateRef = useRef(0);
   const networkPlanIdRef = useRef<string | null>(null);
   const lastReadingRefreshRef = useRef("");
@@ -206,6 +207,7 @@ export function PresentationOutput({ networkDisplay = false }: PresentationOutpu
       setWorshipSetPlan(nextWorshipSetPlan);
       setSongs(nextSongs);
       setPreServiceAudioUrl(broadcastSettings?.pre_service_audio_url ?? null);
+      setPreServiceRoomAudioEnabled(broadcastSettings?.pre_service_room_audio_enabled !== false);
       setMessage(null);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Could not load slideshow output.");
@@ -244,6 +246,21 @@ export function PresentationOutput({ networkDisplay = false }: PresentationOutpu
   useEffect(() => {
     void load(liveState);
   }, [liveState?.planId, load]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const refreshRoomAudio = () => void getBroadcastViewerSettings()
+      .then((settings) => {
+        if (!cancelled) setPreServiceRoomAudioEnabled(settings.pre_service_room_audio_enabled !== false);
+      })
+      .catch(() => undefined);
+    refreshRoomAudio();
+    const timer = window.setInterval(refreshRoomAudio, 2000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, []);
 
   useEffect(() => {
     if (!liveTargetMissing) {
@@ -712,6 +729,7 @@ export function PresentationOutput({ networkDisplay = false }: PresentationOutpu
         <PreServiceMusic
           continuous={liveState?.serviceStage === "post_service"}
           label={liveState?.serviceStage === "post_service" ? "Post-service music" : "Pre-service music"}
+          outputMuted={!preServiceRoomAudioEnabled}
           serviceDate={plan.service_date}
           url={preServiceAudioUrl}
         />
