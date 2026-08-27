@@ -1373,12 +1373,12 @@ export function PresentationView({
       }, 350);
     } else {
       setLocalAudioUrl(null);
-      void publishLiveState(targetIndex, {
-        blanked: false,
-        videoAction: "play",
-        videoActionAt: Date.now(),
-      });
     }
+    void publishLiveState(targetIndex, {
+      blanked: false,
+      videoAction: "play",
+      videoActionAt: Date.now(),
+    });
   }
 
   async function publishLiveStateForSlides(
