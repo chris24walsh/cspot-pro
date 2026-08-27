@@ -3641,21 +3641,22 @@ export function PresentationView({
         </p>
       ) : null}
       {localAudioUrl ? (
-        <iframe
-          allow="autoplay; encrypted-media"
-          aria-hidden="true"
-          className="youtube-audio-frame"
-          onLoad={() => {
-            localAudioFrameRef.current?.contentWindow?.postMessage(
-              JSON.stringify({ event: "command", func: "playVideo", args: [] }),
-              "*",
-            );
-          }}
-          ref={localAudioFrameRef}
-          src={localAudioUrl}
-          tabIndex={-1}
-          title="Local YouTube audio"
-        />
+        <div className="presenter-local-backing-player">
+          <span>Local backing track · use Play here if the browser blocks automatic start</span>
+          <iframe
+            allow="autoplay; encrypted-media"
+            className="youtube-backing-player-frame"
+            onLoad={() => {
+              localAudioFrameRef.current?.contentWindow?.postMessage(
+                JSON.stringify({ event: "command", func: "playVideo", args: [] }),
+                "*",
+              );
+            }}
+            ref={localAudioFrameRef}
+            src={localAudioUrl}
+            title="Local backing audio"
+          />
+        </div>
       ) : null}
 
       <div className="presenter-console">
