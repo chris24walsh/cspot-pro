@@ -1,6 +1,6 @@
 from datetime import date, datetime
 
-from sqlalchemy import Boolean, Date, ForeignKey, Integer, String, Text, UniqueConstraint
+from sqlalchemy import JSON, Boolean, Date, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.database import Base
@@ -100,3 +100,4 @@ class VolunteerUnavailability(IdMixin, TimestampMixin, Base):
     starts_on: Mapped[date] = mapped_column(Date, index=True)
     ends_on: Mapped[date] = mapped_column(Date, index=True)
     note: Mapped[str | None] = mapped_column(String(300))
+    role_keys: Mapped[list[str] | None] = mapped_column(JSON)

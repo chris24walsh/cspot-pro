@@ -82,6 +82,7 @@ class VolunteerUnavailabilityCreate(BaseModel):
     starts_on: date
     ends_on: date
     note: str | None = Field(default=None, max_length=300)
+    role_keys: list[str] | None = None
 
 
 class VolunteerUnavailabilityRead(VolunteerUnavailabilityCreate):

@@ -7,6 +7,7 @@ import {
 } from "../api";
 import { useConfirmationDialog } from "./ConfirmationDialog";
 import { ServingFrequencyInput } from "./ServingFrequencyInput";
+import { AvailabilityRoleSelect, availabilityRoleLabel } from "./AvailabilityRoleSelect";
 
 interface ServingDraft { selected: boolean; frequency_count: number; frequency_period: VolunteerFrequencyPeriod; rotation_mode: VolunteerRotationMode; availability_notes: string; }
 
@@ -33,7 +34,7 @@ export function MyProfile({ onProfileChanged, onServingChanged }: { onProfileCha
   const [data, setData] = useState<ServingProfile | null>(null);
   const [drafts, setDrafts] = useState<Record<string, ServingDraft>>({});
   const [form, setForm] = useState({ name: "", email: "", username: "" });
-  const [away, setAway] = useState({ starts_on: "", ends_on: "", note: "" });
+  const [away, setAway] = useState<{ starts_on: string; ends_on: string; note: string; role_keys: string[] }>({ starts_on: "", ends_on: "", note: "", role_keys: [] });
   const [message, setMessage] = useState<string | null>(null);
   const [immediateAction, setImmediateAction] = useState<string | null>(null);
   const [profileSection, setProfileSection] = useState<"account" | "serving">(() => sessionStorage.getItem("cspot-profile-section") === "serving" ? "serving" : "account");
@@ -165,6 +166,10 @@ export function MyProfile({ onProfileChanged, onServingChanged }: { onProfileCha
 
   if (!data) return <section className="profile-workspace"><p>{message || "Loading your profile…"}</p></section>;
   const invitationCount = data.preferences.filter((preference) => preference.initiated_by === "admin" && preference.status === "pending").length;
+  const currentRoleOptions = data.areas.filter((area) => {
+    const preference = data.preferences.find((item) => item.area.key === area.key);
+    return preference?.status === "approved" || Boolean(area.legacy_role_name && data.user.roles.includes(area.legacy_role_name));
+  }).map((area) => ({ key: area.key, name: area.name }));
   return <section className="profile-workspace" aria-label="My profile">
     {confirmationDialog}
     <div className="tab-row flat-admin-tabs profile-section-tabs" role="tablist" aria-label="Profile sections"><button className={profileSection === "account" ? "active" : ""} onClick={() => changeSection("account")} type="button">Account</button><button className={profileSection === "serving" ? "active" : ""} onClick={() => changeSection("serving")} type="button">Serving{invitationCount ? <span className="tab-attention-count">{invitationCount}</span> : null}</button></div>
@@ -195,7 +200,7 @@ export function MyProfile({ onProfileChanged, onServingChanged }: { onProfileCha
         </article>;
       })}</div> : null}</section>;
       })}</div>
-      <section className="serving-availability"><div className="section-heading"><div><p className="eyebrow">Availability</p><h2>Dates I cannot serve</h2></div></div><form className="availability-entry" onSubmit={async (event) => { event.preventDefault(); await addVolunteerUnavailability({ ...away, note: away.note || null }); setAway({ starts_on: "", ends_on: "", note: "" }); await load(); setMessage("Unavailable dates added."); }}><label>From<input required type="date" value={away.starts_on} onChange={(event) => setAway({ ...away, starts_on: event.target.value })} /></label><label>To<input required type="date" min={away.starts_on} value={away.ends_on} onChange={(event) => setAway({ ...away, ends_on: event.target.value })} /></label><label>Note<input value={away.note} onChange={(event) => setAway({ ...away, note: event.target.value })} /></label><button className="text-button" type="submit">Add dates</button></form><div className="availability-list">{data.unavailable.map((item) => <div key={item.id}><span><strong>{item.starts_on}</strong> to <strong>{item.ends_on}</strong>{item.note ? ` · ${item.note}` : ""}</span><button className="danger-button" type="button" onClick={() => void removeAvailability(item.id)}>Remove</button></div>)}</div></section>
+      <section className="serving-availability"><div className="section-heading"><div><p className="eyebrow">Availability</p><h2>Dates I cannot serve</h2></div></div><form className="availability-entry" onSubmit={async (event) => { event.preventDefault(); await addVolunteerUnavailability({ ...away, note: away.note || null, role_keys: away.role_keys.length ? away.role_keys : null }); setAway({ starts_on: "", ends_on: "", note: "", role_keys: [] }); await load(); setMessage("Unavailable dates added."); }}><label>From<input required type="date" value={away.starts_on} onChange={(event) => setAway({ ...away, starts_on: event.target.value })} /></label><label>To<input required type="date" min={away.starts_on} value={away.ends_on} onChange={(event) => setAway({ ...away, ends_on: event.target.value })} /></label><label>Note<input value={away.note} onChange={(event) => setAway({ ...away, note: event.target.value })} /></label><AvailabilityRoleSelect onChange={(role_keys) => setAway({ ...away, role_keys })} options={currentRoleOptions} value={away.role_keys} /><button className="text-button" type="submit">Add dates</button></form><div className="availability-list">{data.unavailable.map((item) => <div key={item.id}><span><strong>{item.starts_on}</strong> to <strong>{item.ends_on}</strong>{item.note ? ` · ${item.note}` : ""}<small>{availabilityRoleLabel(item.role_keys, currentRoleOptions)}</small></span><button className="danger-button" type="button" onClick={() => void removeAvailability(item.id)}>Remove</button></div>)}</div></section>
     </section> : null}
   </section>;
 }

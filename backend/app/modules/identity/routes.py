@@ -283,12 +283,7 @@ def user_to_member_read(session: Session, user: User) -> MemberRead:
         ),
         approved_serving_areas=list(approved_preferences),
         serving_rotation_modes={key: values[2] for key, values in approved_preferences.items()},
-        unavailable=[
-            VolunteerUnavailabilityRead(
-                id=item.id, starts_on=item.starts_on, ends_on=item.ends_on, note=item.note
-            )
-            for item in unavailable
-        ],
+        unavailable=[unavailability_to_read(item) for item in unavailable],
     )
 
 
@@ -300,6 +295,16 @@ def area_to_read(area: ServingArea) -> ServingAreaRead:
         category=area.category,
         description=area.description,
         legacy_role_name=SERVING_AREA_LEGACY_ROLES.get(area.key),
+    )
+
+
+def unavailability_to_read(item: VolunteerUnavailability) -> VolunteerUnavailabilityRead:
+    return VolunteerUnavailabilityRead(
+        id=item.id,
+        starts_on=item.starts_on,
+        ends_on=item.ends_on,
+        note=item.note,
+        role_keys=item.role_keys,
     )
 
 
@@ -775,12 +780,7 @@ def get_serving_profile(
         user=user_to_read(session, current_user),
         areas=[area_to_read(area) for area in areas],
         preferences=[preference_to_read(session, item) for item in preferences],
-        unavailable=[
-            VolunteerUnavailabilityRead(
-                id=item.id, starts_on=item.starts_on, ends_on=item.ends_on, note=item.note
-            )
-            for item in unavailable
-        ],
+        unavailable=[unavailability_to_read(item) for item in unavailable],
     )
 
 
@@ -892,9 +892,7 @@ def add_unavailability(
     session.add(item)
     session.commit()
     session.refresh(item)
-    return VolunteerUnavailabilityRead(
-        id=item.id, starts_on=item.starts_on, ends_on=item.ends_on, note=item.note
-    )
+    return unavailability_to_read(item)
 
 
 @router.delete("/serving/unavailability/{item_id}", status_code=204)
@@ -925,9 +923,7 @@ def list_user_unavailability(
 ) -> list[VolunteerUnavailabilityRead]:
     get_user_or_404(session, user_id)
     return [
-        VolunteerUnavailabilityRead(
-            id=item.id, starts_on=item.starts_on, ends_on=item.ends_on, note=item.note
-        )
+        unavailability_to_read(item)
         for item in session.scalars(
             select(VolunteerUnavailability)
             .where(VolunteerUnavailability.user_id == user_id)
@@ -954,9 +950,7 @@ def add_user_unavailability(
     session.add(item)
     session.commit()
     session.refresh(item)
-    return VolunteerUnavailabilityRead(
-        id=item.id, starts_on=item.starts_on, ends_on=item.ends_on, note=item.note
-    )
+    return unavailability_to_read(item)
 
 
 @router.patch(
@@ -983,11 +977,10 @@ def update_user_unavailability(
     item.starts_on = payload.starts_on
     item.ends_on = payload.ends_on
     item.note = payload.note
+    item.role_keys = payload.role_keys
     session.commit()
     session.refresh(item)
-    return VolunteerUnavailabilityRead(
-        id=item.id, starts_on=item.starts_on, ends_on=item.ends_on, note=item.note
-    )
+    return unavailability_to_read(item)
 
 
 @router.delete(
@@ -1034,9 +1027,7 @@ def list_volunteer_requests(
             user_email=user.email,
             preference=preference_to_read(session, preference),
             unavailable=[
-                VolunteerUnavailabilityRead(
-                    id=item.id, starts_on=item.starts_on, ends_on=item.ends_on, note=item.note
-                )
+                unavailability_to_read(item)
                 for item in session.scalars(
                     select(VolunteerUnavailability).where(
                         VolunteerUnavailability.user_id == user.id

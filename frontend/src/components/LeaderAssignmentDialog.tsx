@@ -2,12 +2,13 @@ import { Shuffle, UserRound, X } from "lucide-react";
 import { useMemo } from "react";
 
 import type { Member } from "../api";
-import { sundayDatesForMonth } from "../leaderSchedule";
+import { sundayDatesForMonth, unavailabilityForRole } from "../leaderSchedule";
 import { calendarColors, calendarMarkers } from "../userCalendarStyle";
 import { useEscapeClose } from "./useEscapeClose";
 
 interface LeaderAssignmentDialogProps {
   areaLabel: string;
+  areaKey: string;
   busy?: boolean;
   currentDate: string | null;
   explicitLeaderId: string | null;
@@ -55,6 +56,7 @@ export function swappableUpcomingSundays(
 
 export function LeaderAssignmentDialog({
   areaLabel,
+  areaKey,
   busy = false,
   currentDate,
   explicitLeaderId,
@@ -82,7 +84,7 @@ export function LeaderAssignmentDialog({
   const currentLeader = leaders.find((leader) => leader.id === currentLeaderId) ?? null;
   const currentLeaderIsAssignable = currentLeader ? rotationModeForLeader(currentLeader) !== "disabled" : true;
   const leaderIsAvailable = (leader: Member | null, date: string) =>
-    !leader || !leader.unavailable.some((range) => range.starts_on <= date && range.ends_on >= date);
+    !leader || !unavailabilityForRole(leader.unavailable, areaKey).some((range) => range.starts_on <= date && range.ends_on >= date);
 
   if (!currentDate) return null;
   const isPastDate = currentDate < todayDateInput();

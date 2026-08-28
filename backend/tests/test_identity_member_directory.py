@@ -4,6 +4,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
 from app.core.database import Base
+from app.modules.identity.auth import list_authorization_role_names, list_role_names
 from app.modules.identity.models import (
     Role,
     ServingArea,
@@ -13,7 +14,6 @@ from app.modules.identity.models import (
     VolunteerUnavailability,
 )
 from app.modules.identity.permissions import permissions_for_roles
-from app.modules.identity.auth import list_authorization_role_names, list_role_names
 from app.modules.identity.routes import (
     add_user_unavailability,
     list_user_unavailability,
@@ -84,7 +84,10 @@ def test_admin_can_manage_availability_for_any_user() -> None:
         created = add_user_unavailability(
             volunteer.id,
             VolunteerUnavailabilityCreate(
-                starts_on=date(2026, 9, 1), ends_on=date(2026, 9, 3), note="Away"
+                starts_on=date(2026, 9, 1),
+                ends_on=date(2026, 9, 3),
+                note="Away",
+                role_keys=None,
             ),
             admin,
             session,
@@ -95,13 +98,17 @@ def test_admin_can_manage_availability_for_any_user() -> None:
             volunteer.id,
             created.id,
             VolunteerUnavailabilityCreate(
-                starts_on=date(2026, 9, 2), ends_on=date(2026, 9, 4), note="Holiday"
+                starts_on=date(2026, 9, 2),
+                ends_on=date(2026, 9, 4),
+                note="Holiday",
+                role_keys=["worship", "sunday_school"],
             ),
             admin,
             session,
         )
         assert updated.starts_on == date(2026, 9, 2)
         assert updated.note == "Holiday"
+        assert updated.role_keys == ["worship", "sunday_school"]
 
         response = remove_user_unavailability(volunteer.id, created.id, admin, session)
         assert response.status_code == 204

@@ -602,7 +602,7 @@ export function UserManager({ adminSection, onAdminSectionChange, onAttentionCha
             </div>
           </fieldset>
 
-          {mode === "edit" && selectedUser ? <AdminAvailabilityPanel onMessage={setMessage} userId={selectedUser.id} /> : null}
+          {mode === "edit" && selectedUser ? <AdminAvailabilityPanel onMessage={setMessage} roleOptions={servingAreas.filter((area) => volunteerRows.some((row) => row.user_id === selectedUser.id && row.preference.area.key === area.key && row.preference.status === "approved") || Boolean(area.legacy_role_name && selectedUser.roles.includes(area.legacy_role_name))).map((area) => ({ key: area.key, name: area.name }))} userId={selectedUser.id} /> : null}
 
         </div>
 

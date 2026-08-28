@@ -4,10 +4,11 @@ import {
   addUserUnavailability, getUserUnavailability, removeUserUnavailability,
   updateUserUnavailability, type VolunteerUnavailability,
 } from "../api";
+import { AvailabilityRoleSelect, availabilityRoleLabel, type AvailabilityRoleOption } from "./AvailabilityRoleSelect";
 
-const emptyDraft = { starts_on: "", ends_on: "", note: "" };
+const emptyDraft = { starts_on: "", ends_on: "", note: "", role_keys: [] as string[] };
 
-export function AdminAvailabilityPanel({ onMessage, userId }: { onMessage: (message: string) => void; userId: string }) {
+export function AdminAvailabilityPanel({ onMessage, roleOptions, userId }: { onMessage: (message: string) => void; roleOptions: AvailabilityRoleOption[]; userId: string }) {
   const [items, setItems] = useState<VolunteerUnavailability[]>([]);
   const [draft, setDraft] = useState(emptyDraft);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -24,7 +25,7 @@ export function AdminAvailabilityPanel({ onMessage, userId }: { onMessage: (mess
 
   async function save() {
     try {
-      const payload = { ...draft, note: draft.note || null };
+      const payload = { ...draft, note: draft.note || null, role_keys: draft.role_keys.length ? draft.role_keys : null };
       if (editingId) await updateUserUnavailability(userId, editingId, payload);
       else await addUserUnavailability(userId, payload);
       setDraft(emptyDraft); setEditingId(null); await load();
@@ -39,7 +40,7 @@ export function AdminAvailabilityPanel({ onMessage, userId }: { onMessage: (mess
 
   return <section className="serving-availability admin-serving-availability">
     <div className="section-heading"><div><p className="eyebrow">Availability</p><h3>Dates this user cannot serve</h3></div></div>
-    <div className="availability-entry"><label>From<input type="date" value={draft.starts_on} onChange={(event) => setDraft({ ...draft, starts_on: event.target.value })} /></label><label>To<input type="date" min={draft.starts_on} value={draft.ends_on} onChange={(event) => setDraft({ ...draft, ends_on: event.target.value })} /></label><label>Note<input value={draft.note} onChange={(event) => setDraft({ ...draft, note: event.target.value })} /></label><div className="action-row"><button className="text-button" disabled={!draft.starts_on || !draft.ends_on} onClick={() => void save()} type="button">{editingId ? "Save dates" : "Add dates"}</button>{editingId ? <button className="text-button" onClick={() => { setEditingId(null); setDraft(emptyDraft); }} type="button">Cancel</button> : null}</div></div>
-    <div className="availability-list">{loading ? <p className="muted-copy">Loading availability…</p> : items.length ? items.map((item) => <div key={item.id}><span><strong>{item.starts_on}</strong> to <strong>{item.ends_on}</strong>{item.note ? ` · ${item.note}` : ""}</span><div className="action-row"><button className="text-button" onClick={() => { setEditingId(item.id); setDraft({ starts_on: item.starts_on, ends_on: item.ends_on, note: item.note ?? "" }); }} type="button">Edit</button><button className="danger-button" onClick={() => void remove(item.id)} type="button">Remove</button></div></div>) : <p className="muted-copy">No unavailable dates recorded.</p>}</div>
+    <div className="availability-entry"><label>From<input type="date" value={draft.starts_on} onChange={(event) => setDraft({ ...draft, starts_on: event.target.value })} /></label><label>To<input type="date" min={draft.starts_on} value={draft.ends_on} onChange={(event) => setDraft({ ...draft, ends_on: event.target.value })} /></label><label>Note<input value={draft.note} onChange={(event) => setDraft({ ...draft, note: event.target.value })} /></label><AvailabilityRoleSelect onChange={(role_keys) => setDraft({ ...draft, role_keys })} options={roleOptions} value={draft.role_keys} /><div className="action-row"><button className="text-button" disabled={!draft.starts_on || !draft.ends_on} onClick={() => void save()} type="button">{editingId ? "Save dates" : "Add dates"}</button>{editingId ? <button className="text-button" onClick={() => { setEditingId(null); setDraft(emptyDraft); }} type="button">Cancel</button> : null}</div></div>
+    <div className="availability-list">{loading ? <p className="muted-copy">Loading availability…</p> : items.length ? items.map((item) => <div key={item.id}><span><strong>{item.starts_on}</strong> to <strong>{item.ends_on}</strong>{item.note ? ` · ${item.note}` : ""}<small>{availabilityRoleLabel(item.role_keys, roleOptions)}</small></span><div className="action-row"><button className="text-button" onClick={() => { setEditingId(item.id); setDraft({ starts_on: item.starts_on, ends_on: item.ends_on, note: item.note ?? "", role_keys: item.role_keys ?? [] }); }} type="button">Edit</button><button className="danger-button" onClick={() => void remove(item.id)} type="button">Remove</button></div></div>) : <p className="muted-copy">No unavailable dates recorded.</p>}</div>
   </section>;
 }

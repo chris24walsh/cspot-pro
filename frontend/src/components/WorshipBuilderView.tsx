@@ -54,7 +54,7 @@ import { analyzeImportedSongSlides, analyzeWorshipText, buildLyricsFromSections,
 import { dateKey, isWorshipSetPlan, preferredWorshipSetPlanId, worshipSetType } from "../worshipSets";
 import { lastUsedLabel, worshipRoleLabel } from "../worshipSongMetadata";
 import { calendarColors, calendarMarkers } from "../userCalendarStyle";
-import { calendarDatesAround, effectiveLeaderIdForDate, sundayDatesAround, type SundayLeader } from "../leaderSchedule";
+import { calendarDatesAround, effectiveLeaderIdForDate, sundayDatesAround, unavailabilityForRole, type SundayLeader } from "../leaderSchedule";
 import { CalendarPopup } from "./CalendarPopup";
 import { useConfirmationDialog } from "./ConfirmationDialog";
 import { AutoFitSlideText } from "./AutoFitSlideText";
@@ -428,7 +428,7 @@ export function WorshipBuilderView({ active = true, canAccessAdminTools, canArch
         name: leader.name,
         maxSundaysPerMonth: leader.worship_max_sundays_per_month,
         rotationMode: leader.serving_rotation_modes.worship ?? "auto",
-        unavailable: leader.unavailable,
+        unavailable: unavailabilityForRole(leader.unavailable, "worship"),
       })),
     [worshipLeaders],
   );
@@ -2410,6 +2410,7 @@ export function WorshipBuilderView({ active = true, canAccessAdminTools, canArch
       />
       <LeaderAssignmentDialog
         areaLabel="Worship"
+        areaKey="worship"
         busy={leaderSaving}
         currentDate={leaderPickerDate}
         explicitLeaderId={leaderPickerDate ? leaderAssignmentsByDate.get(leaderPickerDate) ?? null : null}

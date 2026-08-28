@@ -32,7 +32,7 @@ import {
   type SundaySchoolResource,
 } from "../api";
 import { calendarColors, calendarMarkers } from "../userCalendarStyle";
-import { calendarDatesAround, effectiveLeaderIdForDate, sundayDatesAround, type SundayLeader } from "../leaderSchedule";
+import { calendarDatesAround, effectiveLeaderIdForDate, sundayDatesAround, unavailabilityForRole, type SundayLeader } from "../leaderSchedule";
 import { CalendarPopup } from "./CalendarPopup";
 import { DateNavigator, formatNavigatorDate } from "./DateNavigator";
 import { LeaderAssignmentDialog } from "./LeaderAssignmentDialog";
@@ -237,7 +237,7 @@ export function SundaySchoolView({ active = true, canEdit }: { active?: boolean;
       name: teacher.name,
       maxSundaysPerMonth: teacher.sunday_school_max_sundays_per_month,
       rotationMode: teacher.serving_rotation_modes.sunday_school ?? "auto",
-      unavailable: teacher.unavailable,
+      unavailable: unavailabilityForRole(teacher.unavailable, "sunday_school"),
     })),
     [sundaySchoolTeachers],
   );
@@ -910,6 +910,7 @@ export function SundaySchoolView({ active = true, canEdit }: { active?: boolean;
 
       <LeaderAssignmentDialog
         areaLabel="Sunday School"
+        areaKey="sunday_school"
         busy={teacherSaving}
         currentDate={teacherPickerDate}
         explicitLeaderId={teacherPickerDate ? explicitTeacherAssignments.get(teacherPickerDate) ?? null : null}

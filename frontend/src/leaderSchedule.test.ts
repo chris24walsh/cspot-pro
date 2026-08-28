@@ -6,9 +6,19 @@ import {
   effectiveLeaderIdForDate,
   sundayDatesAround,
   sundayDatesForMonth,
+  unavailabilityForRole,
 } from "./leaderSchedule";
 
 describe("Sunday leader rotation", () => {
+  it("applies unavailability only to its selected roles", () => {
+    const ranges = [
+      { starts_on: "2026-09-01", ends_on: "2026-09-02", role_keys: null },
+      { starts_on: "2026-09-03", ends_on: "2026-09-04", role_keys: ["worship"] },
+      { starts_on: "2026-09-05", ends_on: "2026-09-06", role_keys: ["sunday_school"] },
+    ];
+    expect(unavailabilityForRole(ranges, "worship")).toEqual(ranges.slice(0, 2));
+    expect(unavailabilityForRole(ranges, "sunday_school")).toEqual([ranges[0], ranges[2]]);
+  });
   it("returns only the Sundays in a month", () => {
     expect(sundayDatesForMonth("2026-08")).toEqual([
       "2026-08-02",

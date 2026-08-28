@@ -3,7 +3,11 @@ export interface SundayLeader {
   name: string;
   maxSundaysPerMonth: number | null;
   rotationMode?: "auto" | "manual" | "disabled";
-  unavailable?: { starts_on: string; ends_on: string }[];
+  unavailable?: { starts_on: string; ends_on: string; role_keys?: string[] | null }[];
+}
+
+export function unavailabilityForRole<T extends { role_keys?: string[] | null }>(ranges: T[], roleKey: string) {
+  return ranges.filter((range) => !range.role_keys?.length || range.role_keys.includes(roleKey));
 }
 
 function dateInput(value: Date) {
