@@ -1,4 +1,4 @@
-import type { VolunteerFrequencyPeriod, VolunteerRotationMode } from "../api";
+import type { ServingAssignmentInterval, VolunteerFrequencyPeriod, VolunteerRotationMode } from "../api";
 
 const PERIOD_LIMITS: Record<VolunteerFrequencyPeriod, number> = {
   week: 3,
@@ -9,6 +9,16 @@ const PERIOD_LIMITS: Record<VolunteerFrequencyPeriod, number> = {
 
 export function servingFrequencyOptions(period: VolunteerFrequencyPeriod) {
   return Array.from({ length: PERIOD_LIMITS[period] }, (_, index) => index + 1);
+}
+
+export function suggestedFrequencyForInterval(interval: ServingAssignmentInterval): { count: number; period: VolunteerFrequencyPeriod } {
+  if (interval === "weekly") return { count: 1, period: "month" };
+  if (interval === "monthly") return { count: 1, period: "year" };
+  return { count: 1, period: "quarter" };
+}
+
+export function assignmentIntervalLabel(interval: ServingAssignmentInterval) {
+  return interval === "biweekly" ? "Every 2 weeks" : interval === "triweekly" ? "Every 3 weeks" : interval === "monthly" ? "Monthly" : "Weekly";
 }
 
 export function ServingFrequencyInput({ count, label, mode, onChange, period, showMode = true }: {

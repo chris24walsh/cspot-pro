@@ -29,6 +29,7 @@ import {
 } from "../api";
 import { useConfirmationDialog } from "./ConfirmationDialog";
 import { AdminAvailabilityPanel } from "./AdminAvailabilityPanel";
+import { ServingRoleManager } from "./ServingRoleManager";
 import { VolunteerReview } from "./VolunteerReview";
 
 interface UserFormState {
@@ -117,16 +118,6 @@ function formatUserStatus(user: User) {
   return "active";
 }
 
-const ROLE_GROUPS: Array<{ label: string; roles: string[] }> = [
-  { label: "Worship & Production", roles: [] },
-  { label: "Sunday School", roles: [] },
-  { label: "Service", roles: [] },
-  { label: "Hospitality & Care", roles: [] },
-  { label: "Property & Facilities", roles: [] },
-  { label: "General", roles: ["viewer"] },
-  { label: "Administration", roles: ["administrator"] },
-];
-
 export function UserManager({ adminSection, onAdminSectionChange, onAttentionChanged }: { adminSection: "users" | "settings"; onAdminSectionChange: (section: "users" | "settings") => void; onAttentionChanged?: () => void | Promise<void> }) {
   const { confirm, confirmationDialog } = useConfirmationDialog();
   const [users, setUsers] = useState<User[]>([]);
@@ -162,6 +153,11 @@ export function UserManager({ adminSection, onAdminSectionChange, onAttentionCha
   const [openRoleGroup, setOpenRoleGroup] = useState<string | null>(null);
   const initialAttentionRouted = useRef(false);
   const formDirty = mode === "create" || Boolean(selectedUser && JSON.stringify(form) !== JSON.stringify(formFromUser(selectedUser)));
+  const roleGroups: Array<{ label: string; roles: string[] }> = [
+    ...Array.from(new Set(servingAreas.map((area) => area.category))).sort().map((label) => ({ label, roles: [] })),
+    { label: "General", roles: ["viewer"] },
+    { label: "Administration", roles: ["administrator"] },
+  ];
 
   const pendingUserIds = new Set([...users.filter((user) => user.registration_pending).map((user) => user.id), ...volunteerRows.filter((row) => row.preference.admin_attention_pending).map((row) => row.user_id)]);
   const filteredUsers = users
@@ -598,7 +594,7 @@ export function UserManager({ adminSection, onAdminSectionChange, onAttentionCha
             <legend>Capabilities, roles and volunteer requests</legend>
             <p className="muted-copy">Serving roles are grouped by ministry. Approved requests automatically provide the matching workspace access; administration remains explicit.</p>
             <div className="role-group-grid">
-              {ROLE_GROUPS.map((group) => { const groupRequests = volunteerRows.filter((row) => row.user_id === selectedUser?.id && row.preference.area.category === group.label); const groupAreas = servingAreas.filter((area) => area.category === group.label); if (!group.roles.length && !groupRequests.length && !groupAreas.length) return null; const groupOpen = openRoleGroup === group.label; const activeCount = group.roles.filter((roleName) => form.role_names.includes(roleName)).length + groupRequests.filter((row) => row.preference.status === "approved" || row.preference.status === "pending").length; return <section className={`role-group role-category ${groupOpen ? "is-open" : ""}`} key={group.label}><button className="role-category-heading" onClick={() => setOpenRoleGroup(groupOpen ? null : group.label)} type="button"><span>{group.label}</span><small>{activeCount} active</small><span aria-hidden="true">{groupOpen ? "−" : "+"}</span></button>{groupOpen ? <div className="role-category-items">{group.roles.length ? <div className="admin-role-list">{group.roles.map((roleName) => { const role = roles.find((candidate) => candidate.name === roleName); const selected = Boolean(role && form.role_names.includes(role.name)); const limit = roleName === "worship_leader" ? form.worship_max_sundays_per_month : roleName === "sunday_school_teacher" ? form.sunday_school_max_sundays_per_month : null; return role ? <div className={`admin-role-row ${selected ? "selected" : ""}`} key={role.id}><label className="admin-role-toggle"><input checked={selected} disabled={role.name === "viewer" && form.role_names.some((name) => name !== "viewer")} onChange={() => void toggleRole(role.name)} type="checkbox" /><span><strong>{formatRoleName(role.name)}</strong><small>{role.description ?? "Workspace access"}</small></span></label>{selected && limit !== null ? <label className="inline-role-limit"><span>Sundays</span><select onChange={(event) => { const value = event.target.value; void persistServingAccess(roleName === "worship_leader" ? { worship_max_sundays_per_month: value } : { sunday_school_max_sundays_per_month: value }).catch((error) => setMessage(error instanceof Error ? error.message : "Could not update rotation limit.")); }} value={limit}><option value="">Unlimited</option><option value="0">Never</option>{[1, 2, 3, 4, 5].map((value) => <option key={value} value={value}>{value}/month</option>)}</select></label> : null}</div> : null; })}</div> : null}{mode === "edit" && selectedUser && (groupRequests.length || groupAreas.length) ? <VolunteerReview areas={groupAreas} compact directRoleNames={selectedUser.roles} onChanged={refreshVolunteerRows} rows={groupRequests} userId={selectedUser.id} /> : null}</div> : null}</section>; })}
+              {roleGroups.map((group) => { const groupRequests = volunteerRows.filter((row) => row.user_id === selectedUser?.id && row.preference.area.category === group.label); const groupAreas = servingAreas.filter((area) => area.category === group.label); if (!group.roles.length && !groupRequests.length && !groupAreas.length) return null; const groupOpen = openRoleGroup === group.label; const activeCount = group.roles.filter((roleName) => form.role_names.includes(roleName)).length + groupRequests.filter((row) => row.preference.status === "approved" || row.preference.status === "pending").length; return <section className={`role-group role-category ${groupOpen ? "is-open" : ""}`} key={group.label}><button className="role-category-heading" onClick={() => setOpenRoleGroup(groupOpen ? null : group.label)} type="button"><span>{group.label}</span><small>{activeCount} active</small><span aria-hidden="true">{groupOpen ? "−" : "+"}</span></button>{groupOpen ? <div className="role-category-items">{group.roles.length ? <div className="admin-role-list">{group.roles.map((roleName) => { const role = roles.find((candidate) => candidate.name === roleName); const selected = Boolean(role && form.role_names.includes(role.name)); const limit = roleName === "worship_leader" ? form.worship_max_sundays_per_month : roleName === "sunday_school_teacher" ? form.sunday_school_max_sundays_per_month : null; return role ? <div className={`admin-role-row ${selected ? "selected" : ""}`} key={role.id}><label className="admin-role-toggle"><input checked={selected} disabled={role.name === "viewer" && form.role_names.some((name) => name !== "viewer")} onChange={() => void toggleRole(role.name)} type="checkbox" /><span><strong>{formatRoleName(role.name)}</strong><small>{role.description ?? "Workspace access"}</small></span></label>{selected && limit !== null ? <label className="inline-role-limit"><span>Sundays</span><select onChange={(event) => { const value = event.target.value; void persistServingAccess(roleName === "worship_leader" ? { worship_max_sundays_per_month: value } : { sunday_school_max_sundays_per_month: value }).catch((error) => setMessage(error instanceof Error ? error.message : "Could not update rotation limit.")); }} value={limit}><option value="">Unlimited</option><option value="0">Never</option>{[1, 2, 3, 4, 5].map((value) => <option key={value} value={value}>{value}/month</option>)}</select></label> : null}</div> : null; })}</div> : null}{mode === "edit" && selectedUser && (groupRequests.length || groupAreas.length) ? <VolunteerReview areas={groupAreas} compact directRoleNames={selectedUser.roles} onChanged={refreshVolunteerRows} rows={groupRequests} userId={selectedUser.id} /> : null}</div> : null}</section>; })}
             </div>
           </fieldset>
 
@@ -611,6 +607,8 @@ export function UserManager({ adminSection, onAdminSectionChange, onAttentionCha
           <p className="muted-copy">Anyone with this link can request an account. Requests remain inactive until an administrator approves them.</p>
           <div className="registration-share-panel"><img alt="QR code for account registration" src={buildAbsoluteApiUrl("/api/v1/identity/auth/registration-qr")} /><div className="stack"><input aria-label="Registration link" readOnly value={registrationUrl} /><div className="action-row"><button className="text-button" onClick={() => void copyRegistrationLink()} type="button">Copy link</button><a className="text-button" download="cspot-registration-qr.svg" href={buildAbsoluteApiUrl("/api/v1/identity/auth/registration-qr")}>Download QR</a></div><small>{selfRegistrationEnabled ? "Open for registration" : "Link disabled until registration is enabled"}</small></div></div>
         </section>
+
+        <ServingRoleManager onChanged={(areas) => { setServingAreas(areas); void refreshVolunteerRows(); }} />
 
         <section className="subsection-panel admin-settings-panel">
           <div className="section-heading">

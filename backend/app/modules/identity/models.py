@@ -67,7 +67,14 @@ class ServingArea(IdMixin, TimestampMixin, Base):
     name: Mapped[str] = mapped_column(String(120))
     category: Mapped[str] = mapped_column(String(80), index=True)
     description: Mapped[str | None] = mapped_column(String(500))
+    assignment_interval: Mapped[str] = mapped_column(String(24), default="weekly")
     active: Mapped[bool] = mapped_column(Boolean, default=True)
+
+
+class ServingRoleCategory(IdMixin, TimestampMixin, Base):
+    __tablename__ = "serving_role_categories"
+
+    name: Mapped[str] = mapped_column(String(80), unique=True, index=True)
 
 
 class VolunteerPreference(IdMixin, TimestampMixin, Base):

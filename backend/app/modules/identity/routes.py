@@ -25,6 +25,7 @@ from app.modules.identity.models import (
     AuthToken,
     Role,
     ServingArea,
+    ServingRoleCategory,
     User,
     UserRole,
     VolunteerPreference,
@@ -53,7 +54,10 @@ from app.modules.identity.schemas import (
     SelfRegistrationResultRead,
     SelfRegistrationStatusRead,
     ServingAreaRead,
+    ServingAreaWrite,
     ServingProfileRead,
+    ServingRoleCategoryRead,
+    ServingRoleCategoryWrite,
     SessionUserRead,
     UserCreate,
     UserInviteRead,
@@ -299,6 +303,7 @@ def area_to_read(area: ServingArea) -> ServingAreaRead:
         name=area.name,
         category=area.category,
         description=area.description,
+        assignment_interval=area.assignment_interval,
         legacy_role_name=SERVING_AREA_LEGACY_ROLES.get(area.key),
     )
 
@@ -801,6 +806,203 @@ def list_serving_areas(
         .order_by(ServingArea.category, ServingArea.name)
     ).all()
     return [area_to_read(area) for area in areas]
+
+
+@router.get(
+    "/serving/admin/categories", response_model=list[ServingRoleCategoryRead]
+)
+def list_serving_role_categories(
+    _current_user: User = Depends(require_permission("users:manage")),
+    session: Session = Depends(get_session),
+) -> list[ServingRoleCategoryRead]:
+    categories = session.scalars(
+        select(ServingRoleCategory).order_by(ServingRoleCategory.name)
+    ).all()
+    return [ServingRoleCategoryRead(id=item.id, name=item.name) for item in categories]
+
+
+@router.post(
+    "/serving/admin/categories",
+    response_model=ServingRoleCategoryRead,
+    status_code=201,
+)
+def create_serving_role_category(
+    payload: ServingRoleCategoryWrite,
+    _current_user: User = Depends(require_permission("users:manage")),
+    session: Session = Depends(get_session),
+) -> ServingRoleCategoryRead:
+    name = payload.name.strip()
+    if session.scalar(
+        select(ServingRoleCategory).where(func.lower(ServingRoleCategory.name) == name.lower())
+    ):
+        raise HTTPException(status_code=409, detail="A role category with this name exists")
+    category = ServingRoleCategory(name=name)
+    session.add(category)
+    session.commit()
+    session.refresh(category)
+    return ServingRoleCategoryRead(id=category.id, name=category.name)
+
+
+@router.patch(
+    "/serving/admin/categories/{category_id}", response_model=ServingRoleCategoryRead
+)
+def update_serving_role_category(
+    category_id: str,
+    payload: ServingRoleCategoryWrite,
+    _current_user: User = Depends(require_permission("users:manage")),
+    session: Session = Depends(get_session),
+) -> ServingRoleCategoryRead:
+    category = session.get(ServingRoleCategory, category_id)
+    if category is None:
+        raise HTTPException(status_code=404, detail="Role category not found")
+    name = payload.name.strip()
+    duplicate = session.scalar(
+        select(ServingRoleCategory).where(
+            func.lower(ServingRoleCategory.name) == name.lower(),
+            ServingRoleCategory.id != category_id,
+        )
+    )
+    if duplicate:
+        raise HTTPException(status_code=409, detail="A role category with this name exists")
+    old_name = category.name
+    category.name = name
+    for area in session.scalars(
+        select(ServingArea).where(ServingArea.category == old_name)
+    ).all():
+        area.category = name
+    session.commit()
+    session.refresh(category)
+    return ServingRoleCategoryRead(id=category.id, name=category.name)
+
+
+@router.delete("/serving/admin/categories/{category_id}", status_code=204)
+def delete_serving_role_category(
+    category_id: str,
+    _current_user: User = Depends(require_permission("users:manage")),
+    session: Session = Depends(get_session),
+) -> Response:
+    category = session.get(ServingRoleCategory, category_id)
+    if category is None:
+        raise HTTPException(status_code=404, detail="Role category not found")
+    areas = session.scalars(
+        select(ServingArea).where(ServingArea.category == category.name)
+    ).all()
+    if any(serving_role_has_assignments(session, area) for area in areas):
+        raise HTTPException(
+            status_code=409,
+            detail="This category cannot be removed while users are assigned to its roles",
+        )
+    for area in areas:
+        session.execute(
+            delete(VolunteerPreference).where(VolunteerPreference.serving_area_id == area.id)
+        )
+        session.delete(area)
+    session.delete(category)
+    session.commit()
+    return Response(status_code=204)
+
+
+def serving_area_key(session: Session, name: str) -> str:
+    base = re.sub(r"[^a-z0-9]+", "_", name.lower()).strip("_")[:70] or "role"
+    candidate = base
+    suffix = 2
+    while session.scalar(select(ServingArea.id).where(ServingArea.key == candidate)):
+        candidate = f"{base[: 78 - len(str(suffix))]}_{suffix}"
+        suffix += 1
+    return candidate
+
+
+def serving_role_has_assignments(session: Session, area: ServingArea) -> bool:
+    preference_count = session.scalar(
+        select(func.count())
+        .select_from(VolunteerPreference)
+        .where(
+            VolunteerPreference.serving_area_id == area.id,
+            VolunteerPreference.status.in_(("pending", "approved")),
+        )
+    )
+    legacy_role_name = SERVING_AREA_LEGACY_ROLES.get(area.key)
+    direct_count = 0
+    if legacy_role_name:
+        direct_count = session.scalar(
+            select(func.count())
+            .select_from(UserRole)
+            .join(Role, Role.id == UserRole.role_id)
+            .where(Role.name == legacy_role_name)
+        ) or 0
+    return bool(preference_count or direct_count)
+
+
+@router.post(
+    "/serving/admin/roles", response_model=ServingAreaRead, status_code=201
+)
+def create_serving_role(
+    payload: ServingAreaWrite,
+    _current_user: User = Depends(require_permission("users:manage")),
+    session: Session = Depends(get_session),
+) -> ServingAreaRead:
+    category = session.scalar(
+        select(ServingRoleCategory).where(ServingRoleCategory.name == payload.category)
+    )
+    if category is None:
+        raise HTTPException(status_code=404, detail="Role category not found")
+    area = ServingArea(
+        key=serving_area_key(session, payload.name),
+        name=payload.name.strip(),
+        category=category.name,
+        description=payload.description,
+        assignment_interval=payload.assignment_interval,
+        active=True,
+    )
+    session.add(area)
+    session.commit()
+    session.refresh(area)
+    return area_to_read(area)
+
+
+@router.patch("/serving/admin/roles/{area_id}", response_model=ServingAreaRead)
+def update_serving_role(
+    area_id: str,
+    payload: ServingAreaWrite,
+    _current_user: User = Depends(require_permission("users:manage")),
+    session: Session = Depends(get_session),
+) -> ServingAreaRead:
+    area = session.get(ServingArea, area_id)
+    if area is None:
+        raise HTTPException(status_code=404, detail="Serving role not found")
+    category = session.scalar(
+        select(ServingRoleCategory).where(ServingRoleCategory.name == payload.category)
+    )
+    if category is None:
+        raise HTTPException(status_code=404, detail="Role category not found")
+    area.name = payload.name.strip()
+    area.category = category.name
+    area.description = payload.description
+    area.assignment_interval = payload.assignment_interval
+    session.commit()
+    session.refresh(area)
+    return area_to_read(area)
+
+
+@router.delete("/serving/admin/roles/{area_id}", status_code=204)
+def delete_serving_role(
+    area_id: str,
+    _current_user: User = Depends(require_permission("users:manage")),
+    session: Session = Depends(get_session),
+) -> Response:
+    area = session.get(ServingArea, area_id)
+    if area is None:
+        raise HTTPException(status_code=404, detail="Serving role not found")
+    if serving_role_has_assignments(session, area):
+        raise HTTPException(
+            status_code=409, detail="This role cannot be removed while users are assigned"
+        )
+    session.execute(
+        delete(VolunteerPreference).where(VolunteerPreference.serving_area_id == area.id)
+    )
+    session.delete(area)
+    session.commit()
+    return Response(status_code=204)
 
 
 @router.put("/serving/preferences/{area_key}", response_model=VolunteerPreferenceRead)

@@ -6,7 +6,7 @@ import {
   type ServingProfile, type VolunteerFrequencyPeriod, type VolunteerPreference, type VolunteerRotationMode,
 } from "../api";
 import { useConfirmationDialog } from "./ConfirmationDialog";
-import { ServingFrequencyInput } from "./ServingFrequencyInput";
+import { ServingFrequencyInput, suggestedFrequencyForInterval } from "./ServingFrequencyInput";
 import { AvailabilityRoleSelect, availabilityRoleLabel } from "./AvailabilityRoleSelect";
 
 interface ServingDraft { selected: boolean; frequency_count: number; frequency_period: VolunteerFrequencyPeriod; rotation_mode: VolunteerRotationMode; availability_notes: string; }
@@ -25,7 +25,8 @@ function makeDrafts(data: ServingProfile): Record<string, ServingDraft> {
   return Object.fromEntries(data.areas.map((area) => {
     const preference = data.preferences.find((item) => item.area.key === area.key);
     const directlyAssigned = Boolean(area.legacy_role_name && data.user.roles.includes(area.legacy_role_name));
-    return [area.key, { selected: Boolean(preference) || directlyAssigned, frequency_count: preference?.frequency_count ?? 1, frequency_period: preference?.frequency_period ?? "month", rotation_mode: preference?.rotation_mode ?? "auto", availability_notes: preference?.availability_notes ?? "" }];
+    const suggestion = suggestedFrequencyForInterval(area.assignment_interval);
+    return [area.key, { selected: Boolean(preference) || directlyAssigned, frequency_count: preference?.frequency_count ?? suggestion.count, frequency_period: preference?.frequency_period ?? suggestion.period, rotation_mode: preference?.rotation_mode ?? "auto", availability_notes: preference?.availability_notes ?? "" }];
   }));
 }
 
@@ -140,8 +141,10 @@ export function MyProfile({ onProfileChanged, onServingChanged }: { onProfileCha
         const next = await getServingProfile();
         setData(next); setDrafts(makeDrafts(next));
       } else {
+        const area = data?.areas.find((item) => item.key === areaKey);
+        const suggestion = suggestedFrequencyForInterval(area?.assignment_interval ?? "weekly");
         setData((current) => current ? { ...current, preferences: current.preferences.filter((item) => item.area.key !== areaKey) } : current);
-        setDrafts((current) => ({ ...current, [areaKey]: { selected: false, frequency_count: 1, frequency_period: "month", rotation_mode: "auto", availability_notes: "" } }));
+        setDrafts((current) => ({ ...current, [areaKey]: { selected: false, frequency_count: suggestion.count, frequency_period: suggestion.period, rotation_mode: "auto", availability_notes: "" } }));
       }
       onServingChanged();
       setMessage(`${label} completed.`);

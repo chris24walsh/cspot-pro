@@ -118,7 +118,24 @@ class ServingAreaRead(BaseModel):
     name: str
     category: str
     description: str | None = None
+    assignment_interval: Literal["weekly", "biweekly", "triweekly", "monthly"] = "weekly"
     legacy_role_name: str | None = None
+
+
+class ServingRoleCategoryRead(BaseModel):
+    id: str
+    name: str
+
+
+class ServingRoleCategoryWrite(BaseModel):
+    name: str = Field(min_length=1, max_length=80)
+
+
+class ServingAreaWrite(BaseModel):
+    name: str = Field(min_length=1, max_length=120)
+    category: str = Field(min_length=1, max_length=80)
+    description: str | None = Field(default=None, max_length=500)
+    assignment_interval: Literal["weekly", "biweekly", "triweekly", "monthly"] = "weekly"
 
 
 class VolunteerPreferenceRead(BaseModel):

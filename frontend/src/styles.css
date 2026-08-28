@@ -2160,6 +2160,14 @@ h3 {
 .admin-user-filters { display: grid; gap: 6px; grid-template-columns: 1fr 1fr; margin-bottom: 9px; }
 .admin-manager .manager-list .stack-list { grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); }
 .admin-user-filters select { background: #fffdf7; border: 1px solid #cfc7b4; border-radius: 8px; min-height: 34px; padding: 5px 7px; width: 100%; }
+.serving-role-manager { display: grid; gap: 10px; }
+.role-category-create { align-items: end; }
+.role-category-admin-row { align-items: center; display: flex; gap: 8px; justify-content: space-between; }
+.role-category-admin-row input { background: #fffdf7; border: 1px solid #cfc7b4; border-radius: 8px; min-height: 36px; padding: 7px 9px; }
+.serving-role-manager .admin-role-row { align-items: center; display: flex; justify-content: space-between; }
+.serving-role-manager .compact-serving-role-main { flex: 1; text-align: left; }
+.role-editor-panel { background: #f8f5ec; border: 1px solid #d8d1bf; border-radius: 10px; display: grid; gap: 10px; padding: 12px; }
+.role-editor-panel h4 { margin: 0; }
 .user-attention-flag { align-items: center; background: #e6a82f; border-radius: 999px; color: #17201b !important; display: inline-flex; font-size: 11px !important; justify-content: center; margin-left: 6px; min-height: 17px; min-width: 17px; }
 .status-pill.attention { background: #fff0cc; border-color: #dfb34e; color: #6f4b00; }
 .inline-notice { align-items: center; background: #f2f8f4; border-radius: 8px; display: flex; justify-content: space-between; margin: 8px 0; padding: 6px 9px; }

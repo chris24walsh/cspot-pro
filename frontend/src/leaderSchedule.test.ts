@@ -8,8 +8,15 @@ import {
   sundayDatesForMonth,
   unavailabilityForRole,
 } from "./leaderSchedule";
+import { suggestedFrequencyForInterval } from "./components/ServingFrequencyInput";
 
 describe("Sunday leader rotation", () => {
+  it("infers assignment frequency windows from the role interval", () => {
+    expect(suggestedFrequencyForInterval("weekly")).toEqual({ count: 1, period: "month" });
+    expect(suggestedFrequencyForInterval("biweekly")).toEqual({ count: 1, period: "quarter" });
+    expect(suggestedFrequencyForInterval("triweekly")).toEqual({ count: 1, period: "quarter" });
+    expect(suggestedFrequencyForInterval("monthly")).toEqual({ count: 1, period: "year" });
+  });
   it("applies unavailability only to its selected roles", () => {
     const ranges = [
       { starts_on: "2026-09-01", ends_on: "2026-09-02", role_keys: null },

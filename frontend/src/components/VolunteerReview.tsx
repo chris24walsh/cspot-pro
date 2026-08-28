@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 
 import { inviteVolunteer, removeVolunteerPreference, reviewVolunteerPreference, updateAdminServingSuspension, type ServingArea, type VolunteerAdminRecord, type VolunteerFrequencyPeriod, type VolunteerRotationMode, type VolunteerStatus } from "../api";
-import { ServingFrequencyInput } from "./ServingFrequencyInput";
+import { ServingFrequencyInput, assignmentIntervalLabel, suggestedFrequencyForInterval } from "./ServingFrequencyInput";
 import { unavailabilityForRole } from "../leaderSchedule";
 import { useConfirmationDialog } from "./ConfirmationDialog";
 
@@ -57,14 +57,15 @@ function AdminVolunteerRow({ autoFocus = false, confirm, expanded, onChanged, on
 }
 
 function AdminInviteRow({ area, expanded, onChanged, onToggle, userId }: { area: ServingArea; expanded: boolean; onChanged: () => Promise<void>; onToggle: () => void; userId: string }) {
-  const [draft, setDraft] = useState<{ count: number; period: VolunteerFrequencyPeriod; rotation_mode: VolunteerRotationMode }>({ count: 1, period: "month", rotation_mode: "auto" });
+  const suggestion = suggestedFrequencyForInterval(area.assignment_interval);
+  const [draft, setDraft] = useState<{ count: number; period: VolunteerFrequencyPeriod; rotation_mode: VolunteerRotationMode }>({ count: suggestion.count, period: suggestion.period, rotation_mode: "auto" });
   const [saving, setSaving] = useState(false);
   async function save() {
     setSaving(true);
     try { await inviteVolunteer(userId, area.key, { preferred_frequency: draft.period === "week" ? "weekly" : draft.period === "month" ? "monthly" : "quarterly", frequency_count: draft.count, frequency_period: draft.period, rotation_mode: draft.rotation_mode, availability_notes: null }); await onChanged(); }
     finally { setSaving(false); }
   }
-  return <article className="compact-serving-role"><div className="compact-serving-role-head"><button className="compact-serving-role-main" onClick={onToggle} type="button"><span aria-hidden="true">{expanded ? "▾" : "▸"}</span><span><strong>{area.name}</strong></span></button><button className="text-button compact-role-action" disabled={saving} onClick={() => void save()} type="button">{saving ? "Sending…" : "Invite"}</button></div>{expanded ? <div className="serving-role-details"><p className="muted-copy">{area.description}</p><ServingFrequencyInput count={draft.count} label={area.name} mode={draft.rotation_mode} onChange={(count, period, rotation_mode) => setDraft({ count, period, rotation_mode })} period={draft.period} /></div> : null}</article>;
+  return <article className="compact-serving-role"><div className="compact-serving-role-head"><button className="compact-serving-role-main" onClick={onToggle} type="button"><span aria-hidden="true">{expanded ? "▾" : "▸"}</span><span><strong>{area.name}</strong><small>{assignmentIntervalLabel(area.assignment_interval)}</small></span></button><button className="text-button compact-role-action" disabled={saving} onClick={() => void save()} type="button">{saving ? "Sending…" : "Invite"}</button></div>{expanded ? <div className="serving-role-details"><p className="muted-copy">{area.description}</p><ServingFrequencyInput count={draft.count} label={area.name} mode={draft.rotation_mode} onChange={(count, period, rotation_mode) => setDraft({ count, period, rotation_mode })} period={draft.period} /></div> : null}</article>;
 }
 
 export function VolunteerReview({ areas = [], compact = false, directRoleNames = [], onChanged, rows, userId }: { areas?: ServingArea[]; compact?: boolean; directRoleNames?: string[]; onChanged: () => Promise<void>; rows: VolunteerAdminRecord[]; userId?: string }) {

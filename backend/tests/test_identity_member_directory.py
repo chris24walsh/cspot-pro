@@ -9,6 +9,7 @@ from app.modules.identity.auth import list_authorization_role_names, list_role_n
 from app.modules.identity.models import (
     Role,
     ServingArea,
+    ServingRoleCategory,
     User,
     UserRole,
     VolunteerPreference,
@@ -17,6 +18,10 @@ from app.modules.identity.models import (
 from app.modules.identity.permissions import permissions_for_roles
 from app.modules.identity.routes import (
     add_user_unavailability,
+    create_serving_role,
+    create_serving_role_category,
+    delete_serving_role,
+    delete_serving_role_category,
     list_user_unavailability,
     remove_user_unavailability,
     set_user_roles,
@@ -25,7 +30,12 @@ from app.modules.identity.routes import (
     update_user_unavailability,
     user_to_member_read,
 )
-from app.modules.identity.schemas import VolunteerSuspensionUpdate, VolunteerUnavailabilityCreate
+from app.modules.identity.schemas import (
+    ServingAreaWrite,
+    ServingRoleCategoryWrite,
+    VolunteerSuspensionUpdate,
+    VolunteerUnavailabilityCreate,
+)
 
 
 def test_member_directory_exposes_team_fields_without_admin_fields() -> None:
@@ -118,6 +128,63 @@ def test_admin_can_manage_availability_for_any_user() -> None:
         assert list_user_unavailability(volunteer.id, admin, session) == []
 
 
+def test_admin_role_management_blocks_deleting_assigned_roles_and_nonempty_categories() -> None:
+    engine = create_engine("sqlite://")
+    Base.metadata.create_all(
+        engine,
+        tables=[
+            User.__table__,
+            ServingRoleCategory.__table__,
+            ServingArea.__table__,
+            VolunteerPreference.__table__,
+        ],
+    )
+    with Session(engine) as session:
+        admin = User(email="roles@example.com", username="rolesadmin", name="Roles Admin")
+        volunteer = User(email="assigned@example.com", username="assigned", name="Assigned")
+        session.add_all([admin, volunteer])
+        session.commit()
+
+        category = create_serving_role_category(
+            ServingRoleCategoryWrite(name="Hospitality"), admin, session
+        )
+        area = create_serving_role(
+            ServingAreaWrite(
+                name="Tea rota",
+                category="Hospitality",
+                description="Prepare tea",
+                assignment_interval="monthly",
+            ),
+            admin,
+            session,
+        )
+        assert area.assignment_interval == "monthly"
+
+        preference = VolunteerPreference(
+            user_id=volunteer.id, serving_area_id=area.id, status="approved"
+        )
+        session.add(preference)
+        session.commit()
+
+        try:
+            delete_serving_role_category(category.id, admin, session)
+        except HTTPException as error:
+            assert error.status_code == 409
+        else:
+            raise AssertionError("Category containing an assigned role was removed")
+        try:
+            delete_serving_role(area.id, admin, session)
+        except HTTPException as error:
+            assert error.status_code == 409
+        else:
+            raise AssertionError("Assigned role was removed")
+
+        session.delete(preference)
+        session.commit()
+        assert delete_serving_role(area.id, admin, session).status_code == 204
+        assert delete_serving_role_category(category.id, admin, session).status_code == 204
+
+
 def test_worship_and_sunday_school_roles_can_read_the_member_directory() -> None:
     for role in ["musician", "worship_leader", "sunday_school_teacher", "sunday_school_leader"]:
         permissions = permissions_for_roles([role])
@@ -204,7 +271,10 @@ def test_user_and_admin_suspension_controls_scheduling_and_resume_authority() ->
             "worship", VolunteerSuspensionUpdate(suspended=True), volunteer, session
         )
         assert own_result.suspended_by == "user"
-        assert user_to_member_read(session, volunteer).serving_rotation_modes["worship"] == "disabled"
+        assert (
+            user_to_member_read(session, volunteer).serving_rotation_modes["worship"]
+            == "disabled"
+        )
 
         update_own_serving_suspension(
             "worship", VolunteerSuspensionUpdate(suspended=False), volunteer, session

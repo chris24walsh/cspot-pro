@@ -196,10 +196,13 @@ the full-height mobile editor treatment.
 Serving frequency uses one shared adaptive dropdown control in Profile and
 Admin rather than free-form numbers. Current practical limits are 1–3 per week,
 1–5 per month, 1–8 per quarter, and 1–12 per year; changing period clamps the
-count into its valid range. The limits are centralized so serving-area-specific
-admin configuration can replace these defaults later without another UI
-rewrite. The dense ministry/role hierarchy is the baseline form factor for
-future management panels.
+count into its valid range. Admin Settings manages serving-role categories,
+roles, descriptions, and normal task intervals. Weekly roles suggest an
+editable monthly commitment, two- and three-weekly roles suggest a quarterly
+commitment, and monthly roles suggest a yearly commitment when a volunteer or
+administrator starts a new assignment. Assigned roles and categories containing
+assigned roles cannot be deleted. The dense ministry/role hierarchy is shared
+between role management and per-user serving management.
 Admin Roles & serving follows the same immediate-action model as Profile:
 access-role assignment, rotation limits, request decisions, invitations,
 frequency, and admin notes persist without a separate save. Destructive removal,
