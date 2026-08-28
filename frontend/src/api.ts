@@ -20,9 +20,12 @@ const DECK_IMPORT_TIMEOUT_MS = 180000;
 const DECK_RENDER_TIMEOUT_MS = 180000;
 const LIVE_SYNC_TIMEOUT_MS = 30000;
 
-export async function getChangeRevision(): Promise<number> {
-  const response = await getJson<{ revision: number }>("/api/v1/change-revision");
-  return response.revision;
+export type ChangeDomain = "planning" | "music" | "identity";
+export type ChangeRevisions = Record<ChangeDomain, number>;
+
+export async function getChangeRevisions(): Promise<ChangeRevisions> {
+  const response = await getJson<{ revisions: ChangeRevisions }>("/api/v1/change-revision");
+  return response.revisions;
 }
 
 function buildApiUrl(path: string) {

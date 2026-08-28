@@ -282,11 +282,12 @@ creates the persisted lesson lazily on its first save or assignment change.
 
 ### Live data refresh and reliability
 
-- Durable planning, music, worship-set, and identity mutations advance a lightweight
-  process-local change revision exposed at `GET /api/v1/change-revision`.
+- Durable planning, music, worship-set, and identity mutations advance lightweight,
+  domain-specific process-local revisions exposed at `GET /api/v1/change-revision`.
 - Authenticated clients poll that database-free revision with one request in flight,
   slow down while hidden, and exponentially back off during failures. A changed
-  revision refreshes workspace, profile, and administration data without a page reload.
+  revision refreshes only the affected active workspace, profile, or administration
+  data without a page reload or loading-state flash.
 - High-frequency presentation and broadcast state keeps its dedicated polling cadence,
   but polling loops must be single-flight so a slow API cannot create an unbounded
   request backlog.

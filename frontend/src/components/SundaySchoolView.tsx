@@ -31,6 +31,7 @@ import {
   type SundaySchoolLessonPayload,
   type SundaySchoolResource,
 } from "../api";
+import { useDurableChange } from "../changePolling";
 import { calendarColors, calendarMarkers } from "../userCalendarStyle";
 import { calendarDatesAround, effectiveLeaderIdForDate, sundayDatesAround, unavailabilityForRole, type SundayLeader } from "../leaderSchedule";
 import { CalendarPopup } from "./CalendarPopup";
@@ -313,9 +314,11 @@ export function SundaySchoolView({ active = true, canEdit }: { active?: boolean;
       });
   }, [resourceQuery, resources, selectedDate, selectedElement]);
 
-  async function load() {
-    setLoading(true);
-    setMessage(null);
+  async function load(silent = false) {
+    if (!silent) {
+      setLoading(true);
+      setMessage(null);
+    }
     try {
       const from = new Date();
       from.setDate(from.getDate() - 210);
@@ -332,13 +335,17 @@ export function SundaySchoolView({ active = true, canEdit }: { active?: boolean;
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Could not load Sunday School.");
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }
 
   useEffect(() => {
     void load();
   }, []);
+
+  useDurableChange(() => {
+    void load(true);
+  }, active, ["planning", "identity"]);
 
   useEffect(() => {
     setTopbarSlot(document.getElementById("workspace-topbar-slot"));

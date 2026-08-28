@@ -429,7 +429,7 @@ export function UserManager({ adminSection, onAdminSectionChange, onAttentionCha
 
   useDurableChange(() => {
     if (!formDirty) void load(selectedUser?.id, true);
-  });
+  }, true, ["identity"]);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);

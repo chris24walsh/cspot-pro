@@ -1,10 +1,11 @@
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import select
 
 from app.api.router import api_router
+from app.core.change_revision import ChangeDomain, change_revision
 from app.core.config import settings
 from app.core.database import SessionLocal
 from app.modules.broadcast.models import BroadcastViewerSettings
@@ -38,6 +39,21 @@ def create_app() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+
+    @app.middleware("http")
+    async def publish_durable_changes(request: Request, call_next):
+        response = await call_next(request)
+        if request.method in {"POST", "PUT", "PATCH", "DELETE"} and response.status_code < 400:
+            prefixes: tuple[tuple[str, ChangeDomain], ...] = (
+                ("/api/v1/planning", "planning"),
+                ("/api/v1/music", "music"),
+                ("/api/v1/identity", "identity"),
+            )
+            for prefix, domain in prefixes:
+                if request.url.path.startswith(prefix):
+                    change_revision.bump(domain)
+                    break
+        return response
 
     app.include_router(api_router)
     return app

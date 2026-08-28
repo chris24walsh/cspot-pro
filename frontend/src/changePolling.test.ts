@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { durablePollingDelay } from "./changePolling";
+import { changedDomains, durablePollingDelay } from "./changePolling";
 
 describe("durable change polling", () => {
   it("slows background tabs without delaying active tabs", () => {
@@ -12,5 +12,11 @@ describe("durable change polling", () => {
     expect(durablePollingDelay(1, false)).toBe(8000);
     expect(durablePollingDelay(4, false)).toBe(60000);
     expect(durablePollingDelay(20, false)).toBe(60000);
+  });
+
+  it("reports only domains whose revision changed", () => {
+    const previous = { planning: 10, music: 20, identity: 30 };
+    expect(changedDomains(previous, { planning: 11, music: 20, identity: 30 })).toEqual(["planning"]);
+    expect(changedDomains(previous, { planning: 11, music: 21, identity: 30 })).toEqual(["planning", "music"]);
   });
 });

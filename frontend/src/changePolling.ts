@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 
-import { getChangeRevision } from "./api";
+import { getChangeRevisions, type ChangeDomain, type ChangeRevisions } from "./api";
 
 export const DURABLE_CHANGE_EVENT = "cspot-pro:durable-change";
 
@@ -13,8 +13,13 @@ export function durablePollingDelay(failures: number, hidden: boolean) {
   return hidden ? HIDDEN_INTERVAL_MS : ACTIVE_INTERVAL_MS;
 }
 
+export function changedDomains(previous: ChangeRevisions, current: ChangeRevisions): ChangeDomain[] {
+  return (Object.keys(current) as ChangeDomain[])
+    .filter((domain) => previous[domain] !== current[domain]);
+}
+
 export function useDurableChangePolling(enabled: boolean) {
-  const lastRevisionRef = useRef<number | null>(null);
+  const lastRevisionRef = useRef<ChangeRevisions | null>(null);
 
   useEffect(() => {
     if (!enabled) return undefined;
@@ -29,13 +34,16 @@ export function useDurableChangePolling(enabled: boolean) {
 
     const poll = async () => {
       try {
-        const revision = await getChangeRevision();
+        const revisions = await getChangeRevisions();
         if (cancelled) return;
         const previous = lastRevisionRef.current;
-        lastRevisionRef.current = revision;
+        lastRevisionRef.current = revisions;
         failures = 0;
-        if (previous !== null && previous !== revision) {
-          window.dispatchEvent(new CustomEvent(DURABLE_CHANGE_EVENT, { detail: revision }));
+        if (previous !== null) {
+          const domains = changedDomains(previous, revisions);
+          if (domains.length) {
+            window.dispatchEvent(new CustomEvent(DURABLE_CHANGE_EVENT, { detail: { domains } }));
+          }
         }
         schedule(durablePollingDelay(0, document.hidden));
       } catch {
@@ -60,14 +68,21 @@ export function useDurableChangePolling(enabled: boolean) {
   }, [enabled]);
 }
 
-export function useDurableChange(callback: () => void, enabled = true) {
+export function useDurableChange(
+  callback: () => void,
+  enabled = true,
+  domains: ChangeDomain[] = ["planning", "music", "identity"],
+) {
   const callbackRef = useRef(callback);
   callbackRef.current = callback;
 
   useEffect(() => {
     if (!enabled) return undefined;
-    const handleChange = () => callbackRef.current();
+    const handleChange = (event: Event) => {
+      const changed = (event as CustomEvent<{ domains: ChangeDomain[] }>).detail.domains;
+      if (changed.some((domain) => domains.includes(domain))) callbackRef.current();
+    };
     window.addEventListener(DURABLE_CHANGE_EVENT, handleChange);
     return () => window.removeEventListener(DURABLE_CHANGE_EVENT, handleChange);
-  }, [enabled]);
+  }, [domains.join(","), enabled]);
 }

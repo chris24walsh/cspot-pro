@@ -61,6 +61,7 @@ import {
   type Song,
   type StoredFile,
 } from "../api";
+import { useDurableChange } from "../changePolling";
 import {
   PRESENTATION_CHANNEL,
   LCF_BACKGROUND_URL,
@@ -2152,15 +2153,19 @@ export function PresentationView({
     });
   }
 
-  async function reloadPreservingOperatorScroll(options?: { refreshCatalogs?: boolean }) {
+  async function reloadPreservingOperatorScroll(options?: { refreshCatalogs?: boolean; silent?: boolean }) {
     if (!plan) {
       return;
     }
     const scrollPosition = captureOperatorScrollPositions();
     suppressNextOperatorScrollRef.current = true;
-    await load(plan.id, { refreshCatalogs: options?.refreshCatalogs });
+    await load(plan.id, { refreshCatalogs: options?.refreshCatalogs, silent: options?.silent });
     restoreOperatorScrollPositions(scrollPosition);
   }
+
+  useDurableChange(() => {
+    void reloadPreservingOperatorScroll({ refreshCatalogs: true, silent: true });
+  }, active, ["planning", "music"]);
 
   async function reloadAfterInsertedItem(createdItem: PlanItem | null | undefined, options?: { refreshCatalogs?: boolean }) {
     if (!plan) {

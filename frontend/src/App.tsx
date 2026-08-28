@@ -310,10 +310,9 @@ function App() {
   useDurableChangePolling(Boolean(sessionUser));
   useDurableChange(() => {
     void loadAuth(true);
-    void loadWorkspace();
     void loadAdminAttention();
     void loadProfileAttention();
-  }, Boolean(sessionUser));
+  }, Boolean(sessionUser), ["identity"]);
 
   useEffect(() => {
     if (sessionUser && isViewerOnly && canWatchBroadcast && modules.some((module) => module.id === "broadcast")) {

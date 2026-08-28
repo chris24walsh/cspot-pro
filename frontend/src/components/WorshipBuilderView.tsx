@@ -47,6 +47,7 @@ import {
   type WorshipSongUsage,
   type WorshipLeaderAssignment,
 } from "../api";
+import { useDurableChange } from "../changePolling";
 import { buildPresentationSections, suggestUniformSlideGroupFontCap } from "../presentation";
 import { parseChordChart } from "../chordSheet";
 import { showToast } from "../toast";
@@ -693,9 +694,9 @@ export function WorshipBuilderView({ active = true, canAccessAdminTools, canArch
     }
   }
 
-  async function load(targetPlanId?: string) {
+  async function load(targetPlanId?: string, silent = false) {
     const requestId = ++loadRequestIdRef.current;
-    setLoading(true);
+    if (!silent) setLoading(true);
     try {
       const [nextPlans, nextSongs, nextPlanTypes, nextUsers, nextLeaderAssignments, nextSongUsage] = await Promise.all([
         getPlans(),
@@ -745,13 +746,17 @@ export function WorshipBuilderView({ active = true, canAccessAdminTools, canArch
       if (requestId !== loadRequestIdRef.current) return;
       setMessage(error instanceof Error ? error.message : "Could not load worship builder.");
     } finally {
-      if (requestId === loadRequestIdRef.current) setLoading(false);
+      if (!silent && requestId === loadRequestIdRef.current) setLoading(false);
     }
   }
 
   useEffect(() => {
     void load();
   }, []);
+
+  useDurableChange(() => {
+    void load(selectedPlanId, true);
+  }, active, ["planning", "music", "identity"]);
 
   useEffect(() => {
     setTopbarSlot(document.getElementById("workspace-topbar-slot"));

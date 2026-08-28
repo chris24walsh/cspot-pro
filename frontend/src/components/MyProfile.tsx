@@ -63,7 +63,7 @@ export function MyProfile({ onProfileChanged, onServingChanged }: { onProfileCha
   useEffect(() => { void load().catch((error) => setMessage(error instanceof Error ? error.message : "Could not load profile.")); }, []);
   useDurableChange(() => {
     if (!immediateAction) void load().catch(() => undefined);
-  });
+  }, true, ["identity"]);
   useEffect(() => {
     if (!data || profileSection !== "serving" || initialInvitationFocused.current) return;
     const invitation = data.preferences.find((preference) => preference.initiated_by === "admin" && preference.status === "pending");

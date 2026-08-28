@@ -24,8 +24,8 @@ def health() -> dict[str, str]:
 
 
 @api_router.get("/api/v1/change-revision", tags=["system"])
-def get_change_revision() -> dict[str, int]:
-    return {"revision": change_revision.value}
+def get_change_revision() -> dict[str, dict[str, int]]:
+    return {"revisions": change_revision.snapshot()}
 
 
 @api_router.get("/api/v1/app", tags=["system"])
