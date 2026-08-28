@@ -34,6 +34,23 @@ The scheduled task runs at user logon. This is intentional: Windows audio
 capture devices are tied to an interactive user session and are less reliable
 from a service running as `SYSTEM`.
 
+### Remote access before Windows logon
+
+The camera subnet route and remote administration must not depend on the
+interactive desktop session. On the church PC, run PowerShell as Administrator
+and configure Tailscale for unattended operation while preserving the camera
+subnet route:
+
+```powershell
+tailscale up --unattended --advertise-routes=192.168.4.0/24
+Set-Service sshd -StartupType Automatic
+Start-Service sshd
+```
+
+After a reboot, verify SSH and both camera feeds before anyone logs into the
+desktop. The `CSpot Audio Bridge` task remains logon-triggered by design; that
+does not prevent SSH, Tailscale, or the routed cameras from starting at boot.
+
 Test locally:
 
 ```powershell
