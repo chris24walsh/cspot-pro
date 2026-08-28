@@ -1,3 +1,5 @@
+from datetime import date
+
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
@@ -12,7 +14,15 @@ from app.modules.identity.models import (
 )
 from app.modules.identity.permissions import permissions_for_roles
 from app.modules.identity.auth import list_authorization_role_names, list_role_names
-from app.modules.identity.routes import set_user_roles, user_to_member_read
+from app.modules.identity.routes import (
+    add_user_unavailability,
+    list_user_unavailability,
+    remove_user_unavailability,
+    set_user_roles,
+    update_user_unavailability,
+    user_to_member_read,
+)
+from app.modules.identity.schemas import VolunteerUnavailabilityCreate
 
 
 def test_member_directory_exposes_team_fields_without_admin_fields() -> None:
@@ -57,6 +67,45 @@ def test_member_directory_exposes_team_fields_without_admin_fields() -> None:
     assert member.worship_max_sundays_per_month == 2
     assert member.approved_serving_areas == []
     assert "password_set" not in member.model_dump()
+
+
+def test_admin_can_manage_availability_for_any_user() -> None:
+    engine = create_engine("sqlite://")
+    Base.metadata.create_all(
+        engine,
+        tables=[User.__table__, VolunteerUnavailability.__table__],
+    )
+    with Session(engine) as session:
+        admin = User(email="admin@example.com", username="admin", name="Admin")
+        volunteer = User(email="volunteer@example.com", username="volunteer", name="Volunteer")
+        session.add_all([admin, volunteer])
+        session.commit()
+
+        created = add_user_unavailability(
+            volunteer.id,
+            VolunteerUnavailabilityCreate(
+                starts_on=date(2026, 9, 1), ends_on=date(2026, 9, 3), note="Away"
+            ),
+            admin,
+            session,
+        )
+        assert list_user_unavailability(volunteer.id, admin, session) == [created]
+
+        updated = update_user_unavailability(
+            volunteer.id,
+            created.id,
+            VolunteerUnavailabilityCreate(
+                starts_on=date(2026, 9, 2), ends_on=date(2026, 9, 4), note="Holiday"
+            ),
+            admin,
+            session,
+        )
+        assert updated.starts_on == date(2026, 9, 2)
+        assert updated.note == "Holiday"
+
+        response = remove_user_unavailability(volunteer.id, created.id, admin, session)
+        assert response.status_code == 204
+        assert list_user_unavailability(volunteer.id, admin, session) == []
 
 
 def test_worship_and_sunday_school_roles_can_read_the_member_directory() -> None:

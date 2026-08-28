@@ -2154,6 +2154,7 @@ h3 {
   .registration-share-panel img { width: 92px; height: 92px; }
 }
 .editor-panel.is-profile-settings .capability-fieldset { display: none; }
+.editor-panel.is-profile-settings .admin-serving-availability { display: none; }
 .editor-panel.is-serving-settings .form-grid > label,
 .editor-panel.is-serving-settings .calendar-identity-fieldset { display: none; }
 .admin-user-filters { display: grid; gap: 6px; grid-template-columns: 1fr 1fr; margin-bottom: 9px; }

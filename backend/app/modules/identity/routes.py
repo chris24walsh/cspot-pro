@@ -914,6 +914,104 @@ def remove_unavailability(
     return Response(status_code=204)
 
 
+@router.get(
+    "/serving/admin/users/{user_id}/unavailability",
+    response_model=list[VolunteerUnavailabilityRead],
+)
+def list_user_unavailability(
+    user_id: str,
+    _current_user: User = Depends(require_permission("users:manage")),
+    session: Session = Depends(get_session),
+) -> list[VolunteerUnavailabilityRead]:
+    get_user_or_404(session, user_id)
+    return [
+        VolunteerUnavailabilityRead(
+            id=item.id, starts_on=item.starts_on, ends_on=item.ends_on, note=item.note
+        )
+        for item in session.scalars(
+            select(VolunteerUnavailability)
+            .where(VolunteerUnavailability.user_id == user_id)
+            .order_by(VolunteerUnavailability.starts_on)
+        ).all()
+    ]
+
+
+@router.post(
+    "/serving/admin/users/{user_id}/unavailability",
+    response_model=VolunteerUnavailabilityRead,
+    status_code=201,
+)
+def add_user_unavailability(
+    user_id: str,
+    payload: VolunteerUnavailabilityCreate,
+    _current_user: User = Depends(require_permission("users:manage")),
+    session: Session = Depends(get_session),
+) -> VolunteerUnavailabilityRead:
+    get_user_or_404(session, user_id)
+    if payload.ends_on < payload.starts_on:
+        raise HTTPException(status_code=422, detail="End date must be on or after start date.")
+    item = VolunteerUnavailability(user_id=user_id, **payload.model_dump())
+    session.add(item)
+    session.commit()
+    session.refresh(item)
+    return VolunteerUnavailabilityRead(
+        id=item.id, starts_on=item.starts_on, ends_on=item.ends_on, note=item.note
+    )
+
+
+@router.patch(
+    "/serving/admin/users/{user_id}/unavailability/{item_id}",
+    response_model=VolunteerUnavailabilityRead,
+)
+def update_user_unavailability(
+    user_id: str,
+    item_id: str,
+    payload: VolunteerUnavailabilityCreate,
+    _current_user: User = Depends(require_permission("users:manage")),
+    session: Session = Depends(get_session),
+) -> VolunteerUnavailabilityRead:
+    if payload.ends_on < payload.starts_on:
+        raise HTTPException(status_code=422, detail="End date must be on or after start date.")
+    item = session.scalar(
+        select(VolunteerUnavailability).where(
+            VolunteerUnavailability.id == item_id,
+            VolunteerUnavailability.user_id == user_id,
+        )
+    )
+    if item is None:
+        raise HTTPException(status_code=404, detail="Availability entry not found")
+    item.starts_on = payload.starts_on
+    item.ends_on = payload.ends_on
+    item.note = payload.note
+    session.commit()
+    session.refresh(item)
+    return VolunteerUnavailabilityRead(
+        id=item.id, starts_on=item.starts_on, ends_on=item.ends_on, note=item.note
+    )
+
+
+@router.delete(
+    "/serving/admin/users/{user_id}/unavailability/{item_id}", status_code=204
+)
+def remove_user_unavailability(
+    user_id: str,
+    item_id: str,
+    _current_user: User = Depends(require_permission("users:manage")),
+    session: Session = Depends(get_session),
+) -> Response:
+    item = session.scalar(
+        select(VolunteerUnavailability).where(
+            VolunteerUnavailability.id == item_id,
+            VolunteerUnavailability.user_id == user_id,
+        )
+    )
+    if item is None:
+        raise HTTPException(status_code=404, detail="Availability entry not found")
+    session.delete(item)
+    session.commit()
+    return Response(status_code=204)
+
+
 @router.get("/serving/admin/volunteers", response_model=list[VolunteerAdminRead])
 def list_volunteer_requests(
     _current_user: User = Depends(require_permission("users:manage")),
