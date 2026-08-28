@@ -2,7 +2,7 @@ import { type FormEvent, useEffect, useRef, useState } from "react";
 
 import {
   addVolunteerUnavailability, decideServingInvitation, getServingProfile, removeVolunteerUnavailability,
-  saveVolunteerPreference, updateMyProfile, withdrawVolunteerPreference,
+  saveVolunteerPreference, updateMyProfile, updateOwnServingSuspension, withdrawVolunteerPreference,
   type ServingProfile, type VolunteerFrequencyPeriod, type VolunteerPreference, type VolunteerRotationMode,
 } from "../api";
 import { useConfirmationDialog } from "./ConfirmationDialog";
@@ -152,6 +152,18 @@ export function MyProfile({ onProfileChanged, onServingChanged }: { onProfileCha
     }
   }
 
+  async function changeSuspension(areaKey: string, suspended: boolean) {
+    if (suspended && !(await confirm({ title: "Suspend serving role", message: "Opt out of this role until you choose to resume?", confirmLabel: "Suspend role", tone: "danger" }))) return;
+    setImmediateAction(areaKey);
+    try {
+      const preference = await updateOwnServingSuspension(areaKey, suspended);
+      applyPreference(preference);
+      onServingChanged();
+      setMessage(suspended ? "Serving role suspended." : "Serving role resumed.");
+    } catch (error) { setMessage(error instanceof Error ? error.message : "Could not change role suspension."); }
+    finally { setImmediateAction(null); }
+  }
+
   async function removeAvailability(unavailabilityId: string) {
     const confirmed = await confirm({ title: "Remove unavailable dates", message: "Remove this unavailable date range?", confirmLabel: "Remove dates", tone: "danger" });
     if (!confirmed) return;
@@ -191,11 +203,11 @@ export function MyProfile({ onProfileChanged, onServingChanged }: { onProfileCha
         const directlyAssigned = Boolean(area.legacy_role_name && data.user.roles.includes(area.legacy_role_name));
         const draft = drafts[area.key];
         const invitationPending = preference?.initiated_by === "admin" && preference.status === "pending";
-        const stateLabel = directlyAssigned ? "Assigned" : invitationPending ? "Invitation" : preference?.status === "approved" ? "Active" : preference?.status === "pending" ? "Requested" : preference?.status === "declined" ? "Declined" : null;
+        const stateLabel = directlyAssigned ? "Assigned" : invitationPending ? "Invitation" : preference?.suspended_by ? "Suspended" : preference?.status === "approved" ? "Active" : preference?.status === "pending" ? "Requested" : preference?.status === "declined" ? "Declined" : null;
         const destructiveLabel = preference?.status === "pending" ? "Cancel request" : preference?.status === "approved" ? "Leave role" : "Remove request";
         const areaOpen = openArea === area.key;
         return <article className={`compact-serving-role ${draft.selected ? "selected" : ""} ${invitationPending ? "is-pending" : ""}`} id={invitationPending ? `profile-invitation-${area.key}` : undefined} key={area.key}>
-          <div className="compact-serving-role-head"><button className="compact-serving-role-main" onClick={() => setOpenArea(areaOpen ? null : area.key)} type="button"><span aria-hidden="true">{areaOpen ? "▾" : "▸"}</span><span><strong>{area.name}</strong>{stateLabel ? <small>{stateLabel}</small> : null}</span></button>{directlyAssigned ? <span className="role-state-flag inline">Assigned</span> : invitationPending ? <button className="primary-button compact-role-action" disabled={immediateAction === area.key} onClick={() => void acceptInvitationNow(area.key, draft)} type="button">Accept</button> : draft.selected ? <button className="danger-button compact-role-action" disabled={immediateAction === area.key} onClick={() => void destructiveRoleAction(area.key, "remove", destructiveLabel)} type="button">{preference?.status === "approved" ? "Leave" : "Cancel"}</button> : <button className="text-button compact-role-action" disabled={immediateAction === area.key} onClick={() => void volunteerNow(area.key, draft)} type="button">Join</button>}</div>
+          <div className="compact-serving-role-head"><button className="compact-serving-role-main" onClick={() => setOpenArea(areaOpen ? null : area.key)} type="button"><span aria-hidden="true">{areaOpen ? "▾" : "▸"}</span><span><strong>{area.name}</strong>{stateLabel ? <small>{stateLabel}</small> : null}</span></button>{directlyAssigned ? <span className="role-state-flag inline">Assigned</span> : invitationPending ? <button className="primary-button compact-role-action" disabled={immediateAction === area.key} onClick={() => void acceptInvitationNow(area.key, draft)} type="button">Accept</button> : draft.selected ? <div className="action-row">{preference?.status === "approved" ? <button className="text-button compact-role-action" disabled={immediateAction === area.key || preference.suspended_by === "admin"} onClick={() => void changeSuspension(area.key, !preference.suspended_by)} title={preference.suspended_by === "admin" ? "Only an administrator can resume this role" : undefined} type="button">{preference.suspended_by === "admin" ? "Admin suspended" : preference.suspended_by ? "Resume" : "Suspend"}</button> : null}<button className="danger-button compact-role-action" disabled={immediateAction === area.key} onClick={() => void destructiveRoleAction(area.key, "remove", destructiveLabel)} type="button">{preference?.status === "approved" ? "Leave" : "Cancel"}</button></div> : <button className="text-button compact-role-action" disabled={immediateAction === area.key} onClick={() => void volunteerNow(area.key, draft)} type="button">Join</button>}</div>
           {areaOpen ? <div className="serving-role-details"><p className="muted-copy">{area.description}</p>{directlyAssigned ? <p className="muted-copy">This role is active through your assigned access role. An administrator can change it.</p> : draft.selected ? <><ServingFrequencyInput count={draft.frequency_count} label={area.name} mode={draft.rotation_mode} onChange={(frequency_count, frequency_period, rotation_mode) => { const next = { ...draft, frequency_count, frequency_period, rotation_mode }; setDrafts({ ...drafts, [area.key]: next }); void updatePreferenceNow(area.key, next); }} period={draft.frequency_period} showMode={false} /><label>Availability and notes<textarea value={draft.availability_notes} onBlur={() => void updatePreferenceNow(area.key, drafts[area.key])} onChange={(event) => setDrafts({ ...drafts, [area.key]: { ...draft, availability_notes: event.target.value } })} placeholder="Times that suit, experience, or anything coordinators should know" /></label>{preference?.admin_notes ? <p className="field-help">Admin note: {preference.admin_notes}</p> : null}{invitationPending ? <button className="danger-button role-lifecycle-button" disabled={immediateAction === area.key} onClick={() => void destructiveRoleAction(area.key, "reject", "Reject invitation")} type="button">Reject invitation</button> : null}</> : null}</div> : null}
         </article>;
       })}</div> : null}</section>;

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 
-import { inviteVolunteer, removeVolunteerPreference, reviewVolunteerPreference, type ServingArea, type VolunteerAdminRecord, type VolunteerFrequencyPeriod, type VolunteerRotationMode, type VolunteerStatus } from "../api";
+import { inviteVolunteer, removeVolunteerPreference, reviewVolunteerPreference, updateAdminServingSuspension, type ServingArea, type VolunteerAdminRecord, type VolunteerFrequencyPeriod, type VolunteerRotationMode, type VolunteerStatus } from "../api";
 import { ServingFrequencyInput } from "./ServingFrequencyInput";
 import { unavailabilityForRole } from "../leaderSchedule";
 import { useConfirmationDialog } from "./ConfirmationDialog";
@@ -38,10 +38,17 @@ function AdminVolunteerRow({ autoFocus = false, confirm, expanded, onChanged, on
     finally { setSaving(false); }
   }
 
+  async function changeSuspension(suspended: boolean) {
+    if (suspended && !(await confirm({ title: "Suspend serving role", message: "Suspend this role until an administrator resumes it?", confirmLabel: "Suspend role", tone: "danger" }))) return;
+    setSaving(true);
+    try { await updateAdminServingSuspension(row.preference.id, suspended); await onChanged(); }
+    finally { setSaving(false); }
+  }
+
   const invitationPending = row.preference.initiated_by === "admin" && draft.status === "pending";
   const quickLabel = invitationPending ? "Cancel" : draft.status === "approved" ? "Remove" : "Accept";
   return <article className={`compact-serving-role admin-serving-role ${row.preference.admin_attention_pending ? "is-pending" : ""}`} ref={rowRef}>
-    <div className="compact-serving-role-head"><button className="compact-serving-role-main" onClick={onToggle} type="button"><span aria-hidden="true">{expanded ? "▾" : "▸"}</span><span><strong>{row.preference.area.name}</strong><small>{draft.status}</small></span></button><button className={invitationPending || draft.status === "approved" ? "danger-button compact-role-action" : "primary-button compact-role-action"} disabled={saving} onClick={() => void (invitationPending || draft.status === "approved" ? removeNow() : persist({ ...draft, status: "approved" }))} type="button">{saving ? "…" : quickLabel}</button></div>
+    <div className="compact-serving-role-head"><button className="compact-serving-role-main" onClick={onToggle} type="button"><span aria-hidden="true">{expanded ? "▾" : "▸"}</span><span><strong>{row.preference.area.name}</strong><small>{draft.status}{row.preference.suspended_by ? ` · suspended by ${row.preference.suspended_by}` : ""}</small></span></button><div className="action-row">{draft.status === "approved" ? <button className="text-button compact-role-action" disabled={saving} onClick={() => void changeSuspension(!row.preference.suspended_by)} type="button">{row.preference.suspended_by ? "Resume" : "Suspend"}</button> : null}<button className={invitationPending || draft.status === "approved" ? "danger-button compact-role-action" : "primary-button compact-role-action"} disabled={saving} onClick={() => void (invitationPending || draft.status === "approved" ? removeNow() : persist({ ...draft, status: "approved" }))} type="button">{saving ? "…" : quickLabel}</button></div></div>
     {expanded ? <div className="serving-role-details"><p className="muted-copy">{row.preference.area.description}</p>
       <ServingFrequencyInput count={draft.frequency_count} label={row.preference.area.name} mode={draft.rotation_mode} onChange={(frequency_count, frequency_period, rotation_mode) => void persist({ ...draft, frequency_count, frequency_period, rotation_mode })} period={draft.frequency_period} /><label>Admin note<textarea value={draft.admin_notes} onBlur={() => void persist(draft)} onChange={(event) => setDraft({ ...draft, admin_notes: event.target.value })} placeholder="Optional note visible to the volunteer" /></label>{row.preference.availability_notes ? <small>Volunteer note: {row.preference.availability_notes}</small> : null}{unavailabilityForRole(row.unavailable, row.preference.area.key).length ? <small>Away: {unavailabilityForRole(row.unavailable, row.preference.area.key).map((item) => `${item.starts_on}–${item.ends_on}`).join(", ")}</small> : null}
       <div className="action-row lifecycle-actions">{!invitationPending && draft.status !== "approved" ? <button className="primary-button" disabled={saving} onClick={() => void persist({ ...draft, status: "approved" })} type="button">Accept</button> : null}{!invitationPending && draft.status !== "declined" ? <button className="text-button" disabled={saving} onClick={async () => { if (await confirm({ title: "Reject request", message: "Reject this serving request?", confirmLabel: "Reject", tone: "danger" })) void persist({ ...draft, status: "declined" }); }} type="button">Reject</button> : null}<button className="danger-button" disabled={saving} onClick={() => void removeNow()} type="button">{invitationPending ? "Cancel invitation" : "Remove"}</button></div>

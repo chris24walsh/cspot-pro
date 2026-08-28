@@ -65,6 +65,7 @@ from app.modules.identity.schemas import (
     VolunteerPreferenceRead,
     VolunteerPreferenceUpdate,
     VolunteerReviewUpdate,
+    VolunteerSuspensionUpdate,
     VolunteerUnavailabilityCreate,
     VolunteerUnavailabilityRead,
 )
@@ -233,6 +234,7 @@ def user_to_member_read(session: Session, user: User) -> MemberRead:
             preference.frequency_count,
             preference.frequency_period,
             preference.rotation_mode,
+            preference.suspended_by,
         )
         for preference, area in session.execute(
             select(VolunteerPreference, ServingArea)
@@ -248,8 +250,8 @@ def user_to_member_read(session: Session, user: User) -> MemberRead:
         frequency = approved_preferences.get(area_key)
         if frequency is None:
             return None
-        count, period, rotation_mode = frequency
-        if rotation_mode != "auto":
+        count, period, rotation_mode, suspended_by = frequency
+        if rotation_mode != "auto" or suspended_by:
             return 0
         if period == "week":
             return min(5, count * 5)
@@ -282,7 +284,10 @@ def user_to_member_read(session: Session, user: User) -> MemberRead:
             else user.sunday_school_max_sundays_per_month
         ),
         approved_serving_areas=list(approved_preferences),
-        serving_rotation_modes={key: values[2] for key, values in approved_preferences.items()},
+        serving_rotation_modes={
+            key: "disabled" if values[3] else values[2]
+            for key, values in approved_preferences.items()
+        },
         unavailable=[unavailability_to_read(item) for item in unavailable],
     )
 
@@ -324,6 +329,7 @@ def preference_to_read(
         frequency_count=preference.frequency_count,
         frequency_period=preference.frequency_period,
         rotation_mode=preference.rotation_mode,
+        suspended_by=preference.suspended_by,
         availability_notes=preference.availability_notes,
         admin_notes=preference.admin_notes,
         reviewed_at=preference.reviewed_at,
@@ -865,6 +871,33 @@ def decide_serving_invitation(
     return preference_to_read(session, preference)
 
 
+@router.patch(
+    "/serving/preferences/{area_key}/suspension", response_model=VolunteerPreferenceRead
+)
+def update_own_serving_suspension(
+    area_key: str,
+    payload: VolunteerSuspensionUpdate,
+    current_user: CurrentUser,
+    session: Session = Depends(get_session),
+) -> VolunteerPreferenceRead:
+    preference = session.scalar(
+        select(VolunteerPreference)
+        .join(ServingArea)
+        .where(VolunteerPreference.user_id == current_user.id, ServingArea.key == area_key)
+    )
+    if preference is None or preference.status != "approved":
+        raise HTTPException(status_code=409, detail="Only an active serving role can be suspended")
+    if not payload.suspended and preference.suspended_by == "admin":
+        raise HTTPException(
+            status_code=409, detail="An administrator must resume this serving role"
+        )
+    preference.suspended_by = "user" if payload.suspended else None
+    preference.admin_attention_pending = True
+    session.commit()
+    session.refresh(preference)
+    return preference_to_read(session, preference)
+
+
 @router.delete("/serving/preferences/{area_key}", status_code=204)
 def withdraw_from_area(
     area_key: str, current_user: CurrentUser, session: Session = Depends(get_session)
@@ -1072,6 +1105,28 @@ def review_volunteer(
         preference.admin_notes = payload.admin_notes
     preference.reviewed_at = datetime.now(UTC)
     preference.reviewed_by_user_id = current_user.id
+    session.commit()
+    session.refresh(preference)
+    return preference_to_read(session, preference)
+
+
+@router.patch(
+    "/serving/admin/volunteers/{preference_id}/suspension",
+    response_model=VolunteerPreferenceRead,
+)
+def update_admin_serving_suspension(
+    preference_id: str,
+    payload: VolunteerSuspensionUpdate,
+    _current_user: User = Depends(require_permission("users:manage")),
+    session: Session = Depends(get_session),
+) -> VolunteerPreferenceRead:
+    preference = session.get(VolunteerPreference, preference_id)
+    if preference is None:
+        raise HTTPException(status_code=404, detail="Volunteer role not found")
+    if preference.status != "approved":
+        raise HTTPException(status_code=409, detail="Only an active serving role can be suspended")
+    preference.suspended_by = "admin" if payload.suspended else None
+    preference.admin_attention_pending = False
     session.commit()
     session.refresh(preference)
     return preference_to_read(session, preference)

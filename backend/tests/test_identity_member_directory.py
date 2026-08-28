@@ -1,5 +1,6 @@
 from datetime import date
 
+from fastapi import HTTPException
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
@@ -19,10 +20,12 @@ from app.modules.identity.routes import (
     list_user_unavailability,
     remove_user_unavailability,
     set_user_roles,
+    update_admin_serving_suspension,
+    update_own_serving_suspension,
     update_user_unavailability,
     user_to_member_read,
 )
-from app.modules.identity.schemas import VolunteerUnavailabilityCreate
+from app.modules.identity.schemas import VolunteerSuspensionUpdate, VolunteerUnavailabilityCreate
 
 
 def test_member_directory_exposes_team_fields_without_admin_fields() -> None:
@@ -165,6 +168,65 @@ def test_serving_rotation_mode_is_exposed_without_changing_access() -> None:
     assert member.serving_rotation_modes == {"worship": "manual"}
     assert member.worship_max_sundays_per_month == 0
     assert "worship_leader" in authorization_roles
+
+
+def test_user_and_admin_suspension_controls_scheduling_and_resume_authority() -> None:
+    engine = create_engine("sqlite://")
+    Base.metadata.create_all(
+        engine,
+        tables=[
+            User.__table__,
+            Role.__table__,
+            UserRole.__table__,
+            ServingArea.__table__,
+            VolunteerPreference.__table__,
+            VolunteerUnavailability.__table__,
+        ],
+    )
+    with Session(engine) as session:
+        admin = User(email="admin2@example.com", username="admin2", name="Admin")
+        volunteer = User(email="helper@example.com", username="helper", name="Helper")
+        area = ServingArea(
+            key="worship", name="Worship Leader", category="Worship", active=True
+        )
+        session.add_all([admin, volunteer, area])
+        session.flush()
+        preference = VolunteerPreference(
+            user_id=volunteer.id,
+            serving_area_id=area.id,
+            status="approved",
+            rotation_mode="auto",
+        )
+        session.add(preference)
+        session.commit()
+
+        own_result = update_own_serving_suspension(
+            "worship", VolunteerSuspensionUpdate(suspended=True), volunteer, session
+        )
+        assert own_result.suspended_by == "user"
+        assert user_to_member_read(session, volunteer).serving_rotation_modes["worship"] == "disabled"
+
+        update_own_serving_suspension(
+            "worship", VolunteerSuspensionUpdate(suspended=False), volunteer, session
+        )
+        admin_result = update_admin_serving_suspension(
+            preference.id, VolunteerSuspensionUpdate(suspended=True), admin, session
+        )
+        assert admin_result.suspended_by == "admin"
+
+        try:
+            update_own_serving_suspension(
+                "worship", VolunteerSuspensionUpdate(suspended=False), volunteer, session
+            )
+        except HTTPException as error:
+            assert error.status_code == 409
+        else:
+            raise AssertionError("User unexpectedly resumed an admin-suspended role")
+
+        resumed = update_admin_serving_suspension(
+            preference.id, VolunteerSuspensionUpdate(suspended=False), admin, session
+        )
+        assert resumed.suspended_by is None
 
 
 def test_approved_serving_area_provides_matching_workspace_role() -> None:

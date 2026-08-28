@@ -132,6 +132,7 @@ class VolunteerPreferenceRead(BaseModel):
     frequency_count: int = Field(default=1, ge=0, le=52)
     frequency_period: Literal["week", "month", "quarter", "year"] = "month"
     rotation_mode: Literal["auto", "manual", "disabled"] = "auto"
+    suspended_by: Literal["user", "admin"] | None = None
     availability_notes: str | None = None
     admin_notes: str | None = None
     reviewed_at: datetime | None = None
@@ -160,6 +161,10 @@ class VolunteerReviewUpdate(BaseModel):
 
 class VolunteerDecisionUpdate(BaseModel):
     status: Literal["approved", "declined"]
+
+
+class VolunteerSuspensionUpdate(BaseModel):
+    suspended: bool
 
 
 class ServingProfileRead(BaseModel):
