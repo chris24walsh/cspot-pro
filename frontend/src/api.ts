@@ -20,6 +20,11 @@ const DECK_IMPORT_TIMEOUT_MS = 180000;
 const DECK_RENDER_TIMEOUT_MS = 180000;
 const LIVE_SYNC_TIMEOUT_MS = 30000;
 
+export async function getChangeRevision(): Promise<number> {
+  const response = await getJson<{ revision: number }>("/api/v1/change-revision");
+  return response.revision;
+}
+
 function buildApiUrl(path: string) {
   const base = API_BASE_URL.endsWith("/") ? API_BASE_URL.slice(0, -1) : API_BASE_URL;
   if (base.endsWith("/api") && path.startsWith("/api/")) {

@@ -952,7 +952,10 @@ export function PresentationView({
       return;
     }
     let cancelled = false;
+    let inFlight = false;
     const refresh = async () => {
+      if (inFlight) return;
+      inFlight = true;
       try {
         const recordings = await getBroadcastRecordings();
         if (!cancelled) {
@@ -960,6 +963,8 @@ export function PresentationView({
         }
       } catch {
         // Presentation remains usable when recording status is temporarily unavailable.
+      } finally {
+        inFlight = false;
       }
     };
     void refresh();
@@ -3176,11 +3181,14 @@ export function PresentationView({
   }, [selectedPlanId, slides]);
 
   useEffect(() => {
+    let inFlight = false;
     const refreshOutputStatus = async () => {
+      if (inFlight) return;
       if (!selectedPlanId) {
         setSlideshowOpen(false);
         return;
       }
+      inFlight = true;
       const status = await getPresentationOutputStatus(selectedPlanId).catch(() => null);
       if (status) {
         setSlideshowOpen(status.active);
@@ -3191,6 +3199,7 @@ export function PresentationView({
           outputOwnerIdRef.current = null;
         }
       }
+      inFlight = false;
     };
     void refreshOutputStatus();
     const timer = window.setInterval(() => {

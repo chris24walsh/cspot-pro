@@ -280,6 +280,20 @@ creates the persisted lesson lazily on its first save or assignment change.
 
 ## Frontend Architecture
 
+### Live data refresh and reliability
+
+- Durable planning, music, worship-set, and identity mutations advance a lightweight
+  process-local change revision exposed at `GET /api/v1/change-revision`.
+- Authenticated clients poll that database-free revision with one request in flight,
+  slow down while hidden, and exponentially back off during failures. A changed
+  revision refreshes workspace, profile, and administration data without a page reload.
+- High-frequency presentation and broadcast state keeps its dedicated polling cadence,
+  but polling loops must be single-flight so a slow API cannot create an unbounded
+  request backlog.
+- SQLAlchemy pool acquisition has a short timeout and recycled connections, allowing
+  overload to fail quickly and recover rather than occupying request workers for the
+  previous 30-second default.
+
 ### App shape
 
 The frontend is currently a single SPA with module-based views. The product

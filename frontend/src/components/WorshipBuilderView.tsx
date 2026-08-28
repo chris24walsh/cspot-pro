@@ -447,16 +447,21 @@ export function WorshipBuilderView({ active = true, canAccessAdminTools, canArch
 
   useEffect(() => {
     let cancelled = false;
+    let inFlight = false;
     async function refreshSlideshowStatus() {
+      if (inFlight) return;
       if (!linkedServicePlanId) {
         if (!cancelled) setServiceSlideshowLive(false);
         return;
       }
+      inFlight = true;
       try {
         const liveServices = await getLivePresentationServices();
         if (!cancelled) setServiceSlideshowLive(liveServices.some((service) => service.plan_id === linkedServicePlanId));
       } catch {
         if (!cancelled) setServiceSlideshowLive(false);
+      } finally {
+        inFlight = false;
       }
     }
     void refreshSlideshowStatus();

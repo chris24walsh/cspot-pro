@@ -35,6 +35,7 @@ import {
   type Song,
 } from "./api";
 import { isNetworkDisplayLocation } from "./browserRouting";
+import { useDurableChange, useDurableChangePolling } from "./changePolling";
 import { AuthScreen } from "./components/AuthScreen";
 import { BroadcastManager } from "./components/BroadcastManager";
 import { PresentationOutput } from "./components/PresentationOutput";
@@ -305,6 +306,14 @@ function App() {
   }, [sessionUser]);
 
   useEffect(() => { void loadProfileAttention(); }, [loadProfileAttention]);
+
+  useDurableChangePolling(Boolean(sessionUser));
+  useDurableChange(() => {
+    void loadAuth();
+    void loadWorkspace();
+    void loadAdminAttention();
+    void loadProfileAttention();
+  }, Boolean(sessionUser));
 
   useEffect(() => {
     if (sessionUser && isViewerOnly && canWatchBroadcast && modules.some((module) => module.id === "broadcast")) {

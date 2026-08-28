@@ -249,11 +249,16 @@ export function PresentationOutput({ networkDisplay = false }: PresentationOutpu
 
   useEffect(() => {
     let cancelled = false;
-    const refreshRoomAudio = () => void getBroadcastViewerSettings()
-      .then((settings) => {
+    let inFlight = false;
+    const refreshRoomAudio = async () => {
+      if (inFlight) return;
+      inFlight = true;
+      try {
+        const settings = await getBroadcastViewerSettings();
         if (!cancelled) setPreServiceRoomAudioEnabled(settings.pre_service_room_audio_enabled !== false);
-      })
-      .catch(() => undefined);
+      } catch { /* Keep the last known setting. */ }
+      finally { inFlight = false; }
+    };
     refreshRoomAudio();
     const timer = window.setInterval(refreshRoomAudio, 2000);
     return () => {

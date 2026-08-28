@@ -1,6 +1,7 @@
 from fastapi import APIRouter
 
 from app.api.capabilities import router as capabilities_router
+from app.core.change_revision import change_revision
 from app.modules.broadcast.routes import router as broadcast_router
 from app.modules.communication.routes import router as communication_router
 from app.modules.identity.routes import router as identity_router
@@ -20,6 +21,11 @@ api_router = APIRouter()
 @api_router.get("/health", tags=["system"])
 def health() -> dict[str, str]:
     return {"status": "ok"}
+
+
+@api_router.get("/api/v1/change-revision", tags=["system"])
+def get_change_revision() -> dict[str, int]:
+    return {"revision": change_revision.value}
 
 
 @api_router.get("/api/v1/app", tags=["system"])

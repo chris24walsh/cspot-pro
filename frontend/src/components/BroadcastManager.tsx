@@ -110,8 +110,15 @@ export function BroadcastManager({
   }
 
   useEffect(() => {
-    void loadRecordings().catch(() => undefined);
-    const timer = window.setInterval(() => void loadRecordings().catch(() => undefined), 5000);
+    let inFlight = false;
+    const refresh = async () => {
+      if (inFlight) return;
+      inFlight = true;
+      try { await loadRecordings(); } catch { /* Keep the last known status. */ }
+      finally { inFlight = false; }
+    };
+    void refresh();
+    const timer = window.setInterval(() => void refresh(), 5000);
     return () => window.clearInterval(timer);
   }, [canManage]);
 

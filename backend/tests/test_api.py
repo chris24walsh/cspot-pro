@@ -12,6 +12,16 @@ def test_health_check() -> None:
     assert response.json() == {"status": "ok"}
 
 
+def test_change_revision_is_lightweight_and_monotonic() -> None:
+    first = client.get("/api/v1/change-revision")
+    second = client.get("/api/v1/change-revision")
+
+    assert first.status_code == 200
+    assert second.status_code == 200
+    assert isinstance(first.json()["revision"], int)
+    assert second.json()["revision"] >= first.json()["revision"]
+
+
 def test_app_info_lists_initial_modules() -> None:
     response = client.get("/api/v1/app")
 

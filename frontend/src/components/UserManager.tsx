@@ -27,6 +27,7 @@ import {
   type UserInviteResponse,
   type VolunteerAdminRecord,
 } from "../api";
+import { useDurableChange } from "../changePolling";
 import { useConfirmationDialog } from "./ConfirmationDialog";
 import { AdminAvailabilityPanel } from "./AdminAvailabilityPanel";
 import { ServingRoleManager } from "./ServingRoleManager";
@@ -423,6 +424,10 @@ export function UserManager({ adminSection, onAdminSectionChange, onAttentionCha
   useEffect(() => {
     void load();
   }, []);
+
+  useDurableChange(() => {
+    if (!formDirty) void load(selectedUser?.id);
+  });
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);

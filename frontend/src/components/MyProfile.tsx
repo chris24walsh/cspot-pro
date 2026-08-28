@@ -5,6 +5,7 @@ import {
   saveVolunteerPreference, updateMyProfile, updateOwnServingSuspension, withdrawVolunteerPreference,
   type ServingProfile, type VolunteerFrequencyPeriod, type VolunteerPreference, type VolunteerRotationMode,
 } from "../api";
+import { useDurableChange } from "../changePolling";
 import { useConfirmationDialog } from "./ConfirmationDialog";
 import { ServingFrequencyInput, suggestedFrequencyForInterval } from "./ServingFrequencyInput";
 import { AvailabilityRoleSelect, availabilityRoleLabel } from "./AvailabilityRoleSelect";
@@ -60,6 +61,9 @@ export function MyProfile({ onProfileChanged, onServingChanged }: { onProfileCha
     }
   }
   useEffect(() => { void load().catch((error) => setMessage(error instanceof Error ? error.message : "Could not load profile.")); }, []);
+  useDurableChange(() => {
+    if (!immediateAction) void load().catch(() => undefined);
+  });
   useEffect(() => {
     if (!data || profileSection !== "serving" || initialInvitationFocused.current) return;
     const invitation = data.preferences.find((preference) => preference.initiated_by === "admin" && preference.status === "pending");
