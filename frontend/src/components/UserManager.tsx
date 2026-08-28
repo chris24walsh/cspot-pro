@@ -166,9 +166,11 @@ export function UserManager({ adminSection, onAdminSectionChange, onAttentionCha
     .filter((user) => userFilter === "all" || (userFilter === "attention" ? pendingUserIds.has(user.id) : userFilter === "active" ? user.active : !user.active))
     .sort((left, right) => userSort === "attention" ? Number(pendingUserIds.has(right.id)) - Number(pendingUserIds.has(left.id)) || left.name.localeCompare(right.name) : userSort === "recent" ? left.username.localeCompare(right.username) : left.name.localeCompare(right.name));
 
-  async function load(selectedId?: string) {
-    setLoading(true);
-    setMessage(null);
+  async function load(selectedId?: string, silent = false) {
+    if (!silent) {
+      setLoading(true);
+      setMessage(null);
+    }
 
     try {
       const [nextRoles, nextUsers, nextDriveStatus, nextVolunteerRows, nextServingAreas, siteContent] = await Promise.all([
@@ -211,7 +213,7 @@ export function UserManager({ adminSection, onAdminSectionChange, onAttentionCha
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Could not load users.");
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }
 
@@ -426,7 +428,7 @@ export function UserManager({ adminSection, onAdminSectionChange, onAttentionCha
   }, []);
 
   useDurableChange(() => {
-    if (!formDirty) void load(selectedUser?.id);
+    if (!formDirty) void load(selectedUser?.id, true);
   });
 
   useEffect(() => {

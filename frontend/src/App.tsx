@@ -138,8 +138,8 @@ function App() {
   const canUseSundaySchool = isAdmin || isSundaySchoolTeacher || isSundaySchoolLeader;
   const canEditSlideNotes = isAdmin || isTeacher || isPresenter;
 
-  const loadAuth = useCallback(async () => {
-    setAuthLoading(true);
+  const loadAuth = useCallback(async (silent = false) => {
+    if (!silent) setAuthLoading(true);
 
     try {
       const user = await getSessionUser();
@@ -154,7 +154,7 @@ function App() {
         setBootstrapAvailable(false);
       }
     } finally {
-      setAuthLoading(false);
+      if (!silent) setAuthLoading(false);
     }
   }, []);
 
@@ -309,7 +309,7 @@ function App() {
 
   useDurableChangePolling(Boolean(sessionUser));
   useDurableChange(() => {
-    void loadAuth();
+    void loadAuth(true);
     void loadWorkspace();
     void loadAdminAttention();
     void loadProfileAttention();
