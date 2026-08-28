@@ -54,6 +54,7 @@ import { showToast } from "../toast";
 import { analyzeImportedSongSlides, analyzeWorshipText, buildLyricsFromSections, canonicalizeWorshipLyrics } from "../worshipText";
 import { dateKey, isWorshipSetPlan, preferredWorshipSetPlanId, worshipSetType } from "../worshipSets";
 import { lastUsedLabel, worshipRoleLabel } from "../worshipSongMetadata";
+import { reorderedWorshipSequences } from "../worshipOrdering";
 import { calendarColors, calendarMarkers } from "../userCalendarStyle";
 import { calendarDatesAround, effectiveLeaderIdForDate, sundayDatesAround, unavailabilityForRole, type SundayLeader } from "../leaderSchedule";
 import { CalendarPopup } from "./CalendarPopup";
@@ -1673,32 +1674,24 @@ export function WorshipBuilderView({ active = true, canAccessAdminTools, canArch
     if (!plan || !canEditPlan) {
       return;
     }
-    const index = worshipItems.findIndex((candidate) => candidate.id === item.id);
-    const target = worshipItems[index + delta];
-    if (!target) {
+    const sequenceUpdates = reorderedWorshipSequences(worshipItems, item.id, delta);
+    if (!sequenceUpdates) {
       return;
     }
 
     try {
       const targetPlanId = plan.id;
       const before = snapshotWorshipItems(plan.items);
-      await Promise.all([
-        updatePlanItem(item.id, { sequence: target.sequence }),
-        updatePlanItem(target.id, { sequence: item.sequence }),
-      ]);
+      await Promise.all(sequenceUpdates.map((update) => updatePlanItem(update.id, { sequence: update.sequence })));
+      const updatedSequences = new Map(sequenceUpdates.map((update) => [update.id, update.sequence]));
       await recordSetHistory(
         targetPlanId,
         `moving "${item.title}"`,
         before,
-        before.map((snapshotItem) => {
-          if (snapshotItem.id === item.id) {
-            return { ...snapshotItem, sequence: target.sequence };
-          }
-          if (snapshotItem.id === target.id) {
-            return { ...snapshotItem, sequence: item.sequence };
-          }
-          return snapshotItem;
-        }),
+        before.map((snapshotItem) => ({
+          ...snapshotItem,
+          sequence: updatedSequences.get(snapshotItem.id) ?? snapshotItem.sequence,
+        })),
         item.title,
       );
       await load(targetPlanId);
