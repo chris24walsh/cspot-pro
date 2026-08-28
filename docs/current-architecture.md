@@ -375,6 +375,11 @@ announcements deck from website events or rota/maintenance data
 is an integration boundary: those upstream systems must expose dated structured
 records before cSpot can reliably generate the slides.
 
+The Video search tab searches both connected Google Drive video files and the
+YouTube Data API. YouTube results are relevance-ordered, append in pages while
+the result pane scrolls, and use the selected result's title automatically. The
+shared Google OAuth connection includes read-only Drive and YouTube scopes.
+
 ### Local presenter sync
 
 The current live output model uses:

@@ -31,6 +31,7 @@ import {
   importGoogleDriveDeck,
   runCustomProviderSearch,
   searchGoogleDriveFiles,
+  searchYouTubeVideos,
   pauseBroadcastRecording,
   resumeBroadcastRecording,
   selectCustomProviderMatch,
@@ -53,6 +54,7 @@ import {
   type RenderedSlide,
   type GoogleDriveFile,
   type GoogleDriveStatus,
+  type YouTubeVideo,
   type PlanDetail,
   type PlanHistoryEntry,
   type PlanItem,
@@ -639,7 +641,6 @@ export function PresentationView({
   const [selectedScreenIndex, setSelectedScreenIndex] = useState(0);
   const [deckFlattenBuilds, setDeckFlattenBuilds] = useState(false);
   const [importingDriveFileId, setImportingDriveFileId] = useState<string | null>(null);
-  const [videoTitle, setVideoTitle] = useState("");
   const [videoFile, setVideoFile] = useState<File | null>(null);
   const [renderedSlidesByFileId, setRenderedSlidesByFileId] = useState<Record<string, RenderedSlide[]>>({});
   const [renderingFileIds, setRenderingFileIds] = useState<string[]>([]);
@@ -678,6 +679,11 @@ export function PresentationView({
   const [googleDriveFiles, setGoogleDriveFiles] = useState<GoogleDriveFile[]>([]);
   const [googleDriveLoading, setGoogleDriveLoading] = useState(false);
   const [googleDriveError, setGoogleDriveError] = useState("");
+  const [youtubeResults, setYoutubeResults] = useState<YouTubeVideo[]>([]);
+  const [youtubeNextPageToken, setYoutubeNextPageToken] = useState<string | null>(null);
+  const [youtubeLoading, setYoutubeLoading] = useState(false);
+  const [youtubeLoadingMore, setYoutubeLoadingMore] = useState(false);
+  const [youtubeError, setYoutubeError] = useState("");
   const [slideTheme, setSlideTheme] = useState<PresentationTheme>("light");
   const [liveBlanked, setLiveBlanked] = useState(false);
   const [audioControlsEnabled, setAudioControlsEnabled] = useState(false);
@@ -698,6 +704,8 @@ export function PresentationView({
   const [slideNotesSaving, setSlideNotesSaving] = useState(false);
   const searchInputRef = useRef<HTMLInputElement | null>(null);
   const bibleSearchLoadMoreRef = useRef<HTMLDivElement | null>(null);
+  const youtubeLoadMoreRef = useRef<HTMLDivElement | null>(null);
+  const youtubeSearchRequestIdRef = useRef(0);
   const bibleSearchRequestIdRef = useRef(0);
   const bibleSearchKeywordOffsetRef = useRef(0);
   const searchSelectionInFlightRef = useRef(false);
@@ -2221,13 +2229,17 @@ export function PresentationView({
     setGoogleDriveFiles([]);
     setGoogleDriveLoading(false);
     setGoogleDriveError("");
+    setYoutubeResults([]);
+    setYoutubeNextPageToken(null);
+    setYoutubeLoading(false);
+    setYoutubeLoadingMore(false);
+    setYoutubeError("");
     setSearchQuery("");
     setSearchInsertIndex(null);
     setDeckTargetPlanItemId(null);
     setSearchSelectInserted(false);
     setDeckFlattenBuilds(false);
     setImportingDriveFileId(null);
-    setVideoTitle("");
     setVideoFile(null);
   }
 
@@ -2430,7 +2442,7 @@ export function PresentationView({
     }
   }
 
-  async function addVideoSearchResult() {
+  async function addVideoSearchResult(youtubeResult?: YouTubeVideo) {
     if (!plan) {
       setMessage("Select a plan before adding a video.");
       return;
@@ -2441,7 +2453,7 @@ export function PresentationView({
     }
 
     const query = searchQuery.trim();
-    const videoId = extractYouTubeId(query);
+    const videoId = youtubeResult?.id ?? extractYouTubeId(query);
     if (!videoId && !videoFile) {
       setMessage("Paste a valid YouTube link or choose a local video file.");
       return;
@@ -2453,7 +2465,7 @@ export function PresentationView({
         return;
       }
 
-      const resolvedTitle = videoTitle.trim() || videoFile?.name.replace(/\.[^.]+$/, "") || "YouTube Video";
+      const resolvedTitle = youtubeResult?.title || videoFile?.name.replace(/\.[^.]+$/, "") || "YouTube Video";
       const createdItem = await createPlanItem(plan.id, {
         item_type: "video",
         sequence: sequenceForInsert(searchInsertIndex ?? activeSectionInsertIndex()),
@@ -2517,6 +2529,10 @@ export function PresentationView({
         return;
       }
       if (searchMode === "video") {
+        if (!videoFile && !extractYouTubeId(searchQuery) && youtubeResults[0]) {
+          await addVideoSearchResult(youtubeResults[0]);
+          return;
+        }
         if (!videoFile && !extractYouTubeId(searchQuery) && googleDriveFiles[0]) {
           await attachImportedDriveVideo(googleDriveFiles[0]);
           return;
@@ -2758,7 +2774,7 @@ export function PresentationView({
 
     try {
       setImportingDriveFileId(file.id);
-      const resolvedTitle = videoTitle.trim() || file.name.replace(/\.[^.]+$/, "") || "Video";
+      const resolvedTitle = file.name.replace(/\.[^.]+$/, "") || "Video";
       if (
         plan.items.some(
           (item) =>
@@ -3634,6 +3650,75 @@ export function PresentationView({
     return () => window.clearTimeout(timer);
   }, [googleDriveStatus?.connected, searchMode, searchOverlayOpen, searchQuery]);
 
+  async function loadMoreYoutubeResults() {
+    if (youtubeLoadingMore || !youtubeNextPageToken || searchMode !== "video") return;
+    const query = searchQuery.trim();
+    if (!query || extractYouTubeId(query)) return;
+    const requestId = youtubeSearchRequestIdRef.current;
+    setYoutubeLoadingMore(true);
+    try {
+      const result = await searchYouTubeVideos(query, youtubeNextPageToken);
+      if (requestId !== youtubeSearchRequestIdRef.current) return;
+      setYoutubeResults((current) => [...current, ...result.items].filter((video, index, all) =>
+        all.findIndex((candidate) => candidate.id === video.id) === index,
+      ));
+      setYoutubeNextPageToken(result.next_page_token);
+    } catch (error) {
+      if (requestId === youtubeSearchRequestIdRef.current) {
+        setYoutubeError(error instanceof Error ? error.message : "Could not search YouTube.");
+        setYoutubeNextPageToken(null);
+      }
+    } finally {
+      setYoutubeLoadingMore(false);
+    }
+  }
+
+  useEffect(() => {
+    youtubeSearchRequestIdRef.current += 1;
+    const requestId = youtubeSearchRequestIdRef.current;
+    setYoutubeResults([]);
+    setYoutubeNextPageToken(null);
+    setYoutubeError("");
+    if (
+      !searchOverlayOpen ||
+      searchMode !== "video" ||
+      !googleDriveStatus?.connected ||
+      !searchQuery.trim() ||
+      extractYouTubeId(searchQuery)
+    ) {
+      setYoutubeLoading(false);
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      setYoutubeLoading(true);
+      void searchYouTubeVideos(searchQuery.trim())
+        .then((result) => {
+          if (requestId !== youtubeSearchRequestIdRef.current) return;
+          setYoutubeResults(result.items);
+          setYoutubeNextPageToken(result.next_page_token);
+        })
+        .catch((error: unknown) => {
+          if (requestId !== youtubeSearchRequestIdRef.current) return;
+          setYoutubeError(error instanceof Error ? error.message : "Could not search YouTube.");
+        })
+        .finally(() => {
+          if (requestId === youtubeSearchRequestIdRef.current) setYoutubeLoading(false);
+        });
+    }, 300);
+    return () => window.clearTimeout(timer);
+  }, [googleDriveStatus?.connected, searchMode, searchOverlayOpen, searchQuery]);
+
+  useEffect(() => {
+    const target = youtubeLoadMoreRef.current;
+    if (!target || !youtubeNextPageToken || youtubeLoadingMore) return;
+    const observer = new IntersectionObserver(([entry]) => {
+      if (entry?.isIntersecting) void loadMoreYoutubeResults();
+    }, { rootMargin: "160px" });
+    observer.observe(target);
+    return () => observer.disconnect();
+  }, [youtubeLoadingMore, youtubeNextPageToken, youtubeResults.length]);
+
   return (
     <section
       className="presentation-workspace"
@@ -4449,7 +4534,6 @@ export function PresentationView({
                   setSearchMode("video");
                   setSearchQuery("");
                   setSearchSelectInserted(false);
-                  setVideoTitle("");
                   setVideoFile(null);
                 }}
                 type="button"
@@ -4497,18 +4581,6 @@ export function PresentationView({
                   value={searchQuery}
                 />
               </label>
-              {searchMode === "video" ? (
-                <label>
-                  Video Title
-                  <input
-                    onChange={(event) => setVideoTitle(event.target.value)}
-                    onKeyDown={suppressSearchEnterKeyDown}
-                    onKeyUp={handleSearchEnterKeyUp}
-                    placeholder="Optional video title"
-                    value={videoTitle}
-                  />
-                </label>
-              ) : null}
             </div> : null}
 
             {searchMode === "video" ? (
@@ -4579,6 +4651,7 @@ export function PresentationView({
                     !canEditPlan ||
                     (!extractYouTubeId(searchQuery) &&
                       !videoFile &&
+                      youtubeResults.length === 0 &&
                       !(googleDriveStatus?.connected && googleDriveFiles.length > 0))
                   }
                   onClick={() => void selectTopSearchResult()}
@@ -4720,7 +4793,7 @@ export function PresentationView({
                   onClick={() => void addVideoSearchResult()}
                   type="button"
                 >
-                  <strong>{videoTitle.trim() || videoFile.name.replace(/\.[^.]+$/, "")}</strong>
+                  <strong>{videoFile.name.replace(/\.[^.]+$/, "")}</strong>
                   <span>Local video file</span>
                 </button>
               ) : null}
@@ -4732,13 +4805,34 @@ export function PresentationView({
                     onClick={() => void addVideoSearchResult()}
                     type="button"
                   >
-                    <strong>{videoTitle.trim() || "YouTube Video"}</strong>
+                    <strong>YouTube Video</strong>
                     <span>{extractYouTubeId(searchQuery)}</span>
                   </button>
                 ) : !googleDriveStatus?.connected && !googleDriveLoading ? (
                   <p className="search-empty">Paste a valid YouTube link or 11-character video ID.</p>
                 ) : null
               ) : null}
+              {searchMode === "video" && youtubeLoading ? <p className="search-empty">Searching YouTube…</p> : null}
+              {searchMode === "video" && !extractYouTubeId(searchQuery)
+                ? youtubeResults.map((video) => (
+                    <button
+                      className="search-result-card video-search-result-card"
+                      disabled={!canEditPlan}
+                      key={`youtube:${video.id}`}
+                      onClick={() => void addVideoSearchResult(video)}
+                      type="button"
+                    >
+                      {video.thumbnail_url ? <img alt="" src={video.thumbnail_url} /> : null}
+                      <span>
+                        <strong>{video.title}</strong>
+                        <small>{video.channel_title} · YouTube</small>
+                      </span>
+                    </button>
+                  ))
+                : null}
+              {searchMode === "video" && youtubeError ? <p className="search-empty error-text">{youtubeError}</p> : null}
+              {searchMode === "video" && youtubeLoadingMore ? <p className="search-empty">Loading more YouTube results…</p> : null}
+              {searchMode === "video" && youtubeNextPageToken ? <div aria-hidden="true" ref={youtubeLoadMoreRef} /> : null}
               {!googleDriveLoading && searchMode === "video" && googleDriveStatus?.connected && !extractYouTubeId(searchQuery)
                 ? googleDriveFiles.map((file) => {
                     const importingThisFile = importingDriveFileId === file.id;

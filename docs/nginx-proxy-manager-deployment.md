@@ -78,6 +78,11 @@ GOOGLE_OAUTH_CLIENT_SECRET=your-google-oauth-client-secret
 GOOGLE_DRIVE_PROJECT_NUMBER=your-google-cloud-project-number
 ```
 
+Enable both the Google Drive API and YouTube Data API v3 for that Google Cloud
+project. The connection requests read-only Drive and YouTube scopes. Reconnect
+Google from Admin after upgrading an existing installation so the new YouTube
+scope is granted.
+
 Use the same public host as an authorized redirect origin in Google Cloud. The
 backend callback URL will be:
 

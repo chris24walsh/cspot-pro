@@ -36,3 +36,15 @@ class GoogleDriveParseRequest(BaseModel):
 class GoogleDriveImportRead(BaseModel):
     file: StoredFileRead
     source: GoogleDriveFileRead
+
+
+class YouTubeVideoRead(BaseModel):
+    id: str
+    title: str
+    channel_title: str
+    thumbnail_url: str | None = None
+
+
+class YouTubeSearchRead(BaseModel):
+    items: list[YouTubeVideoRead]
+    next_page_token: str | None = None

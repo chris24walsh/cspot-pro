@@ -660,6 +660,18 @@ export interface GoogleDriveImportResponse {
   source: GoogleDriveFile;
 }
 
+export interface YouTubeVideo {
+  id: string;
+  title: string;
+  channel_title: string;
+  thumbnail_url: string | null;
+}
+
+export interface YouTubeSearchResult {
+  items: YouTubeVideo[];
+  next_page_token: string | null;
+}
+
 export interface SiteContentBlock {
   id: string;
   key: string;
@@ -1221,6 +1233,12 @@ export async function searchGoogleDriveFiles(
   return getJson<GoogleDriveFile[]>(`/api/v1/integrations/google-drive/files?${search.toString()}`, {
     timeoutMs: DRIVE_SEARCH_TIMEOUT_MS,
   });
+}
+
+export async function searchYouTubeVideos(query: string, pageToken?: string): Promise<YouTubeSearchResult> {
+  const search = new URLSearchParams({ q: query });
+  if (pageToken) search.set("page_token", pageToken);
+  return getJson<YouTubeSearchResult>(`/api/v1/integrations/youtube/search?${search.toString()}`);
 }
 
 export async function importGoogleDriveDeck(payload: {

@@ -27,7 +27,9 @@ from app.modules.integrations.schemas import (
     GoogleDriveImportRequest,
     GoogleDriveParseRequest,
     GoogleDriveStatusRead,
+    YouTubeSearchRead,
 )
+from app.modules.integrations.youtube import search_youtube_videos
 from app.modules.imports.routes import ParsedSlide, ParsedSlideDeck, _parse_slide_deck, _slide_title
 from app.modules.library.routes import UPLOAD_ROOT, stored_file_to_read
 
@@ -116,6 +118,19 @@ def search_google_drive_files(
             folder_path=folder_path.strip() if folder_path else None,
             file_kind=kind,
         )
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+
+
+@router.get("/youtube/search", response_model=YouTubeSearchRead)
+def search_youtube(
+    q: str = Query(min_length=1, max_length=120),
+    page_token: str | None = Query(default=None, max_length=120),
+    _current_user: User = Depends(require_permission("library:read")),
+    session: Session = Depends(get_session),
+) -> YouTubeSearchRead:
+    try:
+        return search_youtube_videos(session, query=q.strip(), page_token=page_token)
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 

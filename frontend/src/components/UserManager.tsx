@@ -621,7 +621,7 @@ export function UserManager({ adminSection, onAdminSectionChange, onAttentionCha
           <div className="section-heading">
             <div>
               <p className="eyebrow">Integrations</p>
-              <h3>Google Drive</h3>
+              <h3>Google Drive and YouTube</h3>
             </div>
             <div className="action-row">
               {driveStatus?.connected ? (
@@ -635,15 +635,17 @@ export function UserManager({ adminSection, onAdminSectionChange, onAttentionCha
                 onClick={connectDrive}
                 type="button"
               >
-                {driveStatus?.connected ? "Reconnect" : "Connect Google Drive"}
+                {driveStatus?.connected ? "Reconnect" : "Connect Google"}
               </button>
             </div>
           </div>
           <p className="muted-copy">
             {driveStatus?.configured
               ? driveStatus.connected
-                ? `Connected as ${driveStatus.account_name || driveStatus.account_email || "Google Drive account"}.`
-                : "Connect the shared church Google Drive account so decks can be imported straight into the service flow."
+                ? driveStatus.scope?.includes("youtube.readonly")
+                  ? `Connected as ${driveStatus.account_name || driveStatus.account_email || "Google account"}. Drive imports and YouTube search are ready.`
+                  : `Connected as ${driveStatus.account_name || driveStatus.account_email || "Google account"}. Reconnect to grant YouTube search access.`
+                : "Connect the shared church Google account so Drive media can be imported and YouTube can be searched in the service flow."
               : "Set GOOGLE_OAUTH_CLIENT_ID, GOOGLE_OAUTH_CLIENT_SECRET, and PUBLIC_APP_URL in the backend env, then rebuild before connecting Google Drive."}
           </p>
         </section>

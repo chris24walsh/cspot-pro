@@ -37,6 +37,7 @@ GOOGLE_DRIVE_SCOPES = [
     "email",
     "profile",
     "https://www.googleapis.com/auth/drive.readonly",
+    "https://www.googleapis.com/auth/youtube.readonly",
 ]
 GOOGLE_DRIVE_EXPORT_MIME_TYPE = "application/pdf"
 GOOGLE_DRIVE_PARSE_EXPORT_MIME_TYPE = "application/vnd.openxmlformats-officedocument.presentationml.presentation"

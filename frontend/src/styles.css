@@ -4951,11 +4951,34 @@ button.musician-page {
 }
 
 .search-results-list {
+  align-content: start;
   display: grid;
   gap: 8px;
   max-height: 42vh;
   min-height: 240px;
   overflow: auto;
+}
+
+.video-search-result-card {
+  align-items: center;
+  grid-template-columns: 120px minmax(0, 1fr);
+}
+
+.video-search-result-card img {
+  aspect-ratio: 16 / 9;
+  border-radius: 5px;
+  object-fit: cover;
+  width: 120px;
+}
+
+.video-search-result-card > span {
+  display: grid;
+  gap: 5px;
+}
+
+.video-search-result-card small {
+  color: #65716a;
+  font-size: 12px;
 }
 
 .search-result-card {
