@@ -381,6 +381,7 @@ export function WorshipBuilderView({ active = true, canAccessAdminTools, canArch
   const [editHistoryIndex, setEditHistoryIndex] = useState(0);
   const [editHistoryOpen, setEditHistoryOpen] = useState(false);
   const [editHistoryApplying, setEditHistoryApplying] = useState(false);
+  const [reorderSaving, setReorderSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<"builder" | "live">("builder");
   const [serviceSlideshowLive, setServiceSlideshowLive] = useState(false);
@@ -393,6 +394,7 @@ export function WorshipBuilderView({ active = true, canAccessAdminTools, canArch
   const setItemRefs = useRef<Record<string, HTMLElement | null>>({});
   const slideGroupRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const loadRequestIdRef = useRef(0);
+  const reorderSavingRef = useRef(false);
 
   const hasDismissiblePopup = suggestionReviewOpen || newSongPromptOpen || historyImportOpen || editHistoryOpen;
   useEscapeClose(hasDismissiblePopup, () => {
@@ -1671,7 +1673,7 @@ export function WorshipBuilderView({ active = true, canAccessAdminTools, canArch
   }
 
   async function moveSong(item: PlanItem, delta: -1 | 1) {
-    if (!plan || !canEditPlan) {
+    if (!plan || !canEditPlan || reorderSavingRef.current) {
       return;
     }
     const sequenceUpdates = reorderedWorshipSequences(worshipItems, item.id, delta);
@@ -1679,11 +1681,23 @@ export function WorshipBuilderView({ active = true, canAccessAdminTools, canArch
       return;
     }
 
+    const targetPlanId = plan.id;
+    const before = snapshotWorshipItems(plan.items);
+    const updatedSequences = new Map(sequenceUpdates.map((update) => [update.id, update.sequence]));
+    reorderSavingRef.current = true;
+    setReorderSaving(true);
+    setPlan((current) => current?.id === targetPlanId
+      ? {
+          ...current,
+          items: current.items.map((currentItem) => ({
+            ...currentItem,
+            sequence: updatedSequences.get(currentItem.id) ?? currentItem.sequence,
+          })),
+        }
+      : current);
+
     try {
-      const targetPlanId = plan.id;
-      const before = snapshotWorshipItems(plan.items);
       await Promise.all(sequenceUpdates.map((update) => updatePlanItem(update.id, { sequence: update.sequence })));
-      const updatedSequences = new Map(sequenceUpdates.map((update) => [update.id, update.sequence]));
       await recordSetHistory(
         targetPlanId,
         `moving "${item.title}"`,
@@ -1694,9 +1708,13 @@ export function WorshipBuilderView({ active = true, canAccessAdminTools, canArch
         })),
         item.title,
       );
-      await load(targetPlanId);
+      await load(targetPlanId, true);
     } catch (error) {
+      await load(targetPlanId, true);
       setMessage(error instanceof Error ? error.message : "Could not reorder worship set.");
+    } finally {
+      reorderSavingRef.current = false;
+      setReorderSaving(false);
     }
   }
 
@@ -2012,7 +2030,7 @@ export function WorshipBuilderView({ active = true, canAccessAdminTools, canArch
                       <button
                         aria-label={`Move ${item.title} up`}
                         className="section-icon-button"
-                        disabled={!canEditPlan || index === 0}
+                        disabled={!canEditPlan || reorderSaving || index === 0}
                         onClick={() => void moveSong(item, -1)}
                         type="button"
                       >
@@ -2021,7 +2039,7 @@ export function WorshipBuilderView({ active = true, canAccessAdminTools, canArch
                       <button
                         aria-label={`Move ${item.title} down`}
                         className="section-icon-button"
-                        disabled={!canEditPlan || index === worshipItems.length - 1}
+                        disabled={!canEditPlan || reorderSaving || index === worshipItems.length - 1}
                         onClick={() => void moveSong(item, 1)}
                         type="button"
                       >
