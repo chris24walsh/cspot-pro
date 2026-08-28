@@ -830,8 +830,11 @@ export function PresentationView({
       : "";
   const stageContextCounter = liveSlide?.itemType === "song" ? liveSectionCounter : null;
   const stageSlideCounter = liveSectionCounter ?? `${liveIndex + 1} / ${slides.length}`;
+  const isWelcomePlanItem = ["pre_service", "welcome", "opening", "seating", "countdown"].includes(
+    currentPlanItem?.item_type ?? "",
+  );
   const currentPlanItemAllowsNotes =
-    currentPlanItem?.item_type !== "welcome" &&
+    !isWelcomePlanItem &&
     (currentPlanItem?.item_type === "message" ||
       currentPlanItem?.item_type === "sermon" ||
       currentPlanItem?.item_type === "slide_deck" ||
