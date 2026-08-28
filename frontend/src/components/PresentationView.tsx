@@ -637,7 +637,6 @@ export function PresentationView({
   const [message, setMessage] = useState<string | null>(null);
   const [screens, setScreens] = useState<PresentationScreen[]>([]);
   const [selectedScreenIndex, setSelectedScreenIndex] = useState(0);
-  const [deckTitle, setDeckTitle] = useState("");
   const [deckFlattenBuilds, setDeckFlattenBuilds] = useState(false);
   const [importingDriveFileId, setImportingDriveFileId] = useState<string | null>(null);
   const [videoTitle, setVideoTitle] = useState("");
@@ -660,6 +659,8 @@ export function PresentationView({
   const [searchSelectInserted, setSearchSelectInserted] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [bibleSearchResults, setBibleSearchResults] = useState<BibleSearchHit[]>([]);
+  const [bibleSearchHasMore, setBibleSearchHasMore] = useState(false);
+  const [bibleSearchLoadingMore, setBibleSearchLoadingMore] = useState(false);
   const [searchLoading, setSearchLoading] = useState(false);
   const [customProviderLoading, setCustomProviderLoading] = useState(false);
   const [customProviderResult, setCustomProviderResult] = useState<CustomProviderSearchResult | null>(null);
@@ -696,6 +697,9 @@ export function PresentationView({
   const [slideNotesDraft, setSlideNotesDraft] = useState("");
   const [slideNotesSaving, setSlideNotesSaving] = useState(false);
   const searchInputRef = useRef<HTMLInputElement | null>(null);
+  const bibleSearchLoadMoreRef = useRef<HTMLDivElement | null>(null);
+  const bibleSearchRequestIdRef = useRef(0);
+  const bibleSearchKeywordOffsetRef = useRef(0);
   const searchSelectionInFlightRef = useRef(false);
   const bibleSearchInsertInFlightRef = useRef(false);
   const keyCaptureRef = useRef<HTMLInputElement | null>(null);
@@ -859,8 +863,7 @@ export function PresentationView({
             : `${song.title} ${song.author ?? ""} ${song.alternate_title ?? ""} ${song.theme_tags ?? ""} ${song.lyrics ?? ""}`
                 .toLowerCase()
                 .includes(searchQuery.trim().toLowerCase()),
-        )
-        .slice(0, 20),
+        ),
     [searchQuery, songs],
   );
   const selectedCustomProviderMatch =
@@ -2223,7 +2226,6 @@ export function PresentationView({
     setDeckTargetPlanItemId(null);
     setSearchSelectInserted(false);
     setDeckFlattenBuilds(false);
-    setDeckTitle("");
     setImportingDriveFileId(null);
     setVideoTitle("");
     setVideoFile(null);
@@ -2679,7 +2681,7 @@ export function PresentationView({
 
     try {
       setImportingDriveFileId(file.id);
-      const resolvedDeckTitle = deckTitle.trim() || file.name.replace(/\.[^.]+$/, "") || "Sermon";
+      const resolvedDeckTitle = file.name.replace(/\.[^.]+$/, "") || "Sermon";
       const explicitTarget = deckTargetPlanItemId
         ? plan.items.find((item) => item.id === deckTargetPlanItemId)
         : null;
@@ -3118,8 +3120,11 @@ export function PresentationView({
       return;
     }
     const frame = window.requestAnimationFrame(() => {
-      searchInputRef.current?.focus();
-      searchInputRef.current?.select();
+      const isMobileDeckSearch = searchMode === "deck" && window.matchMedia("(max-width: 700px)").matches;
+      if (!isMobileDeckSearch) {
+        searchInputRef.current?.focus();
+        searchInputRef.current?.select();
+      }
     });
     return () => window.cancelAnimationFrame(frame);
   }, [searchMode, searchOverlayOpen]);
@@ -3483,6 +3488,7 @@ export function PresentationView({
       return [];
     }
     setSearchLoading(true);
+    const requestId = ++bibleSearchRequestIdRef.current;
     try {
       const referenceQuery = normalizeBibleReferenceSearchQuery(query, bibleBooks);
       const [referenceMatches, keywordMatches] = await Promise.all([
@@ -3496,7 +3502,8 @@ export function PresentationView({
           q: query,
           version_code: bibleVersion || "ASV",
           search_type: "keyword",
-          limit: 20,
+          limit: 50,
+          offset: 0,
         }).catch(() => []),
       ]);
 
@@ -3507,15 +3514,44 @@ export function PresentationView({
         )) === index;
       });
 
+      if (requestId !== bibleSearchRequestIdRef.current) return [];
       setBibleSearchResults(merged);
+      bibleSearchKeywordOffsetRef.current = keywordMatches.length;
+      setBibleSearchHasMore(keywordMatches.length === 50);
       setMessage(null);
       return merged;
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Could not search Bible.");
-      setBibleSearchResults([]);
+      if (requestId === bibleSearchRequestIdRef.current) setBibleSearchResults([]);
       return [];
     } finally {
-      setSearchLoading(false);
+      if (requestId === bibleSearchRequestIdRef.current) setSearchLoading(false);
+    }
+  }
+
+  async function loadMoreBibleSearchResults() {
+    if (bibleSearchLoadingMore || !bibleSearchHasMore || searchMode !== "bible") return;
+    const query = searchQuery.trim();
+    if (!query) return;
+    const requestId = bibleSearchRequestIdRef.current;
+    setBibleSearchLoadingMore(true);
+    try {
+      const nextResults = await searchBible({
+        q: query,
+        version_code: bibleVersion || "ASV",
+        search_type: "keyword",
+        limit: 50,
+        offset: bibleSearchKeywordOffsetRef.current,
+      });
+      if (requestId !== bibleSearchRequestIdRef.current) return;
+      setBibleSearchResults((current) => [...current, ...nextResults].filter((result, index, all) => {
+        const key = `${result.version}:${result.reference}:${result.verse_from}:${result.verse_to}`;
+        return all.findIndex((candidate) => `${candidate.version}:${candidate.reference}:${candidate.verse_from}:${candidate.verse_to}` === key) === index;
+      }));
+      bibleSearchKeywordOffsetRef.current += nextResults.length;
+      setBibleSearchHasMore(nextResults.length === 50);
+    } finally {
+      setBibleSearchLoadingMore(false);
     }
   }
 
@@ -3525,6 +3561,8 @@ export function PresentationView({
     }
 
     const query = searchQuery.trim();
+    bibleSearchRequestIdRef.current += 1;
+    setBibleSearchHasMore(false);
     if (!query) {
       setBibleSearchResults([]);
       setSearchLoading(false);
@@ -3537,6 +3575,16 @@ export function PresentationView({
 
     return () => window.clearTimeout(timer);
   }, [bibleVersion, searchMode, searchOverlayOpen, searchQuery]);
+
+  useEffect(() => {
+    const target = bibleSearchLoadMoreRef.current;
+    if (!target || !bibleSearchHasMore || bibleSearchLoadingMore) return;
+    const observer = new IntersectionObserver(([entry]) => {
+      if (entry?.isIntersecting) void loadMoreBibleSearchResults();
+    }, { rootMargin: "160px" });
+    observer.observe(target);
+    return () => observer.disconnect();
+  }, [bibleSearchHasMore, bibleSearchLoadingMore, bibleSearchResults.length, searchMode, searchQuery]);
 
   useEffect(() => {
     if (!searchOverlayOpen || (searchMode !== "deck" && searchMode !== "video")) {
@@ -4507,28 +4555,7 @@ export function PresentationView({
                       value={searchQuery}
                     />
                   </label>
-                  <label>
-                    Deck Name
-                    <input
-                      disabled={!canAttachDeck || Boolean(importingDriveFileId)}
-                      onChange={(event) => setDeckTitle(event.target.value)}
-                      onKeyDown={suppressSearchEnterKeyDown}
-                      onKeyUp={handleSearchEnterKeyUp}
-                      placeholder="Optional override"
-                      value={deckTitle}
-                    />
-                  </label>
                 </div>
-                <label className="checkbox-label">
-                  <input
-                    checked={deckFlattenBuilds}
-                    disabled={!canAttachDeck || Boolean(importingDriveFileId)}
-                    onChange={(event) => setDeckFlattenBuilds(event.target.checked)}
-                    type="checkbox"
-                  />
-                  Import click builds as slides
-                </label>
-                <p className="field-help">Best effort for PowerPoint appear/fade bullet and overlay builds.</p>
                 {searchMode === "deck" ? (
                   <p className={`search-empty ${googleDriveError ? "error-text" : ""}`}>
                     {googleDriveError
@@ -4563,6 +4590,17 @@ export function PresentationView({
                 </button>
               ) : null}
             </div>
+            {searchMode === "deck" ? (
+              <label className="checkbox-label">
+                <input
+                  checked={deckFlattenBuilds}
+                  disabled={!canAttachDeck || Boolean(importingDriveFileId)}
+                  onChange={(event) => setDeckFlattenBuilds(event.target.checked)}
+                  type="checkbox"
+                />
+                Preserve transitions/animations
+              </label>
+            ) : null}
 
             <div className="search-results-list">
               {searchLoading ? <p className="search-empty">Searching…</p> : null}
@@ -4675,6 +4713,8 @@ export function PresentationView({
                     </button>
                   ))
                 : null}
+              {searchMode === "bible" && bibleSearchLoadingMore ? <p className="search-empty">Loading more…</p> : null}
+              {searchMode === "bible" && bibleSearchHasMore ? <div aria-hidden="true" ref={bibleSearchLoadMoreRef} /> : null}
               {!searchLoading && searchMode === "video" && videoFile ? (
                 <button
                   className="search-result-card"

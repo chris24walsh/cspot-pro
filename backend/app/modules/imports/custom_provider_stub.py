@@ -137,7 +137,7 @@ def run_custom_lyrics_provider_search(search_term: str) -> CustomLyricsProviderS
                 notes=notes + [f"Search failed with status {response.status_code}."],
             )
 
-        hits = response.json().get("response", {}).get("hits", [])[:8]
+        hits = response.json().get("response", {}).get("hits", [])
         matches = [
             CustomLyricsProviderMatch(
                 id=hit["result"].get("url", ""),

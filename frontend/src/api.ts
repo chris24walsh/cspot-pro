@@ -1497,6 +1497,7 @@ export async function searchBible(params: {
   version_code: string;
   search_type?: "auto" | "reference" | "keyword";
   limit?: number;
+  offset?: number;
 }): Promise<BibleSearchHit[]> {
   const search = new URLSearchParams({
     q: params.q,
@@ -1505,6 +1506,9 @@ export async function searchBible(params: {
   });
   if (params.limit) {
     search.set("limit", String(params.limit));
+  }
+  if (params.offset) {
+    search.set("offset", String(params.offset));
   }
   return getJson<BibleSearchHit[]>(`/api/v1/library/bible/search?${search.toString()}`);
 }

@@ -1242,6 +1242,7 @@ def search_bible(
     version_code: str = "ASV",
     search_type: str = "auto",
     limit: int = 20,
+    offset: int = 0,
     _current_user: User = Depends(require_permission("library:read")),
     session: Session = Depends(get_session),
 ) -> list[BibleSearchHitRead]:
@@ -1311,7 +1312,8 @@ def search_bible(
             ),
         )
         .order_by(rank, BibleBook.sort_order, BibleVerse.chapter, BibleVerse.verse)
-        .limit(max(1, min(limit, 50)))
+        .offset(max(0, offset))
+        .limit(max(1, min(limit, 100)))
     ).all()
 
     results: list[BibleSearchHitRead] = []

@@ -542,8 +542,7 @@ export function WorshipBuilderView({ active = true, canAccessAdminTools, canArch
         return `${song.title} ${song.author ?? ""} ${song.alternate_title ?? ""} ${song.lyrics ?? ""} ${song.book_reference ?? ""} ${song.theme_tags ?? ""}`
           .toLowerCase()
           .includes(normalized);
-      })
-      .slice(0, 80);
+      });
   }, [bookSourceFilter, query, songs]);
 
   const selectedCustomProviderMatch =

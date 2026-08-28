@@ -5058,6 +5058,9 @@ button.musician-page {
 .custom-provider-matches {
   display: grid;
   gap: 8px;
+  max-height: min(42vh, 420px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .active-import-match {
