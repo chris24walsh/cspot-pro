@@ -831,10 +831,11 @@ export function PresentationView({
   const stageContextCounter = liveSlide?.itemType === "song" ? liveSectionCounter : null;
   const stageSlideCounter = liveSectionCounter ?? `${liveIndex + 1} / ${slides.length}`;
   const currentPlanItemAllowsNotes =
-    currentPlanItem?.item_type === "message" ||
-    currentPlanItem?.item_type === "sermon" ||
-    currentPlanItem?.item_type === "slide_deck" ||
-    Boolean(currentPlanItem?.files.length);
+    currentPlanItem?.item_type !== "welcome" &&
+    (currentPlanItem?.item_type === "message" ||
+      currentPlanItem?.item_type === "sermon" ||
+      currentPlanItem?.item_type === "slide_deck" ||
+      Boolean(currentPlanItem?.files.length));
   const currentSlideSavedNotes = slideNoteFor(currentPlanItem?.teacher_notes, liveSlide, currentPlanItemSlides);
   const slideNotesDirty = slideNotesDraft.trim() !== currentSlideSavedNotes;
   const planTextSlides = useMemo(
