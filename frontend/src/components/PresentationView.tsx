@@ -4467,7 +4467,7 @@ export function PresentationView({
               <span>Show after adding</span>
             </label>
 
-            <div className="dialog-form-grid">
+            {searchMode !== "deck" ? <div className="dialog-form-grid">
               {searchMode === "bible" ? (
                 <label>
                   Version
@@ -4480,25 +4480,23 @@ export function PresentationView({
                   </select>
                 </label>
               ) : null}
-              {searchMode !== "deck" ? (
-                <label>
-                  Search
-                  <input
-                    onChange={(event) => setSearchQuery(event.target.value)}
-                    onKeyDown={suppressSearchEnterKeyDown}
-                    onKeyUp={handleSearchEnterKeyUp}
-                    ref={searchInputRef}
-                    placeholder={
-                      searchMode === "bible"
-                        ? "John 3 16 or shepherd"
-                        : searchMode === "video"
-                          ? "YouTube link, video ID, or Drive video name"
-                          : "Amazing Grace"
-                    }
-                    value={searchQuery}
-                  />
-                </label>
-              ) : null}
+              <label>
+                Search
+                <input
+                  onChange={(event) => setSearchQuery(event.target.value)}
+                  onKeyDown={suppressSearchEnterKeyDown}
+                  onKeyUp={handleSearchEnterKeyUp}
+                  ref={searchInputRef}
+                  placeholder={
+                    searchMode === "bible"
+                      ? "John 3 16 or shepherd"
+                      : searchMode === "video"
+                        ? "YouTube link, video ID, or Drive video name"
+                        : "Amazing Grace"
+                  }
+                  value={searchQuery}
+                />
+              </label>
               {searchMode === "video" ? (
                 <label>
                   Video Title
@@ -4511,7 +4509,7 @@ export function PresentationView({
                   />
                 </label>
               ) : null}
-            </div>
+            </div> : null}
 
             {searchMode === "video" ? (
               <div className="dialog-form-grid">
