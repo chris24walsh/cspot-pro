@@ -34,6 +34,7 @@ describe("pre-service timing", () => {
 
     expect(scheduled).toContain("Please be seated");
     expect(simulated).toContain("Please be seated");
+    expect(simulated).toContain('class="pre-service-seated-message"');
     expect(simulated).not.toContain("0:00");
     vi.restoreAllMocks();
   });

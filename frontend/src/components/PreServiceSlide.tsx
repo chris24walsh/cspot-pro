@@ -70,7 +70,7 @@ export function PreServiceSlide({
               <span>Service begins in</span>
               <strong>{countdownLabel(remaining)}</strong>
             </>
-          ) : <strong>Please be seated</strong>}
+          ) : <strong className="pre-service-seated-message">Please be seated</strong>}
         </div>
       ) : null}
     </div>

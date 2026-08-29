@@ -8213,6 +8213,7 @@ button.musician-page {
   background-position: center;
   background-repeat: no-repeat;
   background-size: cover;
+  container-type: inline-size;
   height: 100%;
   overflow: hidden;
   position: relative;
@@ -8287,6 +8288,15 @@ button.musician-page {
 .pre-service-slide.is-complete .pre-service-countdown strong {
   font-size: clamp(100px, 21vw, 330px);
   letter-spacing: -0.06em;
+}
+
+.pre-service-slide.is-complete .pre-service-countdown .pre-service-seated-message {
+  font-size: clamp(24px, 8cqw, 112px);
+  letter-spacing: -0.025em;
+  line-height: 1.08;
+  max-width: 90cqw;
+  text-align: center;
+  white-space: normal;
 }
 
 .mini-slide-photo {
