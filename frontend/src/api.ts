@@ -303,6 +303,7 @@ export interface PresentationLiveService {
   output_heartbeat_at: number;
   service_stage?: "pre_service" | "ready" | "service" | "post_service";
   pre_service_phase?: "waiting" | "montage" | "countdown" | "complete" | null;
+  rehearsal?: boolean;
 }
 
 export interface PresentationOutputStatus {

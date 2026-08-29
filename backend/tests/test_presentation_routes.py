@@ -15,10 +15,22 @@ from app.modules.presentation.routes import (
     PresentationOutputStatusWrite,
     _serialize_live_state,
     _serialize_output_status,
+    admin_rehearsal_visible,
     scheduled_service_window_active,
     update_presentation_live_state,
     update_presentation_output_status,
 )
+
+
+def test_pre_service_rehearsal_is_visible_only_to_admins_before_output_starts() -> None:
+    payload = {"service_stage": "pre_service", "pre_service_phase": "countdown"}
+
+    assert admin_rehearsal_visible(payload, is_admin=True, output_active=False)
+    assert not admin_rehearsal_visible(payload, is_admin=False, output_active=False)
+    assert not admin_rehearsal_visible(payload, is_admin=True, output_active=True)
+    assert not admin_rehearsal_visible(
+        {**payload, "pre_service_phase": None}, is_admin=True, output_active=False
+    )
 
 
 def test_scheduled_service_window_is_limited_to_the_service_day() -> None:

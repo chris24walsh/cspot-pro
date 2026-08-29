@@ -83,6 +83,7 @@ class PresentationLiveServiceRead(BaseModel):
     output_heartbeat_at: int
     service_stage: str = "ready"
     pre_service_phase: str | None = None
+    rehearsal: bool = False
 
 
 OUTPUT_STALE_MS = 7000
@@ -97,6 +98,18 @@ def scheduled_service_window_active(plan: Plan, now: datetime | None = None) -> 
     scheduled_start = now_local.replace(hour=10, minute=30, second=0, microsecond=0)
     scheduled_end = now_local.replace(hour=13, minute=30, second=0, microsecond=0)
     return scheduled_start <= now_local <= scheduled_end
+
+
+def admin_rehearsal_visible(
+    payload: dict[str, object], *, is_admin: bool, output_active: bool
+) -> bool:
+    return bool(
+        is_admin
+        and payload.get("auto_started") is not True
+        and payload.get("service_stage") == "pre_service"
+        and payload.get("pre_service_phase") in {"montage", "countdown", "complete"}
+        and not output_active
+    )
 
 
 def ensure_scheduled_pre_service(session: Session) -> None:
@@ -286,7 +299,7 @@ def _serialize_output_status(
 
 @router.get("/live", response_model=list[PresentationLiveServiceRead])
 def list_live_presentation_services(
-    _current_user: User = Depends(require_permission("plans:read")),
+    current_user: User = Depends(require_permission("plans:read")),
     session: Session = Depends(get_session),
 ) -> list[PresentationLiveServiceRead]:
     ensure_scheduled_pre_service(session)
@@ -302,6 +315,7 @@ def list_live_presentation_services(
 
     live_services: list[PresentationLiveServiceRead] = []
     seen_plan_ids: set[str] = set()
+    is_admin = "administrator" in list_role_names(session, current_user.id)
     for presentation_session in presentation_sessions:
         if presentation_session.plan_id in seen_plan_ids:
             continue
@@ -312,10 +326,14 @@ def list_live_presentation_services(
         output_status = _serialize_output_status(plan.id, position, now)
         payload = _position_payload(position)
         auto_started = payload.get("auto_started") is True
+        admin_rehearsal = admin_rehearsal_visible(
+            payload, is_admin=is_admin, output_active=output_status.active
+        )
         if auto_started and not scheduled_service_window_active(plan):
             continue
         if (
             not auto_started
+            and not admin_rehearsal
             and (
                 not output_status.active
                 or not output_status.owner_id
@@ -353,6 +371,7 @@ def list_live_presentation_services(
                 pre_service_phase=payload.get("pre_service_phase")
                 if isinstance(payload.get("pre_service_phase"), str)
                 else None,
+                rehearsal=admin_rehearsal,
             )
         )
         seen_plan_ids.add(plan.id)

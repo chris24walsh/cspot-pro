@@ -129,7 +129,10 @@ export function ServiceBroadcastView({ canControl = false, onOpenSettings }: { c
   // Keeping the slide selected also keeps its camera/audio routing alive.
   const liveSlide = !liveState ? null : slides[resolveLiveIndex(slides, liveState)] ?? null;
   const ambientMusicStage = liveState?.serviceStage === "pre_service" || liveState?.serviceStage === "post_service";
-  const hasLiveBroadcast = Boolean((plan && remoteLiveState) || settings.manual_live_audience !== "off");
+  const selectedLiveService = liveServices.find((service) => service.plan_id === selectedPlanId) ?? liveServices[0] ?? null;
+  const adminRehearsal = Boolean(canControl && selectedLiveService?.rehearsal);
+  const hasLiveBroadcast = Boolean((plan && remoteLiveState && !selectedLiveService?.rehearsal) || settings.manual_live_audience !== "off");
+  const hasVisibleSlideshow = hasLiveBroadcast || adminRehearsal;
   const upcomingService = plan ?? nextService;
   const startingSoon = !hasLiveBroadcast && isBroadcastStartingSoon(upcomingService?.service_date, Date.now(), settings.pre_service_minutes);
   const holdingMessage = startingSoon ? settings.starting_soon_message : settings.offline_message;
@@ -392,8 +395,8 @@ export function ServiceBroadcastView({ canControl = false, onOpenSettings }: { c
       <div className="service-broadcast-grid">
         <section className="service-broadcast-slide-pane" aria-label="Live presentation">
           <div className={`service-broadcast-slide ${presentationTypeClass(liveSlide?.itemType ?? "generic")} stage-theme-${liveState?.theme ?? "dark"}`}>
-            <div className="slide-visual-transition" key={!hasLiveBroadcast ? "offline" : liveState?.blanked ? "blank" : liveSlide?.id ?? "live"}>
-            {!hasLiveBroadcast ? (
+            <div className="slide-visual-transition" key={!hasVisibleSlideshow ? "offline" : liveState?.blanked ? "blank" : liveSlide?.id ?? "live"}>
+            {!hasVisibleSlideshow ? (
               <HoldingPane message={holdingMessage} startingSoon={startingSoon} />
             ) : liveState?.blanked ? (
               <div
