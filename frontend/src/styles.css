@@ -8248,10 +8248,17 @@ button.musician-page {
   font-size: clamp(8px, 1.2cqw, 16px);
   gap: 0.38em;
   padding: 0.35em 0.55em;
+  opacity: 0;
+  pointer-events: none;
   position: absolute;
   right: 1.5%;
   text-shadow: 0 1px 5px rgba(0, 0, 0, 0.8);
   top: 2%;
+  transition: opacity 1200ms ease-in-out;
+}
+
+.pre-service-montage-clock.is-active {
+  opacity: 1;
 }
 
 .pre-service-montage-clock span {
@@ -8272,7 +8279,13 @@ button.musician-page {
 .pre-service-shade {
   background: linear-gradient(180deg, rgba(5, 12, 16, 0.04) 42%, rgba(5, 12, 16, 0.68));
   inset: 0;
+  opacity: 0;
   position: absolute;
+  transition: opacity 1500ms ease-in-out;
+}
+
+.pre-service-shade.is-active {
+  opacity: 1;
 }
 
 .pre-service-countdown {
@@ -8282,8 +8295,15 @@ button.musician-page {
   display: flex;
   gap: 0.55em;
   left: 5%;
+  opacity: 0;
+  pointer-events: none;
   position: absolute;
   text-shadow: 0 3px 18px rgba(0, 0, 0, 0.9);
+  transition: opacity 1500ms ease-in-out;
+}
+
+.pre-service-countdown.is-active {
+  opacity: 1;
 }
 
 .pre-service-countdown span {
@@ -8306,9 +8326,10 @@ button.musician-page {
 .pre-service-slide.is-complete .pre-service-countdown {
   align-items: center;
   bottom: auto;
-  flex-direction: column;
+  display: grid;
   gap: 0.1em;
   inset: 50% auto auto 50%;
+  justify-items: center;
   transform: translate(-50%, -50%);
   white-space: nowrap;
 }
@@ -8323,6 +8344,24 @@ button.musician-page {
 .pre-service-slide.is-complete .pre-service-countdown strong {
   font-size: clamp(100px, 21vw, 330px);
   letter-spacing: -0.06em;
+}
+
+.pre-service-countdown-copy,
+.pre-service-seated-message {
+  opacity: 0;
+  transition: opacity 1200ms ease-in-out;
+}
+
+.pre-service-countdown-copy {
+  align-items: center;
+  display: flex;
+  flex-direction: column;
+  gap: 0.1em;
+}
+
+.pre-service-countdown-copy.is-active,
+.pre-service-seated-message.is-active {
+  opacity: 1;
 }
 
 .pre-service-slide.is-complete .pre-service-countdown .pre-service-seated-message {

@@ -35,9 +35,9 @@ describe("pre-service timing", () => {
 
     expect(scheduled).toContain("Please be seated");
     expect(simulated).toContain("Please be seated");
-    expect(simulated).toContain('class="pre-service-seated-message"');
+    expect(simulated).toContain('class="pre-service-seated-message is-active"');
     expect(simulated).toContain("pre-service-photo-layer is-active");
-    expect(simulated).not.toContain("0:00");
+    expect(simulated).not.toContain("pre-service-countdown-copy is-active");
     vi.restoreAllMocks();
   });
 
@@ -67,7 +67,8 @@ describe("pre-service timing", () => {
 
     expect(montage).toContain("Service starts in");
     expect(montage).toContain("30:00");
-    expect(countdown).not.toContain("pre-service-montage-clock");
+    expect(countdown).not.toContain("pre-service-montage-clock is-active");
+    expect(countdown).toContain("pre-service-countdown is-active");
     vi.restoreAllMocks();
   });
 });

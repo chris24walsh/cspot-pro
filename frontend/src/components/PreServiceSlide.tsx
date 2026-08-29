@@ -63,23 +63,18 @@ export function PreServiceSlide({
           style={{ backgroundImage: `url(${imageUrl})` }}
         />
       ))}
-      {displayPhase === "montage" ? (
-        <div className="pre-service-montage-clock">
-          <span>Service starts in</span>
+      <div className={`pre-service-montage-clock ${displayPhase === "montage" ? "is-active" : ""}`}>
+        <span>Service starts in</span>
+        <strong>{countdownLabel(remaining)}</strong>
+      </div>
+      <div className={`pre-service-shade ${displayPhase === "countdown" || displayPhase === "complete" ? "is-active" : ""}`} />
+      <div className={`pre-service-countdown ${displayPhase === "countdown" || displayPhase === "complete" ? "is-active" : ""}`} aria-live="off">
+        <div className={`pre-service-countdown-copy ${displayPhase === "countdown" ? "is-active" : ""}`}>
+          <span>Service begins in</span>
           <strong>{countdownLabel(remaining)}</strong>
         </div>
-      ) : null}
-      {displayPhase === "countdown" || displayPhase === "complete" ? <div className="pre-service-shade" /> : null}
-      {displayPhase === "countdown" || displayPhase === "complete" ? (
-        <div className="pre-service-countdown" aria-live="off">
-          {displayPhase === "countdown" ? (
-            <>
-              <span>Service begins in</span>
-              <strong>{countdownLabel(remaining)}</strong>
-            </>
-          ) : <strong className="pre-service-seated-message">Please be seated</strong>}
-        </div>
-      ) : null}
+        <strong className={`pre-service-seated-message ${displayPhase === "complete" ? "is-active" : ""}`}>Please be seated</strong>
+      </div>
     </div>
   );
 }

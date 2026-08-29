@@ -7,8 +7,12 @@ function loopingYouTubeUrl(videoId: string) {
   return `https://www.youtube-nocookie.com/embed/${videoId}?autoplay=1&mute=1&loop=1&playlist=${videoId}&rel=0&modestbranding=1&playsinline=1&enablejsapi=1`;
 }
 
-const AUDIO_FADE_STEPS = 30;
-const AUDIO_FADE_INTERVAL_MS = 200;
+const AUDIO_FADE_DURATION_MS = 6000;
+const AUDIO_FADE_INTERVAL_MS = 100;
+
+function sendYouTubeCommand(frame: HTMLIFrameElement | null, func: string, args: unknown[] = []) {
+  frame?.contentWindow?.postMessage(JSON.stringify({ event: "command", func, args }), "*");
+}
 
 export function preServiceAudioShouldPlay(
   continuous: boolean,
@@ -60,22 +64,22 @@ export function PreServiceMusic({
       setRendered(true);
       setFading(false);
       if (audioRef.current) audioRef.current.volume = 1;
-      frameRef.current?.contentWindow?.postMessage(JSON.stringify({ event: "command", func: "setVolume", args: [100] }), "*");
+      sendYouTubeCommand(frameRef.current, "setVolume", [100]);
       return;
     }
     if (!rendered) return;
 
     setFading(true);
-    let step = 0;
+    const startedAt = Date.now();
     const timer = window.setInterval(() => {
-      step += 1;
-      const volume = Math.max(0, 1 - step / AUDIO_FADE_STEPS);
+      const progress = Math.min(1, (Date.now() - startedAt) / AUDIO_FADE_DURATION_MS);
+      const volume = Math.pow(1 - progress, 2);
       if (audioRef.current) audioRef.current.volume = volume;
-      frameRef.current?.contentWindow?.postMessage(JSON.stringify({ event: "command", func: "setVolume", args: [Math.round(volume * 100)] }), "*");
-      if (step < AUDIO_FADE_STEPS) return;
+      sendYouTubeCommand(frameRef.current, "setVolume", [Math.round(volume * 100)]);
+      if (progress < 1) return;
       window.clearInterval(timer);
       audioRef.current?.pause();
-      frameRef.current?.contentWindow?.postMessage(JSON.stringify({ event: "command", func: "pauseVideo", args: [] }), "*");
+      sendYouTubeCommand(frameRef.current, "pauseVideo");
       setRendered(false);
       setFading(false);
     }, AUDIO_FADE_INTERVAL_MS);
@@ -96,8 +100,9 @@ export function PreServiceMusic({
   }
 
   function enableSound() {
-    frameRef.current?.contentWindow?.postMessage(JSON.stringify({ event: "command", func: "unMute", args: [] }), "*");
-    frameRef.current?.contentWindow?.postMessage(JSON.stringify({ event: "command", func: "playVideo", args: [] }), "*");
+    sendYouTubeCommand(frameRef.current, "unMute");
+    sendYouTubeCommand(frameRef.current, "setVolume", [100]);
+    sendYouTubeCommand(frameRef.current, "playVideo");
     setMuted(false);
   }
 
@@ -107,6 +112,10 @@ export function PreServiceMusic({
         allow="autoplay; encrypted-media"
         aria-hidden="true"
         className="youtube-audio-frame"
+        onLoad={() => {
+          frameRef.current?.contentWindow?.postMessage(JSON.stringify({ event: "listening", id: "pre-service-audio" }), "*");
+          sendYouTubeCommand(frameRef.current, "setVolume", [100]);
+        }}
         ref={frameRef}
         src={loopingYouTubeUrl(videoId)}
         tabIndex={-1}
