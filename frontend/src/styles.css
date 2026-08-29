@@ -8406,6 +8406,7 @@ button.musician-page {
 .pre-service-message-box {
   align-items: center;
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   justify-items: center;
   min-width: 0;
   width: 90%;
