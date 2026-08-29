@@ -88,11 +88,13 @@ export function PreServiceSlide({
           </div>
           <div className={`pre-service-shade ${displayPhase === "countdown" || displayPhase === "complete" ? "is-active" : ""}`} />
           <div className={`pre-service-countdown ${displayPhase === "countdown" || displayPhase === "complete" ? "is-active" : ""}`} aria-live="off">
-            <div className={`pre-service-countdown-copy ${displayPhase === "countdown" ? "is-active" : ""}`}>
-              <span>Service begins in</span>
-              <strong>{countdownLabel(remaining)}</strong>
+            <div className="pre-service-message-box">
+              <div className={`pre-service-countdown-copy ${displayPhase === "countdown" ? "is-active" : ""}`}>
+                <span>Service begins in</span>
+                <strong>{countdownLabel(remaining)}</strong>
+              </div>
+              <strong className={`pre-service-seated-message ${displayPhase === "complete" ? "is-active" : ""}`}>Please be seated</strong>
             </div>
-            <strong className={`pre-service-seated-message ${displayPhase === "complete" ? "is-active" : ""}`}>Please be seated</strong>
           </div>
         </>
       ) : null}

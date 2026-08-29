@@ -8397,7 +8397,14 @@ button.musician-page {
 .pre-service-slide.is-countdown .pre-service-countdown strong,
 .pre-service-slide.is-complete .pre-service-countdown strong {
   font-size: clamp(48px, 21cqw, 330px);
-  letter-spacing: -0.03em;
+}
+
+.pre-service-message-box {
+  align-items: center;
+  display: grid;
+  justify-items: center;
+  max-width: 90cqw;
+  width: 90%;
 }
 
 .pre-service-countdown-copy,
@@ -8414,6 +8421,12 @@ button.musician-page {
   flex-direction: column;
   gap: 0.1em;
   justify-self: stretch;
+  text-align: center;
+  width: 100%;
+}
+
+.pre-service-countdown-copy strong {
+  display: block;
   text-align: center;
   width: 100%;
 }

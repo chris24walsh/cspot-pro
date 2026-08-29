@@ -35,6 +35,7 @@ describe("pre-service timing", () => {
 
     expect(scheduled).toContain("Please be seated");
     expect(simulated).toContain("Please be seated");
+    expect(simulated).toContain('class="pre-service-message-box"');
     expect(simulated).toContain('class="pre-service-seated-message is-active"');
     expect(simulated).toContain("pre-service-photo-layer is-active");
     expect(simulated).not.toContain("pre-service-countdown-copy is-active");
