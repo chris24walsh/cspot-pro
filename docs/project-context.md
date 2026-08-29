@@ -73,7 +73,7 @@ photo montage and relaxing music begin at 10:30, its countdown appears only at
 10:55, and service output takes over at 11:00. Presenters can override those
 clock-driven phases from the Start menu to simulate a Sunday morning at any
 time; the rehearsal uses the same synced display and broadcast state as a live
-service. Open time is a neutral LCF background transition. Empty Sermon and Announcements sections are clickable
+service. These rehearsal controls are restricted to administrators. Open time is a neutral LCF background transition. Empty Sermon and Announcements sections are clickable
 deck placeholders; imported decks replace their filler backgrounds. Existing
 Sunday plans can add only their missing standard sections, preserving content.
 

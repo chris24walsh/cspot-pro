@@ -2,7 +2,7 @@ import json
 from datetime import UTC, datetime
 from zoneinfo import ZoneInfo
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from sqlalchemy import case, func, select
 from sqlalchemy.orm import Session
@@ -11,7 +11,7 @@ from app.core.database import get_session
 from app.modules.broadcast.audio_scenes import activate_audio_scene, automatic_scene_for_item
 from app.modules.broadcast.models import BroadcastViewerSettings
 from app.modules.broadcast.recording import schedule_sermon_recording
-from app.modules.identity.auth import require_any_permission, require_permission
+from app.modules.identity.auth import list_role_names, require_any_permission, require_permission
 from app.modules.identity.models import User
 from app.modules.planning.models import Plan, PlanItem, PlanType
 from app.modules.presentation.models import PresentationPosition, PresentationSession
@@ -378,6 +378,14 @@ def update_presentation_live_state(
     current_user: User = Depends(require_permission("presentation:use")),
     session: Session = Depends(get_session),
 ) -> PresentationLiveStateRead:
+    if (
+        payload.pre_service_phase is not None
+        and "administrator" not in list_role_names(session, current_user.id)
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only administrators can simulate pre-service timing",
+        )
     presentation_session = _latest_session(session, plan_id)
     if presentation_session is None:
         presentation_session = PresentationSession(

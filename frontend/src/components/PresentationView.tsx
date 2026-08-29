@@ -610,6 +610,7 @@ export function PresentationView({
   canDeletePlan,
   canEditPlan,
   canManagePreServiceMedia,
+  canSimulateService,
   canEditSlideNotes,
   canCreateSong,
   canEditSong,
@@ -621,6 +622,7 @@ export function PresentationView({
   canDeletePlan: boolean;
   canEditPlan: boolean;
   canManagePreServiceMedia: boolean;
+  canSimulateService: boolean;
   canEditSlideNotes: boolean;
   canCreateSong: boolean;
   canEditSong: boolean;
@@ -4084,20 +4086,24 @@ export function PresentationView({
                       <span aria-hidden="true">{openSlideshowWindowOnStart ? "✓" : ""}</span>
                       Open slideshow in new window
                     </button>
-                    <div className="slideshow-start-menu-divider" role="separator" />
-                    <span className="slideshow-start-menu-label">Rehearse service flow</span>
-                    <button onClick={() => void showPreServiceRehearsalPhase("montage")} role="menuitem" type="button">
-                      <span aria-hidden="true">1</span>
-                      Welcome montage
-                    </button>
-                    <button onClick={() => void showPreServiceRehearsalPhase("countdown")} role="menuitem" type="button">
-                      <span aria-hidden="true">2</span>
-                      Countdown
-                    </button>
-                    <button onClick={() => void rehearseServiceStart()} role="menuitem" type="button">
-                      <span aria-hidden="true">3</span>
-                      Start service
-                    </button>
+                    {canSimulateService ? (
+                      <>
+                        <div className="slideshow-start-menu-divider" role="separator" />
+                        <span className="slideshow-start-menu-label">Rehearse service flow</span>
+                        <button onClick={() => void showPreServiceRehearsalPhase("montage")} role="menuitem" type="button">
+                          <span aria-hidden="true">1</span>
+                          Welcome montage
+                        </button>
+                        <button onClick={() => void showPreServiceRehearsalPhase("countdown")} role="menuitem" type="button">
+                          <span aria-hidden="true">2</span>
+                          Countdown
+                        </button>
+                        <button onClick={() => void rehearseServiceStart()} role="menuitem" type="button">
+                          <span aria-hidden="true">3</span>
+                          Start service
+                        </button>
+                      </>
+                    ) : null}
                   </div>
                 ) : null}
               </div>

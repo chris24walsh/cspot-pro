@@ -2,6 +2,8 @@ from datetime import UTC, datetime
 from types import SimpleNamespace
 from unittest.mock import patch
 
+import pytest
+from fastapi import HTTPException
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session
 
@@ -34,6 +36,28 @@ def test_scheduled_service_window_is_limited_to_the_service_day() -> None:
     assert not scheduled_service_window_active(
         plan, datetime(2026, 9, 6, 10, 30, tzinfo=UTC)
     )
+
+
+def test_non_admin_cannot_simulate_pre_service_timing() -> None:
+    payload = PresentationLiveStateWrite(
+        plan_id="plan-1",
+        index=0,
+        updated_at=12345,
+        pre_service_phase="montage",
+    )
+
+    with (
+        patch("app.modules.presentation.routes.list_role_names", return_value=["presenter"]),
+        pytest.raises(HTTPException) as error,
+    ):
+        update_presentation_live_state(
+            "plan-1",
+            payload,
+            SimpleNamespace(id="user-1"),  # type: ignore[arg-type]
+            SimpleNamespace(),  # type: ignore[arg-type]
+        )
+
+    assert error.value.status_code == 403
 
 
 def test_live_state_serializes_payload_over_legacy_columns() -> None:
