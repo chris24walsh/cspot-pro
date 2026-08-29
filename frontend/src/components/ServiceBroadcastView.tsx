@@ -469,18 +469,21 @@ export function ServiceBroadcastView({ canControl = false, onOpenSettings }: { c
         </section>
       </div>
 
-      {hasLiveBroadcast && ((ambientMusicStage && settings.pre_service_audio_url && plan) || liveAudioUrl || canControl) ? (
+      {hasLiveBroadcast && settings.pre_service_audio_url && plan ? (
+        <PreServiceMusic
+          active={ambientMusicStage}
+          continuous={liveState?.serviceStage === "post_service"}
+          label={liveState?.serviceStage === "post_service" ? "Post-service music" : "Pre-service music"}
+          phase={liveState?.preServicePhase}
+          phaseStartedAt={liveState?.updatedAt}
+          serviceDate={plan.service_date}
+          url={settings.pre_service_audio_url}
+        />
+      ) : null}
+
+      {hasLiveBroadcast && (liveAudioUrl || canControl) ? (
         <div className={`service-broadcast-viewer-controls ${canControl ? "has-admin-controls" : ""}`}>
-          {ambientMusicStage && settings.pre_service_audio_url && plan ? (
-            <PreServiceMusic
-              continuous={liveState?.serviceStage === "post_service"}
-              label={liveState?.serviceStage === "post_service" ? "Post-service music" : "Pre-service music"}
-              phase={liveState?.preServicePhase}
-              phaseStartedAt={liveState?.updatedAt}
-              serviceDate={plan.service_date}
-              url={settings.pre_service_audio_url}
-            />
-          ) : liveAudioUrl ? (
+          {liveAudioUrl ? (
             <LiveStreamAudio label={selectedAudioCamera ? `${selectedAudioCamera.label} audio` : selectedIndependentAudio?.label ?? "Live service audio"} onSoundEnabledChange={setLivestreamSound} url={liveAudioUrl} />
           ) : null}
           {liveSlide?.youtubeAudioUrl ? (

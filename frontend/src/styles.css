@@ -8225,13 +8225,24 @@ button.musician-page {
   background-repeat: no-repeat;
   background-size: cover;
   inset: 0;
-  opacity: 1;
+  opacity: 0;
   position: absolute;
-  transition: opacity 420ms ease-out;
+  transition: opacity 1800ms ease-in-out;
 }
 
+.pre-service-photo-layer.is-active {
+  opacity: 1;
+}
+
+.pre-service-slide.is-waiting .pre-service-photo-layer,
 .pre-service-slide.is-complete .pre-service-photo-layer {
   opacity: 0;
+}
+
+.pre-service-music-control.is-fading {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 2000ms ease-out;
 }
 
 .pre-service-shade {

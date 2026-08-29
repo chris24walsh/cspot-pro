@@ -19,6 +19,7 @@ export function preServiceAudioShouldPlay(
 }
 
 export function PreServiceMusic({
+  active = true,
   continuous = false,
   label = "Pre-service music",
   serviceDate,
@@ -27,6 +28,7 @@ export function PreServiceMusic({
   phase: forcedPhase,
   phaseStartedAt,
 }: {
+  active?: boolean;
   continuous?: boolean;
   label?: string;
   serviceDate: string;
@@ -37,24 +39,55 @@ export function PreServiceMusic({
 }) {
   const videoId = extractYouTubeId(url);
   const frameRef = useRef<HTMLIFrameElement | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
   const [muted, setMuted] = useState(Boolean(videoId));
   const [now, setNow] = useState(Date.now());
   const phase = forcedPhase ?? preServicePhaseAt(serviceDate, now);
+  const shouldPlay = active && preServiceAudioShouldPlay(continuous, phase, phaseStartedAt, now);
+  const [rendered, setRendered] = useState(shouldPlay);
+  const [fading, setFading] = useState(false);
 
   useEffect(() => {
     const timer = window.setInterval(() => setNow(Date.now()), 1000);
     return () => window.clearInterval(timer);
   }, []);
 
-  if (!preServiceAudioShouldPlay(continuous, phase, phaseStartedAt, now)) {
+  useEffect(() => {
+    if (shouldPlay) {
+      setRendered(true);
+      setFading(false);
+      if (audioRef.current) audioRef.current.volume = 1;
+      frameRef.current?.contentWindow?.postMessage(JSON.stringify({ event: "command", func: "setVolume", args: [100] }), "*");
+      return;
+    }
+    if (!rendered) return;
+
+    setFading(true);
+    let step = 0;
+    const timer = window.setInterval(() => {
+      step += 1;
+      const volume = Math.max(0, 1 - step / 20);
+      if (audioRef.current) audioRef.current.volume = volume;
+      frameRef.current?.contentWindow?.postMessage(JSON.stringify({ event: "command", func: "setVolume", args: [Math.round(volume * 100)] }), "*");
+      if (step < 20) return;
+      window.clearInterval(timer);
+      audioRef.current?.pause();
+      frameRef.current?.contentWindow?.postMessage(JSON.stringify({ event: "command", func: "pauseVideo", args: [] }), "*");
+      setRendered(false);
+      setFading(false);
+    }, 100);
+    return () => window.clearInterval(timer);
+  }, [rendered, shouldPlay]);
+
+  if (!rendered) {
     return null;
   }
 
   if (!videoId) {
     return (
-      <div className="pre-service-music-control">
+      <div className={`pre-service-music-control ${fading ? "is-fading" : ""}`}>
         <span>{label}</span>
-        <audio autoPlay controls loop muted={outputMuted} src={url} />
+        <audio autoPlay controls loop muted={outputMuted} ref={audioRef} src={url} />
       </div>
     );
   }
@@ -66,7 +99,7 @@ export function PreServiceMusic({
   }
 
   return (
-    <div className="pre-service-music-control">
+    <div className={`pre-service-music-control ${fading ? "is-fading" : ""}`}>
       <iframe
         allow="autoplay; encrypted-media"
         aria-hidden="true"

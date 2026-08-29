@@ -38,7 +38,7 @@ export function PreServiceSlide({
   const [now, setNow] = useState(Date.now());
   const images = imageUrls.filter(Boolean);
   const phase = forcedPhase ?? (timed ? preServicePhaseAt(serviceDate, now) : "montage");
-  const montageImageUrl = images[Math.floor(now / 12_000) % Math.max(images.length, 1)];
+  const montageImageIndex = Math.floor(now / 12_000) % Math.max(images.length, 1);
   const remaining = Math.max(0, Math.ceil(
     forcedPhase === "countdown" && phaseStartedAt
       ? 300 - (now - phaseStartedAt) / 1000
@@ -56,12 +56,13 @@ export function PreServiceSlide({
       className={`pre-service-slide is-${displayPhase}`}
       style={backgroundImageUrl ? { backgroundImage: `url(${backgroundImageUrl})` } : undefined}
     >
-      {images.length && phase !== "waiting" ? (
+      {images.map((imageUrl, index) => (
         <div
-          className="pre-service-photo-layer"
-          style={{ backgroundImage: `url(${montageImageUrl})` }}
+          className={`pre-service-photo-layer ${index === montageImageIndex ? "is-active" : ""}`}
+          key={`${imageUrl}:${index}`}
+          style={{ backgroundImage: `url(${imageUrl})` }}
         />
-      ) : null}
+      ))}
       {displayPhase === "countdown" || displayPhase === "complete" ? <div className="pre-service-shade" /> : null}
       {displayPhase === "countdown" || displayPhase === "complete" ? (
         <div className="pre-service-countdown" aria-live="off">

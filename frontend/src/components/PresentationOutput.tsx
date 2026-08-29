@@ -732,8 +732,9 @@ export function PresentationOutput({ networkDisplay = false }: PresentationOutpu
         )}
         </div>
       </section>
-      {ambientMusicStage && preServiceAudioUrl && plan ? (
+      {preServiceAudioUrl && plan ? (
         <PreServiceMusic
+          active={ambientMusicStage}
           continuous={liveState?.serviceStage === "post_service"}
           label={liveState?.serviceStage === "post_service" ? "Post-service music" : "Pre-service music"}
           outputMuted={!preServiceRoomAudioEnabled}

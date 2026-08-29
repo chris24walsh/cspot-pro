@@ -74,7 +74,8 @@ photo montage and relaxing music begin at 10:30, its countdown appears only at
 over. Administrators can override those
 clock-driven phases from the Start menu to simulate a Sunday morning at any
 time; the rehearsal uses the same synced display and broadcast state as a live
-service. Pre-service audio stops at countdown completion or service start,
+service. Montage photos crossfade gently, including the final transition back
+to the holding background. Pre-service audio fades out at countdown completion or service start,
 whichever comes first. Starting the service shows the neutral LCF holding
 background; worship starts only on the operator's next advance. These rehearsal controls are restricted to administrators. Open time is a neutral LCF background transition. Empty Sermon and Announcements sections are clickable
 deck placeholders; imported decks replace their filler backgrounds. Existing

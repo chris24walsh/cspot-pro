@@ -36,6 +36,7 @@ describe("pre-service timing", () => {
     expect(scheduled).toContain("Please be seated");
     expect(simulated).toContain("Please be seated");
     expect(simulated).toContain('class="pre-service-seated-message"');
+    expect(simulated).toContain("pre-service-photo-layer is-active");
     expect(simulated).not.toContain("0:00");
     vi.restoreAllMocks();
   });
