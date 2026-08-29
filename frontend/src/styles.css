@@ -5782,6 +5782,7 @@ button.musician-page {
   min-height: 0;
   overflow: hidden;
   place-items: center;
+  position: relative;
   width: 100%;
 }
 
@@ -6155,8 +6156,11 @@ button.musician-page {
 .service-broadcast-live-audio {
   background: transparent;
   border: 0;
-  flex: 0 0 auto;
+  inset: 50% auto auto 50%;
   padding: 0;
+  position: absolute;
+  transform: translate(-50%, -50%);
+  z-index: 5;
 }
 
 .service-broadcast-audio-element {
@@ -6164,8 +6168,32 @@ button.musician-page {
 }
 
 .service-broadcast-sound-button {
-  min-height: 32px;
+  align-items: center;
+  background: rgba(5, 8, 7, 0.62);
+  border: 1px solid rgba(235, 246, 240, 0.38);
+  border-radius: 999px;
+  color: #f5fbf8;
+  cursor: pointer;
+  display: inline-flex;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 800;
+  gap: 6px;
+  min-height: 30px;
+  opacity: 1;
+  padding: 5px 10px;
+  transition: background 140ms ease, border-color 140ms ease, opacity 500ms ease;
   white-space: nowrap;
+}
+
+.service-broadcast-sound-button:hover {
+  background: rgba(12, 20, 17, 0.82);
+  border-color: rgba(235, 246, 240, 0.62);
+}
+
+.service-broadcast-sound-button.is-enabled {
+  opacity: 0;
+  pointer-events: none;
 }
 
 .service-broadcast-admin-live-controls {
@@ -10092,6 +10120,16 @@ button.musician-page {
   .service-broadcast-toolbar {
     right: 10px;
     top: 10px;
+  }
+
+  .service-broadcast-sound-button {
+    min-height: 32px;
+    padding: 6px;
+    width: 32px;
+  }
+
+  .service-broadcast-sound-button span {
+    display: none;
   }
 
   .service-broadcast-actions {

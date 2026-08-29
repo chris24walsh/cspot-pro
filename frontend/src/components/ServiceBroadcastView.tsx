@@ -450,6 +450,9 @@ export function ServiceBroadcastView({ canControl = false, onOpenSettings }: { c
             ) : (
               <HoldingPane message={holdingMessage} startingSoon={startingSoon} />
             )}
+            {hasLiveBroadcast && liveAudioUrl ? (
+              <LiveStreamAudio label={selectedAudioCamera ? `${selectedAudioCamera.label} audio` : selectedIndependentAudio?.label ?? "Live service audio"} onSoundEnabledChange={setLivestreamSound} url={liveAudioUrl} />
+            ) : null}
           </div>
           {canControl && settings.audio_sources.length ? (
             <AudioMixerPanel
@@ -481,11 +484,8 @@ export function ServiceBroadcastView({ canControl = false, onOpenSettings }: { c
         />
       ) : null}
 
-      {hasLiveBroadcast && (liveAudioUrl || canControl) ? (
+      {hasLiveBroadcast && (canControl || Boolean(liveSlide?.youtubeAudioUrl)) ? (
         <div className={`service-broadcast-viewer-controls ${canControl ? "has-admin-controls" : ""}`}>
-          {liveAudioUrl ? (
-            <LiveStreamAudio label={selectedAudioCamera ? `${selectedAudioCamera.label} audio` : selectedIndependentAudio?.label ?? "Live service audio"} onSoundEnabledChange={setLivestreamSound} url={liveAudioUrl} />
-          ) : null}
           {liveSlide?.youtubeAudioUrl ? (
             <iframe
               allow="autoplay; encrypted-media"
