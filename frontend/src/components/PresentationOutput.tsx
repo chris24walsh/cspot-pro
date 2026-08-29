@@ -657,7 +657,7 @@ export function PresentationOutput({ networkDisplay = false }: PresentationOutpu
             style={{ backgroundImage: `url(${LCF_BACKGROUND_URL})` }}
           />
         ) : liveSlide?.montageImageUrls && plan ? (
-          <PreServiceSlide backgroundImageUrl={LCF_BACKGROUND_URL} imageUrls={liveSlide.montageImageUrls} serviceDate={plan.service_date} />
+          <PreServiceSlide backgroundImageUrl={LCF_BACKGROUND_URL} imageUrls={liveSlide.montageImageUrls} serviceDate={plan.service_date} timed={liveSlide.itemType === "pre_service"} />
         ) : liveSlide?.countdownSeconds ? (
           <CountdownSlide durationSeconds={liveSlide.countdownSeconds} startAt={liveState?.updatedAt} />
         ) : liveSlide?.backgroundImageUrl ? (

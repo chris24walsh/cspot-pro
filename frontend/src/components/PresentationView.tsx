@@ -10,6 +10,7 @@ import {
   createPlan,
   createPlanItem,
   attachItemFile,
+  deleteItemFile,
   deletePlan,
   deletePreServiceMedia,
   getGoogleDriveStatus,
@@ -107,6 +108,7 @@ const AUDIO_FADE_DURATION_MS = 2000;
 const AUDIO_FADE_STEPS = 20;
 const AUDIO_FADE_INTERVAL_MS = AUDIO_FADE_DURATION_MS / AUDIO_FADE_STEPS;
 const REMOTE_LIVE_STATE_POLL_INTERVAL_MS = 250;
+const FILLER_MEDIA_ITEM_TYPES = new Set(["open_time", "sermon", "announcements"]);
 
 function outputOwnerId() {
   if (crypto.randomUUID) {
@@ -635,6 +637,8 @@ export function PresentationView({
   const [preServiceMediaOpen, setPreServiceMediaOpen] = useState(false);
   const [preServiceMedia, setPreServiceMedia] = useState<StoredFile[]>([]);
   const [preServiceMediaBusy, setPreServiceMediaBusy] = useState(false);
+  const [fillerMediaPlanItemId, setFillerMediaPlanItemId] = useState<string | null>(null);
+  const [fillerMediaBusy, setFillerMediaBusy] = useState(false);
   const [liveIndex, setLiveIndex] = useState(0);
   const [message, setMessage] = useState<string | null>(null);
   const [screens, setScreens] = useState<PresentationScreen[]>([]);
@@ -823,6 +827,7 @@ export function PresentationView({
     [effectivePlanItems, songs, renderedSlidesByFileId],
   );
   const liveSlide = slides[liveIndex] ?? null;
+  const fillerMediaPlanItem = effectivePlanItems.find((item) => item.id === fillerMediaPlanItemId) ?? null;
   const currentPlanItem = effectivePlanItems.find((item) => item.id === liveSlide?.planItemId) ?? null;
   const activeSermonRecording = broadcastRecordings.find(
     (recording) => recording.plan_id === plan?.id && (recording.status === "recording" || recording.status === "paused"),
@@ -1857,6 +1862,48 @@ export function PresentationView({
       setMessage(error instanceof Error ? error.message : "Could not remove the photo.");
     } finally {
       setPreServiceMediaBusy(false);
+    }
+  }
+
+  async function addFillerMedia(files: FileList | null) {
+    if (!files?.length || !plan || !fillerMediaPlanItem) return;
+    setFillerMediaBusy(true);
+    try {
+      const existingImages = fillerMediaPlanItem.files.filter((file) => file.content_type?.startsWith("image/"));
+      for (const [index, file] of Array.from(files).entries()) {
+        const stored = await uploadStoredFile({ file, display_name: file.name });
+        await attachItemFile(fillerMediaPlanItem.id, {
+          file_id: stored.id,
+          sort_order: existingImages.length + index,
+        });
+      }
+      await load(plan.id, { silent: true });
+      setMessage(`${files.length} slide image${files.length === 1 ? "" : "s"} added.`);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not add slide images.");
+    } finally {
+      setFillerMediaBusy(false);
+    }
+  }
+
+  async function removeFillerMedia(file: PlanItem["files"][number]) {
+    if (!plan || !fillerMediaPlanItem) return;
+    const confirmed = await confirm({
+      confirmLabel: "Remove image",
+      message: `Remove "${file.display_name}" from the ${fillerMediaPlanItem.title} slide?`,
+      title: "Remove slide image",
+      tone: "danger",
+    });
+    if (!confirmed) return;
+    setFillerMediaBusy(true);
+    try {
+      await deleteItemFile(file.id);
+      await load(plan.id, { silent: true });
+      setMessage("Slide image removed.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not remove the slide image.");
+    } finally {
+      setFillerMediaBusy(false);
     }
   }
 
@@ -3887,7 +3934,7 @@ export function PresentationView({
                   style={{ backgroundImage: `url(${LCF_BACKGROUND_URL})` }}
                 />
               ) : liveSlide?.montageImageUrls && plan ? (
-                <PreServiceSlide backgroundImageUrl={LCF_BACKGROUND_URL} imageUrls={liveSlide.montageImageUrls} serviceDate={plan.service_date} />
+                <PreServiceSlide backgroundImageUrl={LCF_BACKGROUND_URL} imageUrls={liveSlide.montageImageUrls} serviceDate={plan.service_date} timed={liveSlide.itemType === "pre_service"} />
               ) : liveSlide?.countdownSeconds ? (
                 <CountdownSlide
                   durationSeconds={liveSlide.countdownSeconds}
@@ -4419,6 +4466,18 @@ export function PresentationView({
                             <Pencil size={14} aria-hidden="true" />
                           </button>
                         ) : null}
+                        {canAttachDeck && FILLER_MEDIA_ITEM_TYPES.has(section.itemType) ? (
+                          <button
+                            aria-label={`Edit ${section.title} slide images`}
+                            className="section-icon-button"
+                            disabled={fillerMediaBusy}
+                            onClick={() => setFillerMediaPlanItemId(section.id)}
+                            title={`Edit ${section.title} slide images`}
+                            type="button"
+                          >
+                            <Pencil size={14} aria-hidden="true" />
+                          </button>
+                        ) : null}
                         {canEditPlan ? (
                           <>
                             {["sermon", "announcements"].includes(section.itemType) ? (
@@ -4887,6 +4946,52 @@ export function PresentationView({
                   (!googleDriveStatus?.connected || (googleDriveFiles.length === 0 && !googleDriveLoading)))) ? (
                 <p className="search-empty">No matches yet.</p>
               ) : null}
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {fillerMediaPlanItem ? (
+        <div className="app-dialog-backdrop" role="presentation">
+          <div aria-labelledby="filler-media-title" aria-modal="true" className="app-dialog app-dialog-wide pre-service-media-dialog" role="dialog">
+            <div>
+              <h2 id="filler-media-title">{fillerMediaPlanItem.title} slide images</h2>
+              <p>Add one image to replace the default slide background, or add several to rotate them as a montage. Blanking the screen will still show the standard LCF background.</p>
+            </div>
+            <label className="pre-service-upload-control">
+              Add images
+              <input
+                accept="image/*"
+                disabled={fillerMediaBusy}
+                multiple
+                onChange={(event) => {
+                  void addFillerMedia(event.target.files);
+                  event.target.value = "";
+                }}
+                type="file"
+              />
+            </label>
+            <div className="pre-service-media-grid">
+              {fillerMediaPlanItem.files.filter((file) => file.content_type?.startsWith("image/")).map((file) => (
+                <article key={file.id}>
+                  <img alt={file.display_name} src={storedFileDownloadUrl(file.file_id)} />
+                  <span>{file.display_name}</span>
+                  <button
+                    className="danger-button"
+                    disabled={fillerMediaBusy}
+                    onClick={() => void removeFillerMedia(file)}
+                    type="button"
+                  >
+                    Remove
+                  </button>
+                </article>
+              ))}
+              {!fillerMediaPlanItem.files.some((file) => file.content_type?.startsWith("image/")) ? (
+                <p className="empty-state">The standard LCF background is currently used.</p>
+              ) : null}
+            </div>
+            <div className="app-dialog-actions">
+              <button className="primary-button" onClick={() => setFillerMediaPlanItemId(null)} type="button">Done</button>
             </div>
           </div>
         </div>

@@ -97,6 +97,33 @@ describe("presentation slide derivation", () => {
     expect(slides[0]).toMatchObject({ backgroundImageUrl: LCF_BACKGROUND_URL, text: "Open time" });
   });
 
+  it("uses one attached image as a filler background and several as a montage", () => {
+    const oneImage = buildPresentationSlides([
+      planItem({
+        files: [{ content_type: "image/jpeg", display_name: "Still", file_id: "still-1", id: "link-1", sort_order: 0 }],
+        id: "sermon",
+        item_type: "sermon",
+        title: "Sermon",
+      }),
+    ], []);
+    const montage = buildPresentationSlides([
+      planItem({
+        files: [
+          { content_type: "image/jpeg", display_name: "First", file_id: "photo-1", id: "link-1", sort_order: 0 },
+          { content_type: "image/png", display_name: "Second", file_id: "photo-2", id: "link-2", sort_order: 1 },
+        ],
+        id: "announcements",
+        item_type: "announcements",
+        title: "Announcements",
+      }),
+    ], []);
+
+    expect(oneImage[0].backgroundImageUrl).toContain("still-1");
+    expect(oneImage[0].montageImageUrls).toBeUndefined();
+    expect(montage[0].backgroundImageUrl).toBeUndefined();
+    expect(montage[0].montageImageUrls).toHaveLength(2);
+  });
+
   it("turns pre-service photos into one montage slide", () => {
     const slides = buildPresentationSlides([
       planItem({

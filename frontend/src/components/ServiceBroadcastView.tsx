@@ -397,7 +397,7 @@ export function ServiceBroadcastView({ canControl = false, onOpenSettings }: { c
             ) : !liveSlide ? (
               <HoldingPane message="The livestream is live" startingSoon />
             ) : liveSlide.montageImageUrls && plan ? (
-              <PreServiceSlide backgroundImageUrl={LCF_BACKGROUND_URL} imageUrls={liveSlide.montageImageUrls} serviceDate={plan.service_date} />
+              <PreServiceSlide backgroundImageUrl={LCF_BACKGROUND_URL} imageUrls={liveSlide.montageImageUrls} serviceDate={plan.service_date} timed={liveSlide.itemType === "pre_service"} />
             ) : liveSlide.countdownSeconds ? (
               <CountdownSlide durationSeconds={liveSlide.countdownSeconds} startAt={liveState?.updatedAt} />
             ) : liveSlide.backgroundImageUrl ? (

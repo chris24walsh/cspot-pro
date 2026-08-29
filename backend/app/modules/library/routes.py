@@ -1144,7 +1144,9 @@ def attach_item_file(
 @router.delete("/item-files/{item_file_id}", status_code=status.HTTP_204_NO_CONTENT)
 def remove_item_file(
     item_file_id: str,
-    _current_user: User = Depends(require_any_permission("library:delete", "plans:delete")),
+    _current_user: User = Depends(
+        require_any_permission("library:delete", "plans:edit", "plans:delete")
+    ),
     session: Session = Depends(get_session),
 ) -> Response:
     row = session.get(ItemFile, item_file_id)

@@ -304,8 +304,13 @@ export function buildPresentationSections(
     const sectionTitle = song?.title ?? item.title;
     const sectionBase = { id: item.id, title: sectionTitle, itemType: item.item_type, plannedStart: item.planned_start };
     const normalizedItemType = item.item_type.trim().toLowerCase();
+    const fillerImageUrls = ["open_time", "sermon", "announcements"].includes(normalizedItemType)
+      ? (item.files ?? [])
+          .filter((file) => file.content_type?.startsWith("image/"))
+          .map((file) => storedFileDownloadUrl(file.file_id))
+      : [];
     const hasSectionContent = Boolean(
-      item.comment?.trim() || song?.lyrics?.trim() || (item.files ?? []).length,
+      item.comment?.trim() || song?.lyrics?.trim() || (item.files ?? []).some((file) => !file.content_type?.startsWith("image/")),
     );
 
     if (normalizedItemType === "pre_service") {
@@ -436,9 +441,12 @@ export function buildPresentationSections(
       sectionTitle,
       title: sectionTitle,
       text: ["seating", "countdown"].includes(normalizedItemType) ? "" : slideTextForItem(item, songs),
-      backgroundImageUrl: !hasSectionContent && !["seating", "countdown"].includes(normalizedItemType)
+      backgroundImageUrl: fillerImageUrls.length
+        ? fillerImageUrls.length === 1 ? fillerImageUrls[0] : undefined
+        : !hasSectionContent && !["seating", "countdown"].includes(normalizedItemType)
           ? LCF_BACKGROUND_URL
           : undefined,
+      montageImageUrls: fillerImageUrls.length > 1 ? fillerImageUrls : undefined,
       countdownSeconds: ["seating", "countdown"].includes(normalizedItemType) ? 300 : undefined,
       itemType: item.item_type,
       sequence: item.sequence,

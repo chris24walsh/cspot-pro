@@ -24,14 +24,16 @@ export function PreServiceSlide({
   backgroundImageUrl,
   imageUrls,
   serviceDate,
+  timed = true,
 }: {
   backgroundImageUrl: string;
   imageUrls: string[];
   serviceDate: string;
+  timed?: boolean;
 }) {
   const [now, setNow] = useState(Date.now());
   const images = imageUrls.filter(Boolean);
-  const phase = preServicePhaseAt(serviceDate, now);
+  const phase = timed ? preServicePhaseAt(serviceDate, now) : "montage";
   const montageImageUrl = images[Math.floor(now / 12_000) % Math.max(images.length, 1)];
   const remaining = Math.max(0, Math.ceil((serviceDayTimestamp(serviceDate, 11, 0) - now) / 1000));
 
