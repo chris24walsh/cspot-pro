@@ -8239,6 +8239,30 @@ button.musician-page {
   opacity: 0;
 }
 
+.pre-service-montage-clock {
+  align-items: baseline;
+  background: rgba(5, 12, 16, 0.52);
+  border-radius: 5px;
+  color: rgba(255, 255, 255, 0.9);
+  display: flex;
+  font-size: clamp(8px, 1.2cqw, 16px);
+  gap: 0.38em;
+  padding: 0.35em 0.55em;
+  position: absolute;
+  right: 1.5%;
+  text-shadow: 0 1px 5px rgba(0, 0, 0, 0.8);
+  top: 2%;
+}
+
+.pre-service-montage-clock span {
+  font-weight: 650;
+}
+
+.pre-service-montage-clock strong {
+  font-size: 1.15em;
+  font-variant-numeric: tabular-nums;
+}
+
 .pre-service-music-control.is-fading {
   opacity: 0;
   pointer-events: none;

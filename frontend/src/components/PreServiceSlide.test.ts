@@ -47,4 +47,27 @@ describe("pre-service timing", () => {
     expect(preServiceAudioShouldPlay(false, "countdown", startedAt, startedAt + 300_000)).toBe(false);
     expect(preServiceAudioShouldPlay(false, "waiting", undefined, startedAt)).toBe(false);
   });
+
+  it("shows a small service-start clock during the montage only", () => {
+    vi.spyOn(Date, "now").mockReturnValue(1_000_000);
+    const montage = renderToStaticMarkup(createElement(PreServiceSlide, {
+      backgroundImageUrl: "background.jpg",
+      imageUrls: ["welcome.jpg"],
+      phase: "montage",
+      phaseStartedAt: 1_000_000,
+      serviceDate,
+    }));
+    const countdown = renderToStaticMarkup(createElement(PreServiceSlide, {
+      backgroundImageUrl: "background.jpg",
+      imageUrls: ["welcome.jpg"],
+      phase: "countdown",
+      phaseStartedAt: 1_000_000,
+      serviceDate,
+    }));
+
+    expect(montage).toContain("Service starts in");
+    expect(montage).toContain("30:00");
+    expect(countdown).not.toContain("pre-service-montage-clock");
+    vi.restoreAllMocks();
+  });
 });
