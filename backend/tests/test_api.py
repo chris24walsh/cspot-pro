@@ -10,6 +10,11 @@ def planning_mutation_probe() -> dict[str, str]:
     return {"status": "ok"}
 
 
+@app.patch("/api/v1/library/test-change-revision")
+def library_mutation_probe() -> dict[str, str]:
+    return {"status": "ok"}
+
+
 client = TestClient(app)
 
 
@@ -32,6 +37,15 @@ def test_change_revision_is_lightweight_and_domain_specific() -> None:
     assert second.json()["revisions"]["planning"] > first.json()["revisions"]["planning"]
     assert second.json()["revisions"]["music"] == first.json()["revisions"]["music"]
     assert second.json()["revisions"]["identity"] == first.json()["revisions"]["identity"]
+
+
+def test_library_mutation_refreshes_embedded_plan_assets() -> None:
+    first = client.get("/api/v1/change-revision")
+    mutation = client.patch("/api/v1/library/test-change-revision")
+    second = client.get("/api/v1/change-revision")
+
+    assert mutation.status_code == 200
+    assert second.json()["revisions"]["planning"] > first.json()["revisions"]["planning"]
 
 
 def test_app_info_lists_initial_modules() -> None:

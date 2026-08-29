@@ -46,6 +46,10 @@ def create_app() -> FastAPI:
         if request.method in {"POST", "PUT", "PATCH", "DELETE"} and response.status_code < 400:
             prefixes: tuple[tuple[str, ChangeDomain], ...] = (
                 ("/api/v1/planning", "planning"),
+                # Library assets can be embedded directly in plan slides. In
+                # particular, pre-service montage uploads change the Welcome
+                # item returned by the planning API.
+                ("/api/v1/library", "planning"),
                 ("/api/v1/music", "music"),
                 ("/api/v1/identity", "identity"),
             )
