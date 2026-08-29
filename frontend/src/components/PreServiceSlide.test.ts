@@ -71,4 +71,21 @@ describe("pre-service timing", () => {
     expect(countdown).toContain("pre-service-countdown is-active");
     vi.restoreAllMocks();
   });
+
+  it("keeps ordinary photo montages independent of pre-service timing", () => {
+    const montage = renderToStaticMarkup(createElement(PreServiceSlide, {
+      backgroundImageUrl: "background.jpg",
+      imageUrls: ["first.jpg", "second.jpg"],
+      phase: "countdown",
+      phaseStartedAt: Date.now(),
+      serviceDate,
+      timed: false,
+    }));
+
+    expect(montage).toContain("pre-service-slide is-montage");
+    expect(montage).toContain("pre-service-photo-layer is-active");
+    expect(montage).not.toContain("Service starts in");
+    expect(montage).not.toContain("Service begins in");
+    expect(montage).not.toContain("Please be seated");
+  });
 });

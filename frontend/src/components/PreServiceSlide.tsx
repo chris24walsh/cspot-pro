@@ -37,7 +37,9 @@ export function PreServiceSlide({
 }) {
   const [now, setNow] = useState(Date.now());
   const images = imageUrls.filter(Boolean);
-  const phase = forcedPhase ?? (timed ? preServicePhaseAt(serviceDate, now) : "montage");
+  // Ordinary section montages reuse the photo crossfade, but must not inherit
+  // the global pre-service clock/countdown phase.
+  const phase = timed ? (forcedPhase ?? preServicePhaseAt(serviceDate, now)) : "montage";
   const montageImageIndex = Math.floor(now / 12_000) % Math.max(images.length, 1);
   const remaining = Math.max(0, Math.ceil(
     forcedPhase && phaseStartedAt
@@ -63,18 +65,22 @@ export function PreServiceSlide({
           style={{ backgroundImage: `url(${imageUrl})` }}
         />
       ))}
-      <div className={`pre-service-montage-clock ${displayPhase === "montage" ? "is-active" : ""}`}>
-        <span>Service starts in</span>
-        <strong>{countdownLabel(remaining)}</strong>
-      </div>
-      <div className={`pre-service-shade ${displayPhase === "countdown" || displayPhase === "complete" ? "is-active" : ""}`} />
-      <div className={`pre-service-countdown ${displayPhase === "countdown" || displayPhase === "complete" ? "is-active" : ""}`} aria-live="off">
-        <div className={`pre-service-countdown-copy ${displayPhase === "countdown" ? "is-active" : ""}`}>
-          <span>Service begins in</span>
-          <strong>{countdownLabel(remaining)}</strong>
-        </div>
-        <strong className={`pre-service-seated-message ${displayPhase === "complete" ? "is-active" : ""}`}>Please be seated</strong>
-      </div>
+      {timed ? (
+        <>
+          <div className={`pre-service-montage-clock ${displayPhase === "montage" ? "is-active" : ""}`}>
+            <span>Service starts in</span>
+            <strong>{countdownLabel(remaining)}</strong>
+          </div>
+          <div className={`pre-service-shade ${displayPhase === "countdown" || displayPhase === "complete" ? "is-active" : ""}`} />
+          <div className={`pre-service-countdown ${displayPhase === "countdown" || displayPhase === "complete" ? "is-active" : ""}`} aria-live="off">
+            <div className={`pre-service-countdown-copy ${displayPhase === "countdown" ? "is-active" : ""}`}>
+              <span>Service begins in</span>
+              <strong>{countdownLabel(remaining)}</strong>
+            </div>
+            <strong className={`pre-service-seated-message ${displayPhase === "complete" ? "is-active" : ""}`}>Please be seated</strong>
+          </div>
+        </>
+      ) : null}
     </div>
   );
 }
