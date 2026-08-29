@@ -639,6 +639,7 @@ export function PresentationView({
   const [preServiceMediaBusy, setPreServiceMediaBusy] = useState(false);
   const [fillerMediaPlanItemId, setFillerMediaPlanItemId] = useState<string | null>(null);
   const [fillerMediaBusy, setFillerMediaBusy] = useState(false);
+  const [fillerMediaPersistent, setFillerMediaPersistent] = useState(false);
   const [liveIndex, setLiveIndex] = useState(0);
   const [message, setMessage] = useState<string | null>(null);
   const [screens, setScreens] = useState<PresentationScreen[]>([]);
@@ -1874,6 +1875,7 @@ export function PresentationView({
         const stored = await uploadStoredFile({ file, display_name: file.name });
         await attachItemFile(fillerMediaPlanItem.id, {
           file_id: stored.id,
+          persistent: fillerMediaPersistent,
           sort_order: existingImages.length + index,
         });
       }
@@ -1890,7 +1892,9 @@ export function PresentationView({
     if (!plan || !fillerMediaPlanItem) return;
     const confirmed = await confirm({
       confirmLabel: "Remove image",
-      message: `Remove "${file.display_name}" from the ${fillerMediaPlanItem.title} slide?`,
+      message: file.persistent
+        ? `Remove "${file.display_name}" from this and future ${fillerMediaPlanItem.title} slides?`
+        : `Remove "${file.display_name}" from the ${fillerMediaPlanItem.title} slide?`,
       title: "Remove slide image",
       tone: "danger",
     });
@@ -4958,6 +4962,15 @@ export function PresentationView({
               <h2 id="filler-media-title">{fillerMediaPlanItem.title} slide images</h2>
               <p>Add one image to replace the default slide background, or add several to rotate them as a montage. Blanking the screen will still show the standard LCF background.</p>
             </div>
+            <label className="checkbox-row">
+              <input
+                checked={fillerMediaPersistent}
+                disabled={fillerMediaBusy}
+                onChange={(event) => setFillerMediaPersistent(event.target.checked)}
+                type="checkbox"
+              />
+              <span>Keep newly added images for future services</span>
+            </label>
             <label className="pre-service-upload-control">
               Add images
               <input
@@ -4976,6 +4989,7 @@ export function PresentationView({
                 <article key={file.id}>
                   <img alt={file.display_name} src={storedFileDownloadUrl(file.file_id)} />
                   <span>{file.display_name}</span>
+                  <small>{file.persistent ? "Persistent for future services" : "This service only"}</small>
                   <button
                     className="danger-button"
                     disabled={fillerMediaBusy}
@@ -4991,7 +5005,10 @@ export function PresentationView({
               ) : null}
             </div>
             <div className="app-dialog-actions">
-              <button className="primary-button" onClick={() => setFillerMediaPlanItemId(null)} type="button">Done</button>
+              <button className="primary-button" onClick={() => {
+                setFillerMediaPlanItemId(null);
+                setFillerMediaPersistent(false);
+              }} type="button">Done</button>
             </div>
           </div>
         </div>

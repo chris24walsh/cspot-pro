@@ -76,6 +76,7 @@ class PlanItemFileRead(BaseModel):
     id: str
     file_id: str
     sort_order: int
+    persistent: bool = False
     display_name: str
     content_type: str | None = None
 

@@ -117,6 +117,7 @@ export interface PlanItemFile {
   id: string;
   file_id: string;
   sort_order: number;
+  persistent?: boolean;
   display_name: string;
   content_type: string | null;
 }
@@ -1482,7 +1483,7 @@ export async function getFileSlides(fileId: string): Promise<RenderedSlide[]> {
 
 export async function attachItemFile(
   planItemId: string,
-  payload: { file_id: string; sort_order: number },
+  payload: { file_id: string; sort_order: number; persistent?: boolean },
 ): Promise<ItemFile> {
   return sendJson<ItemFile>(`/api/v1/library/items/${planItemId}/files`, "POST", payload);
 }

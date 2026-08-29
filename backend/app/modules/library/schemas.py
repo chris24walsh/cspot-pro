@@ -60,6 +60,7 @@ class StoredFileRead(BaseModel):
 class ItemFileCreate(BaseModel):
     file_id: str
     sort_order: int = 0
+    persistent: bool = False
 
 
 class ItemFileRead(BaseModel):
@@ -67,6 +68,7 @@ class ItemFileRead(BaseModel):
     plan_item_id: str
     file_id: str
     sort_order: int
+    persistent: bool = False
     display_name: str
     content_type: str | None = None
 

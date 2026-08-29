@@ -50,6 +50,7 @@ class ItemFile(IdMixin, TimestampMixin, Base):
     )
     file_id: Mapped[str] = mapped_column(ForeignKey("files.id", ondelete="CASCADE"), index=True)
     sort_order: Mapped[int] = mapped_column(default=0)
+    persistent: Mapped[bool] = mapped_column(Boolean, default=False)
 
 
 class BibleVersion(IdMixin, TimestampMixin, Base):

@@ -144,6 +144,7 @@ def item_file_to_read(session: Session, row: ItemFile) -> ItemFileRead:
         plan_item_id=row.plan_item_id,
         file_id=row.file_id,
         sort_order=row.sort_order,
+        persistent=row.persistent,
         display_name=file.display_name,
         content_type=file.content_type,
     )
@@ -1134,7 +1135,12 @@ def attach_item_file(
     if session.get(StoredFile, payload.file_id) is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="File not found")
 
-    row = ItemFile(plan_item_id=plan_item_id, file_id=payload.file_id, sort_order=payload.sort_order)
+    row = ItemFile(
+        plan_item_id=plan_item_id,
+        file_id=payload.file_id,
+        sort_order=payload.sort_order,
+        persistent=payload.persistent,
+    )
     session.add(row)
     session.commit()
     session.refresh(row)

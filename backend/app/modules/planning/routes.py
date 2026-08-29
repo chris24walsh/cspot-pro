@@ -86,6 +86,30 @@ def plan_item_to_read(session: Session, item: PlanItem) -> PlanItemRead:
     item_files = session.scalars(
         select(ItemFile).where(ItemFile.plan_item_id == item.id).order_by(ItemFile.sort_order)
     ).all()
+    if item.item_type in {"open_time", "sermon", "announcements"}:
+        target_plan = session.get(Plan, item.plan_id)
+        if target_plan is not None:
+            inherited_files = session.scalars(
+                select(ItemFile)
+                .join(PlanItem, ItemFile.plan_item_id == PlanItem.id)
+                .join(Plan, PlanItem.plan_id == Plan.id)
+                .join(StoredFile, ItemFile.file_id == StoredFile.id)
+                .where(
+                    ItemFile.persistent.is_(True),
+                    PlanItem.id != item.id,
+                    PlanItem.item_type == item.item_type,
+                    PlanItem.deleted_at.is_(None),
+                    Plan.deleted_at.is_(None),
+                    Plan.service_date < target_plan.service_date,
+                    StoredFile.content_type.like("image/%"),
+                )
+                .order_by(Plan.service_date, ItemFile.sort_order)
+            ).all()
+            seen_file_ids = {row.file_id for row in item_files}
+            for row in inherited_files:
+                if row.file_id not in seen_file_ids:
+                    item_files.append(row)
+                    seen_file_ids.add(row.file_id)
     teacher_note = session.scalar(
         select(ItemNote)
         .where(ItemNote.plan_item_id == item.id)
@@ -100,6 +124,7 @@ def plan_item_to_read(session: Session, item: PlanItem) -> PlanItemRead:
                     "id": row.id,
                     "file_id": row.file_id,
                     "sort_order": row.sort_order,
+                    "persistent": row.persistent,
                     "display_name": stored_file.display_name,
                     "content_type": stored_file.content_type,
                 }
@@ -123,6 +148,7 @@ def plan_item_to_read(session: Session, item: PlanItem) -> PlanItemRead:
                     "id": f"pre-service:{stored.id}",
                     "file_id": stored.id,
                     "sort_order": index,
+                    "persistent": True,
                     "display_name": stored.display_name,
                     "content_type": stored.content_type,
                 }
