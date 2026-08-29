@@ -4,6 +4,9 @@ server {
     # Use relative Location headers so redirects do not leak the internal Docker hostname.
     absolute_redirect off;
 
+    # Phone camera photos commonly exceed nginx's 1 MB default request limit.
+    client_max_body_size 50m;
+
     root /usr/share/nginx/html;
     index index.html;
 
