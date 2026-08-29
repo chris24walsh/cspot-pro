@@ -8497,6 +8497,22 @@ button.musician-page {
   white-space: nowrap;
 }
 
+.media-persistence-control {
+  align-items: center;
+  display: flex;
+  gap: 5px;
+  line-height: 1;
+}
+
+.media-persistence-control input {
+  margin: 0;
+}
+
+.media-persistence-control small {
+  color: #625b4c;
+  font-size: 11px;
+}
+
 .pre-service-music-control {
   align-items: center;
   background: rgba(11, 22, 25, 0.92);

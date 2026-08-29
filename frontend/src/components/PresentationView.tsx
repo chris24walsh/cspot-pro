@@ -11,6 +11,7 @@ import {
   createPlanItem,
   attachItemFile,
   deleteItemFile,
+  updateItemFile,
   deletePlan,
   deletePreServiceMedia,
   getGoogleDriveStatus,
@@ -635,10 +636,8 @@ export function PresentationView({
   const [addingServiceOutline, setAddingServiceOutline] = useState(false);
   const [preServiceMediaOpen, setPreServiceMediaOpen] = useState(false);
   const [preServiceMediaBusy, setPreServiceMediaBusy] = useState(false);
-  const [preServiceMediaPersistent, setPreServiceMediaPersistent] = useState(false);
   const [fillerMediaPlanItemId, setFillerMediaPlanItemId] = useState<string | null>(null);
   const [fillerMediaBusy, setFillerMediaBusy] = useState(false);
-  const [fillerMediaPersistent, setFillerMediaPersistent] = useState(false);
   const [liveIndex, setLiveIndex] = useState(0);
   const [message, setMessage] = useState<string | null>(null);
   const [screens, setScreens] = useState<PresentationScreen[]>([]);
@@ -1881,7 +1880,6 @@ export function PresentationView({
         const stored = await uploadStoredFile({ file, display_name: file.name });
         await attachItemFile(preServicePlanItem.id, {
           file_id: stored.id,
-          persistent: preServiceMediaPersistent,
           sort_order: existingImages.length + index,
         });
       }
@@ -1891,6 +1889,22 @@ export function PresentationView({
       setMessage(error instanceof Error ? error.message : "Could not add pre-service photos.");
     } finally {
       setPreServiceMediaBusy(false);
+    }
+  }
+
+  async function setMediaPersistence(file: PlanItem["files"][number], persistent: boolean) {
+    if (!plan || file.id.startsWith("pre-service:")) return;
+    setPreServiceMediaBusy(true);
+    setFillerMediaBusy(true);
+    try {
+      await updateItemFile(file.id, { persistent });
+      await load(plan.id, { silent: true });
+      setMessage(persistent ? `"${file.display_name}" will be kept for future services.` : `"${file.display_name}" is now for this service only.`);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not update image persistence.");
+    } finally {
+      setPreServiceMediaBusy(false);
+      setFillerMediaBusy(false);
     }
   }
 
@@ -1930,7 +1944,6 @@ export function PresentationView({
         const stored = await uploadStoredFile({ file, display_name: file.name });
         await attachItemFile(fillerMediaPlanItem.id, {
           file_id: stored.id,
-          persistent: fillerMediaPersistent,
           sort_order: existingImages.length + index,
         });
       }
@@ -5041,15 +5054,6 @@ export function PresentationView({
               <h2 id="filler-media-title">{fillerMediaPlanItem.title} slide images</h2>
               <p>Add one image to replace the default slide background, or add several to rotate them as a montage. Blanking the screen will still show the standard LCF background.</p>
             </div>
-            <label className="checkbox-row">
-              <input
-                checked={fillerMediaPersistent}
-                disabled={fillerMediaBusy}
-                onChange={(event) => setFillerMediaPersistent(event.target.checked)}
-                type="checkbox"
-              />
-              <span>Keep newly added images for future services</span>
-            </label>
             <label className="pre-service-upload-control">
               Add images
               <input
@@ -5068,7 +5072,15 @@ export function PresentationView({
                 <article key={file.id}>
                   <img alt={file.display_name} src={storedFileDownloadUrl(file.file_id)} />
                   <span>{file.display_name}</span>
-                  <small>{file.persistent ? "Persistent for future services" : "This service only"}</small>
+                  <label className="media-persistence-control">
+                    <input
+                      checked={Boolean(file.persistent)}
+                      disabled={fillerMediaBusy || file.id.startsWith("pre-service:")}
+                      onChange={(event) => void setMediaPersistence(file, event.target.checked)}
+                      type="checkbox"
+                    />
+                    <small>{file.persistent ? "Kept for future services" : "This service only"}</small>
+                  </label>
                   <button
                     className="danger-button"
                     disabled={fillerMediaBusy}
@@ -5086,7 +5098,6 @@ export function PresentationView({
             <div className="app-dialog-actions">
               <button className="primary-button" onClick={() => {
                 setFillerMediaPlanItemId(null);
-                setFillerMediaPersistent(false);
               }} type="button">Done</button>
             </div>
           </div>
@@ -5098,17 +5109,8 @@ export function PresentationView({
           <div aria-labelledby="pre-service-media-title" aria-modal="true" className="app-dialog app-dialog-wide pre-service-media-dialog" role="dialog">
             <div>
               <h2 id="pre-service-media-title">Pre-service montage</h2>
-              <p>Photos rotate automatically before the service. Choose whether newly added photos apply only to this service or carry into future services.</p>
+              <p>Photos rotate automatically before the service. Set each photo to apply only to this service or carry into future services.</p>
             </div>
-            <label className="checkbox-row">
-              <input
-                checked={preServiceMediaPersistent}
-                disabled={preServiceMediaBusy}
-                onChange={(event) => setPreServiceMediaPersistent(event.target.checked)}
-                type="checkbox"
-              />
-              <span>Keep newly added photos for future services</span>
-            </label>
             <label className="pre-service-upload-control">
               Add church or relaxing photos
               <input
@@ -5127,7 +5129,15 @@ export function PresentationView({
                 <article key={file.id}>
                   <img alt={file.display_name} src={storedFileDownloadUrl(file.file_id)} />
                   <span>{file.display_name}</span>
-                  <small>{file.persistent ? "Persistent for future services" : "This service only"}</small>
+                  <label className="media-persistence-control">
+                    <input
+                      checked={Boolean(file.persistent)}
+                      disabled={preServiceMediaBusy || file.id.startsWith("pre-service:")}
+                      onChange={(event) => void setMediaPersistence(file, event.target.checked)}
+                      type="checkbox"
+                    />
+                    <small>{file.persistent ? "Kept for future services" : "This service only"}</small>
+                  </label>
                   <button
                     className="danger-button"
                     disabled={preServiceMediaBusy}
@@ -5143,7 +5153,6 @@ export function PresentationView({
             <div className="app-dialog-actions">
               <button className="primary-button" onClick={() => {
                 setPreServiceMediaOpen(false);
-                setPreServiceMediaPersistent(false);
               }} type="button">Done</button>
             </div>
           </div>

@@ -37,6 +37,7 @@ from app.modules.library.schemas import (
     FileCategoryRead,
     ItemFileCreate,
     ItemFileRead,
+    ItemFileUpdate,
     PlanResourceCreate,
     PlanResourceRead,
     PlanResourceUpdate,
@@ -1142,6 +1143,24 @@ def attach_item_file(
         persistent=payload.persistent,
     )
     session.add(row)
+    session.commit()
+    session.refresh(row)
+    return item_file_to_read(session, row)
+
+
+@router.patch("/item-files/{item_file_id}", response_model=ItemFileRead)
+def update_item_file(
+    item_file_id: str,
+    payload: ItemFileUpdate,
+    _current_user: User = Depends(
+        require_any_permission("library:edit", "plans:edit")
+    ),
+    session: Session = Depends(get_session),
+) -> ItemFileRead:
+    row = session.get(ItemFile, item_file_id)
+    if row is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Item file not found")
+    row.persistent = payload.persistent
     session.commit()
     session.refresh(row)
     return item_file_to_read(session, row)

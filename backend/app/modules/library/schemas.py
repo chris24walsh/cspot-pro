@@ -63,6 +63,10 @@ class ItemFileCreate(BaseModel):
     persistent: bool = False
 
 
+class ItemFileUpdate(BaseModel):
+    persistent: bool
+
+
 class ItemFileRead(BaseModel):
     id: str
     plan_item_id: str

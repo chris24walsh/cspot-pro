@@ -256,6 +256,7 @@ export interface ItemFile {
   plan_item_id: string;
   file_id: string;
   sort_order: number;
+  persistent: boolean;
   display_name: string;
   content_type: string | null;
 }
@@ -1491,6 +1492,13 @@ export async function attachItemFile(
   payload: { file_id: string; sort_order: number; persistent?: boolean },
 ): Promise<ItemFile> {
   return sendJson<ItemFile>(`/api/v1/library/items/${planItemId}/files`, "POST", payload);
+}
+
+export async function updateItemFile(
+  itemFileId: string,
+  payload: { persistent: boolean },
+): Promise<ItemFile> {
+  return sendJson<ItemFile>(`/api/v1/library/item-files/${itemFileId}`, "PATCH", payload);
 }
 
 export async function deleteItemFile(itemFileId: string): Promise<void> {
