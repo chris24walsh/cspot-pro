@@ -56,24 +56,17 @@ export function PreServiceSlide({
   return (
     <div
       className={`pre-service-slide is-${displayPhase}`}
-      style={backgroundImageUrl ? {
-        backgroundColor: "#17252b",
-        backgroundImage: `url(${backgroundImageUrl})`,
-        backgroundPosition: "center",
-        backgroundRepeat: "no-repeat",
-        backgroundSize: "contain",
-      } : undefined}
     >
+      {backgroundImageUrl ? (
+        <img alt="" aria-hidden="true" className="pre-service-background-layer" src={backgroundImageUrl} />
+      ) : null}
       {images.map((imageUrl, index) => (
-        <div
+        <img
+          alt=""
+          aria-hidden="true"
           className={`pre-service-photo-layer ${index === montageImageIndex ? "is-active" : ""}`}
           key={`${imageUrl}:${index}`}
-          style={{
-            backgroundImage: `url(${imageUrl})`,
-            backgroundPosition: "center",
-            backgroundRepeat: "no-repeat",
-            backgroundSize: "contain",
-          }}
+          src={imageUrl}
         />
       ))}
       {timed ? (
