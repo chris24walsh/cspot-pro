@@ -8252,9 +8252,10 @@ button.musician-page {
 }
 
 .pre-service-photo-layer {
+  background-color: transparent;
   background-position: center;
   background-repeat: no-repeat;
-  background-size: cover;
+  background-size: contain;
   inset: 0;
   opacity: 0;
   position: absolute;
@@ -8409,7 +8410,8 @@ button.musician-page {
 .mini-slide-photo {
   align-items: flex-end;
   background-position: center;
-  background-size: cover;
+  background-repeat: no-repeat;
+  background-size: contain;
   color: #fff;
   display: flex;
   font-size: 9px;

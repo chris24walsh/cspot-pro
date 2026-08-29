@@ -97,7 +97,7 @@ describe("presentation slide derivation", () => {
     expect(slides[0]).toMatchObject({ backgroundImageUrl: LCF_BACKGROUND_URL, text: "Open time" });
   });
 
-  it("uses one attached image as a filler background and several as a montage", () => {
+  it("uses one attached image as fitted slide media and several as a montage", () => {
     const oneImage = buildPresentationSlides([
       planItem({
         files: [{ content_type: "image/jpeg", display_name: "Still", file_id: "still-1", id: "link-1", sort_order: 0 }],
@@ -118,7 +118,8 @@ describe("presentation slide derivation", () => {
       }),
     ], []);
 
-    expect(oneImage[0].backgroundImageUrl).toContain("still-1");
+    expect(oneImage[0].imageUrl).toContain("still-1");
+    expect(oneImage[0].backgroundImageUrl).toBeUndefined();
     expect(oneImage[0].montageImageUrls).toBeUndefined();
     expect(montage[0].backgroundImageUrl).toBeUndefined();
     expect(montage[0].montageImageUrls).toHaveLength(2);

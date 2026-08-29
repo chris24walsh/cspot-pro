@@ -442,11 +442,10 @@ export function buildPresentationSections(
       sectionTitle,
       title: sectionTitle,
       text: ["seating", "countdown"].includes(normalizedItemType) ? "" : slideTextForItem(item, songs),
-      backgroundImageUrl: fillerImageUrls.length
-        ? fillerImageUrls.length === 1 ? fillerImageUrls[0] : undefined
-        : !hasSectionContent && !["seating", "countdown"].includes(normalizedItemType)
+      backgroundImageUrl: !fillerImageUrls.length && !hasSectionContent && !["seating", "countdown"].includes(normalizedItemType)
           ? LCF_BACKGROUND_URL
           : undefined,
+      imageUrl: fillerImageUrls.length === 1 ? fillerImageUrls[0] : undefined,
       montageImageUrls: fillerImageUrls.length > 1 ? fillerImageUrls : undefined,
       countdownSeconds: ["seating", "countdown"].includes(normalizedItemType) ? 300 : undefined,
       itemType: item.item_type,
