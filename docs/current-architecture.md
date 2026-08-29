@@ -351,9 +351,11 @@ recognizes the older item aliases, so adding missing sections does not overwrite
 or duplicate existing service content. Section type also supplies the default
 automatic broadcast-audio scene; active media playback takes precedence.
 
-Pre-service montage images are global `StoredFile` records in the
-`Pre-service Montage` category. Admins and presenters can manage them from the
-Welcome section. At 10:30 Europe/Dublin time, an open network display or viewer
+Pre-service montage images are `StoredFile` records attached to Welcome through
+`ItemFile`. Admins and presenters choose whether each new photo is scoped to the
+current service or inherited by future Welcome sections; legacy global photos
+in the `Pre-service Montage` category remain supported as persistent entries.
+They can manage both kinds from the Welcome section. At 10:30 Europe/Dublin time, an open network display or viewer
 poll creates the scheduled live presentation for that day's Sunday service,
 selects Welcome, and activates the Media audio scene. The montage and configured
 music begin at 10:30. The 11:00 countdown appears at 10:55; when it expires,

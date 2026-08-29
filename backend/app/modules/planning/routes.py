@@ -86,7 +86,7 @@ def plan_item_to_read(session: Session, item: PlanItem) -> PlanItemRead:
     item_files = session.scalars(
         select(ItemFile).where(ItemFile.plan_item_id == item.id).order_by(ItemFile.sort_order)
     ).all()
-    if item.item_type in {"open_time", "sermon", "announcements"}:
+    if item.item_type in {"pre_service", "open_time", "sermon", "announcements"}:
         target_plan = session.get(Plan, item.plan_id)
         if target_plan is not None:
             inherited_files = session.scalars(

@@ -24,7 +24,6 @@ import {
   getPlan,
   getPlans,
   getPlanTypes,
-  getPreServiceMedia,
   getPresentationLiveState,
   getBroadcastRecordings,
   getPlanHistory,
@@ -39,7 +38,6 @@ import {
   startBroadcastRecording,
   stopBroadcastRecording,
   uploadStoredFile,
-  uploadPreServiceMedia,
   updatePlan,
   updatePresentationOutputStatus,
   updatePresentationLiveState,
@@ -62,7 +60,6 @@ import {
   type PlanSummary,
   type PlanType,
   type Song,
-  type StoredFile,
 } from "../api";
 import { useDurableChange } from "../changePolling";
 import {
@@ -637,8 +634,8 @@ export function PresentationView({
   const [loading, setLoading] = useState(true);
   const [addingServiceOutline, setAddingServiceOutline] = useState(false);
   const [preServiceMediaOpen, setPreServiceMediaOpen] = useState(false);
-  const [preServiceMedia, setPreServiceMedia] = useState<StoredFile[]>([]);
   const [preServiceMediaBusy, setPreServiceMediaBusy] = useState(false);
+  const [preServiceMediaPersistent, setPreServiceMediaPersistent] = useState(false);
   const [fillerMediaPlanItemId, setFillerMediaPlanItemId] = useState<string | null>(null);
   const [fillerMediaBusy, setFillerMediaBusy] = useState(false);
   const [fillerMediaPersistent, setFillerMediaPersistent] = useState(false);
@@ -830,6 +827,7 @@ export function PresentationView({
     [effectivePlanItems, songs, renderedSlidesByFileId],
   );
   const liveSlide = slides[liveIndex] ?? null;
+  const preServicePlanItem = effectivePlanItems.find((item) => item.item_type === "pre_service") ?? null;
   const fillerMediaPlanItem = effectivePlanItems.find((item) => item.id === fillerMediaPlanItemId) ?? null;
   const currentPlanItem = effectivePlanItems.find((item) => item.id === liveSlide?.planItemId) ?? null;
   const activeSermonRecording = broadcastRecordings.find(
@@ -1867,25 +1865,26 @@ export function PresentationView({
   }
 
   async function openPreServiceMedia() {
-    setPreServiceMediaBusy(true);
-    try {
-      setPreServiceMedia(await getPreServiceMedia());
-      setPreServiceMediaOpen(true);
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Could not load pre-service photos.");
-    } finally {
-      setPreServiceMediaBusy(false);
+    if (!preServicePlanItem) {
+      setMessage("This service does not have a Welcome section.");
+      return;
     }
+    setPreServiceMediaOpen(true);
   }
 
   async function addPreServicePhotos(files: FileList | null) {
-    if (!files?.length || !plan) return;
+    if (!files?.length || !plan || !preServicePlanItem) return;
     setPreServiceMediaBusy(true);
     try {
-      for (const file of Array.from(files)) {
-        await uploadPreServiceMedia(file);
+      const existingImages = preServicePlanItem.files.filter((file) => file.content_type?.startsWith("image/"));
+      for (const [index, file] of Array.from(files).entries()) {
+        const stored = await uploadStoredFile({ file, display_name: file.name });
+        await attachItemFile(preServicePlanItem.id, {
+          file_id: stored.id,
+          persistent: preServiceMediaPersistent,
+          sort_order: existingImages.length + index,
+        });
       }
-      setPreServiceMedia(await getPreServiceMedia());
       await load(plan.id, { silent: true });
       setMessage(`${files.length} pre-service photo${files.length === 1 ? "" : "s"} added.`);
     } catch (error) {
@@ -1895,18 +1894,24 @@ export function PresentationView({
     }
   }
 
-  async function removePreServicePhoto(file: StoredFile) {
+  async function removePreServicePhoto(file: PlanItem["files"][number]) {
+    const legacyPersistentPhoto = file.id.startsWith("pre-service:");
     const confirmed = await confirm({
       confirmLabel: "Remove photo",
-      message: `Remove "${file.display_name}" from every pre-service montage?`,
+      message: file.persistent
+        ? `Remove "${file.display_name}" from this and future Welcome montages?`
+        : `Remove "${file.display_name}" from this service's Welcome montage?`,
       title: "Remove pre-service photo",
       tone: "danger",
     });
     if (!confirmed || !plan) return;
     setPreServiceMediaBusy(true);
     try {
-      await deletePreServiceMedia(file.id);
-      setPreServiceMedia((current) => current.filter((candidate) => candidate.id !== file.id));
+      if (legacyPersistentPhoto) {
+        await deletePreServiceMedia(file.file_id);
+      } else {
+        await deleteItemFile(file.id);
+      }
       await load(plan.id, { silent: true });
       setMessage("Pre-service photo removed.");
     } catch (error) {
@@ -5093,8 +5098,17 @@ export function PresentationView({
           <div aria-labelledby="pre-service-media-title" aria-modal="true" className="app-dialog app-dialog-wide pre-service-media-dialog" role="dialog">
             <div>
               <h2 id="pre-service-media-title">Pre-service montage</h2>
-              <p>These photos are shared by every Sunday service and rotate automatically before the service.</p>
+              <p>Photos rotate automatically before the service. Choose whether newly added photos apply only to this service or carry into future services.</p>
             </div>
+            <label className="checkbox-row">
+              <input
+                checked={preServiceMediaPersistent}
+                disabled={preServiceMediaBusy}
+                onChange={(event) => setPreServiceMediaPersistent(event.target.checked)}
+                type="checkbox"
+              />
+              <span>Keep newly added photos for future services</span>
+            </label>
             <label className="pre-service-upload-control">
               Add church or relaxing photos
               <input
@@ -5109,10 +5123,11 @@ export function PresentationView({
               />
             </label>
             <div className="pre-service-media-grid">
-              {preServiceMedia.map((file) => (
+              {(preServicePlanItem?.files ?? []).filter((file) => file.content_type?.startsWith("image/")).map((file) => (
                 <article key={file.id}>
-                  <img alt={file.display_name} src={storedFileDownloadUrl(file.id)} />
+                  <img alt={file.display_name} src={storedFileDownloadUrl(file.file_id)} />
                   <span>{file.display_name}</span>
+                  <small>{file.persistent ? "Persistent for future services" : "This service only"}</small>
                   <button
                     className="danger-button"
                     disabled={preServiceMediaBusy}
@@ -5123,10 +5138,13 @@ export function PresentationView({
                   </button>
                 </article>
               ))}
-              {!preServiceMedia.length ? <p className="empty-state">No uploaded photos yet; the LCF background is used as the fallback.</p> : null}
+              {!preServicePlanItem?.files.some((file) => file.content_type?.startsWith("image/")) ? <p className="empty-state">No uploaded photos yet; the LCF background is used as the fallback.</p> : null}
             </div>
             <div className="app-dialog-actions">
-              <button className="primary-button" onClick={() => setPreServiceMediaOpen(false)} type="button">Done</button>
+              <button className="primary-button" onClick={() => {
+                setPreServiceMediaOpen(false);
+                setPreServiceMediaPersistent(false);
+              }} type="button">Done</button>
             </div>
           </div>
         </div>
