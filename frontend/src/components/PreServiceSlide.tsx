@@ -10,6 +10,20 @@ function countdownLabel(seconds: number) {
   return `${minutes}:${String(seconds % 60).padStart(2, "0")}`;
 }
 
+export function preServiceRemainingSeconds(
+  serviceDate: string,
+  now: number,
+  forcedPhase?: "waiting" | "montage" | "countdown" | "complete" | null,
+  phaseStartedAt?: number,
+) {
+  if (forcedPhase === "complete") return 0;
+  if (forcedPhase && phaseStartedAt) {
+    const durationSeconds = forcedPhase === "countdown" ? 300 : 1800;
+    return Math.max(0, Math.ceil(durationSeconds - (now - phaseStartedAt) / 1000));
+  }
+  return Math.max(0, Math.ceil((serviceDayTimestamp(serviceDate, 11, 0) - now) / 1000));
+}
+
 export function preServicePhaseAt(serviceDate: string, now: number) {
   const montageStart = serviceDayTimestamp(serviceDate, 10, 30);
   const countdownStart = serviceDayTimestamp(serviceDate, 10, 55);
@@ -41,11 +55,7 @@ export function PreServiceSlide({
   // the global pre-service clock/countdown phase.
   const phase = timed ? (forcedPhase ?? preServicePhaseAt(serviceDate, now)) : "montage";
   const montageImageIndex = Math.floor(now / 12_000) % Math.max(images.length, 1);
-  const remaining = Math.max(0, Math.ceil(
-    forcedPhase && phaseStartedAt
-      ? (forcedPhase === "countdown" ? 300 : 1800) - (now - phaseStartedAt) / 1000
-      : (serviceDayTimestamp(serviceDate, 11, 0) - now) / 1000,
-  ));
+  const remaining = preServiceRemainingSeconds(serviceDate, now, forcedPhase, phaseStartedAt);
   const displayPhase = phase === "countdown" && remaining === 0 ? "complete" : phase;
 
   useEffect(() => {

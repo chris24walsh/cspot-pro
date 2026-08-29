@@ -2,7 +2,7 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
-import { PreServiceSlide, preServicePhaseAt } from "./PreServiceSlide";
+import { PreServiceSlide, preServicePhaseAt, preServiceRemainingSeconds } from "./PreServiceSlide";
 import { preServiceAudioShouldPlay } from "./PreServiceMusic";
 
 describe("pre-service timing", () => {
@@ -39,6 +39,12 @@ describe("pre-service timing", () => {
     expect(simulated).toContain("pre-service-photo-layer is-active");
     expect(simulated).not.toContain("pre-service-countdown-copy is-active");
     vi.restoreAllMocks();
+  });
+
+  it("does not restart the timer while changing to the seated message", () => {
+    const now = new Date(2026, 7, 30, 11, 0).getTime();
+
+    expect(preServiceRemainingSeconds(serviceDate, now, "complete", now)).toBe(0);
   });
 
   it("stops pre-service audio when the countdown ends or service starts", () => {

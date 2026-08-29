@@ -8381,7 +8381,6 @@ button.musician-page {
   align-items: center;
   bottom: auto;
   display: grid;
-  gap: 0.1em;
   inset: 50% 0 auto;
   justify-items: center;
   text-align: center;
@@ -8403,6 +8402,8 @@ button.musician-page {
 
 .pre-service-countdown-copy,
 .pre-service-seated-message {
+  grid-column: 1;
+  grid-row: 1;
   opacity: 0;
   transition: opacity 1200ms ease-in-out;
 }
@@ -8412,6 +8413,8 @@ button.musician-page {
   display: flex;
   flex-direction: column;
   gap: 0.1em;
+  justify-self: stretch;
+  text-align: center;
   width: 100%;
 }
 
