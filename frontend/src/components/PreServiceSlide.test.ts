@@ -84,6 +84,8 @@ describe("pre-service timing", () => {
 
     expect(montage).toContain("pre-service-slide is-montage");
     expect(montage).toContain("pre-service-photo-layer is-active");
+    expect(montage).toContain("background-repeat:no-repeat");
+    expect(montage).toContain("background-size:contain");
     expect(montage).not.toContain("Service starts in");
     expect(montage).not.toContain("Service begins in");
     expect(montage).not.toContain("Please be seated");

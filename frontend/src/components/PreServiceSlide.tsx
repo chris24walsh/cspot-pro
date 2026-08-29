@@ -56,13 +56,24 @@ export function PreServiceSlide({
   return (
     <div
       className={`pre-service-slide is-${displayPhase}`}
-      style={backgroundImageUrl ? { backgroundImage: `url(${backgroundImageUrl})` } : undefined}
+      style={backgroundImageUrl ? {
+        backgroundColor: "#17252b",
+        backgroundImage: `url(${backgroundImageUrl})`,
+        backgroundPosition: "center",
+        backgroundRepeat: "no-repeat",
+        backgroundSize: "contain",
+      } : undefined}
     >
       {images.map((imageUrl, index) => (
         <div
           className={`pre-service-photo-layer ${index === montageImageIndex ? "is-active" : ""}`}
           key={`${imageUrl}:${index}`}
-          style={{ backgroundImage: `url(${imageUrl})` }}
+          style={{
+            backgroundImage: `url(${imageUrl})`,
+            backgroundPosition: "center",
+            backgroundRepeat: "no-repeat",
+            backgroundSize: "contain",
+          }}
         />
       ))}
       {timed ? (
