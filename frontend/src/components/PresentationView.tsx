@@ -1460,13 +1460,10 @@ export function PresentationView({
     await publishLiveStateForSlides(slides, nextIndex, overrides);
   }
 
-  async function showPreServiceRehearsalPhase(phase: "montage" | "countdown") {
+  async function showPreServiceRehearsalPhase(phase: "montage" | "countdown" | "complete") {
     const welcomeIndex = slides.findIndex((slide) => slide.itemType === "pre_service");
     if (welcomeIndex < 0) {
       setMessage("This service does not have a Welcome section to rehearse.");
-      return;
-    }
-    if (!slideshowOpen && !(await startSlideshow(openSlideshowWindowOnStart))) {
       return;
     }
     setLiveIndex(welcomeIndex);
@@ -1477,10 +1474,16 @@ export function PresentationView({
       serviceStage: "pre_service",
       preServicePhase: phase,
     });
-    setMessage(phase === "montage" ? "Rehearsal: welcome montage is live." : "Rehearsal: pre-service countdown is live.");
+    setMessage(
+      phase === "montage"
+        ? "Test preview: welcome montage selected. The slideshow has not started."
+        : phase === "countdown"
+          ? "Test preview: pre-service countdown selected. The slideshow has not started."
+          : "Test preview: countdown ending selected. The slideshow has not started.",
+    );
   }
 
-  async function rehearseServiceStart() {
+  async function startServiceFromMenu() {
     if (!slideshowOpen && !(await startSlideshow(openSlideshowWindowOnStart))) {
       return;
     }
@@ -1494,7 +1497,7 @@ export function PresentationView({
       serviceStage: "service",
       preServicePhase: "waiting",
     });
-    setMessage("Rehearsal: service started on the holding background. Use Next when worship is ready to begin.");
+    setMessage("Service started on the holding background. Use Next when worship is ready to begin.");
   }
 
   async function detectDisplays() {
@@ -4089,7 +4092,7 @@ export function PresentationView({
                     {canSimulateService ? (
                       <>
                         <div className="slideshow-start-menu-divider" role="separator" />
-                        <span className="slideshow-start-menu-label">Rehearse service flow</span>
+                        <span className="slideshow-start-menu-label">Test service flow</span>
                         <button onClick={() => void showPreServiceRehearsalPhase("montage")} role="menuitem" type="button">
                           <span aria-hidden="true">1</span>
                           Welcome montage
@@ -4098,8 +4101,13 @@ export function PresentationView({
                           <span aria-hidden="true">2</span>
                           Countdown
                         </button>
-                        <button onClick={() => void rehearseServiceStart()} role="menuitem" type="button">
+                        <button onClick={() => void showPreServiceRehearsalPhase("complete")} role="menuitem" type="button">
                           <span aria-hidden="true">3</span>
+                          End countdown
+                        </button>
+                        <div className="slideshow-start-menu-divider" role="separator" />
+                        <button onClick={() => void startServiceFromMenu()} role="menuitem" type="button">
+                          <span aria-hidden="true">▶</span>
                           Start service
                         </button>
                       </>
