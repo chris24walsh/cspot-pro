@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 function serviceDayTimestamp(serviceDate: string, hour: number, minute: number) {
   const date = new Date(serviceDate);
@@ -8,6 +8,14 @@ function serviceDayTimestamp(serviceDate: string, hour: number, minute: number) 
 function countdownLabel(seconds: number) {
   const minutes = Math.floor(seconds / 60);
   return `${minutes}:${String(seconds % 60).padStart(2, "0")}`;
+}
+
+export function countdownLabelForTransition(
+  previousLabel: string,
+  phase: "waiting" | "montage" | "countdown" | "complete",
+  seconds: number,
+) {
+  return phase === "countdown" ? countdownLabel(seconds) : previousLabel;
 }
 
 export function preServiceRemainingSeconds(
@@ -57,6 +65,8 @@ export function PreServiceSlide({
   const montageImageIndex = Math.floor(now / 12_000) % Math.max(images.length, 1);
   const remaining = preServiceRemainingSeconds(serviceDate, now, forcedPhase, phaseStartedAt);
   const displayPhase = phase === "countdown" && remaining === 0 ? "complete" : phase;
+  const displayedCountdownLabel = useRef(countdownLabel(remaining));
+  displayedCountdownLabel.current = countdownLabelForTransition(displayedCountdownLabel.current, phase, remaining);
 
   useEffect(() => {
     const timer = window.setInterval(() => setNow(Date.now()), 1000);
@@ -91,7 +101,7 @@ export function PreServiceSlide({
             <div className="pre-service-message-box">
               <div className={`pre-service-countdown-copy ${displayPhase === "countdown" ? "is-active" : ""}`}>
                 <span>Service begins in</span>
-                <strong>{countdownLabel(remaining)}</strong>
+                <strong>{displayedCountdownLabel.current}</strong>
               </div>
               <strong className={`pre-service-seated-message ${displayPhase === "complete" ? "is-active" : ""}`}>Please be seated</strong>
             </div>

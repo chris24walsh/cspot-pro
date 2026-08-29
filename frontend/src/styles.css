@@ -8382,14 +8382,12 @@ button.musician-page {
   background: rgba(5, 12, 16, 0.5);
 }
 
-.pre-service-slide.is-countdown .pre-service-countdown span,
-.pre-service-slide.is-complete .pre-service-countdown span {
+.pre-service-countdown-copy span {
   font-size: clamp(12px, 3cqw, 50px);
   text-transform: uppercase;
 }
 
-.pre-service-slide.is-countdown .pre-service-countdown strong,
-.pre-service-slide.is-complete .pre-service-countdown strong {
+.pre-service-countdown-copy strong {
   font-size: clamp(48px, 21cqw, 330px);
 }
 

@@ -2,7 +2,12 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
-import { PreServiceSlide, preServicePhaseAt, preServiceRemainingSeconds } from "./PreServiceSlide";
+import {
+  countdownLabelForTransition,
+  PreServiceSlide,
+  preServicePhaseAt,
+  preServiceRemainingSeconds,
+} from "./PreServiceSlide";
 import { preServiceAudioShouldPlay } from "./PreServiceMusic";
 
 describe("pre-service timing", () => {
@@ -46,6 +51,13 @@ describe("pre-service timing", () => {
     const now = new Date(2026, 7, 30, 11, 0).getTime();
 
     expect(preServiceRemainingSeconds(serviceDate, now, "complete", now)).toBe(0);
+  });
+
+  it("keeps the outgoing countdown value while another phase fades in", () => {
+    expect(countdownLabelForTransition("4:37", "complete", 0)).toBe("4:37");
+    expect(countdownLabelForTransition("4:37", "montage", 1800)).toBe("4:37");
+    expect(countdownLabelForTransition("4:37", "waiting", 1800)).toBe("4:37");
+    expect(countdownLabelForTransition("4:37", "countdown", 276)).toBe("4:36");
   });
 
   it("stops pre-service audio when the countdown ends or service starts", () => {
