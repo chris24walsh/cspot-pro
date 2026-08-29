@@ -34,6 +34,7 @@ class PresentationLiveStateRead(BaseModel):
     video_action: str | None = None
     video_action_at: int | None = None
     service_stage: str = "ready"
+    pre_service_phase: str | None = None
 
 
 class PresentationLiveStateWrite(BaseModel):
@@ -47,6 +48,8 @@ class PresentationLiveStateWrite(BaseModel):
     fullscreen: bool = False
     video_action: str | None = None
     video_action_at: int | None = None
+    service_stage: str = "ready"
+    pre_service_phase: str | None = None
 
 
 class PresentationOutputStatusRead(BaseModel):
@@ -79,6 +82,7 @@ class PresentationLiveServiceRead(BaseModel):
     output_owner_id: str
     output_heartbeat_at: int
     service_stage: str = "ready"
+    pre_service_phase: str | None = None
 
 
 OUTPUT_STALE_MS = 7000
@@ -230,6 +234,9 @@ def _serialize_live_state(
         if payload.get("video_action_at") is not None
         else None,
         service_stage=str(payload.get("service_stage", "ready")),
+        pre_service_phase=payload.get("pre_service_phase")
+        if isinstance(payload.get("pre_service_phase"), str)
+        else None,
     )
 
 
@@ -343,6 +350,9 @@ def list_live_presentation_services(
                 output_owner_id=output_status.owner_id or "scheduled",
                 output_heartbeat_at=output_status.heartbeat_at or now,
                 service_stage=str(payload.get("service_stage", "ready")),
+                pre_service_phase=payload.get("pre_service_phase")
+                if isinstance(payload.get("pre_service_phase"), str)
+                else None,
             )
         )
         seen_plan_ids.add(plan.id)
@@ -488,6 +498,7 @@ def update_presentation_output_status(
         next_payload.pop("output_active", None)
         next_payload.pop("output_recording_item_id", None)
         next_payload["service_stage"] = "post_service"
+        next_payload.pop("pre_service_phase", None)
         next_payload["blanked"] = True
         next_payload["updated_at"] = payload.heartbeat_at
     elif next_payload.get("output_closed_owner_id") == payload.owner_id:
@@ -501,6 +512,7 @@ def update_presentation_output_status(
         next_payload["output_heartbeat_at"] = payload.heartbeat_at
         next_payload["output_active"] = True
         next_payload["service_stage"] = "service"
+        next_payload.pop("pre_service_phase", None)
         if new_output:
             next_payload["output_recording_item_id"] = next_payload.get("plan_item_id")
 

@@ -21,6 +21,7 @@ describe("network TV display", () => {
       output_owner_id: "tv-controller-1",
       output_heartbeat_at: 12346,
       service_stage: "post_service",
+      pre_service_phase: "countdown",
     };
 
     expect(networkDisplayState(service)).toMatchObject({
@@ -30,6 +31,7 @@ describe("network TV display", () => {
       slideOffset: 3,
       updatedAt: 12345,
       serviceStage: "post_service",
+      preServicePhase: "countdown",
     });
   });
 });

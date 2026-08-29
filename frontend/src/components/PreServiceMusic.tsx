@@ -13,18 +13,20 @@ export function PreServiceMusic({
   serviceDate,
   url,
   outputMuted = false,
+  phase: forcedPhase,
 }: {
   continuous?: boolean;
   label?: string;
   serviceDate: string;
   url: string;
   outputMuted?: boolean;
+  phase?: "waiting" | "montage" | "countdown" | "complete" | null;
 }) {
   const videoId = extractYouTubeId(url);
   const frameRef = useRef<HTMLIFrameElement | null>(null);
   const [muted, setMuted] = useState(Boolean(videoId));
   const [now, setNow] = useState(Date.now());
-  const phase = preServicePhaseAt(serviceDate, now);
+  const phase = forcedPhase ?? preServicePhaseAt(serviceDate, now);
 
   useEffect(() => {
     const timer = window.setInterval(() => setNow(Date.now()), 1000);

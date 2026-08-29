@@ -63,6 +63,7 @@ export function networkDisplayState(service: PresentationLiveService): Presentat
     fullscreen: true,
     videoAction: null,
     serviceStage: service.service_stage ?? "ready",
+    preServicePhase: service.pre_service_phase ?? null,
   };
 }
 
@@ -475,6 +476,7 @@ export function PresentationOutput({ networkDisplay = false }: PresentationOutpu
             videoAction: remoteState.video_action,
             videoActionAt: remoteState.video_action_at ?? undefined,
             serviceStage: remoteState.service_stage ?? "ready",
+            preServicePhase: remoteState.pre_service_phase ?? null,
           });
         } catch {
           // Keep showing the last known slide if remote polling drops briefly.
@@ -657,7 +659,7 @@ export function PresentationOutput({ networkDisplay = false }: PresentationOutpu
             style={{ backgroundImage: `url(${LCF_BACKGROUND_URL})` }}
           />
         ) : liveSlide?.montageImageUrls && plan ? (
-          <PreServiceSlide backgroundImageUrl={LCF_BACKGROUND_URL} imageUrls={liveSlide.montageImageUrls} serviceDate={plan.service_date} timed={liveSlide.itemType === "pre_service"} />
+          <PreServiceSlide backgroundImageUrl={LCF_BACKGROUND_URL} imageUrls={liveSlide.montageImageUrls} serviceDate={plan.service_date} timed={liveSlide.itemType === "pre_service"} phase={liveState?.preServicePhase} phaseStartedAt={liveState?.updatedAt} />
         ) : liveSlide?.countdownSeconds ? (
           <CountdownSlide durationSeconds={liveSlide.countdownSeconds} startAt={liveState?.updatedAt} />
         ) : liveSlide?.backgroundImageUrl ? (
@@ -735,6 +737,7 @@ export function PresentationOutput({ networkDisplay = false }: PresentationOutpu
           continuous={liveState?.serviceStage === "post_service"}
           label={liveState?.serviceStage === "post_service" ? "Post-service music" : "Pre-service music"}
           outputMuted={!preServiceRoomAudioEnabled}
+          phase={liveState?.preServicePhase}
           serviceDate={plan.service_date}
           url={preServiceAudioUrl}
         />

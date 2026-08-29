@@ -1069,6 +1069,10 @@ export function PresentationView({
       fullscreen: currentLiveStateRef.current?.fullscreen ?? false,
       videoAction: overrides.videoAction ?? null,
       videoActionAt: overrides.videoActionAt,
+      serviceStage: overrides.serviceStage ?? currentLiveStateRef.current?.serviceStage,
+      preServicePhase: overrides.preServicePhase === undefined
+        ? currentLiveStateRef.current?.preServicePhase
+        : overrides.preServicePhase,
     };
   }
 
@@ -1147,6 +1151,7 @@ export function PresentationView({
             videoAction: liveState.video_action,
             videoActionAt: liveState.video_action_at ?? undefined,
             serviceStage: liveState.service_stage ?? "ready",
+            preServicePhase: liveState.pre_service_phase ?? null,
           }
         : null;
       const preservedIndex = options?.preserveLocation
@@ -1438,6 +1443,8 @@ export function PresentationView({
         fullscreen: Boolean(state.fullscreen),
         video_action: state.videoAction ?? null,
         video_action_at: state.videoActionAt ?? null,
+        service_stage: state.serviceStage ?? "ready",
+        pre_service_phase: state.preServicePhase ?? null,
       });
       lastLiveStateRef.current = synced.updated_at;
     } catch (error) {
@@ -1449,6 +1456,43 @@ export function PresentationView({
 
   async function publishLiveState(nextIndex: number, overrides: Partial<PresentationLiveState> = {}) {
     await publishLiveStateForSlides(slides, nextIndex, overrides);
+  }
+
+  async function showPreServiceRehearsalPhase(phase: "montage" | "countdown") {
+    const welcomeIndex = slides.findIndex((slide) => slide.itemType === "pre_service");
+    if (welcomeIndex < 0) {
+      setMessage("This service does not have a Welcome section to rehearse.");
+      return;
+    }
+    if (!slideshowOpen && !(await startSlideshow(openSlideshowWindowOnStart))) {
+      return;
+    }
+    setLiveIndex(welcomeIndex);
+    setLiveBlanked(false);
+    setSlideshowStartMenuOpen(false);
+    await publishLiveState(welcomeIndex, {
+      blanked: false,
+      serviceStage: "pre_service",
+      preServicePhase: phase,
+    });
+    setMessage(phase === "montage" ? "Rehearsal: welcome montage is live." : "Rehearsal: pre-service countdown is live.");
+  }
+
+  async function rehearseServiceStart() {
+    if (!slideshowOpen && !(await startSlideshow(openSlideshowWindowOnStart))) {
+      return;
+    }
+    const serviceIndex = slides.findIndex((slide) => slide.itemType !== "pre_service");
+    const nextIndex = serviceIndex >= 0 ? serviceIndex : liveIndex;
+    setLiveIndex(nextIndex);
+    setLiveBlanked(false);
+    setSlideshowStartMenuOpen(false);
+    await publishLiveState(nextIndex, {
+      blanked: false,
+      serviceStage: "service",
+      preServicePhase: null,
+    });
+    setMessage("Rehearsal: service started. Use Next to test the rest of the running order.");
   }
 
   async function detectDisplays() {
@@ -1535,12 +1579,12 @@ export function PresentationView({
   async function startSlideshow(openLocalWindow = openSlideshowWindowOnStart) {
     if (!plan) {
       setMessage("Select a plan before starting the slideshow.");
-      return;
+      return false;
     }
 
     if (slideshowOpen) {
       await closeActiveSlideshow();
-      return;
+      return false;
     }
 
     const currentOutputStatus = await getPresentationOutputStatus(plan.id).catch(() => null);
@@ -1548,7 +1592,7 @@ export function PresentationView({
       outputOwnerIdRef.current = currentOutputStatus.owner_id;
       setSlideshowOpen(true);
       await closeActiveSlideshow();
-      return;
+      return false;
     }
 
     const ownerId = outputOwnerId();
@@ -1559,18 +1603,18 @@ export function PresentationView({
     if (!claimed?.claimed || claimed.owner_id !== ownerId) {
       setMessage("Could not start the slideshow because another output session is active.");
       setSlideshowOpen(Boolean(claimed?.active));
-      return;
+      return false;
     }
 
     outputOwnerIdRef.current = ownerId;
     setSlideshowOpen(true);
     const startOnBackground = liveSlide?.itemType === "pre_service";
     setLiveBlanked(startOnBackground);
-    await publishLiveState(liveIndex, { blanked: startOnBackground, serviceStage: "service" });
+    await publishLiveState(liveIndex, { blanked: startOnBackground, serviceStage: "service", preServicePhase: null });
 
     if (!openLocalWindow) {
       setMessage("Slideshow started. Connected TV and browser displays are active.");
-      return;
+      return true;
     }
 
     const detectedScreens = isMobileOrTabletDevice() ? [] : screens.length ? screens : await detectDisplays();
@@ -1607,12 +1651,13 @@ export function PresentationView({
     const outputWindow = window.open(url.toString(), "cspot-pro-live-output", features);
     if (!outputWindow) {
       setMessage("The TV presentation is active, but the browser blocked the local output window. Allow pop-ups to open it next time.");
-      return;
+      return true;
     }
 
     outputWindowRef.current = outputWindow;
     setMessage(null);
     outputWindow.focus();
+    return true;
   }
 
   async function selectPlan(planId: string) {
@@ -3227,6 +3272,7 @@ export function PresentationView({
             videoAction: remoteState.video_action,
             videoActionAt: remoteState.video_action_at ?? undefined,
             serviceStage: remoteState.service_stage ?? "ready",
+            preServicePhase: remoteState.pre_service_phase ?? null,
           });
           if (remoteState.plan_item_id && remoteState.plan_item_id === previousPlanItemId) {
             if (selectedPlanIdRef.current !== selectedPlanId) return;
@@ -3938,7 +3984,7 @@ export function PresentationView({
                   style={{ backgroundImage: `url(${LCF_BACKGROUND_URL})` }}
                 />
               ) : liveSlide?.montageImageUrls && plan ? (
-                <PreServiceSlide backgroundImageUrl={LCF_BACKGROUND_URL} imageUrls={liveSlide.montageImageUrls} serviceDate={plan.service_date} timed={liveSlide.itemType === "pre_service"} />
+                <PreServiceSlide backgroundImageUrl={LCF_BACKGROUND_URL} imageUrls={liveSlide.montageImageUrls} serviceDate={plan.service_date} timed={liveSlide.itemType === "pre_service"} phase={currentLiveStateRef.current?.preServicePhase} phaseStartedAt={currentLiveStateRef.current?.updatedAt} />
               ) : liveSlide?.countdownSeconds ? (
                 <CountdownSlide
                   durationSeconds={liveSlide.countdownSeconds}
@@ -4037,6 +4083,20 @@ export function PresentationView({
                     >
                       <span aria-hidden="true">{openSlideshowWindowOnStart ? "✓" : ""}</span>
                       Open slideshow in new window
+                    </button>
+                    <div className="slideshow-start-menu-divider" role="separator" />
+                    <span className="slideshow-start-menu-label">Rehearse service flow</span>
+                    <button onClick={() => void showPreServiceRehearsalPhase("montage")} role="menuitem" type="button">
+                      <span aria-hidden="true">1</span>
+                      Welcome montage
+                    </button>
+                    <button onClick={() => void showPreServiceRehearsalPhase("countdown")} role="menuitem" type="button">
+                      <span aria-hidden="true">2</span>
+                      Countdown
+                    </button>
+                    <button onClick={() => void rehearseServiceStart()} role="menuitem" type="button">
+                      <span aria-hidden="true">3</span>
+                      Start service
                     </button>
                   </div>
                 ) : null}

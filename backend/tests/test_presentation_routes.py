@@ -51,7 +51,8 @@ def test_live_state_serializes_payload_over_legacy_columns() -> None:
         payload_json=(
             '{"index": 8, "plan_item_id": "payload-item", "slide_offset": 2, '
             '"updated_at": 12345, "theme": "dark", "blanked": true, "fullscreen": true, '
-            '"video_action": "fade-stop", "video_action_at": 54321}'
+            '"video_action": "fade-stop", "video_action_at": 54321, '
+            '"service_stage": "pre_service", "pre_service_phase": "countdown"}'
         ),
     )
 
@@ -70,6 +71,8 @@ def test_live_state_serializes_payload_over_legacy_columns() -> None:
     assert state.fullscreen is True
     assert state.video_action == "fade-stop"
     assert state.video_action_at == 54321
+    assert state.service_stage == "pre_service"
+    assert state.pre_service_phase == "countdown"
 
 
 def test_live_state_falls_back_to_ready_defaults_without_session() -> None:

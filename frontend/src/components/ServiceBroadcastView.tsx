@@ -84,6 +84,7 @@ function liveStateFromApi(state: Awaited<ReturnType<typeof getPresentationLiveSt
     videoAction: state.video_action,
     videoActionAt: state.video_action_at ?? undefined,
     serviceStage: state.service_stage ?? "ready",
+    preServicePhase: state.pre_service_phase ?? null,
   };
 }
 
@@ -397,7 +398,7 @@ export function ServiceBroadcastView({ canControl = false, onOpenSettings }: { c
             ) : !liveSlide ? (
               <HoldingPane message="The livestream is live" startingSoon />
             ) : liveSlide.montageImageUrls && plan ? (
-              <PreServiceSlide backgroundImageUrl={LCF_BACKGROUND_URL} imageUrls={liveSlide.montageImageUrls} serviceDate={plan.service_date} timed={liveSlide.itemType === "pre_service"} />
+              <PreServiceSlide backgroundImageUrl={LCF_BACKGROUND_URL} imageUrls={liveSlide.montageImageUrls} serviceDate={plan.service_date} timed={liveSlide.itemType === "pre_service"} phase={liveState?.preServicePhase} phaseStartedAt={liveState?.updatedAt} />
             ) : liveSlide.countdownSeconds ? (
               <CountdownSlide durationSeconds={liveSlide.countdownSeconds} startAt={liveState?.updatedAt} />
             ) : liveSlide.backgroundImageUrl ? (
@@ -474,6 +475,7 @@ export function ServiceBroadcastView({ canControl = false, onOpenSettings }: { c
             <PreServiceMusic
               continuous={liveState?.serviceStage === "post_service"}
               label={liveState?.serviceStage === "post_service" ? "Post-service music" : "Pre-service music"}
+              phase={liveState?.preServicePhase}
               serviceDate={plan.service_date}
               url={settings.pre_service_audio_url}
             />

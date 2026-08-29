@@ -25,17 +25,25 @@ export function PreServiceSlide({
   imageUrls,
   serviceDate,
   timed = true,
+  phase: forcedPhase,
+  phaseStartedAt,
 }: {
   backgroundImageUrl: string;
   imageUrls: string[];
   serviceDate: string;
   timed?: boolean;
+  phase?: "waiting" | "montage" | "countdown" | "complete" | null;
+  phaseStartedAt?: number;
 }) {
   const [now, setNow] = useState(Date.now());
   const images = imageUrls.filter(Boolean);
-  const phase = timed ? preServicePhaseAt(serviceDate, now) : "montage";
+  const phase = forcedPhase ?? (timed ? preServicePhaseAt(serviceDate, now) : "montage");
   const montageImageUrl = images[Math.floor(now / 12_000) % Math.max(images.length, 1)];
-  const remaining = Math.max(0, Math.ceil((serviceDayTimestamp(serviceDate, 11, 0) - now) / 1000));
+  const remaining = Math.max(0, Math.ceil(
+    forcedPhase === "countdown" && phaseStartedAt
+      ? 300 - (now - phaseStartedAt) / 1000
+      : (serviceDayTimestamp(serviceDate, 11, 0) - now) / 1000,
+  ));
 
   useEffect(() => {
     const timer = window.setInterval(() => setNow(Date.now()), 1000);

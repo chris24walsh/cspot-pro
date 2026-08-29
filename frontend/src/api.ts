@@ -283,6 +283,7 @@ export interface PresentationLiveSyncState {
   video_action: "play" | "pause" | "stop" | "fade-stop" | null;
   video_action_at: number | null;
   service_stage?: "pre_service" | "ready" | "service" | "post_service";
+  pre_service_phase?: "waiting" | "montage" | "countdown" | "complete" | null;
 }
 
 export interface PresentationLiveService {
@@ -301,6 +302,7 @@ export interface PresentationLiveService {
   output_owner_id: string;
   output_heartbeat_at: number;
   service_stage?: "pre_service" | "ready" | "service" | "post_service";
+  pre_service_phase?: "waiting" | "montage" | "countdown" | "complete" | null;
 }
 
 export interface PresentationOutputStatus {
@@ -1010,6 +1012,8 @@ export async function updatePresentationLiveState(
     fullscreen: boolean;
     video_action?: "play" | "pause" | "stop" | "fade-stop" | null;
     video_action_at?: number | null;
+    service_stage?: "pre_service" | "ready" | "service" | "post_service";
+    pre_service_phase?: "waiting" | "montage" | "countdown" | "complete" | null;
   },
 ): Promise<PresentationLiveSyncState> {
   return sendJson<PresentationLiveSyncState>(`/api/v1/presentation/live/${planId}`, "PATCH", payload, {

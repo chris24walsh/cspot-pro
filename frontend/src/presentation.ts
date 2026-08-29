@@ -20,6 +20,7 @@ export interface PresentationLiveState {
   videoAction?: "play" | "pause" | "stop" | "fade-stop" | null;
   videoActionAt?: number;
   serviceStage?: "pre_service" | "ready" | "service" | "post_service";
+  preServicePhase?: "waiting" | "montage" | "countdown" | "complete" | null;
 }
 
 export interface PresentationSlide {
