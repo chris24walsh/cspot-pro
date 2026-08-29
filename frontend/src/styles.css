@@ -8380,12 +8380,16 @@ button.musician-page {
 .pre-service-slide.is-complete .pre-service-countdown {
   align-items: center;
   bottom: auto;
+  box-sizing: border-box;
   display: grid;
-  inset: 50% 0 auto;
+  grid-template-columns: minmax(0, 1fr);
+  inset: 50% 0 auto 0;
   justify-items: center;
+  min-width: 0;
   text-align: center;
   transform: translateY(-50%);
   white-space: nowrap;
+  width: 100%;
 }
 
 .pre-service-slide.is-countdown .pre-service-countdown span,
@@ -8403,7 +8407,7 @@ button.musician-page {
   align-items: center;
   display: grid;
   justify-items: center;
-  max-width: 90cqw;
+  min-width: 0;
   width: 90%;
 }
 
@@ -8421,6 +8425,7 @@ button.musician-page {
   flex-direction: column;
   gap: 0.1em;
   justify-self: stretch;
+  min-width: 0;
   text-align: center;
   width: 100%;
 }
