@@ -8356,9 +8356,11 @@ button.musician-page {
   bottom: auto;
   display: grid;
   gap: 0.1em;
-  inset: 50% auto auto 50%;
+  inset: 50% 0 auto;
   justify-items: center;
-  transform: translate(-50%, -50%);
+  text-align: center;
+  transform: translateY(-50%);
+  width: 100%;
   white-space: nowrap;
 }
 
@@ -8385,6 +8387,7 @@ button.musician-page {
   display: flex;
   flex-direction: column;
   gap: 0.1em;
+  width: 100%;
 }
 
 .pre-service-countdown-copy.is-active,
@@ -8394,7 +8397,7 @@ button.musician-page {
 
 .pre-service-slide.is-complete .pre-service-countdown .pre-service-seated-message {
   font-size: clamp(24px, 8cqw, 112px);
-  letter-spacing: -0.025em;
+  letter-spacing: normal;
   line-height: 1.08;
   max-width: 90cqw;
   text-align: center;
