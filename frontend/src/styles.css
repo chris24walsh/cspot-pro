@@ -8081,9 +8081,10 @@ button.musician-page {
   background: #111816;
   color: #fffdf5;
   height: 100vh;
+  max-width: 100%;
   overflow: hidden;
   position: relative;
-  width: 100vw;
+  width: 100%;
 }
 
 .slideshow-stage {
@@ -8160,8 +8161,10 @@ button.musician-page {
 
 .service-broadcast-slide > .slide-visual-transition {
   aspect-ratio: 16 / 9;
+  height: auto;
   max-height: 100%;
   max-width: 100%;
+  width: min(100%, calc(100cqh * 16 / 9));
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -8360,20 +8363,19 @@ button.musician-page {
   justify-items: center;
   text-align: center;
   transform: translateY(-50%);
-  width: 100%;
   white-space: nowrap;
 }
 
 .pre-service-slide.is-countdown .pre-service-countdown span,
 .pre-service-slide.is-complete .pre-service-countdown span {
-  font-size: clamp(20px, 3vw, 50px);
+  font-size: clamp(12px, 3cqw, 50px);
   text-transform: uppercase;
 }
 
 .pre-service-slide.is-countdown .pre-service-countdown strong,
 .pre-service-slide.is-complete .pre-service-countdown strong {
-  font-size: clamp(100px, 21vw, 330px);
-  letter-spacing: -0.06em;
+  font-size: clamp(48px, 21cqw, 330px);
+  letter-spacing: -0.03em;
 }
 
 .pre-service-countdown-copy,
