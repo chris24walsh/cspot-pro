@@ -8289,6 +8289,11 @@ button.musician-page {
 .pre-service-upload-control {
   display: grid;
   gap: 6px;
+  min-width: 0;
+}
+
+.pre-service-upload-control input[type="file"] {
+  max-width: 100%;
 }
 
 .pre-service-media-grid {
@@ -9214,6 +9219,24 @@ button.musician-page {
 }
 
 @media (max-width: 540px) {
+  .pre-service-media-dialog {
+    align-self: stretch;
+    max-height: calc(100svh - 12px);
+    min-width: 0;
+    overflow-x: hidden;
+    padding: 14px;
+    width: 100%;
+  }
+
+  .pre-service-media-dialog > * {
+    min-width: 0;
+  }
+
+  .pre-service-media-dialog .app-dialog-actions,
+  .pre-service-media-dialog .app-dialog-actions .primary-button {
+    width: 100%;
+  }
+
   .song-editor-dialog .section-heading {
     gap: 5px;
   }

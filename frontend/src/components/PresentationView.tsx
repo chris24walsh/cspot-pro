@@ -4894,7 +4894,7 @@ export function PresentationView({
 
       {preServiceMediaOpen ? (
         <div className="app-dialog-backdrop" role="presentation">
-          <div aria-labelledby="pre-service-media-title" aria-modal="true" className="app-dialog app-dialog-wide" role="dialog">
+          <div aria-labelledby="pre-service-media-title" aria-modal="true" className="app-dialog app-dialog-wide pre-service-media-dialog" role="dialog">
             <div>
               <h2 id="pre-service-media-title">Pre-service montage</h2>
               <p>These photos are shared by every Sunday service and rotate automatically before the service.</p>
