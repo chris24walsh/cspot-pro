@@ -8261,11 +8261,13 @@ button.musician-page {
   line-height: 1;
 }
 
-.pre-service-slide.is-countdown .pre-service-shade {
+.pre-service-slide.is-countdown .pre-service-shade,
+.pre-service-slide.is-complete .pre-service-shade {
   background: rgba(5, 12, 16, 0.5);
 }
 
-.pre-service-slide.is-countdown .pre-service-countdown {
+.pre-service-slide.is-countdown .pre-service-countdown,
+.pre-service-slide.is-complete .pre-service-countdown {
   align-items: center;
   bottom: auto;
   flex-direction: column;
@@ -8275,12 +8277,14 @@ button.musician-page {
   white-space: nowrap;
 }
 
-.pre-service-slide.is-countdown .pre-service-countdown span {
+.pre-service-slide.is-countdown .pre-service-countdown span,
+.pre-service-slide.is-complete .pre-service-countdown span {
   font-size: clamp(20px, 3vw, 50px);
   text-transform: uppercase;
 }
 
-.pre-service-slide.is-countdown .pre-service-countdown strong {
+.pre-service-slide.is-countdown .pre-service-countdown strong,
+.pre-service-slide.is-complete .pre-service-countdown strong {
   font-size: clamp(100px, 21vw, 330px);
   letter-spacing: -0.06em;
 }

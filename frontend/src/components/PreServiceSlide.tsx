@@ -44,6 +44,7 @@ export function PreServiceSlide({
       ? 300 - (now - phaseStartedAt) / 1000
       : (serviceDayTimestamp(serviceDate, 11, 0) - now) / 1000,
   ));
+  const displayPhase = phase === "countdown" && remaining === 0 ? "complete" : phase;
 
   useEffect(() => {
     const timer = window.setInterval(() => setNow(Date.now()), 1000);
@@ -52,7 +53,7 @@ export function PreServiceSlide({
 
   return (
     <div
-      className={`pre-service-slide is-${phase}`}
+      className={`pre-service-slide is-${displayPhase}`}
       style={backgroundImageUrl ? { backgroundImage: `url(${backgroundImageUrl})` } : undefined}
     >
       {images.length && phase !== "waiting" ? (
@@ -61,11 +62,15 @@ export function PreServiceSlide({
           style={{ backgroundImage: `url(${montageImageUrl})` }}
         />
       ) : null}
-      {phase === "countdown" ? <div className="pre-service-shade" /> : null}
-      {phase === "countdown" ? (
+      {displayPhase === "countdown" || displayPhase === "complete" ? <div className="pre-service-shade" /> : null}
+      {displayPhase === "countdown" || displayPhase === "complete" ? (
         <div className="pre-service-countdown" aria-live="off">
-          <span>Service begins in</span>
-          <strong>{countdownLabel(remaining)}</strong>
+          {displayPhase === "countdown" ? (
+            <>
+              <span>Service begins in</span>
+              <strong>{countdownLabel(remaining)}</strong>
+            </>
+          ) : <strong>Please be seated</strong>}
         </div>
       ) : null}
     </div>

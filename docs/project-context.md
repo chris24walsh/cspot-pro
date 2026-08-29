@@ -70,7 +70,8 @@ Sections should remain visible and directly navigable while presenting.
 New Sunday-service plans begin with five simple sections: Welcome, Worship,
 Open time, Sermon, and Announcements. Welcome merges fellowship and seating: its
 photo montage and relaxing music begin at 10:30, its countdown appears only at
-10:55, and service output takes over at 11:00. Presenters can override those
+10:55, then changes to “Please be seated” at 11:00 until service output takes
+over. Administrators can override those
 clock-driven phases from the Start menu to simulate a Sunday morning at any
 time; the rehearsal uses the same synced display and broadcast state as a live
 service. These rehearsal controls are restricted to administrators. Open time is a neutral LCF background transition. Empty Sermon and Announcements sections are clickable
