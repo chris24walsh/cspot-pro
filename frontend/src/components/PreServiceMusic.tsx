@@ -7,6 +7,9 @@ function loopingYouTubeUrl(videoId: string) {
   return `https://www.youtube-nocookie.com/embed/${videoId}?autoplay=1&mute=1&loop=1&playlist=${videoId}&rel=0&modestbranding=1&playsinline=1&enablejsapi=1`;
 }
 
+const AUDIO_FADE_STEPS = 30;
+const AUDIO_FADE_INTERVAL_MS = 200;
+
 export function preServiceAudioShouldPlay(
   continuous: boolean,
   phase: "waiting" | "montage" | "countdown" | "complete",
@@ -66,16 +69,16 @@ export function PreServiceMusic({
     let step = 0;
     const timer = window.setInterval(() => {
       step += 1;
-      const volume = Math.max(0, 1 - step / 20);
+      const volume = Math.max(0, 1 - step / AUDIO_FADE_STEPS);
       if (audioRef.current) audioRef.current.volume = volume;
       frameRef.current?.contentWindow?.postMessage(JSON.stringify({ event: "command", func: "setVolume", args: [Math.round(volume * 100)] }), "*");
-      if (step < 20) return;
+      if (step < AUDIO_FADE_STEPS) return;
       window.clearInterval(timer);
       audioRef.current?.pause();
       frameRef.current?.contentWindow?.postMessage(JSON.stringify({ event: "command", func: "pauseVideo", args: [] }), "*");
       setRendered(false);
       setFading(false);
-    }, 100);
+    }, AUDIO_FADE_INTERVAL_MS);
     return () => window.clearInterval(timer);
   }, [rendered, shouldPlay]);
 

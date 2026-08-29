@@ -8227,7 +8227,7 @@ button.musician-page {
   inset: 0;
   opacity: 0;
   position: absolute;
-  transition: opacity 1800ms ease-in-out;
+  transition: opacity 2000ms ease-in-out;
 }
 
 .pre-service-photo-layer.is-active {
@@ -8242,7 +8242,7 @@ button.musician-page {
 .pre-service-music-control.is-fading {
   opacity: 0;
   pointer-events: none;
-  transition: opacity 2000ms ease-out;
+  transition: opacity 6000ms ease-out;
 }
 
 .pre-service-shade {
