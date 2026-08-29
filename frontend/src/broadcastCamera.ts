@@ -71,7 +71,7 @@ function parsedCameraUrl(url: string) {
 export function go2RtcSourceName(url: string): string | null {
   try {
     const parsed = parsedCameraUrl(url);
-    if (!parsed.pathname.endsWith("/api/stream.m3u8")) return null;
+    if (!parsed.pathname.endsWith("/api/stream.m3u8") && !parsed.pathname.endsWith("/stream.html")) return null;
     return parsed.searchParams.get("src") || null;
   } catch {
     return null;
@@ -82,7 +82,7 @@ export function go2RtcWebSocketUrl(url: string): string | null {
   const source = go2RtcSourceName(url);
   if (!source) return null;
   const parsed = parsedCameraUrl(url);
-  parsed.pathname = parsed.pathname.replace(/\/api\/stream\.m3u8$/, "/api/ws");
+  parsed.pathname = parsed.pathname.replace(/\/(?:api\/stream\.m3u8|stream\.html)$/, "/api/ws");
   parsed.search = new URLSearchParams({ src: source }).toString();
   parsed.protocol = parsed.protocol === "https:" ? "wss:" : "ws:";
   return parsed.toString();
@@ -98,9 +98,12 @@ export function go2RtcAudioStreamUrl(streamName: string): string | null {
 export function cameraAudioUrl(url: string): string {
   try {
     const parsed = parsedCameraUrl(url);
-    if (!parsed.pathname.endsWith("/api/stream.m3u8")) return url;
+    const isPlaylist = parsed.pathname.endsWith("/api/stream.m3u8");
+    const isPlayer = parsed.pathname.endsWith("/stream.html");
+    if (!isPlaylist && !isPlayer) return url;
     const source = parsed.searchParams.get("src");
     if (!source) return url;
+    if (isPlayer) parsed.pathname = parsed.pathname.replace(/\/stream\.html$/, "/api/stream.m3u8");
     parsed.search = new URLSearchParams({ audio: "aac", src: source }).toString();
     return `${parsed.pathname}${parsed.search}`;
   } catch {

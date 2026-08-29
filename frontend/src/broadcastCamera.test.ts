@@ -16,6 +16,13 @@ describe("broadcast camera helpers", () => {
     expect(go2RtcWebSocketUrl(url)).toBe("wss://cspot.example/app/camera/api/ws?src=lectern");
   });
 
+  it("converts a go2rtc player URL into native video and audio streams", () => {
+    const url = "/app/camera/stream.html?src=lectern&mode=mse";
+    expect(go2RtcSourceName(url)).toBe("lectern");
+    expect(go2RtcWebSocketUrl(url)).toBe("ws://localhost/app/camera/api/ws?src=lectern");
+    expect(cameraAudioUrl(url)).toBe("/app/camera/api/stream.m3u8?audio=aac&src=lectern");
+  });
+
   it("builds an audio-only camera playlist", () => {
     expect(cameraAudioUrl("/app/camera/api/stream.m3u8?src=ptz&video=h264&audio=aac"))
       .toBe("/app/camera/api/stream.m3u8?audio=aac&src=ptz");
