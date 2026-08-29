@@ -367,16 +367,16 @@ def playback_authorized(
                 camera_sources(settings),
                 independent_sources,
             )
-            selected_source = next(
-                (
-                    source
-                    for source in independent_sources
-                    if source.id == selected_source_id
-                ),
-                None,
+            selected_sources = (
+                [source for source in independent_sources if source.mix_enabled]
+                if selected_source_id == "mix"
+                else [source for source in independent_sources if source.id == selected_source_id]
             )
-            if selected_source and (name := audio_stream_name(selected_source)):
-                allowed_sources.add(name)
+            allowed_sources.update(
+                name
+                for source in selected_sources
+                if (name := audio_stream_name(source)) is not None
+            )
         if requested_source not in allowed_sources:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,

@@ -144,10 +144,16 @@ export function ServiceBroadcastView({ canControl = false, onOpenSettings }: { c
   );
   const selectedAudioCamera = settings.camera_sources.find((source) => source.id === settings.live_audio_source) ?? null;
   const selectedIndependentAudio = settings.audio_sources.find((source) => source.id === settings.live_audio_source) ?? null;
+  const mixedAudioSources = settings.audio_sources.filter((source) => source.mix_enabled);
+  const singleMixedAudioStreamName = settings.live_audio_source === "mix" && mixedAudioSources.length === 1
+    ? mixedAudioSources[0].stream_name
+    : null;
   const rehearsalIsolated = selectedIndependentAudio?.role === "media";
-  const useMixedRelay = settings.live_audio_source === "mix" || Boolean(selectedIndependentAudio);
+  const useMixedRelay = (settings.live_audio_source === "mix" && !singleMixedAudioStreamName) || Boolean(selectedIndependentAudio);
   const liveAudioUrl = useMixedRelay
     ? broadcastLiveAudioUrl()
+    : singleMixedAudioStreamName
+    ? go2RtcAudioStreamUrl(singleMixedAudioStreamName)
     : selectedIndependentAudio
     ? (settings.live_audio_stream_name ? go2RtcAudioStreamUrl(settings.live_audio_stream_name) : null) ?? broadcastLiveAudioUrl()
     : selectedAudioCamera

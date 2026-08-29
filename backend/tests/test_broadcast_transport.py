@@ -363,6 +363,34 @@ def test_playback_authorization_rejects_unconfigured_dynamic_source(
     assert caught.value.status_code == status.HTTP_403_FORBIDDEN
 
 
+def test_playback_authorization_allows_enabled_source_in_selected_mix(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    source = audio_source()
+    viewer = BroadcastViewerSettings(
+        stream_title="Service",
+        manual_live_audience="public",
+        live_audio_source="mix",
+        audio_sources_json=json.dumps([source.model_dump()]),
+        pre_service_minutes=60,
+        starting_soon_message="Soon",
+        offline_message="Offline",
+    )
+    session = SimpleNamespace(scalar=lambda _query: viewer)
+    monkeypatch.setattr(
+        "app.modules.broadcast.routes.list_permissions",
+        lambda *_args: ["plans:read"],
+    )
+
+    response = playback_authorized(
+        SimpleNamespace(id="viewer"),
+        session,
+        audio_stream_name(source),
+    )
+
+    assert response.status_code == status.HTTP_204_NO_CONTENT
+
+
 def test_playback_authorization_allows_hls_session_for_visible_stream(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
