@@ -8266,6 +8266,14 @@ button.musician-page {
   opacity: 1;
 }
 
+.pre-service-photo-matte {
+  background: #17252b;
+  inset: 0;
+  opacity: 1;
+  position: absolute;
+  transition: opacity 2000ms ease-in-out;
+}
+
 .pre-service-photo-layer {
   opacity: 0;
   transition: opacity 2000ms ease-in-out;
@@ -8277,6 +8285,11 @@ button.musician-page {
 
 .pre-service-slide.is-waiting .pre-service-photo-layer,
 .pre-service-slide.is-complete .pre-service-photo-layer {
+  opacity: 0;
+}
+
+.pre-service-slide.is-waiting .pre-service-photo-matte,
+.pre-service-slide.is-complete .pre-service-photo-matte {
   opacity: 0;
 }
 

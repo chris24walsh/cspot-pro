@@ -85,6 +85,7 @@ describe("pre-service timing", () => {
     expect(montage).toContain("pre-service-slide is-montage");
     expect(montage).toContain("pre-service-photo-layer is-active");
     expect(montage).toContain('class="pre-service-background-layer"');
+    expect(montage).toContain('class="pre-service-photo-matte"');
     expect(montage).toContain('src="background.jpg"');
     expect(montage).not.toContain("background-image");
     expect(montage).not.toContain("Service starts in");

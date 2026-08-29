@@ -60,6 +60,7 @@ export function PreServiceSlide({
       {backgroundImageUrl ? (
         <img alt="" aria-hidden="true" className="pre-service-background-layer" src={backgroundImageUrl} />
       ) : null}
+      <div aria-hidden="true" className="pre-service-photo-matte" />
       {images.map((imageUrl, index) => (
         <img
           alt=""
