@@ -7,6 +7,17 @@ function loopingYouTubeUrl(videoId: string) {
   return `https://www.youtube-nocookie.com/embed/${videoId}?autoplay=1&mute=1&loop=1&playlist=${videoId}&rel=0&modestbranding=1&playsinline=1&enablejsapi=1`;
 }
 
+export function preServiceAudioShouldPlay(
+  continuous: boolean,
+  phase: "waiting" | "montage" | "countdown" | "complete",
+  phaseStartedAt: number | undefined,
+  now: number,
+) {
+  if (continuous) return true;
+  if (phase === "countdown" && phaseStartedAt && now - phaseStartedAt >= 300_000) return false;
+  return phase === "montage" || phase === "countdown";
+}
+
 export function PreServiceMusic({
   continuous = false,
   label = "Pre-service music",
@@ -14,6 +25,7 @@ export function PreServiceMusic({
   url,
   outputMuted = false,
   phase: forcedPhase,
+  phaseStartedAt,
 }: {
   continuous?: boolean;
   label?: string;
@@ -21,6 +33,7 @@ export function PreServiceMusic({
   url: string;
   outputMuted?: boolean;
   phase?: "waiting" | "montage" | "countdown" | "complete" | null;
+  phaseStartedAt?: number;
 }) {
   const videoId = extractYouTubeId(url);
   const frameRef = useRef<HTMLIFrameElement | null>(null);
@@ -33,7 +46,7 @@ export function PreServiceMusic({
     return () => window.clearInterval(timer);
   }, []);
 
-  if (!continuous && phase !== "montage" && phase !== "countdown") {
+  if (!preServiceAudioShouldPlay(continuous, phase, phaseStartedAt, now)) {
     return null;
   }
 

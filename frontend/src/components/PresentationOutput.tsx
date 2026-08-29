@@ -738,6 +738,7 @@ export function PresentationOutput({ networkDisplay = false }: PresentationOutpu
           label={liveState?.serviceStage === "post_service" ? "Post-service music" : "Pre-service music"}
           outputMuted={!preServiceRoomAudioEnabled}
           phase={liveState?.preServicePhase}
+          phaseStartedAt={liveState?.updatedAt}
           serviceDate={plan.service_date}
           url={preServiceAudioUrl}
         />

@@ -1484,17 +1484,17 @@ export function PresentationView({
     if (!slideshowOpen && !(await startSlideshow(openSlideshowWindowOnStart))) {
       return;
     }
-    const serviceIndex = slides.findIndex((slide) => slide.itemType !== "pre_service");
-    const nextIndex = serviceIndex >= 0 ? serviceIndex : liveIndex;
+    const welcomeIndex = slides.findIndex((slide) => slide.itemType === "pre_service");
+    const nextIndex = welcomeIndex >= 0 ? welcomeIndex : liveIndex;
     setLiveIndex(nextIndex);
     setLiveBlanked(false);
     setSlideshowStartMenuOpen(false);
     await publishLiveState(nextIndex, {
       blanked: false,
       serviceStage: "service",
-      preServicePhase: null,
+      preServicePhase: "waiting",
     });
-    setMessage("Rehearsal: service started. Use Next to test the rest of the running order.");
+    setMessage("Rehearsal: service started on the holding background. Use Next when worship is ready to begin.");
   }
 
   async function detectDisplays() {

@@ -476,6 +476,7 @@ export function ServiceBroadcastView({ canControl = false, onOpenSettings }: { c
               continuous={liveState?.serviceStage === "post_service"}
               label={liveState?.serviceStage === "post_service" ? "Post-service music" : "Pre-service music"}
               phase={liveState?.preServicePhase}
+              phaseStartedAt={liveState?.updatedAt}
               serviceDate={plan.service_date}
               url={settings.pre_service_audio_url}
             />

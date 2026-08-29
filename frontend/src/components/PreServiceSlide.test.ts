@@ -3,6 +3,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
 import { PreServiceSlide, preServicePhaseAt } from "./PreServiceSlide";
+import { preServiceAudioShouldPlay } from "./PreServiceMusic";
 
 describe("pre-service timing", () => {
   const serviceDate = new Date(2026, 7, 30, 10, 30).toISOString();
@@ -37,5 +38,12 @@ describe("pre-service timing", () => {
     expect(simulated).toContain('class="pre-service-seated-message"');
     expect(simulated).not.toContain("0:00");
     vi.restoreAllMocks();
+  });
+
+  it("stops pre-service audio when the countdown ends or service starts", () => {
+    const startedAt = 1_000_000;
+    expect(preServiceAudioShouldPlay(false, "countdown", startedAt, startedAt + 299_999)).toBe(true);
+    expect(preServiceAudioShouldPlay(false, "countdown", startedAt, startedAt + 300_000)).toBe(false);
+    expect(preServiceAudioShouldPlay(false, "waiting", undefined, startedAt)).toBe(false);
   });
 });
