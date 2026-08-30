@@ -6213,7 +6213,6 @@ button.musician-page {
 
 .service-broadcast-sound-button.is-enabled {
   opacity: 0;
-  pointer-events: none;
 }
 
 .service-broadcast-admin-live-controls {

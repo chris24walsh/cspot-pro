@@ -1,4 +1,4 @@
-import { RefreshCw, Volume2 } from "lucide-react";
+import { RefreshCw, Volume2, VolumeX } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { go2RtcWebSocketUrl } from "../broadcastCamera";
@@ -488,10 +488,10 @@ function LowLatencyMseAudio({
   return (
     <div className="service-broadcast-preservice-audio service-broadcast-live-audio">
       <audio autoPlay className="service-broadcast-audio-element" ref={audioRef} />
-      <button aria-label={playbackFailed ? "Retry sound" : "Enable sound"} className={`service-broadcast-sound-button ${soundEnabled ? "is-enabled" : ""}`} disabled={soundEnabled} onClick={toggleSound} title={soundEnabled ? `${label} enabled` : playbackFailed ? "Retry sound" : "Enable sound"} type="button">
+      <button aria-label={soundEnabled ? "Mute sound" : playbackFailed ? "Retry sound" : "Turn on sound"} aria-pressed={soundEnabled} className={`service-broadcast-sound-button ${soundEnabled ? "is-enabled" : ""}`} onClick={toggleSound} title={soundEnabled ? `Mute ${label}` : playbackFailed ? "Retry sound" : `Turn on ${label}`} type="button">
         <span className="service-broadcast-sound-button-face">
-          <Volume2 size={16} aria-hidden="true" />
-          <span className="service-broadcast-sound-button-label">{playbackFailed ? "Retry sound" : "Enable sound"}</span>
+          {soundEnabled ? <VolumeX size={16} aria-hidden="true" /> : <Volume2 size={16} aria-hidden="true" />}
+          <span className="service-broadcast-sound-button-label">{soundEnabled ? "Mute sound" : playbackFailed ? "Retry sound" : "Turn on sound"}</span>
         </span>
       </button>
     </div>
@@ -551,7 +551,11 @@ function FallbackLiveStreamAudio({ label, onSoundEnabledChange, url }: { label: 
         .catch(() => setPlaybackFailed(true));
     };
     const handlePlaybackError = () => {
+      audio.muted = true;
+      soundEnabledRef.current = false;
+      setSoundEnabled(false);
       setPlaybackFailed(true);
+      onSoundEnabledChange?.(false);
     };
     audio.muted = !soundEnabledRef.current;
     audio.defaultMuted = !soundEnabledRef.current;
@@ -589,10 +593,10 @@ function FallbackLiveStreamAudio({ label, onSoundEnabledChange, url }: { label: 
   return (
     <div className="service-broadcast-preservice-audio service-broadcast-live-audio">
       <audio autoPlay className="service-broadcast-audio-element" preload="auto" ref={audioRef} />
-      <button aria-label={playbackFailed ? "Retry sound" : "Enable sound"} className={`service-broadcast-sound-button ${soundEnabled ? "is-enabled" : ""}`} disabled={soundEnabled} onClick={toggleSound} title={soundEnabled ? `${label} enabled` : playbackFailed ? "Retry sound" : "Enable sound"} type="button">
+      <button aria-label={soundEnabled ? "Mute sound" : playbackFailed ? "Retry sound" : "Turn on sound"} aria-pressed={soundEnabled} className={`service-broadcast-sound-button ${soundEnabled ? "is-enabled" : ""}`} onClick={toggleSound} title={soundEnabled ? `Mute ${label}` : playbackFailed ? "Retry sound" : `Turn on ${label}`} type="button">
         <span className="service-broadcast-sound-button-face">
-          <Volume2 size={16} aria-hidden="true" />
-          <span className="service-broadcast-sound-button-label">{playbackFailed ? "Retry sound" : "Enable sound"}</span>
+          {soundEnabled ? <VolumeX size={16} aria-hidden="true" /> : <Volume2 size={16} aria-hidden="true" />}
+          <span className="service-broadcast-sound-button-label">{soundEnabled ? "Mute sound" : playbackFailed ? "Retry sound" : "Turn on sound"}</span>
         </span>
       </button>
     </div>
