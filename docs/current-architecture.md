@@ -368,6 +368,9 @@ Stopping slideshow enters a post-service background/music state and returns
 audio to the safe Pre-service scene rather than taking the scheduled broadcast
 offline. The scheduled session is exposed only during that service day's
 10:30–13:30 window.
+That scheduled window also authorizes its configured camera and audio transports
+for ordinary viewers before PresentationOutput is claimed; admin-only manual
+tests remain restricted to administrators.
 
 The configured pre-service track is still a transitional browser-rendered source,
 not an input owned by the server-side source mixer. Each remote viewer renders

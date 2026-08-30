@@ -66,6 +66,7 @@ from app.modules.identity.auth import (
     require_permission,
 )
 from app.modules.identity.models import User
+from app.modules.planning.models import Plan
 from app.modules.presentation.models import PresentationPosition, PresentationSession
 
 router = APIRouter()
@@ -310,6 +311,27 @@ def live_output_exists(session: Session) -> bool:
         )
         if isinstance(owner_id, str) and (explicitly_active or legacy_heartbeat_active):
             return True
+        # Scheduled pre-service is intentionally visible before a human opens
+        # PresentationOutput. Treat that auto-started service window as live for
+        # camera/audio authorization too; otherwise ordinary viewers can see
+        # the stream but only administrators can turn its sound on.
+        if payload.get("auto_started") is True:
+            presentation_session = session.get(
+                PresentationSession,
+                position.session_id,
+            )
+            plan = (
+                session.get(Plan, presentation_session.plan_id)
+                if presentation_session is not None
+                else None
+            )
+            if plan is not None:
+                # Local import avoids coupling presentation route registration
+                # to broadcast route import order.
+                from app.modules.presentation.routes import scheduled_service_window_active
+
+                if scheduled_service_window_active(plan):
+                    return True
     return False
 
 

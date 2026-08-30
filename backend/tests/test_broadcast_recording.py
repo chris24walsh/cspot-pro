@@ -46,6 +46,8 @@ from app.modules.broadcast.schemas import (
     BroadcastViewerSettingsUpdate,
     ManualLivestreamUpdate,
 )
+from app.modules.planning.models import Plan
+from app.modules.presentation.models import PresentationSession
 
 
 def test_admin_test_livestream_is_hidden_from_regular_viewers() -> None:
@@ -552,6 +554,35 @@ def test_live_audio_relay_remains_available_for_explicit_output_session() -> Non
     session = SimpleNamespace(scalars=lambda _query: SimpleNamespace(all=lambda: [position]))
 
     assert live_output_exists(session) is True
+
+
+def test_live_audio_relay_is_available_during_scheduled_pre_service(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    presentation_session = SimpleNamespace(id="session-1", plan_id="plan-1")
+    plan = SimpleNamespace(id="plan-1")
+    position = SimpleNamespace(
+        session_id=presentation_session.id,
+        payload_json=json.dumps({"auto_started": True, "service_stage": "pre_service"}),
+    )
+
+    class ScheduledSession:
+        def scalars(self, _query):
+            return SimpleNamespace(all=lambda: [position])
+
+        def get(self, model, item_id):
+            if model is PresentationSession and item_id == presentation_session.id:
+                return presentation_session
+            if model is Plan and item_id == plan.id:
+                return plan
+            return None
+
+    monkeypatch.setattr(
+        "app.modules.presentation.routes.scheduled_service_window_active",
+        lambda candidate: candidate is plan,
+    )
+
+    assert live_output_exists(ScheduledSession()) is True
 
 
 def test_auto_recording_starts_when_output_opens_on_a_sermon(monkeypatch) -> None:
