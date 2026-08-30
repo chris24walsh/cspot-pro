@@ -164,8 +164,22 @@ These preferences have been made explicit and should guide future changes.
   recording, with compact live controls available beside the admin camera view.
   Runtime mix changes update the active server-side audio filter graph and do
   not replace the viewer's browser stream.
-  Saved Pastor, Congregation, Worship, and Media scenes can be recalled manually;
-  presenter item and media-playback state can recall them automatically.
+  Saved Pastor, Congregation, Worship, Media, and Pre-service scenes can be
+  recalled manually; presenter item and media-playback state can recall them
+  automatically. Pastor, Congregation, and Worship use desk/room feeds with
+  direct PC media excluded. Media and Pre-service are the inverse mix-minus:
+  direct PC media is enabled while the desk return and room microphone are
+  excluded, avoiding a doubled PC line-out → desk → USB-return signal.
+- A playing song backing track remains on Worship rather than switching to
+  Media. The complete desk return carries that track once alongside live vocals
+  and instruments. Combining live desk channels with direct PC media would
+  require a desk aux/matrix mix-minus that excludes the PC input; it cannot be
+  reconstructed reliably from the stereo record-out in software.
+- A direct PC-media bridge source is only a capture endpoint. A designated
+  Windows player must feed its loopback or virtual cable; running the capture
+  bridge headlessly does not create that playback. Configured pre-service music
+  remains a transitional remote-viewer player and stays muted on the church
+  presentation output when it is intended for online listeners only.
 
 ### Song handling
 

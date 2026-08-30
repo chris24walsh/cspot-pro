@@ -157,6 +157,8 @@ public sealed class SharedCapture : IDisposable
     private readonly object gate = new();
     private readonly Dictionary<Guid, Channel<byte[]>> listeners = [];
     private Process? process;
+    private WasapiLoopbackInput? loopbackInput;
+    private CancellationTokenSource? loopbackCancellation;
     private CancellationTokenSource? idleCancellation;
     private bool disposed;
 
@@ -203,21 +205,45 @@ public sealed class SharedCapture : IDisposable
     {
         if (process is { HasExited: false }) return;
 
-        var startInfo = new ProcessStartInfo(options.FfmpegPath)
-        {
-            UseShellExecute = false,
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
-            CreateNoWindow = true
-        };
-        foreach (var argument in FfmpegArguments(source)) startInfo.ArgumentList.Add(argument);
-
-        var startedProcess = new Process { StartInfo = startInfo, EnableRaisingEvents = true };
-        process = startedProcess;
-        startedProcess.Exited += (_, _) => CaptureExited(startedProcess);
+        WasapiLoopbackInput? pendingLoopback = null;
+        Process? startedProcess = null;
         try
         {
+            if (source.Backend.Equals("wasapi-loopback", StringComparison.OrdinalIgnoreCase))
+            {
+                pendingLoopback = new WasapiLoopbackInput(source.Device, logger);
+            }
+
+            var startInfo = new ProcessStartInfo(options.FfmpegPath)
+            {
+                UseShellExecute = false,
+                RedirectStandardInput = pendingLoopback is not null,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                CreateNoWindow = true
+            };
+            foreach (var argument in FfmpegArguments(source, pendingLoopback?.Format))
+            {
+                startInfo.ArgumentList.Add(argument);
+            }
+
+            startedProcess = new Process { StartInfo = startInfo, EnableRaisingEvents = true };
+            process = startedProcess;
+            startedProcess.Exited += (_, _) => CaptureExited(startedProcess);
             startedProcess.Start();
+            if (pendingLoopback is not null)
+            {
+                var activeLoopback = pendingLoopback;
+                pendingLoopback = null;
+                var activeCancellation = new CancellationTokenSource();
+                var cancellationToken = activeCancellation.Token;
+                loopbackInput = activeLoopback;
+                loopbackCancellation = activeCancellation;
+                _ = Task.Run(() => FeedLoopback(
+                    startedProcess,
+                    activeLoopback,
+                    cancellationToken));
+            }
             LastError = null;
             _ = Task.Run(() => ReadAudio(startedProcess));
             _ = Task.Run(() => ReadErrors(startedProcess));
@@ -226,9 +252,50 @@ public sealed class SharedCapture : IDisposable
         catch (Exception error)
         {
             LastError = error.Message;
-            startedProcess.Dispose();
+            pendingLoopback?.Dispose();
+            loopbackCancellation?.Cancel();
+            DetachLoopback()?.Dispose();
+            loopbackCancellation?.Dispose();
+            loopbackCancellation = null;
+            if (startedProcess is not null)
+            {
+                try
+                {
+                    if (startedProcess.HasExited is false) startedProcess.Kill(entireProcessTree: true);
+                }
+                catch (InvalidOperationException) { }
+                startedProcess.Dispose();
+            }
             process = null;
             CompleteListeners(error);
+        }
+    }
+
+    private async Task FeedLoopback(
+        Process activeProcess,
+        WasapiLoopbackInput activeLoopback,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            await activeLoopback.PumpAsync(activeProcess.StandardInput.BaseStream, cancellationToken);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { }
+        catch (Exception error)
+        {
+            lock (gate)
+            {
+                if (ReferenceEquals(process, activeProcess)) LastError = error.Message;
+            }
+            logger.LogWarning(error, "WASAPI loopback source {SourceId} stopped", source.Id);
+        }
+        finally
+        {
+            try
+            {
+                activeProcess.StandardInput.Close();
+            }
+            catch (InvalidOperationException) { }
         }
     }
 
@@ -262,16 +329,26 @@ public sealed class SharedCapture : IDisposable
 
     private void CaptureExited(Process exitedProcess)
     {
+        WasapiLoopbackInput? exitedLoopback = null;
+        CancellationTokenSource? exitedCancellation = null;
         lock (gate)
         {
-            if (!ReferenceEquals(process, exitedProcess)) return;
-            process = null;
-            if (!disposed && listeners.Count > 0)
+            if (ReferenceEquals(process, exitedProcess))
             {
-                LastError ??= $"FFmpeg exited with code {exitedProcess.ExitCode}";
-                CompleteListeners(new IOException(LastError));
+                process = null;
+                exitedLoopback = DetachLoopback();
+                exitedCancellation = loopbackCancellation;
+                loopbackCancellation = null;
+                if (!disposed && listeners.Count > 0)
+                {
+                    LastError ??= $"FFmpeg exited with code {exitedProcess.ExitCode}";
+                    CompleteListeners(new IOException(LastError));
+                }
             }
         }
+        exitedCancellation?.Cancel();
+        exitedCancellation?.Dispose();
+        exitedLoopback?.Dispose();
         exitedProcess.Dispose();
     }
 
@@ -310,6 +387,12 @@ public sealed class SharedCapture : IDisposable
     {
         var activeProcess = process;
         process = null;
+        var activeLoopback = DetachLoopback();
+        var activeCancellation = loopbackCancellation;
+        loopbackCancellation = null;
+        activeCancellation?.Cancel();
+        activeCancellation?.Dispose();
+        activeLoopback?.Dispose();
         if (activeProcess is null) return;
         try
         {
@@ -319,12 +402,21 @@ public sealed class SharedCapture : IDisposable
         logger.LogInformation("Stopped idle audio source {SourceId}", source.Id);
     }
 
-    private static IEnumerable<string> FfmpegArguments(AudioSourceOptions source)
+    private WasapiLoopbackInput? DetachLoopback()
+    {
+        var activeLoopback = loopbackInput;
+        loopbackInput = null;
+        return activeLoopback;
+    }
+
+    internal static IEnumerable<string> FfmpegArguments(
+        AudioSourceOptions source,
+        WasapiPcmFormat? loopbackFormat = null)
     {
         yield return "-hide_banner";
         yield return "-loglevel";
         yield return "warning";
-        yield return "-nostdin";
+        if (loopbackFormat is null) yield return "-nostdin";
         yield return "-thread_queue_size";
         yield return "1024";
         if (source.Backend.Equals("dshow", StringComparison.OrdinalIgnoreCase))
@@ -344,6 +436,21 @@ public sealed class SharedCapture : IDisposable
             yield return Math.Max(1, source.Channels).ToString(CultureInfo.InvariantCulture);
             yield return "-i";
             yield return source.Device;
+        }
+        else if (source.Backend.Equals("wasapi-loopback", StringComparison.OrdinalIgnoreCase))
+        {
+            if (loopbackFormat is null)
+            {
+                throw new InvalidOperationException("WASAPI loopback capture format was not initialized");
+            }
+            yield return "-f";
+            yield return loopbackFormat.FfmpegSampleFormat;
+            yield return "-ar";
+            yield return loopbackFormat.SampleRate.ToString(CultureInfo.InvariantCulture);
+            yield return "-ac";
+            yield return loopbackFormat.Channels.ToString(CultureInfo.InvariantCulture);
+            yield return "-i";
+            yield return "pipe:0";
         }
         else
         {

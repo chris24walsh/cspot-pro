@@ -20,13 +20,28 @@ migration planning; this project starts clean with a container-first stack.
 CSpot can take live and recorded service audio from the portable
 [CSpot Audio Bridge](audio-bridge/README.md), with independent USB microphone
 and mixing-desk inputs on Windows or Raspberry Pi. A Windows playback-loopback
-source can send church-PC media directly to the livestream while keeping a
-musicians' desk rehearsal local to the room; a separate PC line-out control
-mutes pre-service playback at the desk without muting online viewers. The original
+or virtual-cable source can add church-PC media to the server-side source mix.
+Five presentation-aware scenes keep Pastor, Congregation, and Worship on the
+desk/room feeds while Media and Pre-service use the direct media feed as a
+mix-minus, excluding the desk return and room microphone. That avoids sending
+the same PC playback both directly and back through the desk, and makes the
+media route independent of the desk's audio signal. The bridge only captures a
+Windows endpoint: a browser or other designated player must still render audio
+to that endpoint. Song backing tracks deliberately remain on the Worship/desk
+route so the livestream keeps the live musicians and vocals and receives the
+PC track once through the desk return; standalone video uses the direct Media
+route.
+
+Configured pre-service music remains a transitional remote-viewer player rather
+than a server-mix input, particularly for YouTube sources. In remote-only mode,
+the presentation-output copy stays muted so musicians can rehearse through the
+desk without hearing the online pre-service track. The original
 [single-input Pi/Icecast setup](docs/raspberry-pi-live-audio.md) remains
 supported. Independent HTTP/MP3 inputs are normalized to AAC by go2rtc for the
-same fragmented-MP4 MSE/HLS browser transport used by camera audio; the raw
-authenticated relay remains available for compatibility and recording.
+same fragmented-MP4 MSE/HLS browser transport used by camera audio. Real
+multi-input or gain-adjusted mixes use an authenticated 200 ms fragmented-AAC
+stream with a bounded browser buffer and MP3 fallback; the raw relay remains
+available for compatibility and recording.
 
 ## Network TV display
 
@@ -241,7 +256,7 @@ back to the static wireframe data when it is not.
 - Service: use an endlessly extending, month-grouped all-days timeline (or switch to a compact Sunday-only timeline), open slots without a separate create step, build the running order, add songs, Bible passages, and slide decks, and control the live output. New Sunday services receive a compact five-section running order: Welcome, Worship, Open time, Sermon, and Announcements. Welcome runs the 10:30 gently crossfading photo montage and music with a small corner service-start clock, adds the full countdown at 10:55, then shows “Please be seated” at 11:00 until the service starts. Pre-service audio fades out when the countdown ends or the service starts, whichever happens first, while the final photo fades back to the LCF background. Service start changes to the neutral LCF holding background; worship begins only when the operator advances. Administrators can use the Start menu to rehearse the welcome montage, countdown, and service-start handoff on demand across connected outputs without waiting for Sunday morning. Empty Sermon and Announcements placeholders open the deck search directly and are replaced by their imported decks.
 - Worship and Sunday School: Sunday cards show compact plan/lesson summaries and use capacity-aware leader rotations for current and future dates, while historical assignments remain unchanged; assignment and upcoming-Sunday swaps stay behind the compact Leader control, and the `cspot_tablet` account remains available for manual worship assignment but is excluded from automatic rotation
 - Songs: create/edit/archive songs, import and clean lyrics, edit details/chords, and prepare song slides
-- Broadcast: viewer-first remote service page plus admin tabs for sermon recordings, low-latency multi-camera livestream settings, and shared mixer-desk integration; admins can blend independent audio sources with per-feed trim/mute controls and presentation-aware Pastor, Congregation, Worship, and Media scenes shared by livestream and recording, start a public or admin-only test livestream, and operate synchronized slides, service-aware weighted camera pacing, automatic stream recovery, holding messages, and pre-service audio. An open TV or livestream viewer activates scheduled pre-service at 10:30 without starting the main slideshow; Start Slideshow hands control to the service, while Stop Slideshow enters a safe background-and-music post-service state.
+- Broadcast: viewer-first remote service page plus admin tabs for sermon recordings, low-latency multi-camera livestream settings, and shared mixer-desk integration; admins can blend independent audio sources with per-feed trim/mute controls and presentation-aware Pastor, Congregation, Worship, Media, and Pre-service scenes shared by livestream and recording, start a public or admin-only test livestream, and operate synchronized slides, service-aware weighted camera pacing, automatic stream recovery, holding messages, and pre-service audio. An open TV or livestream viewer activates scheduled pre-service at 10:30 without starting the main slideshow; Start Slideshow hands control to the service, while Stop Slideshow enters a safe background-and-music post-service state.
 - Admin: share an optional self-registration link/QR code, approve or reject inactive registration requests, invite users, send password resets, manage grouped roles and rotation eligibility, configure Google Drive, and test SMTP email
 
 ## Access Control

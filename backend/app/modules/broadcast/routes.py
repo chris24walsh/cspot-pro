@@ -1,10 +1,12 @@
 import json
 import subprocess
+from collections.abc import AsyncIterator
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Annotated
 from urllib.parse import parse_qs, urlsplit
 
+import anyio
 import requests
 from fastapi import APIRouter, Depends, Header, HTTPException, Response, status
 from fastapi.responses import FileResponse, StreamingResponse
@@ -12,9 +14,15 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.database import get_session
-from app.modules.broadcast.audio_mix import ffmpeg_live_mix_command, live_audio_mix_inputs
+from app.modules.broadcast.audio_mix import (
+    AudioMixInput,
+    ffmpeg_live_mix_command,
+    ffmpeg_live_mix_fmp4_command,
+    live_audio_mix_inputs,
+)
 from app.modules.broadcast.audio_scenes import activate_audio_scene
 from app.modules.broadcast.live_audio import (
+    LiveAudioControl,
     allocate_control_port,
     register_live_audio_control,
     unregister_live_audio_control,
@@ -38,7 +46,9 @@ from app.modules.broadcast.schemas import (
     ManualLivestreamUpdate,
 )
 from app.modules.broadcast.settings import (
+    apply_scene_to_sources,
     audio_scenes,
+    audio_source_kind,
     audio_sources,
     camera_sources,
     effective_audio_source,
@@ -208,14 +218,23 @@ def settings_read(
     manual_live_audience = settings.manual_live_audience or "off"
     if manual_live_audience == "admins" and not can_view_admin_test:
         manual_live_audience = "off"
+    selected_audio_source_id = effective_audio_source(settings, sources, independent_sources)
     selected_independent_audio = next(
-        (
-            source
-            for source in independent_sources
-            if source.id == effective_audio_source(settings, sources, independent_sources)
-        ),
+        (source for source in independent_sources if source.id == selected_audio_source_id),
         None,
     )
+    # A mix with one enabled, unity-gain input needs no server-side mixing. Let
+    # viewers use that source's normalized go2rtc/MSE transport directly: it
+    # stays close to the camera live edge and avoids an extra MP3 buffer. Keep
+    # multi-input or gain-adjusted mixes on /live-audio so their mix semantics
+    # remain unchanged.
+    if selected_audio_source_id == "mix":
+        enabled_mix_sources = [source for source in independent_sources if source.mix_enabled]
+        selected_independent_audio = (
+            enabled_mix_sources[0]
+            if len(enabled_mix_sources) == 1 and abs(enabled_mix_sources[0].gain_db) < 0.01
+            else None
+        )
     return BroadcastViewerSettingsRead(
         stream_title=settings.stream_title,
         stream_description=settings.stream_description,
@@ -287,9 +306,7 @@ def live_output_exists(session: Session) -> bool:
         owner_id = payload.get("output_owner_id") if isinstance(payload, dict) else None
         explicitly_active = payload.get("output_active") is True
         legacy_heartbeat_active = bool(
-            "output_active" not in payload
-            and isinstance(heartbeat, int)
-            and now - heartbeat < 7000
+            "output_active" not in payload and isinstance(heartbeat, int) and now - heartbeat < 7000
         )
         if isinstance(owner_id, str) and (explicitly_active or legacy_heartbeat_active):
             return True
@@ -303,9 +320,7 @@ def get_viewer_settings(
 ) -> BroadcastViewerSettingsRead:
     permissions = set(list_permissions(session, current_user.id))
     can_view_admin_test = "users:manage" in permissions
-    can_manage_broadcast = bool(
-        permissions.intersection({"broadcast:use", "users:manage"})
-    )
+    can_manage_broadcast = bool(permissions.intersection({"broadcast:use", "users:manage"}))
     return settings_read(
         viewer_settings(session),
         can_view_admin_test=can_view_admin_test,
@@ -317,12 +332,8 @@ def get_viewer_settings(
 def playback_authorized(
     current_user: CurrentUser,
     session: Session = Depends(get_session),
-    playback_source: Annotated[
-        str | None, Header(alias="X-CSpot-Playback-Source")
-    ] = None,
-    playback_uri: Annotated[
-        str | None, Header(alias="X-CSpot-Playback-URI")
-    ] = None,
+    playback_source: Annotated[str | None, Header(alias="X-CSpot-Playback-Source")] = None,
+    playback_uri: Annotated[str | None, Header(alias="X-CSpot-Playback-URI")] = None,
 ) -> Response:
     permissions = set(list_permissions(session, current_user.id))
     settings = viewer_settings(session)
@@ -346,9 +357,7 @@ def playback_authorized(
     if not is_hls_session_request:
         requested_source = playback_source
         if not requested_source and playback_uri:
-            requested_source = (
-                parse_qs(urlsplit(playback_uri).query).get("src") or [None]
-            )[0]
+            requested_source = (parse_qs(urlsplit(playback_uri).query).get("src") or [None])[0]
         allowed_sources = {
             name
             for source in camera_sources(settings)
@@ -406,8 +415,7 @@ def live_audio(
     settings = viewer_settings(session)
     manual_audience = settings.manual_live_audience or "off"
     manual_live_visible = manual_audience == "public" or (
-        manual_audience == "admins"
-        and "users:manage" in list_permissions(session, current_user.id)
+        manual_audience == "admins" and "users:manage" in list_permissions(session, current_user.id)
     )
     if not live_output_exists(session) and not manual_live_visible:
         raise HTTPException(
@@ -463,6 +471,108 @@ def live_audio(
     )
 
 
+def _stop_live_audio_process(
+    process: subprocess.Popen[bytes],
+    control: LiveAudioControl,
+) -> None:
+    unregister_live_audio_control(control)
+    if process.poll() is None:
+        process.terminate()
+        try:
+            process.wait(timeout=1)
+        except subprocess.TimeoutExpired:
+            process.kill()
+            try:
+                process.wait(timeout=1)
+            except subprocess.TimeoutExpired:
+                pass
+    if process.stdout:
+        process.stdout.close()
+
+
+async def _live_audio_fmp4_chunks(
+    process: subprocess.Popen[bytes],
+    control: LiveAudioControl,
+) -> AsyncIterator[bytes]:
+    """Read promptly from FFmpeg and always reap it when the client disconnects."""
+    try:
+        if process.stdout is None:
+            return
+        while True:
+            chunk = await anyio.to_thread.run_sync(
+                process.stdout.read,
+                16 * 1024,
+                abandon_on_cancel=True,
+            )
+            if not chunk:
+                return
+            yield chunk
+    finally:
+        # Disconnect cleanup may wait briefly for FFmpeg to exit. Keep that
+        # wait off the event loop, and shield it so request cancellation still
+        # unregisters the control and reaps the child process.
+        with anyio.CancelScope(shield=True):
+            await anyio.to_thread.run_sync(_stop_live_audio_process, process, control)
+
+
+def _authorized_live_audio_inputs(
+    current_user: User,
+    session: Session,
+) -> list[AudioMixInput]:
+    settings = viewer_settings(session)
+    manual_audience = settings.manual_live_audience or "off"
+    manual_live_visible = manual_audience == "public" or (
+        manual_audience == "admins" and "users:manage" in list_permissions(session, current_user.id)
+    )
+    if not live_output_exists(session) and not manual_live_visible:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Live audio is available only while the livestream is running",
+        )
+    inputs = live_audio_mix_inputs(settings)
+    if not inputs:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Live audio is not configured",
+        )
+    # This response can remain open for hours. Do not retain a pooled database
+    # connection for the lifetime of a browser's media stream.
+    session.close()
+    return inputs
+
+
+@router.get("/live-audio.mp4")
+def live_audio_fmp4(
+    current_user: CurrentUser,
+    session: Session = Depends(get_session, scope="function"),
+) -> StreamingResponse:
+    inputs = _authorized_live_audio_inputs(current_user, session)
+    try:
+        control_port = allocate_control_port()
+        process = subprocess.Popen(
+            ffmpeg_live_mix_fmp4_command(inputs, control_port),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            bufsize=0,
+        )
+    except OSError as error:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="The low-latency live audio mixer is unavailable",
+        ) from error
+
+    control = register_live_audio_control(control_port, inputs)
+    return StreamingResponse(
+        _live_audio_fmp4_chunks(process, control),
+        media_type="audio/mp4",
+        headers={
+            "Cache-Control": "no-store, no-transform",
+            "X-Accel-Buffering": "no",
+            "X-Content-Type-Options": "nosniff",
+        },
+    )
+
+
 @router.get("/audio-sources/{source_id}/test")
 def test_audio_source(
     source_id: str,
@@ -509,6 +619,9 @@ def update_viewer_settings(
     session: Session = Depends(get_session),
 ) -> BroadcastViewerSettingsRead:
     settings = viewer_settings(session)
+    had_media_source = any(
+        audio_source_kind(source) == "media" for source in audio_sources(settings)
+    )
     updates = payload.model_dump(exclude_unset=True)
     camera_source_payload = updates.pop("camera_sources", ...)
     audio_source_payload = updates.pop("audio_sources", ...)
@@ -557,19 +670,36 @@ def update_viewer_settings(
             )
         settings.audio_scenes_json = json.dumps(audio_scene_payload, separators=(",", ":"))
 
-    if audio_source_payload is not ... and audio_scene_payload is ...:
-        current_scene = settings.active_audio_scene or "pastor"
+    if audio_source_payload is not ... or audio_scene_payload is not ...:
         scenes = audio_scenes(settings)
-        for scene in scenes:
-            if scene.id != current_scene:
-                continue
-            scene.channels = {
-                source["id"]: BroadcastAudioSceneChannel(
-                    gain_db=source.get("gain_db", 0),
-                    enabled=source.get("mix_enabled", True),
-                )
-                for source in audio_source_payload
-            }
+        first_media_source_added = bool(
+            audio_source_payload is not ...
+            and not had_media_source
+            and any(audio_source_kind(source) == "media" for source in audio_sources(settings))
+        )
+        if audio_source_payload is not ... and audio_scene_payload is ...:
+            current_scene = settings.active_audio_scene or "pastor"
+            for scene in scenes:
+                if scene.id != current_scene:
+                    continue
+                if first_media_source_added:
+                    # Apply the normalized active scene instead of stale form
+                    # flags when the direct-media route first appears. Routine
+                    # scenes keep the new media leg off; Media and Pre-service
+                    # turn it on while excluding the delayed desk return.
+                    applied_sources = apply_scene_to_sources(audio_sources(settings), scene)
+                    audio_source_payload = [source.model_dump() for source in applied_sources]
+                    settings.audio_sources_json = json.dumps(
+                        audio_source_payload, separators=(",", ":")
+                    )
+                    break
+                scene.channels = {
+                    source["id"]: BroadcastAudioSceneChannel(
+                        gain_db=source.get("gain_db", 0),
+                        enabled=source.get("mix_enabled", True),
+                    )
+                    for source in audio_source_payload
+                }
         settings.audio_scenes_json = json.dumps(
             [scene.model_dump() for scene in scenes], separators=(",", ":")
         )

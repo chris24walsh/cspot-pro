@@ -32,11 +32,11 @@ class BroadcastAudioSourceRead(BaseModel):
 
 class BroadcastAudioSceneChannel(BaseModel):
     gain_db: float = Field(default=0, ge=-30, le=24)
-    enabled: bool = True
+    enabled: bool = False
 
 
 class BroadcastAudioScene(BaseModel):
-    id: Literal["pastor", "congregation", "worship", "media"]
+    id: Literal["pastor", "congregation", "worship", "media", "pre_service"]
     label: str = Field(min_length=1, max_length=80)
     channels: dict[str, BroadcastAudioSceneChannel] = Field(default_factory=dict)
 
@@ -78,7 +78,7 @@ class BroadcastViewerSettingsUpdate(BaseModel):
     camera_url: str | None = None
     camera_sources: list[BroadcastCameraSource] | None = Field(default=None, max_length=8)
     audio_sources: list[BroadcastAudioSource] | None = Field(default=None, max_length=8)
-    audio_scenes: list[BroadcastAudioScene] | None = Field(default=None, max_length=4)
+    audio_scenes: list[BroadcastAudioScene] | None = Field(default=None, max_length=5)
     active_audio_scene: str | None = Field(default=None, max_length=40)
     audio_scene_automation: bool | None = None
     active_camera_id: str | None = Field(default=None, max_length=80)

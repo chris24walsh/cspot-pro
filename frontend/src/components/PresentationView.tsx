@@ -75,6 +75,7 @@ import {
   suggestSlideGroupFontCap,
   suggestedSlideFontCap,
   storedFileDownloadUrl,
+  videoPlaybackStateForSlideTransition,
   type PresentationSlide,
   type PresentationLiveState,
   type PresentationTheme,
@@ -1056,6 +1057,16 @@ export function PresentationView({
     const slideOffset = slide
       ? slideList.filter((candidate) => candidate.planItemId === slide.planItemId).findIndex((candidate) => candidate.id === slide.id)
       : 0;
+    const currentState = currentLiveStateRef.current;
+    const currentSlide = currentState
+      ? slideList[resolveLiveIndex(slideList, currentState)] ?? null
+      : null;
+    const videoPlaybackState = videoPlaybackStateForSlideTransition(
+      currentState,
+      currentSlide,
+      slide,
+      overrides,
+    );
 
     return {
       planId,
@@ -1066,8 +1077,8 @@ export function PresentationView({
       theme: overrides.theme ?? slideTheme,
       blanked: overrides.blanked ?? liveBlanked,
       fullscreen: currentLiveStateRef.current?.fullscreen ?? false,
-      videoAction: overrides.videoAction ?? null,
-      videoActionAt: overrides.videoActionAt,
+      videoAction: videoPlaybackState.videoAction,
+      videoActionAt: videoPlaybackState.videoActionAt,
       serviceStage: overrides.serviceStage ?? currentLiveStateRef.current?.serviceStage,
       preServicePhase: overrides.preServicePhase === undefined
         ? currentLiveStateRef.current?.preServicePhase

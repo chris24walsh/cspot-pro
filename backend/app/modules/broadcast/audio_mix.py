@@ -32,9 +32,7 @@ def audio_mix_inputs(settings: BroadcastViewerSettings) -> list[AudioMixInput]:
     if camera_url.startswith("/app/camera/"):
         if not app_settings.camera_proxy_upstream:
             return []
-        camera_url = urljoin(
-            app_settings.camera_proxy_upstream.rstrip("/") + "/", camera_url[12:]
-        )
+        camera_url = urljoin(app_settings.camera_proxy_upstream.rstrip("/") + "/", camera_url[12:])
     if camera_url.startswith(("http://", "https://", "rtsp://")):
         return [AudioMixInput(source_id="camera", url=camera_url)]
     return []
@@ -43,7 +41,8 @@ def audio_mix_inputs(settings: BroadcastViewerSettings) -> list[AudioMixInput]:
 def live_audio_mix_inputs(settings: BroadcastViewerSettings) -> list[AudioMixInput]:
     """Keep every configured input open so its level can change at runtime."""
     independent = [
-        source for source in audio_sources(settings)
+        source
+        for source in audio_sources(settings)
         if source.url.strip().startswith(("http://", "https://"))
     ]
     if not independent:
@@ -133,9 +132,44 @@ def ffmpeg_live_mix_command(
     ]
 
 
-def ffmpeg_recording_mix_command(
-    inputs: list[AudioMixInput], file_path: Path
+def ffmpeg_live_mix_fmp4_command(
+    inputs: list[AudioMixInput], control_port: int | None = None
 ) -> list[str]:
+    """Build the browser-MSE live mix with short, independently appendable fragments."""
+    return [
+        "ffmpeg",
+        "-hide_banner",
+        "-loglevel",
+        "error",
+        *ffmpeg_audio_input_args(inputs),
+        "-vn",
+        *ffmpeg_audio_filter_args(inputs, control_port=control_port),
+        "-ac",
+        "1",
+        "-ar",
+        "48000",
+        "-c:a",
+        "aac",
+        "-profile:a",
+        "aac_low",
+        "-b:a",
+        "96k",
+        # An empty movie header lets MediaSource start before FFmpeg exits.
+        # Keeping fragments near 200 ms gives the browser enough packet depth
+        # to decode without letting the transport build seconds of latency.
+        "-movflags",
+        "+empty_moov+default_base_moof+frag_keyframe",
+        "-frag_duration",
+        "200000",
+        "-flush_packets",
+        "1",
+        "-f",
+        "mp4",
+        "pipe:1",
+    ]
+
+
+def ffmpeg_recording_mix_command(inputs: list[AudioMixInput], file_path: Path) -> list[str]:
     return [
         "ffmpeg",
         "-hide_banner",

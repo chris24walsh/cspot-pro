@@ -117,6 +117,89 @@ def test_settings_read_uses_raw_fallback_without_configured_gateway(
     assert settings_read(settings).live_audio_stream_name is None
 
 
+def test_settings_read_uses_normalized_stream_for_unity_gain_single_source_mix(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "app.modules.broadcast.transport.settings.camera_proxy_upstream",
+        "http://go2rtc:1984/",
+    )
+    media = BroadcastAudioSource(
+        id="pc-media",
+        label="Church PC media",
+        url="http://audio/pc-media.mp3?token=secret",
+        gain_db=0,
+        mix_enabled=True,
+        role="media",
+    )
+    settings = BroadcastViewerSettings(
+        stream_title="Service",
+        auto_record_sermons=True,
+        audio_sources_json=json.dumps([media.model_dump()]),
+        live_audio_source="mix",
+        pre_service_minutes=60,
+        starting_soon_message="Soon",
+        offline_message="Offline",
+    )
+
+    result = settings_read(settings, include_audio_source_urls=False)
+
+    assert result.live_audio_stream_name == audio_stream_name(media)
+    assert result.live_audio_stream_name is not None
+    assert "secret" not in result.live_audio_stream_name
+    assert result.audio_sources[0].url is None
+    assert result.audio_sources[0].stream_name is None
+
+
+@pytest.mark.parametrize(
+    "sources",
+    [
+        [
+            BroadcastAudioSource(
+                id="room",
+                label="Room",
+                url="http://audio/room.mp3",
+                mix_enabled=True,
+            ),
+            BroadcastAudioSource(
+                id="desk",
+                label="Desk",
+                url="http://audio/desk.mp3",
+                mix_enabled=True,
+            ),
+        ],
+        [
+            BroadcastAudioSource(
+                id="desk",
+                label="Desk",
+                url="http://audio/desk.mp3",
+                gain_db=-3,
+                mix_enabled=True,
+            )
+        ],
+    ],
+)
+def test_settings_read_keeps_real_mix_on_server_relay(
+    monkeypatch: pytest.MonkeyPatch,
+    sources: list[BroadcastAudioSource],
+) -> None:
+    monkeypatch.setattr(
+        "app.modules.broadcast.transport.settings.camera_proxy_upstream",
+        "http://go2rtc:1984/",
+    )
+    settings = BroadcastViewerSettings(
+        stream_title="Service",
+        auto_record_sermons=True,
+        audio_sources_json=json.dumps([source.model_dump() for source in sources]),
+        live_audio_source="mix",
+        pre_service_minutes=60,
+        starting_soon_message="Soon",
+        offline_message="Offline",
+    )
+
+    assert settings_read(settings).live_audio_stream_name is None
+
+
 def test_settings_read_redacts_independent_source_urls_for_viewers() -> None:
     settings = BroadcastViewerSettings(
         stream_title="Service",
@@ -305,9 +388,7 @@ def test_playback_authorization(
         commit=lambda: None,
         refresh=lambda _value: None,
     )
-    monkeypatch.setattr(
-        "app.modules.broadcast.routes.list_permissions", lambda *_args: permissions
-    )
+    monkeypatch.setattr("app.modules.broadcast.routes.list_permissions", lambda *_args: permissions)
     monkeypatch.setattr(
         "app.modules.broadcast.routes.live_output_exists", lambda _session: live_output
     )

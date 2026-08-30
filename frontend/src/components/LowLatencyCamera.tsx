@@ -2,6 +2,8 @@ import { RefreshCw, Volume2, VolumeX } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { go2RtcWebSocketUrl } from "../broadcastCamera";
+import { LIVE_AUDIO_MSE_MIME, liveEdgeCorrection } from "../liveAudioMse";
+import { HttpLiveAudioMse } from "./HttpLiveAudioMse";
 
 type StreamStatus = "connecting" | "live" | "recovering" | "unavailable";
 
@@ -119,26 +121,24 @@ function LowLatencyMseVideo({ label, onFallback, url }: { label: string; onFallb
               sourceBuffer.mode = "segments";
               sourceBuffer.addEventListener("updateend", () => {
                 if (!sourceBuffer) return;
-                if (!sourceBuffer.updating && queue.length) {
-                  appendNext();
-                  return;
-                }
                 if (!sourceBuffer.updating && sourceBuffer.buffered.length) {
                   const end = sourceBuffer.buffered.end(sourceBuffer.buffered.length - 1);
                   const bufferedStart = sourceBuffer.buffered.start(0);
-                  const liveStart = end - 5;
-                  if (liveStart > bufferedStart) {
+                  const removeBefore = end - 3;
+                  const correction = liveEdgeCorrection(video.currentTime, bufferedStart, end);
+                  if (correction.currentTime !== null) video.currentTime = correction.currentTime;
+                  video.playbackRate = correction.playbackRate;
+                  if (removeBefore > bufferedStart + 0.25) {
                     try {
-                      sourceBuffer.remove(bufferedStart, liveStart);
-                      mediaSource?.setLiveSeekableRange(liveStart, end);
+                      sourceBuffer.remove(bufferedStart, removeBefore);
+                      mediaSource?.setLiveSeekableRange(removeBefore, end);
+                      return;
                     } catch {
                       // A following update will retry trimming the live buffer.
                     }
                   }
-                  if (video.currentTime < liveStart) video.currentTime = liveStart;
-                  const gap = end - video.currentTime;
-                  video.playbackRate = Math.min(2, Math.max(1, gap));
                 }
+                if (!sourceBuffer.updating && queue.length) appendNext();
                 void video.play().catch(() => undefined);
               });
             } catch {
@@ -151,6 +151,7 @@ function LowLatencyMseVideo({ label, onFallback, url }: { label: string; onFallb
         }
         lastDataAt = Date.now();
         queue.push(event.data as ArrayBuffer);
+        if (queue.length > 8) queue.splice(0, queue.length - 8);
         appendNext();
       });
       socket.addEventListener("close", scheduleReconnect);
@@ -300,39 +301,40 @@ function LowLatencyMseAudio({
   label,
   onFallback,
   onSoundEnabledChange,
+  preserveSoundOnPlaybackFailure,
+  soundEnabled,
   url,
 }: {
   label: string;
   onFallback: () => void;
-  onSoundEnabledChange?: (enabled: boolean) => void;
+  onSoundEnabledChange: (enabled: boolean) => void;
+  preserveSoundOnPlaybackFailure: boolean;
+  soundEnabled: boolean;
   url: string;
 }) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
-  const [soundEnabled, setSoundEnabled] = useState(false);
+  const preserveSoundOnPlaybackFailureRef = useRef(preserveSoundOnPlaybackFailure);
   const [playbackFailed, setPlaybackFailed] = useState(false);
   const websocketUrl = go2RtcWebSocketUrl(url);
+  preserveSoundOnPlaybackFailureRef.current = preserveSoundOnPlaybackFailure;
 
   function toggleSound() {
     const audio = audioRef.current;
     if (!audio) return;
     if (soundEnabled) {
       audio.muted = true;
-      setSoundEnabled(false);
-      onSoundEnabledChange?.(false);
+      onSoundEnabledChange(false);
       return;
     }
     setPlaybackFailed(false);
     audio.muted = false;
     audio.volume = 1;
+    onSoundEnabledChange(true);
     void audio.play()
-      .then(() => {
-        setSoundEnabled(true);
-        onSoundEnabledChange?.(true);
-      })
+      .then(() => setPlaybackFailed(false))
       .catch(() => {
         audio.muted = true;
-        setSoundEnabled(false);
-        onSoundEnabledChange?.(false);
+        if (!preserveSoundOnPlaybackFailureRef.current) onSoundEnabledChange(false);
         setPlaybackFailed(true);
       });
   }
@@ -352,6 +354,15 @@ function LowLatencyMseAudio({
     let lastDataAt = Date.now();
     let objectUrl: string | null = null;
     const queue: ArrayBuffer[] = [];
+
+    const resumePlayback = () => {
+      void audio.play().catch(() => {
+        if (disposed || audio.muted) return;
+        audio.muted = true;
+        setPlaybackFailed(true);
+        if (!preserveSoundOnPlaybackFailureRef.current) onSoundEnabledChange(false);
+      });
+    };
 
     const fallBack = (reason: string) => {
       if (disposed || fallbackTriggered) return;
@@ -428,17 +439,20 @@ function LowLatencyMseAudio({
                 if (sourceBuffer?.buffered.length) {
                   const end = sourceBuffer.buffered.end(sourceBuffer.buffered.length - 1);
                   const start = sourceBuffer.buffered.start(0);
-                  if (end - start > 4 && !sourceBuffer.updating) {
+                  const correction = liveEdgeCorrection(audio.currentTime, start, end);
+                  if (correction.currentTime !== null) audio.currentTime = correction.currentTime;
+                  audio.playbackRate = correction.playbackRate;
+                  if (end - start > 3.25 && !sourceBuffer.updating) {
                     try {
                       sourceBuffer.remove(start, end - 3);
+                      return;
                     } catch {
                       // A following update will retry trimming the live buffer.
                     }
                   }
-                  if (end - audio.currentTime > 0.8) audio.currentTime = Math.max(0, end - 0.12);
                 }
                 appendNext();
-                void audio.play().catch(() => undefined);
+                resumePlayback();
               });
               appendNext();
             } catch {
@@ -451,13 +465,14 @@ function LowLatencyMseAudio({
         }
         lastDataAt = Date.now();
         queue.push(event.data as ArrayBuffer);
+        if (queue.length > 8) queue.splice(0, queue.length - 8);
         appendNext();
       });
       socket.addEventListener("close", () => {
         if (!disposed && !reconnectTimer) reconnectTimer = window.setTimeout(connect, 1500);
       });
       socket.addEventListener("error", () => socket?.close());
-      void audio.play().catch(() => undefined);
+      resumePlayback();
     };
 
     const markReady = () => window.clearTimeout(startupTimer);
@@ -483,7 +498,7 @@ function LowLatencyMseAudio({
       audio.load();
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
-  }, [onFallback, websocketUrl]);
+  }, [onFallback, onSoundEnabledChange, websocketUrl]);
 
   return (
     <div className="service-broadcast-preservice-audio service-broadcast-live-audio">
@@ -498,13 +513,15 @@ function LowLatencyMseAudio({
   );
 }
 
-function FallbackLiveStreamAudio({ label, onSoundEnabledChange, url }: { label: string; onSoundEnabledChange?: (enabled: boolean) => void; url: string }) {
+function FallbackLiveStreamAudio({ label, onSoundEnabledChange, preserveSoundOnPlaybackFailure, soundEnabled, url }: { label: string; onSoundEnabledChange: (enabled: boolean) => void; preserveSoundOnPlaybackFailure: boolean; soundEnabled: boolean; url: string }) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
-  const soundEnabledRef = useRef(false);
-  const [soundEnabled, setSoundEnabled] = useState(false);
+  const preserveSoundOnPlaybackFailureRef = useRef(preserveSoundOnPlaybackFailure);
+  const soundEnabledRef = useRef(soundEnabled);
   const [playbackFailed, setPlaybackFailed] = useState(false);
   const [retryToken, setRetryToken] = useState(0);
   const isHls = url.toLowerCase().includes(".m3u8");
+  soundEnabledRef.current = soundEnabled;
+  preserveSoundOnPlaybackFailureRef.current = preserveSoundOnPlaybackFailure;
 
   function toggleSound() {
     const audio = audioRef.current;
@@ -512,8 +529,7 @@ function FallbackLiveStreamAudio({ label, onSoundEnabledChange, url }: { label: 
     if (soundEnabled) {
       audio.muted = true;
       soundEnabledRef.current = false;
-      setSoundEnabled(false);
-      onSoundEnabledChange?.(false);
+      onSoundEnabledChange(false);
       return;
     }
     setPlaybackFailed(false);
@@ -523,15 +539,15 @@ function FallbackLiveStreamAudio({ label, onSoundEnabledChange, url }: { label: 
       audio.load();
     }
     soundEnabledRef.current = true;
-    setSoundEnabled(true);
-    onSoundEnabledChange?.(true);
+    onSoundEnabledChange(true);
     void audio.play()
       .then(() => setPlaybackFailed(false))
       .catch(() => {
         audio.muted = true;
-        soundEnabledRef.current = false;
-        setSoundEnabled(false);
-        onSoundEnabledChange?.(false);
+        if (!preserveSoundOnPlaybackFailureRef.current) {
+          soundEnabledRef.current = false;
+          onSoundEnabledChange(false);
+        }
         setPlaybackFailed(true);
         setRetryToken((current) => current + 1);
       });
@@ -548,14 +564,22 @@ function FallbackLiveStreamAudio({ label, onSoundEnabledChange, url }: { label: 
       audio.volume = 1;
       void audio.play()
         .then(() => setPlaybackFailed(false))
-        .catch(() => setPlaybackFailed(true));
+        .catch(() => {
+          audio.muted = true;
+          setPlaybackFailed(true);
+          if (!preserveSoundOnPlaybackFailureRef.current) {
+            soundEnabledRef.current = false;
+            onSoundEnabledChange(false);
+          }
+        });
     };
     const handlePlaybackError = () => {
       audio.muted = true;
-      soundEnabledRef.current = false;
-      setSoundEnabled(false);
       setPlaybackFailed(true);
-      onSoundEnabledChange?.(false);
+      if (!preserveSoundOnPlaybackFailureRef.current) {
+        soundEnabledRef.current = false;
+        onSoundEnabledChange(false);
+      }
     };
     audio.muted = !soundEnabledRef.current;
     audio.defaultMuted = !soundEnabledRef.current;
@@ -588,7 +612,7 @@ function FallbackLiveStreamAudio({ label, onSoundEnabledChange, url }: { label: 
       audio.removeAttribute("src");
       audio.load();
     };
-  }, [isHls, retryToken, url]);
+  }, [isHls, onSoundEnabledChange, retryToken, url]);
 
   return (
     <div className="service-broadcast-preservice-audio service-broadcast-live-audio">
@@ -603,12 +627,49 @@ function FallbackLiveStreamAudio({ label, onSoundEnabledChange, url }: { label: 
   );
 }
 
-export function LiveStreamAudio({ label, onSoundEnabledChange, url }: { label: string; onSoundEnabledChange?: (enabled: boolean) => void; url: string }) {
-  const websocketUrl = useMemo(() => go2RtcWebSocketUrl(url), [url]);
+export function LiveStreamAudio({
+  label,
+  onSoundEnabledChange,
+  preserveSoundOnPlaybackFailure = false,
+  soundEnabled: controlledSoundEnabled,
+  url,
+}: {
+  label: string;
+  onSoundEnabledChange?: (enabled: boolean) => void;
+  preserveSoundOnPlaybackFailure?: boolean;
+  soundEnabled?: boolean;
+  url: string;
+}) {
   const [failedMseUrl, setFailedMseUrl] = useState<string | null>(null);
+  const [internalSoundEnabled, setInternalSoundEnabled] = useState(false);
+  const onSoundEnabledChangeRef = useRef(onSoundEnabledChange);
+  onSoundEnabledChangeRef.current = onSoundEnabledChange;
+  const soundEnabled = controlledSoundEnabled ?? internalSoundEnabled;
   const fallBack = useCallback(() => setFailedMseUrl(url), [url]);
-  if (websocketUrl && failedMseUrl !== url && typeof MediaSource !== "undefined") {
-    return <LowLatencyMseAudio label={label} onFallback={fallBack} onSoundEnabledChange={onSoundEnabledChange} url={url} />;
+  const changeSoundEnabled = useCallback((enabled: boolean) => {
+    setInternalSoundEnabled(enabled);
+    onSoundEnabledChangeRef.current?.(enabled);
+  }, []);
+  const isHttpMseUrl = /\/live-audio\.mp4(?:[?#]|$)/.test(url);
+  const fallbackUrl = isHttpMseUrl
+    ? url.replace(/\/live-audio\.mp4(?=[?#]|$)/, "/live-audio")
+    : url;
+  const httpMseSupported = (
+    typeof MediaSource !== "undefined"
+    && typeof MediaSource.isTypeSupported === "function"
+    && MediaSource.isTypeSupported(LIVE_AUDIO_MSE_MIME)
+  );
+  const activeUrl = failedMseUrl === url || (isHttpMseUrl && !httpMseSupported) ? fallbackUrl : url;
+  const websocketUrl = useMemo(() => go2RtcWebSocketUrl(activeUrl), [activeUrl]);
+  if (
+    isHttpMseUrl
+    && failedMseUrl !== url
+    && httpMseSupported
+  ) {
+    return <HttpLiveAudioMse label={label} onFallback={fallBack} onSoundEnabledChange={changeSoundEnabled} preserveSoundOnPlaybackFailure={preserveSoundOnPlaybackFailure} soundEnabled={soundEnabled} url={url} />;
   }
-  return <FallbackLiveStreamAudio label={label} onSoundEnabledChange={onSoundEnabledChange} url={url} />;
+  if (websocketUrl && failedMseUrl !== url && typeof MediaSource !== "undefined") {
+    return <LowLatencyMseAudio label={label} onFallback={fallBack} onSoundEnabledChange={changeSoundEnabled} preserveSoundOnPlaybackFailure={preserveSoundOnPlaybackFailure} soundEnabled={soundEnabled} url={activeUrl} />;
+  }
+  return <FallbackLiveStreamAudio label={label} onSoundEnabledChange={changeSoundEnabled} preserveSoundOnPlaybackFailure={preserveSoundOnPlaybackFailure} soundEnabled={soundEnabled} url={activeUrl} />;
 }

@@ -1,5 +1,5 @@
 import { CircleStop, ExternalLink, Headphones, Mic, MicOff, MonitorPlay, Play, Plus, Radio, Save, Trash2, X } from "lucide-react";
-import { type FormEvent, useEffect, useState } from "react";
+import { type FormEvent, useEffect, useRef, useState } from "react";
 
 import {
   getBroadcastViewerSettings,
@@ -16,6 +16,12 @@ import {
   type PresentationLiveService,
 } from "../api";
 import { go2RtcAudioStreamUrl } from "../broadcastCamera";
+import {
+  buildBroadcastSettingsSavePatch,
+  buildLiveAudioSourcePatch,
+  mergeAudioSourceConfiguration,
+  mergeBroadcastServerState,
+} from "../broadcastSettingsSave";
 import { recordingTimestampTitle, SermonRecordingPlayer } from "./SermonRecordingPlayer";
 import { AudioMixerPanel } from "./AudioMixerPanel";
 import { useConfirmationDialog } from "./ConfirmationDialog";
@@ -75,6 +81,7 @@ export function BroadcastManager({
 }) {
   const { confirm, confirmationDialog } = useConfirmationDialog();
   const [form, setForm] = useState<BroadcastViewerSettings>(EMPTY_SETTINGS);
+  const baselineRef = useRef<BroadcastViewerSettings>(EMPTY_SETTINGS);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -95,10 +102,19 @@ export function BroadcastManager({
 
   useEffect(() => {
     void getBroadcastViewerSettings()
-      .then(setForm)
+      .then((settings) => {
+        baselineRef.current = settings;
+        setForm(settings);
+      })
       .catch((error) => setMessage(error instanceof Error ? error.message : "Could not load viewer settings."))
       .finally(() => setLoading(false));
   }, []);
+
+  function applyServerState(settings: BroadcastViewerSettings) {
+    const baseline = baselineRef.current;
+    baselineRef.current = settings;
+    setForm((current) => mergeBroadcastServerState(current, baseline, settings));
+  }
 
   async function loadRecordings() {
     const [nextRecordings, liveServices] = await Promise.all([
@@ -212,7 +228,13 @@ export function BroadcastManager({
     setSaving(true);
     setMessage(null);
     try {
-      setForm(await updateBroadcastViewerSettings(form));
+      const latest = await getBroadcastViewerSettings();
+      const patch = buildBroadcastSettingsSavePatch(form, baselineRef.current, latest);
+      const settings = Object.keys(patch).length
+        ? await updateBroadcastViewerSettings(patch)
+        : latest;
+      baselineRef.current = settings;
+      setForm(settings);
       setMessage("Broadcast settings saved.");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Could not save viewer settings.");
@@ -291,11 +313,11 @@ export function BroadcastManager({
     }
     setMessage(null);
     try {
+      const latest = await getBroadcastViewerSettings();
       const settings = await updateBroadcastViewerSettings({
-        audio_sources: form.audio_sources,
-        live_audio_source: form.live_audio_source,
+        audio_sources: mergeAudioSourceConfiguration(form.audio_sources, latest.audio_sources),
       });
-      setForm((current) => ({ ...current, ...settings }));
+      applyServerState(settings);
       setTestingAudioId(sourceId);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Could not test the audio source.");
@@ -303,16 +325,35 @@ export function BroadcastManager({
   }
 
   async function useAudioSource(sourceId: string) {
+    setSaving(true);
     setMessage(null);
     try {
-      const settings = await updateBroadcastViewerSettings({
-        audio_sources: form.audio_sources,
-        live_audio_source: sourceId,
-      });
-      setForm((current) => ({ ...current, ...settings }));
+      const latest = await getBroadcastViewerSettings();
+      const settings = await updateBroadcastViewerSettings(
+        buildLiveAudioSourcePatch(sourceId, form, latest),
+      );
+      applyServerState(settings);
       setMessage(`${settings.audio_sources.find((source) => source.id === sourceId)?.label ?? "Audio source"} is now live.`);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Could not change the live audio source.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function setPreServiceRoomAudio(enabled: boolean) {
+    setSaving(true);
+    setMessage(null);
+    try {
+      const settings = await updateBroadcastViewerSettings({
+        pre_service_room_audio_enabled: enabled,
+      });
+      applyServerState(settings);
+      setMessage(`Pre-service room audio ${enabled ? "enabled" : "muted"}.`);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not change pre-service room audio.");
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -327,7 +368,7 @@ export function BroadcastManager({
         audio_sources: audioSources,
         live_audio_source: liveAudioSource,
       });
-      setForm((current) => ({ ...current, ...settings }));
+      applyServerState(settings);
       setMessage(liveAudioSource === "mix" ? "The source mix is now live." : "Audio mix updated.");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Could not update the source mix.");
@@ -343,7 +384,7 @@ export function BroadcastManager({
         active_camera_id: cameraId,
         camera_sources: form.camera_sources,
       });
-      setForm((current) => ({ ...current, ...settings }));
+      applyServerState(settings);
       setMessage(`${settings.camera_sources.find((source) => source.id === cameraId)?.label ?? "Camera"} is now on air.`);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Could not switch cameras.");
@@ -578,7 +619,7 @@ export function BroadcastManager({
         </label>
         <label>
           Live audio source
-          <select disabled={loading} onChange={(event) => setForm({ ...form, live_audio_source: event.target.value })} value={form.live_audio_source}>
+          <select disabled={loading || saving} onChange={(event) => void useAudioSource(event.target.value)} value={form.live_audio_source}>
             <option value="none">No live audio</option>
             {form.audio_sources.some((source) => source.mix_enabled) ? <option value="mix">Source mix</option> : null}
             {form.audio_sources.length ? <optgroup label="Independent audio">
@@ -594,12 +635,12 @@ export function BroadcastManager({
           <input disabled={loading} onChange={(event) => setForm({ ...form, pre_service_audio_url: event.target.value || null })} placeholder="YouTube link or https://…/music.mp3" type="url" value={form.pre_service_audio_url || ""} />
         </label>
         <label>
-          Church PC line-out
-          <select disabled={loading} onChange={(event) => setForm({ ...form, pre_service_room_audio_enabled: event.target.value === "on" })} value={form.pre_service_room_audio_enabled ? "on" : "muted"}>
+          Pre-service room audio
+          <select disabled={loading || saving} onChange={(event) => void setPreServiceRoomAudio(event.target.value === "on")} value={form.pre_service_room_audio_enabled ? "on" : "muted"}>
             <option value="on">Play through desk / speakers</option>
-            <option value="muted">Muted during rehearsal</option>
+            <option value="muted">Livestream only</option>
           </select>
-          <small>This affects only the presentation PC output. Online pre-service audio continues playing.</small>
+          <small>This controls only the pre/post-service music player on the presentation PC. It does not mute other media; online pre-service audio continues playing.</small>
         </label>
         <label>
           Starting-soon message

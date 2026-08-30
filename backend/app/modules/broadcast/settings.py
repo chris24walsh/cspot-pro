@@ -13,6 +13,7 @@ SCENE_LABELS = {
     "congregation": "Congregation",
     "worship": "Worship",
     "media": "Media",
+    "pre_service": "Pre-service",
 }
 
 
@@ -62,7 +63,7 @@ def audio_sources(settings: BroadcastViewerSettings) -> list[BroadcastAudioSourc
     return sources
 
 
-def _source_kind(source: BroadcastAudioSource) -> str:
+def audio_source_kind(source: BroadcastAudioSource) -> str:
     if source.role != "other":
         return source.role
     name = f"{source.id} {source.label}".lower()
@@ -80,7 +81,8 @@ def default_audio_scenes(sources: list[BroadcastAudioSource]) -> list[BroadcastA
         "pastor": {"room": (-18, True), "desk": (0, True), "media": (0, False)},
         "congregation": {"room": (0, True), "desk": (-12, True), "media": (0, False)},
         "worship": {"room": (-12, True), "desk": (0, True), "media": (0, False)},
-        "media": {"room": (-30, False), "desk": (0, True), "media": (0, True)},
+        "media": {"room": (-30, False), "desk": (0, False), "media": (0, True)},
+        "pre_service": {"room": (-30, False), "desk": (0, False), "media": (0, True)},
     }
     return [
         BroadcastAudioScene(
@@ -89,10 +91,16 @@ def default_audio_scenes(sources: list[BroadcastAudioSource]) -> list[BroadcastA
             channels={
                 source.id: BroadcastAudioSceneChannel(
                     gain_db=scene_levels[scene_id].get(
-                        _source_kind(source), (source.gain_db, source.mix_enabled)
+                        audio_source_kind(source),
+                        (source.gain_db, source.mix_enabled)
+                        if scene_id in {"pastor", "congregation", "worship"}
+                        else (0, False),
                     )[0],
                     enabled=scene_levels[scene_id].get(
-                        _source_kind(source), (source.gain_db, source.mix_enabled)
+                        audio_source_kind(source),
+                        (source.gain_db, source.mix_enabled)
+                        if scene_id in {"pastor", "congregation", "worship"}
+                        else (0, False),
                     )[1],
                 )
                 for source in sources
@@ -117,23 +125,49 @@ def audio_scenes(settings: BroadcastViewerSettings) -> list[BroadcastAudioScene]
             except (TypeError, ValueError):
                 continue
     defaults = default_audio_scenes(sources)
-    return [parsed.get(scene.id, scene) for scene in defaults]
+    media_source_ids = {source.id for source in sources if audio_source_kind(source) == "media"}
+    normalized: list[BroadcastAudioScene] = []
+    for scene in defaults:
+        stored = parsed.get(scene.id)
+        # Older Media scenes predate the direct PC-media role and normally have
+        # the desk return enabled. On the first addition of a media source,
+        # migrate that whole scene to the safe mix-minus default instead of
+        # combining the new direct leg with its delayed desk return. Once a
+        # stored Media scene contains a media channel, preserve operator edits.
+        migrate_legacy_media_scene = bool(
+            scene.id == "media"
+            and stored
+            and media_source_ids
+            and not media_source_ids.intersection(stored.channels)
+        )
+        normalized.append(
+            scene.model_copy(
+                update={
+                    "label": stored.label if stored else scene.label,
+                    "channels": {
+                        source.id: (
+                            stored.channels.get(source.id, scene.channels[source.id])
+                            if stored and not migrate_legacy_media_scene
+                            else scene.channels[source.id]
+                        )
+                        for source in sources
+                    },
+                }
+            )
+        )
+    return normalized
 
 
 def apply_scene_to_sources(
     sources: list[BroadcastAudioSource], scene: BroadcastAudioScene
 ) -> list[BroadcastAudioSource]:
-    return [
-        source.model_copy(
-            update={
-                "gain_db": scene.channels.get(source.id, BroadcastAudioSceneChannel()).gain_db,
-                "mix_enabled": scene.channels.get(
-                    source.id, BroadcastAudioSceneChannel()
-                ).enabled,
-            }
+    applied: list[BroadcastAudioSource] = []
+    for source in sources:
+        channel = scene.channels.get(source.id, BroadcastAudioSceneChannel())
+        applied.append(
+            source.model_copy(update={"gain_db": channel.gain_db, "mix_enabled": channel.enabled})
         )
-        for source in sources
-    ]
+    return applied
 
 
 def effective_audio_source(

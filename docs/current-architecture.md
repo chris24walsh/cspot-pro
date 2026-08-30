@@ -357,17 +357,27 @@ current service or inherited by future Welcome sections; legacy global photos
 in the `Pre-service Montage` category remain supported as persistent entries.
 They can manage both kinds from the Welcome section. At 10:30 Europe/Dublin time, an open network display or viewer
 poll creates the scheduled live presentation for that day's Sunday service,
-selects Welcome, and activates the Media audio scene. The montage and configured
-music begin at 10:30. The 11:00 countdown appears at 10:55; when it expires,
+selects Welcome, and activates the dedicated Pre-service audio scene. The
+montage and configured music begin at 10:30. The 11:00 countdown appears at
+10:55; when it expires,
 music and montage stop and Welcome displays the LCF background in a ready state;
 this does not claim or start the main slideshow. Starting slideshow is the human
 service-start signal. It starts the selected slide, or keeps the static background
 when Welcome is selected, and hands audio-scene inference to the live service.
-Stopping slideshow enters a post-service background/music state and returns audio
-to the safe Media scene rather than taking the scheduled broadcast offline. The
-scheduled session is exposed only during that service day's 10:30–13:30 window.
-Browser policy may require one sound-enabling click for YouTube sources; direct
-audio URLs can autoplay.
+Stopping slideshow enters a post-service background/music state and returns
+audio to the safe Pre-service scene rather than taking the scheduled broadcast
+offline. The scheduled session is exposed only during that service day's
+10:30–13:30 window.
+
+The configured pre-service track is still a transitional browser-rendered source,
+not an input owned by the server-side source mixer. Each remote viewer renders
+that track directly; browser policy may require one sound-enabling click for a
+YouTube source, while a direct audio URL can normally autoplay. During remote-only
+pre-service playback, the presentation-output copy remains muted so the track is
+not sent through the PC line-out to the sound desk. The Pre-service scene also
+excludes desk and room inputs, preventing musicians' rehearsal audio from being
+published with the online track. A future server-side program-audio source can
+replace this transitional split without changing the scene boundary.
 
 Empty Sermon and Announcements sections open Google Drive deck search when
 clicked. A general deck import targets the canonical Sermon placeholder; an
@@ -445,32 +455,93 @@ a stall watchdog, and automatic reconnection. Slide state is polled separately
 at 500 ms and passes through a configurable delay so it can be aligned with the
 camera pipeline.
 
-Independent room-microphone and desk feeds can remain private HTTP MP3 inputs.
+Independent room-microphone, sound-desk return, and church-PC media feeds can
+remain private HTTP MP3 inputs. The normal physical media path is PC line-out to
+the sound desk, followed by the desk's USB return into CSpot. A parallel PC-media
+capture exposes the original playback directly. Because the desk return already
+contains that playback, enabling both the desk return and direct media at full
+level would create a doubled or delayed echo. Media routing is therefore an
+explicit mix-minus: speaking/worship scenes exclude the direct media capture,
+while media scenes exclude both the desk return and room microphone.
+
 CSpot reconciles each configured input into go2rtc as an FFmpeg-backed AAC
 stream, so viewers receive independent and camera audio through the same
 fragmented-MP4 MSE path and HLS compatibility path. The source URL and any
 listener token stay server-side. The authenticated raw API relay at
 `/api/v1/broadcast/live-audio` owns the server-side mix used for independent
-audio playback. Its FFmpeg filter graph keeps all configured inputs connected
-and accepts runtime gain and mute commands, so mixer changes reach an existing
-browser stream without reconnecting it. The same raw upstream remains available
-to the sermon-recording pipeline. The administrator's per-source
-Listen preview uses the normalized transport as well when the gateway is
-available.
-The Broadcast Mixer can combine enabled independent sources into one mono live
+audio playback and remains the compatibility fallback. Browsers normally use
+the authenticated `/api/v1/broadcast/live-audio.mp4` variant: FFmpeg emits
+roughly 200 ms AAC fragments, the client retains only complete recent
+fragments, trims its decoded buffer, and targets about 250 ms behind the live
+edge. Camera MSE playback uses the same live-edge correction policy. Both
+routes' FFmpeg filter graphs accept runtime gain and mute commands, so
+compatible mixer changes reach an existing browser stream without reconnecting
+it. Cancelling the fragmented stream aborts the request and reaps its FFmpeg
+process, and the database connection is released before streaming begins. The
+same raw upstream remains available to the sermon-recording pipeline. The
+administrator's per-source Listen preview uses the normalized transport as well
+when the gateway is available.
+
+Camera and mixed audio still originate in separate transport timelines. Keeping
+both close to the same bounded live edge prevents accumulating drift, but this
+is not sample-accurate A/V synchronization; that would require muxing them into
+one timed media stream.
+
+Standalone video on the remote viewer is a visual-only follower: it exposes no
+independent controls, is always muted, and follows the presentation's delayed
+play, pause, stop, and fade-stop state. The action timestamp is used to seek a
+late or newly joined player toward the program-audio position, while all audible
+media continues to come from the selected source-mix route. This bounds the
+common delayed-start error, although the separate browser video and captured
+audio clocks can still require site-specific delay calibration.
+
+The Broadcast Mixer combines enabled independent sources into one mono live
 feed with a saved −30 dB to +24 dB digital trim per source and output limiting.
-Four saved audio scenes (Pastor, Congregation, Worship, and Media) retain an
-independent level/mute choice for every source. With presentation following
-enabled, song slides select Worship, ordinary speaking slides select Pastor,
-and playing video or song media selects Media; stopping, finishing, or leaving
-the media restores the scene appropriate to the current service item. Claiming
-the main slideshow selects Pastor as a safe opening default; releasing it selects
-Media so speech microphones are removed from the livestream during post-service.
-The same mix drives viewer audio and sermon recording. Changing routing, mute,
-or gain during a sermon closes the current recording segment and starts another;
-the segments are joined losslessly when recording ends so playback remains one
-continuous item. The full mixer lives in the Mixer subtab, with a compact copy
-under the admin camera preview for live operation.
+Five saved scenes define the default role-based routing:
+
+| Scene | Room microphone | Desk return | Direct PC media |
+| --- | --- | --- | --- |
+| Pastor | On at −18 dB | On at 0 dB | Off |
+| Congregation | On at 0 dB | On at −12 dB | Off |
+| Worship | On at −12 dB | On at 0 dB | Off |
+| Media | Off | Off | On at 0 dB |
+| Pre-service (`pre_service`) | Off | Off | On at 0 dB |
+
+Legacy or unclassified sources preserve their current gain/enable state in
+Pastor, Congregation, and Worship for backward compatibility, but default to
+excluded in Media and Pre-service. Operators can assign explicit roles and tune
+site-specific levels; the desk/direct-media exclusion remains the safe starting
+point. A silent or powered-down desk does not contribute to Media or Pre-service;
+direct PC media remains a separate route. If an HTTP source endpoint itself
+disappears while FFmpeg is opening or relaying a mix, hot failover is not yet
+guaranteed, so source health still needs to be checked before a service.
+
+With presentation following enabled, scheduled pre-service selects Pre-service,
+song slides—including a playing backing track—select Worship, ordinary speaking
+slides select Pastor, and playing standalone video selects Media. Media playback
+state persists across slide changes within the playing section; pausing,
+stopping, finishing, or leaving standalone media restores the scene appropriate
+to the current service item. Claiming the main slideshow derives the safe scene
+for its current item; releasing it selects Pre-service so speech microphones are
+removed during post-service. The server mix drives normal viewer audio and
+sermon recording. The transitional browser-local pre-service player described
+above is the explicit exception.
+
+Song backing audio has a compatibility fallback as well. When the selected live
+route contains either the desk program or an enabled source explicitly assigned
+the `media` role, the remote viewer suppresses its own YouTube backing iframe so
+the captured PC media is heard exactly once. If neither program path is routed,
+the legacy viewer-local iframe remains available instead of assuming that an
+unclassified or silent source contains the track. The Worship route deliberately
+uses the full desk return for a backing track, retaining live vocals and
+instruments. Combining those live desk channels with a simultaneous direct PC
+leg would require a hardware desk aux/matrix mix-minus that excludes the PC
+input; software cannot subtract that track reliably from a stereo record-out.
+
+Changing routing, mute, or gain during a sermon closes the current recording
+segment and starts another; the segments are joined losslessly when recording
+ends so playback remains one continuous item. The full mixer lives in the Mixer
+subtab, with a compact copy under the admin camera preview for live operation.
 
 Gateway entries owned by CSpot use opaque names in the reserved
 `cspot-audio-*` namespace. Reconciliation creates or updates entries for the
@@ -487,6 +558,21 @@ The optional CSpot Audio Bridge exposes multiple Windows DirectShow or Linux
 ALSA inputs as on-demand, shared MP3 streams. Capture stops after the final
 consumer disconnects, and the same bridge can move from a Windows church
 desktop to a Raspberry Pi without changing the CSpot-side input protocol.
+It is a capture service, not a program-audio player: a designated browser or
+other playback process must render to the selected Windows output (the default
+physical endpoint in the church deployment, or an optional virtual cable)
+before the `media` source contains useful audio. Playback occurring only on a
+separate television or remote viewer cannot be captured by the church PC.
+
+The portable Windows installer uses an interactive logon task because that is
+the most broadly compatible DirectShow setup. On the current church desktop,
+the same bridge has also been verified from a limited S4U boot task in Session 0
+with its files under `C:\ProgramData\CSpotAudioBridge`. That optional headless
+pattern removes the login dependency for capture, but it remains driver-specific
+and does not create a headless playback producer. The current deployment has
+verified continuous Session 0 streams from both DirectShow inputs and the
+default-output WASAPI loopback while no user is signed in; an audible media test
+is still needed whenever the Windows output device or driver changes.
 PTZ movement remains the camera's own patrol/tour responsibility; CSpot selects
 and fades that moving view but does not store camera credentials or issue vendor-
 specific movement commands.

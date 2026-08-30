@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
 
 import { extractYouTubeId } from "../presentation";
 import { preServicePhaseAt } from "./PreServiceSlide";
@@ -25,25 +25,33 @@ export function preServiceAudioShouldPlay(
   return phase === "montage" || phase === "countdown";
 }
 
-export function PreServiceMusic({
-  active = true,
-  continuous = false,
-  label = "Pre-service music",
-  serviceDate,
-  url,
-  outputMuted = false,
-  phase: forcedPhase,
-  phaseStartedAt,
-}: {
+export interface PreServiceMusicHandle {
+  setSoundEnabled: (enabled: boolean) => void;
+}
+
+export const PreServiceMusic = forwardRef<PreServiceMusicHandle, {
   active?: boolean;
   continuous?: boolean;
   label?: string;
   serviceDate: string;
+  showSoundControl?: boolean;
+  soundEnabled?: boolean;
   url: string;
   outputMuted?: boolean;
   phase?: "waiting" | "montage" | "countdown" | "complete" | null;
   phaseStartedAt?: number;
-}) {
+}>(function PreServiceMusic({
+  active = true,
+  continuous = false,
+  label = "Pre-service music",
+  serviceDate,
+  showSoundControl = true,
+  soundEnabled,
+  url,
+  outputMuted = false,
+  phase: forcedPhase,
+  phaseStartedAt,
+}, ref) {
   const videoId = extractYouTubeId(url);
   const frameRef = useRef<HTMLIFrameElement | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -53,6 +61,25 @@ export function PreServiceMusic({
   const shouldPlay = active && preServiceAudioShouldPlay(continuous, phase, phaseStartedAt, now);
   const [rendered, setRendered] = useState(shouldPlay);
   const [fading, setFading] = useState(false);
+  const soundMuted = soundEnabled === undefined ? muted : !soundEnabled;
+
+  useImperativeHandle(ref, () => ({
+    setSoundEnabled(enabled: boolean) {
+      if (!enabled || outputMuted) {
+        if (audioRef.current) audioRef.current.muted = true;
+        sendYouTubeCommand(frameRef.current, "mute");
+        return;
+      }
+      if (audioRef.current) {
+        audioRef.current.muted = false;
+        audioRef.current.volume = 1;
+        if (shouldPlay) void audioRef.current.play().catch(() => undefined);
+      }
+      sendYouTubeCommand(frameRef.current, "unMute");
+      sendYouTubeCommand(frameRef.current, "setVolume", [100]);
+      if (shouldPlay) sendYouTubeCommand(frameRef.current, "playVideo");
+    },
+  }), [outputMuted, shouldPlay]);
 
   useEffect(() => {
     const timer = window.setInterval(() => setNow(Date.now()), 1000);
@@ -86,15 +113,40 @@ export function PreServiceMusic({
     return () => window.clearInterval(timer);
   }, [rendered, shouldPlay]);
 
+  useEffect(() => {
+    if (!videoId) return;
+    if (outputMuted || soundMuted) {
+      sendYouTubeCommand(frameRef.current, "mute");
+      return;
+    }
+    // The local player remembers its own user gesture; the livestream viewer
+    // instead shares the camera overlay's sound preference.
+    sendYouTubeCommand(frameRef.current, "unMute");
+    sendYouTubeCommand(frameRef.current, "setVolume", [100]);
+    if (shouldPlay) sendYouTubeCommand(frameRef.current, "playVideo");
+  }, [outputMuted, shouldPlay, soundMuted, videoId]);
+
   if (!rendered) {
     return null;
   }
 
   if (!videoId) {
+    const player = (
+      <audio
+        autoPlay
+        className={showSoundControl ? undefined : "service-broadcast-audio-element"}
+        controls={showSoundControl}
+        loop
+        muted={outputMuted || soundMuted}
+        ref={audioRef}
+        src={url}
+      />
+    );
+    if (!showSoundControl) return player;
     return (
       <div className={`pre-service-music-control ${fading ? "is-fading" : ""}`}>
         <span>{label}</span>
-        <audio autoPlay controls loop muted={outputMuted} ref={audioRef} src={url} />
+        {player}
       </div>
     );
   }
@@ -106,23 +158,34 @@ export function PreServiceMusic({
     setMuted(false);
   }
 
+  const player = (
+    <iframe
+      allow="autoplay; encrypted-media"
+      aria-hidden="true"
+      className="youtube-audio-frame"
+      onLoad={() => {
+        frameRef.current?.contentWindow?.postMessage(JSON.stringify({ event: "listening", id: "pre-service-audio" }), "*");
+        sendYouTubeCommand(frameRef.current, "setVolume", [100]);
+        if (outputMuted || soundMuted) {
+          sendYouTubeCommand(frameRef.current, "mute");
+        } else {
+          sendYouTubeCommand(frameRef.current, "unMute");
+          if (shouldPlay) sendYouTubeCommand(frameRef.current, "playVideo");
+        }
+      }}
+      ref={frameRef}
+      src={loopingYouTubeUrl(videoId)}
+      tabIndex={-1}
+      title={label}
+    />
+  );
+  if (!showSoundControl) return player;
+
   return (
     <div className={`pre-service-music-control ${fading ? "is-fading" : ""}`}>
-      <iframe
-        allow="autoplay; encrypted-media"
-        aria-hidden="true"
-        className="youtube-audio-frame"
-        onLoad={() => {
-          frameRef.current?.contentWindow?.postMessage(JSON.stringify({ event: "listening", id: "pre-service-audio" }), "*");
-          sendYouTubeCommand(frameRef.current, "setVolume", [100]);
-        }}
-        ref={frameRef}
-        src={loopingYouTubeUrl(videoId)}
-        tabIndex={-1}
-        title={label}
-      />
+      {player}
       <span>{label}</span>
       {outputMuted ? <strong>Room sound muted</strong> : muted ? <button className="primary-button" onClick={enableSound} type="button">Enable sound</button> : <strong>Playing</strong>}
     </div>
   );
-}
+});

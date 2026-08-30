@@ -30,13 +30,23 @@ def activate_audio_scene(
     return True
 
 
-def automatic_scene_for_item(item_type: str | None, video_action: str | None) -> str:
-    if video_action == "play":
-        return "media"
-    if item_type == "pre_service":
-        return "media"
+def automatic_scene_for_item(
+    item_type: str | None,
+    video_action: str | None,
+    service_stage: str | None = None,
+) -> str:
+    if service_stage in {"pre_service", "post_service"}:
+        return "pre_service"
+    if item_type == "pre_service" and service_stage != "service":
+        return "pre_service"
+    # A song backing track is deliberately carried through the sound desk so
+    # the livestream retains the live musicians and vocals alongside it.  The
+    # direct PC-media route is reserved for standalone media, where muting the
+    # desk return removes the duplicated PC playback cleanly.
     if item_type == "song":
         return "worship"
+    if video_action == "play":
+        return "media"
     if item_type in {
         "seating",
         "testimony",

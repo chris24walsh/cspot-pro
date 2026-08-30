@@ -87,6 +87,25 @@ The deployment keeps state in Docker named volumes:
 That means new plans, users, songs, uploads, and rendered slides persist across
 restarts and updates.
 
+## Optional live-audio bridge
+
+Use the [CSpot Audio Bridge](../audio-bridge/README.md) when this computer also
+provides room-microphone, desk-return, or direct PC-media feeds to livestream and
+recording. Configure all three as separate CSpot sources with the matching
+`room`, `desk`, and `media` roles. The scene mixer then keeps normal speech and
+worship on desk/room inputs and uses direct PC media as a mix-minus for Media and
+Pre-service.
+
+The standard bridge installer creates a current-user logon task. That is the
+recommended starting point because DirectShow behavior varies by driver. A
+limited S4U boot task using `C:\ProgramData\CSpotAudioBridge` has been verified
+on the current church desktop and is documented as an optional pattern in the
+bridge guide. Adopt it only after a no-login reboot test proves every configured
+source. Do not treat a healthy headless capture process as a media player: a
+designated browser or other process must still render program audio to the
+default physical Windows output captured by WASAPI loopback, or to an
+intentionally isolated virtual-cable render endpoint.
+
 ## Notes
 
 - This setup is fine for internal use on the church machine.

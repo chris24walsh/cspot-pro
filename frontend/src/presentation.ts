@@ -56,6 +56,41 @@ export interface PresentationSection {
   slides: PresentationSlide[];
 }
 
+export function videoPlaybackStateForSlideTransition(
+  currentState: Pick<PresentationLiveState, "planItemId" | "videoAction" | "videoActionAt"> | null | undefined,
+  currentSlide: Pick<PresentationSlide, "planItemId" | "sectionId"> | null | undefined,
+  nextSlide: Pick<PresentationSlide, "planItemId" | "sectionId"> | null | undefined,
+  overrides: Pick<Partial<PresentationLiveState>, "videoAction" | "videoActionAt"> = {},
+): Pick<PresentationLiveState, "videoAction" | "videoActionAt"> {
+  if (overrides.videoAction !== undefined) {
+    return {
+      videoAction: overrides.videoAction,
+      videoActionAt: overrides.videoActionAt,
+    };
+  }
+
+  const currentSlideMatchesState = Boolean(
+    currentState?.planItemId && currentSlide?.planItemId === currentState.planItemId,
+  );
+  const staysInPlanItem = Boolean(
+    currentSlideMatchesState && nextSlide?.planItemId === currentState?.planItemId,
+  );
+  const staysInSection = Boolean(
+    currentSlideMatchesState
+    && currentSlide
+    && nextSlide
+    && currentSlide.sectionId === nextSlide.sectionId,
+  );
+  if (staysInPlanItem || staysInSection) {
+    return {
+      videoAction: currentState?.videoAction ?? null,
+      videoActionAt: currentState?.videoActionAt,
+    };
+  }
+
+  return { videoAction: null, videoActionAt: undefined };
+}
+
 function suggestTextFontCap(text: string, compact = false) {
   const lines = text
     .split(/\r?\n/)

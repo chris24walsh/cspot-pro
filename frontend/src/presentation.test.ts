@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { PlanItem, RenderedSlide, Song } from "./api";
-import { LCF_BACKGROUND_URL, buildPresentationSections, buildPresentationSlides, resolveLiveIndex, splitOversizedLyricSlide, suggestedSlideFontCap, suggestUniformSlideGroupFontCap } from "./presentation";
+import { LCF_BACKGROUND_URL, buildPresentationSections, buildPresentationSlides, resolveLiveIndex, splitOversizedLyricSlide, suggestedSlideFontCap, suggestUniformSlideGroupFontCap, videoPlaybackStateForSlideTransition } from "./presentation";
 
 function planItem(overrides: Partial<PlanItem>): PlanItem {
   return {
@@ -43,6 +43,64 @@ function song(overrides: Partial<Song>): Song {
 }
 
 describe("presentation slide derivation", () => {
+  it("keeps playing media state while navigating inside the same section", () => {
+    const currentState = {
+      planItemId: "song-item",
+      videoAction: "play" as const,
+      videoActionAt: 123,
+    };
+    const currentSlide = { planItemId: "song-item", sectionId: "song-section" };
+    const nextSlide = { planItemId: "song-item", sectionId: "song-section" };
+
+    expect(videoPlaybackStateForSlideTransition(currentState, currentSlide, nextSlide)).toEqual({
+      videoAction: "play",
+      videoActionAt: 123,
+    });
+  });
+
+  it("clears media state when leaving its item and honors explicit controls", () => {
+    const currentState = {
+      planItemId: "song-item",
+      videoAction: "play" as const,
+      videoActionAt: 123,
+    };
+    const currentSlide = { planItemId: "song-item", sectionId: "song-section" };
+    const nextSlide = { planItemId: "reading-item", sectionId: "reading-section" };
+
+    expect(videoPlaybackStateForSlideTransition(currentState, currentSlide, nextSlide)).toEqual({
+      videoAction: null,
+      videoActionAt: undefined,
+    });
+    expect(videoPlaybackStateForSlideTransition(currentState, currentSlide, currentSlide, {
+      videoAction: "pause",
+      videoActionAt: 456,
+    })).toEqual({
+      videoAction: "pause",
+      videoActionAt: 456,
+    });
+  });
+
+  it("does not carry an old plan's media state through an index fallback", () => {
+    const oldPlanState = {
+      planItemId: "old-plan-video",
+      videoAction: "play" as const,
+      videoActionAt: 123,
+    };
+    const resolvedCurrentSlide = {
+      planItemId: "new-plan-welcome",
+      sectionId: "new-plan-welcome",
+    };
+
+    expect(videoPlaybackStateForSlideTransition(
+      oldPlanState,
+      resolvedCurrentSlide,
+      resolvedCurrentSlide,
+    )).toEqual({
+      videoAction: null,
+      videoActionAt: undefined,
+    });
+  });
+
   it("uses one compact font cap based on the densest slide in a set", () => {
     expect(suggestUniformSlideGroupFontCap(["Short lyric", "One\nTwo\nThree\nFour\nFive\nSix"], true)).toBe(9);
   });

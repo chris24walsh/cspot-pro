@@ -1,3 +1,4 @@
+import json
 from datetime import UTC, datetime
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -36,18 +37,10 @@ def test_pre_service_rehearsal_is_visible_only_to_admins_before_output_starts() 
 def test_scheduled_service_window_is_limited_to_the_service_day() -> None:
     plan = SimpleNamespace(service_date=datetime(2026, 8, 30, 9, 30, tzinfo=UTC))
 
-    assert scheduled_service_window_active(
-        plan, datetime(2026, 8, 30, 10, 30, tzinfo=UTC)
-    )
-    assert scheduled_service_window_active(
-        plan, datetime(2026, 8, 30, 12, 30, tzinfo=UTC)
-    )
-    assert not scheduled_service_window_active(
-        plan, datetime(2026, 8, 30, 12, 31, tzinfo=UTC)
-    )
-    assert not scheduled_service_window_active(
-        plan, datetime(2026, 9, 6, 10, 30, tzinfo=UTC)
-    )
+    assert scheduled_service_window_active(plan, datetime(2026, 8, 30, 10, 30, tzinfo=UTC))
+    assert scheduled_service_window_active(plan, datetime(2026, 8, 30, 12, 30, tzinfo=UTC))
+    assert not scheduled_service_window_active(plan, datetime(2026, 8, 30, 12, 31, tzinfo=UTC))
+    assert not scheduled_service_window_active(plan, datetime(2026, 9, 6, 10, 30, tzinfo=UTC))
 
 
 def test_non_admin_cannot_simulate_pre_service_timing() -> None:
@@ -155,8 +148,7 @@ def test_explicit_output_remains_active_after_heartbeat_is_stale() -> None:
         id="position-1",
         session_id="session-1",
         payload_json=(
-            '{"output_owner_id": "owner-1", "output_heartbeat_at": 10000, '
-            '"output_active": true}'
+            '{"output_owner_id": "owner-1", "output_heartbeat_at": 10000, "output_active": true}'
         ),
     )
 
@@ -185,20 +177,21 @@ def test_remote_release_prevents_the_closed_output_from_reclaiming() -> None:
         session.add(
             PresentationPosition(
                 session_id=presentation_session.id,
-                payload_json=(
-                    '{"output_owner_id": "output-1", "output_heartbeat_at": 10000}'
-                ),
+                payload_json=('{"output_owner_id": "output-1", "output_heartbeat_at": 10000}'),
             )
         )
         session.add(BroadcastViewerSettings(audio_scene_automation=True))
         session.commit()
 
-        with patch(
-            "app.modules.presentation.routes.schedule_sermon_recording",
-            side_effect=lambda _plan_id, previous_id, item_id, _offset, _user_id: scheduled.append(
-                (previous_id, item_id)
+        with (
+            patch(
+                "app.modules.presentation.routes.schedule_sermon_recording",
+                side_effect=lambda _plan_id, previous_id, item_id, _offset, _user_id: (
+                    scheduled.append((previous_id, item_id))
+                ),
             ),
-        ), patch("app.modules.presentation.routes.activate_audio_scene") as activate_scene:
+            patch("app.modules.presentation.routes.activate_audio_scene") as activate_scene,
+        ):
             released = update_presentation_output_status(
                 "plan-1",
                 PresentationOutputStatusWrite(
@@ -213,9 +206,7 @@ def test_remote_release_prevents_the_closed_output_from_reclaiming() -> None:
                 SimpleNamespace(id="user-1"),  # type: ignore[arg-type]
                 session,
             )
-            released_payload = session.scalar(
-                select(PresentationPosition.payload_json).limit(1)
-            )
+            released_payload = session.scalar(select(PresentationPosition.payload_json).limit(1))
 
     assert released.active is False
     assert reclaimed.active is False
@@ -225,7 +216,7 @@ def test_remote_release_prevents_the_closed_output_from_reclaiming() -> None:
     assert '"service_stage": "post_service"' in released_payload
     assert '"blanked": true' in released_payload
     activate_scene.assert_called_once()
-    assert activate_scene.call_args.args[2] == "media"
+    assert activate_scene.call_args.args[2] == "pre_service"
 
 
 def test_routine_output_heartbeat_does_not_schedule_recording(monkeypatch) -> None:
@@ -266,9 +257,7 @@ def test_routine_output_heartbeat_does_not_schedule_recording(monkeypatch) -> No
         for heartbeat_at in range(12000, 12100):
             status = update_presentation_output_status(
                 "plan-1",
-                PresentationOutputStatusWrite(
-                    owner_id="output-1", heartbeat_at=heartbeat_at
-                ),
+                PresentationOutputStatusWrite(owner_id="output-1", heartbeat_at=heartbeat_at),
                 SimpleNamespace(id="user-1"),  # type: ignore[arg-type]
                 session,
             )
@@ -309,21 +298,141 @@ def test_new_output_on_sermon_schedules_one_recording_start(monkeypatch) -> None
         session.add(BroadcastViewerSettings(audio_scene_automation=True))
         session.commit()
 
-        with patch("app.modules.presentation.routes.activate_audio_scene") as activate_scene:
+        with (
+            patch.object(
+                session,
+                "get",
+                return_value=SimpleNamespace(item_type="sermon"),
+            ),
+            patch("app.modules.presentation.routes.activate_audio_scene") as activate_scene,
+        ):
             status = update_presentation_output_status(
                 "plan-1",
                 PresentationOutputStatusWrite(owner_id="output-1", heartbeat_at=12000),
                 SimpleNamespace(id="user-1"),  # type: ignore[arg-type]
                 session,
             )
-        claimed_payload = session.scalar(
-            select(PresentationPosition.payload_json).limit(1)
-        )
+        claimed_payload = session.scalar(select(PresentationPosition.payload_json).limit(1))
 
     assert status.claimed is True
     assert scheduled == [(None, "sermon-a", 3)]
     assert claimed_payload is not None
     assert '"service_stage": "service"' in claimed_payload
+    activate_scene.assert_called_once()
+    assert activate_scene.call_args.args[2] == "pastor"
+
+
+@pytest.mark.parametrize(
+    ("item_type", "video_action", "service_stage", "expected_scene"),
+    [
+        ("pre_service", None, "pre_service", "pastor"),
+        (None, None, "post_service", "pastor"),
+        ("song", "play", "service", "worship"),
+        ("video", "play", "service", "media"),
+        ("song", None, "service", "worship"),
+    ],
+)
+def test_new_output_derives_scene_from_current_presentation_state(
+    item_type: str | None,
+    video_action: str | None,
+    service_stage: str,
+    expected_scene: str,
+) -> None:
+    engine = create_engine("sqlite://")
+    Base.metadata.create_all(
+        engine,
+        tables=[
+            PresentationSession.__table__,
+            PresentationPosition.__table__,
+            BroadcastViewerSettings.__table__,
+        ],
+    )
+    state = {
+        "plan_item_id": "current-item",
+        "slide_offset": 0,
+        "service_stage": service_stage,
+    }
+    if video_action is not None:
+        state["video_action"] = video_action
+
+    with Session(engine) as session:
+        presentation_session = PresentationSession(plan_id="plan-1", status="live")
+        session.add(presentation_session)
+        session.flush()
+        session.add(
+            PresentationPosition(
+                session_id=presentation_session.id,
+                plan_item_id="current-item",
+                payload_json=json.dumps(state),
+            )
+        )
+        session.add(BroadcastViewerSettings(audio_scene_automation=True))
+        session.commit()
+
+        with (
+            patch.object(
+                session,
+                "get",
+                return_value=(SimpleNamespace(item_type=item_type) if item_type else None),
+            ),
+            patch("app.modules.presentation.routes.schedule_sermon_recording"),
+            patch("app.modules.presentation.routes.activate_audio_scene") as activate_scene,
+        ):
+            update_presentation_output_status(
+                "plan-1",
+                PresentationOutputStatusWrite(owner_id="output-1", heartbeat_at=12000),
+                SimpleNamespace(id="user-1"),  # type: ignore[arg-type]
+                session,
+            )
+
+    activate_scene.assert_called_once()
+    assert activate_scene.call_args.args[2] == expected_scene
+
+
+def test_live_service_stage_change_activates_the_matching_audio_scene() -> None:
+    engine = create_engine("sqlite://")
+    Base.metadata.create_all(
+        engine,
+        tables=[
+            PresentationSession.__table__,
+            PresentationPosition.__table__,
+            BroadcastViewerSettings.__table__,
+        ],
+    )
+    now = int(datetime.now(UTC).timestamp() * 1000)
+
+    with Session(engine) as session:
+        presentation_session = PresentationSession(plan_id="plan-1", status="live")
+        session.add(presentation_session)
+        session.flush()
+        session.add(
+            PresentationPosition(
+                session_id=presentation_session.id,
+                payload_json=json.dumps(
+                    {
+                        "service_stage": "pre_service",
+                        "output_owner_id": "output-1",
+                        "output_heartbeat_at": now,
+                        "output_active": True,
+                    }
+                ),
+            )
+        )
+        session.add(BroadcastViewerSettings(audio_scene_automation=True))
+        session.commit()
+
+        with patch("app.modules.presentation.routes.activate_audio_scene") as activate_scene:
+            update_presentation_live_state(
+                "plan-1",
+                PresentationLiveStateWrite(
+                    plan_id="plan-1",
+                    updated_at=now + 1,
+                    service_stage="service",
+                ),
+                SimpleNamespace(id="user-1"),  # type: ignore[arg-type]
+                session,
+            )
+
     activate_scene.assert_called_once()
     assert activate_scene.call_args.args[2] == "pastor"
 
@@ -379,9 +488,7 @@ def test_live_state_only_schedules_real_sermon_slide_changes(monkeypatch) -> Non
             SimpleNamespace(id="user-1"),  # type: ignore[arg-type]
             session,
         )
-        blanked = unchanged.model_copy(
-            update={"blanked": True, "updated_at": now + 2}
-        )
+        blanked = unchanged.model_copy(update={"blanked": True, "updated_at": now + 2})
         update_presentation_live_state(
             "plan-1",
             blanked,

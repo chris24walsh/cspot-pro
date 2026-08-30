@@ -15,6 +15,7 @@ from app.modules.broadcast.audio_mix import (
     AudioMixInput,
     audio_mix_inputs,
     ffmpeg_live_mix_command,
+    ffmpeg_live_mix_fmp4_command,
     ffmpeg_recording_mix_command,
     live_audio_mix_inputs,
 )
@@ -59,10 +60,7 @@ def test_admin_test_livestream_is_hidden_from_regular_viewers() -> None:
     )
 
     assert settings_read(settings_row).manual_live_audience == "admins"
-    assert (
-        settings_read(settings_row, can_view_admin_test=False).manual_live_audience
-        == "off"
-    )
+    assert settings_read(settings_row, can_view_admin_test=False).manual_live_audience == "off"
 
 
 def test_admin_can_start_public_livestream_without_presentation_output() -> None:
@@ -76,9 +74,7 @@ def test_admin_can_start_public_livestream_without_presentation_output() -> None
         )
 
         assert result.manual_live_audience == "public"
-        assert session.scalar(
-            select(BroadcastViewerSettings.manual_live_audience)
-        ) == "public"
+        assert session.scalar(select(BroadcastViewerSettings.manual_live_audience)) == "public"
 
 
 def test_camera_proxy_path_resolves_to_internal_recording_source() -> None:
@@ -277,6 +273,23 @@ def test_live_audio_keeps_muted_inputs_connected_for_runtime_control() -> None:
     assert "azmq=b=tcp\\\\://127.0.0.1\\\\:23456" in filter_graph
 
 
+def test_low_latency_live_audio_uses_short_fragmented_aac_output() -> None:
+    inputs = [AudioMixInput("desk", "http://audio/desk.mp3", -3)]
+
+    command = ffmpeg_live_mix_fmp4_command(inputs, control_port=23456)
+
+    assert command[command.index("-c:a") + 1] == "aac"
+    assert command[command.index("-profile:a") + 1] == "aac_low"
+    assert command[command.index("-frag_duration") + 1] == "200000"
+    assert command[command.index("-movflags") + 1] == (
+        "+empty_moov+default_base_moof+frag_keyframe"
+    )
+    assert command[-3:] == ["-f", "mp4", "pipe:1"]
+    filter_graph = command[command.index("-filter_complex") + 1]
+    assert "volume@input0=-3dB" in filter_graph
+    assert "azmq=b=tcp\\\\://127.0.0.1\\\\:23456" in filter_graph
+
+
 def test_legacy_independent_audio_url_is_returned_as_a_source() -> None:
     engine = create_engine("sqlite://")
     Base.metadata.create_all(engine, tables=[BroadcastViewerSettings.__table__])
@@ -466,19 +479,11 @@ def test_short_automatic_recording_is_only_discarded_after_automatic_departure()
         file_name="sermon.webm",
     )
 
-    assert _should_discard_short_automatic_recording(
-        recording, 29.999, automatic_departure=True
-    )
-    assert not _should_discard_short_automatic_recording(
-        recording, 30, automatic_departure=True
-    )
-    assert not _should_discard_short_automatic_recording(
-        recording, 2, automatic_departure=False
-    )
+    assert _should_discard_short_automatic_recording(recording, 29.999, automatic_departure=True)
+    assert not _should_discard_short_automatic_recording(recording, 30, automatic_departure=True)
+    assert not _should_discard_short_automatic_recording(recording, 2, automatic_departure=False)
     recording.source = "manual"
-    assert not _should_discard_short_automatic_recording(
-        recording, 2, automatic_departure=True
-    )
+    assert not _should_discard_short_automatic_recording(recording, 2, automatic_departure=True)
 
 
 def test_short_automatic_recording_and_file_are_deleted_after_grace(
@@ -521,9 +526,7 @@ def test_short_automatic_recording_and_file_are_deleted_after_grace(
 def test_live_audio_relay_requires_a_fresh_output_heartbeat() -> None:
     now = int(datetime.now(UTC).timestamp() * 1000)
     position = SimpleNamespace(
-        payload_json=json.dumps(
-            {"output_owner_id": "output-1", "output_heartbeat_at": now - 1000}
-        )
+        payload_json=json.dumps({"output_owner_id": "output-1", "output_heartbeat_at": now - 1000})
     )
     session = SimpleNamespace(scalars=lambda _query: SimpleNamespace(all=lambda: [position]))
 
@@ -668,9 +671,7 @@ def test_recording_stop_grace_is_persisted_and_can_be_cancelled(monkeypatch) -> 
 
 
 def test_disabled_auto_recording_does_not_start_on_a_sermon(monkeypatch) -> None:
-    sermon = SimpleNamespace(
-        id="sermon-a", plan_id="plan-1", item_type="sermon", deleted_at=None
-    )
+    sermon = SimpleNamespace(id="sermon-a", plan_id="plan-1", item_type="sermon", deleted_at=None)
     session = SimpleNamespace(
         get=lambda _model, _item_id: sermon,
         scalar=lambda _query: False,
@@ -689,9 +690,7 @@ def test_disabled_auto_recording_does_not_start_on_a_sermon(monkeypatch) -> None
 
 
 def test_failed_auto_recording_start_enters_cooldown(monkeypatch) -> None:
-    sermon = SimpleNamespace(
-        id="sermon-a", plan_id="plan-1", item_type="sermon", deleted_at=None
-    )
+    sermon = SimpleNamespace(id="sermon-a", plan_id="plan-1", item_type="sermon", deleted_at=None)
     session = SimpleNamespace(
         get=lambda _model, _item_id: sermon,
         scalar=lambda _query: True,

@@ -302,6 +302,7 @@ export interface PresentationLiveService {
   updated_at: number;
   output_owner_id: string;
   output_heartbeat_at: number;
+  output_active?: boolean;
   service_stage?: "pre_service" | "ready" | "service" | "post_service";
   pre_service_phase?: "waiting" | "montage" | "countdown" | "complete" | null;
   rehearsal?: boolean;
@@ -587,7 +588,7 @@ export interface BroadcastAudioSource {
 }
 
 export interface BroadcastAudioScene {
-  id: "pastor" | "congregation" | "worship" | "media";
+  id: "pastor" | "congregation" | "worship" | "media" | "pre_service";
   label: string;
   channels: Record<string, { gain_db: number; enabled: boolean }>;
 }
@@ -1213,6 +1214,11 @@ export function broadcastRecordingAudioUrl(recordingId: string) {
 export function broadcastLiveAudioUrl(mixKey?: string) {
   const query = mixKey ? `?mix=${encodeURIComponent(mixKey)}` : "";
   return buildApiUrl(`/api/v1/broadcast/live-audio${query}`);
+}
+
+export function broadcastLiveAudioMseUrl(mixKey?: string) {
+  const query = mixKey ? `?mix=${encodeURIComponent(mixKey)}` : "";
+  return buildApiUrl(`/api/v1/broadcast/live-audio.mp4${query}`);
 }
 
 export function broadcastAudioSourceTestUrl(sourceId: string) {
