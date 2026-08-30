@@ -489,8 +489,10 @@ function LowLatencyMseAudio({
     <div className="service-broadcast-preservice-audio service-broadcast-live-audio">
       <audio autoPlay className="service-broadcast-audio-element" ref={audioRef} />
       <button aria-label={playbackFailed ? "Retry sound" : "Enable sound"} className={`service-broadcast-sound-button ${soundEnabled ? "is-enabled" : ""}`} disabled={soundEnabled} onClick={toggleSound} title={soundEnabled ? `${label} enabled` : playbackFailed ? "Retry sound" : "Enable sound"} type="button">
-        <Volume2 size={16} aria-hidden="true" />
-        <span>{playbackFailed ? "Retry sound" : "Enable sound"}</span>
+        <span className="service-broadcast-sound-button-face">
+          <Volume2 size={16} aria-hidden="true" />
+          <span className="service-broadcast-sound-button-label">{playbackFailed ? "Retry sound" : "Enable sound"}</span>
+        </span>
       </button>
     </div>
   );
@@ -588,8 +590,10 @@ function FallbackLiveStreamAudio({ label, onSoundEnabledChange, url }: { label: 
     <div className="service-broadcast-preservice-audio service-broadcast-live-audio">
       <audio autoPlay className="service-broadcast-audio-element" preload="auto" ref={audioRef} />
       <button aria-label={playbackFailed ? "Retry sound" : "Enable sound"} className={`service-broadcast-sound-button ${soundEnabled ? "is-enabled" : ""}`} disabled={soundEnabled} onClick={toggleSound} title={soundEnabled ? `${label} enabled` : playbackFailed ? "Retry sound" : "Enable sound"} type="button">
-        <Volume2 size={16} aria-hidden="true" />
-        <span>{playbackFailed ? "Retry sound" : "Enable sound"}</span>
+        <span className="service-broadcast-sound-button-face">
+          <Volume2 size={16} aria-hidden="true" />
+          <span className="service-broadcast-sound-button-label">{playbackFailed ? "Retry sound" : "Enable sound"}</span>
+        </span>
       </button>
     </div>
   );

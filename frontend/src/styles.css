@@ -6156,10 +6156,10 @@ button.musician-page {
 .service-broadcast-live-audio {
   background: transparent;
   border: 0;
-  inset: 50% auto auto 50%;
+  display: block;
+  inset: 0;
   padding: 0;
   position: absolute;
-  transform: translate(-50%, -50%);
   z-index: 5;
 }
 
@@ -6168,27 +6168,47 @@ button.musician-page {
 }
 
 .service-broadcast-sound-button {
+  background: transparent;
+  border: 0;
+  color: #f5fbf8;
+  cursor: pointer;
+  display: grid;
+  font: inherit;
+  height: 100%;
+  opacity: 1;
+  padding: 0;
+  place-items: center;
+  transition: opacity 500ms ease;
+  width: 100%;
+}
+
+.service-broadcast-sound-button-face {
   align-items: center;
   background: rgba(5, 8, 7, 0.62);
   border: 1px solid rgba(235, 246, 240, 0.38);
   border-radius: 999px;
-  color: #f5fbf8;
-  cursor: pointer;
   display: inline-flex;
-  font: inherit;
   font-size: 12px;
   font-weight: 800;
   gap: 6px;
   min-height: 30px;
-  opacity: 1;
   padding: 5px 10px;
-  transition: background 140ms ease, border-color 140ms ease, opacity 500ms ease;
+  transition: background 140ms ease, border-color 140ms ease, transform 140ms ease;
   white-space: nowrap;
 }
 
-.service-broadcast-sound-button:hover {
+.service-broadcast-sound-button:hover .service-broadcast-sound-button-face {
   background: rgba(12, 20, 17, 0.82);
   border-color: rgba(235, 246, 240, 0.62);
+}
+
+.service-broadcast-sound-button:focus-visible {
+  outline: none;
+}
+
+.service-broadcast-sound-button:focus-visible .service-broadcast-sound-button-face {
+  outline: 2px solid #fff;
+  outline-offset: 2px;
 }
 
 .service-broadcast-sound-button.is-enabled {
@@ -10177,13 +10197,13 @@ button.musician-page {
     top: 10px;
   }
 
-  .service-broadcast-sound-button {
+  .service-broadcast-sound-button-face {
     min-height: 32px;
     padding: 6px;
     width: 32px;
   }
 
-  .service-broadcast-sound-button span {
+  .service-broadcast-sound-button-label {
     display: none;
   }
 
