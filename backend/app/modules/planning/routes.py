@@ -6,7 +6,7 @@ from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from app.core.database import get_session
-from app.modules.identity.auth import require_any_permission, require_permission
+from app.modules.identity.auth import list_role_names, require_any_permission, require_permission
 from app.modules.identity.models import User
 from app.modules.library.models import FileCategory, ItemFile, StoredFile
 from app.modules.planning.models import (
@@ -31,12 +31,31 @@ from app.modules.planning.schemas import (
     WorshipLeaderAssignmentRead,
     WorshipLeaderAssignmentUpdate,
 )
-from app.modules.planning.service_scaffold import ensure_service_scaffold
+from app.modules.planning.service_scaffold import ensure_service_scaffold, is_sunday_service
 
 router = APIRouter()
 PLAN_HISTORY_ACTION = "item_snapshot"
 PLAN_HISTORY_ENTITY_TYPE = "plan"
 PLAN_HISTORY_LIMIT = 80
+FIXED_SUNDAY_OUTLINE_ITEM_TYPES = {
+    "pre_service",
+    "worship_set",
+    "open_time",
+    "sermon",
+    "announcements",
+}
+
+
+def presenter_cannot_change_outline(session: Session, user: User, item: PlanItem) -> bool:
+    roles = set(list_role_names(session, user.id))
+    if "administrator" in roles or "presenter" not in roles:
+        return False
+    plan = session.get(Plan, item.plan_id)
+    return bool(
+        plan
+        and is_sunday_service(session, plan)
+        and item.item_type in FIXED_SUNDAY_OUTLINE_ITEM_TYPES
+    )
 
 
 @router.get("/worship-leader-assignments", response_model=list[WorshipLeaderAssignmentRead])
@@ -487,6 +506,14 @@ def update_plan_item(
     payload_data = payload.model_dump(exclude_unset=True)
     teacher_notes = payload_data.pop("teacher_notes", None)
 
+    if presenter_cannot_change_outline(session, current_user, item) and any(
+        field in payload_data for field in {"item_type", "sequence", "title"}
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Presenters cannot move or change Sunday service outline slides",
+        )
+
     for field, value in payload_data.items():
         setattr(item, field, value)
 
@@ -515,10 +542,15 @@ def update_plan_item(
 @router.delete("/items/{item_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_plan_item(
     item_id: str,
-    _current_user: User = Depends(require_any_permission("plans:edit", "plans:create")),
+    current_user: User = Depends(require_any_permission("plans:edit", "plans:create")),
     session: Session = Depends(get_session),
 ) -> Response:
     item = get_item_or_404(session, item_id)
+    if presenter_cannot_change_outline(session, current_user, item):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Presenters cannot remove Sunday service outline slides",
+        )
     item.deleted_at = datetime.now(UTC)
     session.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)

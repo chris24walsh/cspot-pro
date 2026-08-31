@@ -639,6 +639,8 @@ export function PresentationView({
   const [preServiceMediaBusy, setPreServiceMediaBusy] = useState(false);
   const [fillerMediaPlanItemId, setFillerMediaPlanItemId] = useState<string | null>(null);
   const [fillerMediaBusy, setFillerMediaBusy] = useState(false);
+
+  const fixedOutlineItemTypes = new Set(["pre_service", "worship_set", "open_time", "sermon", "announcements"]);
   const [liveIndex, setLiveIndex] = useState(0);
   const [message, setMessage] = useState<string | null>(null);
   const [screens, setScreens] = useState<PresentationScreen[]>([]);
@@ -3007,6 +3009,26 @@ export function PresentationView({
     }
   }
 
+  async function removeSermonDeck(item: PlanItem) {
+    const deckFiles = item.files.filter(
+      (file) => !file.content_type?.startsWith("image/") && !file.content_type?.startsWith("video/"),
+    );
+    if (!deckFiles.length || !canEditPlan) return;
+    const confirmed = await confirm({
+      title: "Remove sermon deck",
+      message: `Remove the deck from “${item.title}”? The Sermon outline slide will remain.`,
+      confirmLabel: "Remove deck",
+    });
+    if (!confirmed) return;
+    try {
+      await Promise.all(deckFiles.map((file) => deleteItemFile(file.id)));
+      await load(plan!.id, { preserveLocation: { planItemId: item.id, slideOffset: 0 }, silent: true });
+      setMessage("Sermon deck removed; the Sermon outline slide remains.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not remove sermon deck.");
+    }
+  }
+
   async function moveSection(sectionId: string, delta: -1 | 1) {
     if (!plan || !canEditPlan) {
       return;
@@ -4515,6 +4537,14 @@ export function PresentationView({
                     !file.content_type?.startsWith("image/"),
                 ),
               );
+              const fixedOutlineSection = Boolean(
+                isSundayService && sectionItem && fixedOutlineItemTypes.has(sectionItem.item_type),
+              );
+              const sermonDeckAttached = Boolean(
+                sectionItem?.item_type === "sermon" && sectionItem.files.some(
+                  (file) => !file.content_type?.startsWith("image/") && !file.content_type?.startsWith("video/"),
+                ),
+              );
               return (
                 <div
                   key={section.id}
@@ -4601,27 +4631,40 @@ export function PresentationView({
                                 <Plus size={14} aria-hidden="true" />
                               </button>
                             ) : null}
-                            <button
-                              aria-label={`Move ${section.title} up`}
-                              className="section-icon-button"
-                              disabled={ownerItemIndex <= 0}
-                              onClick={() => void moveSection(section.id, -1)}
-                              type="button"
-                            >
-                              <ChevronUp size={14} aria-hidden="true" />
-                            </button>
-                            <button
-                              aria-label={`Move ${section.title} down`}
-                              className="section-icon-button"
-                              disabled={ownerItemIndex < 0 || ownerItemIndex === ownerItems.length - 1}
-                              onClick={() => void moveSection(section.id, 1)}
-                              type="button"
-                            >
-                              <ChevronDown size={14} aria-hidden="true" />
-                            </button>
+                            {sermonDeckAttached && sectionItem ? (
+                              <button
+                                aria-label={`Remove ${section.title} deck`}
+                                className="section-icon-button section-remove-button"
+                                onClick={() => void removeSermonDeck(sectionItem)}
+                                title="Remove deck and keep the Sermon outline slide"
+                                type="button"
+                              >
+                                <Trash2 size={14} aria-hidden="true" />
+                              </button>
+                            ) : null}
+                            {!fixedOutlineSection || canAccessAdminTools ? <>
+                              <button
+                                aria-label={`Move ${section.title} up`}
+                                className="section-icon-button"
+                                disabled={ownerItemIndex <= 0}
+                                onClick={() => void moveSection(section.id, -1)}
+                                type="button"
+                              >
+                                <ChevronUp size={14} aria-hidden="true" />
+                              </button>
+                              <button
+                                aria-label={`Move ${section.title} down`}
+                                className="section-icon-button"
+                                disabled={ownerItemIndex < 0 || ownerItemIndex === ownerItems.length - 1}
+                                onClick={() => void moveSection(section.id, 1)}
+                                type="button"
+                              >
+                                <ChevronDown size={14} aria-hidden="true" />
+                              </button>
+                            </> : null}
                           </>
                         ) : null}
-                        {canEditPlan ? (
+                        {canEditPlan && (!fixedOutlineSection || canAccessAdminTools) ? (
                           <button
                             aria-label={`Remove ${section.title}`}
                             className="section-icon-button section-remove-button"

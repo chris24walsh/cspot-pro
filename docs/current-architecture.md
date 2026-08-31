@@ -350,6 +350,11 @@ Scaffold completion is idempotent and
 recognizes the older item aliases, so adding missing sections does not overwrite
 or duplicate existing service content. Section type also supplies the default
 automatic broadcast-audio scene; active media playback takes precedence.
+Presenters cannot reorder, rename, or remove these fixed outline items.
+They can manage songs inside the linked worship set, attach or detach a sermon
+deck while retaining the Sermon outline slide, and manage images attached to
+Welcome, Open time, and Announcements. Administrators retain structural repair
+controls.
 
 Pre-service montage images are `StoredFile` records attached to Welcome through
 `ItemFile`. Admins and presenters choose whether each new photo is scoped to the
@@ -368,6 +373,8 @@ Stopping slideshow enters a post-service background/music state and returns
 audio to the safe Pre-service scene rather than taking the scheduled broadcast
 offline. The scheduled session is exposed only during that service day's
 10:30–13:30 window.
+Before creating it, the scheduler retires an abandoned live session with no
+connected output, so an earlier rehearsal cannot suppress Sunday automation.
 That scheduled window also authorizes its configured camera and audio transports
 for ordinary viewers before PresentationOutput is claimed; admin-only manual
 tests remain restricted to administrators.

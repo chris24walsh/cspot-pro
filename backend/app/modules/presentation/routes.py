@@ -165,7 +165,20 @@ def ensure_scheduled_pre_service(session: Session) -> None:
                 payload["updated_at"] = int(datetime.now(UTC).timestamp() * 1000)
                 position.payload_json = json.dumps(payload)
                 session.commit()
-        return
+            return
+
+        # A rehearsal or abandoned presenter session can otherwise remain
+        # marked live for days and prevent Sunday's scheduled welcome from
+        # taking ownership. Preserve a genuinely connected output, but retire
+        # stale sessions before creating the scheduled pre-service session.
+        output_status = _serialize_output_status(
+            plan.id, position, int(datetime.now(UTC).timestamp() * 1000)
+        )
+        if output_status.active:
+            return
+        latest.status = "ended"
+        latest.ended_at = datetime.now(UTC)
+        session.commit()
     first_item = session.scalar(
         select(PlanItem)
         .where(PlanItem.plan_id == plan.id, PlanItem.deleted_at.is_(None))

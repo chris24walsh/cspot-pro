@@ -1,4 +1,6 @@
 from datetime import UTC, datetime
+from types import SimpleNamespace
+from unittest.mock import patch
 
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session
@@ -7,6 +9,7 @@ from app.core.database import Base
 from app.modules.identity.models import User
 from app.modules.music.models import Song
 from app.modules.planning.models import Plan, PlanItem, PlanType
+from app.modules.planning.routes import presenter_cannot_change_outline
 from app.modules.planning.service_scaffold import (
     SUNDAY_SERVICE_SCAFFOLD,
     ensure_service_scaffold,
@@ -72,5 +75,28 @@ def test_existing_song_message_notices_and_end_are_not_duplicated() -> None:
         assert "sermon" not in types
         assert "announcements" not in types
         assert types.count("end") == 1
+    finally:
+        session.close()
+
+
+def test_presenter_cannot_change_fixed_sunday_outline_item() -> None:
+    session, plan = scaffold_session()
+    try:
+        item = PlanItem(plan_id=plan.id, sequence=10, item_type="pre_service", title="Welcome")
+        session.add(item)
+        session.commit()
+
+        with patch("app.modules.planning.routes.list_role_names", return_value=["presenter"]):
+            assert presenter_cannot_change_outline(
+                session, SimpleNamespace(id="presenter"), item  # type: ignore[arg-type]
+            )
+
+        with patch(
+            "app.modules.planning.routes.list_role_names",
+            return_value=["presenter", "administrator"],
+        ):
+            assert not presenter_cannot_change_outline(
+                session, SimpleNamespace(id="admin"), item  # type: ignore[arg-type]
+            )
     finally:
         session.close()
