@@ -1,5 +1,6 @@
 from datetime import date, datetime
 from decimal import Decimal
+from typing import Any
 
 from pydantic import BaseModel, Field
 
@@ -93,9 +94,13 @@ class PlanHistoryCreate(BaseModel):
 
 class PlanHistoryRead(PlanHistoryCreate):
     id: str
+    entity_id: str
+    entity_type: str
     actor_id: str | None = None
     actor_name: str | None = None
     created_at: datetime
+    data_before: dict[str, Any] = Field(default_factory=dict)
+    data_after: dict[str, Any] = Field(default_factory=dict)
 
 
 class PlanItemFileRead(BaseModel):

@@ -8,10 +8,12 @@ import {
   Library,
   Printer,
   RefreshCw,
+  RotateCcw,
   Save,
   Scissors,
   Search,
   WandSparkles,
+  X,
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -21,6 +23,7 @@ import {
   ApiError,
   createSundaySchoolLesson,
   getSundaySchoolLessons,
+  getSundaySchoolLessonHistory,
   getSundaySchoolResources,
   getMembers,
   importSundaySchoolResources,
@@ -28,6 +31,7 @@ import {
   updateSundaySchoolLesson,
   type Member,
   type SundaySchoolLesson,
+  type SundaySchoolHistoryEntry,
   type SundaySchoolLessonPayload,
   type SundaySchoolResource,
 } from "../api";
@@ -37,6 +41,7 @@ import { calendarDatesAround, effectiveLeaderIdForDate, sundayDatesAround, unava
 import { CalendarPopup } from "./CalendarPopup";
 import { DateNavigator, formatNavigatorDate } from "./DateNavigator";
 import { LeaderAssignmentDialog } from "./LeaderAssignmentDialog";
+import { useConfirmationDialog } from "./ConfirmationDialog";
 
 type SundaySchoolPane = "library" | "set";
 type LessonElementKey = "passage" | "craft" | "activity" | "game" | "resources";
@@ -194,6 +199,7 @@ function firstLine(value: string) {
 }
 
 export function SundaySchoolView({ active = true, canEdit }: { active?: boolean; canEdit: boolean }) {
+  const { confirm, confirmationDialog } = useConfirmationDialog();
   const [lessons, setLessons] = useState<SundaySchoolLesson[]>([]);
   const [resources, setResources] = useState<SundaySchoolResource[]>([]);
   const [users, setUsers] = useState<Member[]>([]);
@@ -202,6 +208,10 @@ export function SundaySchoolView({ active = true, canEdit }: { active?: boolean;
   const [draft, setDraft] = useState<SundaySchoolLessonPayload>(() => blankLesson(nextSundayDateInput()));
   const [mobilePane, setMobilePane] = useState<SundaySchoolPane>("library");
   const [calendarOpen, setCalendarOpen] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [history, setHistory] = useState<SundaySchoolHistoryEntry[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyApplying, setHistoryApplying] = useState(false);
   const [selectedElementKey, setSelectedElementKey] = useState<LessonElementKey>("passage");
   const [expandedElementKey, setExpandedElementKey] = useState<LessonElementKey | null>(null);
   const [teacherPickerDate, setTeacherPickerDate] = useState<string | null>(null);
@@ -215,6 +225,16 @@ export function SundaySchoolView({ active = true, canEdit }: { active?: boolean;
   const lessonRefs = useRef<Record<string, HTMLButtonElement | null>>({});
 
   useEscapeClose(resourcePickerOpen, () => setResourcePickerOpen(false));
+  useEscapeClose(historyOpen, () => setHistoryOpen(false));
+  useEffect(() => {
+    if (!historyOpen) return;
+    const closeOutside = (event: PointerEvent) => {
+      const target = event.target as Element | null;
+      if (!target?.closest(".sunday-school-history-popover, .date-navigator-history")) setHistoryOpen(false);
+    };
+    document.addEventListener("pointerdown", closeOutside);
+    return () => document.removeEventListener("pointerdown", closeOutside);
+  }, [historyOpen]);
 
   const lessonsByDate = useMemo(
     () => new Map(lessons.map((lesson) => [dateInputFromIso(lesson.lesson_date), lesson])),
@@ -596,8 +616,112 @@ export function SundaySchoolView({ active = true, canEdit }: { active?: boolean;
     }
   }
 
+  function formatHistoryTime(value: string) {
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? "" : date.toLocaleString(undefined, { day: "numeric", hour: "2-digit", minute: "2-digit", month: "short" });
+  }
+
+  async function openLessonHistory() {
+    const lesson = lessonsByDate.get(selectedDate);
+    if (!lesson || historyApplying) return;
+    if (historyOpen) {
+      setHistoryOpen(false);
+      return;
+    }
+    setCalendarOpen(false);
+    setHistoryLoading(true);
+    setHistoryOpen(true);
+    try {
+      setHistory(await getSundaySchoolLessonHistory(lesson.id));
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not load lesson history.");
+    } finally {
+      setHistoryLoading(false);
+    }
+  }
+
+  async function restoreLessonHistory(entry: SundaySchoolHistoryEntry) {
+    const lesson = lessonsByDate.get(selectedDate);
+    if (!lesson || historyApplying) return;
+    const confirmed = await confirm({
+      confirmLabel: "Restore version",
+      message: "Restore the lesson to this point in time? Changes made after it will be unwound, and this restore will be recorded in history.",
+      title: "Restore Lesson Version",
+    });
+    if (!confirmed) return;
+    setHistoryApplying(true);
+    try {
+      const saved = await updateSundaySchoolLesson(lesson.id, entry.after);
+      setLessons((current) => current.map((candidate) => candidate.id === saved.id ? saved : candidate));
+      setDraft(draftFromLesson(saved));
+      setHistoryOpen(false);
+      setMessage("Lesson restored to the selected version.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not restore this lesson version.");
+    } finally {
+      setHistoryApplying(false);
+    }
+  }
+
+  async function undoLessonHistoryEntry(entry: SundaySchoolHistoryEntry) {
+    const lesson = lessonsByDate.get(selectedDate);
+    if (!lesson || historyApplying) return;
+    setHistoryApplying(true);
+    try {
+      const current = draftFromLesson(lesson);
+      const target = { ...current };
+      for (const field of Object.keys(entry.before) as Array<keyof SundaySchoolLessonPayload>) {
+        if (entry.before[field] !== entry.after[field]) target[field] = entry.before[field] as never;
+      }
+      const saved = await updateSundaySchoolLesson(lesson.id, target);
+      setLessons((lessons) => lessons.map((candidate) => candidate.id === saved.id ? saved : candidate));
+      setDraft(draftFromLesson(saved));
+      setHistory(await getSundaySchoolLessonHistory(lesson.id));
+      setMessage(`Undid only: ${entry.label}.`);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not undo this lesson change.");
+    } finally {
+      setHistoryApplying(false);
+    }
+  }
+
+  function lessonHistoryContent() {
+    if (!historyOpen) return null;
+    return (
+      <section className="worship-history-popover sunday-school-history-popover" aria-label="Sunday School edit history">
+        <div className="worship-history-popover-heading">
+          <strong>Edit History</strong>
+          <button aria-label="Close edit history" className="section-icon-button" onClick={() => setHistoryOpen(false)} type="button"><X size={14} aria-hidden="true" /></button>
+        </div>
+        <div className="worship-history-list">
+          {historyLoading ? <p className="search-empty">Loading history...</p> : null}
+          {!historyLoading && !history.length ? <p className="search-empty">No lesson edits recorded yet.</p> : null}
+          {history[0] ? (
+            <div className="worship-history-row">
+              <button className="history-version-button" disabled={historyApplying} onClick={() => void restoreLessonHistory({ ...history[0], id: `original-${history[0].id}`, label: "Original lesson", after: history[0].before })} title="Restore the original lesson" type="button">
+                <span>Original lesson</span><small>First recorded version</small>
+              </button>
+            </div>
+          ) : null}
+          {[...history].reverse().map((entry) => (
+            <div className="worship-history-row" key={entry.id}>
+              <button className="history-version-button" disabled={historyApplying} onClick={() => void restoreLessonHistory(entry)} title="Restore this point in time" type="button">
+                <span>{entry.label}</span>
+                <small>{[entry.actor_name, formatHistoryTime(entry.created_at)].filter(Boolean).join(" · ")}</small>
+              </button>
+              <button aria-label={`Undo only ${entry.label}`} className="history-single-undo-button" disabled={historyApplying} onClick={() => void undoLessonHistoryEntry(entry)} title="Undo only this change" type="button">
+                <RotateCcw size={15} aria-hidden="true" /><span>Undo change</span>
+              </button>
+            </div>
+          ))}
+        </div>
+      </section>
+    );
+  }
+
   return (
     <section className={`worship-builder sunday-school-as-worship worship-builder-pane-${mobilePane}`} aria-label="Sunday School lessons">
+      {confirmationDialog}
       {active && topbarSlot
         ? createPortal(
             <div className="presentation-topbar-tools">
@@ -605,10 +729,13 @@ export function SundaySchoolView({ active = true, canEdit }: { active?: boolean;
                 assignmentDisabled={!canEdit}
                 assignmentLabel={selectedTeacherName || "Leader"}
                 assignmentTitle={selectedTeacherName ? `Leader: ${selectedTeacherName}` : "Assign leader"}
-                historyLabel="Open Sunday School calendar history"
+                historyContent={lessonHistoryContent()}
+                historyDisabled={!lessonsByDate.get(selectedDate) || historyApplying}
+                historyExpanded={historyOpen}
+                historyLabel="Sunday School edit history"
                 label={formatNavigatorDate(selectedDate)}
                 nextLabel="Next Sunday"
-                onHistory={() => setCalendarOpen(true)}
+                onHistory={() => void openLessonHistory()}
                 onAssignment={() => setTeacherPickerDate(selectedDate)}
                 onNext={() => shiftSelectedDate(1)}
                 onOpenPicker={() => setCalendarOpen(true)}

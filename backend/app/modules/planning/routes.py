@@ -241,6 +241,8 @@ def history_entry_to_read(session: Session, entry: HistoryEntry) -> PlanHistoryR
     actor = session.get(User, entry.actor_id) if entry.actor_id else None
     return PlanHistoryRead(
         id=entry.id,
+        entity_id=entry.entity_id,
+        entity_type=entry.entity_type,
         actor_id=entry.actor_id,
         actor_name=actor.name if actor else None,
         created_at=entry.created_at,
@@ -250,6 +252,8 @@ def history_entry_to_read(session: Session, entry: HistoryEntry) -> PlanHistoryR
         affected=details.get("affected"),
         change_type=details.get("change_type", "plan_items"),
         restorable=details.get("restorable", bool(details.get("before") or details.get("after"))),
+        data_before=details.get("data_before", {}),
+        data_after=details.get("data_after", {}),
     )
 
 
@@ -481,10 +485,21 @@ def list_plan_history(
     session: Session = Depends(get_session),
 ) -> list[PlanHistoryRead]:
     get_plan_or_404(session, plan_id)
+    song_ids = session.scalars(
+        select(PlanItem.song_id).where(
+            PlanItem.plan_id == plan_id,
+            PlanItem.deleted_at.is_(None),
+            PlanItem.song_id.is_not(None),
+        )
+    ).all()
     history_filters = [
         (HistoryEntry.entity_type == PLAN_HISTORY_ENTITY_TYPE)
         & (HistoryEntry.entity_id == plan_id),
     ]
+    if song_ids:
+        history_filters.append(
+            (HistoryEntry.entity_type == "song") & HistoryEntry.entity_id.in_(song_ids)
+        )
     entries = session.scalars(
         select(HistoryEntry)
         .where(
@@ -494,9 +509,11 @@ def list_plan_history(
         .order_by(HistoryEntry.created_at.desc())
         .limit(PLAN_HISTORY_LIMIT)
     ).all()
-    history = [
-        entry for entry in (history_entry_to_read(session, entry) for entry in entries) if entry
-    ]
+    history = []
+    for stored_entry in entries:
+        entry = history_entry_to_read(session, stored_entry)
+        if entry and (stored_entry.entity_type == PLAN_HISTORY_ENTITY_TYPE or entry.restorable):
+            history.append(entry)
     return list(reversed(history))
 
 

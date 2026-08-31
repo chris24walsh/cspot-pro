@@ -108,6 +108,8 @@ export interface PlanHistorySnapshotItem {
 
 export interface PlanHistoryEntry {
   id: string;
+  entity_id?: string;
+  entity_type?: string;
   actor_id: string | null;
   actor_name: string | null;
   created_at: string;
@@ -117,6 +119,8 @@ export interface PlanHistoryEntry {
   affected: string | null;
   change_type: string;
   restorable: boolean;
+  data_before?: Record<string, unknown>;
+  data_after?: Record<string, unknown>;
 }
 
 export interface PlanItemFile {
@@ -747,6 +751,15 @@ export interface SundaySchoolLessonPayload {
   teacher_notes: string;
 }
 
+export interface SundaySchoolHistoryEntry {
+  id: string;
+  actor_name: string | null;
+  created_at: string;
+  label: string;
+  before: SundaySchoolLessonPayload;
+  after: SundaySchoolLessonPayload;
+}
+
 export interface SundaySchoolResource {
   id: string;
   title: string;
@@ -1144,6 +1157,10 @@ export async function deleteSong(songId: string): Promise<void> {
   return deleteRequest(`/api/v1/music/songs/${songId}`);
 }
 
+export async function restoreSong(songId: string): Promise<Song> {
+  return sendJson<Song>(`/api/v1/music/songs/${songId}/restore`, "POST", {});
+}
+
 export async function getRoles(): Promise<Role[]> {
   return getJson<Role[]>("/api/v1/identity/roles");
 }
@@ -1344,6 +1361,10 @@ export async function updateSundaySchoolLesson(
   payload: Partial<SundaySchoolLessonPayload>,
 ): Promise<SundaySchoolLesson> {
   return sendJson<SundaySchoolLesson>(`/api/v1/sunday-school/lessons/${lessonId}`, "PATCH", payload);
+}
+
+export async function getSundaySchoolLessonHistory(lessonId: string): Promise<SundaySchoolHistoryEntry[]> {
+  return getJson<SundaySchoolHistoryEntry[]>(`/api/v1/sunday-school/lessons/${lessonId}/history`);
 }
 
 export async function getSundaySchoolResources(params?: {

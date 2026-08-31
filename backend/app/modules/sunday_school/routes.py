@@ -1,3 +1,4 @@
+import json
 from datetime import date
 from io import BytesIO
 from pathlib import Path
@@ -11,9 +12,11 @@ from sqlalchemy.orm import Session
 from app.core.database import get_session
 from app.modules.identity.auth import require_any_permission, require_permission
 from app.modules.identity.models import User
+from app.modules.planning.models import HistoryEntry
 from app.modules.sunday_school.importer import import_resources_from_default_roots
 from app.modules.sunday_school.models import SundaySchoolLesson, SundaySchoolResource
 from app.modules.sunday_school.schemas import (
+    SundaySchoolHistoryRead,
     SundaySchoolImportRead,
     SundaySchoolLessonCreate,
     SundaySchoolLessonRead,
@@ -22,6 +25,8 @@ from app.modules.sunday_school.schemas import (
 )
 
 router = APIRouter()
+LESSON_HISTORY_ENTITY_TYPE = "sunday_school_lesson"
+LESSON_HISTORY_ACTION = "lesson_snapshot"
 
 
 def lesson_to_read(lesson: SundaySchoolLesson) -> SundaySchoolLessonRead:
@@ -51,6 +56,44 @@ def get_lesson_or_404(session: Session, lesson_id: str) -> SundaySchoolLesson:
             detail="Sunday school lesson not found",
         )
     return lesson
+
+
+def lesson_history_snapshot(lesson: SundaySchoolLesson) -> dict[str, object]:
+    return SundaySchoolLessonCreate.model_validate(lesson, from_attributes=True).model_dump(
+        mode="json"
+    )
+
+
+@router.get("/lessons/{lesson_id}/history", response_model=list[SundaySchoolHistoryRead])
+def list_lesson_history(
+    lesson_id: str,
+    _current_user: User = Depends(require_permission("plans:read")),
+    session: Session = Depends(get_session),
+) -> list[SundaySchoolHistoryRead]:
+    get_lesson_or_404(session, lesson_id)
+    entries = session.scalars(
+        select(HistoryEntry).where(
+            HistoryEntry.entity_type == LESSON_HISTORY_ENTITY_TYPE,
+            HistoryEntry.entity_id == lesson_id,
+            HistoryEntry.action == LESSON_HISTORY_ACTION,
+        ).order_by(HistoryEntry.created_at.desc()).limit(100)
+    ).all()
+    result: list[SundaySchoolHistoryRead] = []
+    for entry in entries:
+        try:
+            details = json.loads(entry.details or "{}")
+        except json.JSONDecodeError:
+            continue
+        actor = session.get(User, entry.actor_id) if entry.actor_id else None
+        result.append(SundaySchoolHistoryRead(
+            id=entry.id,
+            actor_name=actor.name if actor else None,
+            created_at=entry.created_at,
+            label=details.get("label", "Lesson edited"),
+            before=details.get("before", {}),
+            after=details.get("after", {}),
+        ))
+    return list(reversed(result))
 
 
 def resource_to_read(resource: SundaySchoolResource) -> SundaySchoolResourceRead:
@@ -207,11 +250,12 @@ def open_resource_file(
 def update_lesson(
     lesson_id: str,
     payload: SundaySchoolLessonUpdate,
-    _current_user: User = Depends(require_any_permission("plans:create", "plans:edit")),
+    current_user: User = Depends(require_any_permission("plans:create", "plans:edit")),
     session: Session = Depends(get_session),
 ) -> SundaySchoolLessonRead:
     lesson = get_lesson_or_404(session, lesson_id)
     changes = payload.model_dump(exclude_unset=True)
+    before = lesson_history_snapshot(lesson)
 
     if "lesson_date" in changes and changes["lesson_date"] != lesson.lesson_date:
         existing = session.scalar(
@@ -227,6 +271,31 @@ def update_lesson(
 
     for key, value in changes.items():
         setattr(lesson, key, value)
+
+    after = lesson_history_snapshot(lesson)
+    changed_fields = [
+        field.replace("_", " ")
+        for field in changes
+        if before.get(field) != after.get(field)
+    ]
+    if changed_fields:
+        label = (
+            changed_fields[0].capitalize()
+            if len(changed_fields) == 1
+            else f"Edited {len(changed_fields)} lesson fields"
+        )
+        session.add(
+            HistoryEntry(
+                actor_id=current_user.id,
+                entity_type=LESSON_HISTORY_ENTITY_TYPE,
+                entity_id=lesson.id,
+                action=LESSON_HISTORY_ACTION,
+                details=json.dumps(
+                    {"label": label, "before": before, "after": after},
+                    separators=(",", ":"),
+                ),
+            )
+        )
 
     session.commit()
     session.refresh(lesson)

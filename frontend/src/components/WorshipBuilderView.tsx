@@ -23,6 +23,7 @@ import {
   parseGoogleDriveDeck,
   recordWorshipSuggestionRejection,
   restorePlan,
+  restoreSong,
   runCustomProviderSearch,
   searchGoogleDriveFiles,
   selectCustomProviderMatch,
@@ -49,6 +50,7 @@ import {
 } from "../api";
 import { useDurableChange } from "../changePolling";
 import { buildPresentationSections, suggestUniformSlideGroupFontCap } from "../presentation";
+import { undoHistoryEntrySnapshot } from "../planHistory";
 import { parseChordChart } from "../chordSheet";
 import { showToast } from "../toast";
 import { analyzeImportedSongSlides, analyzeWorshipText, buildLyricsFromSections, canonicalizeWorshipLyrics } from "../worshipText";
@@ -349,6 +351,7 @@ export function WorshipBuilderView({ active = true, canAccessAdminTools, canArch
   const [leaderPickerDate, setLeaderPickerDate] = useState<string | null>(null);
   const [leaderSaving, setLeaderSaving] = useState(false);
   const [archivedSetUndo, setArchivedSetUndo] = useState<{ id: string; title: string } | null>(null);
+  const [archivedSongUndo, setArchivedSongUndo] = useState<{ id: string; title: string } | null>(null);
   const [query, setQuery] = useState("");
   const [bookSourceFilter, setBookSourceFilter] = useState("all");
   const [loading, setLoading] = useState(true);
@@ -587,7 +590,7 @@ export function WorshipBuilderView({ active = true, canAccessAdminTools, canArch
   }
 
   function formatHistoryLabel(label: string) {
-    return label.replace(/^(?:(?:reverting|restoring|restored)\s+)+/gi, "").replace(/^adding\s+/i, "Added ").replace(/^removing\s+/i, "Removed ").replace(/^moving\s+/i, "Moved ").replace(/^importing\s+/i, "Imported ");
+    return label.replace(/^(?:(?:reverting|restoring|restored)\s+)+/gi, "").replace(/^adding\s+/i, "Added ").replace(/^removing\s+/i, "Removed ").replace(/^moving\s+/i, "Moved ").replace(/^importing\s+/i, "Imported ").replace(/^editing\s+/i, "Edited ").replace(/^archiving\s+/i, "Archived ");
   }
 
   async function recordSetHistory(planId: string, label: string, before: PlanHistorySnapshotItem[], after: PlanHistorySnapshotItem[], affected: string) {
@@ -665,7 +668,7 @@ export function WorshipBuilderView({ active = true, canAccessAdminTools, canArch
     if (!plan || editHistoryApplying || targetIndex === editHistoryIndex) {
       return;
     }
-    const restorableHistory = editHistory.filter((entry) => entry.restorable);
+    const restorableHistory = editHistory.filter((entry) => entry.restorable && entry.entity_type !== "song" && entry.after.length > 0);
     const boundedIndex = Math.max(0, Math.min(restorableHistory.length, targetIndex));
     setEditHistoryApplying(true);
     try {
@@ -676,16 +679,52 @@ export function WorshipBuilderView({ active = true, canAccessAdminTools, canArch
       }
       const before = snapshotWorshipItems((await getPlan(plan.id)).items);
       await applyWorshipSetSnapshot(plan.id, targetSnapshot);
+      const after = snapshotWorshipItems((await getPlan(plan.id)).items);
       await recordSetHistory(
         plan.id,
         boundedIndex < editHistoryIndex ? `reverting "${entry.label}"` : `restoring "${entry.label}"`,
         before,
-        targetSnapshot,
+        after,
         entry.affected ?? entry.label,
       );
       setMessage(boundedIndex < editHistoryIndex ? `Reverted ${entry.label}.` : `Restored ${entry.label}.`);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Could not update worship set history.");
+    } finally {
+      setEditHistoryApplying(false);
+    }
+  }
+
+  async function restoreSetHistory(targetIndex: number) {
+    if (targetIndex === editHistoryIndex) return;
+    const confirmed = await confirm({
+      confirmLabel: "Restore version",
+      message: "Restore the worship set to this point in time? Changes between then and now will be unwound, and this restore will be recorded in history.",
+      title: "Restore Worship Set Version",
+    });
+    if (confirmed) await jumpSetHistory(targetIndex);
+  }
+
+  async function undoSetHistoryEntry(entry: PlanHistoryEntry) {
+    if (!plan || !entry.restorable || editHistoryApplying) return;
+    setEditHistoryApplying(true);
+    try {
+      if (entry.entity_type === "song" && entry.entity_id) {
+        if (entry.change_type === "song_archive") await restoreSong(entry.entity_id);
+        else await updateSong(entry.entity_id, (entry.data_before ?? {}) as Parameters<typeof updateSong>[1]);
+        await load(plan.id);
+        setMessage(`Undid only: ${formatHistoryLabel(entry.label)}.`);
+        return;
+      }
+      const current = await getPlan(plan.id);
+      const before = snapshotWorshipItems(current.items);
+      const target = undoHistoryEntrySnapshot(before, entry);
+      await applyWorshipSetSnapshot(plan.id, target);
+      const after = snapshotWorshipItems((await getPlan(plan.id)).items);
+      await recordSetHistory(plan.id, `Undid ${formatHistoryLabel(entry.label)}`, before, after, entry.affected ?? entry.label);
+      setMessage(`Undid only: ${formatHistoryLabel(entry.label)}.`);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not undo this worship set change.");
     } finally {
       setEditHistoryApplying(false);
     }
@@ -702,7 +741,7 @@ export function WorshipBuilderView({ active = true, canAccessAdminTools, canArch
     try {
       const nextHistory = await getPlanHistory(plan.id);
       setEditHistory(nextHistory);
-      setEditHistoryIndex(nextHistory.filter((entry) => entry.restorable).length);
+      setEditHistoryIndex(nextHistory.filter((entry) => entry.restorable && entry.entity_type !== "song" && entry.after.length > 0).length);
       setEditHistoryOpen(true);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Could not load worship set history.");
@@ -1481,11 +1520,24 @@ export function WorshipBuilderView({ active = true, canAccessAdminTools, canArch
 
     try {
       await deleteSong(song.id);
+      setArchivedSongUndo({ id: song.id, title: song.title });
       setEditingSong(null);
       await load(plan?.id);
       setMessage(`Archived "${song.title}".`);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Could not archive song.");
+    }
+  }
+
+  async function undoArchivedSong() {
+    if (!archivedSongUndo) return;
+    try {
+      await restoreSong(archivedSongUndo.id);
+      setArchivedSongUndo(null);
+      await load(plan?.id);
+      setMessage("Song restored.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not restore the archived song.");
     }
   }
 
@@ -1782,6 +1834,12 @@ export function WorshipBuilderView({ active = true, canAccessAdminTools, canArch
           <button className="text-button" onClick={() => void undoArchivedWorshipSet()} type="button">Undo</button>
         </div>
       ) : null}
+      {archivedSongUndo ? (
+        <div className="archive-undo-banner" role="status">
+          <span>Archived “{archivedSongUndo.title}”</span>
+          <button className="text-button" onClick={() => void undoArchivedSong()} type="button">Undo</button>
+        </div>
+      ) : null}
       {active && topbarSlot
           ? createPortal(
             <div className="presentation-topbar-tools worship-topbar-tools">
@@ -1818,21 +1876,17 @@ export function WorshipBuilderView({ active = true, canAccessAdminTools, canArch
                       </button>
                     </div>
                     <div className="worship-history-list">
-                      <button
-                        className={`worship-history-row ${editHistoryIndex === 0 ? "active" : ""}`}
-                        disabled={editHistoryApplying}
-                        onClick={() => void jumpSetHistory(0)}
-                        type="button"
-                      >
-                        <span>Original set</span>
-                        <small>{editHistoryIndex === 0 ? "Current" : "Past"}</small>
-                        {editHistoryIndex !== 0 ? <RotateCcw className="history-revert-icon" size={15} aria-label="Revert to original set" /> : null}
-                      </button>
+                      <div className={`worship-history-row ${editHistoryIndex === 0 ? "active" : ""}`}>
+                        <button className="history-version-button" disabled={editHistoryApplying || editHistoryIndex === 0} onClick={() => void restoreSetHistory(0)} title="Restore the original set" type="button">
+                          <span>Original set</span>
+                          <small>{editHistoryIndex === 0 ? "Current" : "Past"}</small>
+                        </button>
+                      </div>
                       {(() => {
                         let restorableEntryIndex = 0;
                         const entryIndexes = new Map<string, number>();
                         editHistory.forEach((entry) => {
-                          if (entry.restorable) {
+                          if (entry.restorable && entry.entity_type !== "song" && entry.after.length > 0) {
                             restorableEntryIndex += 1;
                             entryIndexes.set(entry.id, restorableEntryIndex);
                           }
@@ -1847,24 +1901,23 @@ export function WorshipBuilderView({ active = true, canAccessAdminTools, canArch
                                 : entryIndex > editHistoryIndex
                                   ? "Future"
                                   : "Current";
-                          const meta = [relation, entry.actor_name, formatHistoryTime(entry.created_at)].filter(Boolean).join(" · ");
+                          const meta = [entry.entity_type === "song" ? "Song" : relation, entry.actor_name, formatHistoryTime(entry.created_at)].filter(Boolean).join(" · ");
                           return (
-                            <button
+                            <div
                               aria-disabled={!entry.restorable || entryIndex === null}
                               className={`worship-history-row ${entryIndex === editHistoryIndex ? "active" : ""} ${entry.restorable ? "" : "is-audit"}`}
-                              disabled={editHistoryApplying}
                               key={entry.id}
-                              onClick={() => {
-                                if (entryIndex !== null) {
-                                  void jumpSetHistory(entryIndex);
-                                }
-                              }}
-                              type="button"
                             >
-                              <span>{formatHistoryLabel(entry.label)}</span>
-                              <small>{meta}</small>
-                              {entry.restorable && entryIndex !== editHistoryIndex ? <RotateCcw className="history-revert-icon" size={15} aria-label="Revert to this version" /> : null}
-                            </button>
+                              <button className="history-version-button" disabled={!entry.restorable || entryIndex === null || entryIndex === editHistoryIndex || editHistoryApplying} onClick={() => { if (entryIndex !== null) void restoreSetHistory(entryIndex); }} title="Restore this point in time" type="button">
+                                <span>{formatHistoryLabel(entry.label)}</span>
+                                <small>{meta}</small>
+                              </button>
+                              {entry.restorable ? (
+                                <button aria-label={`Undo only ${formatHistoryLabel(entry.label)}`} className="history-single-undo-button" disabled={editHistoryApplying} onClick={() => void undoSetHistoryEntry(entry)} title="Undo only this change" type="button">
+                                  <RotateCcw size={15} aria-hidden="true" /><span>Undo change</span>
+                                </button>
+                              ) : null}
+                            </div>
                           );
                         });
                       })()}

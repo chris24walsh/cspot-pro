@@ -388,33 +388,57 @@ button {
 }
 
 .worship-history-row {
-  align-content: center;
   background: #f9f6eb;
   border: 1px solid #e3dcc8;
   border-radius: 8px;
   color: #17201b;
-  cursor: pointer;
   display: grid;
-  gap: 3px;
-  grid-template-rows: minmax(0, auto) minmax(0, auto) minmax(0, auto);
+  grid-template-columns: minmax(0, 1fr) auto;
   line-height: 1.12;
   height: 58px;
   min-height: 58px;
   min-width: 0;
   overflow: hidden;
-  padding: 7px 9px;
-  padding-right: 32px;
-  position: relative;
   text-align: left;
   width: 100%;
 }
 
-.history-revert-icon {
+.history-version-button,
+.history-single-undo-button {
+  background: transparent;
+  border: 0;
+  color: inherit;
+  cursor: pointer;
+}
+
+.history-version-button {
+  align-content: center;
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+  padding: 7px 9px;
+  text-align: left;
+}
+
+.history-single-undo-button {
+  align-items: center;
+  border-left: 1px solid #e3dcc8;
   color: #346f58;
-  position: absolute;
-  right: 9px;
-  top: 50%;
-  transform: translateY(-50%);
+  display: flex;
+  gap: 5px;
+  justify-content: center;
+  min-width: 38px;
+  padding: 7px 10px;
+}
+
+.history-single-undo-button:hover:not(:disabled) {
+  background: #dff0e7;
+}
+
+.history-single-undo-button span {
+  display: none;
+  font-size: 11px;
+  text-transform: uppercase;
 }
 
 .worship-history-row.active {
@@ -427,7 +451,8 @@ button {
   cursor: default;
 }
 
-.worship-history-row:disabled {
+.history-version-button:disabled,
+.history-single-undo-button:disabled {
   opacity: 1;
 }
 
@@ -463,6 +488,12 @@ button {
   text-overflow: ellipsis;
   text-transform: uppercase;
   white-space: nowrap;
+}
+
+@media (min-width: 860px), (orientation: landscape) and (min-width: 600px) {
+  .history-single-undo-button span {
+    display: inline;
+  }
 }
 
 .sunday-school-workspace {

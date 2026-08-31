@@ -1,6 +1,7 @@
 from datetime import date, datetime
+from typing import Any
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class SundaySchoolLessonBase(BaseModel):
@@ -39,6 +40,15 @@ class SundaySchoolLessonRead(SundaySchoolLessonBase):
     id: str
     created_at: datetime
     updated_at: datetime
+
+
+class SundaySchoolHistoryRead(BaseModel):
+    id: str
+    actor_name: str | None = None
+    created_at: datetime
+    label: str
+    before: dict[str, Any] = Field(default_factory=dict)
+    after: dict[str, Any] = Field(default_factory=dict)
 
 
 class SundaySchoolResourceRead(BaseModel):

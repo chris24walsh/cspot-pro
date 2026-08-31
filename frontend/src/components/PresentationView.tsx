@@ -41,6 +41,9 @@ import {
   stopBroadcastRecording,
   uploadStoredFile,
   updatePlan,
+  updateSong,
+  restoreSong,
+  restorePlan,
   updatePresentationOutputStatus,
   updatePresentationLiveState,
   updatePlanItem,
@@ -84,6 +87,7 @@ import {
   type PresentationTheme,
 } from "../presentation";
 import { isMobileOrTabletDevice } from "../presentationDevice";
+import { undoHistoryEntrySnapshot } from "../planHistory";
 import { calendarDatesAround, sundayDatesAround } from "../leaderSchedule";
 import { AutoFitSlideText } from "./AutoFitSlideText";
 import { useConfirmationDialog } from "./ConfirmationDialog";
@@ -685,6 +689,7 @@ export function PresentationView({
   const [serviceHistory, setServiceHistory] = useState<PlanHistoryEntry[]>([]);
   const [serviceHistoryLoading, setServiceHistoryLoading] = useState(false);
   const [serviceHistoryApplying, setServiceHistoryApplying] = useState(false);
+  const [archivedServiceUndo, setArchivedServiceUndo] = useState<{ id: string; title: string } | null>(null);
   useEscapeClose(serviceHistoryOpen, () => setServiceHistoryOpen(false));
   useEffect(() => {
     if (!serviceHistoryOpen) return;
@@ -1742,7 +1747,7 @@ export function PresentationView({
   }
 
   function formatHistoryLabel(label: string) {
-    return label.replace(/^(?:(?:reverting|restoring|restored)\s+)+/gi, "").replace(/^adding\s+/i, "Added ").replace(/^removing\s+/i, "Removed ").replace(/^moving\s+/i, "Moved ").replace(/^importing\s+/i, "Imported ");
+    return label.replace(/^(?:(?:reverting|restoring|restored)\s+)+/gi, "").replace(/^adding\s+/i, "Added ").replace(/^removing\s+/i, "Removed ").replace(/^moving\s+/i, "Moved ").replace(/^importing\s+/i, "Imported ").replace(/^editing\s+/i, "Edited ").replace(/^archiving\s+/i, "Archived ");
   }
 
   async function openServiceHistory() {
@@ -1771,12 +1776,9 @@ export function PresentationView({
     }));
   }
 
-  async function applyServiceHistory(entry: PlanHistoryEntry) {
-    if (!plan || !entry.restorable || serviceHistoryApplying) return;
-    setServiceHistoryApplying(true);
-    try {
-      const current = await getPlan(plan.id);
-      const target = entry.after;
+  async function applyServiceSnapshot(target: PlanHistorySnapshotItem[]) {
+    if (!plan) throw new Error("Select a service first.");
+    const current = await getPlan(plan.id);
       const targetIds = new Set(target.map((item) => item.id));
       await Promise.all(current.items.filter((item) => !targetIds.has(item.id)).map((item) => deletePlanItem(item.id)));
       for (const item of target) {
@@ -1788,11 +1790,24 @@ export function PresentationView({
         if (current.items.some((candidate) => candidate.id === item.id)) await updatePlanItem(item.id, payload);
         else await createPlanItem(plan.id, payload);
       }
-      const restored = await getPlan(plan.id);
+    return { before: current, after: await getPlan(plan.id) };
+  }
+
+  async function applyServiceHistory(entry: PlanHistoryEntry) {
+    if (!plan || !entry.restorable || serviceHistoryApplying) return;
+    const confirmed = await confirm({
+      confirmLabel: "Restore version",
+      message: "Restore the service to this point in time? Changes made after it will be unwound, and this restore will be recorded in history.",
+      title: "Restore Service Version",
+    });
+    if (!confirmed) return;
+    setServiceHistoryApplying(true);
+    try {
+      const restored = await applyServiceSnapshot(entry.after);
       const historyEntry = await createPlanHistoryEntry(plan.id, {
         label: `Restored ${formatHistoryLabel(entry.label)}`,
-        before: snapshotServiceItems(current.items),
-        after: snapshotServiceItems(restored.items),
+        before: snapshotServiceItems(restored.before.items),
+        after: snapshotServiceItems(restored.after.items),
         affected: entry.affected || entry.label,
         change_type: "plan_items",
         restorable: true,
@@ -1803,6 +1818,38 @@ export function PresentationView({
       setMessage("Service restored to the selected version.");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Could not restore this service version.");
+    } finally {
+      setServiceHistoryApplying(false);
+    }
+  }
+
+  async function undoServiceHistoryEntry(entry: PlanHistoryEntry) {
+    if (!plan || !entry.restorable || serviceHistoryApplying) return;
+    setServiceHistoryApplying(true);
+    try {
+      if (entry.entity_type === "song" && entry.entity_id) {
+        if (entry.change_type === "song_archive") await restoreSong(entry.entity_id);
+        else await updateSong(entry.entity_id, (entry.data_before ?? {}) as Parameters<typeof updateSong>[1]);
+        await load(plan.id, { refreshCatalogs: true, silent: true });
+        setMessage(`Undid only: ${formatHistoryLabel(entry.label)}.`);
+        return;
+      }
+      const current = await getPlan(plan.id);
+      const target = undoHistoryEntrySnapshot(snapshotServiceItems(current.items), entry);
+      const restored = await applyServiceSnapshot(target);
+      const historyEntry = await createPlanHistoryEntry(plan.id, {
+        label: `Undid ${formatHistoryLabel(entry.label)}`,
+        before: snapshotServiceItems(restored.before.items),
+        after: snapshotServiceItems(restored.after.items),
+        affected: entry.affected || entry.label,
+        change_type: "plan_items",
+        restorable: true,
+      });
+      setServiceHistory((history) => [...history, historyEntry]);
+      await load(plan.id, { silent: true });
+      setMessage(`Undid only: ${formatHistoryLabel(entry.label)}.`);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not undo this service change.");
     } finally {
       setServiceHistoryApplying(false);
     }
@@ -1819,6 +1866,7 @@ export function PresentationView({
     if (!serviceHistoryOpen) {
       return null;
     }
+    const firstVersion = serviceHistory.find((entry) => entry.entity_type !== "song" && entry.restorable && entry.before.length > 0);
     return (
       <section className="worship-history-popover service-history-popover" aria-label="Service edit history">
         <div className="worship-history-popover-heading">
@@ -1833,14 +1881,28 @@ export function PresentationView({
         <div className="worship-history-list">
           {serviceHistoryLoading ? <p className="search-empty">Loading history...</p> : null}
           {!serviceHistoryLoading && !serviceHistory.length ? <p className="search-empty">No service edits recorded yet.</p> : null}
-          {[...serviceHistory].reverse().map((entry) => {
-            const meta = [entry.restorable ? "Service" : "Audit", entry.actor_name, formatHistoryTime(entry.created_at)].filter(Boolean).join(" · ");
-            return (
-              <button className={`worship-history-row ${entry.restorable ? "" : "is-audit"}`} disabled={!entry.restorable || serviceHistoryApplying} key={entry.id} onClick={() => void applyServiceHistory(entry)} type="button">
-                <span>{formatHistoryLabel(entry.label)}</span>
-                <small>{meta}</small>
-                {entry.restorable ? <RotateCcw className="history-revert-icon" size={15} aria-label="Revert to this version" /> : null}
+          {firstVersion ? (
+            <div className="worship-history-row">
+              <button className="history-version-button" disabled={serviceHistoryApplying} onClick={() => void applyServiceHistory({ ...firstVersion, id: `original-${firstVersion.id}`, label: "Original service", after: firstVersion.before })} title="Restore the original service" type="button">
+                <span>Original service</span><small>First recorded version</small>
               </button>
+            </div>
+          ) : null}
+          {[...serviceHistory].reverse().map((entry) => {
+            const isPlanVersion = entry.entity_type !== "song" && entry.after.length > 0;
+            const meta = [entry.entity_type === "song" ? "Song" : entry.restorable ? "Service" : "Audit", entry.actor_name, formatHistoryTime(entry.created_at)].filter(Boolean).join(" · ");
+            return (
+              <div className={`worship-history-row ${entry.restorable ? "" : "is-audit"}`} key={entry.id}>
+                <button className="history-version-button" disabled={!isPlanVersion || serviceHistoryApplying} onClick={() => void applyServiceHistory(entry)} title={isPlanVersion ? "Restore this point in time" : undefined} type="button">
+                  <span>{formatHistoryLabel(entry.label)}</span>
+                  <small>{meta}</small>
+                </button>
+                {entry.restorable ? (
+                  <button aria-label={`Undo only ${formatHistoryLabel(entry.label)}`} className="history-single-undo-button" disabled={serviceHistoryApplying} onClick={() => void undoServiceHistoryEntry(entry)} title="Undo only this change" type="button">
+                    <RotateCcw size={15} aria-hidden="true" /><span>Undo change</span>
+                  </button>
+                ) : null}
+              </div>
             );
           })}
         </div>
@@ -2120,12 +2182,26 @@ export function PresentationView({
     }
 
     try {
+      const archived = { id: plan.id, title: plan.title };
       await deletePlan(plan.id);
+      setArchivedServiceUndo(archived);
       await load(undefined, { refreshCatalogs: true });
       setServicePickerOpen(false);
       setMessage("Service archived.");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Could not archive this service.");
+    }
+  }
+
+  async function undoArchivedService() {
+    if (!archivedServiceUndo) return;
+    try {
+      const restored = await restorePlan(archivedServiceUndo.id);
+      setArchivedServiceUndo(null);
+      await load(restored.id, { refreshCatalogs: true });
+      setMessage("Service restored.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not restore the archived service.");
     }
   }
 
@@ -3995,6 +4071,12 @@ export function PresentationView({
       }}
     >
       {confirmationDialog}
+      {archivedServiceUndo ? (
+        <div className="archive-undo-banner" role="status">
+          <span>Archived “{archivedServiceUndo.title}”</span>
+          <button className="text-button" onClick={() => void undoArchivedService()} type="button">Undo</button>
+        </div>
+      ) : null}
       <input
         aria-hidden="true"
         autoCapitalize="off"

@@ -56,16 +56,25 @@ def _song_change_summary(field: str, before: object, after: object) -> str:
     return f"{field} changed"
 
 
-def _record_song_history(session: Session, song: Song, actor: User, changes: list[str]) -> None:
+def _record_song_history(
+    session: Session,
+    song: Song,
+    actor: User,
+    changes: list[str],
+    before: dict[str, object],
+    after: dict[str, object],
+) -> None:
     if not changes:
         return
     details = {
         "label": f'editing "{song.title}"',
         "affected": f"{song.title}: {', '.join(changes[:4])}{'...' if len(changes) > 4 else ''}",
         "change_type": "song",
-        "restorable": False,
+        "restorable": True,
         "before": [],
         "after": [],
+        "data_before": before,
+        "data_after": after,
     }
     session.add(
         HistoryEntry(
@@ -563,6 +572,8 @@ def update_song(
 ) -> SongRead:
     song = get_song_or_404(session, song_id)
     changes: list[str] = []
+    before_values: dict[str, object] = {}
+    after_values: dict[str, object] = {}
     values = payload.model_dump(exclude_unset=True)
     if "worship_role" in values:
         previous_roles = _role_values(song.worship_role)
@@ -596,9 +607,11 @@ def update_song(
         before = getattr(song, field)
         if before != value:
             changes.append(_song_change_summary(field, before, value))
+            before_values[field] = before
+            after_values[field] = value
         setattr(song, field, value)
 
-    _record_song_history(session, song, current_user, changes)
+    _record_song_history(session, song, current_user, changes, before_values, after_values)
     session.commit()
     session.refresh(song)
     return song_to_read(song)
@@ -622,10 +635,12 @@ def delete_song(
                 {
                     "label": f'archiving "{song.title}"',
                     "affected": song.title,
-                    "change_type": "song",
-                    "restorable": False,
+                    "change_type": "song_archive",
+                    "restorable": True,
                     "before": [],
                     "after": [],
+                    "data_before": {"archived": False},
+                    "data_after": {"archived": True},
                 },
                 separators=(",", ":"),
             ),
@@ -633,6 +648,21 @@ def delete_song(
     )
     session.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.post("/songs/{song_id}/restore", response_model=SongRead)
+def restore_song(
+    song_id: str,
+    _current_user: User = Depends(require_any_permission("songs:delete", "songs:edit")),
+    session: Session = Depends(get_session),
+) -> SongRead:
+    song = session.get(Song, song_id)
+    if song is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Song not found")
+    song.deleted_at = None
+    session.commit()
+    session.refresh(song)
+    return song_to_read(song)
 
 
 @router.get("/song-parts", response_model=list[SongPartRead])
