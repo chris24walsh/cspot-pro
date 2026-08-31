@@ -91,6 +91,42 @@ OUTPUT_STALE_MS = 7000
 SERVICE_TIME_ZONE = ZoneInfo("Europe/Dublin")
 
 
+def cleanup_live_sessions(
+    session: Session,
+    *,
+    active_plan_id: str | None = None,
+    now: datetime | None = None,
+) -> int:
+    """End old sessions and enforce a single live service globally."""
+    current_time = now or datetime.now(UTC)
+    current_local_date = current_time.astimezone(SERVICE_TIME_ZONE).date()
+    ended = 0
+    live_sessions = session.scalars(
+        select(PresentationSession).where(
+            PresentationSession.status == "live",
+            PresentationSession.ended_at.is_(None),
+        )
+    ).all()
+    for presentation_session in live_sessions:
+        if active_plan_id is not None:
+            if presentation_session.plan_id == active_plan_id:
+                continue
+        else:
+            plan = session.get(Plan, presentation_session.plan_id)
+            if not (
+                plan
+                and plan.service_date.astimezone(SERVICE_TIME_ZONE).date()
+                < current_local_date
+            ):
+                continue
+        presentation_session.status = "ended"
+        presentation_session.ended_at = current_time
+        ended += 1
+    if ended:
+        session.commit()
+    return ended
+
+
 def scheduled_service_window_active(plan: Plan, now: datetime | None = None) -> bool:
     now_local = now.astimezone(SERVICE_TIME_ZONE) if now else datetime.now(SERVICE_TIME_ZONE)
     service_local = plan.service_date.astimezone(SERVICE_TIME_ZONE)
@@ -136,6 +172,7 @@ def ensure_scheduled_pre_service(session: Session) -> None:
     )
     if plan is None:
         return
+    cleanup_live_sessions(session, active_plan_id=plan.id)
     latest = _latest_session(session, plan.id)
     if latest and latest.status == "live" and latest.ended_at is None:
         position = _latest_position(session, latest.id)
@@ -316,6 +353,7 @@ def list_live_presentation_services(
     current_user: User = Depends(require_permission("plans:read")),
     session: Session = Depends(get_session),
 ) -> list[PresentationLiveServiceRead]:
+    cleanup_live_sessions(session)
     ensure_scheduled_pre_service(session)
     now = int(datetime.now(UTC).timestamp() * 1000)
     presentation_sessions = session.scalars(
@@ -400,6 +438,7 @@ def get_presentation_live_state(
     _current_user: User = Depends(require_any_permission("plans:read", "presentation:use")),
     session: Session = Depends(get_session),
 ) -> PresentationLiveStateRead:
+    cleanup_live_sessions(session)
     presentation_session = _latest_session(session, plan_id)
     position = _latest_position(session, presentation_session.id) if presentation_session else None
     return _serialize_live_state(presentation_session, position, plan_id)
@@ -419,6 +458,7 @@ def update_presentation_live_state(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only administrators can simulate pre-service timing",
         )
+    cleanup_live_sessions(session, active_plan_id=plan_id)
     presentation_session = _latest_session(session, plan_id)
     if presentation_session is None:
         presentation_session = PresentationSession(
@@ -431,6 +471,7 @@ def update_presentation_live_state(
     else:
         presentation_session.presenter_id = current_user.id
         presentation_session.status = "live"
+        presentation_session.ended_at = None
 
     position = _latest_position(session, presentation_session.id)
     if position is None:
@@ -514,6 +555,8 @@ def update_presentation_output_status(
     current_user: User = Depends(require_permission("presentation:use")),
     session: Session = Depends(get_session),
 ) -> PresentationOutputStatusRead:
+    if not payload.release:
+        cleanup_live_sessions(session, active_plan_id=plan_id)
     presentation_session = _latest_session(session, plan_id)
     if presentation_session is None:
         presentation_session = PresentationSession(
@@ -523,6 +566,10 @@ def update_presentation_output_status(
         )
         session.add(presentation_session)
         session.flush()
+    elif not payload.release:
+        presentation_session.presenter_id = current_user.id
+        presentation_session.status = "live"
+        presentation_session.ended_at = None
 
     position = _latest_position(session, presentation_session.id)
     if position is None:
@@ -547,6 +594,8 @@ def update_presentation_output_status(
         next_payload.pop("pre_service_phase", None)
         next_payload["blanked"] = True
         next_payload["updated_at"] = payload.heartbeat_at
+        presentation_session.status = "ended"
+        presentation_session.ended_at = datetime.now(UTC)
     elif next_payload.get("output_closed_owner_id") == payload.owner_id:
         return PresentationOutputStatusRead(plan_id=plan_id)
     elif current_owner and current_owner != payload.owner_id:

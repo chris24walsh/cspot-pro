@@ -49,8 +49,9 @@ The live slideshow can run directly in a
 [church TV's native browser](docs/tv-browser-display.md), following a presenter
 over the server without an HDMI cable or extended desktop. Use the short
 `/app/tv` production route; public HTTP visits are upgraded to HTTPS. Once the
-presenter selects **Start**, the TV output remains active until a
-presenter explicitly stops it from any device.
+presenter selects **Start**, the TV output remains active until a presenter
+stops it or starts another service. Only one service can be live system-wide,
+and unclosed past-service sessions are expired by the following day.
 
 ## Local Development
 

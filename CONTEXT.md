@@ -21,7 +21,7 @@
 - Blank changes should publish the exact next value immediately to avoid stale cross-device sync.
 - Arrow-key presenter navigation should be keydown-only to avoid double-advancing.
 - Sorter/rail should auto-follow live slide when already in sync; if operator scrolls away, show catch-up arrow after delayed latest-slide check.
-- One server-authoritative slideshow session is active per service until a presenter explicitly stops it from any device.
+- Only one server-authoritative slideshow session can be live system-wide. Starting another service ends the previous session, and unclosed past-service sessions expire by the next day.
 - Start Slideshow also enables TV output; desktops open a local output window, while phones and tablets only control the network output.
 - Mobile dialogs/overlays must fit and remain scrollable.
 - Mobile service calendar/search and worship set picker use single-column scrollable dialogs on small screens.

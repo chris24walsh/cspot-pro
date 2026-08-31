@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 
 from app.core.database import Base
 from app.modules.broadcast.models import BroadcastViewerSettings
+from app.modules.planning.models import Plan, PlanType
 from app.modules.presentation.models import PresentationPosition, PresentationSession
 from app.modules.presentation.routes import (
     PresentationLiveStateWrite,
@@ -17,10 +18,60 @@ from app.modules.presentation.routes import (
     _serialize_live_state,
     _serialize_output_status,
     admin_rehearsal_visible,
+    cleanup_live_sessions,
     scheduled_service_window_active,
     update_presentation_live_state,
     update_presentation_output_status,
 )
+
+
+def test_cleanup_live_sessions_keeps_only_selected_service_live() -> None:
+    engine = create_engine("sqlite://")
+    Base.metadata.create_all(engine, tables=[PresentationSession.__table__])
+    with Session(engine) as session:
+        selected = PresentationSession(plan_id="plan-2", status="live")
+        superseded = PresentationSession(plan_id="plan-1", status="live")
+        session.add_all([superseded, selected])
+        session.commit()
+
+        assert cleanup_live_sessions(
+            session,
+            active_plan_id="plan-2",
+            now=datetime(2026, 8, 30, 10, 0, tzinfo=UTC),
+        ) == 1
+
+        assert selected.status == "live"
+        assert selected.ended_at is None
+        assert superseded.status == "ended"
+        assert superseded.ended_at == datetime(2026, 8, 30, 10, 0)
+
+
+def test_cleanup_live_sessions_ends_past_service_by_next_day() -> None:
+    engine = create_engine("sqlite://")
+    Base.metadata.create_all(
+        engine,
+        tables=[PlanType.__table__, Plan.__table__, PresentationSession.__table__],
+    )
+    with Session(engine) as session:
+        plan_type = PlanType(name="Sunday Service", starts_at="10:30", active=True)
+        session.add(plan_type)
+        session.flush()
+        plan = Plan(
+            plan_type_id=plan_type.id,
+            service_date=datetime(2026, 8, 30, 9, 30, tzinfo=UTC),
+            title="Sunday Service",
+            status="draft",
+        )
+        session.add(plan)
+        session.flush()
+        stale = PresentationSession(plan_id=plan.id, status="live")
+        session.add(stale)
+        session.commit()
+
+        assert cleanup_live_sessions(
+            session, now=datetime(2026, 8, 31, 0, 0, tzinfo=UTC)
+        ) == 1
+        assert stale.status == "ended"
 
 
 def test_pre_service_rehearsal_is_visible_only_to_admins_before_output_starts() -> None:
