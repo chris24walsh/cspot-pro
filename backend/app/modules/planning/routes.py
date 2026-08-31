@@ -7,13 +7,13 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_session
 from app.modules.broadcast.models import BroadcastViewerSettings
-from app.modules.broadcast.settings import service_schedules
+from app.modules.broadcast.settings import DEFAULT_SERVICE_SCHEDULES, service_schedules
 from app.modules.identity.auth import list_role_names, require_any_permission, require_permission
 from app.modules.identity.models import User
 from app.modules.library.models import FileCategory, ItemFile, StoredFile
 from app.modules.planning.models import (
-    HistoryEntry,
     DefaultItem,
+    HistoryEntry,
     ItemNote,
     Plan,
     PlanItem,
@@ -21,8 +21,8 @@ from app.modules.planning.models import (
     WorshipLeaderAssignment,
 )
 from app.modules.planning.schemas import (
-    PlanCreate,
     DefaultOutlineItem,
+    PlanCreate,
     PlanDetail,
     PlanHistoryCreate,
     PlanHistoryRead,
@@ -30,8 +30,8 @@ from app.modules.planning.schemas import (
     PlanItemRead,
     PlanItemUpdate,
     PlanSummary,
-    PlanTypeRead,
     PlanTypeCreate,
+    PlanTypeRead,
     PlanTypeUpdate,
     PlanUpdate,
     WorshipLeaderAssignmentRead,
@@ -419,27 +419,45 @@ def create_plan(
     session.add(plan)
     session.commit()
     session.refresh(plan)
+    created_items: list[PlanItem] = []
     if plan_type.name == "Worship Set":
         settings = session.scalar(select(BroadcastViewerSettings).limit(1))
-        rules = service_schedules(settings) if settings is not None else []
+        rules = service_schedules(settings) if settings is not None else DEFAULT_SERVICE_SCHEDULES
         scheduled_names = {
             rule.plan_type
             for rule in rules
             if rule.enabled and rule.weekday == plan.service_date.weekday()
         }
         if scheduled_names:
-            service_plans = session.scalars(
-                select(Plan).where(Plan.deleted_at.is_(None), Plan.id != plan.id)
+            service_types = session.scalars(
+                select(PlanType).where(PlanType.name.in_(scheduled_names), PlanType.active.is_(True))
             ).all()
-            for service_plan in service_plans:
-                service_type = session.get(PlanType, service_plan.plan_type_id)
-                if (
-                    service_type is not None
-                    and service_type.name in scheduled_names
-                    and service_plan.service_date.date() == plan.service_date.date()
-                ):
-                    ensure_service_scaffold(session, service_plan)
-    return plan_to_detail(session, plan, [])
+            for service_type in service_types:
+                service_plan = session.scalar(
+                    select(Plan).where(
+                        Plan.deleted_at.is_(None),
+                        Plan.plan_type_id == service_type.id,
+                        func.date(Plan.service_date) == plan.service_date.date(),
+                    )
+                )
+                if service_plan is None:
+                    service_plan = Plan(
+                        plan_type_id=service_type.id,
+                        service_date=plan.service_date,
+                        title=f"{service_type.name} {plan.service_date.strftime('%d %b %Y')}",
+                        subtitle=None,
+                        leader_id=None,
+                        teacher_id=None,
+                        status="draft",
+                        info=None,
+                    )
+                    session.add(service_plan)
+                    session.commit()
+                    session.refresh(service_plan)
+                ensure_service_scaffold(session, service_plan)
+    else:
+        created_items = ensure_service_scaffold(session, plan)
+    return plan_to_detail(session, plan, created_items)
 
 
 @router.post("/plans/{plan_id}/service-scaffold", response_model=PlanDetail)

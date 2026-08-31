@@ -66,7 +66,7 @@ export function DateNavigator({
   assignmentDisabled = false,
 }: DateNavigatorProps) {
   return (
-    <div className={`date-navigator ${onAssignment ? "has-assignment" : ""}`}>
+    <div className={`date-navigator ${onServiceType ? "has-service-type" : ""} ${onAssignment ? "has-assignment" : ""}`}>
       <button aria-label={previousLabel} className="section-icon-button" disabled={previousDisabled} onClick={onPrevious} title={previousLabel} type="button">
         <ChevronLeft size={14} aria-hidden="true" />
       </button>

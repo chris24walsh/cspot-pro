@@ -642,7 +642,6 @@ export function PresentationView({
   const [plan, setPlan] = useState<PlanDetail | null>(null);
   const [worshipSetPlan, setWorshipSetPlan] = useState<PlanDetail | null>(null);
   const [loading, setLoading] = useState(true);
-  const [addingServiceOutline, setAddingServiceOutline] = useState(false);
   const [preServiceMediaOpen, setPreServiceMediaOpen] = useState(false);
   const [preServiceMediaBusy, setPreServiceMediaBusy] = useState(false);
   const [fillerMediaPlanItemId, setFillerMediaPlanItemId] = useState<string | null>(null);
@@ -684,13 +683,16 @@ export function PresentationView({
   const [servicePickerOpen, setServicePickerOpen] = useState(false);
   const [serviceDraftDate, setServiceDraftDate] = useState("");
   const [serviceHistoryOpen, setServiceHistoryOpen] = useState(false);
-  const [serviceTypePickerOpen, setServiceTypePickerOpen] = useState(false);
-  const [creationPlanTypeId, setCreationPlanTypeId] = useState("");
+  const [pendingServiceDate, setPendingServiceDate] = useState<string | null>(null);
+  const [pendingServiceTypeId, setPendingServiceTypeId] = useState("");
+  const [pendingServiceMode, setPendingServiceMode] = useState<"create" | "edit">("create");
+  const [creatingService, setCreatingService] = useState(false);
   const [serviceHistory, setServiceHistory] = useState<PlanHistoryEntry[]>([]);
   const [serviceHistoryLoading, setServiceHistoryLoading] = useState(false);
   const [serviceHistoryApplying, setServiceHistoryApplying] = useState(false);
   const [archivedServiceUndo, setArchivedServiceUndo] = useState<{ id: string; title: string } | null>(null);
   useEscapeClose(serviceHistoryOpen, () => setServiceHistoryOpen(false));
+  useEscapeClose(Boolean(pendingServiceDate), () => setPendingServiceDate(null));
   useEffect(() => {
     if (!serviceHistoryOpen) return;
     const closeOutside = (event: PointerEvent) => {
@@ -774,6 +776,7 @@ export function PresentationView({
     () => planTypes.find((type) => type.id === plan?.plan_type_id) ?? null,
     [plan?.plan_type_id, planTypes],
   );
+  const pendingServiceType = planTypes.find((type) => type.id === pendingServiceTypeId && type.active) ?? null;
   const effectivePlanItems = useMemo(
     () => mergeWorshipSetIntoService(plan?.items ?? [], worshipSetPlan?.items ?? []),
     [plan?.items, worshipSetPlan?.items],
@@ -1937,39 +1940,19 @@ export function PresentationView({
     return dateInputFromIso(date.toISOString());
   }
 
-  function serviceTypeForDate(dateInput: string) {
-    const selectedType = planTypes.find((type) => type.id === creationPlanTypeId && type.active);
+  function serviceTypeForDate(dateInput: string, selectedTypeId?: string) {
+    const selectedType = planTypes.find((type) => type.id === selectedTypeId && type.active);
     if (selectedType) return selectedType;
     const date = new Date(serviceIsoFromDateInput(dateInput));
     const weekday = Number.isNaN(date.getTime()) ? -1 : (date.getDay() + 6) % 7;
     const scheduled = serviceSchedules.find((rule) => rule.enabled && rule.weekday === weekday);
     return planTypes.find((type) => type.active && type.name === scheduled?.plan_type)
-      ?? planTypes.find((type) => type.active)
+      ?? planTypes.find((type) => type.active && type.name !== "Worship Set")
       ?? null;
   }
 
-  function serviceTypePickerContent() {
-    if (!serviceTypePickerOpen) return null;
-    return (
-      <section className="worship-history-popover service-history-popover service-type-popover" aria-label="Choose service type">
-        <div className="worship-history-popover-heading">
-          <strong>New service type</strong>
-          <button aria-label="Close service type selector" className="section-icon-button" onClick={() => setServiceTypePickerOpen(false)} type="button">x</button>
-        </div>
-        <div className="worship-history-list">
-          {planTypes.filter((type) => type.active).map((type) => (
-            <button className={`worship-history-row ${creationPlanTypeId === type.id ? "active" : ""}`} key={type.id} onClick={() => { setCreationPlanTypeId(type.id); setServiceTypePickerOpen(false); }} type="button">
-              <span>{type.name}</span>
-              <small>{type.default_outline.length} outline sections{type.starts_at ? ` · ${type.starts_at}` : ""}</small>
-            </button>
-          ))}
-        </div>
-      </section>
-    );
-  }
-
-  function suggestedServiceTitle(dateInput: string) {
-    const type = serviceTypeForDate(dateInput);
+  function suggestedServiceTitle(dateInput: string, selectedTypeId?: string) {
+    const type = serviceTypeForDate(dateInput, selectedTypeId);
     return `${type?.name ?? "Service"} ${serviceLongDateForInput(dateInput)}`;
   }
 
@@ -1979,17 +1962,19 @@ export function PresentationView({
       (candidate) => dateInputFromIso(candidate.service_date) === dateInput,
     );
     const existing = servicesOnDate.find((candidate) => candidate.plan_type === targetType?.name)
-      ?? (!creationPlanTypeId ? servicesOnDate[0] : undefined);
+      ?? servicesOnDate[0];
     if (existing) {
       setServicePickerOpen(false);
       await selectPlan(existing.id);
       return;
     }
     setServicePickerOpen(false);
-    await createServiceForDate(dateInput);
+    setPendingServiceMode("create");
+    setPendingServiceDate(dateInput);
+    setPendingServiceTypeId(targetType?.id ?? "");
   }
 
-  async function createServiceForDate(dateInput: string) {
+  async function createServiceForDate(dateInput: string, selectedTypeId: string) {
     if (!dateInput) {
       setMessage("Choose a date first.");
       return;
@@ -1999,17 +1984,36 @@ export function PresentationView({
       return;
     }
 
-    const primaryPlanType = serviceTypeForDate(dateInput);
+    const primaryPlanType = serviceTypeForDate(dateInput, selectedTypeId);
     if (!primaryPlanType) {
       setMessage("No service types are configured yet.");
       return;
     }
 
+    setCreatingService(true);
     try {
+      if (pendingServiceMode === "edit" && plan) {
+        if (plan.plan_type_id !== primaryPlanType.id) {
+          await updatePlan(plan.id, { plan_type_id: primaryPlanType.id });
+          await addMissingServiceSections(plan.id);
+          await load(plan.id, { refreshCatalogs: true });
+          setMessage(`Service changed to ${primaryPlanType.name}; existing content was preserved and missing outline sections were added.`);
+        }
+        setPendingServiceDate(null);
+        return;
+      }
+      const existing = servicePlans.find((candidate) => (
+        dateInputFromIso(candidate.service_date) === dateInput && candidate.plan_type === primaryPlanType.name
+      ));
+      if (existing) {
+        setPendingServiceDate(null);
+        await selectPlan(existing.id);
+        return;
+      }
       const created = await createPlan({
         plan_type_id: primaryPlanType.id,
         service_date: serviceIsoFromDateInput(dateInput),
-        title: suggestedServiceTitle(dateInput),
+        title: suggestedServiceTitle(dateInput, primaryPlanType.id),
         subtitle: null,
         leader_id: null,
         teacher_id: null,
@@ -2019,30 +2023,12 @@ export function PresentationView({
       selectedPlanIdRef.current = created.id;
       await load(created.id, { refreshCatalogs: true });
       setServicePickerOpen(false);
-      setMessage("New service created.");
+      setPendingServiceDate(null);
+      setMessage(`${primaryPlanType.name} created with its service outline.`);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Could not create a new service.");
-    }
-  }
-
-  async function completeServiceOutline() {
-    if (!plan || !canEditPlan || addingServiceOutline) {
-      return;
-    }
-    setAddingServiceOutline(true);
-    try {
-      const updated = await addMissingServiceSections(plan.id);
-      setPlan(updated);
-      setPlans((current) => current.map((summary) => (
-        summary.id === updated.id
-          ? { ...summary, item_count: updated.items.filter((item) => item.item_type !== WORSHIP_SET_ANCHOR_ITEM_TYPE).length }
-          : summary
-      )));
-      setMessage(`Missing ${updated.plan_type} outline sections added; existing content was preserved.`);
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Could not add the service outline.");
     } finally {
-      setAddingServiceOutline(false);
+      setCreatingService(false);
     }
   }
 
@@ -4101,7 +4087,13 @@ export function PresentationView({
                 nextDisabled={loading || !nextPlannedService}
                 nextLabel="Next service"
                 onHistory={() => void openServiceHistory()}
-                onServiceType={() => { setServiceHistoryOpen(false); setServiceTypePickerOpen((open) => !open); }}
+                onServiceType={canEditPlan ? () => {
+                  if (!plan) return;
+                  setServiceHistoryOpen(false);
+                  setPendingServiceMode("edit");
+                  setPendingServiceDate(dateInputFromIso(plan.service_date));
+                  setPendingServiceTypeId(plan.plan_type_id);
+                } : undefined}
                 onNext={() => void stepService("next")}
                 onOpenPicker={openServicePicker}
                 onPrevious={() => void stepService("previous")}
@@ -4109,9 +4101,8 @@ export function PresentationView({
                 pickerDisabled={loading}
                 previousDisabled={loading || !previousPlannedService}
                 previousLabel="Previous service"
-                serviceTypeContent={serviceTypePickerContent()}
-                serviceTypeExpanded={serviceTypePickerOpen}
-                serviceTypeLabel={planTypes.find((type) => type.id === creationPlanTypeId)?.name ?? currentPlanType?.name ?? "Service type"}
+                serviceTypeExpanded={pendingServiceMode === "edit" && Boolean(pendingServiceDate)}
+                serviceTypeLabel={currentPlanType?.name ?? "Service type"}
               />
             </div>,
             topbarSlot,
@@ -4138,6 +4129,40 @@ export function PresentationView({
           );
         }}
       />
+      {pendingServiceDate ? (
+        <div className="app-dialog-backdrop confirmation-dialog-backdrop" onMouseDown={() => { if (!creatingService) setPendingServiceDate(null); }} role="presentation">
+          <section aria-labelledby="create-service-title" aria-modal="true" className="app-dialog create-service-dialog" onMouseDown={(event) => event.stopPropagation()} role="dialog">
+            <div>
+              <p className="dialog-eyebrow">{pendingServiceMode === "edit" ? "Service setup" : "New service"}</p>
+              <h2 id="create-service-title">{pendingServiceMode === "edit" ? "Change service type" : "Prepare"} {formatNavigatorDate(pendingServiceDate)}</h2>
+              <p>{pendingServiceMode === "edit" ? "Choose the better service type for this date. Existing content is preserved; any missing sections from the selected outline are added." : "Nothing is created until you confirm. The scheduled type is selected automatically; change it here only when this date is an exception."}</p>
+            </div>
+            <label>
+              Service type
+              <select disabled={creatingService} onChange={(event) => setPendingServiceTypeId(event.target.value)} value={pendingServiceTypeId}>
+                {planTypes.filter((type) => type.active && type.name !== "Worship Set").map((type) => (
+                  <option key={type.id} value={type.id}>{type.name}</option>
+                ))}
+              </select>
+            </label>
+            <div className="create-service-outline-preview">
+              <strong>{pendingServiceType?.name ?? "Service"} outline</strong>
+              {pendingServiceType?.default_outline.length ? (
+                <span>{pendingServiceType.default_outline.map((item) => item.title).join(" · ")}</span>
+              ) : (
+                <span>{pendingServiceType?.name === "Sunday Service" ? "Welcome · Worship · Open time · Sermon · Announcements" : "No automatic sections configured"}</span>
+              )}
+              <small>Pre-service media is queued only when the selected service type includes a Welcome / pre-service section.</small>
+            </div>
+            <div className="app-dialog-actions">
+              <button className="text-button" disabled={creatingService} onClick={() => setPendingServiceDate(null)} type="button">Cancel</button>
+              <button className="primary-button" disabled={creatingService || !pendingServiceType} onClick={() => void createServiceForDate(pendingServiceDate, pendingServiceTypeId)} type="button">
+                {creatingService ? "Saving…" : pendingServiceMode === "edit" ? "Apply service type" : "Prepare service"}
+              </button>
+            </div>
+          </section>
+        </div>
+      ) : null}
       {!canEditPlan ? (
         <p className="empty-state presentation-readonly-note">
           Presenter mode is live, but this account is read-only for plan changes.
@@ -4682,18 +4707,6 @@ export function PresentationView({
           ) : null}
           <div className="section-rail-title">
             <span>Sections</span>
-            {currentPlanType?.default_outline.length && canEditPlan ? (
-              <button
-                className="section-scaffold-button"
-                disabled={addingServiceOutline}
-                onClick={() => void completeServiceOutline()}
-                title={`Add any missing ${currentPlanType.name} outline sections`}
-                type="button"
-              >
-                <Plus size={12} aria-hidden="true" />
-                {addingServiceOutline ? "Adding…" : "Add outline"}
-              </button>
-            ) : null}
           </div>
           <div
             className="section-rail-list"

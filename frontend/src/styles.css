@@ -295,6 +295,14 @@ button {
   grid-template-columns: 30px minmax(72px, auto) 30px 30px minmax(54px, auto);
 }
 
+.date-navigator.has-service-type {
+  grid-template-columns: 30px minmax(72px, auto) 30px minmax(72px, 180px) 30px;
+}
+
+.date-navigator.has-service-type.has-assignment {
+  grid-template-columns: 30px minmax(72px, auto) 30px minmax(72px, 180px) 30px minmax(54px, auto);
+}
+
 .date-navigator > .section-icon-button,
 .date-navigator > .text-button {
   height: 30px;
@@ -7855,10 +7863,52 @@ button.musician-page {
 
 .service-history-popover {
   color: #10251f;
-  left: 0;
+  left: auto;
   pointer-events: auto;
-  right: auto;
-  top: calc(100% + 8px);
+  right: 0;
+  top: calc(100% + 6px);
+  width: min(360px, calc(100vw - 24px));
+}
+
+.create-service-dialog label {
+  color: #3b4741;
+  display: grid;
+  font-size: 12px;
+  font-weight: 850;
+  gap: 6px;
+}
+
+.create-service-dialog select {
+  width: 100%;
+}
+
+.dialog-eyebrow {
+  color: #65716a !important;
+  font-size: 11px !important;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  margin-bottom: 5px !important;
+  text-transform: uppercase;
+}
+
+.create-service-outline-preview {
+  background: #f9f6eb;
+  border: 1px solid #e3dcc8;
+  border-radius: 8px;
+  display: grid;
+  gap: 5px;
+  padding: 10px;
+}
+
+.create-service-outline-preview span {
+  color: #33443d;
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.create-service-outline-preview small {
+  color: #65716a;
+  line-height: 1.3;
 }
 
 .stage-toggle-switch {
@@ -9765,10 +9815,11 @@ button.musician-page {
   }
 
   .service-history-popover {
-    left: -1px;
+    left: auto;
     max-width: calc(100vw - 24px);
+    right: 0;
     top: calc(100% + 7px);
-    width: 310px;
+    width: min(360px, calc(100vw - 24px));
   }
 
   .presentation-stage {
@@ -11316,6 +11367,14 @@ button.musician-page {
   grid-template-columns: 30px minmax(0, 1fr) 30px 30px 30px;
 }
 
+.shell.is-mobile-device .date-navigator.has-service-type {
+  grid-template-columns: 30px minmax(0, 1fr) 30px minmax(64px, 100px) 30px;
+}
+
+.shell.is-mobile-device .date-navigator.has-service-type.has-assignment {
+  grid-template-columns: 30px minmax(0, 1fr) 30px minmax(64px, 100px) 30px 30px;
+}
+
 .shell.is-mobile-device .date-navigator > .section-icon-button,
 .shell.is-mobile-device .date-navigator > .text-button,
 .shell.is-mobile-device .worship-topbar-tools .topbar-service-button,
@@ -11529,6 +11588,14 @@ button.musician-page {
 
 .shell.is-tablet-device .date-navigator.has-assignment {
   grid-template-columns: 40px minmax(0, 1fr) 40px 40px 40px;
+}
+
+.shell.is-tablet-device .date-navigator.has-service-type {
+  grid-template-columns: 40px minmax(0, 1fr) 40px minmax(90px, 150px) 40px;
+}
+
+.shell.is-tablet-device .date-navigator.has-service-type.has-assignment {
+  grid-template-columns: 40px minmax(0, 1fr) 40px minmax(90px, 150px) 40px 40px;
 }
 
 .shell.is-tablet-device .topbar-context-slot button,

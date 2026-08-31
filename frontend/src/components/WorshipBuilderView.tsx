@@ -916,6 +916,12 @@ export function WorshipBuilderView({ active = true, canAccessAdminTools, canArch
       return;
     }
     setSetPickerOpen(false);
+    const confirmed = await confirm({
+      confirmLabel: "Prepare worship set",
+      message: `Prepare a worship set for ${formatNavigatorDate(dateInput)}? The scheduled service and its outline will also be prepared automatically.`,
+      title: "Prepare Worship Set",
+    });
+    if (!confirmed) return;
     try {
       const saved = await createPlan({
         plan_type_id: planType.id,
