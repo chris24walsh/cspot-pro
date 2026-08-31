@@ -1510,6 +1510,12 @@ export function PresentationView({
     setMessage("Service started on the holding background. Use Next when worship is ready to begin.");
   }
 
+  async function stopServiceTest() {
+    setSlideshowStartMenuOpen(false);
+    await closeActiveSlideshow();
+    setMessage("Service test stopped and live output reset.");
+  }
+
   async function detectDisplays() {
     const screenWindow = window as WindowWithScreenDetails;
     if (!screenWindow.getScreenDetails) {
@@ -4160,6 +4166,10 @@ export function PresentationView({
                         <button onClick={() => void startServiceFromMenu()} role="menuitem" type="button">
                           <span aria-hidden="true">▶</span>
                           Start service
+                        </button>
+                        <button onClick={() => void stopServiceTest()} role="menuitem" type="button">
+                          <span aria-hidden="true">■</span>
+                          Stop service
                         </button>
                       </>
                     ) : null}

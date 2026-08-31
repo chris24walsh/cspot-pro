@@ -21,6 +21,10 @@ describe("pre-service timing", () => {
     expect(preServicePhaseAt(serviceDate, new Date(2026, 7, 30, 11, 0).getTime())).toBe("complete");
   });
 
+  it("resets the timed Welcome slide outside its service date", () => {
+    expect(preServicePhaseAt(serviceDate, new Date(2026, 7, 31, 11, 0).getTime())).toBe("waiting");
+  });
+
   it("asks people to be seated after the countdown until the service starts", () => {
     const now = new Date(2026, 7, 30, 11, 0).getTime();
     vi.spyOn(Date, "now").mockReturnValue(now);

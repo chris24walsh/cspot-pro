@@ -33,6 +33,15 @@ export function preServiceRemainingSeconds(
 }
 
 export function preServicePhaseAt(serviceDate: string, now: number) {
+  const serviceDay = new Date(serviceDate);
+  const currentDay = new Date(now);
+  if (
+    serviceDay.getFullYear() !== currentDay.getFullYear() ||
+    serviceDay.getMonth() !== currentDay.getMonth() ||
+    serviceDay.getDate() !== currentDay.getDate()
+  ) {
+    return "waiting" as const;
+  }
   const montageStart = serviceDayTimestamp(serviceDate, 10, 30);
   const countdownStart = serviceDayTimestamp(serviceDate, 10, 55);
   const serviceStart = serviceDayTimestamp(serviceDate, 11, 0);

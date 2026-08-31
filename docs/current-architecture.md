@@ -375,6 +375,11 @@ offline. The scheduled session is exposed only during that service day's
 10:30–13:30 window.
 Before creating it, the scheduler retires an abandoned live session with no
 connected output, so an earlier rehearsal cannot suppress Sunday automation.
+Superseding a live service also records its output owner as closed before
+clearing the output state. Late heartbeats from the old display are rejected,
+so they cannot reclaim live status from the replacement service. A past-date
+Welcome slide resets to its waiting background rather than retaining the
+historical “Please be seated” phase.
 That scheduled window also authorizes its configured camera and audio transports
 for ordinary viewers before PresentationOutput is claimed; admin-only manual
 tests remain restricted to administrators.

@@ -27,11 +27,23 @@ from app.modules.presentation.routes import (
 
 def test_cleanup_live_sessions_keeps_only_selected_service_live() -> None:
     engine = create_engine("sqlite://")
-    Base.metadata.create_all(engine, tables=[PresentationSession.__table__])
+    Base.metadata.create_all(
+        engine, tables=[PresentationSession.__table__, PresentationPosition.__table__]
+    )
     with Session(engine) as session:
         selected = PresentationSession(plan_id="plan-2", status="live")
         superseded = PresentationSession(plan_id="plan-1", status="live")
         session.add_all([superseded, selected])
+        session.flush()
+        session.add(
+            PresentationPosition(
+                session_id=superseded.id,
+                payload_json=(
+                    '{"output_owner_id":"old-output","output_active":true,'
+                    '"service_stage":"service"}'
+                ),
+            )
+        )
         session.commit()
 
         assert cleanup_live_sessions(
@@ -44,13 +56,34 @@ def test_cleanup_live_sessions_keeps_only_selected_service_live() -> None:
         assert selected.ended_at is None
         assert superseded.status == "ended"
         assert superseded.ended_at == datetime(2026, 8, 30, 10, 0)
+        superseded_payload = session.scalar(
+            select(PresentationPosition.payload_json).where(
+                PresentationPosition.session_id == superseded.id
+            )
+        )
+        assert superseded_payload is not None
+        assert '"output_closed_owner_id": "old-output"' in superseded_payload
+
+        rejected = update_presentation_output_status(
+            "plan-1",
+            PresentationOutputStatusWrite(owner_id="old-output", heartbeat_at=12345),
+            SimpleNamespace(id="user-1"),  # type: ignore[arg-type]
+            session,
+        )
+        assert rejected.active is False
+        assert selected.status == "live"
 
 
 def test_cleanup_live_sessions_ends_past_service_by_next_day() -> None:
     engine = create_engine("sqlite://")
     Base.metadata.create_all(
         engine,
-        tables=[PlanType.__table__, Plan.__table__, PresentationSession.__table__],
+        tables=[
+            PlanType.__table__,
+            Plan.__table__,
+            PresentationSession.__table__,
+            PresentationPosition.__table__,
+        ],
     )
     with Session(engine) as session:
         plan_type = PlanType(name="Sunday Service", starts_at="10:30", active=True)

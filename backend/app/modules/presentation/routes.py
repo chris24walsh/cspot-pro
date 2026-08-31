@@ -121,6 +121,21 @@ def cleanup_live_sessions(
                 continue
         presentation_session.status = "ended"
         presentation_session.ended_at = current_time
+        position = _latest_position(session, presentation_session.id)
+        if position is not None:
+            payload = _position_payload(position)
+            owner_id = payload.get("output_owner_id")
+            if isinstance(owner_id, str):
+                payload["output_closed_owner_id"] = owner_id
+            payload.pop("output_owner_id", None)
+            payload.pop("output_heartbeat_at", None)
+            payload.pop("output_active", None)
+            payload.pop("output_recording_item_id", None)
+            payload["service_stage"] = "post_service"
+            payload.pop("pre_service_phase", None)
+            payload["blanked"] = True
+            payload["updated_at"] = int(current_time.timestamp() * 1000)
+            position.payload_json = json.dumps(payload)
         ended += 1
     if ended:
         session.commit()
@@ -464,14 +479,15 @@ def update_presentation_live_state(
         presentation_session = PresentationSession(
             plan_id=plan_id,
             presenter_id=current_user.id,
-            status="live",
+            status="live" if payload.pre_service_phase is not None else "ready",
         )
         session.add(presentation_session)
         session.flush()
     else:
         presentation_session.presenter_id = current_user.id
-        presentation_session.status = "live"
-        presentation_session.ended_at = None
+        if presentation_session.status == "live" or payload.pre_service_phase is not None:
+            presentation_session.status = "live"
+            presentation_session.ended_at = None
 
     position = _latest_position(session, presentation_session.id)
     if position is None:
@@ -555,9 +571,18 @@ def update_presentation_output_status(
     current_user: User = Depends(require_permission("presentation:use")),
     session: Session = Depends(get_session),
 ) -> PresentationOutputStatusRead:
+    presentation_session = _latest_session(session, plan_id)
+    position = _latest_position(session, presentation_session.id) if presentation_session else None
+    if (
+        not payload.release
+        and position is not None
+        and _position_payload(position).get("output_closed_owner_id") == payload.owner_id
+    ):
+        # A superseded output may continue heartbeating briefly. Reject it
+        # before it can close the service that replaced it.
+        return PresentationOutputStatusRead(plan_id=plan_id)
     if not payload.release:
         cleanup_live_sessions(session, active_plan_id=plan_id)
-    presentation_session = _latest_session(session, plan_id)
     if presentation_session is None:
         presentation_session = PresentationSession(
             plan_id=plan_id,
@@ -566,12 +591,7 @@ def update_presentation_output_status(
         )
         session.add(presentation_session)
         session.flush()
-    elif not payload.release:
-        presentation_session.presenter_id = current_user.id
-        presentation_session.status = "live"
-        presentation_session.ended_at = None
 
-    position = _latest_position(session, presentation_session.id)
     if position is None:
         position = PresentationPosition(session_id=presentation_session.id)
         session.add(position)
@@ -601,6 +621,9 @@ def update_presentation_output_status(
     elif current_owner and current_owner != payload.owner_id:
         return existing
     else:
+        presentation_session.presenter_id = current_user.id
+        presentation_session.status = "live"
+        presentation_session.ended_at = None
         new_output = current_owner is None
         next_payload.pop("output_closed_owner_id", None)
         next_payload["output_owner_id"] = payload.owner_id
