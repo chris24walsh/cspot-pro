@@ -809,6 +809,21 @@ export function PresentationView({
     () => new Map(worshipSetPlans.map((setSummary) => [dateInputFromIso(setSummary.service_date), setSummary] as const)),
     [worshipSetPlans],
   );
+  const plannedServiceDates = useMemo(() => {
+    const byDate = new Map<string, PlanSummary>();
+    for (const service of servicePlans) {
+      const date = dateInputFromIso(service.service_date);
+      if (date && combinedPlanningItemCount(service, worshipSetsByDate.get(date)) > 0 && !byDate.has(date)) {
+        byDate.set(date, service);
+      }
+    }
+    return [...byDate.entries()].sort(([left], [right]) => left.localeCompare(right));
+  }, [servicePlans, worshipSetsByDate]);
+  const currentServiceDate = dateInputFromIso(plan?.service_date);
+  const previousPlannedService = [...plannedServiceDates]
+    .reverse()
+    .find(([date]) => date < currentServiceDate)?.[1] ?? null;
+  const nextPlannedService = plannedServiceDates.find(([date]) => date > currentServiceDate)?.[1] ?? null;
   const allCalendarDates = useMemo(
     () => calendarDatesAround(serviceDraftDate || nextSundayDateInput()),
     [serviceDraftDate],
@@ -1733,11 +1748,11 @@ export function PresentationView({
     }
   }
 
-  async function stepService(offset: number) {
-    const currentDate = dateInputFromIso(plan?.service_date) || nextSundayDateInput();
-    const target = new Date(`${currentDate}T12:00:00`);
-    target.setDate(target.getDate() - offset * 7);
-    await openServiceDate(dateInputFromIso(target.toISOString()));
+  async function stepService(direction: "previous" | "next") {
+    const target = direction === "previous" ? previousPlannedService : nextPlannedService;
+    if (target) {
+      await selectPlan(target.id);
+    }
   }
 
   function serviceHistoryContent() {
@@ -3937,16 +3952,16 @@ export function PresentationView({
                 historyExpanded={serviceHistoryOpen}
                 historyLabel="Service edit history"
                 label={plan ? formatNavigatorDate(plan.service_date) : "Choose service"}
-                nextDisabled={loading || !plan}
+                nextDisabled={loading || !nextPlannedService}
                 nextLabel="Next service"
                 onHistory={() => void openServiceHistory()}
                 onServiceType={() => { setServiceHistoryOpen(false); setServiceTypePickerOpen((open) => !open); }}
-                onNext={() => void stepService(-1)}
+                onNext={() => void stepService("next")}
                 onOpenPicker={openServicePicker}
-                onPrevious={() => void stepService(1)}
+                onPrevious={() => void stepService("previous")}
                 pickerLabel="Choose service"
                 pickerDisabled={loading}
-                previousDisabled={loading || !plan}
+                previousDisabled={loading || !previousPlannedService}
                 previousLabel="Previous service"
                 serviceTypeContent={serviceTypePickerContent()}
                 serviceTypeExpanded={serviceTypePickerOpen}
