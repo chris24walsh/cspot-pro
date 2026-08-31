@@ -1800,25 +1800,11 @@ export function PresentationView({
     const selectedType = planTypes.find((type) => type.id === creationPlanTypeId && type.active);
     if (selectedType) return selectedType;
     const date = new Date(serviceIsoFromDateInput(dateInput));
-    const day = Number.isNaN(date.getTime()) ? 0 : date.getDay();
-    const normalizedType = (value: string) => value.toLowerCase();
-    if (day === 0) {
-      return planTypes.find((type) => normalizedType(type.name).includes("sunday")) ?? planTypes[0] ?? null;
-    }
-    if (day === 4) {
-      return (
-        planTypes.find((type) => normalizedType(type.name).includes("prayer")) ??
-        planTypes.find((type) => normalizedType(type.name).includes("midweek")) ??
-        planTypes[0] ??
-        null
-      );
-    }
-    return (
-      planTypes.find((type) => normalizedType(type.name).includes("midweek")) ??
-      planTypes.find((type) => normalizedType(type.name).includes("event")) ??
-      planTypes[0] ??
-      null
-    );
+    const weekday = Number.isNaN(date.getTime()) ? -1 : (date.getDay() + 6) % 7;
+    const scheduled = serviceSchedules.find((rule) => rule.enabled && rule.weekday === weekday);
+    return planTypes.find((type) => type.active && type.name === scheduled?.plan_type)
+      ?? planTypes.find((type) => type.active)
+      ?? null;
   }
 
   function serviceTypePickerContent() {
@@ -2216,6 +2202,10 @@ export function PresentationView({
         status: "draft",
         info: `Song set for ${plan.title}`,
       });
+      if (currentPlanType?.default_outline.length) {
+        const outlined = await addMissingServiceSections(plan.id);
+        setPlan(outlined);
+      }
     }
 
     const serviceSongItems = orderedPlanItems().filter((item) => item.item_type === "song" && item.song_id);

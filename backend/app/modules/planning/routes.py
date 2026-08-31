@@ -415,8 +415,27 @@ def create_plan(
     session.add(plan)
     session.commit()
     session.refresh(plan)
-    items = ensure_service_scaffold(session, plan)
-    return plan_to_detail(session, plan, items)
+    if plan_type.name == "Worship Set":
+        settings = session.scalar(select(BroadcastViewerSettings).limit(1))
+        rules = service_schedules(settings) if settings is not None else []
+        scheduled_names = {
+            rule.plan_type
+            for rule in rules
+            if rule.enabled and rule.weekday == plan.service_date.weekday()
+        }
+        if scheduled_names:
+            service_plans = session.scalars(
+                select(Plan).where(Plan.deleted_at.is_(None), Plan.id != plan.id)
+            ).all()
+            for service_plan in service_plans:
+                service_type = session.get(PlanType, service_plan.plan_type_id)
+                if (
+                    service_type is not None
+                    and service_type.name in scheduled_names
+                    and service_plan.service_date.date() == plan.service_date.date()
+                ):
+                    ensure_service_scaffold(session, service_plan)
+    return plan_to_detail(session, plan, [])
 
 
 @router.post("/plans/{plan_id}/service-scaffold", response_model=PlanDetail)
@@ -594,7 +613,7 @@ def create_plan_item(
     session.add(item)
     session.commit()
     session.refresh(item)
-    if item.item_type in {"song", "worship_set", "sermon", "message"}:
+    if item.item_type == "worship_set":
         ensure_service_scaffold(session, plan)
     return plan_item_to_read(session, item)
 

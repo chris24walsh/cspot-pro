@@ -348,7 +348,9 @@ seeded Sunday type retains Welcome, Worship, Open time, Sermon, and
 Announcements for compatibility. `planned_start` remains available as plan-item
 metadata, but template outlines leave it unset and the presenter keeps headings
 uncluttered. The Service date navigator exposes the selected plan type between
-the calendar and History controls; new plans and Add outline use that template.
+the calendar and History controls. Opening a date creates an empty plan. Add
+outline, or creating a worship set for that date, applies the schedule-matched
+type's template when one is configured.
 Scaffold completion is idempotent and
 recognizes the older item aliases, so adding missing sections does not overwrite
 or duplicate existing service content. Section type also supplies the default
