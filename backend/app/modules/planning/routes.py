@@ -481,21 +481,10 @@ def list_plan_history(
     session: Session = Depends(get_session),
 ) -> list[PlanHistoryRead]:
     get_plan_or_404(session, plan_id)
-    song_ids = session.scalars(
-        select(PlanItem.song_id).where(
-            PlanItem.plan_id == plan_id,
-            PlanItem.deleted_at.is_(None),
-            PlanItem.song_id.is_not(None),
-        )
-    ).all()
     history_filters = [
         (HistoryEntry.entity_type == PLAN_HISTORY_ENTITY_TYPE)
         & (HistoryEntry.entity_id == plan_id),
     ]
-    if song_ids:
-        history_filters.append(
-            (HistoryEntry.entity_type == "song") & HistoryEntry.entity_id.in_(song_ids)
-        )
     entries = session.scalars(
         select(HistoryEntry)
         .where(

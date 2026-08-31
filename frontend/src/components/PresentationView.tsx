@@ -1,4 +1,4 @@
-import { CircleStop, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Clock, EyeOff, Mic, MonitorUp, Moon, Pause, Pencil, Play, Plus, Search, Trash2, Volume2, WandSparkles } from "lucide-react";
+import { Archive, CircleStop, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Clock, EyeOff, Mic, MonitorUp, Moon, Pause, Pencil, Play, Plus, RotateCcw, Search, Trash2, Volume2, WandSparkles, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
@@ -59,6 +59,7 @@ import {
   type YouTubeVideo,
   type PlanDetail,
   type PlanHistoryEntry,
+  type PlanHistorySnapshotItem,
   type PlanItem,
   type PlanSummary,
   type PlanType,
@@ -92,6 +93,7 @@ import { PreServiceSlide, serviceScheduleForPlan } from "./PreServiceSlide";
 import { DateNavigator, formatNavigatorDate } from "./DateNavigator";
 import { ScaledSlideImage } from "./ScaledSlideImage";
 import { SongEditorDialog } from "./SongEditorDialog";
+import { useEscapeClose } from "./useEscapeClose";
 import { showToast } from "../toast";
 import { isEditableKeyboardTarget, slideKeyboardDirection, type SlideKeyboardDirection } from "../keyboardNavigation";
 import { analyzeWorshipText, buildLyricsFromSections, canonicalizeWorshipLyrics } from "../worshipText";
@@ -682,6 +684,17 @@ export function PresentationView({
   const [creationPlanTypeId, setCreationPlanTypeId] = useState("");
   const [serviceHistory, setServiceHistory] = useState<PlanHistoryEntry[]>([]);
   const [serviceHistoryLoading, setServiceHistoryLoading] = useState(false);
+  const [serviceHistoryApplying, setServiceHistoryApplying] = useState(false);
+  useEscapeClose(serviceHistoryOpen, () => setServiceHistoryOpen(false));
+  useEffect(() => {
+    if (!serviceHistoryOpen) return;
+    const closeOutside = (event: PointerEvent) => {
+      const target = event.target as Element | null;
+      if (!target?.closest(".service-history-popover, .date-navigator-history")) setServiceHistoryOpen(false);
+    };
+    document.addEventListener("pointerdown", closeOutside);
+    return () => document.removeEventListener("pointerdown", closeOutside);
+  }, [serviceHistoryOpen]);
   const [customProviderSelection, setCustomProviderSelection] = useState<CustomProviderSelectResult | null>(null);
   const [customProviderSelectionLoading, setCustomProviderSelectionLoading] = useState(false);
   const [editingSongId, setEditingSongId] = useState<string | null>(null);
@@ -1728,6 +1741,10 @@ export function PresentationView({
     return date.toLocaleString(undefined, { day: "numeric", hour: "2-digit", minute: "2-digit", month: "short" });
   }
 
+  function formatHistoryLabel(label: string) {
+    return label.replace(/^(?:(?:reverting|restoring|restored)\s+)+/gi, "").replace(/^adding\s+/i, "Added ").replace(/^removing\s+/i, "Removed ").replace(/^moving\s+/i, "Moved ").replace(/^importing\s+/i, "Imported ");
+  }
+
   async function openServiceHistory() {
     if (!plan) {
       return;
@@ -1748,6 +1765,49 @@ export function PresentationView({
     }
   }
 
+  function snapshotServiceItems(items: PlanItem[]): PlanHistorySnapshotItem[] {
+    return items.map(({ id, item_type, sequence, title, planned_start, comment, key_signature, song_id }) => ({
+      id, item_type, sequence, title, planned_start, comment, key_signature, song_id,
+    }));
+  }
+
+  async function applyServiceHistory(entry: PlanHistoryEntry) {
+    if (!plan || !entry.restorable || serviceHistoryApplying) return;
+    setServiceHistoryApplying(true);
+    try {
+      const current = await getPlan(plan.id);
+      const target = entry.after;
+      const targetIds = new Set(target.map((item) => item.id));
+      await Promise.all(current.items.filter((item) => !targetIds.has(item.id)).map((item) => deletePlanItem(item.id)));
+      for (const item of target) {
+        const payload = {
+          item_type: item.item_type, sequence: item.sequence, title: item.title,
+          planned_start: item.planned_start, comment: item.comment,
+          key_signature: item.key_signature, song_id: item.song_id,
+        };
+        if (current.items.some((candidate) => candidate.id === item.id)) await updatePlanItem(item.id, payload);
+        else await createPlanItem(plan.id, payload);
+      }
+      const restored = await getPlan(plan.id);
+      const historyEntry = await createPlanHistoryEntry(plan.id, {
+        label: `Restored ${formatHistoryLabel(entry.label)}`,
+        before: snapshotServiceItems(current.items),
+        after: snapshotServiceItems(restored.items),
+        affected: entry.affected || entry.label,
+        change_type: "plan_items",
+        restorable: true,
+      });
+      setServiceHistory((history) => [...history, historyEntry]);
+      await load(plan.id, { silent: true });
+      setServiceHistoryOpen(false);
+      setMessage("Service restored to the selected version.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not restore this service version.");
+    } finally {
+      setServiceHistoryApplying(false);
+    }
+  }
+
   async function stepService(direction: "previous" | "next") {
     const target = direction === "previous" ? previousPlannedService : nextPlannedService;
     if (target) {
@@ -1763,8 +1823,11 @@ export function PresentationView({
       <section className="worship-history-popover service-history-popover" aria-label="Service edit history">
         <div className="worship-history-popover-heading">
           <strong>Edit History</strong>
+          {plan && canAccessAdminTools && canDeletePlan ? (
+            <button className="text-button history-archive-button" onClick={() => void archiveCurrentPlan()} type="button"><Archive size={14} /> Archive</button>
+          ) : null}
           <button className="section-icon-button" onClick={() => setServiceHistoryOpen(false)} type="button" aria-label="Close edit history">
-            x
+            <X size={14} aria-hidden="true" />
           </button>
         </div>
         <div className="worship-history-list">
@@ -1773,10 +1836,10 @@ export function PresentationView({
           {[...serviceHistory].reverse().map((entry) => {
             const meta = [entry.restorable ? "Service" : "Audit", entry.actor_name, formatHistoryTime(entry.created_at)].filter(Boolean).join(" · ");
             return (
-              <button className={`worship-history-row ${entry.restorable ? "" : "is-audit"}`} disabled key={entry.id} type="button">
-                <span>{entry.label}</span>
-                {entry.affected ? <em>{entry.affected}</em> : null}
+              <button className={`worship-history-row ${entry.restorable ? "" : "is-audit"}`} disabled={!entry.restorable || serviceHistoryApplying} key={entry.id} onClick={() => void applyServiceHistory(entry)} type="button">
+                <span>{formatHistoryLabel(entry.label)}</span>
                 <small>{meta}</small>
+                {entry.restorable ? <RotateCcw className="history-revert-icon" size={15} aria-label="Revert to this version" /> : null}
               </button>
             );
           })}
@@ -1790,15 +1853,16 @@ export function PresentationView({
       return;
     }
     try {
+      const current = await getPlan(plan.id);
       const entry = await createPlanHistoryEntry(plan.id, {
         label,
-        before: [],
-        after: [],
+        before: snapshotServiceItems(plan.items),
+        after: snapshotServiceItems(current.items),
         affected,
         change_type: changeType,
-        restorable: false,
+        restorable: true,
       });
-      setServiceHistory((current) => [entry, ...current.filter((candidate) => candidate.id !== entry.id)]);
+      setServiceHistory((history) => [...history.filter((candidate) => candidate.id !== entry.id), entry]);
     } catch {
       // History is helpful but should not block service edits.
     }
@@ -3991,11 +4055,6 @@ export function PresentationView({
             </>
           );
         }}
-        calendarAction={plan && canAccessAdminTools && canDeletePlan ? (
-          <button className="danger-button" onClick={() => void archiveCurrentPlan()} type="button">
-            Archive current
-          </button>
-        ) : null}
       />
       {!canEditPlan ? (
         <p className="empty-state presentation-readonly-note">

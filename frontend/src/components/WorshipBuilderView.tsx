@@ -1,4 +1,4 @@
-import { ChevronDown, ChevronUp, MonitorUp, Music2, Pencil, RefreshCw, Trash2, WandSparkles } from "lucide-react";
+import { Archive, ChevronDown, ChevronUp, MonitorUp, Music2, Pencil, RefreshCw, RotateCcw, Trash2, WandSparkles, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
@@ -403,6 +403,15 @@ export function WorshipBuilderView({ active = true, canAccessAdminTools, canArch
     else if (historyImportOpen) setHistoryImportOpen(false);
     else if (editHistoryOpen) setEditHistoryOpen(false);
   });
+  useEffect(() => {
+    if (!editHistoryOpen) return;
+    const closeOutside = (event: PointerEvent) => {
+      const target = event.target as Element | null;
+      if (!target?.closest(".worship-history-popover, .date-navigator-history")) setEditHistoryOpen(false);
+    };
+    document.addEventListener("pointerdown", closeOutside);
+    return () => document.removeEventListener("pointerdown", closeOutside);
+  }, [editHistoryOpen]);
 
   const worshipSetPlans = useMemo(() => plans.filter(isWorshipSetPlan), [plans]);
 
@@ -575,6 +584,10 @@ export function WorshipBuilderView({ active = true, canAccessAdminTools, canArch
       return "";
     }
     return date.toLocaleString(undefined, { day: "numeric", hour: "2-digit", minute: "2-digit", month: "short" });
+  }
+
+  function formatHistoryLabel(label: string) {
+    return label.replace(/^(?:(?:reverting|restoring|restored)\s+)+/gi, "").replace(/^adding\s+/i, "Added ").replace(/^removing\s+/i, "Removed ").replace(/^moving\s+/i, "Moved ").replace(/^importing\s+/i, "Imported ");
   }
 
   async function recordSetHistory(planId: string, label: string, before: PlanHistorySnapshotItem[], after: PlanHistorySnapshotItem[], affected: string) {
@@ -1797,8 +1810,11 @@ export function WorshipBuilderView({ active = true, canAccessAdminTools, canArch
                   <section className="worship-history-popover" aria-label="Worship set edit history">
                     <div className="worship-history-popover-heading">
                       <strong>Edit History</strong>
+                      {plan && canAccessAdminTools && canDeletePlan ? (
+                        <button className="text-button history-archive-button" onClick={() => void archiveSelectedWorshipSet()} type="button"><Archive size={14} /> Archive</button>
+                      ) : null}
                       <button className="section-icon-button" onClick={() => setEditHistoryOpen(false)} type="button" aria-label="Close edit history">
-                        x
+                        <X size={14} aria-hidden="true" />
                       </button>
                     </div>
                     <div className="worship-history-list">
@@ -1810,6 +1826,7 @@ export function WorshipBuilderView({ active = true, canAccessAdminTools, canArch
                       >
                         <span>Original set</span>
                         <small>{editHistoryIndex === 0 ? "Current" : "Past"}</small>
+                        {editHistoryIndex !== 0 ? <RotateCcw className="history-revert-icon" size={15} aria-label="Revert to original set" /> : null}
                       </button>
                       {(() => {
                         let restorableEntryIndex = 0;
@@ -1831,7 +1848,6 @@ export function WorshipBuilderView({ active = true, canAccessAdminTools, canArch
                                   ? "Future"
                                   : "Current";
                           const meta = [relation, entry.actor_name, formatHistoryTime(entry.created_at)].filter(Boolean).join(" · ");
-                          const affectedLabel = entry.affected && entry.affected !== entry.label ? entry.affected : null;
                           return (
                             <button
                               aria-disabled={!entry.restorable || entryIndex === null}
@@ -1845,9 +1861,9 @@ export function WorshipBuilderView({ active = true, canAccessAdminTools, canArch
                               }}
                               type="button"
                             >
-                              <span>{entry.label}</span>
-                              {affectedLabel ? <em>{affectedLabel}</em> : null}
+                              <span>{formatHistoryLabel(entry.label)}</span>
                               <small>{meta}</small>
+                              {entry.restorable && entryIndex !== editHistoryIndex ? <RotateCcw className="history-revert-icon" size={15} aria-label="Revert to this version" /> : null}
                             </button>
                           );
                         });
@@ -2422,11 +2438,6 @@ export function WorshipBuilderView({ active = true, canAccessAdminTools, canArch
             </>
           );
         }}
-        calendarAction={plan && canAccessAdminTools && canDeletePlan ? (
-          <button className="danger-button" onClick={() => void archiveSelectedWorshipSet()} type="button">
-            Archive current
-          </button>
-        ) : null}
       />
       <LeaderAssignmentDialog
         areaLabel="Worship"

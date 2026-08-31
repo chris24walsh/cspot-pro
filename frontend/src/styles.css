@@ -372,6 +372,10 @@ button {
   justify-content: space-between;
 }
 
+.history-archive-button {
+  margin-left: auto;
+}
+
 .worship-history-list {
   display: grid;
   align-content: start;
@@ -399,8 +403,18 @@ button {
   min-width: 0;
   overflow: hidden;
   padding: 7px 9px;
+  padding-right: 32px;
+  position: relative;
   text-align: left;
   width: 100%;
+}
+
+.history-revert-icon {
+  color: #346f58;
+  position: absolute;
+  right: 9px;
+  top: 50%;
+  transform: translateY(-50%);
 }
 
 .worship-history-row.active {
