@@ -32,6 +32,7 @@ import { useConfirmationDialog } from "./ConfirmationDialog";
 import { AdminAvailabilityPanel } from "./AdminAvailabilityPanel";
 import { ServingRoleManager } from "./ServingRoleManager";
 import { ServiceScheduleManager } from "./ServiceScheduleManager";
+import { PlanTypeManager } from "./PlanTypeManager";
 import { VolunteerReview } from "./VolunteerReview";
 
 interface UserFormState {
@@ -153,6 +154,7 @@ export function UserManager({ adminSection, onAdminSectionChange, onAttentionCha
   const [userFilter, setUserFilter] = useState<"all" | "attention" | "active" | "inactive">("all");
   const [userSort, setUserSort] = useState<"attention" | "name" | "recent">("attention");
   const [openRoleGroup, setOpenRoleGroup] = useState<string | null>(null);
+  const [planTypesRevision, setPlanTypesRevision] = useState(0);
   const initialAttentionRouted = useRef(false);
   const formDirty = mode === "create" || Boolean(selectedUser && JSON.stringify(form) !== JSON.stringify(formFromUser(selectedUser)));
   const roleGroups: Array<{ label: string; roles: string[] }> = [
@@ -618,7 +620,8 @@ export function UserManager({ adminSection, onAdminSectionChange, onAttentionCha
 
         <ServingRoleManager onChanged={(areas) => { setServingAreas(areas); void refreshVolunteerRows(); }} />
 
-        <ServiceScheduleManager onMessage={setMessage} />
+        <PlanTypeManager onChanged={() => setPlanTypesRevision((value) => value + 1)} onMessage={setMessage} />
+        <ServiceScheduleManager onMessage={setMessage} refreshToken={planTypesRevision} />
 
         <section className="subsection-panel admin-settings-panel">
           <div className="section-heading">

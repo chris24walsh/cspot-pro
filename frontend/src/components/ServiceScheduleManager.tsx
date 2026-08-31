@@ -25,7 +25,7 @@ function newRule(planTypes: PlanType[]): ServiceScheduleRule {
   };
 }
 
-export function ServiceScheduleManager({ onMessage }: { onMessage: (message: string) => void }) {
+export function ServiceScheduleManager({ onMessage, refreshToken = 0 }: { onMessage: (message: string) => void; refreshToken?: number }) {
   const [rules, setRules] = useState<ServiceScheduleRule[]>([]);
   const [planTypes, setPlanTypes] = useState<PlanType[]>([]);
   const [saving, setSaving] = useState(false);
@@ -37,7 +37,7 @@ export function ServiceScheduleManager({ onMessage }: { onMessage: (message: str
         setPlanTypes(types.filter((type) => type.active));
       })
       .catch((error) => onMessage(error instanceof Error ? error.message : "Could not load service schedules."));
-  }, [onMessage]);
+  }, [onMessage, refreshToken]);
 
   function updateRule(index: number, patch: Partial<ServiceScheduleRule>) {
     setRules((current) => current.map((rule, ruleIndex) => ruleIndex === index ? { ...rule, ...patch } : rule));

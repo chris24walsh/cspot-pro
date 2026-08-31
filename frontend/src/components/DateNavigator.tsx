@@ -1,4 +1,4 @@
-import { CalendarDays, ChevronLeft, ChevronRight, History, UserRound } from "lucide-react";
+import { CalendarDays, ChevronLeft, ChevronRight, History, Layers3, UserRound } from "lucide-react";
 import type { ReactNode } from "react";
 
 export function formatNavigatorDate(value: string | null | undefined) {
@@ -28,6 +28,10 @@ interface DateNavigatorProps {
   pickerDisabled?: boolean;
   historyExpanded?: boolean;
   historyContent?: ReactNode;
+  serviceTypeLabel?: string;
+  serviceTypeExpanded?: boolean;
+  serviceTypeContent?: ReactNode;
+  onServiceType?: () => void;
   assignmentLabel?: string;
   assignmentInitial?: string | null;
   assignmentTitle?: string;
@@ -51,6 +55,10 @@ export function DateNavigator({
   pickerDisabled = false,
   historyExpanded = false,
   historyContent,
+  serviceTypeLabel,
+  serviceTypeExpanded = false,
+  serviceTypeContent,
+  onServiceType,
   assignmentLabel,
   assignmentInitial,
   assignmentTitle = "Leader",
@@ -69,6 +77,12 @@ export function DateNavigator({
       <button aria-label={nextLabel} className="section-icon-button" disabled={nextDisabled} onClick={onNext} title={nextLabel} type="button">
         <ChevronRight size={14} aria-hidden="true" />
       </button>
+      {onServiceType ? (
+        <button aria-expanded={serviceTypeExpanded} aria-label="Choose service type" className="text-button date-navigator-service-type" onClick={onServiceType} title="Choose the type used when creating a service" type="button">
+          <Layers3 size={14} aria-hidden="true" />
+          <span>{serviceTypeLabel || "Service type"}</span>
+        </button>
+      ) : null}
       <button
         aria-expanded={historyExpanded}
         aria-label={historyLabel}
@@ -97,6 +111,7 @@ export function DateNavigator({
         </button>
       ) : null}
       {historyContent}
+      {serviceTypeContent}
     </div>
   );
 }

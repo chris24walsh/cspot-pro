@@ -11,6 +11,32 @@ class PlanTypeRead(BaseModel):
     starts_at: str | None = None
     default_duration_minutes: int | None = None
     active: bool
+    default_outline: list["DefaultOutlineItem"] = Field(default_factory=list)
+
+
+class DefaultOutlineItem(BaseModel):
+    item_type: str = Field(min_length=1, max_length=80)
+    title: str = Field(min_length=1, max_length=180)
+    sequence: Decimal = Field(decimal_places=2)
+    comment: str | None = None
+
+
+class PlanTypeCreate(BaseModel):
+    name: str = Field(min_length=1, max_length=120)
+    description: str | None = Field(default=None, max_length=500)
+    starts_at: str | None = Field(default=None, pattern=r"^([01]\d|2[0-3]):[0-5]\d$")
+    default_duration_minutes: int | None = Field(default=None, ge=1, le=1440)
+    active: bool = True
+    default_outline: list[DefaultOutlineItem] = Field(default_factory=list, max_length=40)
+
+
+class PlanTypeUpdate(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=120)
+    description: str | None = Field(default=None, max_length=500)
+    starts_at: str | None = Field(default=None, pattern=r"^([01]\d|2[0-3]):[0-5]\d$")
+    default_duration_minutes: int | None = Field(default=None, ge=1, le=1440)
+    active: bool | None = None
+    default_outline: list[DefaultOutlineItem] | None = Field(default=None, max_length=40)
 
 
 class PlanItemBase(BaseModel):

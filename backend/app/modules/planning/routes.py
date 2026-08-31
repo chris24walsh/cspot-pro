@@ -6,11 +6,14 @@ from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from app.core.database import get_session
+from app.modules.broadcast.models import BroadcastViewerSettings
+from app.modules.broadcast.settings import service_schedules
 from app.modules.identity.auth import list_role_names, require_any_permission, require_permission
 from app.modules.identity.models import User
 from app.modules.library.models import FileCategory, ItemFile, StoredFile
 from app.modules.planning.models import (
     HistoryEntry,
+    DefaultItem,
     ItemNote,
     Plan,
     PlanItem,
@@ -19,6 +22,7 @@ from app.modules.planning.models import (
 )
 from app.modules.planning.schemas import (
     PlanCreate,
+    DefaultOutlineItem,
     PlanDetail,
     PlanHistoryCreate,
     PlanHistoryRead,
@@ -27,6 +31,8 @@ from app.modules.planning.schemas import (
     PlanItemUpdate,
     PlanSummary,
     PlanTypeRead,
+    PlanTypeCreate,
+    PlanTypeUpdate,
     PlanUpdate,
     WorshipLeaderAssignmentRead,
     WorshipLeaderAssignmentUpdate,
@@ -51,10 +57,21 @@ def presenter_cannot_change_outline(session: Session, user: User, item: PlanItem
     if "administrator" in roles or "presenter" not in roles:
         return False
     plan = session.get(Plan, item.plan_id)
+    if plan is None:
+        return False
+    default_match = session.scalar(
+        select(DefaultItem).where(
+            DefaultItem.plan_type_id == plan.plan_type_id,
+            DefaultItem.item_type == item.item_type,
+            (DefaultItem.item_type != "custom") | (DefaultItem.title == item.title),
+        )
+    )
     return bool(
-        plan
-        and is_sunday_service(session, plan)
-        and item.item_type in FIXED_SUNDAY_OUTLINE_ITEM_TYPES
+        default_match
+        or (
+            is_sunday_service(session, plan)
+            and item.item_type in FIXED_SUNDAY_OUTLINE_ITEM_TYPES
+        )
     )
 
 
@@ -243,23 +260,108 @@ def get_item_or_404(session: Session, item_id: str) -> PlanItem:
     return item
 
 
+def plan_type_to_read(session: Session, plan_type: PlanType) -> PlanTypeRead:
+    defaults = session.scalars(
+        select(DefaultItem)
+        .where(DefaultItem.plan_type_id == plan_type.id)
+        .order_by(DefaultItem.sequence, DefaultItem.created_at)
+    ).all()
+    return PlanTypeRead(
+        id=plan_type.id,
+        name=plan_type.name,
+        description=plan_type.description,
+        starts_at=plan_type.starts_at,
+        default_duration_minutes=plan_type.default_duration_minutes,
+        active=plan_type.active,
+        default_outline=[
+            {
+                "item_type": item.item_type,
+                "title": item.title,
+                "sequence": item.sequence,
+                "comment": item.comment,
+            }
+            for item in defaults
+        ],
+    )
+
+
+def replace_default_outline(
+    session: Session, plan_type: PlanType, outline: list[DefaultOutlineItem]
+) -> None:
+    for item in session.scalars(
+        select(DefaultItem).where(DefaultItem.plan_type_id == plan_type.id)
+    ).all():
+        session.delete(item)
+    for definition in outline:
+        values = definition.model_dump()
+        session.add(DefaultItem(plan_type_id=plan_type.id, **values))
+
+
 @router.get("/plan-types", response_model=list[PlanTypeRead])
 def list_plan_types(
     _current_user: User = Depends(require_permission("plans:read")),
     session: Session = Depends(get_session),
 ) -> list[PlanTypeRead]:
     plan_types = session.scalars(select(PlanType).order_by(PlanType.name)).all()
-    return [
-        PlanTypeRead(
-            id=plan_type.id,
-            name=plan_type.name,
-            description=plan_type.description,
-            starts_at=plan_type.starts_at,
-            default_duration_minutes=plan_type.default_duration_minutes,
-            active=plan_type.active,
+    return [plan_type_to_read(session, plan_type) for plan_type in plan_types]
+
+
+@router.post("/plan-types", response_model=PlanTypeRead, status_code=status.HTTP_201_CREATED)
+def create_plan_type(
+    payload: PlanTypeCreate,
+    _current_user: User = Depends(require_permission("users:manage")),
+    session: Session = Depends(get_session),
+) -> PlanTypeRead:
+    if session.scalar(select(PlanType).where(func.lower(PlanType.name) == payload.name.lower())):
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Plan type name already exists")
+    values = payload.model_dump(exclude={"default_outline"})
+    plan_type = PlanType(**values)
+    session.add(plan_type)
+    session.flush()
+    replace_default_outline(session, plan_type, payload.default_outline)
+    session.commit()
+    session.refresh(plan_type)
+    return plan_type_to_read(session, plan_type)
+
+
+@router.patch("/plan-types/{plan_type_id}", response_model=PlanTypeRead)
+def update_plan_type(
+    plan_type_id: str,
+    payload: PlanTypeUpdate,
+    _current_user: User = Depends(require_permission("users:manage")),
+    session: Session = Depends(get_session),
+) -> PlanTypeRead:
+    plan_type = session.get(PlanType, plan_type_id)
+    if plan_type is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Plan type not found")
+    updates = payload.model_dump(exclude_unset=True, exclude={"default_outline"})
+    if "name" in updates and session.scalar(
+        select(PlanType).where(
+            func.lower(PlanType.name) == updates["name"].lower(), PlanType.id != plan_type.id
         )
-        for plan_type in plan_types
-    ]
+    ):
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Plan type name already exists")
+    old_name = plan_type.name
+    for field, value in updates.items():
+        setattr(plan_type, field, value)
+    if plan_type.name != old_name:
+        settings = session.scalar(select(BroadcastViewerSettings).limit(1))
+        if settings is not None:
+            schedules = service_schedules(settings)
+            changed = False
+            for rule in schedules:
+                if rule.plan_type == old_name:
+                    rule.plan_type = plan_type.name
+                    changed = True
+            if changed:
+                settings.service_schedules_json = json.dumps(
+                    [rule.model_dump() for rule in schedules], separators=(",", ":")
+                )
+    if payload.default_outline is not None:
+        replace_default_outline(session, plan_type, payload.default_outline)
+    session.commit()
+    session.refresh(plan_type)
+    return plan_type_to_read(session, plan_type)
 
 
 @router.get("/plans", response_model=list[PlanSummary])

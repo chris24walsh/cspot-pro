@@ -4,7 +4,7 @@ from decimal import Decimal
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.modules.planning.models import Plan, PlanItem, PlanType
+from app.modules.planning.models import DefaultItem, Plan, PlanItem, PlanType
 
 SUNDAY_SERVICE_PLAN_TYPE = "Sunday Service"
 
@@ -55,7 +55,27 @@ def is_sunday_service(session: Session, plan: Plan) -> bool:
 
 
 def ensure_service_scaffold(session: Session, plan: Plan) -> list[PlanItem]:
-    if not is_sunday_service(session, plan):
+    defaults = list(
+        session.scalars(
+            select(DefaultItem)
+            .where(DefaultItem.plan_type_id == plan.plan_type_id)
+            .order_by(DefaultItem.sequence, DefaultItem.created_at)
+        ).all()
+    )
+    if defaults:
+        templates = tuple(
+            ServiceSectionTemplate(
+                item.sequence,
+                item.item_type,
+                item.title,
+                None,
+                frozenset() if item.item_type == "custom" else frozenset({item.item_type}),
+            )
+            for item in defaults
+        )
+    elif is_sunday_service(session, plan):
+        templates = SUNDAY_SERVICE_SCAFFOLD
+    else:
         return []
     existing = list(
         session.scalars(
@@ -65,7 +85,7 @@ def ensure_service_scaffold(session: Session, plan: Plan) -> list[PlanItem]:
     existing_types = {item.item_type.lower() for item in existing}
     existing_titles = {item.title.strip().lower() for item in existing}
     created: list[PlanItem] = []
-    for section in SUNDAY_SERVICE_SCAFFOLD:
+    for section in templates:
         title_match = section.title.lower() in existing_titles
         type_match = bool(section.aliases & existing_types)
         if title_match or type_match:
@@ -76,6 +96,9 @@ def ensure_service_scaffold(session: Session, plan: Plan) -> list[PlanItem]:
             item_type=section.item_type,
             title=section.title,
             planned_start=section.planned_start,
+            comment=next(
+                (item.comment for item in defaults if item.sequence == section.sequence), None
+            ),
         )
         session.add(item)
         created.append(item)

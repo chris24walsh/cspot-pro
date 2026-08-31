@@ -2150,6 +2150,17 @@ h3 {
 .service-schedule-rule > .danger-button { justify-self: end; }
 .service-schedule-rule .toggle-row { align-content: end; align-items: center; display: flex; min-height: 38px; }
 .service-schedule-rule .toggle-row input { min-height: 0; width: auto; }
+.plan-type-settings { display: grid; gap: 12px; }
+.plan-type-settings > label { color: #3b4741; display: grid; font-size: 12px; font-weight: 850; gap: 5px; }
+.plan-type-settings textarea { min-height: 70px; }
+.plan-type-outline-row { align-items: center; display: grid; gap: 7px; grid-template-columns: minmax(150px, 1fr) minmax(150px, 0.8fr) 34px 34px 34px; }
+.plan-type-outline-row input,
+.plan-type-outline-row select,
+.plan-type-settings > label > select,
+.plan-type-settings > label > textarea { background: #fffdf7; border: 1px solid #cfc7b4; border-radius: 8px; color: #17201b; font: inherit; min-height: 38px; padding: 7px 9px; width: 100%; }
+.date-navigator-service-type { max-width: 180px; }
+.date-navigator-service-type span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.service-type-popover { right: 34px; }
 
 .registration-share-panel { display: grid; grid-template-columns: 132px minmax(0, 1fr); gap: 0.8rem; align-items: center; }
 .registration-share-panel img { width: 132px; height: 132px; padding: 0.35rem; border: 1px solid #ded8c7; border-radius: 0.55rem; background: #fff; }

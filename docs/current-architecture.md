@@ -341,11 +341,14 @@ Slides are derived from plan items by content type:
 - deck-backed items -> one rendered image slide per deck page
 - generic sections -> single text slide
 
-Sunday-service plans are initially populated by
-`planning/service_scaffold.py`. `planned_start` remains available as plan-item
-metadata, but the five-section scaffold leaves it unset and the presenter keeps
-headings uncluttered. The scaffold is Welcome, Worship, Open time, Sermon, and
-Announcements.
+Service plans are initially populated by `planning/service_scaffold.py` from
+the selected plan type's ordered `DefaultItem` outline. Administrators can
+create custom named plan types and edit these outlines in Admin settings. The
+seeded Sunday type retains Welcome, Worship, Open time, Sermon, and
+Announcements for compatibility. `planned_start` remains available as plan-item
+metadata, but template outlines leave it unset and the presenter keeps headings
+uncluttered. The Service date navigator exposes the selected plan type between
+the calendar and History controls; new plans and Add outline use that template.
 Scaffold completion is idempotent and
 recognizes the older item aliases, so adding missing sections does not overwrite
 or duplicate existing service content. Section type also supplies the default

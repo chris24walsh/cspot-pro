@@ -643,7 +643,6 @@ export function PresentationView({
   const [fillerMediaBusy, setFillerMediaBusy] = useState(false);
   const [serviceSchedules, setServiceSchedules] = useState<ServiceScheduleRule[]>([]);
 
-  const fixedOutlineItemTypes = new Set(["pre_service", "worship_set", "open_time", "sermon", "announcements"]);
   const [liveIndex, setLiveIndex] = useState(0);
   const [message, setMessage] = useState<string | null>(null);
   const [screens, setScreens] = useState<PresentationScreen[]>([]);
@@ -679,6 +678,8 @@ export function PresentationView({
   const [servicePickerOpen, setServicePickerOpen] = useState(false);
   const [serviceDraftDate, setServiceDraftDate] = useState("");
   const [serviceHistoryOpen, setServiceHistoryOpen] = useState(false);
+  const [serviceTypePickerOpen, setServiceTypePickerOpen] = useState(false);
+  const [creationPlanTypeId, setCreationPlanTypeId] = useState("");
   const [serviceHistory, setServiceHistory] = useState<PlanHistoryEntry[]>([]);
   const [serviceHistoryLoading, setServiceHistoryLoading] = useState(false);
   const [customProviderSelection, setCustomProviderSelection] = useState<CustomProviderSelectResult | null>(null);
@@ -751,8 +752,8 @@ export function PresentationView({
 
   const servicePlans = useMemo(() => plans.filter((candidate) => !isWorshipSetPlan(candidate)), [plans]);
   const worshipSetPlans = useMemo(() => plans.filter(isWorshipSetPlan), [plans]);
-  const isSundayService = useMemo(
-    () => planTypes.find((type) => type.id === plan?.plan_type_id)?.name === "Sunday Service",
+  const currentPlanType = useMemo(
+    () => planTypes.find((type) => type.id === plan?.plan_type_id) ?? null,
     [plan?.plan_type_id, planTypes],
   );
   const effectivePlanItems = useMemo(
@@ -1796,6 +1797,8 @@ export function PresentationView({
   }
 
   function serviceTypeForDate(dateInput: string) {
+    const selectedType = planTypes.find((type) => type.id === creationPlanTypeId && type.active);
+    if (selectedType) return selectedType;
     const date = new Date(serviceIsoFromDateInput(dateInput));
     const day = Number.isNaN(date.getTime()) ? 0 : date.getDay();
     const normalizedType = (value: string) => value.toLowerCase();
@@ -1818,13 +1821,38 @@ export function PresentationView({
     );
   }
 
+  function serviceTypePickerContent() {
+    if (!serviceTypePickerOpen) return null;
+    return (
+      <section className="worship-history-popover service-history-popover service-type-popover" aria-label="Choose service type">
+        <div className="worship-history-popover-heading">
+          <strong>New service type</strong>
+          <button aria-label="Close service type selector" className="section-icon-button" onClick={() => setServiceTypePickerOpen(false)} type="button">x</button>
+        </div>
+        <div className="worship-history-list">
+          {planTypes.filter((type) => type.active).map((type) => (
+            <button className={`worship-history-row ${creationPlanTypeId === type.id ? "active" : ""}`} key={type.id} onClick={() => { setCreationPlanTypeId(type.id); setServiceTypePickerOpen(false); }} type="button">
+              <span>{type.name}</span>
+              <small>{type.default_outline.length} outline sections{type.starts_at ? ` · ${type.starts_at}` : ""}</small>
+            </button>
+          ))}
+        </div>
+      </section>
+    );
+  }
+
   function suggestedServiceTitle(dateInput: string) {
     const type = serviceTypeForDate(dateInput);
     return `${type?.name ?? "Service"} ${serviceLongDateForInput(dateInput)}`;
   }
 
   async function openServiceDate(dateInput: string) {
-    const existing = plansByDate.get(dateInput);
+    const targetType = serviceTypeForDate(dateInput);
+    const servicesOnDate = servicePlans.filter(
+      (candidate) => dateInputFromIso(candidate.service_date) === dateInput,
+    );
+    const existing = servicesOnDate.find((candidate) => candidate.plan_type === targetType?.name)
+      ?? (!creationPlanTypeId ? servicesOnDate[0] : undefined);
     if (existing) {
       setServicePickerOpen(false);
       await selectPlan(existing.id);
@@ -1883,9 +1911,9 @@ export function PresentationView({
           ? { ...summary, item_count: updated.items.filter((item) => item.item_type !== WORSHIP_SET_ANCHOR_ITEM_TYPE).length }
           : summary
       )));
-      setMessage("Missing Sunday service sections added; existing content was preserved.");
+      setMessage(`Missing ${updated.plan_type} outline sections added; existing content was preserved.`);
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Could not add the Sunday service outline.");
+      setMessage(error instanceof Error ? error.message : "Could not add the service outline.");
     } finally {
       setAddingServiceOutline(false);
     }
@@ -3922,6 +3950,7 @@ export function PresentationView({
                 nextDisabled={loading || !plan}
                 nextLabel="Next service"
                 onHistory={() => void openServiceHistory()}
+                onServiceType={() => { setServiceHistoryOpen(false); setServiceTypePickerOpen((open) => !open); }}
                 onNext={() => void stepService(-1)}
                 onOpenPicker={openServicePicker}
                 onPrevious={() => void stepService(1)}
@@ -3929,6 +3958,9 @@ export function PresentationView({
                 pickerDisabled={loading}
                 previousDisabled={loading || !plan}
                 previousLabel="Previous service"
+                serviceTypeContent={serviceTypePickerContent()}
+                serviceTypeExpanded={serviceTypePickerOpen}
+                serviceTypeLabel={planTypes.find((type) => type.id === creationPlanTypeId)?.name ?? currentPlanType?.name ?? "Service type"}
               />
             </div>,
             topbarSlot,
@@ -4504,12 +4536,12 @@ export function PresentationView({
           ) : null}
           <div className="section-rail-title">
             <span>Sections</span>
-            {isSundayService && canEditPlan ? (
+            {currentPlanType?.default_outline.length && canEditPlan ? (
               <button
                 className="section-scaffold-button"
                 disabled={addingServiceOutline}
                 onClick={() => void completeServiceOutline()}
-                title="Add any missing standard Sunday service sections"
+                title={`Add any missing ${currentPlanType.name} outline sections`}
                 type="button"
               >
                 <Plus size={12} aria-hidden="true" />
@@ -4557,7 +4589,9 @@ export function PresentationView({
                 ),
               );
               const fixedOutlineSection = Boolean(
-                isSundayService && sectionItem && fixedOutlineItemTypes.has(sectionItem.item_type),
+                sectionItem && currentPlanType?.default_outline.some(
+                  (definition) => definition.item_type === sectionItem.item_type && (definition.item_type !== "custom" || definition.title === sectionItem.title),
+                ),
               );
               const sermonDeckAttached = Boolean(
                 sectionItem?.item_type === "sermon" && sectionItem.files.some(

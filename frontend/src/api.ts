@@ -73,6 +73,12 @@ export interface PlanType {
   starts_at: string | null;
   default_duration_minutes: number | null;
   active: boolean;
+  default_outline: Array<{
+    item_type: string;
+    title: string;
+    sequence: string;
+    comment: string | null;
+  }>;
 }
 
 export interface PlanItem {
@@ -984,6 +990,14 @@ export async function removeVolunteerPreference(id: string): Promise<void> { ret
 
 export async function getPlanTypes(): Promise<PlanType[]> {
   return getJson<PlanType[]>("/api/v1/planning/plan-types");
+}
+
+export async function createPlanType(payload: Omit<PlanType, "id">): Promise<PlanType> {
+  return sendJson<PlanType>("/api/v1/planning/plan-types", "POST", payload);
+}
+
+export async function updatePlanType(planTypeId: string, payload: Partial<Omit<PlanType, "id">>): Promise<PlanType> {
+  return sendJson<PlanType>(`/api/v1/planning/plan-types/${planTypeId}`, "PATCH", payload);
 }
 
 export async function getPlans(): Promise<PlanSummary[]> {

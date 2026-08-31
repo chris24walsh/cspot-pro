@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from app.core.database import Base
 from app.modules.identity.models import User
 from app.modules.music.models import Song
-from app.modules.planning.models import Plan, PlanItem, PlanType
+from app.modules.planning.models import DefaultItem, Plan, PlanItem, PlanType
 from app.modules.planning.routes import presenter_cannot_change_outline
 from app.modules.planning.service_scaffold import (
     SUNDAY_SERVICE_SCAFFOLD,
@@ -26,6 +26,7 @@ def scaffold_session() -> tuple[Session, Plan]:
             PlanType.__table__,
             Plan.__table__,
             PlanItem.__table__,
+            DefaultItem.__table__,
         ],
     )
     session = Session(engine)
@@ -98,5 +99,30 @@ def test_presenter_cannot_change_fixed_sunday_outline_item() -> None:
             assert not presenter_cannot_change_outline(
                 session, SimpleNamespace(id="admin"), item  # type: ignore[arg-type]
             )
+    finally:
+        session.close()
+
+
+def test_custom_plan_type_uses_its_default_outline() -> None:
+    session, plan = scaffold_session()
+    try:
+        plan_type = session.get(PlanType, plan.plan_type_id)
+        assert plan_type is not None
+        plan_type.name = "Midweek Gathering"
+        session.add_all(
+            [
+                DefaultItem(plan_type_id=plan_type.id, sequence=10, item_type="open_time", title="Community time"),
+                DefaultItem(plan_type_id=plan_type.id, sequence=20, item_type="custom", title="Discussion"),
+            ]
+        )
+        session.commit()
+
+        created = ensure_service_scaffold(session, plan)
+
+        assert [(item.item_type, item.title) for item in created] == [
+            ("open_time", "Community time"),
+            ("custom", "Discussion"),
+        ]
+        assert ensure_service_scaffold(session, plan) == []
     finally:
         session.close()
