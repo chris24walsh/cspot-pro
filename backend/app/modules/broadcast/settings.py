@@ -1,6 +1,35 @@
 import json
 
+import json
+
+from pydantic import ValidationError
+
 from app.modules.broadcast.models import BroadcastViewerSettings
+from app.modules.broadcast.schemas import ServiceScheduleRule
+
+DEFAULT_SERVICE_SCHEDULES = [
+    ServiceScheduleRule(
+        id="sunday-morning",
+        name="Sunday morning",
+        plan_type="Sunday Service",
+        weekday=6,
+        pre_service_start="10:30",
+        countdown_start="10:55",
+        service_start="11:00",
+        cleanup_time="13:30",
+        enabled=True,
+    )
+]
+
+
+def service_schedules(settings: BroadcastViewerSettings) -> list[ServiceScheduleRule]:
+    if not settings.service_schedules_json:
+        return [rule.model_copy() for rule in DEFAULT_SERVICE_SCHEDULES]
+    try:
+        values = json.loads(settings.service_schedules_json)
+        return [ServiceScheduleRule.model_validate(value) for value in values]
+    except (json.JSONDecodeError, TypeError, ValidationError):
+        return [rule.model_copy() for rule in DEFAULT_SERVICE_SCHEDULES]
 from app.modules.broadcast.schemas import (
     BroadcastAudioScene,
     BroadcastAudioSceneChannel,

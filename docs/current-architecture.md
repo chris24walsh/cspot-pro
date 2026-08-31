@@ -360,19 +360,19 @@ Pre-service montage images are `StoredFile` records attached to Welcome through
 `ItemFile`. Admins and presenters choose whether each new photo is scoped to the
 current service or inherited by future Welcome sections; legacy global photos
 in the `Pre-service Montage` category remain supported as persistent entries.
-They can manage both kinds from the Welcome section. At 10:30 Europe/Dublin time, an open network display or viewer
-poll creates the scheduled live presentation for that day's Sunday service,
+They can manage both kinds from the Welcome section. An open network display or viewer
+poll creates a scheduled live presentation when a configured service rule begins,
 selects Welcome, and activates the dedicated Pre-service audio scene. The
-montage and configured music begin at 10:30. The 11:00 countdown appears at
-10:55; when it expires,
+rules are managed in Admin settings and match a plan type and weekday, with
+independent Welcome, countdown, service-start, and cleanup times. This supports
+Sunday, midweek, and other recurring events without hard-coded plan names. When the countdown expires,
 music and montage stop and Welcome displays the LCF background in a ready state;
 this does not claim or start the main slideshow. Starting slideshow is the human
 service-start signal. It starts the selected slide, or keeps the static background
 when Welcome is selected, and hands audio-scene inference to the live service.
 Stopping slideshow enters a post-service background/music state and returns
 audio to the safe Pre-service scene rather than taking the scheduled broadcast
-offline. The scheduled session is exposed only during that service day's
-10:30–13:30 window.
+offline. The scheduled session is exposed only during its configured window.
 Before creating it, the scheduler retires an abandoned live session with no
 connected output, so an earlier rehearsal cannot suppress Sunday automation.
 Superseding a live service also records its output owner as closed before

@@ -63,6 +63,7 @@ function settings(
     pre_service_audio_url: null,
     pre_service_room_audio_enabled: false,
     pre_service_minutes: 60,
+    service_schedules: [],
     starting_soon_message: "Starting soon",
     stream_description: null,
     stream_title: "Sunday Service",

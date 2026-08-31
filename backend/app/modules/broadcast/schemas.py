@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import Literal
 from urllib.parse import urlsplit
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 class BroadcastCameraSource(BaseModel):
@@ -41,6 +41,32 @@ class BroadcastAudioScene(BaseModel):
     channels: dict[str, BroadcastAudioSceneChannel] = Field(default_factory=dict)
 
 
+class ServiceScheduleRule(BaseModel):
+    id: str = Field(min_length=1, max_length=80)
+    name: str = Field(min_length=1, max_length=120)
+    plan_type: str = Field(min_length=1, max_length=120)
+    weekday: int = Field(ge=0, le=6)
+    pre_service_start: str = Field(pattern=r"^([01]\d|2[0-3]):[0-5]\d$")
+    countdown_start: str = Field(pattern=r"^([01]\d|2[0-3]):[0-5]\d$")
+    service_start: str = Field(pattern=r"^([01]\d|2[0-3]):[0-5]\d$")
+    cleanup_time: str = Field(pattern=r"^([01]\d|2[0-3]):[0-5]\d$")
+    enabled: bool = True
+
+    @model_validator(mode="after")
+    def validate_time_order(self) -> "ServiceScheduleRule":
+        times = [
+            self.pre_service_start,
+            self.countdown_start,
+            self.service_start,
+            self.cleanup_time,
+        ]
+        if times != sorted(times):
+            raise ValueError(
+                "Schedule times must run from Welcome through countdown, service start, and cleanup"
+            )
+        return self
+
+
 class BroadcastViewerSettingsRead(BaseModel):
     stream_title: str
     stream_description: str | None = None
@@ -68,6 +94,7 @@ class BroadcastViewerSettingsRead(BaseModel):
     pre_service_audio_url: str | None = None
     pre_service_room_audio_enabled: bool = True
     pre_service_minutes: int
+    service_schedules: list[ServiceScheduleRule] = Field(default_factory=list)
     starting_soon_message: str
     offline_message: str
 
@@ -96,6 +123,7 @@ class BroadcastViewerSettingsUpdate(BaseModel):
     pre_service_audio_url: str | None = None
     pre_service_room_audio_enabled: bool | None = None
     pre_service_minutes: int | None = Field(default=None, ge=0, le=180)
+    service_schedules: list[ServiceScheduleRule] | None = Field(default=None, max_length=24)
     starting_soon_message: str | None = Field(default=None, max_length=240)
     offline_message: str | None = Field(default=None, max_length=240)
 

@@ -70,6 +70,7 @@ class BroadcastViewerSettings(IdMixin, TimestampMixin, Base):
     pre_service_audio_url: Mapped[str | None] = mapped_column(Text)
     pre_service_room_audio_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
     pre_service_minutes: Mapped[int] = mapped_column(Integer, default=60)
+    service_schedules_json: Mapped[str | None] = mapped_column(Text)
     starting_soon_message: Mapped[str] = mapped_column(
         String(240), default="Our service will begin shortly"
     )

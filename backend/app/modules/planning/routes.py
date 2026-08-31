@@ -190,8 +190,10 @@ def plan_item_to_read(session: Session, item: PlanItem) -> PlanItemRead:
 
 
 def plan_to_detail(session: Session, plan: Plan, items: list[PlanItem]) -> PlanDetail:
+    plan_type = session.get(PlanType, plan.plan_type_id)
     return PlanDetail(
         id=plan.id,
+        plan_type=plan_type.name if plan_type else "Unknown",
         plan_type_id=plan.plan_type_id,
         service_date=plan.service_date,
         title=plan.title,

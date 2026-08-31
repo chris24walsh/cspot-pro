@@ -579,7 +579,7 @@ def test_live_audio_relay_is_available_during_scheduled_pre_service(
 
     monkeypatch.setattr(
         "app.modules.presentation.routes.scheduled_service_window_active",
-        lambda candidate: candidate is plan,
+        lambda candidate, payload=None: candidate is plan,
     )
 
     assert live_output_exists(ScheduledSession()) is True

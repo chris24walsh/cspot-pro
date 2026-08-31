@@ -33,7 +33,7 @@ import { isWorshipSetPlan, matchingWorshipSetForService, mergeWorshipSetIntoServ
 import { AutoFitSlideText } from "./AutoFitSlideText";
 import { AudioMixerPanel } from "./AudioMixerPanel";
 import { CountdownSlide } from "./CountdownSlide";
-import { PreServiceSlide } from "./PreServiceSlide";
+import { PreServiceSlide, serviceScheduleForPlan } from "./PreServiceSlide";
 import { PreServiceMusic, type PreServiceMusicHandle } from "./PreServiceMusic";
 import { LiveStreamAudio, LowLatencyCamera } from "./LowLatencyCamera";
 import { LivestreamMedia } from "./LivestreamMedia";
@@ -66,6 +66,7 @@ const DEFAULT_SETTINGS: BroadcastViewerSettings = {
   pre_service_audio_url: null,
   pre_service_room_audio_enabled: true,
   pre_service_minutes: 60,
+  service_schedules: [],
   starting_soon_message: "Our service will begin shortly",
   slide_delay_ms: 800,
   stream_description: null,
@@ -422,7 +423,7 @@ export function ServiceBroadcastView({ canControl = false, onOpenSettings }: { c
             ) : !liveSlide ? (
               <HoldingPane message="The livestream is live" startingSoon />
             ) : liveSlide.montageImageUrls && plan ? (
-              <PreServiceSlide backgroundImageUrl={LCF_BACKGROUND_URL} imageUrls={liveSlide.montageImageUrls} serviceDate={plan.service_date} timed={liveSlide.itemType === "pre_service"} phase={liveState?.preServicePhase} phaseStartedAt={liveState?.updatedAt} />
+              <PreServiceSlide backgroundImageUrl={LCF_BACKGROUND_URL} imageUrls={liveSlide.montageImageUrls} serviceDate={plan.service_date} timed={liveSlide.itemType === "pre_service"} phase={liveState?.preServicePhase} phaseStartedAt={liveState?.updatedAt} schedule={serviceScheduleForPlan(settings.service_schedules, plan.service_date, plan.plan_type)} />
             ) : liveSlide.countdownSeconds ? (
               <CountdownSlide durationSeconds={liveSlide.countdownSeconds} startAt={liveState?.updatedAt} />
             ) : liveSlide.backgroundImageUrl ? (

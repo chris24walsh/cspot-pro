@@ -31,6 +31,7 @@ import { useDurableChange } from "../changePolling";
 import { useConfirmationDialog } from "./ConfirmationDialog";
 import { AdminAvailabilityPanel } from "./AdminAvailabilityPanel";
 import { ServingRoleManager } from "./ServingRoleManager";
+import { ServiceScheduleManager } from "./ServiceScheduleManager";
 import { VolunteerReview } from "./VolunteerReview";
 
 interface UserFormState {
@@ -616,6 +617,8 @@ export function UserManager({ adminSection, onAdminSectionChange, onAttentionCha
         </section>
 
         <ServingRoleManager onChanged={(areas) => { setServingAreas(areas); void refreshVolunteerRows(); }} />
+
+        <ServiceScheduleManager onMessage={setMessage} />
 
         <section className="subsection-panel admin-settings-panel">
           <div className="section-heading">

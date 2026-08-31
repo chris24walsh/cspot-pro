@@ -120,6 +120,7 @@ class PlanSummary(BaseModel):
 
 class PlanDetail(PlanBase):
     id: str
+    plan_type: str
     items: list[PlanItemRead]
 
 

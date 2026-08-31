@@ -20,6 +20,7 @@ import {
   getBibleBooks,
   getBiblePassage,
   getPresentationOutputStatus,
+  getBroadcastViewerSettings,
   searchBible,
   getBibleVersions,
   getPlan,
@@ -47,6 +48,7 @@ import {
   type BibleSearchHit,
   type BibleVersion,
   type BroadcastRecording,
+  type ServiceScheduleRule,
   type CustomProviderMatch,
   type CustomProviderSearchResult,
   type CustomProviderSelectResult,
@@ -86,7 +88,7 @@ import { AutoFitSlideText } from "./AutoFitSlideText";
 import { useConfirmationDialog } from "./ConfirmationDialog";
 import { CalendarPopup } from "./CalendarPopup";
 import { CountdownSlide } from "./CountdownSlide";
-import { PreServiceSlide } from "./PreServiceSlide";
+import { PreServiceSlide, serviceScheduleForPlan } from "./PreServiceSlide";
 import { DateNavigator, formatNavigatorDate } from "./DateNavigator";
 import { ScaledSlideImage } from "./ScaledSlideImage";
 import { SongEditorDialog } from "./SongEditorDialog";
@@ -639,6 +641,7 @@ export function PresentationView({
   const [preServiceMediaBusy, setPreServiceMediaBusy] = useState(false);
   const [fillerMediaPlanItemId, setFillerMediaPlanItemId] = useState<string | null>(null);
   const [fillerMediaBusy, setFillerMediaBusy] = useState(false);
+  const [serviceSchedules, setServiceSchedules] = useState<ServiceScheduleRule[]>([]);
 
   const fixedOutlineItemTypes = new Set(["pre_service", "worship_set", "open_time", "sermon", "announcements"]);
   const [liveIndex, setLiveIndex] = useState(0);
@@ -969,6 +972,12 @@ export function PresentationView({
   useEffect(() => {
     setSlideNotesDraft(slideNoteFor(currentPlanItem?.teacher_notes, liveSlide, currentPlanItemSlides));
   }, [currentPlanItem?.id, currentPlanItem?.teacher_notes, currentPlanItemSlides, liveSlide?.id]);
+
+  useEffect(() => {
+    void getBroadcastViewerSettings()
+      .then((settings) => setServiceSchedules(settings.service_schedules))
+      .catch(() => setServiceSchedules([]));
+  }, []);
 
   useEffect(() => {
     if (!plan?.id) {
@@ -4046,7 +4055,7 @@ export function PresentationView({
                   style={{ backgroundImage: `url(${LCF_BACKGROUND_URL})` }}
                 />
               ) : liveSlide?.montageImageUrls && plan ? (
-                <PreServiceSlide backgroundImageUrl={LCF_BACKGROUND_URL} imageUrls={liveSlide.montageImageUrls} serviceDate={plan.service_date} timed={liveSlide.itemType === "pre_service"} phase={currentLiveStateRef.current?.preServicePhase} phaseStartedAt={currentLiveStateRef.current?.updatedAt} />
+                <PreServiceSlide backgroundImageUrl={LCF_BACKGROUND_URL} imageUrls={liveSlide.montageImageUrls} serviceDate={plan.service_date} timed={liveSlide.itemType === "pre_service"} phase={currentLiveStateRef.current?.preServicePhase} phaseStartedAt={currentLiveStateRef.current?.updatedAt} schedule={serviceScheduleForPlan(serviceSchedules, plan.service_date, plan.plan_type)} />
               ) : liveSlide?.countdownSeconds ? (
                 <CountdownSlide
                   durationSeconds={liveSlide.countdownSeconds}

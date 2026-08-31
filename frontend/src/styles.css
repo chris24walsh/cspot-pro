@@ -2144,6 +2144,12 @@ h3 {
 .admin-manager.is-settings .editor-panel { grid-column: 1 / -1; }
 .admin-manager.is-settings .editor-panel > :not(.admin-settings-panel) { display: none; }
 .admin-manager.is-users .admin-settings-panel { display: none; }
+.service-schedule-settings .stack { gap: 12px; }
+.service-schedule-rule { background: #fbf8ef; border: 1px solid #d8d1bf; border-radius: 10px; display: grid; gap: 10px; margin: 0; padding: 12px; }
+.service-schedule-rule legend { color: #245d4d; font-size: 13px; font-weight: 850; padding: 0 5px; }
+.service-schedule-rule > .danger-button { justify-self: end; }
+.service-schedule-rule .toggle-row { align-content: end; align-items: center; display: flex; min-height: 38px; }
+.service-schedule-rule .toggle-row input { min-height: 0; width: auto; }
 
 .registration-share-panel { display: grid; grid-template-columns: 132px minmax(0, 1fr); gap: 0.8rem; align-items: center; }
 .registration-share-panel img { width: 132px; height: 132px; padding: 0.35rem; border: 1px solid #ded8c7; border-radius: 0.55rem; background: #fff; }

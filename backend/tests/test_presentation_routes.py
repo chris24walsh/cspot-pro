@@ -127,6 +127,23 @@ def test_scheduled_service_window_is_limited_to_the_service_day() -> None:
     assert not scheduled_service_window_active(plan, datetime(2026, 9, 6, 10, 30, tzinfo=UTC))
 
 
+def test_scheduled_service_window_uses_configured_payload_times() -> None:
+    plan = SimpleNamespace(service_date=datetime(2026, 9, 2, 9, 30, tzinfo=UTC))
+    start = datetime(2026, 9, 2, 18, 30, tzinfo=UTC)
+    end = datetime(2026, 9, 2, 21, 0, tzinfo=UTC)
+    payload = {
+        "scheduled_window_start": int(start.timestamp() * 1000),
+        "scheduled_window_end": int(end.timestamp() * 1000),
+    }
+
+    assert scheduled_service_window_active(
+        plan, datetime(2026, 9, 2, 19, 0, tzinfo=UTC), payload
+    )
+    assert not scheduled_service_window_active(
+        plan, datetime(2026, 9, 2, 21, 1, tzinfo=UTC), payload
+    )
+
+
 def test_non_admin_cannot_simulate_pre_service_timing() -> None:
     payload = PresentationLiveStateWrite(
         plan_id="plan-1",

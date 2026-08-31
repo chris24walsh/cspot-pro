@@ -125,6 +125,7 @@ export interface PlanItemFile {
 export interface PlanDetail {
   id: string;
   plan_type_id: string;
+  plan_type: string;
   service_date: string;
   title: string;
   subtitle: string | null;
@@ -593,6 +594,18 @@ export interface BroadcastAudioScene {
   channels: Record<string, { gain_db: number; enabled: boolean }>;
 }
 
+export interface ServiceScheduleRule {
+  id: string;
+  name: string;
+  plan_type: string;
+  weekday: number;
+  pre_service_start: string;
+  countdown_start: string;
+  service_start: string;
+  cleanup_time: string;
+  enabled: boolean;
+}
+
 export interface BroadcastViewerSettings {
   stream_title: string;
   stream_description: string | null;
@@ -620,6 +633,7 @@ export interface BroadcastViewerSettings {
   pre_service_audio_url: string | null;
   pre_service_room_audio_enabled: boolean;
   pre_service_minutes: number;
+  service_schedules: ServiceScheduleRule[];
   starting_soon_message: string;
   offline_message: string;
 }

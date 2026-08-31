@@ -52,6 +52,7 @@ from app.modules.broadcast.settings import (
     audio_sources,
     camera_sources,
     effective_audio_source,
+    service_schedules,
 )
 from app.modules.broadcast.transport import (
     audio_stream_name,
@@ -282,6 +283,7 @@ def settings_read(
         pre_service_audio_url=settings.pre_service_audio_url,
         pre_service_room_audio_enabled=settings.pre_service_room_audio_enabled is not False,
         pre_service_minutes=settings.pre_service_minutes,
+        service_schedules=service_schedules(settings),
         starting_soon_message=settings.starting_soon_message,
         offline_message=settings.offline_message,
     )
@@ -330,7 +332,7 @@ def live_output_exists(session: Session) -> bool:
                 # to broadcast route import order.
                 from app.modules.presentation.routes import scheduled_service_window_active
 
-                if scheduled_service_window_active(plan):
+                if scheduled_service_window_active(plan, payload=payload):
                     return True
     return False
 
@@ -648,6 +650,7 @@ def update_viewer_settings(
     camera_source_payload = updates.pop("camera_sources", ...)
     audio_source_payload = updates.pop("audio_sources", ...)
     audio_scene_payload = updates.pop("audio_scenes", ...)
+    service_schedule_payload = updates.pop("service_schedules", ...)
     if camera_source_payload is None:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
@@ -691,6 +694,22 @@ def update_viewer_settings(
                 detail="Audio scene IDs must be unique",
             )
         settings.audio_scenes_json = json.dumps(audio_scene_payload, separators=(",", ":"))
+
+    if service_schedule_payload is None:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="service_schedules cannot be empty",
+        )
+    if service_schedule_payload is not ...:
+        schedule_ids = [rule["id"] for rule in service_schedule_payload]
+        if len(schedule_ids) != len(set(schedule_ids)):
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="Service schedule IDs must be unique",
+            )
+        settings.service_schedules_json = json.dumps(
+            service_schedule_payload, separators=(",", ":")
+        )
 
     if audio_source_payload is not ... or audio_scene_payload is not ...:
         scenes = audio_scenes(settings)

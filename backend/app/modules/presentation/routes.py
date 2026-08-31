@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 from app.core.database import get_session
 from app.modules.broadcast.audio_scenes import activate_audio_scene, automatic_scene_for_item
 from app.modules.broadcast.models import BroadcastViewerSettings
+from app.modules.broadcast.settings import service_schedules
 from app.modules.broadcast.recording import schedule_sermon_recording
 from app.modules.identity.auth import list_role_names, require_any_permission, require_permission
 from app.modules.identity.models import User
@@ -113,11 +114,32 @@ def cleanup_live_sessions(
                 continue
         else:
             plan = session.get(Plan, presentation_session.plan_id)
-            if not (
-                plan
-                and plan.service_date.astimezone(SERVICE_TIME_ZONE).date()
-                < current_local_date
-            ):
+            if plan is None:
+                continue
+            service_date = plan.service_date.astimezone(SERVICE_TIME_ZONE).date()
+            past_service = service_date < current_local_date
+            expired_today = False
+            if service_date == current_local_date:
+                plan_type = session.get(PlanType, plan.plan_type_id)
+                settings = session.scalar(select(BroadcastViewerSettings).limit(1))
+                schedule_candidates = service_schedules(settings) if settings is not None else []
+                rule = next(
+                    (
+                        candidate
+                        for candidate in schedule_candidates
+                        if candidate.enabled
+                        and candidate.weekday == current_time.astimezone(SERVICE_TIME_ZONE).weekday()
+                        and plan_type is not None
+                        and candidate.plan_type == plan_type.name
+                    ),
+                    None,
+                )
+                expired_today = bool(
+                    rule
+                    and current_time.astimezone(SERVICE_TIME_ZONE)
+                    > schedule_time(current_time.astimezone(SERVICE_TIME_ZONE), rule.cleanup_time)
+                )
+            if not past_service and not expired_today:
                 continue
         presentation_session.status = "ended"
         presentation_session.ended_at = current_time
@@ -142,14 +164,29 @@ def cleanup_live_sessions(
     return ended
 
 
-def scheduled_service_window_active(plan: Plan, now: datetime | None = None) -> bool:
+def scheduled_service_window_active(
+    plan: Plan,
+    now: datetime | None = None,
+    payload: dict[str, object] | None = None,
+) -> bool:
     now_local = now.astimezone(SERVICE_TIME_ZONE) if now else datetime.now(SERVICE_TIME_ZONE)
+    if payload:
+        start_ms = payload.get("scheduled_window_start")
+        end_ms = payload.get("scheduled_window_end")
+        if isinstance(start_ms, int | float) and isinstance(end_ms, int | float):
+            now_ms = now_local.timestamp() * 1000
+            return start_ms <= now_ms <= end_ms
     service_local = plan.service_date.astimezone(SERVICE_TIME_ZONE)
     if service_local.date() != now_local.date():
         return False
     scheduled_start = now_local.replace(hour=10, minute=30, second=0, microsecond=0)
     scheduled_end = now_local.replace(hour=13, minute=30, second=0, microsecond=0)
     return scheduled_start <= now_local <= scheduled_end
+
+
+def schedule_time(now_local: datetime, value: str) -> datetime:
+    hour, minute = (int(part) for part in value.split(":"))
+    return now_local.replace(hour=hour, minute=minute, second=0, microsecond=0)
 
 
 def admin_rehearsal_visible(
@@ -166,27 +203,43 @@ def admin_rehearsal_visible(
 
 def ensure_scheduled_pre_service(session: Session) -> None:
     now_local = datetime.now(SERVICE_TIME_ZONE)
-    scheduled_start = now_local.replace(hour=10, minute=30, second=0, microsecond=0)
-    scheduled_end = now_local.replace(hour=13, minute=30, second=0, microsecond=0)
-    if not scheduled_start <= now_local <= scheduled_end:
+    broadcast_settings = session.scalar(select(BroadcastViewerSettings).limit(1))
+    if broadcast_settings is None:
         return
-    plan_type = session.scalar(select(PlanType).where(PlanType.name == "Sunday Service"))
-    if plan_type is None:
+    rules = [
+        rule
+        for rule in service_schedules(broadcast_settings)
+        if rule.enabled and rule.weekday == now_local.weekday()
+    ]
+    if not rules:
         return
     day_start = now_local.replace(hour=0, minute=0, second=0, microsecond=0).astimezone(UTC)
     day_end = now_local.replace(hour=23, minute=59, second=59, microsecond=999999).astimezone(UTC)
-    plan = session.scalar(
-        select(Plan)
+    candidates = session.execute(
+        select(Plan, PlanType)
+        .join(PlanType, Plan.plan_type_id == PlanType.id)
         .where(
-            Plan.plan_type_id == plan_type.id,
             Plan.deleted_at.is_(None),
             Plan.service_date >= day_start,
             Plan.service_date <= day_end,
         )
         .order_by(Plan.service_date)
+    ).all()
+    scheduled = next(
+        (
+            (plan, rule)
+            for plan, plan_type in candidates
+            for rule in rules
+            if plan_type.name == rule.plan_type
+            and schedule_time(now_local, rule.pre_service_start)
+            <= now_local
+            <= schedule_time(now_local, rule.cleanup_time)
+        ),
+        None,
     )
-    if plan is None:
+    if scheduled is None:
         return
+    plan, rule = scheduled
     cleanup_live_sessions(session, active_plan_id=plan.id)
     latest = _latest_session(session, plan.id)
     if latest and latest.status == "live" and latest.ended_at is None:
@@ -206,12 +259,15 @@ def ensure_scheduled_pre_service(session: Session) -> None:
                 or payload.get("service_stage") == "post_service"
             ):
                 return
-            broadcast_settings = session.scalar(select(BroadcastViewerSettings).limit(1))
             if broadcast_settings and broadcast_settings.audio_scene_automation:
                 desired_scene = "pre_service"
                 if broadcast_settings.active_audio_scene != desired_scene:
                     activate_audio_scene(session, broadcast_settings, desired_scene)
-            desired_stage = "ready" if now_local.hour >= 11 else "pre_service"
+            desired_stage = (
+                "ready"
+                if now_local >= schedule_time(now_local, rule.service_start)
+                else "pre_service"
+            )
             if payload.get("service_stage") != desired_stage:
                 payload["service_stage"] = desired_stage
                 payload["updated_at"] = int(datetime.now(UTC).timestamp() * 1000)
@@ -265,13 +321,19 @@ def ensure_scheduled_pre_service(session: Session) -> None:
                     "blanked": False,
                     "fullscreen": False,
                     "auto_started": True,
+                    "schedule_id": rule.id,
+                    "scheduled_window_start": int(
+                        schedule_time(now_local, rule.pre_service_start).timestamp() * 1000
+                    ),
+                    "scheduled_window_end": int(
+                        schedule_time(now_local, rule.cleanup_time).timestamp() * 1000
+                    ),
                     "service_stage": "pre_service",
                 }
             ),
         )
     )
     session.commit()
-    broadcast_settings = session.scalar(select(BroadcastViewerSettings).limit(1))
     if broadcast_settings and broadcast_settings.audio_scene_automation:
         activate_audio_scene(session, broadcast_settings, "pre_service")
 
@@ -396,7 +458,7 @@ def list_live_presentation_services(
         admin_rehearsal = admin_rehearsal_visible(
             payload, is_admin=is_admin, output_active=output_status.active
         )
-        if auto_started and not scheduled_service_window_active(plan):
+        if auto_started and not scheduled_service_window_active(plan, payload=payload):
             continue
         if (
             not auto_started

@@ -29,7 +29,7 @@ import {
 import { isWorshipSetPlan, matchingWorshipSetForService, mergeWorshipSetIntoService } from "../worshipSets";
 import { AutoFitSlideText } from "./AutoFitSlideText";
 import { CountdownSlide } from "./CountdownSlide";
-import { PreServiceSlide } from "./PreServiceSlide";
+import { PreServiceSlide, serviceScheduleForPlan } from "./PreServiceSlide";
 import { PreServiceMusic } from "./PreServiceMusic";
 import { ScaledSlideImage } from "./ScaledSlideImage";
 
@@ -92,6 +92,7 @@ export function PresentationOutput({ networkDisplay = false }: PresentationOutpu
   const [blanked, setBlanked] = useState(false);
   const [preServiceAudioUrl, setPreServiceAudioUrl] = useState<string | null>(null);
   const [preServiceRoomAudioEnabled, setPreServiceRoomAudioEnabled] = useState(true);
+  const [serviceSchedules, setServiceSchedules] = useState<import("../api").ServiceScheduleRule[]>([]);
   const lastLiveStateRef = useRef(0);
   const networkPlanIdRef = useRef<string | null>(null);
   const lastReadingRefreshRef = useRef("");
@@ -256,7 +257,10 @@ export function PresentationOutput({ networkDisplay = false }: PresentationOutpu
       inFlight = true;
       try {
         const settings = await getBroadcastViewerSettings();
-        if (!cancelled) setPreServiceRoomAudioEnabled(settings.pre_service_room_audio_enabled !== false);
+        if (!cancelled) {
+          setPreServiceRoomAudioEnabled(settings.pre_service_room_audio_enabled !== false);
+          setServiceSchedules(settings.service_schedules);
+        }
       } catch { /* Keep the last known setting. */ }
       finally { inFlight = false; }
     };
@@ -659,7 +663,7 @@ export function PresentationOutput({ networkDisplay = false }: PresentationOutpu
             style={{ backgroundImage: `url(${LCF_BACKGROUND_URL})` }}
           />
         ) : liveSlide?.montageImageUrls && plan ? (
-          <PreServiceSlide backgroundImageUrl={LCF_BACKGROUND_URL} imageUrls={liveSlide.montageImageUrls} serviceDate={plan.service_date} timed={liveSlide.itemType === "pre_service"} phase={liveState?.preServicePhase} phaseStartedAt={liveState?.updatedAt} />
+          <PreServiceSlide backgroundImageUrl={LCF_BACKGROUND_URL} imageUrls={liveSlide.montageImageUrls} serviceDate={plan.service_date} timed={liveSlide.itemType === "pre_service"} phase={liveState?.preServicePhase} phaseStartedAt={liveState?.updatedAt} schedule={serviceScheduleForPlan(serviceSchedules, plan.service_date, plan.plan_type)} />
         ) : liveSlide?.countdownSeconds ? (
           <CountdownSlide durationSeconds={liveSlide.countdownSeconds} startAt={liveState?.updatedAt} />
         ) : liveSlide?.backgroundImageUrl ? (
