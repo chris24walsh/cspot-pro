@@ -67,6 +67,10 @@ function compactLine(value: string) {
   return value.trim().replace(/\s+/g, " ");
 }
 
+function isInteractivePointerTarget(target: EventTarget | null) {
+  return target instanceof Element && Boolean(target.closest("button, a, input, select, textarea, [role='button']"));
+}
+
 export function findSlideLineOffset(sourceLyrics: string, slideText: string, slideKind?: "title" | "content") {
   if (slideKind === "title") {
     return -1;
@@ -1005,7 +1009,7 @@ export function MusicianLiveView({ controlPlanId, onEditSong, onExit, plan, serv
       className={`musician-live-view musician-reader-mode-${readerMode} ${isLastSongSlide ? "is-song-end" : ""}`}
       aria-label="Musician live view"
       onPointerDownCapture={(event) => {
-        if (isEditableKeyboardTarget(event.target)) {
+        if (isEditableKeyboardTarget(event.target) || isInteractivePointerTarget(event.target)) {
           return;
         }
         keyCaptureRef.current?.focus({ preventScroll: true });
@@ -1080,6 +1084,10 @@ export function MusicianLiveView({ controlPlanId, onEditSong, onExit, plan, serv
         ref={stageRef}
         className={`musician-live-stage musician-reader-${readerMode}`}
         onPointerDown={(event) => {
+          if (isInteractivePointerTarget(event.target)) {
+            swipeStartRef.current = null;
+            return;
+          }
           event.currentTarget.setPointerCapture(event.pointerId);
           swipeStartRef.current = { x: event.clientX, y: event.clientY };
         }}
