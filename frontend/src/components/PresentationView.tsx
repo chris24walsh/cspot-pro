@@ -4757,24 +4757,43 @@ export function PresentationView({
                       })}
                     </div>
                   ) : (
-                    <button
-                      className={`deck-slide-summary status-${deckStatus.tone}`}
-                      onClick={() => toggleSorterSection(section.id)}
-                      type="button"
-                    >
-                      {renderMiniSlide(
-                        section.slides[0] ?? null,
-                        "Rendering deck",
-                        slideTheme,
-                        compactPlanTextFontCap,
-                      )}
-                      <strong>
-                        {visibleSectionSlides.length} deck slides
-                        {section.slides.length > visibleSectionSlides.length ? ` · ${section.slides.length} steps` : ""}
-                      </strong>
-                      <span>{deckStatus.label}</span>
-                      <small>{deckStatus.detail} · Click to expand</small>
-                    </button>
+                    section.itemType === "song" ? (
+                      <button
+                        aria-label={`Expand ${section.title} slides`}
+                        className="song-slide-summary"
+                        onClick={() => toggleSorterSection(section.id)}
+                        type="button"
+                      >
+                        <span className="song-slide-leaf" aria-hidden="true">
+                          {renderMiniSlide(
+                            visibleSectionSlides[0] ?? section.slides[0] ?? null,
+                            "Song",
+                            slideTheme,
+                            compactPlanTextFontCap,
+                          )}
+                        </span>
+                        <small>{visibleSectionSlides.length} slides · Expand</small>
+                      </button>
+                    ) : (
+                      <button
+                        className={`deck-slide-summary status-${deckStatus.tone}`}
+                        onClick={() => toggleSorterSection(section.id)}
+                        type="button"
+                      >
+                        {renderMiniSlide(
+                          section.slides[0] ?? null,
+                          "Rendering deck",
+                          slideTheme,
+                          compactPlanTextFontCap,
+                        )}
+                        <strong>
+                          {visibleSectionSlides.length} deck slides
+                          {section.slides.length > visibleSectionSlides.length ? ` · ${section.slides.length} steps` : ""}
+                        </strong>
+                        <span>{deckStatus.label}</span>
+                        <small>{deckStatus.detail} · Click to expand</small>
+                      </button>
+                    )
                   )}
                 </div>
               );
