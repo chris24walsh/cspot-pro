@@ -7570,6 +7570,9 @@ button.musician-page {
   border-radius: 7px;
   display: grid;
   gap: 4px;
+  max-width: 100%;
+  min-width: 0;
+  overflow: hidden;
   padding: 4px;
 }
 
@@ -7688,6 +7691,8 @@ button.musician-page {
   display: grid;
   gap: 6px;
   grid-template-columns: repeat(2, minmax(0, 1fr));
+  max-width: 100%;
+  min-width: 0;
   padding-left: 0;
 }
 
@@ -7704,8 +7709,11 @@ button.musician-page {
   grid-column: 1 / -1;
   justify-content: space-between;
   min-height: 24px;
+  min-width: 0;
+  overflow: hidden;
   padding: 2px 7px;
   text-align: left;
+  width: 100%;
 }
 .sorter-item-heading strong { font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sorter-item-summary {
@@ -7720,8 +7728,11 @@ button.musician-page {
   grid-column: 1 / -1;
   grid-template-columns: 92px minmax(0, 1fr);
   min-height: 48px;
+  min-width: 0;
+  overflow: hidden;
   padding: 4px 7px;
   text-align: left;
+  width: 100%;
 }
 .sorter-item-summary > span:last-child { display: grid; gap: 2px; min-width: 0; }
 .sorter-item-summary strong { font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -7885,7 +7896,10 @@ button.musician-page {
   display: grid;
   flex: 1 1 auto;
   gap: 6px;
+  grid-template-columns: minmax(0, 1fr);
+  max-width: 100%;
   min-height: 0;
+  min-width: 0;
   overflow: auto;
   padding-right: 2px;
 }
