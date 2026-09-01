@@ -350,7 +350,13 @@ export function WorshipBuilderView({ active = true, canAccessAdminTools, canArch
   const [leaderAssignments, setLeaderAssignments] = useState<WorshipLeaderAssignment[]>([]);
   const [leaderPickerDate, setLeaderPickerDate] = useState<string | null>(null);
   const [leaderSaving, setLeaderSaving] = useState(false);
-  const [archivedSetUndo, setArchivedSetUndo] = useState<{ id: string; title: string } | null>(null);
+  const [archivedSetUndo, setArchivedSetUndo] = useState<{
+    id: string;
+    title: string;
+    replacementId: string;
+    archivedServiceId?: string;
+    replacementServiceId?: string;
+  } | null>(null);
   const [archivedSongUndo, setArchivedSongUndo] = useState<{ id: string; title: string } | null>(null);
   const [query, setQuery] = useState("");
   const [bookSourceFilter, setBookSourceFilter] = useState("all");
@@ -916,12 +922,6 @@ export function WorshipBuilderView({ active = true, canAccessAdminTools, canArch
       return;
     }
     setSetPickerOpen(false);
-    const confirmed = await confirm({
-      confirmLabel: "Prepare worship set",
-      message: `Prepare a worship set for ${formatNavigatorDate(dateInput)}? The scheduled service and its outline will also be prepared automatically.`,
-      title: "Prepare Worship Set",
-    });
-    if (!confirmed) return;
     try {
       const saved = await createPlan({
         plan_type_id: planType.id,
@@ -935,9 +935,8 @@ export function WorshipBuilderView({ active = true, canAccessAdminTools, canArch
       });
       await absorbServiceSongsIntoWorshipSet(saved, dateInput);
       await load(saved.id);
-      setMessage("Worship set ready.");
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Could not prepare this worship set.");
+      setMessage(error instanceof Error ? error.message : "Could not open this worship set date.");
     }
   }
 
@@ -976,7 +975,7 @@ export function WorshipBuilderView({ active = true, canAccessAdminTools, canArch
       return;
     }
 
-    const archived = { id: plan.id, title: plan.title };
+    const archived = { id: plan.id, title: plan.title, serviceDate: dateInputFromIso(plan.service_date) };
     const confirmed = await confirm({
       confirmLabel: "Archive",
       message: `Archive worship set “${plan.title}”?`,
@@ -987,9 +986,50 @@ export function WorshipBuilderView({ active = true, canAccessAdminTools, canArch
 
     try {
       await deletePlan(plan.id);
-      setArchivedSetUndo(archived);
+      const planType = worshipSetType(planTypes);
+      if (!planType) throw new Error("Worship Sets are temporarily unavailable.");
+      const replacement = await createPlan({
+        plan_type_id: planType.id,
+        service_date: isoFromDateInput(archived.serviceDate),
+        title: suggestedWorshipSetTitle(archived.serviceDate),
+        subtitle: null,
+        leader_id: null,
+        teacher_id: null,
+        status: "draft",
+        info: null,
+      });
+      let archivedServiceId: string | undefined;
+      let replacementServiceId: string | undefined;
+      const linkedService = servicePlansByDate.get(archived.serviceDate);
+      if (linkedService) {
+        const service = await getPlan(linkedService.id);
+        const serviceType = planTypes.find((type) => type.id === service.plan_type_id);
+        const defaults = serviceType?.default_outline ?? [];
+        const containsOnlyTemplate = Boolean(defaults.length) && service.items.every((item) => (
+          !item.parent_item_id
+          && !item.song_id
+          && !item.files.length
+          && defaults.some((entry) => entry.item_type === item.item_type || entry.title === item.title)
+        ));
+        if (containsOnlyTemplate) {
+          await deletePlan(service.id);
+          const emptyService = await createPlan({
+            plan_type_id: service.plan_type_id,
+            service_date: service.service_date,
+            title: service.title,
+            subtitle: service.subtitle,
+            leader_id: service.leader_id,
+            teacher_id: service.teacher_id,
+            status: service.status,
+            info: service.info,
+          });
+          archivedServiceId = service.id;
+          replacementServiceId = emptyService.id;
+        }
+      }
+      setArchivedSetUndo({ id: archived.id, title: archived.title, replacementId: replacement.id, archivedServiceId, replacementServiceId });
       setSetPickerOpen(false);
-      await load("");
+      await load(replacement.id);
       setMessage("Worship set archived.");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Could not archive worship set.");
@@ -999,6 +1039,9 @@ export function WorshipBuilderView({ active = true, canAccessAdminTools, canArch
   async function undoArchivedWorshipSet() {
     if (!archivedSetUndo) return;
     try {
+      await deletePlan(archivedSetUndo.replacementId);
+      if (archivedSetUndo.replacementServiceId) await deletePlan(archivedSetUndo.replacementServiceId);
+      if (archivedSetUndo.archivedServiceId) await restorePlan(archivedSetUndo.archivedServiceId);
       const restored = await restorePlan(archivedSetUndo.id);
       setArchivedSetUndo(null);
       await load(restored.id);
@@ -1997,7 +2040,7 @@ export function WorshipBuilderView({ active = true, canAccessAdminTools, canArch
             >
               <button
                 className="song-library-main"
-                disabled={!canEditPlan || !plan}
+                disabled={!canEditPlan}
                 onClick={() => void addSong(song)}
                 title={canEditPlan ? `Add ${song.title}` : "Ask a worship leader to edit the worship set"}
                 type="button"

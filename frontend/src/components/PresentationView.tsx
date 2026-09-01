@@ -695,7 +695,7 @@ export function PresentationView({
   const [serviceHistory, setServiceHistory] = useState<PlanHistoryEntry[]>([]);
   const [serviceHistoryLoading, setServiceHistoryLoading] = useState(false);
   const [serviceHistoryApplying, setServiceHistoryApplying] = useState(false);
-  const [archivedServiceUndo, setArchivedServiceUndo] = useState<{ id: string; title: string; serviceDate: string } | null>(null);
+  const [archivedServiceUndo, setArchivedServiceUndo] = useState<{ id: string; title: string; serviceDate: string; replacementId: string } | null>(null);
   const [archivedServiceToastVisible, setArchivedServiceToastVisible] = useState(false);
   const [emptyServiceDate, setEmptyServiceDate] = useState("");
   useEscapeClose(serviceHistoryOpen, () => setServiceHistoryOpen(false));
@@ -1983,9 +1983,11 @@ export function PresentationView({
     const selectedType = planTypes.find((type) => type.id === selectedTypeId && type.active);
     if (selectedType) return selectedType;
     const date = new Date(serviceIsoFromDateInput(dateInput));
-    const weekday = Number.isNaN(date.getTime()) ? -1 : (date.getDay() + 6) % 7;
-    const scheduled = serviceSchedules.find((rule) => rule.enabled && rule.weekday === weekday);
-    return planTypes.find((type) => type.active && type.name === scheduled?.plan_type)
+    const defaultName = !Number.isNaN(date.getTime()) && date.getUTCDay() === 0
+      ? "Sunday Service"
+      : "Midweek Meeting";
+    return planTypes.find((type) => type.active && type.name === defaultName)
+      ?? planTypes.find((type) => type.active && type.name.toLowerCase().includes(defaultName.split(" ")[0].toLowerCase()))
       ?? planTypes.find((type) => type.active && type.name !== "Worship Set")
       ?? null;
   }
@@ -2008,9 +2010,28 @@ export function PresentationView({
       return;
     }
     setServicePickerOpen(false);
-    setPendingServiceMode("create");
-    setPendingServiceDate(dateInput);
-    setPendingServiceTypeId(targetType?.id ?? "");
+    setEmptyServiceDate(dateInput);
+    selectedPlanIdRef.current = "";
+    setPlan(null);
+    sessionStorage.removeItem(SELECTED_SERVICE_SESSION_KEY);
+    if (!canCreatePlan || !targetType) return;
+    try {
+      const created = await createPlan({
+        plan_type_id: targetType.id,
+        service_date: serviceIsoFromDateInput(dateInput),
+        title: suggestedServiceTitle(dateInput, targetType.id),
+        subtitle: null,
+        leader_id: null,
+        teacher_id: null,
+        status: "draft",
+        info: null,
+      });
+      selectedPlanIdRef.current = created.id;
+      setEmptyServiceDate("");
+      await load(created.id, { refreshCatalogs: true });
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not open this service date.");
+    }
   }
 
   async function createServiceForDate(dateInput: string, selectedTypeId: string) {
@@ -2208,13 +2229,24 @@ export function PresentationView({
 
     try {
       const archived = { id: plan.id, title: plan.title, serviceDate: dateInputFromIso(plan.service_date) };
+      const archivedPlanTypeId = plan.plan_type_id;
       await deletePlan(plan.id);
-      setArchivedServiceUndo(archived);
+      const replacement = await createPlan({
+        plan_type_id: archivedPlanTypeId,
+        service_date: serviceIsoFromDateInput(archived.serviceDate),
+        title: suggestedServiceTitle(archived.serviceDate, archivedPlanTypeId),
+        subtitle: null,
+        leader_id: null,
+        teacher_id: null,
+        status: "draft",
+        info: null,
+      });
+      setArchivedServiceUndo({ ...archived, replacementId: replacement.id });
       setArchivedServiceToastVisible(true);
       setEmptyServiceDate(archived.serviceDate);
       selectedPlanIdRef.current = "";
       sessionStorage.removeItem(SELECTED_SERVICE_SESSION_KEY);
-      await load("", { refreshCatalogs: true });
+      await load(replacement.id, { refreshCatalogs: true });
       setServicePickerOpen(false);
       setServiceHistoryOpen(false);
       setMessage("Service archived.");
@@ -2226,6 +2258,7 @@ export function PresentationView({
   async function undoArchivedService() {
     if (!archivedServiceUndo) return;
     try {
+      await deletePlan(archivedServiceUndo.replacementId);
       const restored = await restorePlan(archivedServiceUndo.id);
       setArchivedServiceUndo(null);
       setArchivedServiceToastVisible(false);

@@ -420,45 +420,48 @@ def create_plan(
     session.add(plan)
     session.commit()
     session.refresh(plan)
-    created_items: list[PlanItem] = []
-    if plan_type.name == "Worship Set":
-        settings = session.scalar(select(BroadcastViewerSettings).limit(1))
-        rules = service_schedules(settings) if settings is not None else DEFAULT_SERVICE_SCHEDULES
-        scheduled_names = {
-            rule.plan_type
-            for rule in rules
-            if rule.enabled and rule.weekday == plan.service_date.weekday()
-        }
-        if scheduled_names:
-            service_types = session.scalars(
-                select(PlanType).where(PlanType.name.in_(scheduled_names), PlanType.active.is_(True))
-            ).all()
-            for service_type in service_types:
-                service_plan = session.scalar(
-                    select(Plan).where(
-                        Plan.deleted_at.is_(None),
-                        Plan.plan_type_id == service_type.id,
-                        func.date(Plan.service_date) == plan.service_date.date(),
-                    )
+    # A plan row is the durable date slot.  Keep it empty until somebody adds
+    # real content; the first item materializes the applicable outline.
+    return plan_to_detail(session, plan, [])
+
+
+def ensure_service_for_worship_set(session: Session, plan: Plan) -> None:
+    plan_type = session.get(PlanType, plan.plan_type_id)
+    if plan_type is not None and plan_type.name == "Worship Set":
+        default_name = "Sunday Service" if plan.service_date.weekday() == 6 else "Midweek Meeting"
+        service_type = session.scalar(
+            select(PlanType).where(PlanType.name == default_name, PlanType.active.is_(True))
+        )
+        if service_type is None:
+            service_type = session.scalar(
+                select(PlanType).where(
+                    func.lower(PlanType.name).like(f"{default_name.split()[0].lower()}%"),
+                    PlanType.active.is_(True),
                 )
-                if service_plan is None:
-                    service_plan = Plan(
-                        plan_type_id=service_type.id,
-                        service_date=plan.service_date,
-                        title=f"{service_type.name} {plan.service_date.strftime('%d %b %Y')}",
-                        subtitle=None,
-                        leader_id=None,
-                        teacher_id=None,
-                        status="draft",
-                        info=None,
-                    )
-                    session.add(service_plan)
-                    session.commit()
-                    session.refresh(service_plan)
-                ensure_service_scaffold(session, service_plan)
-    else:
-        created_items = ensure_service_scaffold(session, plan)
-    return plan_to_detail(session, plan, created_items)
+            )
+        if service_type is not None:
+            service_plan = session.scalar(
+                select(Plan).where(
+                    Plan.deleted_at.is_(None),
+                    Plan.plan_type_id == service_type.id,
+                    func.date(Plan.service_date) == plan.service_date.date(),
+                )
+            )
+            if service_plan is None:
+                service_plan = Plan(
+                    plan_type_id=service_type.id,
+                    service_date=plan.service_date,
+                    title=f"{service_type.name} {plan.service_date.strftime('%d %b %Y')}",
+                    subtitle=None,
+                    leader_id=None,
+                    teacher_id=None,
+                    status="draft",
+                    info=None,
+                )
+                session.add(service_plan)
+                session.commit()
+                session.refresh(service_plan)
+            ensure_service_scaffold(session, service_plan)
 
 
 @router.post("/plans/{plan_id}/service-scaffold", response_model=PlanDetail)
@@ -645,7 +648,10 @@ def create_plan_item(
     session.add(item)
     session.commit()
     session.refresh(item)
-    if item.item_type == "worship_set":
+    plan_type = session.get(PlanType, plan.plan_type_id)
+    if plan_type is not None and plan_type.name == "Worship Set":
+        ensure_service_for_worship_set(session, plan)
+    else:
         ensure_service_scaffold(session, plan)
     return plan_item_to_read(session, item)
 

@@ -341,16 +341,17 @@ Slides are derived from plan items by content type:
 - deck-backed items -> one rendered image slide per deck page
 - generic sections -> single text slide
 
-Service plans are initially populated by `planning/service_scaffold.py` from
-the selected plan type's ordered `DefaultItem` outline. Administrators can
+Service plans remain empty date slots until their first explicit content item.
+That first addition populates the plan through `planning/service_scaffold.py`
+from the selected plan type's ordered `DefaultItem` outline. Administrators can
 create custom named plan types and edit these outlines in Admin settings. The
 seeded Sunday type retains Welcome, Worship, Open time, Sermon, and
 Announcements for compatibility. `planned_start` remains available as plan-item
 metadata, but template outlines leave it unset and the presenter keeps headings
 uncluttered. The Service date navigator exposes the selected plan type between
-the calendar and History controls. Opening a date creates an empty plan. Add
-outline, or creating a worship set for that date, applies the schedule-matched
-type's template when one is configured.
+the calendar and History controls. Opening a date creates an empty plan, using
+Sunday Service on Sundays and Midweek Meeting on every other day. Adding the
+first set, deck, or other content applies that type's template when configured.
 The previous/next navigator arrows select the nearest earlier or later date that
 has service content (including a linked worship set); they do not advance by a
 fixed seven-day interval and ignore empty plans created by browsing the calendar.
@@ -706,8 +707,10 @@ Search modes:
   opening a date and creating an empty plan does not leave it highlighted.
 - Worship-set calendar styling follows the same content-based rule while
   retaining leader markers independently of whether songs have been added.
-- Worship-set archive uses the shared confirmation dialog and offers an
-  immediate Undo action backed by the permission-checked plan restore endpoint.
+- Service and worship-set archives leave a fresh empty plan on the same date,
+  so archive never removes the calendar foundation or reopens a preparation
+  prompt. Their immediate Undo actions discard that replacement and restore the
+  archived plan through the permission-checked endpoint.
 - Migration `0031_remove_empty_ends` removes legacy End slides only when they
   are the sole active item in an otherwise empty service; populated services
   and their intentional End slides are preserved.
