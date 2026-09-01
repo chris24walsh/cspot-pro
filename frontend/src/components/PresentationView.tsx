@@ -4643,12 +4643,6 @@ export function PresentationView({
                         !file.content_type?.startsWith("image/"),
                     )
                     .map((file) => file.file_id) ?? [];
-              const emptyDeckPlaceholder = Boolean(
-                canEditPlan &&
-                ["sermon", "announcements"].includes(section.itemType) &&
-                !section.slides.some((slide) => slide.planItemId !== section.id) &&
-                !sectionFileIds.length,
-              );
               const canEditSectionSong = canEditSong && sectionItem?.song_id;
               const deckStatus = describeDeckStatus(
                 sectionFileIds,
@@ -4679,16 +4673,7 @@ export function PresentationView({
                       className={`section-jump ${presentationTypeClass(section.itemType)} ${
                         liveSlide?.sectionId === section.id ? "active" : ""
                       }`}
-                      onClick={() => {
-                        if (emptyDeckPlaceholder) {
-                          openSearchOverlay(sections.indexOf(section), "deck", {
-                            deckTargetPlanItemId: section.id,
-                            selectInserted: false,
-                          });
-                          return;
-                        }
-                        selectSlideFromOperator(sectionStart);
-                      }}
+                      onClick={() => selectSlideFromOperator(sectionStart)}
                       type="button"
                     >
                       <strong>{section.title}</strong>
@@ -4774,16 +4759,7 @@ export function PresentationView({
                             className={`slide-tile preview-tile ${presentationTypeClass(slide.itemType)} ${
                               slideIndex === liveIndex || matchesLiveBuild ? "active" : ""
                             }`}
-                            onClick={() => {
-                              if (emptyDeckPlaceholder) {
-                                openSearchOverlay(sections.indexOf(section), "deck", {
-                                  deckTargetPlanItemId: section.id,
-                                  selectInserted: false,
-                                });
-                                return;
-                              }
-                              selectSlideFromOperator(slideIndex);
-                            }}
+                            onClick={() => selectSlideFromOperator(slideIndex)}
                             ref={(element) => {
                               tileRefIds.forEach((id) => {
                                 thumbnailRefs.current[id] = element;
@@ -4915,15 +4891,6 @@ export function PresentationView({
               const sectionAudioSlide = section.slides.find((slide) => slide.youtubeAudioUrl);
               const sectionAudioPlaying = playingAudioSectionId === section.id;
               const sectionItem = sectionPlanItem(section.id);
-              const emptyDeckPlaceholder = Boolean(
-                canEditPlan &&
-                ["sermon", "announcements"].includes(section.itemType) &&
-                !sectionItem?.files?.some(
-                  (file) =>
-                    !file.content_type?.startsWith("video/") &&
-                    !file.content_type?.startsWith("image/"),
-                ),
-              );
               const fixedOutlineSection = Boolean(
                 sectionItem && currentPlanType?.default_outline.some(
                   (definition) => definition.item_type === sectionItem.item_type && (definition.item_type !== "custom" || definition.title === sectionItem.title),
