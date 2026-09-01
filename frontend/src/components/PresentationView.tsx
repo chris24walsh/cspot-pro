@@ -151,7 +151,7 @@ interface WindowWithScreenDetails extends Window {
   }>;
 }
 
-type SearchOverlayMode = "songs" | "bible" | "deck" | "video";
+type SearchOverlayMode = "songs" | "bible" | "deck" | "images" | "video";
 type LoadOptions = {
   preserveLocation?: {
     planItemId: string;
@@ -655,6 +655,7 @@ export function PresentationView({
   const [deckFlattenBuilds, setDeckFlattenBuilds] = useState(false);
   const [importingDriveFileId, setImportingDriveFileId] = useState<string | null>(null);
   const [videoFile, setVideoFile] = useState<File | null>(null);
+  const [imageFiles, setImageFiles] = useState<File[]>([]);
   const [renderedSlidesByFileId, setRenderedSlidesByFileId] = useState<Record<string, RenderedSlide[]>>({});
   const [renderingFileIds, setRenderingFileIds] = useState<string[]>([]);
   const [renderErrorsByFileId, setRenderErrorsByFileId] = useState<Record<string, string>>({});
@@ -2603,6 +2604,33 @@ export function PresentationView({
     setDeckFlattenBuilds(false);
     setImportingDriveFileId(null);
     setVideoFile(null);
+    setImageFiles([]);
+  }
+
+  async function addImageItem() {
+    if (!plan || !searchParentItemId || !imageFiles.length || !canAttachDeck) return;
+    try {
+      const title = imageFiles.length === 1
+        ? imageFiles[0].name.replace(/\.[^.]+$/, "")
+        : `${imageFiles[0].name.replace(/\.[^.]+$/, "")} + ${imageFiles.length - 1}`;
+      const item = await createPlanItem(plan.id, {
+        parent_item_id: searchParentItemId,
+        item_type: sectionPlanItem(searchParentItemId)?.item_type ?? "announcements",
+        sequence: sequenceForSearchInsert(searchInsertIndex ?? activeSectionInsertIndex()),
+        title,
+        comment: null,
+        key_signature: null,
+        song_id: null,
+      });
+      for (const [index, file] of imageFiles.entries()) {
+        const stored = await uploadStoredFile({ file, display_name: file.name });
+        await attachItemFile(item.id, { file_id: stored.id, sort_order: index });
+      }
+      await reloadAfterInsertedItem(item);
+      closeSearchOverlay();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not add images.");
+    }
   }
 
   async function addOutlineGroup() {
@@ -4618,6 +4646,7 @@ export function PresentationView({
               const emptyDeckPlaceholder = Boolean(
                 canEditPlan &&
                 ["sermon", "announcements"].includes(section.itemType) &&
+                !section.slides.some((slide) => slide.planItemId !== section.id) &&
                 !sectionFileIds.length,
               );
               const canEditSectionSong = canEditSong && sectionItem?.song_id;
@@ -4631,14 +4660,15 @@ export function PresentationView({
                 ?.filter((file) => !file.content_type?.startsWith("video/"))
                 ?.map((file) => renderErrorsByFileId[file.file_id])
                 .find(Boolean);
-              const canCollapseSection = visibleSectionSlides.length > 1;
+              const hasNestedItems = visibleSectionSlides.some((slide) => slide.planItemId !== section.id);
+              const canCollapseSection = !hasNestedItems && visibleSectionSlides.length > 1;
               const sectionExpanded = expandedSorterSectionIds.has(section.id) || liveSlide?.sectionId === section.id;
               const showSlideTiles =
                 !canCollapseSection ||
                 sectionExpanded;
               return (
                 <div
-                  className="section-slide-group"
+                  className={`section-slide-group ${presentationTypeClass(section.itemType)}`}
                   key={section.id}
                   ref={(element) => {
                     sorterSectionRefs.current[section.id] = element;
@@ -4712,17 +4742,38 @@ export function PresentationView({
                   {showSlideTiles ? (
                     <div className="section-slide-list">
                       {visibleSectionSlides.map((slide) => {
+                        const itemSlides = visibleSectionSlides.filter((candidate) => candidate.planItemId === slide.planItemId);
+                        const item = sectionPlanItem(slide.planItemId);
+                        const firstItemSlide = itemSlides[0]?.id === slide.id;
+                        const itemCanCollapse = itemSlides.length > 1;
+                        const itemExpanded = expandedSorterSectionIds.has(slide.planItemId) || liveSlide?.planItemId === slide.planItemId;
                         const slideIndex = slides.findIndex((candidate) => candidate.id === slide.id);
                         const matchesLiveBuild =
                           Boolean(slide.imageUrl && liveSlide?.imageUrl) &&
                           deckBuildGroupKey(slide) === deckBuildGroupKey(liveSlide);
                         const tileRefIds = matchesLiveBuild && liveSlide ? [slide.id, liveSlide.id] : [slide.id];
+                        if (itemCanCollapse && !itemExpanded) {
+                          if (!firstItemSlide) return null;
+                          return (
+                            <button
+                              aria-label={`Expand ${item?.title ?? slide.title} slides`}
+                              className={`sorter-item-summary ${slide.itemType === "song" ? "is-song" : ""}`}
+                              key={`summary:${slide.planItemId}`}
+                              onClick={() => toggleSorterSection(slide.planItemId)}
+                              type="button"
+                            >
+                              <span className="sorter-item-leaf">{renderMiniSlide(slide, "Item", slideTheme, compactPlanTextFontCap)}</span>
+                              <span><strong>{item?.title ?? slide.sectionTitle}</strong><small>{itemSlides.length} slides · Expand</small></span>
+                            </button>
+                          );
+                        }
                         return (
+                          <div className="sorter-item-tile" key={slide.id}>
+                          {firstItemSlide && hasNestedItems ? <button className="sorter-item-heading" onClick={() => itemCanCollapse ? toggleSorterSection(slide.planItemId) : selectSlideFromOperator(slideIndex)} type="button"><strong>{item?.title ?? slide.sectionTitle}</strong>{itemCanCollapse ? <ChevronUp size={13} /> : null}</button> : null}
                           <button
                             className={`slide-tile preview-tile ${presentationTypeClass(slide.itemType)} ${
                               slideIndex === liveIndex || matchesLiveBuild ? "active" : ""
                             }`}
-                            key={slide.id}
                             onClick={() => {
                               if (emptyDeckPlaceholder) {
                                 openSearchOverlay(sections.indexOf(section), "deck", {
@@ -4753,6 +4804,7 @@ export function PresentationView({
                               <span>Go</span>
                             </div>
                           </button>
+                          </div>
                         );
                       })}
                     </div>
@@ -4970,25 +5022,14 @@ export function PresentationView({
                         ) : null}
                         {canEditPlan ? (
                           <>
-                            {["sermon", "announcements"].includes(section.itemType) ? (
-                              <button
-                                aria-label={`Add ${section.title} deck`}
-                                className="section-icon-button"
-                                onClick={() => openSearchOverlay(sectionIndex, "deck", {
-                                  deckTargetPlanItemId: section.id,
-                                  parentItemId: section.id,
-                                  selectInserted: false,
-                                })}
-                                title={`Add ${section.title} deck`}
-                                type="button"
-                              >
-                                <Plus size={14} aria-hidden="true" />
-                              </button>
-                            ) : null}
                             <button
                               aria-label={`Add item to ${section.title}`}
                               className="section-icon-button"
-                              onClick={() => openSearchOverlay(sectionIndex, "bible", { parentItemId: section.id, selectInserted: false })}
+                              onClick={() => openSearchOverlay(
+                                sectionIndex,
+                                ["sermon", "announcements"].includes(section.itemType) ? "deck" : "bible",
+                                { deckTargetPlanItemId: section.id, parentItemId: section.id, selectInserted: false },
+                              )}
                               title={`Add item to ${section.title}`}
                               type="button"
                             >
@@ -5125,6 +5166,13 @@ export function PresentationView({
               >
                 Video
               </button>
+              <button
+                className={`text-button ${searchMode === "images" ? "active-choice" : ""}`}
+                onClick={() => { setSearchMode("images"); setImageFiles([]); setSearchSelectInserted(false); }}
+                type="button"
+              >
+                Images
+              </button>
             </div>
 
             <label className="inline-checkbox search-follow-checkbox">
@@ -5136,7 +5184,7 @@ export function PresentationView({
               <span>Show after adding</span>
             </label>
 
-            {searchMode !== "deck" ? <div className="dialog-form-grid">
+            {searchMode !== "deck" && searchMode !== "images" ? <div className="dialog-form-grid">
               {searchMode === "bible" ? (
                 <label>
                   Version
@@ -5188,6 +5236,26 @@ export function PresentationView({
                         ? "Connect Google Drive in Admin to import MP4 files."
                         : "Google Drive is not configured on this server."}
                 </p>
+              </div>
+            ) : null}
+
+            {searchMode === "images" ? (
+              <div className="dialog-form-grid">
+                <label className="wide-field">
+                  Image files
+                  <input
+                    accept="image/*"
+                    disabled={!canAttachDeck}
+                    multiple
+                    onChange={(event) => setImageFiles(Array.from(event.target.files ?? []))}
+                    type="file"
+                  />
+                </label>
+                {imageFiles.length ? (
+                  <button className="primary-button" onClick={() => void addImageItem()} type="button">
+                    Add {imageFiles.length} {imageFiles.length === 1 ? "image" : "images"}
+                  </button>
+                ) : <p className="search-empty">Choose one or more images for a single sortable item.</p>}
               </div>
             ) : null}
 
