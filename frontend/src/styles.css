@@ -6775,7 +6775,7 @@ button.musician-page {
 .presentation-screens,
 .presenter-console {
   display: grid;
-  gap: 10px;
+  gap: 6px;
   grid-template-columns: minmax(360px, 0.95fr) minmax(300px, 0.62fr) 168px;
   min-height: 0;
 }
@@ -7159,15 +7159,15 @@ button.musician-page {
 
 .section-rail-list {
   display: grid;
-  gap: 5px;
+  gap: 3px;
   min-height: 0;
   overflow: auto;
-  padding: 8px;
+  padding: 4px;
 }
 
 .section-rail-block {
   display: grid;
-  gap: 5px;
+  gap: 3px;
 }
 
 .section-insert-button {
@@ -7200,18 +7200,15 @@ button.musician-page {
   border: 1px solid #e3dcc8;
   border-radius: 8px;
   display: grid;
-  gap: 5px;
-  padding: 6px;
+  gap: 3px;
+  padding: 4px;
   box-shadow: 0 0 0 1px color-mix(in srgb, currentColor 18%, transparent);
 }
 
 .section-group-items {
-  border-left: 2px solid color-mix(in srgb, currentColor 38%, transparent);
   display: grid;
-  gap: 4px;
+  gap: 2px;
   grid-column: 1 / -1;
-  margin-left: 5px;
-  padding-left: 6px;
 }
 
 .section-group-item {
@@ -7222,15 +7219,34 @@ button.musician-page {
   display: grid;
   gap: 4px;
   grid-template-columns: minmax(0, 1fr) auto;
-  padding: 3px;
+  min-height: 46px;
+  padding: 4px;
 }
 
 .section-group-item.active { box-shadow: inset 0 0 0 2px currentColor; }
-.section-group-item > button { background: transparent; border: 0; color: inherit; cursor: pointer; display: grid; gap: 2px; min-width: 0; text-align: left; }
-.section-group-item > button span { font-size: 9px; font-weight: 900; opacity: .65; }
-.section-group-item > button strong { font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.section-group-item > button { align-self: stretch; background: transparent; border: 0; color: inherit; cursor: pointer; display: grid; gap: 2px; min-width: 0; padding: 3px; text-align: left; }
+.section-group-item > button span { font-size: 10px; font-weight: 900; opacity: .65; }
+.section-group-item > button strong { font-size: 12px; line-height: 1.15; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .section-group-item-actions { display: flex; gap: 2px; }
-.section-group-item-actions .section-icon-button { min-height: 22px; min-width: 22px; }
+.section-group-item-actions .section-icon-button { min-height: 28px; min-width: 28px; }
+
+.section-group-insert-button {
+  align-items: center;
+  background: transparent;
+  border: 1px dashed color-mix(in srgb, currentColor 28%, #d8d2c5);
+  border-radius: 6px;
+  color: inherit;
+  cursor: pointer;
+  display: flex;
+  grid-column: 1 / -1;
+  height: 20px;
+  justify-content: center;
+  min-width: 0;
+  width: 100%;
+}
+
+.section-group-insert-button:hover,
+.section-group-insert-button:focus-visible { background: color-mix(in srgb, currentColor 8%, #fff); }
 
 .section-rail-item.active {
   background: #eaf5ef;
@@ -9581,7 +9597,7 @@ button.musician-page {
 
   .calendar-popup-grid {
     grid-template-columns: 1fr;
-    gap: 8px;
+    gap: 4px;
   }
 
   .calendar-popup-fields {

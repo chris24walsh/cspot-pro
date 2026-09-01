@@ -1,5 +1,5 @@
 import { Archive, CircleStop, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Clock, EyeOff, Layers3, Mic, MonitorUp, Moon, Pause, Pencil, Play, Plus, RotateCcw, Search, Trash2, Volume2, WandSparkles, X } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 import {
@@ -677,6 +677,7 @@ export function PresentationView({
   const [searchInsertIndex, setSearchInsertIndex] = useState<number | null>(null);
   const [deckTargetPlanItemId, setDeckTargetPlanItemId] = useState<string | null>(null);
   const [searchParentItemId, setSearchParentItemId] = useState<string | null>(null);
+  const [searchParentInsertIndex, setSearchParentInsertIndex] = useState<number | null>(null);
   const [searchSelectInserted, setSearchSelectInserted] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [bibleSearchResults, setBibleSearchResults] = useState<BibleSearchHit[]>([]);
@@ -2370,8 +2371,7 @@ export function PresentationView({
     const siblings = (plan?.items ?? [])
       .filter((item) => item.parent_item_id === searchParentItemId)
       .sort((left, right) => Number(left.sequence) - Number(right.sequence));
-    const lastSequence = siblings.length ? Number(siblings[siblings.length - 1].sequence) || 0 : 0;
-    return (lastSequence + 10).toFixed(2);
+    return sequenceForInsertInItems(siblings, searchParentInsertIndex ?? siblings.length - 1);
   }
 
   function sequenceForInsert(afterIndex: number) {
@@ -2604,7 +2604,7 @@ export function PresentationView({
   function openSearchOverlay(
     afterIndex = activeSectionInsertIndex(),
     mode: SearchOverlayMode = "bible",
-    options?: { deckTargetPlanItemId?: string; parentItemId?: string; selectInserted?: boolean },
+    options?: { deckTargetPlanItemId?: string; parentInsertIndex?: number; parentItemId?: string; selectInserted?: boolean },
   ) {
     if (!canEditPlan) {
       setMessage("You can present this plan, but only worship team members, worship leaders, and service leaders can change the running order.");
@@ -2613,6 +2613,7 @@ export function PresentationView({
     setSearchInsertIndex(afterIndex);
     setDeckTargetPlanItemId(options?.deckTargetPlanItemId ?? null);
     setSearchParentItemId(options?.parentItemId ?? null);
+    setSearchParentInsertIndex(options?.parentInsertIndex ?? null);
     setSearchMode(mode);
     setSearchSelectInserted(options?.selectInserted ?? mode === "bible");
     setSearchOverlayOpen(true);
@@ -2639,6 +2640,7 @@ export function PresentationView({
     setSearchInsertIndex(null);
     setDeckTargetPlanItemId(null);
     setSearchParentItemId(null);
+    setSearchParentInsertIndex(null);
     setSearchSelectInserted(false);
     setDeckFlattenBuilds(false);
     setImportingDriveFileId(null);
@@ -4978,10 +4980,24 @@ export function PresentationView({
                     ) : null}
                     {groupExpanded ? (
                       <div className="section-group-items">
+                        {canEditPlan ? (
+                          <button
+                            aria-label={`Add item at the start of ${section.title}`}
+                            className="section-group-insert-button"
+                            onClick={() => openSearchOverlay(sectionIndex, ["sermon", "announcements"].includes(section.itemType) ? "deck" : "bible", {
+                              deckTargetPlanItemId: section.id,
+                              parentInsertIndex: -1,
+                              parentItemId: section.id,
+                              selectInserted: false,
+                            })}
+                            type="button"
+                          ><Plus size={12} aria-hidden="true" /></button>
+                        ) : null}
                         {groupItems.map((item, itemIndex) => {
                           const itemSlideIndex = slides.findIndex((slide) => slide.planItemId === item.id);
                           return (
-                            <div className={`section-group-item ${liveSlide?.planItemId === item.id ? "active" : ""}`} key={item.id}>
+                            <Fragment key={item.id}>
+                            <div className={`section-group-item ${liveSlide?.planItemId === item.id ? "active" : ""}`}>
                               <button onClick={() => itemSlideIndex >= 0 && selectSlideFromOperator(itemSlideIndex)} type="button">
                                 <span>{itemIndex + 1}</span><strong>{item.title}</strong>
                               </button>
@@ -4991,6 +5007,20 @@ export function PresentationView({
                                 <button className="section-icon-button section-remove-button" onClick={() => void removeSection(item.id)} title="Remove item" type="button"><Trash2 size={12} /></button>
                               </div> : null}
                             </div>
+                            {canEditPlan ? (
+                              <button
+                                aria-label={`Add item after ${item.title}`}
+                                className="section-group-insert-button"
+                                onClick={() => openSearchOverlay(sectionIndex, ["sermon", "announcements"].includes(section.itemType) ? "deck" : "bible", {
+                                  deckTargetPlanItemId: section.id,
+                                  parentInsertIndex: itemIndex,
+                                  parentItemId: section.id,
+                                  selectInserted: false,
+                                })}
+                                type="button"
+                              ><Plus size={12} aria-hidden="true" /></button>
+                            ) : null}
+                            </Fragment>
                           );
                         })}
                       </div>
