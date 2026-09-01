@@ -1,7 +1,12 @@
 import { describe, expect, it } from "vitest";
 
 import { type PresentationLiveService } from "../api";
-import { networkDisplayState, networkOutputMediaUrl, presentationOutputAudioEnabled } from "./PresentationOutput";
+import {
+  networkDisplayState,
+  networkOutputMediaUrl,
+  presentationOutputAudioEnabled,
+  presentationOutputTransitionKey,
+} from "./PresentationOutput";
 
 describe("network TV display", () => {
   it("keeps TV followers muted while allowing the dedicated media receiver", () => {
@@ -15,6 +20,23 @@ describe("network TV display", () => {
     expect(url).toContain("mute=1");
     expect(url).toContain("enablejsapi=1");
     expect(networkOutputMediaUrl("/app/files/video.mp4", true)).toBe("/app/files/video.mp4");
+  });
+
+  it("keeps a backing-track player mounted while navigating within its song", () => {
+    const firstSlide = {
+      id: "song-1-slide-1",
+      sectionId: "song-1",
+      youtubeAudioUrl: "https://www.youtube-nocookie.com/embed/track-1",
+    };
+    const secondSlide = { ...firstSlide, id: "song-1-slide-2" };
+    const nextSong = { ...firstSlide, id: "song-2-slide-1", sectionId: "song-2" };
+
+    expect(presentationOutputTransitionKey(false, firstSlide)).toBe(
+      presentationOutputTransitionKey(false, secondSlide),
+    );
+    expect(presentationOutputTransitionKey(false, nextSong)).not.toBe(
+      presentationOutputTransitionKey(false, firstSlide),
+    );
   });
 
   it("starts following the active service at its current slide", () => {

@@ -26,6 +26,7 @@ import {
   resolveLiveIndex,
   suggestedSlideFontCap,
   type PresentationLiveState,
+  type PresentationSlide,
 } from "../presentation";
 import { isWorshipSetPlan, matchingWorshipSetForService, mergeWorshipSetIntoService } from "../worshipSets";
 import { AutoFitSlideText } from "./AutoFitSlideText";
@@ -65,6 +66,15 @@ export function networkDisplayState(service: PresentationLiveService): Presentat
     serviceStage: service.service_stage ?? "ready",
     preServicePhase: service.pre_service_phase ?? null,
   };
+}
+
+export function presentationOutputTransitionKey(
+  blanked: boolean,
+  slide: Pick<PresentationSlide, "id" | "sectionId" | "youtubeAudioUrl"> | null | undefined,
+) {
+  if (blanked) return "blank";
+  if (slide?.youtubeAudioUrl) return `song-audio:${slide.sectionId}`;
+  return slide?.id ?? "ready";
 }
 
 export function presentationOutputAudioEnabled(networkDisplay: boolean, mediaOutput: boolean) {
@@ -682,7 +692,7 @@ export function PresentationOutput({ mediaOutput = false, networkDisplay = false
             <span>{liveSlide?.title ?? (mediaOutput ? "Church PC media receiver ready" : networkDisplay ? "TV display ready" : "Ready")}</span>
           </div>
         ) : null}
-        <div className="slide-visual-transition" key={blanked ? "blank" : liveSlide?.id ?? "ready"}>
+        <div className="slide-visual-transition" key={presentationOutputTransitionKey(blanked, liveSlide)}>
         {blanked ? (
           <div
             className="blank-stage lcf-background-surface"
