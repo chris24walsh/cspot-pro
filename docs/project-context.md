@@ -149,6 +149,9 @@ These preferences have been made explicit and should guide future changes.
 - Sunday services, worship sets, and lessons should behave as available
   planning slots without requiring a separate create action. Records may be
   materialized lazily when a slot is first opened or edited.
+- Initial date selection should use whichever comes first: the next Sunday or
+  the next existing plan date. A non-Sunday without a plan must not default to
+  today.
 - Worship and Sunday School leaders should be allocated by a simple,
   capacity-aware monthly rotation. Manual assignment and Sunday swaps belong
   behind the Leader control, not inside the calendar. Dedicated service

@@ -635,8 +635,10 @@ Pi, but its physical faders cannot be controlled digitally.
 Completed services and their linked worship sets are retained as historical
 records. Non-administrators can no longer mutate a plan once its service type's
 configured start time has passed; types without a start time remain editable
-through the service day and lock the following day. Default selection remains
-date-based, so today's service/set stays selected for the whole calendar day.
+through the service day and lock the following day. Default selection is
+date-based across Service, Worship, and Sunday School. It chooses the earlier
+of the next Sunday and the next existing plan date; explicit calendar
+navigation remains selected until the user leaves or reloads the view.
 
 The current intended presenter layout has three roles:
 

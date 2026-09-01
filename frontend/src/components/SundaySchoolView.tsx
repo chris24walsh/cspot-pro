@@ -40,6 +40,7 @@ import { useDurableChange } from "../changePolling";
 import { calendarColors, calendarMarkers } from "../userCalendarStyle";
 import { calendarDatesAround, effectiveLeaderIdForDate, sundayDatesAround, unavailabilityForRole, type SundayLeader } from "../leaderSchedule";
 import { explicitSundaySchoolItemCount } from "../sundaySchool";
+import { defaultPlanningDate, nextSundayDate } from "../planningDates";
 import { CalendarPopup } from "./CalendarPopup";
 import { DateNavigator, formatNavigatorDate } from "./DateNavigator";
 import { LeaderAssignmentDialog } from "./LeaderAssignmentDialog";
@@ -206,8 +207,8 @@ export function SundaySchoolView({ active = true, canEdit }: { active?: boolean;
   const [resources, setResources] = useState<SundaySchoolResource[]>([]);
   const [users, setUsers] = useState<Member[]>([]);
   const [topbarSlot, setTopbarSlot] = useState<HTMLElement | null>(null);
-  const [selectedDate, setSelectedDate] = useState(nextSundayDateInput());
-  const [draft, setDraft] = useState<SundaySchoolLessonPayload>(() => blankLesson(nextSundayDateInput()));
+  const [selectedDate, setSelectedDate] = useState(() => nextSundayDate());
+  const [draft, setDraft] = useState<SundaySchoolLessonPayload>(() => blankLesson(nextSundayDate()));
   const [mobilePane, setMobilePane] = useState<SundaySchoolPane>("library");
   const [calendarOpen, setCalendarOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
@@ -356,6 +357,9 @@ export function SundaySchoolView({ active = true, canEdit }: { active?: boolean;
       setLessons(nextLessons);
       setResources(nextResources);
       setUsers(nextUsers);
+      if (!silent) {
+        setSelectedDate(defaultPlanningDate(nextLessons.map((lesson) => dateInputFromIso(lesson.lesson_date))));
+      }
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Could not load Sunday School.");
     } finally {

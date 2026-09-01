@@ -1,4 +1,5 @@
 import type { PlanDetail, PlanItem, PlanSummary, PlanType } from "./api";
+import { defaultPlanningDate } from "./planningDates";
 
 export const WORSHIP_SET_PLAN_TYPE = "Worship Set";
 export const WORSHIP_SET_ANCHOR_ITEM_TYPE = "worship_set";
@@ -53,16 +54,8 @@ export function explicitPlanningItemCount(items: PlanItem[]) {
 }
 
 export function preferredWorshipSetPlanId(sets: PlanSummary[], now = new Date()) {
-  const todayKey = dateKey(now.toISOString());
-  const targetSunday = new Date(now);
-  targetSunday.setDate(targetSunday.getDate() + ((7 - targetSunday.getDay()) % 7));
-  const targetSundayKey = dateKey(targetSunday.toISOString());
-  const targetSundayPlan = sets.find((candidate) => dateKey(candidate.service_date) === targetSundayKey);
-  const upcoming = [...sets]
-    .filter((candidate) => dateKey(candidate.service_date) >= todayKey)
-    .sort((left, right) => new Date(left.service_date).getTime() - new Date(right.service_date).getTime());
-  const newestFirst = [...sets].sort((left, right) => new Date(right.service_date).getTime() - new Date(left.service_date).getTime());
-  return upcoming[0]?.id ?? targetSundayPlan?.id ?? newestFirst[0]?.id ?? "";
+  const targetDate = defaultPlanningDate(sets.map((candidate) => dateKey(candidate.service_date)), now);
+  return sets.find((candidate) => dateKey(candidate.service_date) === targetDate)?.id ?? "";
 }
 
 export function isPlanEditingLocked(

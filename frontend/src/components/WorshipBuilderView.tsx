@@ -54,7 +54,7 @@ import { undoHistoryEntrySnapshot } from "../planHistory";
 import { parseChordChart } from "../chordSheet";
 import { showToast } from "../toast";
 import { analyzeImportedSongSlides, analyzeWorshipText, buildLyricsFromSections, canonicalizeWorshipLyrics } from "../worshipText";
-import { dateKey, explicitPlanningItemCount, isPlanEditingLocked, isWorshipSetPlan, preferredWorshipSetPlanId, worshipSetType } from "../worshipSets";
+import { dateKey, explicitPlanningItemCount, isPlanEditingLocked, isWorshipSetPlan, worshipSetType } from "../worshipSets";
 import { lastUsedLabel, worshipRoleLabel } from "../worshipSongMetadata";
 import { reorderedWorshipSequences } from "../worshipOrdering";
 import { calendarColors, calendarMarkers } from "../userCalendarStyle";
@@ -63,6 +63,7 @@ import { CalendarPopup } from "./CalendarPopup";
 import { useConfirmationDialog } from "./ConfirmationDialog";
 import { AutoFitSlideText } from "./AutoFitSlideText";
 import { DateNavigator, formatNavigatorDate } from "./DateNavigator";
+import { defaultPlanningDate } from "../planningDates";
 import { LeaderAssignmentDialog } from "./LeaderAssignmentDialog";
 import { MusicianLiveView } from "./MusicianLiveView";
 import { SongEditorDialog } from "./SongEditorDialog";
@@ -347,7 +348,7 @@ export function WorshipBuilderView({ active = true, canAccessAdminTools, canArch
   const [linkedServicePlan, setLinkedServicePlan] = useState<PlanDetail | null>(null);
   const [selectedPlanId, setSelectedPlanId] = useState("");
   const [setPickerOpen, setSetPickerOpen] = useState(false);
-  const [setDraftDate, setSetDraftDate] = useState(dateInputFromIso(new Date().toISOString()));
+  const [setDraftDate, setSetDraftDate] = useState(() => defaultPlanningDate([]));
   const [leaderAssignments, setLeaderAssignments] = useState<WorshipLeaderAssignment[]>([]);
   const [leaderPickerDate, setLeaderPickerDate] = useState<string | null>(null);
   const [leaderSaving, setLeaderSaving] = useState(false);
@@ -794,14 +795,19 @@ export function WorshipBuilderView({ active = true, canAccessAdminTools, canArch
         getWorshipSongUsage(),
       ]);
       const nextWorshipPlans = nextPlans.filter(isWorshipSetPlan);
-      const preferredPlanId = preferredWorshipSetPlanId(nextWorshipPlans);
+      const defaultSetDate = defaultPlanningDate(
+        nextPlans.map((candidate) => dateInputFromIso(candidate.service_date)),
+      );
+      const preferredPlanId = nextWorshipPlans.find(
+        (candidate) => dateInputFromIso(candidate.service_date) === defaultSetDate,
+      )?.id ?? "";
       const requestedPlanId =
         targetPlanId !== undefined
           ? targetPlanId
           : sessionStorage.getItem(SELECTED_WORSHIP_SET_SESSION_KEY) || selectedPlanId;
       const requestedPlan = nextWorshipPlans.find((candidate) => candidate.id === requestedPlanId);
       const requestedPlanIsUsable =
-        targetPlanId !== undefined || requestedPlan?.id === preferredPlanId;
+        targetPlanId !== undefined || (requestedPlan?.id === preferredPlanId && dateInputFromIso(requestedPlan.service_date) === defaultSetDate);
       const resolvedPlanId = requestedPlan && requestedPlanIsUsable
         ? requestedPlanId
         : preferredPlanId;
@@ -822,6 +828,7 @@ export function WorshipBuilderView({ active = true, canAccessAdminTools, canArch
         sessionStorage.removeItem(SELECTED_WORSHIP_SET_SESSION_KEY);
       }
       setPlan(nextPlan);
+      setSetDraftDate(nextPlan ? dateInputFromIso(nextPlan.service_date) : defaultSetDate);
       setEditHistory(nextHistory);
       setEditHistoryIndex(nextHistory.filter((entry) => entry.restorable).length);
       setEditHistoryOpen(false);

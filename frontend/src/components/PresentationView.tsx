@@ -96,6 +96,7 @@ import { CalendarPopup } from "./CalendarPopup";
 import { CountdownSlide } from "./CountdownSlide";
 import { PreServiceSlide, serviceScheduleForPlan } from "./PreServiceSlide";
 import { DateNavigator, formatNavigatorDate } from "./DateNavigator";
+import { defaultPlanningDate, nextSundayDate } from "../planningDates";
 import { ScaledSlideImage } from "./ScaledSlideImage";
 import { SongEditorDialog } from "./SongEditorDialog";
 import { useEscapeClose } from "./useEscapeClose";
@@ -856,18 +857,8 @@ export function PresentationView({
   );
 
   function nextServicePlanId(planList: PlanSummary[]) {
-    const todayKey = dateInputFromIso(new Date().toISOString());
-    const sundayKey = nextSundayDateInput();
-    const newestFirst = [...planList].sort((left, right) => {
-      const leftTime = new Date(left.service_date).getTime();
-      const rightTime = new Date(right.service_date).getTime();
-      return (Number.isNaN(rightTime) ? 0 : rightTime) - (Number.isNaN(leftTime) ? 0 : leftTime);
-    });
-    const nextSundayPlan = planList.find((candidate) => dateInputFromIso(candidate.service_date) === sundayKey);
-    const upcoming = [...planList]
-      .filter((candidate) => dateInputFromIso(candidate.service_date) >= todayKey)
-      .sort((left, right) => new Date(left.service_date).getTime() - new Date(right.service_date).getTime());
-    return upcoming[0]?.id ?? nextSundayPlan?.id ?? newestFirst[0]?.id ?? "";
+    const targetDate = defaultPlanningDate(planList.map((candidate) => dateInputFromIso(candidate.service_date)));
+    return planList.find((candidate) => dateInputFromIso(candidate.service_date) === targetDate)?.id ?? "";
   }
   const plansByDate = useMemo(
     () =>
@@ -1246,8 +1237,11 @@ export function PresentationView({
       const nextServicePlans = nextPlans.filter((candidate) => !isWorshipSetPlan(candidate));
       const nextWorshipSetPlans = nextPlans.filter(isWorshipSetPlan);
       const requestedPlan = nextServicePlans.find((candidate) => candidate.id === requestedPlanId);
+      const defaultServiceDate = defaultPlanningDate(
+        nextServicePlans.map((candidate) => dateInputFromIso(candidate.service_date)),
+      );
       const requestedPlanIsUsable =
-        planId !== undefined || (requestedPlan && dateInputFromIso(requestedPlan.service_date) >= dateInputFromIso(new Date().toISOString()));
+        planId !== undefined || (requestedPlan && dateInputFromIso(requestedPlan.service_date) === defaultServiceDate);
       const targetPlanId = requestedPlan && requestedPlanIsUsable
         ? requestedPlanId
         : nextServicePlanId(nextServicePlans);
@@ -1267,6 +1261,7 @@ export function PresentationView({
       }
       setPlan(targetPlan);
       setWorshipSetPlan(nextWorshipSetPlan);
+      setEmptyServiceDate(targetPlan ? "" : defaultServiceDate);
       const nextEffectiveItems = mergeWorshipSetIntoService(targetPlan?.items ?? [], nextWorshipSetPlan?.items ?? []);
       const nextSlides = buildPresentationSlides(nextEffectiveItems, nextSongs, renderedSlidesByFileId);
       const preservedState = liveState
@@ -2026,10 +2021,7 @@ export function PresentationView({
   }
 
   function nextSundayDateInput() {
-    const date = new Date();
-    date.setDate(date.getDate() + ((7 - date.getDay()) % 7 || 7));
-    date.setHours(10, 30, 0, 0);
-    return dateInputFromIso(date.toISOString());
+    return nextSundayDate();
   }
 
   function serviceTypeForDate(dateInput: string, selectedTypeId?: string) {
