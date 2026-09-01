@@ -887,6 +887,22 @@ export function MusicianLiveView({ controlPlanId, onEditSong, onExit, plan, serv
     void publishWorshipSlide(targetIndex);
   }
 
+  function navigateToSongTitle() {
+    const titleIndex = slides.findIndex(
+      (slide) => slide.planItemId === liveSlide?.planItemId && slide.slideKind === "title",
+    );
+    if (titleIndex < 0) return;
+    setLocalIndex(titleIndex);
+    void publishWorshipSlide(titleIndex);
+  }
+
+  function navigateToWorshipEnd() {
+    const endIndex = slides.findIndex((slide) => slide.itemType === "worship_end");
+    if (endIndex < 0) return;
+    setLocalIndex(endIndex);
+    void publishWorshipSlide(endIndex);
+  }
+
   useEffect(() => {
     if (readerMode !== "scroll" || !fullSongRef.current || !activeSongPartRef.current) {
       return undefined;
@@ -1023,15 +1039,7 @@ export function MusicianLiveView({ controlPlanId, onEditSong, onExit, plan, serv
             aria-current={isSongTitleSlide ? "step" : undefined}
             aria-label="Song title slide"
             className={`musician-sequence-title ${isSongTitleSlide ? "is-active" : ""}`}
-            onClick={() => {
-              const titleIndex = slides.findIndex(
-                (slide) => slide.planItemId === liveSlide?.planItemId && slide.slideKind === "title",
-              );
-              if (titleIndex >= 0) {
-                setLocalIndex(titleIndex);
-                void publishWorshipSlide(titleIndex);
-              }
-            }}
+            onClick={navigateToSongTitle}
             title="Song title slide"
             type="button"
           >
@@ -1110,6 +1118,16 @@ export function MusicianLiveView({ controlPlanId, onEditSong, onExit, plan, serv
           </div>
         ) : readerMode === "scroll" ? (
           <div className="musician-full-song" aria-label="Full song lyrics" ref={fullSongRef}>
+            <button
+              aria-current={isSongTitleSlide ? "step" : undefined}
+              aria-label={`Go to ${liveSong?.title ?? liveSlide.sectionTitle} title cue`}
+              className={`musician-song-title-cue ${isSongTitleSlide ? "is-current" : ""}`}
+              onClick={navigateToSongTitle}
+              type="button"
+            >
+              <Music2 size={20} aria-hidden="true" />
+              <span>{liveSong?.title ?? liveSlide.sectionTitle}</span>
+            </button>
             {sequenceBlocks.map((block, blockIndex) => (
               <section
                 aria-current={blockIndex === currentSequenceBlockIndex ? "step" : undefined}
@@ -1177,6 +1195,16 @@ export function MusicianLiveView({ controlPlanId, onEditSong, onExit, plan, serv
                 })}
               </section>
             ))}
+            {nextServiceSlide ? (
+              <button
+                aria-label="Finish worship and move to the next service section"
+                className="musician-song-title-cue musician-worship-end-cue"
+                onClick={navigateToWorshipEnd}
+                type="button"
+              >
+                <span>End of worship</span>
+              </button>
+            ) : null}
           </div>
         ) : (
           <div
@@ -1202,7 +1230,13 @@ export function MusicianLiveView({ controlPlanId, onEditSong, onExit, plan, serv
               type="button"
             >
               <span className="musician-page-label">{isSongTitleSlide ? "Title cue" : "Now"}</span>
-              <div className="musician-chord-sheet" aria-label="Lyrics with chords">
+              {isSongTitleSlide ? (
+                <div className="musician-page-title-cue">
+                  <Music2 size={34} aria-hidden="true" />
+                  <strong>{liveSong?.title ?? liveSlide.sectionTitle}</strong>
+                  <span>Tap to start lyrics</span>
+                </div>
+              ) : <div className="musician-chord-sheet" aria-label="Lyrics with chords">
                 {wrappedLyricLinesForSlide.map((segments, lineIndex) => (
                   <div className="musician-lyric-line-group" key={`${lineIndex}-${lyricLinesForSlide[lineIndex]}`}>
                     {segments.map((segment, segmentIndex) => (
@@ -1220,7 +1254,7 @@ export function MusicianLiveView({ controlPlanId, onEditSong, onExit, plan, serv
                     ))}
                   </div>
                 ))}
-              </div>
+              </div>}
             </button>
             <button
               className={`musician-page is-next ${pageNextSlide?.slideKind === "title" ? "is-song-title" : ""}`}

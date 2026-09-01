@@ -3539,6 +3539,29 @@ button.musician-page {
   padding: 5px 10px;
 }
 
+.musician-page-title-cue {
+  align-items: center;
+  color: #32473f;
+  display: grid;
+  gap: 12px;
+  justify-items: center;
+  text-align: center;
+  width: 100%;
+}
+
+.musician-page-title-cue svg { color: #8a6a30; }
+
+.musician-page-title-cue strong {
+  font-size: clamp(26px, 4vw, 56px);
+  line-height: 1.08;
+}
+
+.musician-page-title-cue span {
+  color: #68766e;
+  font-size: clamp(13px, 1.4vw, 18px);
+  font-weight: 750;
+}
+
 .musician-page-label {
   background: #245d4d;
   border-radius: 999px;
@@ -3606,6 +3629,51 @@ button.musician-page {
   break-inside: avoid;
   margin: 0 0 1.3em;
   padding: 0;
+}
+
+.musician-song-title-cue {
+  align-items: center;
+  background: linear-gradient(145deg, rgba(244, 239, 224, 0.96), rgba(255, 253, 247, 0.94));
+  border: 1px solid #d7c39a;
+  border-radius: 12px;
+  color: #32473f;
+  cursor: pointer;
+  display: flex;
+  font: inherit;
+  gap: 10px;
+  justify-content: center;
+  margin: 0 0 1.4em;
+  min-height: 68px;
+  padding: 14px 20px;
+  text-align: center;
+  transition: background 160ms ease, border-color 160ms ease, transform 160ms ease;
+  width: 100%;
+}
+
+.musician-song-title-cue span {
+  font-size: clamp(20px, 3vw, 40px);
+  font-weight: 850;
+  line-height: 1.08;
+}
+
+.musician-song-title-cue svg { color: #8a6a30; }
+
+.musician-song-title-cue:hover,
+.musician-song-title-cue:focus-visible,
+.musician-song-title-cue.is-current {
+  background: rgba(255, 251, 240, 0.98);
+  border-color: #9f7b3c;
+  outline: none;
+}
+
+.musician-song-title-cue:not(.is-current):hover,
+.musician-song-title-cue:not(.is-current):focus-visible { transform: translateY(-1px); }
+
+.musician-worship-end-cue {
+  background: rgba(237, 244, 239, 0.88);
+  border-color: #a9c7b5;
+  color: #245d4d;
+  margin: 1.5em 0 0;
 }
 
 .musician-scroll-section-heading {
