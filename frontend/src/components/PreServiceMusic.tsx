@@ -1,5 +1,7 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
 
+import { PROGRAM_AUDIO_FADE_DURATION_MS } from "../audioTransitions";
+
 import { extractYouTubeId } from "../presentation";
 import { preServicePhaseAt } from "./PreServiceSlide";
 
@@ -7,7 +9,6 @@ function loopingYouTubeUrl(videoId: string) {
   return `https://www.youtube-nocookie.com/embed/${videoId}?autoplay=1&mute=1&loop=1&playlist=${videoId}&rel=0&modestbranding=1&playsinline=1&enablejsapi=1`;
 }
 
-const AUDIO_FADE_DURATION_MS = 6000;
 const AUDIO_FADE_INTERVAL_MS = 100;
 
 function sendYouTubeCommand(frame: HTMLIFrameElement | null, func: string, args: unknown[] = []) {
@@ -99,7 +100,7 @@ export const PreServiceMusic = forwardRef<PreServiceMusicHandle, {
     setFading(true);
     const startedAt = Date.now();
     const timer = window.setInterval(() => {
-      const progress = Math.min(1, (Date.now() - startedAt) / AUDIO_FADE_DURATION_MS);
+      const progress = Math.min(1, (Date.now() - startedAt) / PROGRAM_AUDIO_FADE_DURATION_MS);
       const volume = Math.pow(1 - progress, 2);
       if (audioRef.current) audioRef.current.volume = volume;
       sendYouTubeCommand(frameRef.current, "setVolume", [Math.round(volume * 100)]);

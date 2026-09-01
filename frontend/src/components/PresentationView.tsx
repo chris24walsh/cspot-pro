@@ -68,6 +68,7 @@ import {
   type PlanType,
   type Song,
 } from "../api";
+import { PROGRAM_AUDIO_FADE_DURATION_MS } from "../audioTransitions";
 import { useDurableChange } from "../changePolling";
 import {
   PRESENTATION_CHANNEL,
@@ -111,9 +112,8 @@ import {
 } from "../worshipSets";
 
 const SELECTED_SERVICE_SESSION_KEY = "cspot.selectedServicePlanId";
-const AUDIO_FADE_DURATION_MS = 2000;
 const AUDIO_FADE_STEPS = 20;
-const AUDIO_FADE_INTERVAL_MS = AUDIO_FADE_DURATION_MS / AUDIO_FADE_STEPS;
+const AUDIO_FADE_INTERVAL_MS = PROGRAM_AUDIO_FADE_DURATION_MS / AUDIO_FADE_STEPS;
 const REMOTE_LIVE_STATE_POLL_INTERVAL_MS = 250;
 const FILLER_MEDIA_ITEM_TYPES = new Set(["open_time", "sermon", "announcements"]);
 
@@ -1338,7 +1338,7 @@ export function PresentationView({
         return;
       }
       publishFadeOutAudio();
-      window.setTimeout(() => navigate(boundedIndex), AUDIO_FADE_DURATION_MS);
+      window.setTimeout(() => navigate(boundedIndex), PROGRAM_AUDIO_FADE_DURATION_MS);
       return;
     }
     navigate(boundedIndex);

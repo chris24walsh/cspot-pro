@@ -1,0 +1,1 @@
+export const PROGRAM_AUDIO_FADE_DURATION_MS = 6000;

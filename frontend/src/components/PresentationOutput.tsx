@@ -16,6 +16,7 @@ import {
   type RenderedSlide,
   type Song,
 } from "../api";
+import { PROGRAM_AUDIO_FADE_DURATION_MS } from "../audioTransitions";
 import {
   PRESENTATION_CHANNEL,
   LCF_BACKGROUND_URL,
@@ -33,9 +34,8 @@ import { PreServiceSlide, serviceScheduleForPlan } from "./PreServiceSlide";
 import { PreServiceMusic } from "./PreServiceMusic";
 import { ScaledSlideImage } from "./ScaledSlideImage";
 
-const AUDIO_FADE_DURATION_MS = 2000;
 const AUDIO_FADE_STEPS = 20;
-const AUDIO_FADE_INTERVAL_MS = AUDIO_FADE_DURATION_MS / AUDIO_FADE_STEPS;
+const AUDIO_FADE_INTERVAL_MS = PROGRAM_AUDIO_FADE_DURATION_MS / AUDIO_FADE_STEPS;
 const REMOTE_LIVE_STATE_POLL_INTERVAL_MS = 250;
 
 function readLiveState(): PresentationLiveState | null {

@@ -490,7 +490,7 @@ def test_new_output_derives_scene_from_current_presentation_state(
     assert activate_scene.call_args.args[2] == expected_scene
 
 
-def test_live_service_stage_change_activates_the_matching_audio_scene() -> None:
+def test_starting_service_defers_audio_scene_change_for_the_program_fade() -> None:
     engine = create_engine("sqlite://")
     Base.metadata.create_all(
         engine,
@@ -522,7 +522,12 @@ def test_live_service_stage_change_activates_the_matching_audio_scene() -> None:
         session.add(BroadcastViewerSettings(audio_scene_automation=True))
         session.commit()
 
-        with patch("app.modules.presentation.routes.activate_audio_scene") as activate_scene:
+        with (
+            patch("app.modules.presentation.routes.activate_audio_scene") as activate_scene,
+            patch(
+                "app.modules.presentation.routes._schedule_audio_scene_after_program_fade"
+            ) as schedule_scene,
+        ):
             update_presentation_live_state(
                 "plan-1",
                 PresentationLiveStateWrite(
@@ -534,8 +539,8 @@ def test_live_service_stage_change_activates_the_matching_audio_scene() -> None:
                 session,
             )
 
-    activate_scene.assert_called_once()
-    assert activate_scene.call_args.args[2] == "pastor"
+    activate_scene.assert_not_called()
+    schedule_scene.assert_called_once_with("plan-1")
 
 
 def test_live_state_only_schedules_real_sermon_slide_changes(monkeypatch) -> None:

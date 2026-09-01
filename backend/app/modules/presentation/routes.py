@@ -1,5 +1,6 @@
 import json
 from datetime import UTC, datetime
+from threading import Lock, Timer
 from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -7,11 +8,11 @@ from pydantic import BaseModel
 from sqlalchemy import case, func, select
 from sqlalchemy.orm import Session
 
-from app.core.database import get_session
+from app.core.database import SessionLocal, get_session
 from app.modules.broadcast.audio_scenes import activate_audio_scene, automatic_scene_for_item
 from app.modules.broadcast.models import BroadcastViewerSettings
-from app.modules.broadcast.settings import service_schedules
 from app.modules.broadcast.recording import schedule_sermon_recording
+from app.modules.broadcast.settings import service_schedules
 from app.modules.identity.auth import list_role_names, require_any_permission, require_permission
 from app.modules.identity.models import User
 from app.modules.planning.models import Plan, PlanItem, PlanType
@@ -90,6 +91,64 @@ class PresentationLiveServiceRead(BaseModel):
 
 OUTPUT_STALE_MS = 7000
 SERVICE_TIME_ZONE = ZoneInfo("Europe/Dublin")
+PROGRAM_AUDIO_FADE_SECONDS = 6.0
+_audio_scene_fade_lock = Lock()
+_audio_scene_fade_timers: dict[str, tuple[object, Timer]] = {}
+
+
+def _audio_scene_fade_pending(plan_id: str) -> bool:
+    with _audio_scene_fade_lock:
+        scheduled = _audio_scene_fade_timers.get(plan_id)
+        return scheduled is not None and scheduled[1].is_alive()
+
+
+def _activate_current_audio_scene(plan_id: str) -> None:
+    with SessionLocal() as session:
+        presentation_session = _latest_session(session, plan_id)
+        position = (
+            _latest_position(session, presentation_session.id) if presentation_session else None
+        )
+        if position is None:
+            return
+        payload = _position_payload(position)
+        settings = session.scalar(select(BroadcastViewerSettings).limit(1))
+        if not settings or not settings.audio_scene_automation:
+            return
+        item_id = payload.get("plan_item_id")
+        item = session.get(PlanItem, item_id) if isinstance(item_id, str) else None
+        video_action = payload.get("video_action")
+        service_stage = payload.get("service_stage")
+        activate_audio_scene(
+            session,
+            settings,
+            automatic_scene_for_item(
+                item.item_type if item else None,
+                video_action if isinstance(video_action, str) else None,
+                service_stage if isinstance(service_stage, str) else None,
+            ),
+        )
+
+
+def _schedule_audio_scene_after_program_fade(plan_id: str) -> None:
+    token = object()
+
+    def finish_transition() -> None:
+        try:
+            _activate_current_audio_scene(plan_id)
+        finally:
+            with _audio_scene_fade_lock:
+                scheduled = _audio_scene_fade_timers.get(plan_id)
+                if scheduled is not None and scheduled[0] is token:
+                    _audio_scene_fade_timers.pop(plan_id, None)
+
+    timer = Timer(PROGRAM_AUDIO_FADE_SECONDS, finish_transition)
+    timer.daemon = True
+    with _audio_scene_fade_lock:
+        previous = _audio_scene_fade_timers.get(plan_id)
+        if previous is not None:
+            previous[1].cancel()
+        _audio_scene_fade_timers[plan_id] = (token, timer)
+    timer.start()
 
 
 def cleanup_live_sessions(
@@ -601,16 +660,22 @@ def update_presentation_live_state(
     ):
         broadcast_settings = session.scalar(select(BroadcastViewerSettings).limit(1))
         if broadcast_settings and broadcast_settings.audio_scene_automation:
-            item = session.get(PlanItem, payload.plan_item_id) if payload.plan_item_id else None
-            activate_audio_scene(
-                session,
-                broadcast_settings,
-                automatic_scene_for_item(
-                    item.item_type if item else None,
-                    payload.video_action,
-                    payload.service_stage,
-                ),
+            starting_service_from_pre_service = (
+                previous_service_stage == "pre_service" and payload.service_stage == "service"
             )
+            if starting_service_from_pre_service:
+                _schedule_audio_scene_after_program_fade(plan_id)
+            elif not _audio_scene_fade_pending(plan_id):
+                item = session.get(PlanItem, payload.plan_item_id) if payload.plan_item_id else None
+                activate_audio_scene(
+                    session,
+                    broadcast_settings,
+                    automatic_scene_for_item(
+                        item.item_type if item else None,
+                        payload.video_action,
+                        payload.service_stage,
+                    ),
+                )
     return _serialize_live_state(presentation_session, position, plan_id)
 
 
