@@ -690,7 +690,9 @@ export function PresentationView({
   const [serviceHistory, setServiceHistory] = useState<PlanHistoryEntry[]>([]);
   const [serviceHistoryLoading, setServiceHistoryLoading] = useState(false);
   const [serviceHistoryApplying, setServiceHistoryApplying] = useState(false);
-  const [archivedServiceUndo, setArchivedServiceUndo] = useState<{ id: string; title: string } | null>(null);
+  const [archivedServiceUndo, setArchivedServiceUndo] = useState<{ id: string; title: string; serviceDate: string } | null>(null);
+  const [archivedServiceToastVisible, setArchivedServiceToastVisible] = useState(false);
+  const [emptyServiceDate, setEmptyServiceDate] = useState("");
   useEscapeClose(serviceHistoryOpen, () => setServiceHistoryOpen(false));
   useEscapeClose(Boolean(pendingServiceDate), () => setPendingServiceDate(null));
   useEffect(() => {
@@ -702,6 +704,11 @@ export function PresentationView({
     document.addEventListener("pointerdown", closeOutside);
     return () => document.removeEventListener("pointerdown", closeOutside);
   }, [serviceHistoryOpen]);
+  useEffect(() => {
+    if (!archivedServiceToastVisible) return;
+    const timer = window.setTimeout(() => setArchivedServiceToastVisible(false), 5000);
+    return () => window.clearTimeout(timer);
+  }, [archivedServiceToastVisible]);
   const [customProviderSelection, setCustomProviderSelection] = useState<CustomProviderSelectResult | null>(null);
   const [customProviderSelectionLoading, setCustomProviderSelectionLoading] = useState(false);
   const [editingSongId, setEditingSongId] = useState<string | null>(null);
@@ -840,7 +847,7 @@ export function PresentationView({
     }
     return [...byDate.entries()].sort(([left], [right]) => left.localeCompare(right));
   }, [servicePlans, worshipSetsByDate]);
-  const currentServiceDate = dateInputFromIso(plan?.service_date);
+  const currentServiceDate = dateInputFromIso(plan?.service_date) || emptyServiceDate;
   const previousPlannedService = [...plannedServiceDates]
     .reverse()
     .find(([date]) => date < currentServiceDate)?.[1] ?? null;
@@ -1729,13 +1736,14 @@ export function PresentationView({
 
   async function selectPlan(planId: string) {
     selectedPlanIdRef.current = planId;
+    setEmptyServiceDate("");
     setServiceHistoryOpen(false);
     setServicePickerOpen(false);
     await load(planId);
   }
 
   function openServicePicker() {
-    const draftDate = dateInputFromIso(plan?.service_date) || nextSundayDateInput();
+    const draftDate = dateInputFromIso(plan?.service_date) || emptyServiceDate || nextSundayDateInput();
     setServiceDraftDate(draftDate);
     setServicePickerOpen(true);
     setServiceHistoryOpen(false);
@@ -1754,7 +1762,7 @@ export function PresentationView({
   }
 
   async function openServiceHistory() {
-    if (!plan) {
+    if (!plan && !archivedServiceUndo) {
       return;
     }
     const nextOpen = !serviceHistoryOpen;
@@ -1763,6 +1771,7 @@ export function PresentationView({
     if (!nextOpen) {
       return;
     }
+    if (!plan) return;
     setServiceHistoryLoading(true);
     try {
       setServiceHistory(await getPlanHistory(plan.id));
@@ -1883,7 +1892,18 @@ export function PresentationView({
         </div>
         <div className="worship-history-list">
           {serviceHistoryLoading ? <p className="search-empty">Loading history...</p> : null}
-          {!serviceHistoryLoading && !serviceHistory.length ? <p className="search-empty">No service edits recorded yet.</p> : null}
+          {!serviceHistoryLoading && !serviceHistory.length && !archivedServiceUndo ? <p className="search-empty">No service edits recorded yet.</p> : null}
+          {archivedServiceUndo ? (
+            <div className="worship-history-row is-audit">
+              <div className="history-version-button">
+                <span>Archived “{archivedServiceUndo.title}”</span>
+                <small>{serviceLongDateForInput(archivedServiceUndo.serviceDate)}</small>
+              </div>
+              <button aria-label={`Restore archived service ${archivedServiceUndo.title}`} className="history-single-undo-button" onClick={() => void undoArchivedService()} title="Restore archived service" type="button">
+                <RotateCcw size={15} aria-hidden="true" /><span>Undo archive</span>
+              </button>
+            </div>
+          ) : null}
           {firstVersion ? (
             <div className="worship-history-row">
               <button className="history-version-button" disabled={serviceHistoryApplying} onClick={() => void applyServiceHistory({ ...firstVersion, id: `original-${firstVersion.id}`, label: "Original service", after: firstVersion.before })} title="Restore the original service" type="button">
@@ -2168,10 +2188,14 @@ export function PresentationView({
     }
 
     try {
-      const archived = { id: plan.id, title: plan.title };
+      const archived = { id: plan.id, title: plan.title, serviceDate: dateInputFromIso(plan.service_date) };
       await deletePlan(plan.id);
       setArchivedServiceUndo(archived);
-      await load(undefined, { refreshCatalogs: true });
+      setArchivedServiceToastVisible(true);
+      setEmptyServiceDate(archived.serviceDate);
+      selectedPlanIdRef.current = "";
+      sessionStorage.removeItem(SELECTED_SERVICE_SESSION_KEY);
+      await load("", { refreshCatalogs: true });
       setServicePickerOpen(false);
       setMessage("Service archived.");
     } catch (error) {
@@ -2184,6 +2208,8 @@ export function PresentationView({
     try {
       const restored = await restorePlan(archivedServiceUndo.id);
       setArchivedServiceUndo(null);
+      setArchivedServiceToastVisible(false);
+      setEmptyServiceDate("");
       await load(restored.id, { refreshCatalogs: true });
       setMessage("Service restored.");
     } catch (error) {
@@ -4057,7 +4083,7 @@ export function PresentationView({
       }}
     >
       {confirmationDialog}
-      {archivedServiceUndo ? (
+      {archivedServiceUndo && archivedServiceToastVisible ? (
         <div className="archive-undo-banner" role="status">
           <span>Archived “{archivedServiceUndo.title}”</span>
           <button className="text-button" onClick={() => void undoArchivedService()} type="button">Undo</button>
@@ -4080,10 +4106,10 @@ export function PresentationView({
             <div className="presentation-topbar-tools">
               <DateNavigator
                 historyContent={serviceHistoryContent()}
-                historyDisabled={!plan || serviceHistoryLoading}
+                historyDisabled={(!plan && !archivedServiceUndo) || serviceHistoryLoading}
                 historyExpanded={serviceHistoryOpen}
                 historyLabel="Service edit history"
-                label={plan ? formatNavigatorDate(plan.service_date) : "Choose service"}
+                label={plan ? formatNavigatorDate(plan.service_date) : emptyServiceDate ? formatNavigatorDate(serviceIsoFromDateInput(emptyServiceDate)) : "Choose service"}
                 nextDisabled={loading || !nextPlannedService}
                 nextLabel="Next service"
                 onHistory={() => void openServiceHistory()}
