@@ -718,6 +718,9 @@ Search modes:
   calendar workflows do not need to build or responsively style their own count.
   Counts include explicit leaf content only: service outline/template containers
   are excluded, as are Sunday School's fixed lesson-element containers.
+- Sunday School edit history includes an Archive action for editors. Archiving
+  clears explicitly added lesson content while retaining the dated slot and its
+  history, so the lesson can be restored from a previous version.
 - Service and worship-set archives leave a fresh empty plan on the same date,
   so archive never removes the calendar foundation or reopens a preparation
   prompt. Their immediate Undo actions discard that replacement and restore the

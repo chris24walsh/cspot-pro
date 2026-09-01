@@ -1,4 +1,5 @@
 import {
+  Archive,
   CheckCircle2,
   ChevronDown,
   ChevronUp,
@@ -688,12 +689,41 @@ export function SundaySchoolView({ active = true, canEdit }: { active?: boolean;
     }
   }
 
+  async function archiveLesson() {
+    const lesson = lessonsByDate.get(selectedDate);
+    if (!lesson || !canEdit || historyApplying) return;
+    const confirmed = await confirm({
+      confirmLabel: "Archive lesson",
+      message: `Archive the lesson for ${longDate(selectedDate)}? Its added content will be cleared, while the date and edit history remain available.`,
+      title: "Archive Lesson",
+      tone: "danger",
+    });
+    if (!confirmed) return;
+    setHistoryApplying(true);
+    try {
+      const saved = await updateSundaySchoolLesson(lesson.id, blankLesson(selectedDate));
+      setLessons((current) => current.map((candidate) => candidate.id === saved.id ? saved : candidate));
+      setDraft(draftFromLesson(saved));
+      setHistory(await getSundaySchoolLessonHistory(lesson.id));
+      setMessage("Lesson archived. Restore it from edit history if needed.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not archive this lesson.");
+    } finally {
+      setHistoryApplying(false);
+    }
+  }
+
   function lessonHistoryContent() {
     if (!historyOpen) return null;
     return (
       <section className="worship-history-popover sunday-school-history-popover" aria-label="Sunday School edit history">
         <div className="worship-history-popover-heading">
           <strong>Edit History</strong>
+          {canEdit && lessonsByDate.has(selectedDate) ? (
+            <button className="text-button history-archive-button" disabled={historyApplying} onClick={() => void archiveLesson()} type="button">
+              <Archive size={14} aria-hidden="true" /> Archive
+            </button>
+          ) : null}
           <button aria-label="Close edit history" className="section-icon-button" onClick={() => setHistoryOpen(false)} type="button"><X size={14} aria-hidden="true" /></button>
         </div>
         <div className="worship-history-list">
