@@ -5050,9 +5050,9 @@ export function PresentationView({
                                 <span>{itemIndex + 1}</span><strong>{item.title}</strong>
                               </button>
                               {canEditPlan ? <div className="section-group-item-actions">
-                                <button className="section-icon-button" disabled={itemIndex === 0} onClick={() => void moveSection(item.id, -1)} title="Move item up" type="button"><ChevronUp size={12} /></button>
-                                <button className="section-icon-button" disabled={itemIndex === groupItems.length - 1} onClick={() => void moveSection(item.id, 1)} title="Move item down" type="button"><ChevronDown size={12} /></button>
-                                <button className="section-icon-button section-remove-button" onClick={() => void removeSection(item.id)} title="Remove item" type="button"><Trash2 size={12} /></button>
+                                <button className="section-icon-button" disabled={itemIndex === 0} onClick={() => void moveSection(item.id, -1)} title="Move item up" type="button"><ChevronUp size={15} /></button>
+                                <button className="section-icon-button" disabled={itemIndex === groupItems.length - 1} onClick={() => void moveSection(item.id, 1)} title="Move item down" type="button"><ChevronDown size={15} /></button>
+                                <button className="section-icon-button section-remove-button" onClick={() => void removeSection(item.id)} title="Remove item" type="button"><Trash2 size={15} /></button>
                               </div> : null}
                             </div>
                             {canEditPlan && section.itemType !== WORSHIP_SET_ANCHOR_ITEM_TYPE ? (
@@ -5073,6 +5073,18 @@ export function PresentationView({
                         })}
                       </div>
                     ) : null}
+                    {canEditPlan && !groupItems.length && section.itemType !== WORSHIP_SET_ANCHOR_ITEM_TYPE ? (
+                      <button
+                        aria-label={`Add item to ${section.title}`}
+                        className="section-group-insert-button section-group-empty-insert"
+                        onClick={() => openSearchOverlay(
+                          sectionIndex,
+                          ["sermon", "announcements"].includes(section.itemType) ? "deck" : "bible",
+                          { deckTargetPlanItemId: section.id, parentInsertIndex: -1, parentItemId: section.id, selectInserted: false },
+                        )}
+                        type="button"
+                      ><Plus size={14} aria-hidden="true" /></button>
+                    ) : null}
                     {canEditPlan || sectionAudioSlide || (canManagePreServiceMedia && section.itemType === "pre_service") ? (
                       <div className="section-actions">
                         {sectionAudioSlide ? (
@@ -5090,19 +5102,6 @@ export function PresentationView({
                         ) : null}
                         {canEditPlan ? (
                           <>
-                            {!groupItems.length ? <button
-                              aria-label={`Add item to ${section.title}`}
-                              className="section-icon-button"
-                              onClick={() => openSearchOverlay(
-                                sectionIndex,
-                                ["sermon", "announcements"].includes(section.itemType) ? "deck" : "bible",
-                                { deckTargetPlanItemId: section.id, parentItemId: section.id, selectInserted: false },
-                              )}
-                              title={`Add item to ${section.title}`}
-                              type="button"
-                            >
-                              <Plus size={14} aria-hidden="true" />
-                            </button> : null}
                             {sermonDeckAttached && sectionItem ? (
                               <button
                                 aria-label={`Remove ${section.title} deck`}
