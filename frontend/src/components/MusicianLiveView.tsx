@@ -36,12 +36,14 @@ import {
 import { isEditableKeyboardTarget, slideKeyboardDirection, type SlideKeyboardDirection } from "../keyboardNavigation";
 import { isMobileOrTabletDevice } from "../presentationDevice";
 import { worshipSequenceBlocks } from "../worshipText";
+import { mergeWorshipSetIntoService } from "../worshipSets";
 
 interface MusicianLiveViewProps {
   controlPlanId?: string | null;
   onEditSong: (song: Song) => void;
   onExit: () => void;
   plan: PlanDetail | null;
+  servicePlan?: PlanDetail | null;
   songs: Song[];
   topbarSlot: HTMLElement | null;
 }
@@ -374,7 +376,7 @@ function chordAnnotationsBySlideLine(
   return grouped;
 }
 
-export function MusicianLiveView({ controlPlanId, onEditSong, onExit, plan, songs, topbarSlot }: MusicianLiveViewProps) {
+export function MusicianLiveView({ controlPlanId, onEditSong, onExit, plan, servicePlan, songs, topbarSlot }: MusicianLiveViewProps) {
   const [liveState, setLiveState] = useState<PresentationLiveState | null>(null);
   const [showChords, setShowChords] = useState(true);
   const [capo, setCapo] = useState(0);
@@ -406,6 +408,12 @@ export function MusicianLiveView({ controlPlanId, onEditSong, onExit, plan, song
     [plan?.items],
   );
   const presentationSlides = useMemo(() => buildPresentationSlides(worshipItems, songs), [songs, worshipItems]);
+  const serviceSlides = useMemo(
+    () => servicePlan
+      ? buildPresentationSlides(mergeWorshipSetIntoService(servicePlan.items, worshipItems), songs)
+      : presentationSlides,
+    [presentationSlides, servicePlan, songs, worshipItems],
+  );
   // Worship Live controls the congregation slideshow, so song title slides must
   // remain in its navigation as useful transitions between songs.
   const slides = presentationSlides;
@@ -422,6 +430,11 @@ export function MusicianLiveView({ controlPlanId, onEditSong, onExit, plan, song
   const syncedIndex = remoteWorshipIndex >= 0 ? remoteWorshipIndex : boundedIndex(localIndex, slides.length);
   const liveIndex = syncedIndex;
   const liveSlide = slides[liveIndex] ?? null;
+  const lastWorshipServiceIndex = serviceSlides.reduce(
+    (lastIndex, slide, index) => worshipItems.some((item) => item.id === slide.planItemId) ? index : lastIndex,
+    -1,
+  );
+  const nextServiceSlide = lastWorshipServiceIndex >= 0 ? serviceSlides[lastWorshipServiceIndex + 1] ?? null : null;
   const pageLeadIndex = liveSlide?.slideKind === "title"
     ? slides.findIndex((slide, index) => index > liveIndex && slide.planItemId === liveSlide.planItemId && slide.slideKind === "content")
     : liveIndex;
@@ -617,6 +630,10 @@ export function MusicianLiveView({ controlPlanId, onEditSong, onExit, plan, song
   }, [liveSyncPlanId]);
 
   function moveLive(delta: -1 | 1) {
+    if (delta === 1 && liveIndex >= slides.length - 1 && nextServiceSlide) {
+      void publishServiceSlide(nextServiceSlide);
+      return;
+    }
     const nextIndex = boundedIndex(liveIndex + delta, slides.length);
     setLocalIndex(nextIndex);
     void publishWorshipSlide(nextIndex);
@@ -682,6 +699,47 @@ export function MusicianLiveView({ controlPlanId, onEditSong, onExit, plan, song
     }
   }
 
+  async function publishServiceSlide(slide: (typeof serviceSlides)[number]) {
+    if (!liveSyncPlanId) return;
+    const presentationIndex = serviceSlides.findIndex((candidate) => candidate.id === slide.id);
+    const slideOffset = Math.max(
+      serviceSlides.filter((candidate) => candidate.planItemId === slide.planItemId).findIndex((candidate) => candidate.id === slide.id),
+      0,
+    );
+    const state: PresentationLiveState = {
+      planId: liveSyncPlanId,
+      index: presentationIndex,
+      updatedAt: Date.now(),
+      planItemId: slide.planItemId,
+      slideOffset,
+      theme: liveState?.theme ?? "light",
+      blanked: false,
+      fullscreen: liveState?.fullscreen ?? false,
+      videoAction: null,
+    };
+    setLiveState(state);
+    localStorage.setItem(PRESENTATION_STORAGE_KEY, JSON.stringify(state));
+    channelRef.current?.postMessage(state);
+    try {
+      const synced = await updatePresentationLiveState(liveSyncPlanId, {
+        plan_id: liveSyncPlanId,
+        index: presentationIndex,
+        plan_item_id: slide.planItemId,
+        slide_offset: slideOffset,
+        updated_at: state.updatedAt,
+        theme: state.theme ?? "light",
+        blanked: false,
+        fullscreen: Boolean(state.fullscreen),
+        video_action: null,
+        video_action_at: null,
+      });
+      setLiveState(syncStateFromApi(synced));
+      setMessage(null);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not move to the next service section.");
+    }
+  }
+
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
       if (event.type !== "keydown" || event.repeat) {
@@ -721,7 +779,7 @@ export function MusicianLiveView({ controlPlanId, onEditSong, onExit, plan, song
       window.removeEventListener("keydown", onKeyDown, { capture: true });
       document.removeEventListener("keydown", onKeyDown, { capture: true });
     };
-  }, [liveIndex, slides.length]);
+  }, [liveIndex, nextServiceSlide, slides.length]);
 
   const lyricLinesForSlide = lyricLines(pageLeadSlide?.text ?? "");
   const wrappedLyricLinesForSlide = useMemo(
@@ -1146,10 +1204,13 @@ export function MusicianLiveView({ controlPlanId, onEditSong, onExit, plan, song
             </button>
             <button
               className={`musician-page is-next ${pageNextSlide?.slideKind === "title" ? "is-song-title" : ""}`}
-              disabled={!pageNextSlide}
-              aria-label={pageNextSlide?.slideKind === "title" ? `Next song: ${pageNextSlide.text}` : "Next lyrics"}
+              disabled={!pageNextSlide && !nextServiceSlide}
+              aria-label={!pageNextSlide && nextServiceSlide ? `Continue to ${nextServiceSlide.sectionTitle}` : pageNextSlide?.slideKind === "title" ? `Next song: ${pageNextSlide.text}` : "Next lyrics"}
               onClick={() => {
-                if (!pageNextSlide) return;
+                if (!pageNextSlide) {
+                  if (nextServiceSlide) void publishServiceSlide(nextServiceSlide);
+                  return;
+                }
                 const nextIndex = slides.findIndex((slide) => slide.id === pageNextSlide.id);
                 if (nextIndex < 0) return;
                 setLocalIndex(nextIndex);
@@ -1188,7 +1249,9 @@ export function MusicianLiveView({ controlPlanId, onEditSong, onExit, plan, song
               ) : pageNextSlide ? (
                 <div className="musician-next-lyrics">{pageNextSlide.text}</div>
               ) : (
-                <div className="musician-next-lyrics is-end">End of set</div>
+                <div className="musician-next-lyrics is-end">
+                  {nextServiceSlide ? <><span>Continue to</span><strong>{nextServiceSlide.sectionTitle}</strong></> : "End of set"}
+                </div>
               )}
             </button>
           </div>
@@ -1196,7 +1259,7 @@ export function MusicianLiveView({ controlPlanId, onEditSong, onExit, plan, song
         {liveSlide ? (
           <>
             <button aria-label="Previous slide" className="musician-edge-nav is-previous" disabled={liveIndex <= 0} onClick={() => moveLive(-1)} type="button"><ChevronLeft aria-hidden="true" /></button>
-            <button aria-label="Next slide" className="musician-edge-nav is-next" disabled={liveIndex >= slides.length - 1} onClick={() => moveLive(1)} type="button"><ChevronRight aria-hidden="true" /></button>
+            <button aria-label={liveIndex >= slides.length - 1 && nextServiceSlide ? `Continue to ${nextServiceSlide.sectionTitle}` : "Next slide"} className="musician-edge-nav is-next" disabled={liveIndex >= slides.length - 1 && !nextServiceSlide} onClick={() => moveLive(1)} type="button"><ChevronRight aria-hidden="true" /></button>
           </>
         ) : null}
       </div>

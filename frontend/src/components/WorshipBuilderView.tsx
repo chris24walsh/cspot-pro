@@ -344,6 +344,7 @@ export function WorshipBuilderView({ active = true, canAccessAdminTools, canArch
   const [songs, setSongs] = useState<Song[]>([]);
   const [users, setUsers] = useState<Member[]>([]);
   const [plan, setPlan] = useState<PlanDetail | null>(null);
+  const [linkedServicePlan, setLinkedServicePlan] = useState<PlanDetail | null>(null);
   const [selectedPlanId, setSelectedPlanId] = useState("");
   const [setPickerOpen, setSetPickerOpen] = useState(false);
   const [setDraftDate, setSetDraftDate] = useState(dateInputFromIso(new Date().toISOString()));
@@ -466,6 +467,24 @@ export function WorshipBuilderView({ active = true, canAccessAdminTools, canArch
     [plans],
   );
   const linkedServicePlanId = plan ? servicePlansByDate.get(dateInputFromIso(plan.service_date))?.id ?? null : null;
+
+  useEffect(() => {
+    let cancelled = false;
+    if (viewMode !== "live" || !linkedServicePlanId) {
+      setLinkedServicePlan(null);
+      return undefined;
+    }
+    void getPlan(linkedServicePlanId)
+      .then((servicePlan) => {
+        if (!cancelled) setLinkedServicePlan(servicePlan);
+      })
+      .catch((error) => {
+        if (!cancelled) setMessage(error instanceof Error ? error.message : "Could not load the linked service plan.");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [linkedServicePlanId, viewMode]);
   const completedPlanLocked = !canAccessAdminTools && isPlanEditingLocked(plan, planTypes, plans);
   const canEditPlan = hasPlanEditPermission && !completedPlanLocked;
 
@@ -1845,6 +1864,7 @@ export function WorshipBuilderView({ active = true, canAccessAdminTools, canArch
             onEditSong={openSongEditor}
             onExit={() => setViewMode("builder")}
             plan={plan}
+            servicePlan={linkedServicePlan}
             songs={songs}
             topbarSlot={topbarSlot}
           />
