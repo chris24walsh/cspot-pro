@@ -689,6 +689,7 @@ export function PresentationView({
   const [selectedCustomProviderMatchId, setSelectedCustomProviderMatchId] = useState<string | null>(null);
   const [topbarSlot, setTopbarSlot] = useState<HTMLElement | null>(null);
   const [servicePickerOpen, setServicePickerOpen] = useState(false);
+
   const [serviceDraftDate, setServiceDraftDate] = useState("");
   const [serviceHistoryOpen, setServiceHistoryOpen] = useState(false);
   const [pendingServiceDate, setPendingServiceDate] = useState<string | null>(null);
@@ -922,6 +923,17 @@ export function PresentationView({
     [effectivePlanItems, songs, renderedSlidesByFileId],
   );
   const liveSlide = slides[liveIndex] ?? null;
+  useEffect(() => {
+    if (!liveSlide?.sectionId) return;
+    const activeSection = sections.find((section) => section.id === liveSlide.sectionId);
+    if (!activeSection || !effectivePlanItems.some((item) => item.parent_item_id === activeSection.id)) return;
+    setExpandedRailGroupIds((current) => {
+      if (current.has(activeSection.id)) return current;
+      const next = new Set(current);
+      next.add(activeSection.id);
+      return next;
+    });
+  }, [effectivePlanItems, liveSlide?.sectionId, sections]);
   const preServicePlanItem = effectivePlanItems.find((item) => item.item_type === "pre_service") ?? null;
   const fillerMediaPlanItem = effectivePlanItems.find((item) => item.id === fillerMediaPlanItemId) ?? null;
   const currentPlanItem = effectivePlanItems.find((item) => item.id === liveSlide?.planItemId) ?? null;
@@ -2531,6 +2543,9 @@ export function PresentationView({
     const orderedItems = [...targetSet.items]
       .filter((item) => item.item_type === "song" && item.song_id)
       .sort((first, second) => (Number.parseFloat(first.sequence) || 0) - (Number.parseFloat(second.sequence) || 0));
+    if (searchParentItemId && searchParentInsertIndex !== null) {
+      return sequenceForInsertInItems(orderedItems, searchParentInsertIndex);
+    }
     const section = sections[afterIndex] ?? null;
 
     if (section && orderedItems.some((item) => item.id === section.id)) {
@@ -4823,6 +4838,20 @@ export function PresentationView({
                         const tileRefIds = matchesLiveBuild && liveSlide ? [slide.id, liveSlide.id] : [slide.id];
                         if (itemCanCollapse && !itemExpanded) {
                           if (!firstItemSlide) return null;
+                          if (slide.itemType === "song") {
+                            return (
+                              <button
+                                aria-label={`Expand ${item?.title ?? slide.title} slides`}
+                                className="song-slide-summary sorter-song-item-summary"
+                                key={`summary:${slide.planItemId}`}
+                                onClick={() => toggleSorterSection(slide.planItemId)}
+                                type="button"
+                              >
+                                <span className="song-slide-leaf" aria-hidden="true">{renderMiniSlide(slide, "Song", slideTheme, compactPlanTextFontCap)}</span>
+                                <span className="sorter-song-item-details"><strong>{item?.title ?? slide.title}</strong><small>{itemSlides.length} slides · Expand</small></span>
+                              </button>
+                            );
+                          }
                           return (
                             <button
                               aria-label={`Expand ${item?.title ?? slide.title} slides`}
@@ -4990,6 +5019,7 @@ export function PresentationView({
                 .filter((item) => item.parent_item_id === section.id)
                 .sort((left, right) => Number(left.sequence) - Number(right.sequence));
               const groupExpanded = expandedRailGroupIds.has(section.id);
+              const worshipGroup = section.itemType === WORSHIP_SET_ANCHOR_ITEM_TYPE;
               return (
                 <div
                   key={section.id}
@@ -5028,11 +5058,11 @@ export function PresentationView({
                     ) : null}
                     {groupExpanded ? (
                       <div className="section-group-items">
-                        {canEditPlan && section.itemType !== WORSHIP_SET_ANCHOR_ITEM_TYPE ? (
+                        {canEditPlan ? (
                           <button
                             aria-label={`Add item at the start of ${section.title}`}
                             className="section-group-insert-button"
-                            onClick={() => openSearchOverlay(sectionIndex, ["sermon", "announcements"].includes(section.itemType) ? "deck" : "bible", {
+                            onClick={() => openSearchOverlay(sectionIndex, worshipGroup ? "songs" : ["sermon", "announcements"].includes(section.itemType) ? "deck" : "bible", {
                               deckTargetPlanItemId: section.id,
                               parentInsertIndex: -1,
                               parentItemId: section.id,
@@ -5055,11 +5085,11 @@ export function PresentationView({
                                 <button className="section-icon-button section-remove-button" onClick={() => void removeSection(item.id)} title="Remove item" type="button"><Trash2 size={15} /></button>
                               </div> : null}
                             </div>
-                            {canEditPlan && section.itemType !== WORSHIP_SET_ANCHOR_ITEM_TYPE ? (
+                            {canEditPlan ? (
                               <button
                                 aria-label={`Add item after ${item.title}`}
                                 className="section-group-insert-button"
-                                onClick={() => openSearchOverlay(sectionIndex, ["sermon", "announcements"].includes(section.itemType) ? "deck" : "bible", {
+                                onClick={() => openSearchOverlay(sectionIndex, worshipGroup ? "songs" : ["sermon", "announcements"].includes(section.itemType) ? "deck" : "bible", {
                                   deckTargetPlanItemId: section.id,
                                   parentInsertIndex: itemIndex,
                                   parentItemId: section.id,

@@ -7879,6 +7879,10 @@ button.musician-page {
 .song-slide-summary:hover .song-slide-leaf .mini-slide-surface,
 .song-slide-summary:focus-visible .song-slide-leaf .mini-slide-surface { border-color: #4e9b7d; }
 
+.sorter-song-item-summary { grid-column: 1 / -1; width: 100%; }
+.sorter-song-item-details { display: grid; gap: 3px; min-width: 0; }
+.sorter-song-item-details strong { font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
 .context-card:disabled {
   cursor: not-allowed;
   opacity: 0.55;
