@@ -781,6 +781,8 @@ export function PresentationOutput({ mediaOutput = false, networkDisplay = false
           phase={liveState?.preServicePhase}
           phaseStartedAt={liveState?.updatedAt}
           serviceDate={plan.service_date}
+          showSoundControl={!networkDisplay}
+          soundEnabled={outputAudioEnabled}
           url={preServiceAudioUrl}
         />
       ) : null}
