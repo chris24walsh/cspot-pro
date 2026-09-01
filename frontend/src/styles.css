@@ -7572,7 +7572,6 @@ button.musician-page {
   gap: 4px;
   max-width: 100%;
   min-width: 0;
-  overflow: hidden;
   padding: 4px;
 }
 
