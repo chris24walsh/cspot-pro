@@ -1268,7 +1268,7 @@ export function PresentationView({
       }
       setMessage(error instanceof Error ? error.message : "Could not load presentation.");
     } finally {
-      if (requestId === loadRequestIdRef.current && !options?.silent) {
+      if (requestId === loadRequestIdRef.current) {
         setLoading(false);
       }
     }
@@ -2197,6 +2197,7 @@ export function PresentationView({
       sessionStorage.removeItem(SELECTED_SERVICE_SESSION_KEY);
       await load("", { refreshCatalogs: true });
       setServicePickerOpen(false);
+      setServiceHistoryOpen(false);
       setMessage("Service archived.");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Could not archive this service.");
@@ -2501,7 +2502,7 @@ export function PresentationView({
   }
 
   async function reloadPreservingOperatorScroll(options?: { refreshCatalogs?: boolean; silent?: boolean }) {
-    if (!plan) {
+    if (!plan || selectedPlanIdRef.current !== plan.id) {
       return;
     }
     const scrollPosition = captureOperatorScrollPositions();
