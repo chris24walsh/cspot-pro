@@ -724,6 +724,14 @@ export function PresentationOutput({ mediaOutput = false, networkDisplay = false
                   if (liveState?.videoAction === "play" && liveState.videoActionAt) {
                     window.setTimeout(() => {
                       videoFrameRef.current?.contentWindow?.postMessage(
+                        JSON.stringify({ event: "command", func: "setVolume", args: [100] }),
+                        "*",
+                      );
+                      videoFrameRef.current?.contentWindow?.postMessage(
+                        JSON.stringify({ event: "command", func: outputAudioEnabled ? "unMute" : "mute", args: [] }),
+                        "*",
+                      );
+                      videoFrameRef.current?.contentWindow?.postMessage(
                         JSON.stringify({ event: "command", func: "playVideo", args: [] }),
                         "*",
                       );
@@ -750,6 +758,14 @@ export function PresentationOutput({ mediaOutput = false, networkDisplay = false
                   );
                   if (liveState?.videoAction === "play" && liveState.videoActionAt) {
                     window.setTimeout(() => {
+                      videoFrameRef.current?.contentWindow?.postMessage(
+                        JSON.stringify({ event: "command", func: "setVolume", args: [100] }),
+                        "*",
+                      );
+                      videoFrameRef.current?.contentWindow?.postMessage(
+                        JSON.stringify({ event: "command", func: outputAudioEnabled ? "unMute" : "mute", args: [] }),
+                        "*",
+                      );
                       videoFrameRef.current?.contentWindow?.postMessage(
                         JSON.stringify({ event: "command", func: "playVideo", args: [] }),
                         "*",
