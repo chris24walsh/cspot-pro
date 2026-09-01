@@ -29,6 +29,16 @@ export function liveEdgeCorrection(
   };
 }
 
+/** Keep live audio at its natural rate; frequent time-stretch changes are audible. */
+export function liveAudioEdgeCorrection(
+  currentTime: number,
+  bufferedStart: number,
+  bufferedEnd: number,
+): LiveEdgeCorrection {
+  const correction = liveEdgeCorrection(currentTime, bufferedStart, bufferedEnd);
+  return { ...correction, playbackRate: 1 };
+}
+
 export type FragmentedMp4Segment = {
   kind: "init" | "media";
   data: Uint8Array;

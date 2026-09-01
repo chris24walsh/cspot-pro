@@ -2,7 +2,7 @@ import { RefreshCw, Volume2, VolumeX } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { go2RtcWebSocketUrl } from "../broadcastCamera";
-import { LIVE_AUDIO_MSE_MIME, liveEdgeCorrection } from "../liveAudioMse";
+import { LIVE_AUDIO_MSE_MIME, liveAudioEdgeCorrection, liveEdgeCorrection } from "../liveAudioMse";
 import { HttpLiveAudioMse } from "./HttpLiveAudioMse";
 
 type StreamStatus = "connecting" | "live" | "recovering" | "unavailable";
@@ -439,7 +439,7 @@ function LowLatencyMseAudio({
                 if (sourceBuffer?.buffered.length) {
                   const end = sourceBuffer.buffered.end(sourceBuffer.buffered.length - 1);
                   const start = sourceBuffer.buffered.start(0);
-                  const correction = liveEdgeCorrection(audio.currentTime, start, end);
+                  const correction = liveAudioEdgeCorrection(audio.currentTime, start, end);
                   if (correction.currentTime !== null) audio.currentTime = correction.currentTime;
                   audio.playbackRate = correction.playbackRate;
                   if (end - start > 3.25 && !sourceBuffer.updating) {

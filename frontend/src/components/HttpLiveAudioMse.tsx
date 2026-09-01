@@ -5,7 +5,7 @@ import {
   BoundedFmp4SegmentQueue,
   FragmentedMp4Parser,
   LIVE_AUDIO_MSE_MIME,
-  liveEdgeCorrection,
+  liveAudioEdgeCorrection,
 } from "../liveAudioMse";
 
 interface HttpLiveAudioMseProps {
@@ -144,7 +144,7 @@ export function HttpLiveAudioMse({
       const lastRange = sourceBuffer.buffered.length - 1;
       const start = sourceBuffer.buffered.start(lastRange);
       const end = sourceBuffer.buffered.end(lastRange);
-      const correction = liveEdgeCorrection(audio.currentTime, start, end);
+      const correction = liveAudioEdgeCorrection(audio.currentTime, start, end);
       if (correction.currentTime !== null) audio.currentTime = correction.currentTime;
       audio.playbackRate = correction.playbackRate;
       try {

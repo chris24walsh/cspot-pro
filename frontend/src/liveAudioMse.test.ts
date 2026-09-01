@@ -4,6 +4,7 @@ import {
   BoundedFmp4SegmentQueue,
   FragmentedMp4Parser,
   LIVE_EDGE_CATCH_UP_RATE,
+  liveAudioEdgeCorrection,
   liveEdgeCorrection,
 } from "./liveAudioMse";
 
@@ -71,5 +72,16 @@ describe("shared camera/audio live-edge correction", () => {
       playbackRate: LIVE_EDGE_CATCH_UP_RATE,
     });
     expect(liveEdgeCorrection(4.75, 1, 5)).toEqual({ currentTime: null, playbackRate: 1 });
+  });
+
+  it("does not time-stretch live audio for ordinary drift", () => {
+    expect(liveAudioEdgeCorrection(4.4, 1, 5)).toEqual({
+      currentTime: null,
+      playbackRate: 1,
+    });
+    expect(liveAudioEdgeCorrection(2, 1, 5)).toEqual({
+      currentTime: 4.75,
+      playbackRate: 1,
+    });
   });
 });
