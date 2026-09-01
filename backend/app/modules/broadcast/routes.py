@@ -67,17 +67,53 @@ from app.modules.identity.auth import (
     require_permission,
 )
 from app.modules.identity.models import User
-from app.modules.planning.models import Plan
+from app.modules.library.models import ItemFile, StoredFile
+from app.modules.planning.models import Plan, PlanItem
 from app.modules.presentation.models import PresentationPosition, PresentationSession
 
 router = APIRouter()
 
 
-def recording_read(recording: BroadcastRecording) -> BroadcastRecordingRead:
+def recording_read(session: Session, recording: BroadcastRecording) -> BroadcastRecordingRead:
     try:
         timeline = json.loads(recording.timeline_json or "[]")
     except json.JSONDecodeError:
         timeline = []
+    if isinstance(timeline, list):
+        # Older recordings predate embedded slide-source snapshots. Plan items are
+        # soft-deleted, so enrich those events on read and make them usable again.
+        snapshots: dict[str, dict[str, object]] = {}
+        for event in timeline:
+            if not isinstance(event, dict) or event.get("files"):
+                continue
+            item_id = event.get("plan_item_id")
+            if not isinstance(item_id, str):
+                continue
+            if item_id not in snapshots:
+                item = session.get(PlanItem, item_id)
+                links = session.scalars(
+                    select(ItemFile)
+                    .where(ItemFile.plan_item_id == item_id)
+                    .order_by(ItemFile.sort_order, ItemFile.created_at)
+                ).all()
+                files = []
+                for link in links:
+                    stored = session.get(StoredFile, link.file_id)
+                    if stored is not None:
+                        files.append(
+                            {
+                                "file_id": stored.id,
+                                "display_name": stored.display_name,
+                                "content_type": stored.content_type,
+                                "sort_order": link.sort_order,
+                            }
+                        )
+                snapshots[item_id] = {
+                    "item_title": item.title if item else "Recorded slides",
+                    "item_type": item.item_type if item else "sermon",
+                    "files": files,
+                }
+            event.update(snapshots[item_id])
     return BroadcastRecordingRead(
         id=recording.id,
         plan_id=recording.plan_id,
@@ -108,7 +144,7 @@ def list_recordings(
     recordings = session.scalars(
         select(BroadcastRecording).order_by(BroadcastRecording.recorded_at.desc())
     ).all()
-    return [recording_read(recording) for recording in recordings]
+    return [recording_read(session, recording) for recording in recordings]
 
 
 @router.post("/recordings/start", response_model=BroadcastRecordingRead)
@@ -121,7 +157,7 @@ def manually_start_recording(
         recording = start_recording(session, payload.plan_id, payload.plan_item_id, current_user.id)
     except RuntimeError as error:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(error)) from error
-    return recording_read(recording)
+    return recording_read(session, recording)
 
 
 @router.post("/recordings/stop", response_model=BroadcastRecordingRead | None)
@@ -130,7 +166,7 @@ def manually_stop_recording(
     session: Session = Depends(get_session),
 ) -> BroadcastRecordingRead | None:
     recording = stop_recording(session)
-    return recording_read(recording) if recording else None
+    return recording_read(session, recording) if recording else None
 
 
 @router.post("/recordings/pause", response_model=BroadcastRecordingRead | None)
@@ -139,7 +175,7 @@ def manually_pause_recording(
     session: Session = Depends(get_session),
 ) -> BroadcastRecordingRead | None:
     recording = pause_recording(session)
-    return recording_read(recording) if recording else None
+    return recording_read(session, recording) if recording else None
 
 
 @router.post("/recordings/resume", response_model=BroadcastRecordingRead | None)
@@ -148,7 +184,7 @@ def manually_resume_recording(
     session: Session = Depends(get_session),
 ) -> BroadcastRecordingRead | None:
     recording = resume_recording(session)
-    return recording_read(recording) if recording else None
+    return recording_read(session, recording) if recording else None
 
 
 @router.delete("/recordings/{recording_id}", status_code=status.HTTP_204_NO_CONTENT)

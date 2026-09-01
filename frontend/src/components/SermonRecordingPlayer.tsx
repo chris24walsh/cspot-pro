@@ -8,6 +8,7 @@ import {
   getSongs,
   type BroadcastRecording,
   type PlanDetail,
+  type PlanItem,
   type RenderedSlide,
   type Song,
 } from "../api";
@@ -50,6 +51,35 @@ export function recordingTimelineEventAt(
   return [...ordered].reverse().find((candidate) => candidate.at <= synchronizedTime) ?? ordered[0] ?? null;
 }
 
+export function recordedPlanItems(recording: BroadcastRecording, plan: PlanDetail): PlanItem[] {
+  const currentItemIds = new Set(plan.items.map((item) => item.id));
+  return recording.timeline.reduce<PlanItem[]>((items, event) => {
+    if (currentItemIds.has(event.plan_item_id) || items.some((item) => item.id === event.plan_item_id) || !event.files?.length) {
+      return items;
+    }
+    items.push({
+      id: event.plan_item_id,
+      plan_id: recording.plan_id ?? plan.id,
+      parent_item_id: null,
+      song_id: null,
+      item_type: event.item_type ?? "sermon",
+      sequence: String(plan.items.length + items.length + 1),
+      title: event.item_title ?? "Recorded slides",
+      planned_start: null,
+      comment: null,
+      key_signature: null,
+      files: event.files.map((file, index) => ({
+        id: `recording:${recording.id}:${event.plan_item_id}:${file.file_id}`,
+        ...file,
+        sort_order: file.sort_order ?? index,
+        persistent: false,
+      })),
+      teacher_notes: null,
+    });
+    return items;
+  }, []);
+}
+
 export function SermonRecordingPlayer({ recording, onClose }: SermonRecordingPlayerProps) {
   useEscapeClose(true, onClose);
   const [plan, setPlan] = useState<PlanDetail | null>(null);
@@ -67,14 +97,19 @@ export function SermonRecordingPlayer({ recording, onClose }: SermonRecordingPla
     void Promise.all([getPlan(recording.plan_id), getSongs()])
       .then(async ([nextPlan, nextSongs]) => {
         const recordedItemIds = new Set(recording.timeline.map((event) => event.plan_item_id));
-        const files = nextPlan.items
+        const liveFiles = nextPlan.items
           .filter((item) => recordedItemIds.has(item.id) && item.item_type !== "video")
           .flatMap((item) => (item.files ?? []).filter((file) => !file.content_type?.startsWith("video/")));
+        const snapshotFiles = recording.timeline.flatMap((event) => event.files ?? []);
+        const files = [...liveFiles, ...snapshotFiles].filter(
+          (file, index, all) => all.findIndex((candidate) => candidate.file_id === file.file_id) === index,
+        );
         const entries = await Promise.all(
           files.map(async (file) => [file.file_id, await getFileSlides(file.file_id).catch(() => [])] as const),
         );
         if (!cancelled) {
-          setPlan(nextPlan);
+          const recordedItems = recordedPlanItems(recording, nextPlan);
+          setPlan({ ...nextPlan, items: [...nextPlan.items, ...recordedItems] });
           setSongs(nextSongs);
           setRenderedSlidesByFileId(Object.fromEntries(entries));
         }

@@ -667,7 +667,19 @@ export interface BroadcastRecording {
   pending_stop_at: string | null;
   pending_stop_reason: string | null;
   end_reason: string | null;
-  timeline: Array<{ at: number; plan_item_id: string; slide_offset: number }>;
+  timeline: Array<{
+    at: number;
+    plan_item_id: string;
+    slide_offset: number;
+    item_title?: string;
+    item_type?: string;
+    files?: Array<{
+      file_id: string;
+      display_name: string;
+      content_type: string | null;
+      sort_order: number;
+    }>;
+  }>;
 }
 
 export interface GoogleDriveStatus {

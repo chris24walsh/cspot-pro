@@ -22,6 +22,7 @@ from app.modules.broadcast.audio_mix import (
     ffmpeg_recording_mix_command,
 )
 from app.modules.broadcast.models import BroadcastRecording, BroadcastViewerSettings
+from app.modules.library.models import ItemFile, StoredFile
 from app.modules.planning.models import PlanItem
 from app.modules.presentation.models import PresentationPosition, PresentationSession
 
@@ -183,6 +184,30 @@ def _timeline(recording: BroadcastRecording) -> list[dict[str, object]]:
         return value if isinstance(value, list) else []
     except json.JSONDecodeError:
         return []
+
+
+def _slide_source_snapshot(session: Session, plan_item_id: str) -> dict[str, object]:
+    item = session.get(PlanItem, plan_item_id)
+    if item is None:
+        return {}
+    links = session.scalars(
+        select(ItemFile)
+        .where(ItemFile.plan_item_id == plan_item_id)
+        .order_by(ItemFile.sort_order, ItemFile.created_at)
+    ).all()
+    files: list[dict[str, object]] = []
+    for link in links:
+        stored = session.get(StoredFile, link.file_id)
+        if stored is not None:
+            files.append(
+                {
+                    "file_id": stored.id,
+                    "display_name": stored.display_name,
+                    "content_type": stored.content_type,
+                    "sort_order": link.sort_order,
+                }
+            )
+    return {"item_title": item.title, "item_type": item.item_type, "files": files}
 
 
 def _recording_title(now: datetime) -> str:
@@ -722,7 +747,12 @@ def record_slide_transition(
             (datetime.now(UTC) - recording.started_at).total_seconds() - _active.paused_seconds,
         )
         events.append(
-            {"at": round(elapsed, 3), "plan_item_id": plan_item_id, "slide_offset": slide_offset}
+            {
+                "at": round(elapsed, 3),
+                "plan_item_id": plan_item_id,
+                "slide_offset": slide_offset,
+                **_slide_source_snapshot(session, plan_item_id),
+            }
         )
         recording.timeline_json = json.dumps(events, separators=(",", ":"))
         session.commit()
