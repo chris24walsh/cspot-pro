@@ -7201,6 +7201,7 @@ button.musician-page {
   border-radius: 8px;
   display: grid;
   gap: 3px;
+  grid-template-columns: minmax(0, 1fr) 28px;
   padding: 4px;
   box-shadow: 0 0 0 1px color-mix(in srgb, currentColor 18%, transparent);
 }
@@ -7212,14 +7213,13 @@ button.musician-page {
 }
 
 .section-group-item {
-  align-items: center;
   background: color-mix(in srgb, #fff 76%, transparent);
   border: 1px solid color-mix(in srgb, currentColor 20%, transparent);
   border-radius: 6px;
   display: grid;
   gap: 4px;
-  grid-template-columns: minmax(0, 1fr) auto;
-  min-height: 46px;
+  grid-template-columns: minmax(0, 1fr);
+  min-height: 72px;
   padding: 4px;
 }
 
@@ -7227,7 +7227,7 @@ button.musician-page {
 .section-group-item > button { align-self: stretch; background: transparent; border: 0; color: inherit; cursor: pointer; display: grid; gap: 2px; min-width: 0; padding: 3px; text-align: left; }
 .section-group-item > button span { font-size: 10px; font-weight: 900; opacity: .65; }
 .section-group-item > button strong { font-size: 12px; line-height: 1.15; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.section-group-item-actions { display: flex; gap: 2px; }
+.section-group-item-actions { display: flex; gap: 3px; justify-content: flex-end; }
 .section-group-item-actions .section-icon-button { min-height: 28px; min-width: 28px; }
 
 .section-group-insert-button {
@@ -7326,6 +7326,18 @@ button.musician-page {
   padding: 0;
   text-align: left;
 }
+
+.section-rail-item > .section-rail-jump { grid-column: 1; }
+.section-rail-item > .section-collapse-button {
+  align-self: start;
+  grid-column: 2;
+  grid-row: 1;
+  height: 28px;
+  min-height: 28px;
+  padding: 0;
+  width: 28px;
+}
+.section-rail-item > .section-actions { grid-column: 1 / -1; }
 
 .section-rail-jump span {
   color: #65716a;

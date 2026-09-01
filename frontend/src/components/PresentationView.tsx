@@ -795,7 +795,41 @@ export function PresentationView({
   );
   const pendingServiceType = planTypes.find((type) => type.id === pendingServiceTypeId && type.active) ?? null;
   const effectivePlanItems = useMemo(
-    () => mergeWorshipSetIntoService(plan?.items ?? [], worshipSetPlan?.items ?? []),
+    () => {
+      const mergedItems = mergeWorshipSetIntoService(plan?.items ?? [], worshipSetPlan?.items ?? []);
+      const worshipSongIds = new Set(
+        (worshipSetPlan?.items ?? [])
+          .filter((item) => item.item_type === "song" && item.song_id)
+          .map((item) => item.id),
+      );
+      if (!worshipSongIds.size || !plan) return mergedItems;
+      const firstWorshipIndex = mergedItems.findIndex((item) => worshipSongIds.has(item.id));
+      if (firstWorshipIndex < 0) return mergedItems;
+      const storedAnchor = (plan.items ?? []).find((item) => item.item_type === WORSHIP_SET_ANCHOR_ITEM_TYPE);
+      const anchor: PlanItem = storedAnchor ?? {
+        id: "__worship_anchor__",
+        plan_id: plan.id,
+        song_id: null,
+        item_type: WORSHIP_SET_ANCHOR_ITEM_TYPE,
+        sequence: mergedItems[firstWorshipIndex]?.sequence ?? "30.00",
+        title: "Worship",
+        comment: null,
+        key_signature: null,
+        teacher_notes: null,
+        files: [],
+      };
+      const withoutWorshipSongs = mergedItems.filter((item) => !worshipSongIds.has(item.id));
+      const insertionIndex = mergedItems.slice(0, firstWorshipIndex).filter((item) => !worshipSongIds.has(item.id)).length;
+      const groupedSongs = mergedItems
+        .filter((item) => worshipSongIds.has(item.id))
+        .map((item) => ({ ...item, parent_item_id: anchor.id }));
+      return [
+        ...withoutWorshipSongs.slice(0, insertionIndex),
+        anchor,
+        ...groupedSongs,
+        ...withoutWorshipSongs.slice(insertionIndex),
+      ];
+    },
     [plan?.items, worshipSetPlan?.items],
   );
   const serviceItemsById = useMemo(
@@ -4759,6 +4793,19 @@ export function PresentationView({
                         <span>Edit</span>
                       </button>
                     ) : null}
+                    {canManagePreServiceMedia && section.itemType === "pre_service" ? (
+                      <button
+                        aria-label="Manage pre-service montage photos"
+                        className="section-icon-button section-edit-button"
+                        disabled={preServiceMediaBusy}
+                        onClick={() => void openPreServiceMedia()}
+                        title="Manage pre-service montage photos"
+                        type="button"
+                      >
+                        <Pencil size={14} aria-hidden="true" />
+                        <span>Edit</span>
+                      </button>
+                    ) : null}
                   </div> : null}
                   {sectionRenderError ? <p className="render-error-message">{sectionRenderError}</p> : null}
                   {showSlideTiles ? (
@@ -4929,16 +4976,17 @@ export function PresentationView({
               const sectionAudioPlaying = playingAudioSectionId === section.id;
               const sectionItem = sectionPlanItem(section.id);
               const fixedOutlineSection = Boolean(
-                sectionItem && currentPlanType?.default_outline.some(
+                section.itemType === WORSHIP_SET_ANCHOR_ITEM_TYPE ||
+                (sectionItem && currentPlanType?.default_outline.some(
                   (definition) => definition.item_type === sectionItem.item_type && (definition.item_type !== "custom" || definition.title === sectionItem.title),
-                ),
+                )),
               );
               const sermonDeckAttached = Boolean(
                 sectionItem?.item_type === "sermon" && sectionItem.files.some(
                   (file) => !file.content_type?.startsWith("image/") && !file.content_type?.startsWith("video/"),
                 ),
               );
-              const groupItems = (plan?.items ?? [])
+              const groupItems = effectivePlanItems
                 .filter((item) => item.parent_item_id === section.id)
                 .sort((left, right) => Number(left.sequence) - Number(right.sequence));
               const groupExpanded = expandedRailGroupIds.has(section.id);
@@ -4980,7 +5028,7 @@ export function PresentationView({
                     ) : null}
                     {groupExpanded ? (
                       <div className="section-group-items">
-                        {canEditPlan ? (
+                        {canEditPlan && section.itemType !== WORSHIP_SET_ANCHOR_ITEM_TYPE ? (
                           <button
                             aria-label={`Add item at the start of ${section.title}`}
                             className="section-group-insert-button"
@@ -5007,7 +5055,7 @@ export function PresentationView({
                                 <button className="section-icon-button section-remove-button" onClick={() => void removeSection(item.id)} title="Remove item" type="button"><Trash2 size={12} /></button>
                               </div> : null}
                             </div>
-                            {canEditPlan ? (
+                            {canEditPlan && section.itemType !== WORSHIP_SET_ANCHOR_ITEM_TYPE ? (
                               <button
                                 aria-label={`Add item after ${item.title}`}
                                 className="section-group-insert-button"
@@ -5040,21 +5088,9 @@ export function PresentationView({
                             {sectionAudioPlaying ? <Pause size={14} aria-hidden="true" /> : <Play size={14} aria-hidden="true" />}
                           </button>
                         ) : null}
-                        {canManagePreServiceMedia && section.itemType === "pre_service" ? (
-                          <button
-                            aria-label="Manage pre-service montage photos"
-                            className="section-icon-button"
-                            disabled={preServiceMediaBusy}
-                            onClick={() => void openPreServiceMedia()}
-                            title="Manage pre-service montage photos"
-                            type="button"
-                          >
-                            <Pencil size={14} aria-hidden="true" />
-                          </button>
-                        ) : null}
                         {canEditPlan ? (
                           <>
-                            <button
+                            {!groupItems.length ? <button
                               aria-label={`Add item to ${section.title}`}
                               className="section-icon-button"
                               onClick={() => openSearchOverlay(
@@ -5066,7 +5102,7 @@ export function PresentationView({
                               type="button"
                             >
                               <Plus size={14} aria-hidden="true" />
-                            </button>
+                            </button> : null}
                             {sermonDeckAttached && sectionItem ? (
                               <button
                                 aria-label={`Remove ${section.title} deck`}
@@ -5100,7 +5136,7 @@ export function PresentationView({
                             </> : null}
                           </>
                         ) : null}
-                        {canEditPlan && (!fixedOutlineSection || canAccessAdminTools) ? (
+                        {canEditPlan && sectionItem && (!fixedOutlineSection || canAccessAdminTools) ? (
                           <button
                             aria-label={`Remove ${section.title}`}
                             className="section-icon-button section-remove-button"
