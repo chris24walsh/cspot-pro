@@ -406,6 +406,10 @@ export function WorshipBuilderView({ active = true, canAccessAdminTools, canArch
   const loadRequestIdRef = useRef(0);
   const reorderSavingRef = useRef(false);
 
+  useEffect(() => {
+    if (!active) setViewMode("builder");
+  }, [active]);
+
   const hasDismissiblePopup = suggestionReviewOpen || newSongPromptOpen || historyImportOpen || editHistoryOpen;
   useEscapeClose(hasDismissiblePopup, () => {
     if (suggestionReviewOpen) setSuggestionReviewOpen(false);
@@ -1866,7 +1870,7 @@ export function WorshipBuilderView({ active = true, canAccessAdminTools, canArch
             plan={plan}
             servicePlan={linkedServicePlan}
             songs={songs}
-            topbarSlot={topbarSlot}
+            topbarSlot={active ? topbarSlot : null}
           />
         </section>
 
