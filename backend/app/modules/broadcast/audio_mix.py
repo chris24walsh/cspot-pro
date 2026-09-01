@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from pathlib import Path
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlsplit
 
 from app.core.config import settings as app_settings
 from app.modules.broadcast.models import BroadcastViewerSettings
@@ -69,7 +69,25 @@ def audio_mix_signature(inputs: list[AudioMixInput]) -> tuple[tuple[str, str, fl
 def ffmpeg_audio_input_args(inputs: list[AudioMixInput]) -> list[str]:
     arguments: list[str] = []
     for source in inputs:
-        arguments.extend(["-thread_queue_size", "1024", "-i", source.url])
+        # These are known live MP3 bridge feeds. Tell FFmpeg their format and
+        # keep probing deliberately tiny: otherwise it opens and analyzes each
+        # input sequentially, allowing the earlier feeds to accumulate several
+        # seconds of socket buffer before a multi-input graph starts running.
+        arguments.extend(["-thread_queue_size", "1024"])
+        if urlsplit(source.url).path.lower().endswith(".mp3"):
+            arguments.extend(
+                [
+                    "-fflags",
+                    "+nobuffer",
+                    "-analyzeduration",
+                    "0",
+                    "-probesize",
+                    "32",
+                    "-f",
+                    "mp3",
+                ]
+            )
+        arguments.extend(["-i", source.url])
     return arguments
 
 
@@ -80,7 +98,8 @@ def ffmpeg_audio_filter_args(
         return ["-map", "0:a:0", *(["-af", "asetpts=N/SR/TB"] if reset_timestamps else [])]
 
     filters = [
-        f"[{index}:a:0]aresample=48000,volume@input{index}={source.gain_db:g}dB[input{index}]"
+        f"[{index}:a:0]aresample=48000:async=1:first_pts=0,"
+        f"asetpts=N/SR/TB,volume@input{index}={source.gain_db:g}dB[input{index}]"
         for index, source in enumerate(inputs)
     ]
     labels = "".join(f"[input{index}]" for index in range(len(inputs)))

@@ -506,7 +506,10 @@ audio playback and remains the compatibility fallback. Browsers normally use
 the authenticated `/api/v1/broadcast/live-audio.mp4` variant: FFmpeg emits
 roughly 200 ms AAC fragments, the client retains only complete recent
 fragments, trims its decoded buffer, and targets about 250 ms behind the live
-edge. Camera MSE playback uses the same live-edge correction policy. Both
+edge. Known MP3 bridge inputs use explicit demuxing and minimal input probing;
+without that, FFmpeg opens and analyzes live inputs sequentially and can add
+several seconds of latency for every source in a mix. Camera MSE playback uses
+the same live-edge correction policy. Both
 routes' FFmpeg filter graphs accept runtime gain and mute commands, so
 compatible mixer changes reach an existing browser stream without reconnecting
 it. Cancelling the fragmented stream aborts the request and reaps its FFmpeg

@@ -275,6 +275,46 @@ def test_live_audio_keeps_muted_inputs_connected_for_runtime_control() -> None:
     assert "azmq=b=tcp\\\\://127.0.0.1\\\\:23456" in filter_graph
 
 
+def test_live_audio_declares_low_latency_mp3_inputs() -> None:
+    inputs = [
+        AudioMixInput("room", "http://audio/room.mp3", -12),
+        AudioMixInput("desk", "http://audio/desk.mp3", 0),
+    ]
+
+    command = ffmpeg_live_mix_fmp4_command(inputs)
+
+    first_input = command[: command.index("-i") + 2]
+    assert first_input[-2:] == ["-i", "http://audio/room.mp3"]
+    assert first_input[first_input.index("-fflags") + 1] == "+nobuffer"
+    assert first_input[first_input.index("-analyzeduration") + 1] == "0"
+    assert first_input[first_input.index("-probesize") + 1] == "32"
+    assert first_input[first_input.index("-f") + 1] == "mp3"
+    assert command.count("+nobuffer") == 2
+    assert command.count("mp3") == 2
+    filter_graph = command[command.index("-filter_complex") + 1]
+    assert filter_graph.count("aresample=48000:async=1:first_pts=0,asetpts=N/SR/TB") == 2
+
+
+def test_camera_audio_input_keeps_automatic_format_detection() -> None:
+    command = ffmpeg_live_mix_fmp4_command(
+        [AudioMixInput("camera", "rtsp://camera/stream", 0)]
+    )
+
+    assert "+nobuffer" not in command
+    assert "-analyzeduration" not in command
+    assert "-probesize" not in command
+    assert command[: command.index("-i") + 2] == [
+        "ffmpeg",
+        "-hide_banner",
+        "-loglevel",
+        "error",
+        "-thread_queue_size",
+        "1024",
+        "-i",
+        "rtsp://camera/stream",
+    ]
+
+
 def test_low_latency_live_audio_uses_short_fragmented_aac_output() -> None:
     inputs = [AudioMixInput("desk", "http://audio/desk.mp3", -3)]
 

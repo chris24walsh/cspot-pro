@@ -161,7 +161,7 @@ def test_fmp4_route_closes_database_session_before_starting_ffmpeg(
     chunks = asyncio.run(collect_chunks())
 
     assert chunks == [b"fragmented mp4"]
-    assert started[0][started[0].index("-f") + 1] == "mp4"
+    assert started[0][-3:-1] == ["-f", "mp4"]
     assert response.media_type == "audio/mp4"
     assert response.headers["cache-control"] == "no-store, no-transform"
     assert process.terminated is True
