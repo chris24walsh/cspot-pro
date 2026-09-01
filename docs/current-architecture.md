@@ -714,8 +714,10 @@ Search modes:
 - Worship-set calendar styling follows the same content-based rule while
   retaining leader markers independently of whether songs have been added.
 - Shared calendar days accept a generic item count and label. The popup renders
-  these consistently as compact badges that remain visible on mobile, so new
+  these consistently as number-only badges that remain visible on mobile, so new
   calendar workflows do not need to build or responsively style their own count.
+  Counts include explicit leaf content only: service outline/template containers
+  are excluded, as are Sunday School's fixed lesson-element containers.
 - Service and worship-set archives leave a fresh empty plan on the same date,
   so archive never removes the calendar foundation or reopens a preparation
   prompt. Their immediate Undo actions discard that replacement and restore the

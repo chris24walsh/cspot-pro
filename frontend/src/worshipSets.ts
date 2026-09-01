@@ -48,6 +48,10 @@ export function combinedPlanningItemCount(
   return (service?.item_count ?? 0) + (worshipSet?.item_count ?? 0);
 }
 
+export function explicitPlanningItemCount(items: PlanItem[]) {
+  return items.filter((item) => Boolean(item.parent_item_id || item.song_id)).length;
+}
+
 export function preferredWorshipSetPlanId(sets: PlanSummary[], now = new Date()) {
   const todayKey = dateKey(now.toISOString());
   const targetSunday = new Date(now);

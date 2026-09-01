@@ -54,7 +54,7 @@ import { undoHistoryEntrySnapshot } from "../planHistory";
 import { parseChordChart } from "../chordSheet";
 import { showToast } from "../toast";
 import { analyzeImportedSongSlides, analyzeWorshipText, buildLyricsFromSections, canonicalizeWorshipLyrics } from "../worshipText";
-import { dateKey, isPlanEditingLocked, isWorshipSetPlan, preferredWorshipSetPlanId, worshipSetType } from "../worshipSets";
+import { dateKey, explicitPlanningItemCount, isPlanEditingLocked, isWorshipSetPlan, preferredWorshipSetPlanId, worshipSetType } from "../worshipSets";
 import { lastUsedLabel, worshipRoleLabel } from "../worshipSongMetadata";
 import { reorderedWorshipSequences } from "../worshipOrdering";
 import { calendarColors, calendarMarkers } from "../userCalendarStyle";
@@ -505,7 +505,7 @@ export function WorshipBuilderView({ active = true, canAccessAdminTools, canArch
     [setDraftDate],
   );
   function worshipCalendarItemCount(dateInput: string) {
-    if (dateInputFromIso(plan?.service_date) === dateInput) return worshipItems.length;
+    if (dateInputFromIso(plan?.service_date) === dateInput) return explicitPlanningItemCount(plan?.items ?? []);
     return worshipSetsByDate.get(dateInput)?.item_count ?? 0;
   }
   function worshipCalendarDay(dateInput: string) {

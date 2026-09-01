@@ -231,7 +231,11 @@ export function CalendarPopup({
           </strong>
         ) : null}
         {dayContent(day)}
-        {itemCountLabel ? <small className="calendar-item-count">{itemCountLabel}</small> : null}
+        {itemCountLabel ? (
+          <small aria-label={itemCountLabel} className="calendar-item-count" title={itemCountLabel}>
+            {day.itemCount}
+          </small>
+        ) : null}
       </button>
     );
   }

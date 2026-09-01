@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { PlanDetail, PlanItem, PlanSummary } from "./api";
-import { WORSHIP_SET_ANCHOR_ITEM_TYPE, combinedPlanningItemCount, dateKey, isPlanEditingLocked, matchingWorshipSetForService, mergeWorshipSetIntoService, preferredWorshipSetPlanId } from "./worshipSets";
+import { WORSHIP_SET_ANCHOR_ITEM_TYPE, combinedPlanningItemCount, dateKey, explicitPlanningItemCount, isPlanEditingLocked, matchingWorshipSetForService, mergeWorshipSetIntoService, preferredWorshipSetPlanId } from "./worshipSets";
 
 function item(id: string, sequence: string, itemType: string, songId: string | null = null): PlanItem {
   return {
@@ -35,6 +35,14 @@ describe("worship set merge", () => {
   it("includes linked worship-set content in service calendar counts", () => {
     expect(combinedPlanningItemCount({ item_count: 0 }, { item_count: 5 })).toBe(5);
     expect(combinedPlanningItemCount({ item_count: 2 }, undefined)).toBe(2);
+  });
+
+  it("counts explicit content while ignoring outline containers", () => {
+    expect(explicitPlanningItemCount([
+      { ...item("sermon-group", "10", "sermon"), parent_item_id: null },
+      { ...item("sermon-deck", "11", "sermon"), parent_item_id: "sermon-group" },
+      { ...item("song", "20", "song", "song-1"), parent_item_id: null },
+    ])).toBe(2);
   });
 
   it("keeps today's worship set selected on Sunday and rolls forward on Monday", () => {

@@ -387,6 +387,7 @@ def list_plans(
                 PlanItem.plan_id == plan.id,
                 PlanItem.deleted_at.is_(None),
                 PlanItem.item_type != "worship_set",
+                or_(PlanItem.parent_item_id.is_not(None), PlanItem.song_id.is_not(None)),
             )
         )
         summaries.append(

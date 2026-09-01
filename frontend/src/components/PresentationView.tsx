@@ -105,6 +105,7 @@ import { analyzeWorshipText, buildLyricsFromSections, canonicalizeWorshipLyrics 
 import {
   WORSHIP_SET_ANCHOR_ITEM_TYPE,
   combinedPlanningItemCount,
+  explicitPlanningItemCount,
   isPlanEditingLocked,
   isWorshipSetPlan,
   matchingWorshipSetForService,
@@ -869,7 +870,7 @@ export function PresentationView({
     [serviceDraftDate],
   );
   function serviceCalendarItemCount(dateInput: string) {
-    if (dateInputFromIso(plan?.service_date) === dateInput) return effectivePlanItems.length;
+    if (dateInputFromIso(plan?.service_date) === dateInput) return explicitPlanningItemCount(effectivePlanItems);
     return combinedPlanningItemCount(plansByDate.get(dateInput), worshipSetsByDate.get(dateInput));
   }
   function serviceCalendarDay(dateInput: string) {

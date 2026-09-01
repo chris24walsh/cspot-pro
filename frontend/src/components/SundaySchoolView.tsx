@@ -38,6 +38,7 @@ import {
 import { useDurableChange } from "../changePolling";
 import { calendarColors, calendarMarkers } from "../userCalendarStyle";
 import { calendarDatesAround, effectiveLeaderIdForDate, sundayDatesAround, unavailabilityForRole, type SundayLeader } from "../leaderSchedule";
+import { explicitSundaySchoolItemCount } from "../sundaySchool";
 import { CalendarPopup } from "./CalendarPopup";
 import { DateNavigator, formatNavigatorDate } from "./DateNavigator";
 import { LeaderAssignmentDialog } from "./LeaderAssignmentDialog";
@@ -292,6 +293,8 @@ export function SundaySchoolView({ active = true, canEdit }: { active?: boolean;
     return {
       date: dateInput,
       className: `${lesson || isSunday ? "has-service" : ""} ${teacher ? sundaySchoolTeacherColors.get(teacher.id) ?? "" : teacherColor(teacherName)}`.trim(),
+      itemCount: explicitSundaySchoolItemCount(lesson),
+      itemLabel: "lesson item",
     };
   }
   const scheduleDates = useMemo(() => {
@@ -979,6 +982,8 @@ export function SundaySchoolView({ active = true, canEdit }: { active?: boolean;
           return {
             date: dateInput,
             className: `${lesson ? "has-service" : ""} ${teacher ? sundaySchoolTeacherColors.get(teacher.id) ?? "" : teacherColor(teacherName)}`.trim(),
+            itemCount: explicitSundaySchoolItemCount(lesson),
+            itemLabel: "lesson item",
           };
         })}
         selectedDate={selectedDate}
