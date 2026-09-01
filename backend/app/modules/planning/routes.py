@@ -194,6 +194,7 @@ def plan_item_to_read(session: Session, item: PlanItem) -> PlanItemRead:
     return PlanItemRead(
         id=item.id,
         plan_id=item.plan_id,
+        parent_item_id=item.parent_item_id,
         song_id=item.song_id,
         item_type=item.item_type,
         sequence=item.sequence,
@@ -633,6 +634,13 @@ def create_plan_item(
     session: Session = Depends(get_session),
 ) -> PlanItemRead:
     plan = get_plan_or_404(session, plan_id)
+    if payload.parent_item_id:
+        parent = session.get(PlanItem, payload.parent_item_id)
+        if parent is None or parent.plan_id != plan_id or parent.deleted_at is not None or parent.parent_item_id:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="Items can only be added directly beneath a group in the same plan",
+            )
     item = PlanItem(plan_id=plan_id, **payload.model_dump())
     session.add(item)
     session.commit()
@@ -699,5 +707,9 @@ def delete_plan_item(
             detail="Presenters cannot remove Sunday service outline slides",
         )
     item.deleted_at = datetime.now(UTC)
+    session.query(PlanItem).filter(
+        PlanItem.parent_item_id == item.id,
+        PlanItem.deleted_at.is_(None),
+    ).update({PlanItem.deleted_at: item.deleted_at}, synchronize_session=False)
     session.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)

@@ -84,6 +84,7 @@ export interface PlanType {
 export interface PlanItem {
   id: string;
   plan_id: string;
+  parent_item_id?: string | null;
   song_id: string | null;
   item_type: string;
   sequence: string;
@@ -97,6 +98,7 @@ export interface PlanItem {
 
 export interface PlanHistorySnapshotItem {
   id: string;
+  parent_item_id?: string | null;
   item_type: string;
   sequence: string;
   title: string;
@@ -516,6 +518,7 @@ export interface PlanPayload {
 }
 
 export interface PlanItemPayload {
+  parent_item_id?: string | null;
   item_type: string;
   sequence: string;
   title: string;

@@ -358,9 +358,16 @@ Scaffold completion is idempotent and
 recognizes the older item aliases, so adding missing sections does not overwrite
 or duplicate existing service content. Section type also supplies the default
 automatic broadcast-audio scene; active media playback takes precedence.
-Presenters cannot reorder, rename, or remove these fixed outline items.
-They can manage songs inside the linked worship set, attach or detach a sermon
-deck while retaining the Sermon outline slide, and manage images attached to
+Presenters cannot reorder, rename, or remove these fixed outline groups.
+Each group is represented by a root `PlanItem`; optional child `PlanItem` records
+use `parent_item_id` and retain their imported filename-derived titles. Groups
+can move only among root groups, while children can move only among siblings.
+The presenter rail renders a colour-coded group boundary and keeps children
+collapsed by default. Group headings navigate to the group; explicit plus
+controls add content. The sorter uses the same expand/collapse convention for
+every multi-slide item, including songs and imported decks. Presenters can
+manage songs inside the linked worship set, add multiple sermon or announcement
+decks while retaining the outline group, and manage images attached to
 Welcome, Open time, and Announcements. Administrators retain structural repair
 controls.
 

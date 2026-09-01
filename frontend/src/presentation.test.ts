@@ -137,6 +137,20 @@ describe("presentation slide derivation", () => {
     ]);
   });
 
+  it("keeps named child items inside their outline group", () => {
+    const sections = buildPresentationSections([
+      planItem({ id: "sermon", item_type: "sermon", title: "Sermon" }),
+      planItem({ id: "deck-a", parent_item_id: "sermon", item_type: "sermon", sequence: "10.00", title: "Grace" }),
+      planItem({ id: "deck-b", parent_item_id: "sermon", item_type: "sermon", sequence: "20.00", title: "Hope" }),
+    ], []);
+
+    expect(sections).toHaveLength(1);
+    expect(sections[0]).toMatchObject({ id: "sermon", title: "Sermon" });
+    expect(sections[0].slides.map((slide) => [slide.planItemId, slide.sectionId])).toEqual([
+      ["deck-a", "sermon"], ["deck-b", "sermon"],
+    ]);
+  });
+
   it("uses the LCF background for contentless transition sections", () => {
     const slides = buildPresentationSlides([
       planItem({ id: "welcome", item_type: "welcome", title: "Welcome and prayer" }),

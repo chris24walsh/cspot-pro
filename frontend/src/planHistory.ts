@@ -1,6 +1,6 @@
 import type { PlanHistoryEntry, PlanHistorySnapshotItem } from "./api";
 
-const snapshotFields = ["item_type", "sequence", "title", "planned_start", "comment", "key_signature", "song_id"] as const;
+const snapshotFields = ["parent_item_id", "item_type", "sequence", "title", "planned_start", "comment", "key_signature", "song_id"] as const;
 
 function matchingItem(items: PlanHistorySnapshotItem[], candidate: PlanHistorySnapshotItem) {
   return items.find((item) => item.id === candidate.id)

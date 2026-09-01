@@ -41,6 +41,7 @@ class PlanTypeUpdate(BaseModel):
 
 
 class PlanItemBase(BaseModel):
+    parent_item_id: str | None = None
     item_type: str = "custom"
     sequence: Decimal = Field(decimal_places=2)
     title: str
@@ -55,6 +56,7 @@ class PlanItemCreate(PlanItemBase):
 
 
 class PlanItemUpdate(BaseModel):
+    parent_item_id: str | None = None
     item_type: str | None = None
     sequence: Decimal | None = Field(default=None, decimal_places=2)
     title: str | None = None
@@ -74,6 +76,7 @@ class PlanItemRead(PlanItemBase):
 
 class PlanItemHistorySnapshot(BaseModel):
     id: str
+    parent_item_id: str | None = None
     item_type: str
     sequence: str
     title: str

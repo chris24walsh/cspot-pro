@@ -659,6 +659,7 @@ export function PresentationView({
   const [renderingFileIds, setRenderingFileIds] = useState<string[]>([]);
   const [renderErrorsByFileId, setRenderErrorsByFileId] = useState<Record<string, string>>({});
   const [expandedSorterSectionIds, setExpandedSorterSectionIds] = useState<Set<string>>(() => new Set());
+  const [expandedRailGroupIds, setExpandedRailGroupIds] = useState<Set<string>>(() => new Set());
   const [bibleVersions, setBibleVersions] = useState<BibleVersion[]>([]);
   const [bibleBooks, setBibleBooks] = useState<BibleBook[]>([]);
   const [bibleVersion, setBibleVersion] = useState("ASV");
@@ -667,9 +668,12 @@ export function PresentationView({
   const [bibleVerseFrom, setBibleVerseFrom] = useState("16");
   const [bibleVerseTo, setBibleVerseTo] = useState("");
   const [searchOverlayOpen, setSearchOverlayOpen] = useState(false);
+  const [groupInsertIndex, setGroupInsertIndex] = useState<number | null>(null);
+  const [groupTitleDraft, setGroupTitleDraft] = useState("");
   const [searchMode, setSearchMode] = useState<SearchOverlayMode>("songs");
   const [searchInsertIndex, setSearchInsertIndex] = useState<number | null>(null);
   const [deckTargetPlanItemId, setDeckTargetPlanItemId] = useState<string | null>(null);
+  const [searchParentItemId, setSearchParentItemId] = useState<string | null>(null);
   const [searchSelectInserted, setSearchSelectInserted] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [bibleSearchResults, setBibleSearchResults] = useState<BibleSearchHit[]>([]);
@@ -1094,6 +1098,14 @@ export function PresentationView({
       } else {
         next.add(sectionId);
       }
+      return next;
+    });
+  }
+
+  function toggleRailGroup(groupId: string) {
+    setExpandedRailGroupIds((current) => {
+      const next = new Set(current);
+      next.has(groupId) ? next.delete(groupId) : next.add(groupId);
       return next;
     });
   }
@@ -1783,8 +1795,8 @@ export function PresentationView({
   }
 
   function snapshotServiceItems(items: PlanItem[]): PlanHistorySnapshotItem[] {
-    return items.map(({ id, item_type, sequence, title, planned_start, comment, key_signature, song_id }) => ({
-      id, item_type, sequence, title, planned_start, comment, key_signature, song_id,
+    return items.map(({ id, parent_item_id, item_type, sequence, title, planned_start, comment, key_signature, song_id }) => ({
+      id, parent_item_id, item_type, sequence, title, planned_start, comment, key_signature, song_id,
     }));
   }
 
@@ -1793,14 +1805,20 @@ export function PresentationView({
     const current = await getPlan(plan.id);
       const targetIds = new Set(target.map((item) => item.id));
       await Promise.all(current.items.filter((item) => !targetIds.has(item.id)).map((item) => deletePlanItem(item.id)));
-      for (const item of target) {
+      const restoredIds = new Map(current.items.map((item) => [item.id, item.id]));
+      const orderedTarget = [...target.filter((item) => !item.parent_item_id), ...target.filter((item) => item.parent_item_id)];
+      for (const item of orderedTarget) {
         const payload = {
+          parent_item_id: item.parent_item_id ? restoredIds.get(item.parent_item_id) ?? null : null,
           item_type: item.item_type, sequence: item.sequence, title: item.title,
           planned_start: item.planned_start, comment: item.comment,
           key_signature: item.key_signature, song_id: item.song_id,
         };
         if (current.items.some((candidate) => candidate.id === item.id)) await updatePlanItem(item.id, payload);
-        else await createPlanItem(plan.id, payload);
+        else {
+          const created = await createPlanItem(plan.id, payload);
+          restoredIds.set(item.id, created.id);
+        }
       }
     return { before: current, after: await getPlan(plan.id) };
   }
@@ -2307,6 +2325,15 @@ export function PresentationView({
     return "10.00";
   }
 
+  function sequenceForSearchInsert(afterIndex: number) {
+    if (!searchParentItemId) return sequenceForInsert(afterIndex);
+    const siblings = (plan?.items ?? [])
+      .filter((item) => item.parent_item_id === searchParentItemId)
+      .sort((left, right) => Number(left.sequence) - Number(right.sequence));
+    const lastSequence = siblings.length ? Number(siblings[siblings.length - 1].sequence) || 0 : 0;
+    return (lastSequence + 10).toFixed(2);
+  }
+
   function sequenceForInsert(afterIndex: number) {
     const orderedItems = orderedPlanItemsWithWorshipAnchor();
     if (afterIndex < 0) {
@@ -2537,7 +2564,7 @@ export function PresentationView({
   function openSearchOverlay(
     afterIndex = activeSectionInsertIndex(),
     mode: SearchOverlayMode = "bible",
-    options?: { deckTargetPlanItemId?: string; selectInserted?: boolean },
+    options?: { deckTargetPlanItemId?: string; parentItemId?: string; selectInserted?: boolean },
   ) {
     if (!canEditPlan) {
       setMessage("You can present this plan, but only worship team members, worship leaders, and service leaders can change the running order.");
@@ -2545,6 +2572,7 @@ export function PresentationView({
     }
     setSearchInsertIndex(afterIndex);
     setDeckTargetPlanItemId(options?.deckTargetPlanItemId ?? null);
+    setSearchParentItemId(options?.parentItemId ?? null);
     setSearchMode(mode);
     setSearchSelectInserted(options?.selectInserted ?? mode === "bible");
     setSearchOverlayOpen(true);
@@ -2570,10 +2598,31 @@ export function PresentationView({
     setSearchQuery("");
     setSearchInsertIndex(null);
     setDeckTargetPlanItemId(null);
+    setSearchParentItemId(null);
     setSearchSelectInserted(false);
     setDeckFlattenBuilds(false);
     setImportingDriveFileId(null);
     setVideoFile(null);
+  }
+
+  async function addOutlineGroup() {
+    if (!plan || groupInsertIndex === null || !groupTitleDraft.trim()) return;
+    try {
+      const created = await createPlanItem(plan.id, {
+        parent_item_id: null,
+        item_type: "custom",
+        sequence: sequenceForInsert(groupInsertIndex),
+        title: groupTitleDraft.trim(),
+        comment: null,
+        key_signature: null,
+        song_id: null,
+      });
+      setGroupInsertIndex(null);
+      setGroupTitleDraft("");
+      await reloadAfterInsertedItem(created);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not add section group.");
+    }
   }
 
   async function insertSongById(songId: string, afterIndex: number, fallbackTitle?: string) {
@@ -2731,8 +2780,9 @@ export function PresentationView({
       return;
     }
     const createdItem = await createPlanItem(plan.id, {
+      parent_item_id: searchParentItemId,
       item_type: "reading",
-      sequence: sequenceForInsert(afterIndex),
+      sequence: sequenceForSearchInsert(afterIndex),
       title: result.reference,
       comment: result.text,
       key_signature: result.version,
@@ -2800,8 +2850,9 @@ export function PresentationView({
 
       const resolvedTitle = youtubeResult?.title || videoFile?.name.replace(/\.[^.]+$/, "") || "YouTube Video";
       const createdItem = await createPlanItem(plan.id, {
+        parent_item_id: searchParentItemId,
         item_type: "video",
-        sequence: sequenceForInsert(searchInsertIndex ?? activeSectionInsertIndex()),
+        sequence: sequenceForSearchInsert(searchInsertIndex ?? activeSectionInsertIndex()),
         title: resolvedTitle,
         comment: videoId,
         key_signature: videoFile ? "video-file" : "youtube",
@@ -3038,9 +3089,7 @@ export function PresentationView({
         (item) => item.item_type === "sermon" && item.title.trim().toLowerCase() === "sermon",
       );
       const targetItem = explicitTarget ?? sermonPlaceholder ?? null;
-      const attachToPlaceholder = Boolean(
-        targetItem && ["sermon", "announcements"].includes(targetItem.item_type),
-      );
+      const attachToPlaceholder = false;
       if (
         targetItem?.files?.some(
           (attached) =>
@@ -3074,8 +3123,9 @@ export function PresentationView({
         return;
       }
       const item = await createPlanItem(plan.id, {
+        parent_item_id: targetItem?.id ?? searchParentItemId,
         item_type: "sermon",
-        sequence: sequenceForInsert(searchInsertIndex ?? sections.length - 1),
+        sequence: sequenceForSearchInsert(searchInsertIndex ?? sections.length - 1),
         title: resolvedDeckTitle,
         comment: `Imported from Google Drive: ${file.name}`,
         key_signature: null,
@@ -3125,8 +3175,9 @@ export function PresentationView({
         flatten_builds: false,
       });
       const item = await createPlanItem(plan.id, {
+        parent_item_id: searchParentItemId,
         item_type: "video",
-        sequence: sequenceForInsert(searchInsertIndex ?? activeSectionInsertIndex()),
+        sequence: sequenceForSearchInsert(searchInsertIndex ?? activeSectionInsertIndex()),
         title: resolvedTitle,
         comment: `Imported from Google Drive: ${file.name}`,
         key_signature: "video-file",
@@ -3240,8 +3291,14 @@ export function PresentationView({
       return;
     }
 
+    const movingItem = sectionPlanItem(sectionId);
     let orderedItems = owner === "worship" ? orderedWorshipSetItems() : orderedPlanItems();
-    if (owner === "service" && worshipSetPlan?.items.some((item) => item.item_type === "song" && item.song_id)) {
+    if (movingItem?.parent_item_id) {
+      orderedItems = orderedItems.filter((candidate) => candidate.parent_item_id === movingItem.parent_item_id);
+    } else {
+      orderedItems = orderedItems.filter((candidate) => !candidate.parent_item_id);
+    }
+    if (!movingItem?.parent_item_id && owner === "service" && worshipSetPlan?.items.some((item) => item.item_type === "song" && item.song_id)) {
       const anchor = await ensureWorshipAnchor();
       if (anchor && !orderedItems.some((item) => item.id === anchor.id)) {
         orderedItems = [...orderedItems, anchor].sort((first, second) => {
@@ -4574,7 +4631,7 @@ export function PresentationView({
                 ?.filter((file) => !file.content_type?.startsWith("video/"))
                 ?.map((file) => renderErrorsByFileId[file.file_id])
                 .find(Boolean);
-              const canCollapseSection = Boolean(sectionItem?.files?.length) && visibleSectionSlides.length > 4;
+              const canCollapseSection = visibleSectionSlides.length > 1;
               const sectionExpanded = expandedSorterSectionIds.has(section.id) || liveSlide?.sectionId === section.id;
               const showSlideTiles =
                 !canCollapseSection ||
@@ -4774,7 +4831,7 @@ export function PresentationView({
               <button
                 aria-label="Search or add at the start"
                 className="section-insert-button"
-                onClick={() => openSearchOverlay(-1, "bible", { selectInserted: false })}
+                onClick={() => setGroupInsertIndex(-1)}
                 type="button"
               >
                 <Plus size={14} aria-hidden="true" />
@@ -4806,6 +4863,10 @@ export function PresentationView({
                   (file) => !file.content_type?.startsWith("image/") && !file.content_type?.startsWith("video/"),
                 ),
               );
+              const groupItems = (plan?.items ?? [])
+                .filter((item) => item.parent_item_id === section.id)
+                .sort((left, right) => Number(left.sequence) - Number(right.sequence));
+              const groupExpanded = expandedRailGroupIds.has(section.id);
               return (
                 <div
                   key={section.id}
@@ -4822,13 +4883,6 @@ export function PresentationView({
                     <button
                       className="section-rail-jump"
                       onClick={() => {
-                        if (emptyDeckPlaceholder) {
-                          openSearchOverlay(sectionIndex, "deck", {
-                            deckTargetPlanItemId: section.id,
-                            selectInserted: false,
-                          });
-                          return;
-                        }
                         selectSlideFromOperator(sectionStart);
                       }}
                       type="button"
@@ -4837,6 +4891,37 @@ export function PresentationView({
                       <span>{(sectionIndex + 1).toString().padStart(2, "0")}</span>
                       <strong>{section.title}</strong>
                     </button>
+                    {groupItems.length ? (
+                      <button
+                        aria-expanded={groupExpanded}
+                        aria-label={`${groupExpanded ? "Collapse" : "Expand"} ${section.title} items`}
+                        className="section-icon-button section-collapse-button"
+                        onClick={() => toggleRailGroup(section.id)}
+                        title={groupExpanded ? "Collapse items" : "Expand items"}
+                        type="button"
+                      >
+                        {groupExpanded ? <ChevronUp size={15} aria-hidden="true" /> : <ChevronDown size={15} aria-hidden="true" />}
+                      </button>
+                    ) : null}
+                    {groupExpanded ? (
+                      <div className="section-group-items">
+                        {groupItems.map((item, itemIndex) => {
+                          const itemSlideIndex = slides.findIndex((slide) => slide.planItemId === item.id);
+                          return (
+                            <div className={`section-group-item ${liveSlide?.planItemId === item.id ? "active" : ""}`} key={item.id}>
+                              <button onClick={() => itemSlideIndex >= 0 && selectSlideFromOperator(itemSlideIndex)} type="button">
+                                <span>{itemIndex + 1}</span><strong>{item.title}</strong>
+                              </button>
+                              {canEditPlan ? <div className="section-group-item-actions">
+                                <button className="section-icon-button" disabled={itemIndex === 0} onClick={() => void moveSection(item.id, -1)} title="Move item up" type="button"><ChevronUp size={12} /></button>
+                                <button className="section-icon-button" disabled={itemIndex === groupItems.length - 1} onClick={() => void moveSection(item.id, 1)} title="Move item down" type="button"><ChevronDown size={12} /></button>
+                                <button className="section-icon-button section-remove-button" onClick={() => void removeSection(item.id)} title="Remove item" type="button"><Trash2 size={12} /></button>
+                              </div> : null}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : null}
                     {canEditPlan || sectionAudioSlide || (canManagePreServiceMedia && section.itemType === "pre_service") ? (
                       <div className="section-actions">
                         {sectionAudioSlide ? (
@@ -4872,6 +4957,7 @@ export function PresentationView({
                                 className="section-icon-button"
                                 onClick={() => openSearchOverlay(sectionIndex, "deck", {
                                   deckTargetPlanItemId: section.id,
+                                  parentItemId: section.id,
                                   selectInserted: false,
                                 })}
                                 title={`Add ${section.title} deck`}
@@ -4880,6 +4966,15 @@ export function PresentationView({
                                 <Plus size={14} aria-hidden="true" />
                               </button>
                             ) : null}
+                            <button
+                              aria-label={`Add item to ${section.title}`}
+                              className="section-icon-button"
+                              onClick={() => openSearchOverlay(sectionIndex, "bible", { parentItemId: section.id, selectInserted: false })}
+                              title={`Add item to ${section.title}`}
+                              type="button"
+                            >
+                              <Plus size={14} aria-hidden="true" />
+                            </button>
                             {sermonDeckAttached && sectionItem ? (
                               <button
                                 aria-label={`Remove ${section.title} deck`}
@@ -4930,7 +5025,7 @@ export function PresentationView({
                     <button
                       aria-label={`Search or add after ${section.title}`}
                       className="section-insert-button"
-                      onClick={() => openSearchOverlay(sectionIndex, "bible", { selectInserted: false })}
+                      onClick={() => setGroupInsertIndex(sectionIndex)}
                       type="button"
                     >
                       <Plus size={14} aria-hidden="true" />
@@ -4942,6 +5037,19 @@ export function PresentationView({
           </div>
         </aside>
       </div>
+
+      {groupInsertIndex !== null ? (
+        <div className="app-dialog-backdrop" role="presentation">
+          <form className="app-dialog" onSubmit={(event) => { event.preventDefault(); void addOutlineGroup(); }}>
+            <div><h2>Add section group</h2><p>Create an outline group here, then add one or more named items with its + button.</p></div>
+            <label>Group name<input autoFocus onChange={(event) => setGroupTitleDraft(event.target.value)} placeholder="e.g. Announcements" value={groupTitleDraft} /></label>
+            <div className="app-dialog-actions">
+              <button className="text-button" onClick={() => { setGroupInsertIndex(null); setGroupTitleDraft(""); }} type="button">Cancel</button>
+              <button className="primary-button" disabled={!groupTitleDraft.trim()} type="submit">Add group</button>
+            </div>
+          </form>
+        </div>
+      ) : null}
 
       {searchOverlayOpen ? (
         <div className="app-dialog-backdrop" role="presentation">

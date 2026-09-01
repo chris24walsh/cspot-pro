@@ -128,6 +128,9 @@ These preferences have been made explicit and should guide future changes.
 - The main preview should be balanced against a visible slide sorter and section
   rail.
 - Section management belongs in the section rail, not on every slide tile.
+  Sections are colour-coded outline groups containing named content items. Group
+  and item ordering are separate: groups reorder globally, items only within
+  their parent group, and nested rail items are collapsed by default.
 - Insert actions should happen in context, especially between sections.
 
 ### Interaction style

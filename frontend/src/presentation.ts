@@ -330,6 +330,41 @@ export function buildPresentationSections(
   songs: Song[],
   renderedSlidesByFileId: Record<string, RenderedSlide[]> = {},
 ): PresentationSection[] {
+  const individualSections = buildIndividualPresentationSections(items, songs, renderedSlidesByFileId);
+  const itemById = new Map(items.map((item) => [item.id, item]));
+  const sectionById = new Map(individualSections.map((section) => [section.id, section]));
+  const roots = individualSections
+    .map((section) => itemById.get(section.id)!)
+    .filter((item) => !item.parent_item_id || !itemById.has(item.parent_item_id));
+
+  return roots.map((root) => {
+    const rootSection = sectionById.get(root.id)!;
+    const children = items
+      .filter((item) => item.parent_item_id === root.id)
+      .sort((left, right) => Number(left.sequence) - Number(right.sequence));
+    const rootIsContentItem = Boolean(
+      root.song_id || root.comment?.trim() || root.files?.length || root.item_type === "pre_service",
+    );
+    const memberSections = [
+      ...(children.length && !rootIsContentItem ? [] : [rootSection]),
+      ...children.map((child) => sectionById.get(child.id)!).filter(Boolean),
+    ];
+    return {
+      ...rootSection,
+      slides: memberSections.flatMap((member) => member.slides.map((slide) => ({
+        ...slide,
+        sectionId: root.id,
+        sectionTitle: rootSection.title,
+      }))),
+    };
+  });
+}
+
+function buildIndividualPresentationSections(
+  items: PlanItem[],
+  songs: Song[],
+  renderedSlidesByFileId: Record<string, RenderedSlide[]> = {},
+): PresentationSection[] {
   const orderedItems = [
     ...items.filter((item) => item.item_type !== "end"),
     ...items.filter((item) => item.item_type === "end"),

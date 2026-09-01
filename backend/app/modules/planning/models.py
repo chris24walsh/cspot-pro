@@ -43,6 +43,9 @@ class PlanItem(IdMixin, TimestampMixin, Base):
     __tablename__ = "plan_items"
 
     plan_id: Mapped[str] = mapped_column(ForeignKey("plans.id", ondelete="CASCADE"), index=True)
+    parent_item_id: Mapped[str | None] = mapped_column(
+        ForeignKey("plan_items.id", ondelete="CASCADE"), index=True
+    )
     song_id: Mapped[str | None] = mapped_column(ForeignKey("songs.id"), index=True)
     item_type: Mapped[str] = mapped_column(String(80), default="custom")
     sequence: Mapped[Decimal] = mapped_column(Numeric(8, 2))
