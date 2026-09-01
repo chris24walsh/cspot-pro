@@ -437,14 +437,14 @@ export function MusicianLiveView({ controlPlanId, onEditSong, onExit, plan, serv
   ] : presentationSlides, [nextServiceSlide, presentationSlides]);
   const [localIndex, setLocalIndex] = useState(0);
   const remoteWorshipIndex = useMemo(() => {
-    if (!liveState?.planItemId) {
+    if (!liveState?.planItemId || !worshipItems.some((item) => item.id === liveState.planItemId)) {
       return -1;
     }
     const remoteSlide = presentationSlides[resolveLiveIndex(presentationSlides, liveState)];
     if (!remoteSlide) return -1;
     const exactIndex = slides.findIndex((slide) => slide.id === remoteSlide.id);
     return exactIndex >= 0 ? exactIndex : slides.findIndex((slide) => slide.planItemId === remoteSlide.planItemId);
-  }, [liveState, presentationSlides, slides]);
+  }, [liveState, presentationSlides, slides, worshipItems]);
   const syncedIndex = remoteWorshipIndex >= 0 ? remoteWorshipIndex : boundedIndex(localIndex, slides.length);
   const liveIndex = syncedIndex;
   const liveSlide = slides[liveIndex] ?? null;
