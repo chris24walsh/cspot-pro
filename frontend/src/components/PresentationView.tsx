@@ -4766,7 +4766,7 @@ export function PresentationView({
                         const item = sectionPlanItem(slide.planItemId);
                         const firstItemSlide = itemSlides[0]?.id === slide.id;
                         const itemCanCollapse = itemSlides.length > 1;
-                        const itemExpanded = expandedSorterSectionIds.has(slide.planItemId) || liveSlide?.planItemId === slide.planItemId;
+                        const itemExpanded = expandedSorterSectionIds.has(slide.planItemId);
                         const slideIndex = slides.findIndex((candidate) => candidate.id === slide.id);
                         const matchesLiveBuild =
                           Boolean(slide.imageUrl && liveSlide?.imageUrl) &&
