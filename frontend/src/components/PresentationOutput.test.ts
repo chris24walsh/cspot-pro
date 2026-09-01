@@ -4,8 +4,8 @@ import { type PresentationLiveService } from "../api";
 import {
   networkDisplayState,
   networkOutputMediaUrl,
+  presentationOutputAudioPlayerKey,
   presentationOutputAudioEnabled,
-  presentationOutputTransitionKey,
 } from "./PresentationOutput";
 
 describe("network TV display", () => {
@@ -31,11 +31,11 @@ describe("network TV display", () => {
     const secondSlide = { ...firstSlide, id: "song-1-slide-2" };
     const nextSong = { ...firstSlide, id: "song-2-slide-1", sectionId: "song-2" };
 
-    expect(presentationOutputTransitionKey(false, firstSlide)).toBe(
-      presentationOutputTransitionKey(false, secondSlide),
+    expect(presentationOutputAudioPlayerKey(firstSlide)).toBe(
+      presentationOutputAudioPlayerKey(secondSlide),
     );
-    expect(presentationOutputTransitionKey(false, nextSong)).not.toBe(
-      presentationOutputTransitionKey(false, firstSlide),
+    expect(presentationOutputAudioPlayerKey(nextSong)).not.toBe(
+      presentationOutputAudioPlayerKey(firstSlide),
     );
   });
 

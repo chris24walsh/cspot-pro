@@ -68,13 +68,10 @@ export function networkDisplayState(service: PresentationLiveService): Presentat
   };
 }
 
-export function presentationOutputTransitionKey(
-  blanked: boolean,
-  slide: Pick<PresentationSlide, "id" | "sectionId" | "youtubeAudioUrl"> | null | undefined,
+export function presentationOutputAudioPlayerKey(
+  slide: Pick<PresentationSlide, "sectionId" | "youtubeAudioUrl"> | null | undefined,
 ) {
-  if (blanked) return "blank";
-  if (slide?.youtubeAudioUrl) return `song-audio:${slide.sectionId}`;
-  return slide?.id ?? "ready";
+  return slide?.youtubeAudioUrl ? `song-audio:${slide.sectionId}` : null;
 }
 
 export function presentationOutputAudioEnabled(networkDisplay: boolean, mediaOutput: boolean) {
@@ -692,7 +689,41 @@ export function PresentationOutput({ mediaOutput = false, networkDisplay = false
             <span>{liveSlide?.title ?? (mediaOutput ? "Church PC media receiver ready" : networkDisplay ? "TV display ready" : "Ready")}</span>
           </div>
         ) : null}
-        <div className="slide-visual-transition" key={presentationOutputTransitionKey(blanked, liveSlide)}>
+        {liveSlide?.youtubeAudioUrl ? (
+          <iframe
+            allow="autoplay; encrypted-media"
+            aria-hidden="true"
+            className="youtube-audio-frame"
+            key={presentationOutputAudioPlayerKey(liveSlide)}
+            onLoad={() => {
+              videoFrameRef.current?.contentWindow?.postMessage(
+                JSON.stringify({ event: "command", func: outputAudioEnabled ? "unMute" : "mute", args: [] }),
+                "*",
+              );
+              if (liveState?.videoAction === "play" && liveState.videoActionAt) {
+                window.setTimeout(() => {
+                  videoFrameRef.current?.contentWindow?.postMessage(
+                    JSON.stringify({ event: "command", func: "setVolume", args: [100] }),
+                    "*",
+                  );
+                  videoFrameRef.current?.contentWindow?.postMessage(
+                    JSON.stringify({ event: "command", func: outputAudioEnabled ? "unMute" : "mute", args: [] }),
+                    "*",
+                  );
+                  videoFrameRef.current?.contentWindow?.postMessage(
+                    JSON.stringify({ event: "command", func: "playVideo", args: [] }),
+                    "*",
+                  );
+                }, 350);
+              }
+            }}
+            ref={videoFrameRef}
+            src={liveMediaUrl}
+            tabIndex={-1}
+            title={`${liveSlide.sectionTitle} audio`}
+          />
+        ) : null}
+        <div className="slide-visual-transition" key={blanked ? "blank" : liveSlide?.id ?? "ready"}>
         {blanked ? (
           <div
             className="blank-stage lcf-background-surface"
@@ -756,39 +787,6 @@ export function PresentationOutput({ mediaOutput = false, networkDisplay = false
           </div>
         ) : (
           <>
-            {liveSlide?.youtubeAudioUrl ? (
-              <iframe
-                allow="autoplay; encrypted-media"
-                aria-hidden="true"
-                className="youtube-audio-frame"
-                onLoad={() => {
-                  videoFrameRef.current?.contentWindow?.postMessage(
-                    JSON.stringify({ event: "command", func: outputAudioEnabled ? "unMute" : "mute", args: [] }),
-                    "*",
-                  );
-                  if (liveState?.videoAction === "play" && liveState.videoActionAt) {
-                    window.setTimeout(() => {
-                      videoFrameRef.current?.contentWindow?.postMessage(
-                        JSON.stringify({ event: "command", func: "setVolume", args: [100] }),
-                        "*",
-                      );
-                      videoFrameRef.current?.contentWindow?.postMessage(
-                        JSON.stringify({ event: "command", func: outputAudioEnabled ? "unMute" : "mute", args: [] }),
-                        "*",
-                      );
-                      videoFrameRef.current?.contentWindow?.postMessage(
-                        JSON.stringify({ event: "command", func: "playVideo", args: [] }),
-                        "*",
-                      );
-                    }, 350);
-                  }
-                }}
-                ref={videoFrameRef}
-                src={liveMediaUrl}
-                tabIndex={-1}
-                title={`${liveSlide.title} audio`}
-              />
-            ) : null}
             <AutoFitSlideText
               className={liveSlide?.slideKind === "title" ? "is-title-slide" : undefined}
               maxFontSize={liveTextFontCap}
