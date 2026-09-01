@@ -4636,6 +4636,19 @@ export function PresentationView({
                         <span>Edit</span>
                       </button>
                     ) : null}
+                    {canAttachDeck && FILLER_MEDIA_ITEM_TYPES.has(section.itemType) ? (
+                      <button
+                        aria-label={`Edit ${section.title} slide images`}
+                        className="section-icon-button section-edit-button"
+                        disabled={fillerMediaBusy}
+                        onClick={() => setFillerMediaPlanItemId(section.id)}
+                        title={`Edit ${section.title} slide images`}
+                        type="button"
+                      >
+                        <Pencil size={14} aria-hidden="true" />
+                        <span>Edit</span>
+                      </button>
+                    ) : null}
                   </div> : null}
                   {sectionRenderError ? <p className="render-error-message">{sectionRenderError}</p> : null}
                   {showSlideTiles ? (
@@ -4845,18 +4858,6 @@ export function PresentationView({
                             disabled={preServiceMediaBusy}
                             onClick={() => void openPreServiceMedia()}
                             title="Manage pre-service montage photos"
-                            type="button"
-                          >
-                            <Pencil size={14} aria-hidden="true" />
-                          </button>
-                        ) : null}
-                        {canAttachDeck && FILLER_MEDIA_ITEM_TYPES.has(section.itemType) ? (
-                          <button
-                            aria-label={`Edit ${section.title} slide images`}
-                            className="section-icon-button"
-                            disabled={fillerMediaBusy}
-                            onClick={() => setFillerMediaPlanItemId(section.id)}
-                            title={`Edit ${section.title} slide images`}
                             type="button"
                           >
                             <Pencil size={14} aria-hidden="true" />
