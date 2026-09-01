@@ -1,7 +1,7 @@
 """Allow plan items to be nested beneath outline groups.
 
 Revision ID: 0051_group_plan_items
-Revises: 0050_seed_plan_type_outlines
+Revises: 0050_plan_type_outlines
 """
 
 from alembic import op
@@ -9,7 +9,7 @@ import sqlalchemy as sa
 
 
 revision = "0051_group_plan_items"
-down_revision = "0050_seed_plan_type_outlines"
+down_revision = "0050_plan_type_outlines"
 branch_labels = None
 depends_on = None
 
