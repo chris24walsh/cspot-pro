@@ -414,9 +414,27 @@ export function MusicianLiveView({ controlPlanId, onEditSong, onExit, plan, serv
       : presentationSlides,
     [presentationSlides, servicePlan, songs, worshipItems],
   );
+  const lastWorshipServiceIndex = serviceSlides.reduce(
+    (lastIndex, slide, index) => worshipItems.some((item) => item.id === slide.planItemId) ? index : lastIndex,
+    -1,
+  );
+  const nextServiceSlide = lastWorshipServiceIndex >= 0 ? serviceSlides[lastWorshipServiceIndex + 1] ?? null : null;
   // Worship Live controls the congregation slideshow, so song title slides must
   // remain in its navigation as useful transitions between songs.
-  const slides = presentationSlides;
+  const slides = useMemo(() => nextServiceSlide ? [
+    ...presentationSlides,
+    {
+      id: "worship-live:end",
+      planItemId: "worship-live:end",
+      sectionId: "worship-live:end",
+      sectionTitle: "End of worship",
+      title: "End of worship",
+      text: "",
+      slideKind: "content" as const,
+      itemType: "worship_end",
+      sequence: "999999",
+    },
+  ] : presentationSlides, [nextServiceSlide, presentationSlides]);
   const [localIndex, setLocalIndex] = useState(0);
   const remoteWorshipIndex = useMemo(() => {
     if (!liveState?.planItemId) {
@@ -430,11 +448,7 @@ export function MusicianLiveView({ controlPlanId, onEditSong, onExit, plan, serv
   const syncedIndex = remoteWorshipIndex >= 0 ? remoteWorshipIndex : boundedIndex(localIndex, slides.length);
   const liveIndex = syncedIndex;
   const liveSlide = slides[liveIndex] ?? null;
-  const lastWorshipServiceIndex = serviceSlides.reduce(
-    (lastIndex, slide, index) => worshipItems.some((item) => item.id === slide.planItemId) ? index : lastIndex,
-    -1,
-  );
-  const nextServiceSlide = lastWorshipServiceIndex >= 0 ? serviceSlides[lastWorshipServiceIndex + 1] ?? null : null;
+  const isWorshipEndSlide = liveSlide?.itemType === "worship_end";
   const pageLeadIndex = liveSlide?.slideKind === "title"
     ? slides.findIndex((slide, index) => index > liveIndex && slide.planItemId === liveSlide.planItemId && slide.slideKind === "content")
     : liveIndex;
@@ -630,10 +644,6 @@ export function MusicianLiveView({ controlPlanId, onEditSong, onExit, plan, serv
   }, [liveSyncPlanId]);
 
   function moveLive(delta: -1 | 1) {
-    if (delta === 1 && liveIndex >= slides.length - 1 && nextServiceSlide) {
-      void publishServiceSlide(nextServiceSlide);
-      return;
-    }
     const nextIndex = boundedIndex(liveIndex + delta, slides.length);
     setLocalIndex(nextIndex);
     void publishWorshipSlide(nextIndex);
@@ -655,6 +665,10 @@ export function MusicianLiveView({ controlPlanId, onEditSong, onExit, plan, serv
     }
     const slide = slides[nextIndex];
     if (!slide) {
+      return;
+    }
+    if (slide.itemType === "worship_end") {
+      if (nextServiceSlide) await publishServiceSlide(nextServiceSlide);
       return;
     }
 
@@ -900,7 +914,7 @@ export function MusicianLiveView({ controlPlanId, onEditSong, onExit, plan, serv
   const toolbar = (
     <div className="musician-live-toolbar">
       <div className="musician-live-title">
-        <strong>{liveSong?.title ?? liveSlide?.sectionTitle ?? "Waiting for a song"}</strong>
+        <strong>{isWorshipEndSlide ? "Worship finished" : liveSong?.title ?? liveSlide?.sectionTitle ?? "Waiting for a song"}</strong>
         <label className="musician-key-select-label">
           <select
             aria-label="Choose guitar key and capo"
@@ -1082,6 +1096,12 @@ export function MusicianLiveView({ controlPlanId, onEditSong, onExit, plan, serv
             <Music2 size={18} aria-hidden="true" />
             Select a service with worship songs to start.
           </p>
+        ) : isWorshipEndSlide ? (
+          <div className="musician-live-waiting musician-worship-end">
+            <p className="eyebrow">Worship finished</p>
+            <h3>{nextServiceSlide?.sectionTitle ?? "End of worship"}</h3>
+            <p>The service has moved to the next section.</p>
+          </div>
         ) : liveSlide.itemType !== "song" ? (
           <div className="musician-live-waiting">
             <p className="eyebrow">Current service item</p>
@@ -1204,13 +1224,10 @@ export function MusicianLiveView({ controlPlanId, onEditSong, onExit, plan, serv
             </button>
             <button
               className={`musician-page is-next ${pageNextSlide?.slideKind === "title" ? "is-song-title" : ""}`}
-              disabled={!pageNextSlide && !nextServiceSlide}
-              aria-label={!pageNextSlide && nextServiceSlide ? `Continue to ${nextServiceSlide.sectionTitle}` : pageNextSlide?.slideKind === "title" ? `Next song: ${pageNextSlide.text}` : "Next lyrics"}
+              disabled={!pageNextSlide}
+              aria-label={pageNextSlide?.itemType === "worship_end" ? "End worship" : pageNextSlide?.slideKind === "title" ? `Next song: ${pageNextSlide.text}` : "Next lyrics"}
               onClick={() => {
-                if (!pageNextSlide) {
-                  if (nextServiceSlide) void publishServiceSlide(nextServiceSlide);
-                  return;
-                }
+                if (!pageNextSlide) return;
                 const nextIndex = slides.findIndex((slide) => slide.id === pageNextSlide.id);
                 if (nextIndex < 0) return;
                 setLocalIndex(nextIndex);
@@ -1220,7 +1237,9 @@ export function MusicianLiveView({ controlPlanId, onEditSong, onExit, plan, serv
               type="button"
             >
               <span className="musician-page-label">Next</span>
-              {pageNextSlide?.slideKind === "title" ? (
+              {pageNextSlide?.itemType === "worship_end" ? (
+                <div className="musician-next-lyrics is-end"><span>Finish worship</span></div>
+              ) : pageNextSlide?.slideKind === "title" ? (
                 <div className="musician-next-song-preview">
                   <Music2 size={26} aria-hidden="true" />
                   <strong>{pageNextSlide.text}</strong>
@@ -1250,7 +1269,7 @@ export function MusicianLiveView({ controlPlanId, onEditSong, onExit, plan, serv
                 <div className="musician-next-lyrics">{pageNextSlide.text}</div>
               ) : (
                 <div className="musician-next-lyrics is-end">
-                  {nextServiceSlide ? <><span>Continue to</span><strong>{nextServiceSlide.sectionTitle}</strong></> : "End of set"}
+                  End of set
                 </div>
               )}
             </button>
@@ -1259,7 +1278,7 @@ export function MusicianLiveView({ controlPlanId, onEditSong, onExit, plan, serv
         {liveSlide ? (
           <>
             <button aria-label="Previous slide" className="musician-edge-nav is-previous" disabled={liveIndex <= 0} onClick={() => moveLive(-1)} type="button"><ChevronLeft aria-hidden="true" /></button>
-            <button aria-label={liveIndex >= slides.length - 1 && nextServiceSlide ? `Continue to ${nextServiceSlide.sectionTitle}` : "Next slide"} className="musician-edge-nav is-next" disabled={liveIndex >= slides.length - 1 && !nextServiceSlide} onClick={() => moveLive(1)} type="button"><ChevronRight aria-hidden="true" /></button>
+            <button aria-label="Next slide" className="musician-edge-nav is-next" disabled={liveIndex >= slides.length - 1} onClick={() => moveLive(1)} type="button"><ChevronRight aria-hidden="true" /></button>
           </>
         ) : null}
       </div>
