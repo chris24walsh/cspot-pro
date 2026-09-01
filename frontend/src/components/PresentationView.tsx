@@ -105,6 +105,7 @@ import { analyzeWorshipText, buildLyricsFromSections, canonicalizeWorshipLyrics 
 import {
   WORSHIP_SET_ANCHOR_ITEM_TYPE,
   combinedPlanningItemCount,
+  isPlanEditingLocked,
   isWorshipSetPlan,
   matchingWorshipSetForService,
   mergeWorshipSetIntoService,
@@ -615,7 +616,7 @@ export function PresentationView({
   canAccessAdminTools,
   canCreatePlan,
   canDeletePlan,
-  canEditPlan,
+  canEditPlan: hasPlanEditPermission,
   canManagePreServiceMedia,
   canSimulateService,
   canEditSlideNotes,
@@ -784,6 +785,8 @@ export function PresentationView({
 
   const servicePlans = useMemo(() => plans.filter((candidate) => !isWorshipSetPlan(candidate)), [plans]);
   const worshipSetPlans = useMemo(() => plans.filter(isWorshipSetPlan), [plans]);
+  const completedPlanLocked = !canAccessAdminTools && isPlanEditingLocked(plan, planTypes, plans);
+  const canEditPlan = hasPlanEditPermission && !completedPlanLocked;
   const currentPlanType = useMemo(
     () => planTypes.find((type) => type.id === plan?.plan_type_id) ?? null,
     [plan?.plan_type_id, planTypes],
@@ -827,7 +830,7 @@ export function PresentationView({
     const upcoming = [...planList]
       .filter((candidate) => dateInputFromIso(candidate.service_date) >= todayKey)
       .sort((left, right) => new Date(left.service_date).getTime() - new Date(right.service_date).getTime());
-    return nextSundayPlan?.id ?? upcoming[0]?.id ?? newestFirst[0]?.id ?? "";
+    return upcoming[0]?.id ?? nextSundayPlan?.id ?? newestFirst[0]?.id ?? "";
   }
   const plansByDate = useMemo(
     () =>
@@ -4301,7 +4304,9 @@ export function PresentationView({
       ) : null}
       {!canEditPlan ? (
         <p className="empty-state presentation-readonly-note">
-          Presenter mode is live, but this account is read-only for plan changes.
+          {completedPlanLocked
+            ? "This service has finished. Its historical plan can only be changed by an administrator."
+            : "Presenter mode is live, but this account is read-only for plan changes."}
         </p>
       ) : null}
       {localAudioUrl ? (

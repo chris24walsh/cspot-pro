@@ -632,6 +632,12 @@ Pi, but its physical faders cannot be controlled digitally.
 
 ## Presenter Information Architecture
 
+Completed services and their linked worship sets are retained as historical
+records. Non-administrators can no longer mutate a plan once its service type's
+configured start time has passed; types without a start time remain editable
+through the service day and lock the following day. Default selection remains
+date-based, so today's service/set stays selected for the whole calendar day.
+
 The current intended presenter layout has three roles:
 
 ### 1. Main preview

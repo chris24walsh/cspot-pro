@@ -47,6 +47,7 @@ from app.modules.library.schemas import (
     ResourceUpdate,
     StoredFileRead,
 )
+from app.modules.planning.completion import require_plan_editable
 from app.modules.planning.routes import get_item_or_404, get_plan_or_404
 
 router = APIRouter()
@@ -824,12 +825,13 @@ def list_plan_resources(
 def assign_plan_resource(
     plan_id: str,
     payload: PlanResourceCreate,
-    _current_user: User = Depends(
+    current_user: User = Depends(
         require_any_permission("library:edit", "library:create", "plans:edit", "plans:create")
     ),
     session: Session = Depends(get_session),
 ) -> PlanResourceRead:
-    get_plan_or_404(session, plan_id)
+    plan = get_plan_or_404(session, plan_id)
+    require_plan_editable(session, plan, current_user)
     get_resource_or_404(session, payload.resource_id)
     if payload.plan_id != plan_id:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Plan mismatch")
@@ -845,7 +847,7 @@ def assign_plan_resource(
 def update_plan_resource(
     plan_resource_id: str,
     payload: PlanResourceUpdate,
-    _current_user: User = Depends(
+    current_user: User = Depends(
         require_any_permission("library:edit", "library:create", "plans:edit", "plans:create")
     ),
     session: Session = Depends(get_session),
@@ -853,6 +855,8 @@ def update_plan_resource(
     row = session.get(PlanResource, plan_resource_id)
     if row is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Plan resource not found")
+    plan = get_plan_or_404(session, row.plan_id)
+    require_plan_editable(session, plan, current_user)
     for field, value in payload.model_dump(exclude_unset=True).items():
         setattr(row, field, value)
 
@@ -864,12 +868,14 @@ def update_plan_resource(
 @router.delete("/plan-resources/{plan_resource_id}", status_code=status.HTTP_204_NO_CONTENT)
 def remove_plan_resource(
     plan_resource_id: str,
-    _current_user: User = Depends(require_any_permission("library:delete", "plans:delete")),
+    current_user: User = Depends(require_any_permission("library:delete", "plans:delete")),
     session: Session = Depends(get_session),
 ) -> Response:
     row = session.get(PlanResource, plan_resource_id)
     if row is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Plan resource not found")
+    plan = get_plan_or_404(session, row.plan_id)
+    require_plan_editable(session, plan, current_user)
     session.delete(row)
     session.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
@@ -1127,12 +1133,14 @@ def list_item_files(
 def attach_item_file(
     plan_item_id: str,
     payload: ItemFileCreate,
-    _current_user: User = Depends(
+    current_user: User = Depends(
         require_any_permission("library:edit", "library:create", "plans:edit", "plans:create")
     ),
     session: Session = Depends(get_session),
 ) -> ItemFileRead:
-    get_item_or_404(session, plan_item_id)
+    item = get_item_or_404(session, plan_item_id)
+    plan = get_plan_or_404(session, item.plan_id)
+    require_plan_editable(session, plan, current_user)
     if session.get(StoredFile, payload.file_id) is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="File not found")
 
@@ -1152,7 +1160,7 @@ def attach_item_file(
 def update_item_file(
     item_file_id: str,
     payload: ItemFileUpdate,
-    _current_user: User = Depends(
+    current_user: User = Depends(
         require_any_permission("library:edit", "plans:edit")
     ),
     session: Session = Depends(get_session),
@@ -1160,6 +1168,9 @@ def update_item_file(
     row = session.get(ItemFile, item_file_id)
     if row is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Item file not found")
+    item = get_item_or_404(session, row.plan_item_id)
+    plan = get_plan_or_404(session, item.plan_id)
+    require_plan_editable(session, plan, current_user)
     row.persistent = payload.persistent
     session.commit()
     session.refresh(row)
@@ -1169,7 +1180,7 @@ def update_item_file(
 @router.delete("/item-files/{item_file_id}", status_code=status.HTTP_204_NO_CONTENT)
 def remove_item_file(
     item_file_id: str,
-    _current_user: User = Depends(
+    current_user: User = Depends(
         require_any_permission("library:delete", "plans:edit", "plans:delete")
     ),
     session: Session = Depends(get_session),
@@ -1177,6 +1188,9 @@ def remove_item_file(
     row = session.get(ItemFile, item_file_id)
     if row is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Item file not found")
+    item = get_item_or_404(session, row.plan_item_id)
+    plan = get_plan_or_404(session, item.plan_id)
+    require_plan_editable(session, plan, current_user)
     session.delete(row)
     session.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)

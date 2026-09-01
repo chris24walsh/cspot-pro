@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { PlanDetail, PlanItem, PlanSummary } from "./api";
-import { WORSHIP_SET_ANCHOR_ITEM_TYPE, combinedPlanningItemCount, dateKey, matchingWorshipSetForService, mergeWorshipSetIntoService, preferredWorshipSetPlanId } from "./worshipSets";
+import { WORSHIP_SET_ANCHOR_ITEM_TYPE, combinedPlanningItemCount, dateKey, isPlanEditingLocked, matchingWorshipSetForService, mergeWorshipSetIntoService, preferredWorshipSetPlanId } from "./worshipSets";
 
 function item(id: string, sequence: string, itemType: string, songId: string | null = null): PlanItem {
   return {
@@ -43,6 +43,19 @@ describe("worship set merge", () => {
 
     expect(preferredWorshipSetPlanId([following, today], new Date(2026, 6, 5, 12))).toBe("today");
     expect(preferredWorshipSetPlanId([following, today], new Date(2026, 6, 6, 12))).toBe("following");
+  });
+
+  it("locks a worship set after the matching service start while retaining same-day selection", () => {
+    const today = summary("today", "2026-07-05T10:30:00.000Z", "Worship Set");
+    const service = summary("service", "2026-07-05T10:30:00.000Z", "Sunday Service");
+    const plan = { ...today, plan_type_id: "worship", items: [], teacher_id: null, info: null } as PlanDetail;
+    const types = [
+      { id: "worship", name: "Worship Set", starts_at: null },
+      { id: "sunday", name: "Sunday Service", starts_at: "11:00" },
+    ] as never;
+
+    expect(preferredWorshipSetPlanId([today], new Date(2026, 6, 5, 18))).toBe("today");
+    expect(isPlanEditingLocked(plan, types, [today, service], new Date(2026, 6, 5, 11, 1))).toBe(true);
   });
 
   it("uses local date keys when matching service and worship set days", () => {

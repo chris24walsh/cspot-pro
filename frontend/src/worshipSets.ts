@@ -58,7 +58,25 @@ export function preferredWorshipSetPlanId(sets: PlanSummary[], now = new Date())
     .filter((candidate) => dateKey(candidate.service_date) >= todayKey)
     .sort((left, right) => new Date(left.service_date).getTime() - new Date(right.service_date).getTime());
   const newestFirst = [...sets].sort((left, right) => new Date(right.service_date).getTime() - new Date(left.service_date).getTime());
-  return targetSundayPlan?.id ?? upcoming[0]?.id ?? newestFirst[0]?.id ?? "";
+  return upcoming[0]?.id ?? targetSundayPlan?.id ?? newestFirst[0]?.id ?? "";
+}
+
+export function isPlanEditingLocked(
+  plan: Pick<PlanDetail, "id" | "plan_type" | "plan_type_id" | "service_date"> | null,
+  planTypes: PlanType[],
+  plans: PlanSummary[],
+  now = new Date(),
+) {
+  if (!plan) return false;
+  const serviceDay = dateKey(plan.service_date);
+  let effectiveType = planTypes.find((candidate) => candidate.id === plan.plan_type_id);
+  if (isWorshipSetPlan(plan)) {
+    const service = plans.find((candidate) => !isWorshipSetPlan(candidate) && dateKey(candidate.service_date) === serviceDay);
+    effectiveType = planTypes.find((candidate) => candidate.name === service?.plan_type) ?? effectiveType;
+  }
+  if (!effectiveType?.starts_at) return dateKey(now.toISOString()) > serviceDay;
+  const cutoff = new Date(`${serviceDay}T${effectiveType.starts_at}`);
+  return !Number.isNaN(cutoff.getTime()) && now.getTime() > cutoff.getTime();
 }
 
 function sortedItems(items: PlanItem[]) {

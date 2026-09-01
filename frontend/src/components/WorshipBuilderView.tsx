@@ -54,7 +54,7 @@ import { undoHistoryEntrySnapshot } from "../planHistory";
 import { parseChordChart } from "../chordSheet";
 import { showToast } from "../toast";
 import { analyzeImportedSongSlides, analyzeWorshipText, buildLyricsFromSections, canonicalizeWorshipLyrics } from "../worshipText";
-import { dateKey, isWorshipSetPlan, preferredWorshipSetPlanId, worshipSetType } from "../worshipSets";
+import { dateKey, isPlanEditingLocked, isWorshipSetPlan, preferredWorshipSetPlanId, worshipSetType } from "../worshipSets";
 import { lastUsedLabel, worshipRoleLabel } from "../worshipSongMetadata";
 import { reorderedWorshipSequences } from "../worshipOrdering";
 import { calendarColors, calendarMarkers } from "../userCalendarStyle";
@@ -337,7 +337,7 @@ function detectMissingSongsInDeck(deck: ParsedSlideDeck, songs: Song[]) {
   return missing;
 }
 
-export function WorshipBuilderView({ active = true, canAccessAdminTools, canArchiveSong, canCreateSong, canDeletePlan, canEditSong, canEditPlan }: WorshipBuilderViewProps) {
+export function WorshipBuilderView({ active = true, canAccessAdminTools, canArchiveSong, canCreateSong, canDeletePlan, canEditSong, canEditPlan: hasPlanEditPermission }: WorshipBuilderViewProps) {
   const { confirm, confirmationDialog } = useConfirmationDialog();
   const [plans, setPlans] = useState<PlanSummary[]>([]);
   const [planTypes, setPlanTypes] = useState<PlanType[]>([]);
@@ -466,6 +466,8 @@ export function WorshipBuilderView({ active = true, canAccessAdminTools, canArch
     [plans],
   );
   const linkedServicePlanId = plan ? servicePlansByDate.get(dateInputFromIso(plan.service_date))?.id ?? null : null;
+  const completedPlanLocked = !canAccessAdminTools && isPlanEditingLocked(plan, planTypes, plans);
+  const canEditPlan = hasPlanEditPermission && !completedPlanLocked;
 
   useEffect(() => {
     let cancelled = false;

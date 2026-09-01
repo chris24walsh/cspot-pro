@@ -11,6 +11,7 @@ from app.modules.broadcast.settings import DEFAULT_SERVICE_SCHEDULES, service_sc
 from app.modules.identity.auth import list_role_names, require_any_permission, require_permission
 from app.modules.identity.models import User
 from app.modules.library.models import FileCategory, ItemFile, StoredFile
+from app.modules.planning.completion import require_plan_editable
 from app.modules.planning.models import (
     DefaultItem,
     HistoryEntry,
@@ -467,10 +468,11 @@ def ensure_service_for_worship_set(session: Session, plan: Plan) -> None:
 @router.post("/plans/{plan_id}/service-scaffold", response_model=PlanDetail)
 def add_missing_service_sections(
     plan_id: str,
-    _current_user: User = Depends(require_any_permission("plans:edit", "plans:create")),
+    current_user: User = Depends(require_any_permission("plans:edit", "plans:create")),
     session: Session = Depends(get_session),
 ) -> PlanDetail:
     plan = get_plan_or_404(session, plan_id)
+    require_plan_editable(session, plan, current_user)
     ensure_service_scaffold(session, plan)
     items = list(
         session.scalars(
@@ -548,7 +550,8 @@ def create_plan_history(
     current_user: User = Depends(require_any_permission("plans:edit", "plans:create")),
     session: Session = Depends(get_session),
 ) -> PlanHistoryRead:
-    get_plan_or_404(session, plan_id)
+    plan = get_plan_or_404(session, plan_id)
+    require_plan_editable(session, plan, current_user)
     details = payload.model_dump(mode="json")
     entry = HistoryEntry(
         actor_id=current_user.id,
@@ -573,10 +576,11 @@ def create_plan_history(
 def update_plan(
     plan_id: str,
     payload: PlanUpdate,
-    _current_user: User = Depends(require_any_permission("plans:edit", "plans:create")),
+    current_user: User = Depends(require_any_permission("plans:edit", "plans:create")),
     session: Session = Depends(get_session),
 ) -> PlanDetail:
     plan = get_plan_or_404(session, plan_id)
+    require_plan_editable(session, plan, current_user)
     for field, value in payload.model_dump(exclude_unset=True).items():
         setattr(plan, field, value)
 
@@ -596,10 +600,11 @@ def update_plan(
 @router.delete("/plans/{plan_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_plan(
     plan_id: str,
-    _current_user: User = Depends(require_permission("plans:delete")),
+    current_user: User = Depends(require_permission("plans:delete")),
     session: Session = Depends(get_session),
 ) -> Response:
     plan = get_plan_or_404(session, plan_id)
+    require_plan_editable(session, plan, current_user)
     plan.deleted_at = datetime.now(UTC)
     session.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
@@ -608,12 +613,13 @@ def delete_plan(
 @router.post("/plans/{plan_id}/restore", response_model=PlanDetail)
 def restore_plan(
     plan_id: str,
-    _current_user: User = Depends(require_permission("plans:delete")),
+    current_user: User = Depends(require_permission("plans:delete")),
     session: Session = Depends(get_session),
 ) -> PlanDetail:
     plan = session.get(Plan, plan_id)
     if plan is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Plan not found")
+    require_plan_editable(session, plan, current_user)
     plan.deleted_at = None
     session.commit()
     session.refresh(plan)
@@ -633,10 +639,11 @@ def restore_plan(
 def create_plan_item(
     plan_id: str,
     payload: PlanItemCreate,
-    _current_user: User = Depends(require_any_permission("plans:edit", "plans:create")),
+    current_user: User = Depends(require_any_permission("plans:edit", "plans:create")),
     session: Session = Depends(get_session),
 ) -> PlanItemRead:
     plan = get_plan_or_404(session, plan_id)
+    require_plan_editable(session, plan, current_user)
     if payload.parent_item_id:
         parent = session.get(PlanItem, payload.parent_item_id)
         if parent is None or parent.plan_id != plan_id or parent.deleted_at is not None or parent.parent_item_id:
@@ -664,6 +671,8 @@ def update_plan_item(
     session: Session = Depends(get_session),
 ) -> PlanItemRead:
     item = get_item_or_404(session, item_id)
+    plan = get_plan_or_404(session, item.plan_id)
+    require_plan_editable(session, plan, current_user)
     payload_data = payload.model_dump(exclude_unset=True)
     teacher_notes = payload_data.pop("teacher_notes", None)
 
@@ -707,6 +716,8 @@ def delete_plan_item(
     session: Session = Depends(get_session),
 ) -> Response:
     item = get_item_or_404(session, item_id)
+    plan = get_plan_or_404(session, item.plan_id)
+    require_plan_editable(session, plan, current_user)
     if presenter_cannot_change_outline(session, current_user, item):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
