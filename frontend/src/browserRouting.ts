@@ -47,3 +47,9 @@ export function isNetworkDisplayLocation(location: Pick<BrowserLocation, "pathna
   const normalizedPath = location.pathname.replace(/\/+$/, "");
   return params.get("presentation") === "tv" || normalizedPath.endsWith("/tv");
 }
+
+export function isMediaOutputLocation(location: Pick<BrowserLocation, "pathname" | "search">) {
+  const params = new URLSearchParams(location.search);
+  const normalizedPath = location.pathname.replace(/\/+$/, "");
+  return params.get("presentation") === "media" || normalizedPath.endsWith("/media");
+}

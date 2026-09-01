@@ -1,12 +1,18 @@
 import { describe, expect, it } from "vitest";
 
-import { httpsUpgradeUrl, isNetworkDisplayLocation } from "./browserRouting";
+import { httpsUpgradeUrl, isMediaOutputLocation, isNetworkDisplayLocation } from "./browserRouting";
 
 describe("browser routing", () => {
   it("recognizes both the short TV path and legacy query route", () => {
     expect(isNetworkDisplayLocation({ pathname: "/app/tv", search: "" })).toBe(true);
     expect(isNetworkDisplayLocation({ pathname: "/app/", search: "?presentation=tv" })).toBe(true);
     expect(isNetworkDisplayLocation({ pathname: "/app/", search: "" })).toBe(false);
+  });
+
+  it("recognizes the dedicated church-PC media receiver", () => {
+    expect(isMediaOutputLocation({ pathname: "/app/media", search: "" })).toBe(true);
+    expect(isMediaOutputLocation({ pathname: "/app/", search: "?presentation=media" })).toBe(true);
+    expect(isMediaOutputLocation({ pathname: "/app/tv", search: "" })).toBe(false);
   });
 
   it("upgrades public HTTP URLs without losing the path or query", () => {

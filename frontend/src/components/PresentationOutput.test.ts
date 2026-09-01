@@ -1,9 +1,22 @@
 import { describe, expect, it } from "vitest";
 
 import { type PresentationLiveService } from "../api";
-import { networkDisplayState } from "./PresentationOutput";
+import { networkDisplayState, networkOutputMediaUrl, presentationOutputAudioEnabled } from "./PresentationOutput";
 
 describe("network TV display", () => {
+  it("keeps TV followers muted while allowing the dedicated media receiver", () => {
+    expect(presentationOutputAudioEnabled(true, false)).toBe(false);
+    expect(presentationOutputAudioEnabled(true, true)).toBe(true);
+    expect(presentationOutputAudioEnabled(false, false)).toBe(true);
+  });
+
+  it("loads network YouTube players muted before JavaScript control is ready", () => {
+    const url = networkOutputMediaUrl("https://www.youtube-nocookie.com/embed/video-1?playsinline=1", true);
+    expect(url).toContain("mute=1");
+    expect(url).toContain("enablejsapi=1");
+    expect(networkOutputMediaUrl("/app/files/video.mp4", true)).toBe("/app/files/video.mp4");
+  });
+
   it("starts following the active service at its current slide", () => {
     const service: PresentationLiveService = {
       plan_id: "plan-1",

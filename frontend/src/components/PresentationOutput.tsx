@@ -67,11 +67,29 @@ export function networkDisplayState(service: PresentationLiveService): Presentat
   };
 }
 
+export function presentationOutputAudioEnabled(networkDisplay: boolean, mediaOutput: boolean) {
+  return !networkDisplay || mediaOutput;
+}
+
+export function networkOutputMediaUrl(url: string | undefined, networkDisplay: boolean) {
+  if (!url || !networkDisplay) return url;
+  try {
+    const parsed = new URL(url);
+    if (!parsed.hostname.includes("youtube")) return url;
+    parsed.searchParams.set("enablejsapi", "1");
+    parsed.searchParams.set("mute", "1");
+    return parsed.toString();
+  } catch {
+    return url;
+  }
+}
+
 interface PresentationOutputProps {
+  mediaOutput?: boolean;
   networkDisplay?: boolean;
 }
 
-export function PresentationOutput({ networkDisplay = false }: PresentationOutputProps) {
+export function PresentationOutput({ mediaOutput = false, networkDisplay = false }: PresentationOutputProps) {
   const outputOwnerId = useMemo(() => {
     const params = new URLSearchParams(window.location.search);
     return params.get("outputId") || "standalone-output";
@@ -111,10 +129,14 @@ export function PresentationOutput({ networkDisplay = false }: PresentationOutpu
     liveState?.planItemId && slides.length && !slides.some((slide) => slide.planItemId === liveState.planItemId),
   );
   const liveSlide = liveTargetMissing ? null : slides[resolvedIndex] ?? null;
-  const liveMediaUrl = liveSlide?.videoUrl ?? liveSlide?.youtubeAudioUrl;
+  const liveMediaUrl = networkOutputMediaUrl(
+    liveSlide?.videoUrl ?? liveSlide?.youtubeAudioUrl,
+    networkDisplay,
+  );
   const liveMediaProvider = liveSlide?.videoProvider ?? (liveSlide?.youtubeAudioUrl ? "youtube" : undefined);
   const liveTextFontCap = suggestedSlideFontCap(liveSlide);
   const ambientMusicStage = liveState?.serviceStage === "pre_service" || liveState?.serviceStage === "post_service";
+  const outputAudioEnabled = presentationOutputAudioEnabled(networkDisplay, mediaOutput);
 
   const checkOutputStatus = useCallback(() => {
     if (!liveState?.planId || outputHeartbeatInFlightRef.current) {
@@ -362,6 +384,7 @@ export function PresentationOutput({ networkDisplay = false }: PresentationOutpu
     if (liveMediaProvider === "file") {
       if (liveState.videoAction === "play") {
         if (videoElementRef.current) {
+          videoElementRef.current.muted = !outputAudioEnabled;
           videoElementRef.current.volume = 1;
         }
         void videoElementRef.current?.play().catch(() => {
@@ -427,12 +450,16 @@ export function PresentationOutput({ networkDisplay = false }: PresentationOutpu
         JSON.stringify({ event: "command", func: "setVolume", args: [100] }),
         "*",
       );
+      videoFrameRef.current?.contentWindow?.postMessage(
+        JSON.stringify({ event: "command", func: outputAudioEnabled ? "unMute" : "mute", args: [] }),
+        "*",
+      );
     }
     videoFrameRef.current?.contentWindow?.postMessage(
       JSON.stringify({ event: "command", func: command, args: [] }),
       "*",
     );
-  }, [liveMediaProvider, liveMediaUrl, liveState?.videoAction, liveState?.videoActionAt]);
+  }, [liveMediaProvider, liveMediaUrl, liveState?.videoAction, liveState?.videoActionAt, outputAudioEnabled]);
 
   useEffect(() => {
     if (liveMediaProvider !== "youtube") return undefined;
@@ -628,7 +655,7 @@ export function PresentationOutput({ networkDisplay = false }: PresentationOutpu
   }, [message]);
 
   return (
-    <main className="slideshow-output" aria-label="Live slideshow output">
+    <main className={`slideshow-output ${mediaOutput ? "media-output" : ""}`} aria-label={mediaOutput ? "Church PC media output" : "Live slideshow output"}>
       {fullscreenReady && !networkDisplay ? (
         <button className="slideshow-fullscreen" onClick={() => void enterFullscreen()} type="button">
           <Maximize2 size={18} aria-hidden="true" />
@@ -652,7 +679,7 @@ export function PresentationOutput({ networkDisplay = false }: PresentationOutpu
       >
         {blanked ? null : !liveSlide?.montageImageUrls && !liveSlide?.backgroundImageUrl && !liveSlide?.imageUrl && !liveSlide?.videoUrl && liveSlide?.itemType !== "song" ? (
           <div className="stage-title">
-            <span>{liveSlide?.title ?? (networkDisplay ? "TV display ready" : "Ready")}</span>
+            <span>{liveSlide?.title ?? (mediaOutput ? "Church PC media receiver ready" : networkDisplay ? "TV display ready" : "Ready")}</span>
           </div>
         ) : null}
         <div className="slide-visual-transition" key={blanked ? "blank" : liveSlide?.id ?? "ready"}>
@@ -679,9 +706,10 @@ export function PresentationOutput({ networkDisplay = false }: PresentationOutpu
             {liveSlide.videoProvider === "file" ? (
               <video
                 controls
+                muted={!outputAudioEnabled}
                 onEnded={() => void publishLiveState({ videoAction: "stop", videoActionAt: Date.now() })}
                 ref={videoElementRef}
-                src={liveSlide.videoUrl}
+                src={liveMediaUrl}
                 title={liveSlide.title}
               />
             ) : (
@@ -689,6 +717,10 @@ export function PresentationOutput({ networkDisplay = false }: PresentationOutpu
                 allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
                 allowFullScreen
                 onLoad={() => {
+                  videoFrameRef.current?.contentWindow?.postMessage(
+                    JSON.stringify({ event: "command", func: outputAudioEnabled ? "unMute" : "mute", args: [] }),
+                    "*",
+                  );
                   if (liveState?.videoAction === "play" && liveState.videoActionAt) {
                     window.setTimeout(() => {
                       videoFrameRef.current?.contentWindow?.postMessage(
@@ -699,7 +731,7 @@ export function PresentationOutput({ networkDisplay = false }: PresentationOutpu
                   }
                 }}
                 ref={videoFrameRef}
-                src={liveSlide.videoUrl}
+                src={liveMediaUrl}
                 title={liveSlide.title}
               />
             )}
@@ -712,6 +744,10 @@ export function PresentationOutput({ networkDisplay = false }: PresentationOutpu
                 aria-hidden="true"
                 className="youtube-audio-frame"
                 onLoad={() => {
+                  videoFrameRef.current?.contentWindow?.postMessage(
+                    JSON.stringify({ event: "command", func: outputAudioEnabled ? "unMute" : "mute", args: [] }),
+                    "*",
+                  );
                   if (liveState?.videoAction === "play" && liveState.videoActionAt) {
                     window.setTimeout(() => {
                       videoFrameRef.current?.contentWindow?.postMessage(
@@ -722,7 +758,7 @@ export function PresentationOutput({ networkDisplay = false }: PresentationOutpu
                   }
                 }}
                 ref={videoFrameRef}
-                src={liveSlide.youtubeAudioUrl}
+                src={liveMediaUrl}
                 tabIndex={-1}
                 title={`${liveSlide.title} audio`}
               />
@@ -730,7 +766,7 @@ export function PresentationOutput({ networkDisplay = false }: PresentationOutpu
             <AutoFitSlideText
               className={liveSlide?.slideKind === "title" ? "is-title-slide" : undefined}
               maxFontSize={liveTextFontCap}
-              text={liveSlide?.text ?? (networkDisplay ? "Waiting for the presenter to start TV output" : "Waiting for slideshow")}
+              text={liveSlide?.text ?? (mediaOutput ? "Waiting for remote media playback" : networkDisplay ? "Waiting for the presenter to start TV output" : "Waiting for slideshow")}
             />
           </>
         )}
@@ -741,7 +777,7 @@ export function PresentationOutput({ networkDisplay = false }: PresentationOutpu
           active={ambientMusicStage}
           continuous={liveState?.serviceStage === "post_service"}
           label={liveState?.serviceStage === "post_service" ? "Post-service music" : "Pre-service music"}
-          outputMuted={!preServiceRoomAudioEnabled}
+          outputMuted={!outputAudioEnabled || !preServiceRoomAudioEnabled}
           phase={liveState?.preServicePhase}
           phaseStartedAt={liveState?.updatedAt}
           serviceDate={plan.service_date}

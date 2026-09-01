@@ -34,7 +34,7 @@ import {
   type SessionUser,
   type Song,
 } from "./api";
-import { isNetworkDisplayLocation } from "./browserRouting";
+import { isMediaOutputLocation, isNetworkDisplayLocation } from "./browserRouting";
 import { useDurableChange, useDurableChangePolling } from "./changePolling";
 import { AuthScreen } from "./components/AuthScreen";
 import { BroadcastManager } from "./components/BroadcastManager";
@@ -83,6 +83,8 @@ function App() {
   const initialParams = new URLSearchParams(window.location.search);
   const isPresentationOutput = initialParams.get("presentation") === "output";
   const isNetworkDisplay = isNetworkDisplayLocation(window.location);
+  const isMediaOutput = isMediaOutputLocation(window.location);
+  const isPersistentOutput = isNetworkDisplay || isMediaOutput;
   const publicWebsiteUrl = import.meta.env.VITE_PUBLIC_WEBSITE_URL || "/";
   const [activeModuleId, setActiveModuleId] = useState<ModuleId>("presentation");
   const [mountedModuleIds, setMountedModuleIds] = useState<Set<ModuleId>>(() => new Set(["presentation"]));
@@ -354,13 +356,13 @@ function App() {
       <AuthScreen
         bootstrapAvailable={bootstrapAvailable}
         onAuthenticated={setSessionUser}
-        rememberByDefault={isNetworkDisplay}
+        rememberByDefault={isPersistentOutput}
       />
     );
   }
 
-  if (isPresentationOutput || isNetworkDisplay) {
-    return <PresentationOutput networkDisplay={isNetworkDisplay} />;
+  if (isPresentationOutput || isPersistentOutput) {
+    return <PresentationOutput mediaOutput={isMediaOutput} networkDisplay={isPersistentOutput} />;
   }
 
   async function signOut() {

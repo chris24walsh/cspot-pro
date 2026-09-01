@@ -28,6 +28,24 @@ be connected to the presenter computer as an external monitor.
 The waiting screen can remain open. It automatically discovers the active TV
 output, follows every slide change, and returns to waiting when the presenter
 stops it. Refreshing or reopening the TV page does not interrupt the presenter.
+The TV route is deliberately visual-only: pre-service music, song backing
+tracks, and video audio are always muted on `/app/tv`.
+
+## Church PC media receiver
+
+Open `https://<church-app-host>/app/media` in a browser on the church PC and
+leave it running. This dedicated receiver follows the same remote presentation
+state but plays only the program-media audio needed for pre-service music, song
+backing tracks, and video items. Route that browser to the Windows playback
+endpoint connected to the sound desk. The Audio Bridge can capture the same
+endpoint as `pc-media`, while the physical line-out supplies the desk and room
+speakers.
+
+The media receiver and TV display remain separate so the church TV never emits
+sound. Browsers may require autoplay permission for the CSpot origin before
+remote commands can start audible media. The church PC also needs an active
+interactive Windows session; a browser cannot render audio while every user is
+logged out.
 
 ## During a service
 
@@ -51,8 +69,9 @@ service.
 
 - Prefer wired Ethernet or strong church Wi-Fi for both devices.
 - Disable the television's sleep timer and browser energy-saving timeout.
-- Native TV browsers may require a local Play click before video or audible
-  media can start because of autoplay policies.
+- Native TV browsers may require a local Play click before video can start,
+  although TV playback remains muted. The church PC media receiver must be
+  granted permission for audible autoplay.
 - Use a least-privilege dedicated viewer account on the TV, not an administrator
   account.
 - If the controller loses connectivity or its screen locks, the active session

@@ -531,6 +531,14 @@ media continues to come from the selected source-mix route. This bounds the
 common delayed-start error, although the separate browser video and captured
 audio clocks can still require site-specific delay calibration.
 
+Persistent presentation followers have separate responsibilities. `/app/tv`
+is always visual-only and mutes pre-service, backing-track, and video audio.
+`/app/media` is the church-PC program-media receiver: it discovers the same live
+service and follows the same play/pause/stop timestamps, but enables audio for
+the Windows endpoint feeding the sound desk and optional `pc-media` loopback.
+This receiver requires an interactive desktop browser session; the Audio Bridge
+remains a capture service and does not itself render remotely commanded media.
+
 The Broadcast Mixer combines enabled independent sources into one mono live
 feed with a saved −30 dB to +24 dB digital trim per source and output limiting.
 Five saved scenes define the default role-based routing:
