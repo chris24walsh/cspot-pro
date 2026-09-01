@@ -713,6 +713,9 @@ Search modes:
   opening a date and creating an empty plan does not leave it highlighted.
 - Worship-set calendar styling follows the same content-based rule while
   retaining leader markers independently of whether songs have been added.
+- Shared calendar days accept a generic item count and label. The popup renders
+  these consistently as compact badges that remain visible on mobile, so new
+  calendar workflows do not need to build or responsively style their own count.
 - Service and worship-set archives leave a fresh empty plan on the same date,
   so archive never removes the calendar foundation or reopens a preparation
   prompt. Their immediate Undo actions discard that replacement and restore the

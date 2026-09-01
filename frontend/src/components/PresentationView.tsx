@@ -877,6 +877,8 @@ export function PresentationView({
     return {
       date: dateInput,
       className: `${serviceCalendarItemCount(dateInput) > 0 ? "has-service" : ""} ${isToday ? "is-today" : ""}`.trim(),
+      itemCount: serviceCalendarItemCount(dateInput),
+      itemLabel: "service item",
     };
   }
   const slides = useMemo(
@@ -4259,13 +4261,7 @@ export function PresentationView({
         onDateSelect={(dateInput) => void openServiceDate(dateInput)}
         dayContent={(day) => {
           const date = new Date(`${day.date}T12:00:00`);
-          const itemCount = serviceCalendarItemCount(day.date);
-          return (
-            <>
-              <span>{date.getDate()}</span>
-              {itemCount > 0 ? <small>{`${itemCount} service item${itemCount === 1 ? "" : "s"}`}</small> : null}
-            </>
-          );
+          return <span>{date.getDate()}</span>;
         }}
       />
       {pendingServiceDate ? (

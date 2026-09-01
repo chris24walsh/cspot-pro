@@ -3,10 +3,13 @@ import { ReactNode, useEffect, useLayoutEffect, useMemo, useRef, useState } from
 
 import { useEscapeClose } from "./useEscapeClose";
 
-interface CalendarDay {
+export interface CalendarDay {
   date: string;
   muted?: boolean;
   className?: string;
+  itemCount?: number;
+  itemLabel?: string;
+  itemLabelPlural?: string;
 }
 
 interface CalendarPopupProps {
@@ -58,6 +61,13 @@ export function calendarWeekBounds(dateInput: string) {
   if (Number.isNaN(date.getTime())) return null;
   const start = shiftedDate(dateInput, -date.getDay());
   return { start, end: shiftedDate(start, 6) };
+}
+
+export function calendarItemCountLabel(day: CalendarDay) {
+  if (!day.itemCount || day.itemCount < 1) return "";
+  const singular = day.itemLabel ?? "item";
+  const plural = day.itemLabelPlural ?? `${singular}s`;
+  return `${day.itemCount} ${day.itemCount === 1 ? singular : plural}`;
 }
 
 export function extendCalendarDays(
@@ -193,6 +203,7 @@ export function CalendarPopup({
 
   function renderCalendarDay(day: CalendarDay) {
     const date = new Date(`${day.date}T12:00:00`);
+    const itemCountLabel = calendarItemCountLabel(day);
     const isSelectedWeek = viewMode === "all"
       && selectedWeek !== null
       && day.date >= selectedWeek.start
@@ -200,12 +211,12 @@ export function CalendarPopup({
     return (
       <button
         aria-current={selectedDate === day.date ? "date" : undefined}
-        aria-label={date.toLocaleDateString(undefined, {
+        aria-label={`${date.toLocaleDateString(undefined, {
           day: "numeric",
           month: "long",
           weekday: "long",
           year: "numeric",
-        })}
+        })}${itemCountLabel ? `, ${itemCountLabel}` : ""}`}
         className={`service-calendar-day ${day.muted ? "is-muted" : ""} ${
           selectedDate === day.date ? "is-selected" : ""
         } ${isSelectedWeek ? "is-selected-week" : ""} ${day.className || ""}`}
@@ -220,6 +231,7 @@ export function CalendarPopup({
           </strong>
         ) : null}
         {dayContent(day)}
+        {itemCountLabel ? <small className="calendar-item-count">{itemCountLabel}</small> : null}
       </button>
     );
   }

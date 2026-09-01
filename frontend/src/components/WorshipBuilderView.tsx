@@ -515,6 +515,8 @@ export function WorshipBuilderView({ active = true, canAccessAdminTools, canArch
       className: `${worshipCalendarItemCount(dateInput) > 0 ? "has-service" : ""} ${
         leaderId ? worshipLeaderColors.get(leaderId) ?? "" : ""
       }`.trim(),
+      itemCount: worshipCalendarItemCount(dateInput),
+      itemLabel: "set item",
     };
   }
 
@@ -2528,7 +2530,6 @@ export function WorshipBuilderView({ active = true, canAccessAdminTools, canArch
         dayContent={(day) => {
           const leaderId = worshipLeaderIdForDate(day.date);
           const leader = users.find((user) => user.id === leaderId);
-          const itemCount = worshipCalendarItemCount(day.date);
           const date = new Date(`${day.date}T12:00:00`);
           return (
             <>
@@ -2538,7 +2539,6 @@ export function WorshipBuilderView({ active = true, canAccessAdminTools, canArch
                   {worshipLeaderMarkers.get(leader.id)}
                 </span>
               ) : null}
-              {itemCount > 0 ? <small>{`${itemCount} set item${itemCount === 1 ? "" : "s"}`}</small> : null}
             </>
           );
         }}

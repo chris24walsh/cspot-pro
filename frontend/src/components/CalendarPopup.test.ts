@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { calendarWeekBounds, extendCalendarDays, groupCalendarDays, visibleCalendarDays } from "./CalendarPopup";
+import { calendarItemCountLabel, calendarWeekBounds, extendCalendarDays, groupCalendarDays, visibleCalendarDays } from "./CalendarPopup";
 
 describe("visibleCalendarDays", () => {
   const days = [
@@ -49,5 +49,11 @@ describe("visibleCalendarDays", () => {
   it("finds the complete Sunday-to-Saturday week around a selection", () => {
     expect(calendarWeekBounds("2026-08-21")).toEqual({ start: "2026-08-16", end: "2026-08-22" });
     expect(calendarWeekBounds("2026-08-16")).toEqual({ start: "2026-08-16", end: "2026-08-22" });
+  });
+
+  it("formats reusable calendar item counts with custom plural labels", () => {
+    expect(calendarItemCountLabel({ date: "2026-08-16", itemCount: 1, itemLabel: "entry", itemLabelPlural: "entries" })).toBe("1 entry");
+    expect(calendarItemCountLabel({ date: "2026-08-23", itemCount: 2, itemLabel: "entry", itemLabelPlural: "entries" })).toBe("2 entries");
+    expect(calendarItemCountLabel({ date: "2026-08-30", itemCount: 0 })).toBe("");
   });
 });
