@@ -2211,8 +2211,6 @@ h3 {
 .plan-type-outline-row select,
 .plan-type-settings > label > select,
 .plan-type-settings > label > textarea { background: #fffdf7; border: 1px solid #cfc7b4; border-radius: 8px; color: #17201b; font: inherit; min-height: 38px; padding: 7px 9px; width: 100%; }
-.date-navigator-service-type { max-width: 180px; }
-.date-navigator-service-type span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .service-type-popover { right: 34px; }
 
 .registration-share-panel { display: grid; grid-template-columns: 132px minmax(0, 1fr); gap: 0.8rem; align-items: center; }
@@ -7027,6 +7025,33 @@ button.musician-page {
   justify-content: space-between;
   padding: 8px 10px;
   text-transform: uppercase;
+}
+
+.section-rail-service-type {
+  align-items: center;
+  background: #f7f3e8;
+  border: 1px solid #d8cfb8;
+  border-radius: 5px;
+  color: #4f5d55;
+  cursor: pointer;
+  display: inline-flex;
+  font: inherit;
+  font-size: 10px;
+  gap: 4px;
+  max-width: 65%;
+  min-width: 0;
+  padding: 3px 6px;
+  text-transform: none;
+}
+
+.section-rail-service-type span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.section-rail-service-type:hover {
+  background: #eee7d5;
 }
 
 .section-scaffold-button {

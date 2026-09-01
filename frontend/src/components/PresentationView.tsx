@@ -1,4 +1,4 @@
-import { Archive, CircleStop, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Clock, EyeOff, Mic, MonitorUp, Moon, Pause, Pencil, Play, Plus, RotateCcw, Search, Trash2, Volume2, WandSparkles, X } from "lucide-react";
+import { Archive, CircleStop, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Clock, EyeOff, Layers3, Mic, MonitorUp, Moon, Pause, Pencil, Play, Plus, RotateCcw, Search, Trash2, Volume2, WandSparkles, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
@@ -4113,13 +4113,6 @@ export function PresentationView({
                 nextDisabled={loading || !nextPlannedService}
                 nextLabel="Next service"
                 onHistory={() => void openServiceHistory()}
-                onServiceType={canEditPlan ? () => {
-                  if (!plan) return;
-                  setServiceHistoryOpen(false);
-                  setPendingServiceMode("edit");
-                  setPendingServiceDate(dateInputFromIso(plan.service_date));
-                  setPendingServiceTypeId(plan.plan_type_id);
-                } : undefined}
                 onNext={() => void stepService("next")}
                 onOpenPicker={openServicePicker}
                 onPrevious={() => void stepService("previous")}
@@ -4127,8 +4120,6 @@ export function PresentationView({
                 pickerDisabled={loading}
                 previousDisabled={loading || !previousPlannedService}
                 previousLabel="Previous service"
-                serviceTypeExpanded={pendingServiceMode === "edit" && Boolean(pendingServiceDate)}
-                serviceTypeLabel={currentPlanType?.name ?? "Service type"}
               />
             </div>,
             topbarSlot,
@@ -4733,6 +4724,24 @@ export function PresentationView({
           ) : null}
           <div className="section-rail-title">
             <span>Sections</span>
+            {canEditPlan && plan ? (
+              <button
+                aria-expanded={pendingServiceMode === "edit" && Boolean(pendingServiceDate)}
+                aria-label="Choose service type"
+                className="section-rail-service-type"
+                onClick={() => {
+                  setServiceHistoryOpen(false);
+                  setPendingServiceMode("edit");
+                  setPendingServiceDate(dateInputFromIso(plan.service_date));
+                  setPendingServiceTypeId(plan.plan_type_id);
+                }}
+                title="Choose the type used for this service"
+                type="button"
+              >
+                <Layers3 size={13} aria-hidden="true" />
+                <span>{currentPlanType?.name ?? "Service type"}</span>
+              </button>
+            ) : null}
           </div>
           <div
             className="section-rail-list"
