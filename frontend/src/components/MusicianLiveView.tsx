@@ -453,7 +453,9 @@ export function MusicianLiveView({ controlPlanId, onEditSong, onExit, plan, serv
     ? slides.findIndex((slide, index) => index > liveIndex && slide.planItemId === liveSlide.planItemId && slide.slideKind === "content")
     : liveIndex;
   const pageLeadSlide = slides[pageLeadIndex] ?? liveSlide;
-  const pageNextSlide = slides[pageLeadIndex + 1] ?? null;
+  const pageNextSlide = liveSlide?.slideKind === "title"
+    ? pageLeadSlide
+    : slides[pageLeadIndex + 1] ?? null;
   const pagePreviousSlide = [...slides.slice(0, pageLeadIndex)].reverse().find((slide) => slide.slideKind === "content") ?? null;
   const previousPageLeadIndexRef = useRef(pageLeadIndex);
   const pageTurnDirection = pageLeadIndex < previousPageLeadIndexRef.current ? "backward" : "forward";
@@ -1195,7 +1197,7 @@ export function MusicianLiveView({ controlPlanId, onEditSong, onExit, plan, serv
                 })}
               </section>
             ))}
-            {nextServiceSlide ? (
+            {nextServiceSlide && currentSongIndex === worshipItems.length - 1 ? (
               <button
                 aria-label="Finish worship and move to the next service section"
                 className="musician-song-title-cue musician-worship-end-cue"
