@@ -35,6 +35,7 @@ export interface PresentationSlide {
   montageImageUrls?: string[];
   montageRandom?: boolean;
   preServiceTimed?: boolean;
+  preServiceStage?: "montage" | "countdown" | "complete";
   imageUrl?: string;
   videoUrl?: string;
   videoProvider?: "youtube" | "file";
@@ -344,8 +345,11 @@ export function buildPresentationSections(
     const children = items
       .filter((item) => item.parent_item_id === root.id)
       .sort((left, right) => Number(left.sequence) - Number(right.sequence));
+    const hasWelcomeStages = children.some((child) =>
+      ["welcome_montage", "welcome_countdown", "welcome_seated"].includes(child.item_type),
+    );
     const rootIsContentItem = Boolean(
-      root.song_id || root.comment?.trim() || root.files?.length || root.item_type === "pre_service",
+      root.song_id || root.comment?.trim() || root.files?.length || (root.item_type === "pre_service" && !hasWelcomeStages),
     );
     const memberSections = [
       ...(children.length && !rootIsContentItem ? [] : [rootSection]),
@@ -399,6 +403,33 @@ function buildIndividualPresentationSections(
           text: "",
           montageImageUrls: montageImageUrls.length ? montageImageUrls : [LCF_BACKGROUND_URL],
           montageRandom: item.montage_random,
+          preServiceTimed: true,
+          itemType: item.item_type,
+          sequence: item.sequence,
+        }],
+      };
+    }
+
+    if (["welcome_montage", "welcome_countdown", "welcome_seated"].includes(normalizedItemType)) {
+      const preServiceStage = normalizedItemType === "welcome_montage"
+        ? "montage" as const
+        : normalizedItemType === "welcome_countdown"
+          ? "countdown" as const
+          : "complete" as const;
+      return {
+        ...sectionBase,
+        slides: [{
+          id: item.id,
+          planItemId: item.id,
+          sectionId: item.id,
+          sectionTitle,
+          title: sectionTitle,
+          text: "",
+          montageImageUrls: preServiceStage === "montage"
+            ? (fillerImageUrls.length ? fillerImageUrls : [LCF_BACKGROUND_URL])
+            : [LCF_BACKGROUND_URL],
+          montageRandom: item.montage_random,
+          preServiceStage,
           preServiceTimed: true,
           itemType: item.item_type,
           sequence: item.sequence,

@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.core.database import Base
 from app.modules.identity.models import User
+from app.modules.library.models import ItemFile, StoredFile
 from app.modules.music.models import Song
 from app.modules.planning.models import DefaultItem, Plan, PlanItem, PlanType
 from app.modules.planning.routes import presenter_cannot_change_outline
@@ -27,6 +28,8 @@ def scaffold_session() -> tuple[Session, Plan]:
             Plan.__table__,
             PlanItem.__table__,
             DefaultItem.__table__,
+            StoredFile.__table__,
+            ItemFile.__table__,
         ],
     )
     session = Session(engine)
@@ -48,10 +51,16 @@ def test_empty_sunday_service_gets_complete_timed_scaffold() -> None:
     session, plan = scaffold_session()
     try:
         created = ensure_service_scaffold(session, plan)
-        assert len(created) == 5
-        assert [(item.item_type, item.planned_start) for item in created] == [
+        assert len(created) == 8
+        assert [(item.item_type, item.planned_start) for item in created[:5]] == [
             (section.item_type, section.planned_start) for section in SUNDAY_SERVICE_SCAFFOLD
         ]
+        assert [item.item_type for item in created[5:]] == [
+            "welcome_montage",
+            "welcome_countdown",
+            "welcome_seated",
+        ]
+        assert all(item.parent_item_id == created[0].id for item in created[5:])
         assert ensure_service_scaffold(session, plan) == []
     finally:
         session.close()
@@ -99,6 +108,38 @@ def test_presenter_cannot_change_fixed_sunday_outline_item() -> None:
             assert not presenter_cannot_change_outline(
                 session, SimpleNamespace(id="admin"), item  # type: ignore[arg-type]
             )
+    finally:
+        session.close()
+
+
+def test_existing_welcome_photos_move_to_montage_stage() -> None:
+    session, plan = scaffold_session()
+    try:
+        welcome = PlanItem(plan_id=plan.id, sequence=10, item_type="pre_service", title="Welcome")
+        stored = StoredFile(
+            display_name="Welcome photo",
+            storage_path="/tmp/welcome.jpg",
+            content_type="image/jpeg",
+            checksum="photo",
+        )
+        session.add_all([welcome, stored])
+        session.flush()
+        link = ItemFile(plan_item_id=welcome.id, file_id=stored.id, sort_order=0, persistent=True)
+        session.add(link)
+        session.commit()
+
+        ensure_service_scaffold(session, plan)
+
+        montage = session.scalar(
+            select(PlanItem).where(
+                PlanItem.parent_item_id == welcome.id,
+                PlanItem.item_type == "welcome_montage",
+            )
+        )
+        assert montage is not None
+        session.refresh(link)
+        assert link.plan_item_id == montage.id
+        assert link.persistent is True
     finally:
         session.close()
 

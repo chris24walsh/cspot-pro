@@ -46,6 +46,9 @@ PLAN_HISTORY_ENTITY_TYPE = "plan"
 PLAN_HISTORY_LIMIT = 80
 FIXED_SUNDAY_OUTLINE_ITEM_TYPES = {
     "pre_service",
+    "welcome_montage",
+    "welcome_countdown",
+    "welcome_seated",
     "worship_set",
     "open_time",
     "sermon",
@@ -123,7 +126,7 @@ def plan_item_to_read(session: Session, item: PlanItem) -> PlanItemRead:
     item_files = session.scalars(
         select(ItemFile).where(ItemFile.plan_item_id == item.id).order_by(ItemFile.sort_order)
     ).all()
-    if item.item_type in {"pre_service", "open_time", "sermon", "announcements"}:
+    if item.item_type in {"pre_service", "welcome_montage", "open_time", "sermon", "announcements"}:
         target_plan = session.get(Plan, item.plan_id)
         if target_plan is not None:
             inherited_files = session.scalars(
@@ -134,7 +137,11 @@ def plan_item_to_read(session: Session, item: PlanItem) -> PlanItemRead:
                 .where(
                     ItemFile.persistent.is_(True),
                     PlanItem.id != item.id,
-                    PlanItem.item_type == item.item_type,
+                    PlanItem.item_type.in_(
+                        {"pre_service", "welcome_montage"}
+                        if item.item_type in {"pre_service", "welcome_montage"}
+                        else {item.item_type}
+                    ),
                     PlanItem.deleted_at.is_(None),
                     Plan.deleted_at.is_(None),
                     Plan.service_date < target_plan.service_date,
@@ -167,7 +174,7 @@ def plan_item_to_read(session: Session, item: PlanItem) -> PlanItemRead:
                 }
             )
 
-    if item.item_type == "pre_service":
+    if item.item_type in {"pre_service", "welcome_montage"}:
         montage_category = session.scalar(
             select(FileCategory).where(FileCategory.name == "Pre-service Montage")
         )
@@ -387,7 +394,9 @@ def list_plans(
             select(func.count(PlanItem.id)).where(
                 PlanItem.plan_id == plan.id,
                 PlanItem.deleted_at.is_(None),
-                PlanItem.item_type != "worship_set",
+                PlanItem.item_type.not_in(
+                    {"worship_set", "welcome_montage", "welcome_countdown", "welcome_seated"}
+                ),
                 or_(PlanItem.parent_item_id.is_not(None), PlanItem.song_id.is_not(None)),
             )
         )

@@ -247,6 +247,30 @@ describe("presentation slide derivation", () => {
     expect(slides[0].preServiceTimed).toBe(true);
   });
 
+  it("builds Welcome as three individually selectable automation stages", () => {
+    const slides = buildPresentationSlides([
+      planItem({ id: "welcome", item_type: "pre_service", title: "Welcome" }),
+      planItem({
+        files: [{ content_type: "image/jpeg", display_name: "Church", file_id: "photo-1", id: "photo-link", sort_order: 0 }],
+        id: "welcome-montage",
+        item_type: "welcome_montage",
+        parent_item_id: "welcome",
+        title: "Welcome montage",
+      }),
+      planItem({ id: "welcome-countdown", item_type: "welcome_countdown", parent_item_id: "welcome", title: "Service countdown" }),
+      planItem({ id: "welcome-seated", item_type: "welcome_seated", parent_item_id: "welcome", title: "Please be seated" }),
+    ], []);
+
+    expect(slides).toHaveLength(3);
+    expect(slides.map((slide) => [slide.planItemId, slide.preServiceStage])).toEqual([
+      ["welcome-montage", "montage"],
+      ["welcome-countdown", "countdown"],
+      ["welcome-seated", "complete"],
+    ]);
+    expect(slides[0].montageImageUrls?.[0]).toContain("photo-1");
+    expect(slides[1].montageImageUrls).toEqual([LCF_BACKGROUND_URL]);
+  });
+
   it("expands worship songs from sequence without duplicating stored lyrics", () => {
     const item = planItem({ id: "song-item", item_type: "song", song_id: "song-1", title: "Ignored" });
     const songs = [

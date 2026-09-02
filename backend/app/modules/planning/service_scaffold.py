@@ -4,9 +4,15 @@ from decimal import Decimal
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.modules.library.models import ItemFile
 from app.modules.planning.models import DefaultItem, Plan, PlanItem, PlanType
 
 SUNDAY_SERVICE_PLAN_TYPE = "Sunday Service"
+WELCOME_STAGE_TYPES = (
+    ("welcome_montage", "Welcome montage", Decimal("10")),
+    ("welcome_countdown", "Service countdown", Decimal("20")),
+    ("welcome_seated", "Please be seated", Decimal("30")),
+)
 
 
 @dataclass(frozen=True)
@@ -52,6 +58,61 @@ SUNDAY_SERVICE_SCAFFOLD = (
 def is_sunday_service(session: Session, plan: Plan) -> bool:
     plan_type = session.get(PlanType, plan.plan_type_id)
     return bool(plan_type and plan_type.name == SUNDAY_SERVICE_PLAN_TYPE)
+
+
+def ensure_welcome_stage_items(session: Session, plan: Plan) -> list[PlanItem]:
+    welcome = session.scalar(
+        select(PlanItem).where(
+            PlanItem.plan_id == plan.id,
+            PlanItem.parent_item_id.is_(None),
+            PlanItem.item_type == "pre_service",
+            PlanItem.deleted_at.is_(None),
+        )
+    )
+    if welcome is None:
+        return []
+
+    children = list(
+        session.scalars(
+            select(PlanItem).where(
+                PlanItem.plan_id == plan.id,
+                PlanItem.parent_item_id == welcome.id,
+                PlanItem.deleted_at.is_(None),
+            )
+        ).all()
+    )
+    children_by_type = {item.item_type: item for item in children}
+    created: list[PlanItem] = []
+    for item_type, title, sequence in WELCOME_STAGE_TYPES:
+        if item_type in children_by_type:
+            continue
+        child = PlanItem(
+            plan_id=plan.id,
+            parent_item_id=welcome.id,
+            sequence=sequence,
+            item_type=item_type,
+            title=title,
+        )
+        session.add(child)
+        session.flush()
+        children_by_type[item_type] = child
+        created.append(child)
+
+    montage = children_by_type["welcome_montage"]
+    # Existing Welcome photos belong to the montage stage. Moving the links
+    # preserves both service-specific and persistent media without duplication.
+    migrated_files = False
+    for item_file in session.scalars(
+        select(ItemFile).where(ItemFile.plan_item_id == welcome.id)
+    ).all():
+        item_file.plan_item_id = montage.id
+        migrated_files = True
+
+    if created or migrated_files:
+        session.commit()
+        for item in created:
+            session.refresh(item)
+    return created
 
 
 def ensure_service_scaffold(session: Session, plan: Plan) -> list[PlanItem]:
@@ -106,4 +167,5 @@ def ensure_service_scaffold(session: Session, plan: Plan) -> list[PlanItem]:
         session.commit()
         for item in created:
             session.refresh(item)
+    created.extend(ensure_welcome_stage_items(session, plan))
     return created

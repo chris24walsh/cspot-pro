@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 
 from app.core.database import Base
 from app.modules.broadcast.models import BroadcastViewerSettings
+from app.modules.broadcast.schemas import ServiceScheduleRule
 from app.modules.planning.models import Plan, PlanType
 from app.modules.presentation.models import PresentationPosition, PresentationSession
 from app.modules.presentation.routes import (
@@ -22,6 +23,7 @@ from app.modules.presentation.routes import (
     scheduled_service_window_active,
     update_presentation_live_state,
     update_presentation_output_status,
+    welcome_stage_at,
 )
 
 
@@ -141,6 +143,32 @@ def test_scheduled_service_window_uses_configured_payload_times() -> None:
     )
     assert not scheduled_service_window_active(
         plan, datetime(2026, 9, 2, 21, 1, tzinfo=UTC), payload
+    )
+
+
+def test_welcome_schedule_maps_to_three_child_items() -> None:
+    rule = ServiceScheduleRule(
+        id="sunday",
+        name="Sunday morning",
+        plan_type="Sunday Service",
+        weekday=6,
+        pre_service_start="10:30",
+        countdown_start="10:55",
+        service_start="11:00",
+        cleanup_time="13:30",
+    )
+
+    assert welcome_stage_at(datetime(2026, 8, 30, 10, 30, tzinfo=UTC), rule) == (
+        "welcome_montage",
+        "montage",
+    )
+    assert welcome_stage_at(datetime(2026, 8, 30, 10, 55, tzinfo=UTC), rule) == (
+        "welcome_countdown",
+        "countdown",
+    )
+    assert welcome_stage_at(datetime(2026, 8, 30, 11, 0, tzinfo=UTC), rule) == (
+        "welcome_seated",
+        "complete",
     )
 
 

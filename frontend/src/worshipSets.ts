@@ -50,7 +50,8 @@ export function combinedPlanningItemCount(
 }
 
 export function explicitPlanningItemCount(items: PlanItem[]) {
-  return items.filter((item) => Boolean(item.parent_item_id || item.song_id)).length;
+  const structuralItemTypes = new Set(["welcome_montage", "welcome_countdown", "welcome_seated"]);
+  return items.filter((item) => !structuralItemTypes.has(item.item_type) && Boolean(item.parent_item_id || item.song_id)).length;
 }
 
 export function preferredWorshipSetPlanId(sets: PlanSummary[], now = new Date()) {

@@ -372,8 +372,14 @@ decks while retaining the outline group, and manage images attached to
 Welcome, Open time, and Announcements. Administrators retain structural repair
 controls.
 
-Pre-service montage images are `StoredFile` records attached to Welcome through
-`ItemFile`. Admins and presenters choose whether each new photo is scoped to the
+Welcome is a fixed root group with three protected child `PlanItem` records:
+`welcome_montage`, `welcome_countdown`, and `welcome_seated`. The scheduler
+advances the live `plan_item_id` across those children at Welcome, countdown,
+and service-start time while retaining the legacy `pre_service_phase` field for
+compatible clients and rehearsal controls.
+
+Pre-service montage images are `StoredFile` records attached to the Welcome
+montage child through `ItemFile`. Admins and presenters choose whether each new photo is scoped to the
 current service or inherited by future Welcome sections; legacy global photos
 in the `Pre-service Montage` category remain supported as persistent entries.
 They can manage both kinds from the Welcome section. Image montages begin with

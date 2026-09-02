@@ -69,9 +69,11 @@ Sections should remain visible and directly navigable while presenting.
 
 New Sunday-service plans begin with five simple sections: Welcome, Worship,
 Open time, Sermon, and Announcements. Welcome merges fellowship and seating: its
-photo montage and relaxing music begin at 10:30 with a small corner service-start
-clock, its full countdown appears only at
-10:55, then changes to “Please be seated” at 11:00 until service output takes
+fixed group contains three individually selectable automation items: Welcome
+montage, Service countdown, and Please be seated. The scheduler selects those
+items at the configured boundaries. The photo montage and relaxing music begin
+at 10:30 with a small corner service-start clock, the full countdown begins at
+10:55, then Please be seated is selected at 11:00 until service output takes
 over. Administrators can override those
 clock-driven phases from the Start menu to simulate a Sunday morning at any
 time; the rehearsal uses the same synced display and broadcast state as a live

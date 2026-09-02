@@ -12,10 +12,12 @@ from app.core.database import SessionLocal, get_session
 from app.modules.broadcast.audio_scenes import activate_audio_scene, automatic_scene_for_item
 from app.modules.broadcast.models import BroadcastViewerSettings
 from app.modules.broadcast.recording import schedule_sermon_recording
+from app.modules.broadcast.schemas import ServiceScheduleRule
 from app.modules.broadcast.settings import service_schedules
 from app.modules.identity.auth import list_role_names, require_any_permission, require_permission
 from app.modules.identity.models import User
 from app.modules.planning.models import Plan, PlanItem, PlanType
+from app.modules.planning.service_scaffold import ensure_welcome_stage_items
 from app.modules.presentation.models import PresentationPosition, PresentationSession
 
 router = APIRouter()
@@ -248,6 +250,14 @@ def schedule_time(now_local: datetime, value: str) -> datetime:
     return now_local.replace(hour=hour, minute=minute, second=0, microsecond=0)
 
 
+def welcome_stage_at(now_local: datetime, rule: ServiceScheduleRule) -> tuple[str, str]:
+    if now_local >= schedule_time(now_local, rule.service_start):
+        return "welcome_seated", "complete"
+    if now_local >= schedule_time(now_local, rule.countdown_start):
+        return "welcome_countdown", "countdown"
+    return "welcome_montage", "montage"
+
+
 def admin_rehearsal_visible(
     payload: dict[str, object], *, is_admin: bool, output_active: bool
 ) -> bool:
@@ -299,6 +309,15 @@ def ensure_scheduled_pre_service(session: Session) -> None:
     if scheduled is None:
         return
     plan, rule = scheduled
+    ensure_welcome_stage_items(session, plan)
+    desired_item_type, desired_phase = welcome_stage_at(now_local, rule)
+    desired_item = session.scalar(
+        select(PlanItem).where(
+            PlanItem.plan_id == plan.id,
+            PlanItem.item_type == desired_item_type,
+            PlanItem.deleted_at.is_(None),
+        )
+    )
     cleanup_live_sessions(session, active_plan_id=plan.id)
     latest = _latest_session(session, plan.id)
     if latest and latest.status == "live" and latest.ended_at is None:
@@ -308,7 +327,8 @@ def ensure_scheduled_pre_service(session: Session) -> None:
         if (
             payload.get("auto_started") is True
             and active_item is not None
-            and active_item.item_type == "pre_service"
+            and active_item.item_type
+            in {"pre_service", "welcome_montage", "welcome_countdown", "welcome_seated"}
         ):
             # Once a leader claims the output, or explicitly ends the service,
             # the scheduled pre-service clock no longer owns presentation or
@@ -327,8 +347,20 @@ def ensure_scheduled_pre_service(session: Session) -> None:
                 if now_local >= schedule_time(now_local, rule.service_start)
                 else "pre_service"
             )
+            position_changed = False
+            if desired_item is not None and position.plan_item_id != desired_item.id:
+                position.plan_item_id = desired_item.id
+                position.slide_index = 0
+                payload["plan_item_id"] = desired_item.id
+                payload["slide_offset"] = 0
+                position_changed = True
+            if payload.get("pre_service_phase") != desired_phase:
+                payload["pre_service_phase"] = desired_phase
+                position_changed = True
             if payload.get("service_stage") != desired_stage:
                 payload["service_stage"] = desired_stage
+                position_changed = True
+            if position_changed:
                 payload["updated_at"] = int(datetime.now(UTC).timestamp() * 1000)
                 position.payload_json = json.dumps(payload)
                 session.commit()
@@ -346,7 +378,7 @@ def ensure_scheduled_pre_service(session: Session) -> None:
         latest.status = "ended"
         latest.ended_at = datetime.now(UTC)
         session.commit()
-    first_item = session.scalar(
+    first_item = desired_item or session.scalar(
         select(PlanItem)
         .where(PlanItem.plan_id == plan.id, PlanItem.deleted_at.is_(None))
         .order_by(
@@ -387,7 +419,10 @@ def ensure_scheduled_pre_service(session: Session) -> None:
                     "scheduled_window_end": int(
                         schedule_time(now_local, rule.cleanup_time).timestamp() * 1000
                     ),
-                    "service_stage": "pre_service",
+                    "service_stage": (
+                        "ready" if desired_item_type == "welcome_seated" else "pre_service"
+                    ),
+                    "pre_service_phase": desired_phase,
                 }
             ),
         )

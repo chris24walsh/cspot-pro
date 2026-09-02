@@ -40,6 +40,9 @@ describe("worship set merge", () => {
   it("counts explicit content while ignoring outline containers", () => {
     expect(explicitPlanningItemCount([
       { ...item("sermon-group", "10", "sermon"), parent_item_id: null },
+      { ...item("welcome-montage", "10", "welcome_montage"), parent_item_id: "welcome" },
+      { ...item("welcome-countdown", "20", "welcome_countdown"), parent_item_id: "welcome" },
+      { ...item("welcome-seated", "30", "welcome_seated"), parent_item_id: "welcome" },
       { ...item("sermon-deck", "11", "sermon"), parent_item_id: "sermon-group" },
       { ...item("song", "20", "song", "song-1"), parent_item_id: null },
     ])).toBe(2);

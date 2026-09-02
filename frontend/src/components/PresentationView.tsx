@@ -119,6 +119,7 @@ const AUDIO_FADE_STEPS = 20;
 const AUDIO_FADE_INTERVAL_MS = PROGRAM_AUDIO_FADE_DURATION_MS / AUDIO_FADE_STEPS;
 const REMOTE_LIVE_STATE_POLL_INTERVAL_MS = 250;
 const FILLER_MEDIA_ITEM_TYPES = new Set(["open_time", "sermon", "announcements"]);
+const FIXED_WELCOME_STAGE_TYPES = new Set(["welcome_montage", "welcome_countdown", "welcome_seated"]);
 
 function outputOwnerId() {
   if (crypto.randomUUID) {
@@ -916,7 +917,9 @@ export function PresentationView({
     [effectivePlanItems, songs, renderedSlidesByFileId],
   );
   const liveSlide = slides[liveIndex] ?? null;
-  const preServicePlanItem = effectivePlanItems.find((item) => item.item_type === "pre_service") ?? null;
+  const preServicePlanItem = effectivePlanItems.find((item) => item.item_type === "welcome_montage")
+    ?? effectivePlanItems.find((item) => item.item_type === "pre_service")
+    ?? null;
   const fillerMediaPlanItem = effectivePlanItems.find((item) => item.id === fillerMediaPlanItemId) ?? null;
   const currentPlanItem = effectivePlanItems.find((item) => item.id === liveSlide?.planItemId) ?? null;
   const activeSermonRecording = broadcastRecordings.find(
@@ -937,7 +940,16 @@ export function PresentationView({
       : "";
   const stageContextCounter = liveSlide?.itemType === "song" ? liveSectionCounter : null;
   const stageSlideCounter = liveSectionCounter ?? `${liveIndex + 1} / ${slides.length}`;
-  const isWelcomePlanItem = ["pre_service", "welcome", "opening", "seating", "countdown"].includes(
+  const isWelcomePlanItem = [
+    "pre_service",
+    "welcome",
+    "welcome_montage",
+    "welcome_countdown",
+    "welcome_seated",
+    "opening",
+    "seating",
+    "countdown",
+  ].includes(
     currentPlanItem?.item_type ?? "",
   );
   const currentPlanItemAllowsNotes =
@@ -1583,7 +1595,15 @@ export function PresentationView({
   }
 
   async function showPreServiceRehearsalPhase(phase: "montage" | "countdown" | "complete") {
-    const welcomeIndex = slides.findIndex((slide) => slide.itemType === "pre_service");
+    const stageType = phase === "montage"
+      ? "welcome_montage"
+      : phase === "countdown"
+        ? "welcome_countdown"
+        : "welcome_seated";
+    const stageIndex = slides.findIndex((slide) => slide.itemType === stageType);
+    const welcomeIndex = stageIndex >= 0
+      ? stageIndex
+      : slides.findIndex((slide) => slide.itemType === "pre_service");
     if (welcomeIndex < 0) {
       setMessage("This service does not have a Welcome section to rehearse.");
       return;
@@ -1609,13 +1629,14 @@ export function PresentationView({
     if (!slideshowOpen && !(await startSlideshow(openSlideshowWindowOnStart))) {
       return;
     }
-    const welcomeIndex = slides.findIndex((slide) => slide.itemType === "pre_service");
-    const nextIndex = welcomeIndex >= 0 ? welcomeIndex : liveIndex;
+    const welcomeIndex = slides.findIndex((slide) => slide.itemType === "welcome_seated");
+    const legacyWelcomeIndex = slides.findIndex((slide) => slide.itemType === "pre_service");
+    const nextIndex = welcomeIndex >= 0 ? welcomeIndex : legacyWelcomeIndex >= 0 ? legacyWelcomeIndex : liveIndex;
     setLiveIndex(nextIndex);
-    setLiveBlanked(false);
+    setLiveBlanked(true);
     setSlideshowStartMenuOpen(false);
     await publishLiveState(nextIndex, {
-      blanked: false,
+      blanked: true,
       serviceStage: "service",
       preServicePhase: "waiting",
     });
@@ -1741,7 +1762,7 @@ export function PresentationView({
 
     outputOwnerIdRef.current = ownerId;
     setSlideshowOpen(true);
-    const startOnBackground = liveSlide?.itemType === "pre_service";
+    const startOnBackground = ["pre_service", "welcome_montage", "welcome_countdown", "welcome_seated"].includes(liveSlide?.itemType ?? "");
     setLiveBlanked(startOnBackground);
     await publishLiveState(liveIndex, { blanked: startOnBackground, serviceStage: "service", preServicePhase: null });
 
@@ -4446,7 +4467,7 @@ export function PresentationView({
                   style={{ backgroundImage: `url(${LCF_BACKGROUND_URL})` }}
                 />
               ) : liveSlide?.montageImageUrls && plan ? (
-                <PreServiceSlide backgroundImageUrl={LCF_BACKGROUND_URL} imageUrls={liveSlide.montageImageUrls} random={liveSlide.montageRandom} serviceDate={plan.service_date} timed={Boolean(liveSlide.preServiceTimed)} phase={currentLiveStateRef.current?.preServicePhase} phaseStartedAt={currentLiveStateRef.current?.updatedAt} schedule={serviceScheduleForPlan(serviceSchedules, plan.service_date, plan.plan_type)} />
+                <PreServiceSlide backgroundImageUrl={LCF_BACKGROUND_URL} imageUrls={liveSlide.montageImageUrls} random={liveSlide.montageRandom} serviceDate={plan.service_date} timed={Boolean(liveSlide.preServiceTimed)} phase={liveSlide.preServiceStage ?? currentLiveStateRef.current?.preServicePhase} phaseStartedAt={currentLiveStateRef.current?.updatedAt} schedule={serviceScheduleForPlan(serviceSchedules, plan.service_date, plan.plan_type)} />
               ) : liveSlide?.countdownSeconds ? (
                 <CountdownSlide
                   durationSeconds={liveSlide.countdownSeconds}
@@ -5058,7 +5079,7 @@ export function PresentationView({
                     ) : null}
                     {groupExpanded ? (
                       <div className="section-group-items">
-                        {canEditPlan ? (
+                        {canEditPlan && section.itemType !== "pre_service" ? (
                           <button
                             aria-label={`Add item at the start of ${section.title}`}
                             className="section-group-insert-button"
@@ -5090,13 +5111,13 @@ export function PresentationView({
                                   type="button"
                                 >{playingAudioSectionId === item.id ? <Pause size={14} aria-hidden="true" /> : <Play size={14} aria-hidden="true" />}</button>
                               ) : null}
-                              {canEditPlan ? <div className="section-group-item-actions">
+                              {canEditPlan && !FIXED_WELCOME_STAGE_TYPES.has(item.item_type) ? <div className="section-group-item-actions">
                                 <button className="section-icon-button" disabled={itemIndex === 0} onClick={() => void moveSection(item.id, -1)} title="Move item up" type="button"><ChevronUp size={15} /></button>
                                 <button className="section-icon-button" disabled={itemIndex === groupItems.length - 1} onClick={() => void moveSection(item.id, 1)} title="Move item down" type="button"><ChevronDown size={15} /></button>
                                 <button className="section-icon-button section-remove-button" onClick={() => void removeSection(item.id)} title="Remove item" type="button"><Trash2 size={15} /></button>
                               </div> : null}
                             </div>
-                            {canEditPlan ? (
+                            {canEditPlan && section.itemType !== "pre_service" ? (
                               <button
                                 aria-label={`Add item after ${item.title}`}
                                 className="section-group-insert-button"
@@ -5114,7 +5135,7 @@ export function PresentationView({
                         })}
                       </div>
                     ) : null}
-                    {canEditPlan && !groupItems.length && section.itemType !== WORSHIP_SET_ANCHOR_ITEM_TYPE ? (
+                    {canEditPlan && !groupItems.length && section.itemType !== WORSHIP_SET_ANCHOR_ITEM_TYPE && section.itemType !== "pre_service" ? (
                       <button
                         aria-label={`Add item to ${section.title}`}
                         className="section-group-insert-button section-group-empty-insert"
