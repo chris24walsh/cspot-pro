@@ -197,6 +197,22 @@ describe("presentation slide derivation", () => {
     expect(montage[0].montageImageUrls).toHaveLength(2);
   });
 
+  it("shows attached images on child items regardless of their outline type", () => {
+    const slides = buildPresentationSlides([
+      planItem({ id: "group", item_type: "custom", title: "Visuals" }),
+      planItem({
+        files: [{ content_type: "image/jpeg", display_name: "Still", file_id: "still-1", id: "link-1", sort_order: 0 }],
+        id: "image-item",
+        item_type: "reading",
+        parent_item_id: "group",
+        title: "Still",
+      }),
+    ], []);
+
+    expect(slides[0]).toMatchObject({ planItemId: "image-item", sectionId: "group" });
+    expect(slides[0].imageUrl).toContain("still-1");
+  });
+
   it("turns pre-service photos into one montage slide", () => {
     const slides = buildPresentationSlides([
       planItem({

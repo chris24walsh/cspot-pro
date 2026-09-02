@@ -1380,7 +1380,7 @@ export function PresentationView({
 
     const boundedIndex = Math.min(Math.max(nextIndex, 0), slideCount - 1);
     const targetSlide = slides[boundedIndex];
-    if (playingAudioSectionId && targetSlide?.sectionId !== playingAudioSectionId) {
+    if (playingAudioSectionId && targetSlide?.planItemId !== playingAudioSectionId) {
       const confirmed = await confirm({
         confirmLabel: "Fade Out",
         message: "This will fade out the playing YouTube audio. Continue?",
@@ -1429,6 +1429,11 @@ export function PresentationView({
     return (firstVisibleSlide ? thumbnailRefs.current[firstVisibleSlide.id] : null) ?? sorterSectionRefs.current[slide.sectionId] ?? null;
   }
 
+  function railTargetForSlide(slide: PresentationSlide | null | undefined) {
+    if (!slide) return null;
+    return sectionRailRefs.current[slide.planItemId] ?? sectionRailRefs.current[slide.sectionId] ?? null;
+  }
+
   function selectSlideFromOperator(nextIndex: number) {
     const targetSlide = slides[Math.min(Math.max(nextIndex, 0), Math.max(slides.length - 1, 0))];
     catchUpCheckTokenRef.current += 1;
@@ -1447,7 +1452,7 @@ export function PresentationView({
           slideGridRef.current,
           sorterTargetForSlide(targetSlide),
         );
-        scrollItemIntoOperatorView(sectionRailListRef.current, sectionRailRefs.current[targetSlide.sectionId] ?? null);
+        scrollItemIntoOperatorView(sectionRailListRef.current, railTargetForSlide(targetSlide));
       });
     }
     setLiveSlide(nextIndex);
@@ -1457,7 +1462,7 @@ export function PresentationView({
     const activeSlide = slides[index];
     const sorterTarget = sorterTargetForSlide(activeSlide);
     const nextSorterDirection = slideVisibilityDirection(slideGridRef.current, sorterTarget);
-    const nextRailDirection = slideVisibilityDirection(sectionRailListRef.current, activeSlide ? sectionRailRefs.current[activeSlide.sectionId] ?? null : null);
+    const nextRailDirection = slideVisibilityDirection(sectionRailListRef.current, railTargetForSlide(activeSlide));
     sorterCatchUpDirectionRef.current = nextSorterDirection;
     railCatchUpDirectionRef.current = nextRailDirection;
     setSorterCatchUpDirection(nextSorterDirection);
@@ -1478,7 +1483,7 @@ export function PresentationView({
       slideGridRef.current,
       sorterTargetForSlide(activeSlide),
     );
-    scrollItemIntoOperatorView(sectionRailListRef.current, sectionRailRefs.current[activeSlide.sectionId] ?? null);
+    scrollItemIntoOperatorView(sectionRailListRef.current, railTargetForSlide(activeSlide));
     sorterCatchUpDirectionRef.current = null;
     railCatchUpDirectionRef.current = null;
     setSorterCatchUpDirection(null);
@@ -1515,7 +1520,7 @@ export function PresentationView({
     if (audioIndex < 0) {
       return;
     }
-    const targetIndex = liveSlide?.sectionId === section.id ? liveIndex : audioIndex;
+    const targetIndex = liveSlide?.planItemId === section.id ? liveIndex : audioIndex;
     if (isPlaying) {
       publishFadeOutAudio();
       return;
@@ -2254,6 +2259,15 @@ export function PresentationView({
       setMessage(error instanceof Error ? error.message : "Could not remove the slide image.");
     } finally {
       setFillerMediaBusy(false);
+    }
+  }
+
+  async function setMontageRandom(item: PlanItem, random: boolean) {
+    try {
+      await updatePlanItem(item.id, { montage_random: random });
+      await load(item.plan_id, { silent: true });
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not update montage order.");
     }
   }
 
@@ -3798,7 +3812,7 @@ export function PresentationView({
         }
         if (shouldFollowRail) {
           railProgrammaticScrollUntilRef.current = Date.now() + 900;
-          scrollItemIntoOperatorView(sectionRailListRef.current, sectionRailRefs.current[activeSlide.sectionId] ?? null);
+          scrollItemIntoOperatorView(sectionRailListRef.current, railTargetForSlide(activeSlide));
           railCatchUpDirectionRef.current = null;
           setRailCatchUpDirection(null);
         }
@@ -3849,7 +3863,7 @@ export function PresentationView({
         slideGridRef.current,
         sorterTargetForSlide(activeSlide),
       );
-      scrollItemIntoOperatorView(sectionRailListRef.current, sectionRailRefs.current[activeSlide.sectionId] ?? null);
+      scrollItemIntoOperatorView(sectionRailListRef.current, railTargetForSlide(activeSlide));
     });
   }, [liveIndex, sections, slides]);
 
@@ -4443,7 +4457,7 @@ export function PresentationView({
                   style={{ backgroundImage: `url(${LCF_BACKGROUND_URL})` }}
                 />
               ) : liveSlide?.montageImageUrls && plan ? (
-                <PreServiceSlide backgroundImageUrl={LCF_BACKGROUND_URL} imageUrls={liveSlide.montageImageUrls} serviceDate={plan.service_date} timed={liveSlide.itemType === "pre_service"} phase={currentLiveStateRef.current?.preServicePhase} phaseStartedAt={currentLiveStateRef.current?.updatedAt} schedule={serviceScheduleForPlan(serviceSchedules, plan.service_date, plan.plan_type)} />
+                <PreServiceSlide backgroundImageUrl={LCF_BACKGROUND_URL} imageUrls={liveSlide.montageImageUrls} random={liveSlide.montageRandom} serviceDate={plan.service_date} timed={liveSlide.itemType === "pre_service"} phase={currentLiveStateRef.current?.preServicePhase} phaseStartedAt={currentLiveStateRef.current?.updatedAt} schedule={serviceScheduleForPlan(serviceSchedules, plan.service_date, plan.plan_type)} />
               ) : liveSlide?.countdownSeconds ? (
                 <CountdownSlide
                   durationSeconds={liveSlide.countdownSeconds}
@@ -4974,7 +4988,7 @@ export function PresentationView({
             className="section-rail-list"
             onScroll={() => {
               const activeSlide = slides[liveIndex];
-              const nextDirection = slideVisibilityDirection(sectionRailListRef.current, activeSlide ? sectionRailRefs.current[activeSlide.sectionId] ?? null : null);
+              const nextDirection = slideVisibilityDirection(sectionRailListRef.current, railTargetForSlide(activeSlide));
               railCatchUpDirectionRef.current = nextDirection;
               setRailCatchUpDirection(nextDirection);
               if (nextDirection && Date.now() > railProgrammaticScrollUntilRef.current) {
@@ -4997,7 +5011,7 @@ export function PresentationView({
               const sectionStart = slides.findIndex((slide) => slide.sectionId === section.id);
               const ownerItems = sectionOwner(section.id) === "worship" ? orderedWorshipSetItems() : orderedPlanItemsWithWorshipAnchor();
               const ownerItemIndex = ownerItems.findIndex((item) => item.id === section.id);
-              const sectionAudioSlide = section.slides.find((slide) => slide.youtubeAudioUrl);
+              const sectionAudioSlide = section.slides.find((slide) => slide.planItemId === section.id && slide.youtubeAudioUrl);
               const sectionAudioPlaying = playingAudioSectionId === section.id;
               const sectionItem = sectionPlanItem(section.id);
               const fixedOutlineSection = Boolean(
@@ -5014,7 +5028,8 @@ export function PresentationView({
               const groupItems = effectivePlanItems
                 .filter((item) => item.parent_item_id === section.id)
                 .sort((left, right) => Number(left.sequence) - Number(right.sequence));
-              const groupExpanded = expandedRailGroupIds.has(section.id);
+              const activeGroupItem = groupItems.some((item) => item.id === liveSlide?.planItemId);
+              const groupExpanded = expandedRailGroupIds.has(section.id) || activeGroupItem;
               const worshipGroup = section.itemType === WORSHIP_SET_ANCHOR_ITEM_TYPE;
               return (
                 <div
@@ -5026,7 +5041,7 @@ export function PresentationView({
                 >
                   <div
                     className={`section-rail-item ${presentationTypeClass(section.itemType)} ${
-                      liveSlide?.sectionId === section.id ? "active" : ""
+                      liveSlide?.planItemId === section.id ? "active" : ""
                     }`}
                   >
                     <button
@@ -5071,10 +5086,21 @@ export function PresentationView({
                           const itemSlideIndex = slides.findIndex((slide) => slide.planItemId === item.id);
                           return (
                             <Fragment key={item.id}>
-                            <div className={`section-group-item ${liveSlide?.planItemId === item.id ? "active" : ""}`}>
+                            <div className={`section-group-item ${liveSlide?.planItemId === item.id ? "active" : ""}`} ref={(element) => { sectionRailRefs.current[item.id] = element; }}>
                               <button onClick={() => itemSlideIndex >= 0 && selectSlideFromOperator(itemSlideIndex)} type="button">
                                 <span>{itemIndex + 1}</span><strong>{item.title}</strong>
                               </button>
+                              {section.slides.some((slide) => slide.planItemId === item.id && slide.youtubeAudioUrl) ? (
+                                <button
+                                  aria-label={`${playingAudioSectionId === item.id ? "Fade out" : "Play"} YouTube audio for ${item.title}`}
+                                  aria-pressed={playingAudioSectionId === item.id}
+                                  className={`section-icon-button section-audio-button ${playingAudioSectionId === item.id ? "is-active" : ""}`}
+                                  disabled={!audioControlsEnabled && playingAudioSectionId !== item.id}
+                                  onClick={() => void toggleSectionAudio({ id: item.id, slides: section.slides.filter((slide) => slide.planItemId === item.id) })}
+                                  title={audioControlsEnabled || playingAudioSectionId === item.id ? `${playingAudioSectionId === item.id ? "Fade out" : "Play"} YouTube audio` : "Enable audio on the preview first"}
+                                  type="button"
+                                >{playingAudioSectionId === item.id ? <Pause size={14} aria-hidden="true" /> : <Play size={14} aria-hidden="true" />}</button>
+                              ) : null}
                               {canEditPlan ? <div className="section-group-item-actions">
                                 <button className="section-icon-button" disabled={itemIndex === 0} onClick={() => void moveSection(item.id, -1)} title="Move item up" type="button"><ChevronUp size={15} /></button>
                                 <button className="section-icon-button" disabled={itemIndex === groupItems.length - 1} onClick={() => void moveSection(item.id, 1)} title="Move item down" type="button"><ChevronDown size={15} /></button>
@@ -5658,6 +5684,10 @@ export function PresentationView({
                 type="file"
               />
             </label>
+            <label className="inline-checkbox">
+              <input checked={Boolean(fillerMediaPlanItem.montage_random)} disabled={fillerMediaBusy} onChange={(event) => void setMontageRandom(fillerMediaPlanItem, event.target.checked)} type="checkbox" />
+              <span>Randomise montage order</span>
+            </label>
             <div className="pre-service-media-grid">
               {fillerMediaPlanItem.files.filter((file) => file.content_type?.startsWith("image/")).map((file) => (
                 <article key={file.id}>
@@ -5715,6 +5745,10 @@ export function PresentationView({
                 type="file"
               />
             </label>
+            {preServicePlanItem ? <label className="inline-checkbox">
+              <input checked={Boolean(preServicePlanItem.montage_random)} disabled={preServiceMediaBusy} onChange={(event) => void setMontageRandom(preServicePlanItem, event.target.checked)} type="checkbox" />
+              <span>Randomise montage order</span>
+            </label> : null}
             <div className="pre-service-media-grid">
               {(preServicePlanItem?.files ?? []).filter((file) => file.content_type?.startsWith("image/")).map((file) => (
                 <article key={file.id}>

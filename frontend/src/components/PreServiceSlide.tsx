@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { ServiceScheduleRule } from "../api";
 
 function serviceDayTimestamp(serviceDate: string, hour: number, minute: number) {
@@ -76,6 +76,7 @@ export function PreServiceSlide({
   phase: forcedPhase,
   phaseStartedAt,
   schedule,
+  random = false,
 }: {
   backgroundImageUrl: string;
   imageUrls: string[];
@@ -84,13 +85,26 @@ export function PreServiceSlide({
   phase?: "waiting" | "montage" | "countdown" | "complete" | null;
   phaseStartedAt?: number;
   schedule?: ServiceScheduleRule;
+  random?: boolean;
 }) {
   const [now, setNow] = useState(Date.now());
-  const images = imageUrls.filter(Boolean);
+  const selectedAt = useRef(Date.now());
+  const imageKey = imageUrls.filter(Boolean).join("\u0000");
+  const images = useMemo(() => {
+    const next = imageKey ? imageKey.split("\u0000") : [];
+    if (!random) return next;
+    const seed = phaseStartedAt ?? selectedAt.current;
+    const score = (value: string) => {
+      let hash = seed | 0;
+      for (let index = 0; index < value.length; index += 1) hash = Math.imul(hash ^ value.charCodeAt(index), 16777619);
+      return hash >>> 0;
+    };
+    return [...next].sort((left, right) => score(left) - score(right));
+  }, [imageKey, phaseStartedAt, random]);
   // Ordinary section montages reuse the photo crossfade, but must not inherit
   // the global pre-service clock/countdown phase.
   const phase = timed ? (forcedPhase ?? preServicePhaseAt(serviceDate, now, schedule)) : "montage";
-  const montageImageIndex = Math.floor(now / 12_000) % Math.max(images.length, 1);
+  const montageImageIndex = Math.floor((now - (phaseStartedAt ?? selectedAt.current)) / 12_000) % Math.max(images.length, 1);
   const remaining = preServiceRemainingSeconds(serviceDate, now, forcedPhase, phaseStartedAt, schedule);
   const displayPhase = phase === "countdown" && remaining === 0 ? "complete" : phase;
   const displayedCountdownLabel = useRef(countdownLabel(remaining));

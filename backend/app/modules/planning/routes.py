@@ -203,6 +203,7 @@ def plan_item_to_read(session: Session, item: PlanItem) -> PlanItemRead:
         planned_start=item.planned_start,
         comment=item.comment,
         key_signature=item.key_signature,
+        montage_random=item.montage_random,
         files=files,
         teacher_notes=teacher_note.body if teacher_note else None,
     )

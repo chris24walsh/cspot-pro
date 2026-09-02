@@ -33,6 +33,7 @@ export interface PresentationSlide {
   backgroundImageUrl?: string;
   countdownSeconds?: number;
   montageImageUrls?: string[];
+  montageRandom?: boolean;
   imageUrl?: string;
   videoUrl?: string;
   videoProvider?: "youtube" | "file";
@@ -375,11 +376,9 @@ function buildIndividualPresentationSections(
     const sectionTitle = song?.title ?? item.title;
     const sectionBase = { id: item.id, title: sectionTitle, itemType: item.item_type, plannedStart: item.planned_start };
     const normalizedItemType = item.item_type.trim().toLowerCase();
-    const fillerImageUrls = ["open_time", "sermon", "announcements"].includes(normalizedItemType)
-      ? (item.files ?? [])
-          .filter((file) => file.content_type?.startsWith("image/"))
-          .map((file) => storedFileDownloadUrl(file.file_id))
-      : [];
+    const fillerImageUrls = (item.files ?? [])
+      .filter((file) => file.content_type?.startsWith("image/"))
+      .map((file) => storedFileDownloadUrl(file.file_id));
     const hasSectionContent = Boolean(
       item.comment?.trim() || song?.lyrics?.trim() || (item.files ?? []).some((file) => !file.content_type?.startsWith("image/")),
     );
@@ -398,6 +397,7 @@ function buildIndividualPresentationSections(
           title: sectionTitle,
           text: "",
           montageImageUrls: montageImageUrls.length ? montageImageUrls : [LCF_BACKGROUND_URL],
+          montageRandom: item.montage_random,
           itemType: item.item_type,
           sequence: item.sequence,
         }],
@@ -517,6 +517,7 @@ function buildIndividualPresentationSections(
           : undefined,
       imageUrl: fillerImageUrls.length === 1 ? fillerImageUrls[0] : undefined,
       montageImageUrls: fillerImageUrls.length > 1 ? fillerImageUrls : undefined,
+      montageRandom: item.montage_random,
       countdownSeconds: ["seating", "countdown"].includes(normalizedItemType) ? 300 : undefined,
       itemType: item.item_type,
       sequence: item.sequence,

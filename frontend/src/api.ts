@@ -94,6 +94,7 @@ export interface PlanItem {
   key_signature: string | null;
   files: PlanItemFile[];
   teacher_notes: string | null;
+  montage_random?: boolean;
 }
 
 export interface PlanHistorySnapshotItem {
@@ -527,6 +528,7 @@ export interface PlanItemPayload {
   key_signature: string | null;
   song_id: string | null;
   teacher_notes?: string | null;
+  montage_random?: boolean;
 }
 
 export interface PlanHistoryPayload {

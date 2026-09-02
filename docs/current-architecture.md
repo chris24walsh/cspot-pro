@@ -376,7 +376,10 @@ Pre-service montage images are `StoredFile` records attached to Welcome through
 `ItemFile`. Admins and presenters choose whether each new photo is scoped to the
 current service or inherited by future Welcome sections; legacy global photos
 in the `Pre-service Montage` category remain supported as persistent entries.
-They can manage both kinds from the Welcome section. An open network display or viewer
+They can manage both kinds from the Welcome section. Image montages begin with
+their first configured image whenever the slide is selected; an item-level
+option can instead apply a deterministic random order shared by every output.
+An open network display or viewer
 poll creates a scheduled live presentation when a configured service rule begins,
 selects Welcome, and activates the dedicated Pre-service audio scene. The
 rules are managed in Admin settings and match a plan type and weekday, with

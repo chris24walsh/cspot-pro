@@ -49,6 +49,7 @@ class PlanItemBase(BaseModel):
     comment: str | None = None
     key_signature: str | None = None
     song_id: str | None = None
+    montage_random: bool = False
 
 
 class PlanItemCreate(PlanItemBase):
@@ -65,6 +66,7 @@ class PlanItemUpdate(BaseModel):
     key_signature: str | None = None
     song_id: str | None = None
     teacher_notes: str | None = None
+    montage_random: bool | None = None
 
 
 class PlanItemRead(PlanItemBase):
