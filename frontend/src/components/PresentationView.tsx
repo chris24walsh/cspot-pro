@@ -3514,13 +3514,6 @@ export function PresentationView({
     void load(undefined, { refreshCatalogs: true });
   }, []);
 
-  const presentationWasActiveRef = useRef(active);
-  useEffect(() => {
-    const wasActive = presentationWasActiveRef.current;
-    presentationWasActiveRef.current = active;
-    if (active && !wasActive) void load(undefined, { refreshCatalogs: true });
-  }, [active]);
-
   useEffect(() => {
     setTopbarSlot(document.getElementById("workspace-topbar-slot"));
   }, []);

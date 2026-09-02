@@ -375,13 +375,6 @@ export function SundaySchoolView({ active = true, canEdit }: { active?: boolean;
     void load();
   }, []);
 
-  const sundaySchoolWasActiveRef = useRef(active);
-  useEffect(() => {
-    const wasActive = sundaySchoolWasActiveRef.current;
-    sundaySchoolWasActiveRef.current = active;
-    if (active && !wasActive) void load();
-  }, [active]);
-
   useDurableChange(() => {
     void load(true);
   }, active, ["planning", "identity"]);

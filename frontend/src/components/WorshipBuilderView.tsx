@@ -850,13 +850,6 @@ export function WorshipBuilderView({ active = true, canAccessAdminTools, canArch
     void load();
   }, []);
 
-  const worshipWasActiveRef = useRef(active);
-  useEffect(() => {
-    const wasActive = worshipWasActiveRef.current;
-    worshipWasActiveRef.current = active;
-    if (active && !wasActive) void load();
-  }, [active]);
-
   useDurableChange(() => {
     void load(selectedPlanId, true);
   }, active, ["planning", "music", "identity"]);

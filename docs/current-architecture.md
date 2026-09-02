@@ -638,8 +638,9 @@ configured start time has passed; types without a start time remain editable
 through the service day and lock the following day. Default selection is
 date-based across Service, Worship, and Sunday School. It chooses the earlier
 of the next Sunday and the next non-empty plan date; empty records materialized
-by calendar browsing do not become defaults. Explicit calendar navigation
-remains selected until the user leaves or reloads the view.
+by calendar browsing do not become defaults. Each mounted view retains its last
+explicit calendar selection while switching modules; defaults are reapplied
+only after a hard page refresh.
 
 The current intended presenter layout has three roles:
 
