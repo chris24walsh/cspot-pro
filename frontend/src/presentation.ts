@@ -34,6 +34,7 @@ export interface PresentationSlide {
   countdownSeconds?: number;
   montageImageUrls?: string[];
   montageRandom?: boolean;
+  preServiceTimed?: boolean;
   imageUrl?: string;
   videoUrl?: string;
   videoProvider?: "youtube" | "file";
@@ -383,7 +384,7 @@ function buildIndividualPresentationSections(
       item.comment?.trim() || song?.lyrics?.trim() || (item.files ?? []).some((file) => !file.content_type?.startsWith("image/")),
     );
 
-    if (normalizedItemType === "pre_service") {
+    if (normalizedItemType === "pre_service" && !item.parent_item_id) {
       const montageImageUrls = (item.files ?? [])
         .filter((file) => file.content_type?.startsWith("image/"))
         .map((file) => storedFileDownloadUrl(file.file_id));
@@ -398,6 +399,7 @@ function buildIndividualPresentationSections(
           text: "",
           montageImageUrls: montageImageUrls.length ? montageImageUrls : [LCF_BACKGROUND_URL],
           montageRandom: item.montage_random,
+          preServiceTimed: true,
           itemType: item.item_type,
           sequence: item.sequence,
         }],

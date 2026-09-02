@@ -4446,7 +4446,7 @@ export function PresentationView({
                   style={{ backgroundImage: `url(${LCF_BACKGROUND_URL})` }}
                 />
               ) : liveSlide?.montageImageUrls && plan ? (
-                <PreServiceSlide backgroundImageUrl={LCF_BACKGROUND_URL} imageUrls={liveSlide.montageImageUrls} random={liveSlide.montageRandom} serviceDate={plan.service_date} timed={liveSlide.itemType === "pre_service"} phase={currentLiveStateRef.current?.preServicePhase} phaseStartedAt={currentLiveStateRef.current?.updatedAt} schedule={serviceScheduleForPlan(serviceSchedules, plan.service_date, plan.plan_type)} />
+                <PreServiceSlide backgroundImageUrl={LCF_BACKGROUND_URL} imageUrls={liveSlide.montageImageUrls} random={liveSlide.montageRandom} serviceDate={plan.service_date} timed={Boolean(liveSlide.preServiceTimed)} phase={currentLiveStateRef.current?.preServicePhase} phaseStartedAt={currentLiveStateRef.current?.updatedAt} schedule={serviceScheduleForPlan(serviceSchedules, plan.service_date, plan.plan_type)} />
               ) : liveSlide?.countdownSeconds ? (
                 <CountdownSlide
                   durationSeconds={liveSlide.countdownSeconds}

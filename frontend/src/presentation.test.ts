@@ -213,6 +213,24 @@ describe("presentation slide derivation", () => {
     expect(slides[0].imageUrl).toContain("still-1");
   });
 
+  it("renders an image child of Welcome as a normal image slide", () => {
+    const slides = buildPresentationSlides([
+      planItem({ id: "welcome", item_type: "pre_service", title: "Welcome" }),
+      planItem({
+        files: [{ content_type: "image/png", display_name: "Invite", file_id: "invite-1", id: "link-1", sort_order: 0 }],
+        id: "invite-item",
+        item_type: "pre_service",
+        parent_item_id: "welcome",
+        title: "Invite",
+      }),
+    ], []);
+
+    const inviteSlide = slides.find((slide) => slide.planItemId === "invite-item");
+    expect(inviteSlide).toMatchObject({ imageUrl: expect.stringContaining("invite-1"), planItemId: "invite-item" });
+    expect(inviteSlide?.montageImageUrls).toBeUndefined();
+    expect(inviteSlide?.preServiceTimed).toBeUndefined();
+  });
+
   it("turns pre-service photos into one montage slide", () => {
     const slides = buildPresentationSlides([
       planItem({
@@ -226,6 +244,7 @@ describe("presentation slide derivation", () => {
     expect(slides).toHaveLength(1);
     expect(slides[0].montageImageUrls).toHaveLength(1);
     expect(slides[0].montageImageUrls?.[0]).toContain("photo-1");
+    expect(slides[0].preServiceTimed).toBe(true);
   });
 
   it("expands worship songs from sequence without duplicating stored lyrics", () => {
