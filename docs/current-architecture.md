@@ -272,11 +272,14 @@ This works operationally, but may still differ visually from PowerPoint.
 ### Sunday School lessons
 
 `sunday_school` owns date-based lesson records for emergency cover and lesson
-preparation. It stores structured lesson fields plus a lightweight resource
-catalog for purchased/local lesson files. Resource import stores metadata,
-classification, and file links rather than copying lesson packet body text into
-the database. The frontend treats every Sunday as an available lesson slot and
-creates the persisted lesson lazily on its first save or assignment change.
+preparation. Its desktop and mobile workspace mirrors Worship's Library/Set
+concept: expandable element groups offer contextual or catalog suggestions on
+the left, while a flexible ordered board holds what has actually been added for
+the Sunday. Theme and Bible Reference remain lightweight suggestion metadata.
+Board items can reference catalog resources, shared-library uploads, or plain
+content; legacy structured lesson fields remain readable and are surfaced as
+board items when an older lesson has no board data. Lessons are still created
+lazily on their first save or assignment change.
 
 ## Frontend Architecture
 
@@ -734,7 +737,7 @@ Search modes:
   these consistently as number-only badges that remain visible on mobile, so new
   calendar workflows do not need to build or responsively style their own count.
   Counts include explicit leaf content only: service outline/template containers
-  are excluded, as are Sunday School's fixed lesson-element containers.
+  are excluded, while Sunday School counts the items added to its lesson board.
 - Sunday School edit history includes an Archive action for editors. Archiving
   clears explicitly added lesson content while retaining the dated slot and its
   history, so the lesson can be restored from a previous version.

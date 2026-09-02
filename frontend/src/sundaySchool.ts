@@ -4,5 +4,6 @@ const EXPLICIT_LESSON_ITEM_FIELDS = ["bible_story", "crafts", "songs", "games", 
 
 export function explicitSundaySchoolItemCount(lesson: SundaySchoolLesson | null | undefined) {
   if (!lesson) return 0;
+  if (lesson.board_items?.length) return lesson.board_items.length;
   return EXPLICIT_LESSON_ITEM_FIELDS.filter((field) => lesson[field].trim()).length;
 }

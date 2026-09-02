@@ -16,6 +16,7 @@ class SundaySchoolLessonBase(BaseModel):
     games: str = ""
     source_notes: str = ""
     teacher_notes: str = ""
+    board_items: list[dict[str, Any]] = Field(default_factory=list)
 
 
 class SundaySchoolLessonCreate(SundaySchoolLessonBase):
@@ -34,6 +35,7 @@ class SundaySchoolLessonUpdate(BaseModel):
     games: str | None = None
     source_notes: str | None = None
     teacher_notes: str | None = None
+    board_items: list[dict[str, Any]] | None = None
 
 
 class SundaySchoolLessonRead(SundaySchoolLessonBase):

@@ -7,6 +7,7 @@ function lesson(overrides: Partial<SundaySchoolLesson> = {}): SundaySchoolLesson
   return {
     bible_reference: "John 3:16",
     bible_story: "",
+    board_items: [],
     crafts: "",
     created_at: "2026-09-01T00:00:00Z",
     games: "",
@@ -27,5 +28,9 @@ describe("explicitSundaySchoolItemCount", () => {
   it("counts added lesson content but ignores template and metadata fields", () => {
     expect(explicitSundaySchoolItemCount(lesson())).toBe(0);
     expect(explicitSundaySchoolItemCount(lesson({ bible_story: "Story", crafts: "Craft", teacher_notes: "Private note" }))).toBe(2);
+  });
+
+  it("counts flexible board items when present", () => {
+    expect(explicitSundaySchoolItemCount(lesson({ board_items: [{ id: "one", kind: "content", title: "Welcome game" }] }))).toBe(1);
   });
 });

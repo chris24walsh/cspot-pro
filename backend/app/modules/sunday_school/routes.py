@@ -43,6 +43,7 @@ def lesson_to_read(lesson: SundaySchoolLesson) -> SundaySchoolLessonRead:
         games=lesson.games,
         source_notes=lesson.source_notes,
         teacher_notes=lesson.teacher_notes,
+        board_items=lesson.board_items or [],
         created_at=lesson.created_at,
         updated_at=lesson.updated_at,
     )

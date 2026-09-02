@@ -750,6 +750,7 @@ export interface SundaySchoolLesson {
   games: string;
   source_notes: string;
   teacher_notes: string;
+  board_items: SundaySchoolBoardItem[];
   created_at: string;
   updated_at: string;
 }
@@ -766,6 +767,17 @@ export interface SundaySchoolLessonPayload {
   games: string;
   source_notes: string;
   teacher_notes: string;
+  board_items: SundaySchoolBoardItem[];
+}
+
+export interface SundaySchoolBoardItem {
+  id: string;
+  kind: "resource" | "file" | "content";
+  title: string;
+  detail?: string;
+  resource_id?: string;
+  file_id?: string;
+  file_name?: string;
 }
 
 export interface SundaySchoolHistoryEntry {

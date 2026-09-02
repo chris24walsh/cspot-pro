@@ -11363,7 +11363,118 @@ button.musician-page {
 }
 
 .sunday-school-date-row {
-  grid-template-columns: minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.sunday-school-date-row .worship-panel-heading h2 {
+  font-size: 20px;
+}
+
+.sunday-school-elements-browser {
+  align-content: start;
+}
+
+.sunday-school-element-resource {
+  align-items: center;
+  background: #f9f6eb;
+  border: 1px solid #e3dcc8;
+  border-radius: 8px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  overflow: hidden;
+  padding-right: 8px;
+}
+
+.sunday-school-element-resource button {
+  background: transparent;
+  border: 0;
+  color: #17201b;
+  cursor: pointer;
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  padding: 7px 8px;
+  text-align: left;
+}
+
+.sunday-school-element-resource button:disabled {
+  cursor: not-allowed;
+}
+
+.sunday-school-element-resource span,
+.sunday-school-element-resource small {
+  color: #65716a;
+  font-size: 11px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sunday-school-element-resource strong {
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sunday-school-board {
+  background: #fffefa;
+  border: 1px solid #e3dcc8;
+  border-radius: 8px;
+  min-height: 0;
+  overflow: auto;
+  padding: 12px;
+  transition: background 120ms ease, border-color 120ms ease;
+}
+
+.sunday-school-board.is-dragging-over {
+  background: #eaf5ef;
+  border-color: #4e9b7d;
+}
+
+.sunday-school-board-empty {
+  align-content: center;
+  color: #65716a;
+  display: grid;
+  gap: 10px;
+  justify-items: center;
+  min-height: 260px;
+  text-align: center;
+}
+
+.sunday-school-board-empty strong {
+  color: #3b4741;
+  font-size: 15px;
+}
+
+.sunday-school-board-list {
+  min-height: 100%;
+}
+
+.sunday-school-board-item {
+  grid-template-columns: 26px minmax(0, 1fr) 152px;
+}
+
+.sunday-school-board-item > span {
+  cursor: grab;
+}
+
+.sunday-school-board-item .worship-set-item-tools {
+  grid-template-columns: repeat(4, 34px);
+  width: 152px;
+}
+
+.sunday-school-board-item .section-icon-button {
+  align-items: center;
+  display: inline-flex;
+  justify-content: center;
+  min-height: 34px;
+  min-width: 34px;
+}
+
+.sunday-school-board-add {
+  justify-self: start;
+  margin-top: 2px;
 }
 
 .sunday-school-toolbar-actions select {
@@ -11519,7 +11630,7 @@ button.musician-page {
   }
 
   .sunday-school-toolbar-actions {
-    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .sunday-school-toolbar-actions select,
@@ -11528,7 +11639,23 @@ button.musician-page {
   }
 
   .sunday-school-core-fields {
-    display: none;
+    grid-template-columns: 1fr;
+  }
+
+  .sunday-school-board {
+    min-height: calc(100svh - 300px);
+    padding: 8px;
+  }
+
+  .sunday-school-board-item {
+    grid-template-columns: 20px minmax(0, 1fr);
+  }
+
+  .sunday-school-board-item .worship-set-item-tools {
+    grid-column: 1 / -1;
+    grid-template-columns: repeat(4, 34px);
+    justify-self: end;
+    width: auto;
   }
 
   .sunday-school-mobile-resource-panel {

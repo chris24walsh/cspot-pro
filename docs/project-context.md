@@ -226,11 +226,11 @@ These preferences have been made explicit and should guide future changes.
 ### Sunday School handling
 
 - Sunday School lessons should be stored by Sunday/date.
-- Each lesson should keep a compact, printable/readable structure: theme, Bible
-  reference/story, craft instructions, songs, games, source notes, and cover
-  notes.
-- Google Drive Sunday School resources are source material, but lessons should
-  be pared down into practical parts before use.
+- Each lesson keeps lightweight Theme and Bible Reference metadata plus a flexible,
+  ordered board of resources, uploads, links, or notes. Legacy structured lesson
+  fields remain supported so existing prepared lessons are not lost.
+- Sunday School resources are available source material that can be added to a
+  Sunday's board directly, with suggestions guided by its theme and reference.
 
 ## Import Intent
 
