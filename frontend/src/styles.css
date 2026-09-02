@@ -11630,12 +11630,16 @@ button.musician-page {
 }
 
 .shell.is-mobile-device .service-history-popover {
-  left: 8px;
-  max-height: calc(100svh - 56px);
+  display: grid;
+  left: 50%;
+  max-height: min(360px, calc(100dvh - 118px));
+  max-width: calc(100vw - 24px);
+  min-width: 0;
   position: fixed;
-  right: 8px;
-  top: 48px;
-  width: auto;
+  right: auto;
+  top: 76px;
+  transform: translateX(-50%);
+  width: min(420px, calc(100vw - 24px));
   z-index: 100;
 }
 
