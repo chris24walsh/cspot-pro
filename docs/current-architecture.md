@@ -642,6 +642,10 @@ by calendar browsing do not become defaults. Each mounted view retains its last
 explicit calendar selection while switching modules; defaults are reapplied
 only after a hard page refresh.
 
+Previous and next date controls use the same relevant-date sequence: the closest
+non-empty plan date or Sunday in that direction. Worship date changes fetch only
+the selected set and its history; shared catalogs refresh independently.
+
 The current intended presenter layout has three roles:
 
 ### 1. Main preview

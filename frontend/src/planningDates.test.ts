@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { defaultPlanningDate, nextSundayDate } from "./planningDates";
+import { adjacentPlanningDate, defaultPlanningDate, nextSundayDate } from "./planningDates";
 
 describe("planning date defaults", () => {
   const wednesday = new Date(2026, 8, 2, 9, 0, 0);
@@ -16,5 +16,11 @@ describe("planning date defaults", () => {
 
   it("treats today as the next Sunday when today is Sunday", () => {
     expect(nextSundayDate(new Date(2026, 8, 6, 9, 0, 0))).toBe("2026-09-06");
+  });
+
+  it("steps to the closest non-empty plan or Sunday", () => {
+    expect(adjacentPlanningDate("2026-09-02", "next", ["2026-09-05", "2026-09-13"])).toBe("2026-09-05");
+    expect(adjacentPlanningDate("2026-09-05", "next", ["2026-09-13"])).toBe("2026-09-06");
+    expect(adjacentPlanningDate("2026-09-09", "previous", ["2026-09-08", "2026-08-30"])).toBe("2026-09-08");
   });
 });

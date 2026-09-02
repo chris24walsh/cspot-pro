@@ -40,7 +40,7 @@ import { useDurableChange } from "../changePolling";
 import { calendarColors, calendarMarkers } from "../userCalendarStyle";
 import { calendarDatesAround, effectiveLeaderIdForDate, sundayDatesAround, unavailabilityForRole, type SundayLeader } from "../leaderSchedule";
 import { explicitSundaySchoolItemCount } from "../sundaySchool";
-import { defaultPlanningDate, nextSundayDate } from "../planningDates";
+import { adjacentPlanningDate, defaultPlanningDate, nextSundayDate } from "../planningDates";
 import { CalendarPopup } from "./CalendarPopup";
 import { DateNavigator, formatNavigatorDate } from "./DateNavigator";
 import { LeaderAssignmentDialog } from "./LeaderAssignmentDialog";
@@ -402,13 +402,15 @@ export function SundaySchoolView({ active = true, canEdit }: { active?: boolean;
     setMobilePane("set");
   }
 
-  function shiftSelectedDate(weeks: number) {
-    const date = new Date(`${selectedDate}T12:00:00`);
-    if (Number.isNaN(date.getTime())) {
-      return;
-    }
-    date.setDate(date.getDate() + weeks * 7);
-    chooseDate(dateInputFromDate(date));
+  function stepSelectedDate(direction: "next" | "previous") {
+    const targetDate = adjacentPlanningDate(
+      selectedDate,
+      direction,
+      lessons
+        .filter((lesson) => explicitSundaySchoolItemCount(lesson) > 0)
+        .map((lesson) => dateInputFromIso(lesson.lesson_date)),
+    );
+    if (targetDate) chooseDate(targetDate);
   }
 
   async function saveLessonDraft(nextDraft: SundaySchoolLessonPayload, date = selectedDate) {
@@ -775,14 +777,14 @@ export function SundaySchoolView({ active = true, canEdit }: { active?: boolean;
                 historyExpanded={historyOpen}
                 historyLabel="Sunday School edit history"
                 label={formatNavigatorDate(selectedDate)}
-                nextLabel="Next Sunday"
+                nextLabel="Next planned date"
                 onHistory={() => void openLessonHistory()}
                 onAssignment={() => setTeacherPickerDate(selectedDate)}
-                onNext={() => shiftSelectedDate(1)}
+                onNext={() => stepSelectedDate("next")}
                 onOpenPicker={() => setCalendarOpen(true)}
-                onPrevious={() => shiftSelectedDate(-1)}
+                onPrevious={() => stepSelectedDate("previous")}
                 pickerLabel="Choose Sunday School lesson"
-                previousLabel="Previous Sunday"
+                previousLabel="Previous planned date"
               />
             </div>,
             topbarSlot,

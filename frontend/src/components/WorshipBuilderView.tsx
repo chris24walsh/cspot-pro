@@ -63,7 +63,7 @@ import { CalendarPopup } from "./CalendarPopup";
 import { useConfirmationDialog } from "./ConfirmationDialog";
 import { AutoFitSlideText } from "./AutoFitSlideText";
 import { DateNavigator, formatNavigatorDate } from "./DateNavigator";
-import { defaultPlanningDate } from "../planningDates";
+import { adjacentPlanningDate, defaultPlanningDate } from "../planningDates";
 import { LeaderAssignmentDialog } from "./LeaderAssignmentDialog";
 import { MusicianLiveView } from "./MusicianLiveView";
 import { SongEditorDialog } from "./SongEditorDialog";
@@ -876,15 +876,36 @@ export function WorshipBuilderView({ active = true, canAccessAdminTools, canArch
   }, [selectedItemId, worshipSections]);
 
   async function selectPlan(planId: string) {
-    setSelectedPlanId(planId);
-    await load(planId);
+    const requestId = ++loadRequestIdRef.current;
+    setLoading(true);
+    try {
+      const [nextPlan, nextHistory] = await Promise.all([getPlan(planId), getPlanHistory(planId)]);
+      if (requestId !== loadRequestIdRef.current) return;
+      const nextItems = sortedWorshipItems(nextPlan.items);
+      setSelectedPlanId(planId);
+      sessionStorage.setItem(SELECTED_WORSHIP_SET_SESSION_KEY, planId);
+      setPlan(nextPlan);
+      setSetDraftDate(dateInputFromIso(nextPlan.service_date));
+      setEditHistory(nextHistory);
+      setEditHistoryIndex(nextHistory.filter((entry) => entry.restorable).length);
+      setEditHistoryOpen(false);
+      setSelectedItemId((current) => current && nextItems.some((item) => item.id === current) ? current : nextItems[0]?.id ?? null);
+      setMessage(null);
+    } catch (error) {
+      if (requestId === loadRequestIdRef.current) setMessage(error instanceof Error ? error.message : "Could not load worship set.");
+    } finally {
+      if (requestId === loadRequestIdRef.current) setLoading(false);
+    }
   }
 
-  async function stepWorshipSet(delta: number) {
-    const currentDate = dateInputFromIso(plan?.service_date) || dateInputFromIso(new Date().toISOString());
-    const target = new Date(`${currentDate}T12:00:00`);
-    target.setDate(target.getDate() - delta * 7);
-    await openSetDate(dateInputFromIso(target.toISOString()));
+  async function stepWorshipSet(direction: "next" | "previous") {
+    const currentDate = dateInputFromIso(plan?.service_date) || setDraftDate;
+    const targetDate = adjacentPlanningDate(
+      currentDate,
+      direction,
+      plans.filter((candidate) => candidate.item_count > 0).map((candidate) => dateInputFromIso(candidate.service_date)),
+    );
+    if (targetDate) await openSetDate(targetDate);
   }
 
   function openSetPicker() {
@@ -1938,18 +1959,18 @@ export function WorshipBuilderView({ active = true, canAccessAdminTools, canArch
                   historyDisabled={!plan || editHistoryApplying}
                   historyExpanded={editHistoryOpen}
                   historyLabel="Worship set edit history"
-                  label={plan ? formatNavigatorDate(plan.service_date) : "Choose worship set"}
-                  nextDisabled={loading || !plan}
-                  nextLabel="Next worship set"
+                  label={plan ? formatNavigatorDate(plan.service_date) : setDraftDate ? formatNavigatorDate(isoFromDateInput(setDraftDate)) : "Choose worship set"}
+                  nextDisabled={loading}
+                  nextLabel="Next planned date"
                   onHistory={() => void openEditHistory()}
                   onAssignment={() => setLeaderPickerDate(dateInputFromIso(plan?.service_date))}
-                  onNext={() => void stepWorshipSet(-1)}
+                  onNext={() => void stepWorshipSet("next")}
                   onOpenPicker={openSetPicker}
-                  onPrevious={() => void stepWorshipSet(1)}
+                  onPrevious={() => void stepWorshipSet("previous")}
                   pickerLabel="Choose worship set"
                   pickerDisabled={loading}
-                  previousDisabled={loading || !plan}
-                  previousLabel="Previous worship set"
+                  previousDisabled={loading}
+                  previousLabel="Previous planned date"
                   historyContent={editHistoryOpen ? (
                   <section className="worship-history-popover" aria-label="Worship set edit history">
                     <div className="worship-history-popover-heading">
