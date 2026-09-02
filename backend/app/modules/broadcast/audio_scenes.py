@@ -37,7 +37,9 @@ def automatic_scene_for_item(
 ) -> str:
     if service_stage in {"pre_service", "post_service"}:
         return "pre_service"
-    if item_type == "pre_service" and service_stage != "service":
+    if item_type in {"welcome_montage", "welcome_countdown"}:
+        return "pre_service"
+    if item_type in {"pre_service", "welcome_seated"} and service_stage != "service":
         return "pre_service"
     # A song backing track is deliberately carried through the sound desk so
     # the livestream retains the live musicians and vocals alongside it.  The

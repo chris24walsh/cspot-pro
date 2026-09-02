@@ -502,6 +502,7 @@ def get_plan(
     session: Session = Depends(get_session),
 ) -> PlanDetail:
     plan = get_plan_or_404(session, plan_id)
+    ensure_service_scaffold(session, plan)
     items = session.scalars(
         select(PlanItem)
         .where(PlanItem.plan_id == plan.id, PlanItem.deleted_at.is_(None))

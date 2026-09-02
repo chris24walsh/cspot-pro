@@ -629,7 +629,6 @@ def update_presentation_live_state(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only administrators can simulate pre-service timing",
         )
-    cleanup_live_sessions(session, active_plan_id=plan_id)
     presentation_session = _latest_session(session, plan_id)
     if presentation_session is None:
         presentation_session = PresentationSession(

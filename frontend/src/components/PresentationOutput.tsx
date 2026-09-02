@@ -78,6 +78,18 @@ export function presentationOutputAudioEnabled(networkDisplay: boolean, mediaOut
   return !networkDisplay || mediaOutput;
 }
 
+export function presentationOutputAmbientMusicActive(
+  serviceStage: PresentationLiveState["serviceStage"] | undefined,
+  preServiceStage: PresentationSlide["preServiceStage"] | undefined,
+) {
+  return (
+    serviceStage === "pre_service" ||
+    serviceStage === "post_service" ||
+    preServiceStage === "montage" ||
+    preServiceStage === "countdown"
+  );
+}
+
 export function networkOutputMediaUrl(url: string | undefined, networkDisplay: boolean) {
   if (!url || !networkDisplay) return url;
   try {
@@ -142,7 +154,10 @@ export function PresentationOutput({ mediaOutput = false, networkDisplay = false
   );
   const liveMediaProvider = liveSlide?.videoProvider ?? (liveSlide?.youtubeAudioUrl ? "youtube" : undefined);
   const liveTextFontCap = suggestedSlideFontCap(liveSlide);
-  const ambientMusicStage = liveState?.serviceStage === "pre_service" || liveState?.serviceStage === "post_service";
+  const ambientMusicStage = presentationOutputAmbientMusicActive(
+    liveState?.serviceStage,
+    liveSlide?.preServiceStage,
+  );
   const outputAudioEnabled = presentationOutputAudioEnabled(networkDisplay, mediaOutput);
 
   const checkOutputStatus = useCallback(() => {
@@ -802,7 +817,7 @@ export function PresentationOutput({ mediaOutput = false, networkDisplay = false
           continuous={liveState?.serviceStage === "post_service"}
           label={liveState?.serviceStage === "post_service" ? "Post-service music" : "Pre-service music"}
           outputMuted={!outputAudioEnabled || !preServiceRoomAudioEnabled}
-          phase={liveState?.preServicePhase}
+          phase={liveSlide?.preServiceStage ?? liveState?.preServicePhase}
           phaseStartedAt={liveState?.updatedAt}
           serviceDate={plan.service_date}
           showSoundControl={!networkDisplay}

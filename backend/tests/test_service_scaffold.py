@@ -10,7 +10,7 @@ from app.modules.identity.models import User
 from app.modules.library.models import ItemFile, StoredFile
 from app.modules.music.models import Song
 from app.modules.planning.models import DefaultItem, Plan, PlanItem, PlanType
-from app.modules.planning.routes import presenter_cannot_change_outline
+from app.modules.planning.routes import get_plan, presenter_cannot_change_outline
 from app.modules.planning.service_scaffold import (
     SUNDAY_SERVICE_SCAFFOLD,
     ensure_service_scaffold,
@@ -142,6 +142,35 @@ def test_existing_welcome_photos_move_to_montage_stage() -> None:
         assert link.persistent is True
     finally:
         session.close()
+
+
+def test_reading_an_existing_service_repairs_legacy_welcome() -> None:
+    engine = create_engine("sqlite://")
+    Base.metadata.create_all(engine)
+    with Session(engine) as session:
+        plan_type = PlanType(name="Sunday Service", starts_at="10:30", active=True)
+        session.add(plan_type)
+        session.flush()
+        plan = Plan(
+            plan_type_id=plan_type.id,
+            service_date=datetime(2026, 9, 6, 10, 30, tzinfo=UTC),
+            title="Existing Sunday Service",
+            status="draft",
+        )
+        session.add(plan)
+        session.flush()
+        session.add(
+            PlanItem(plan_id=plan.id, sequence=10, item_type="pre_service", title="Welcome")
+        )
+        session.commit()
+
+        detail = get_plan(plan.id, None, session)  # type: ignore[arg-type]
+
+        assert [
+            item.item_type
+            for item in detail.items
+            if item.item_type.startswith("welcome_")
+        ] == ["welcome_montage", "welcome_countdown", "welcome_seated"]
 
 
 def test_custom_plan_type_uses_its_default_outline() -> None:

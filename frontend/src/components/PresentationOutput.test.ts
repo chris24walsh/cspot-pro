@@ -4,6 +4,7 @@ import { type PresentationLiveService } from "../api";
 import {
   networkDisplayState,
   networkOutputMediaUrl,
+  presentationOutputAmbientMusicActive,
   presentationOutputAudioPlayerKey,
   presentationOutputAudioEnabled,
 } from "./PresentationOutput";
@@ -37,6 +38,12 @@ describe("network TV display", () => {
     expect(presentationOutputAudioPlayerKey(nextSong)).not.toBe(
       presentationOutputAudioPlayerKey(firstSlide),
     );
+  });
+
+  it("plays ambient audio when a Welcome audio stage is selected", () => {
+    expect(presentationOutputAmbientMusicActive("ready", "montage")).toBe(true);
+    expect(presentationOutputAmbientMusicActive("service", "countdown")).toBe(true);
+    expect(presentationOutputAmbientMusicActive("ready", "complete")).toBe(false);
   });
 
   it("starts following the active service at its current slide", () => {

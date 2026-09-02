@@ -76,6 +76,40 @@ def test_cleanup_live_sessions_keeps_only_selected_service_live() -> None:
         assert selected.status == "live"
 
 
+def test_selecting_a_slide_on_another_date_does_not_end_the_active_output() -> None:
+    engine = create_engine("sqlite://")
+    Base.metadata.create_all(
+        engine, tables=[PresentationSession.__table__, PresentationPosition.__table__]
+    )
+    with Session(engine) as session:
+        active = PresentationSession(plan_id="preceding-plan", status="live")
+        session.add(active)
+        session.flush()
+        session.add(PresentationPosition(session_id=active.id, plan_item_id="active-slide"))
+        session.commit()
+
+        update_presentation_live_state(
+            "future-plan",
+            PresentationLiveStateWrite(
+                plan_id="future-plan",
+                plan_item_id="future-slide",
+                index=2,
+                updated_at=12345,
+            ),
+            SimpleNamespace(id="operator"),  # type: ignore[arg-type]
+            session,
+        )
+
+        session.refresh(active)
+        assert active.status == "live"
+        assert active.ended_at is None
+        future = session.scalar(
+            select(PresentationSession).where(PresentationSession.plan_id == "future-plan")
+        )
+        assert future is not None
+        assert future.status == "ready"
+
+
 def test_cleanup_live_sessions_ends_past_service_by_next_day() -> None:
     engine = create_engine("sqlite://")
     Base.metadata.create_all(
