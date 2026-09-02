@@ -857,7 +857,9 @@ export function PresentationView({
   );
 
   function nextServicePlanId(planList: PlanSummary[]) {
-    const targetDate = defaultPlanningDate(planList.map((candidate) => dateInputFromIso(candidate.service_date)));
+    const targetDate = defaultPlanningDate(
+      planList.filter((candidate) => candidate.item_count > 0).map((candidate) => dateInputFromIso(candidate.service_date)),
+    );
     return planList.find((candidate) => dateInputFromIso(candidate.service_date) === targetDate)?.id ?? "";
   }
   const plansByDate = useMemo(
@@ -1238,7 +1240,9 @@ export function PresentationView({
       const nextWorshipSetPlans = nextPlans.filter(isWorshipSetPlan);
       const requestedPlan = nextServicePlans.find((candidate) => candidate.id === requestedPlanId);
       const defaultServiceDate = defaultPlanningDate(
-        nextServicePlans.map((candidate) => dateInputFromIso(candidate.service_date)),
+        nextServicePlans
+          .filter((candidate) => candidate.item_count > 0)
+          .map((candidate) => dateInputFromIso(candidate.service_date)),
       );
       const requestedPlanIsUsable =
         planId !== undefined || (requestedPlan && dateInputFromIso(requestedPlan.service_date) === defaultServiceDate);
@@ -3509,6 +3513,13 @@ export function PresentationView({
   useEffect(() => {
     void load(undefined, { refreshCatalogs: true });
   }, []);
+
+  const presentationWasActiveRef = useRef(active);
+  useEffect(() => {
+    const wasActive = presentationWasActiveRef.current;
+    presentationWasActiveRef.current = active;
+    if (active && !wasActive) void load(undefined, { refreshCatalogs: true });
+  }, [active]);
 
   useEffect(() => {
     setTopbarSlot(document.getElementById("workspace-topbar-slot"));

@@ -358,7 +358,11 @@ export function SundaySchoolView({ active = true, canEdit }: { active?: boolean;
       setResources(nextResources);
       setUsers(nextUsers);
       if (!silent) {
-        setSelectedDate(defaultPlanningDate(nextLessons.map((lesson) => dateInputFromIso(lesson.lesson_date))));
+        setSelectedDate(defaultPlanningDate(
+          nextLessons
+            .filter((lesson) => explicitSundaySchoolItemCount(lesson) > 0)
+            .map((lesson) => dateInputFromIso(lesson.lesson_date)),
+        ));
       }
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Could not load Sunday School.");
@@ -370,6 +374,13 @@ export function SundaySchoolView({ active = true, canEdit }: { active?: boolean;
   useEffect(() => {
     void load();
   }, []);
+
+  const sundaySchoolWasActiveRef = useRef(active);
+  useEffect(() => {
+    const wasActive = sundaySchoolWasActiveRef.current;
+    sundaySchoolWasActiveRef.current = active;
+    if (active && !wasActive) void load();
+  }, [active]);
 
   useDurableChange(() => {
     void load(true);

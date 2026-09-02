@@ -796,7 +796,9 @@ export function WorshipBuilderView({ active = true, canAccessAdminTools, canArch
       ]);
       const nextWorshipPlans = nextPlans.filter(isWorshipSetPlan);
       const defaultSetDate = defaultPlanningDate(
-        nextPlans.map((candidate) => dateInputFromIso(candidate.service_date)),
+        nextPlans
+          .filter((candidate) => candidate.item_count > 0)
+          .map((candidate) => dateInputFromIso(candidate.service_date)),
       );
       const preferredPlanId = nextWorshipPlans.find(
         (candidate) => dateInputFromIso(candidate.service_date) === defaultSetDate,
@@ -847,6 +849,13 @@ export function WorshipBuilderView({ active = true, canAccessAdminTools, canArch
   useEffect(() => {
     void load();
   }, []);
+
+  const worshipWasActiveRef = useRef(active);
+  useEffect(() => {
+    const wasActive = worshipWasActiveRef.current;
+    worshipWasActiveRef.current = active;
+    if (active && !wasActive) void load();
+  }, [active]);
 
   useDurableChange(() => {
     void load(selectedPlanId, true);

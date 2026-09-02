@@ -637,8 +637,9 @@ records. Non-administrators can no longer mutate a plan once its service type's
 configured start time has passed; types without a start time remain editable
 through the service day and lock the following day. Default selection is
 date-based across Service, Worship, and Sunday School. It chooses the earlier
-of the next Sunday and the next existing plan date; explicit calendar
-navigation remains selected until the user leaves or reloads the view.
+of the next Sunday and the next non-empty plan date; empty records materialized
+by calendar browsing do not become defaults. Explicit calendar navigation
+remains selected until the user leaves or reloads the view.
 
 The current intended presenter layout has three roles:
 
