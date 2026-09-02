@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 type ScaledSlideImageProps = {
   alt: string;
@@ -11,6 +11,18 @@ export function ScaledSlideImage({ alt, className = "", src }: ScaledSlideImageP
   const imageRef = useRef<HTMLImageElement | null>(null);
   const [naturalSize, setNaturalSize] = useState({ height: 0, width: 0 });
   const [displaySize, setDisplaySize] = useState<{ height?: number; width?: number }>({});
+
+  useEffect(() => {
+    setNaturalSize({ height: 0, width: 0 });
+    setDisplaySize({});
+
+    // A selected slide may already be in the browser cache because its sorter
+    // thumbnail loaded first. Read its dimensions immediately in that case.
+    const image = imageRef.current;
+    if (image?.complete && image.naturalHeight && image.naturalWidth) {
+      setNaturalSize({ height: image.naturalHeight, width: image.naturalWidth });
+    }
+  }, [src]);
 
   useLayoutEffect(() => {
     const frame = frameRef.current;
@@ -57,7 +69,6 @@ export function ScaledSlideImage({ alt, className = "", src }: ScaledSlideImageP
         alt={alt}
         className="rendered-slide-image"
         decoding="async"
-        loading="lazy"
         onLoad={updateNaturalSize}
         ref={imageRef}
         src={src}
