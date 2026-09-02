@@ -916,17 +916,6 @@ export function PresentationView({
     [effectivePlanItems, songs, renderedSlidesByFileId],
   );
   const liveSlide = slides[liveIndex] ?? null;
-  useEffect(() => {
-    if (!liveSlide?.sectionId) return;
-    const activeSection = sections.find((section) => section.id === liveSlide.sectionId);
-    if (!activeSection || !effectivePlanItems.some((item) => item.parent_item_id === activeSection.id)) return;
-    setExpandedRailGroupIds((current) => {
-      if (current.has(activeSection.id)) return current;
-      const next = new Set(current);
-      next.add(activeSection.id);
-      return next;
-    });
-  }, [effectivePlanItems, liveSlide?.sectionId, sections]);
   const preServicePlanItem = effectivePlanItems.find((item) => item.item_type === "pre_service") ?? null;
   const fillerMediaPlanItem = effectivePlanItems.find((item) => item.id === fillerMediaPlanItemId) ?? null;
   const currentPlanItem = effectivePlanItems.find((item) => item.id === liveSlide?.planItemId) ?? null;
