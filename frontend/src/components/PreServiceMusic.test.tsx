@@ -36,6 +36,36 @@ function music(outputMuted: boolean) {
 }
 
 describe("PreServiceMusic room output", () => {
+  it("keeps file playback mounted and in position while its output is muted", async () => {
+    const container = document.createElement("div");
+    document.body.append(container);
+    const root = createRoot(container);
+    cleanups.push(() => {
+      act(() => root.unmount());
+      container.remove();
+    });
+
+    const renderMusic = (soundEnabled: boolean) => (
+      <PreServiceMusic
+        phase="montage"
+        serviceDate={serviceDate}
+        showSoundControl={false}
+        soundEnabled={soundEnabled}
+        url="https://media.test/pre-service.mp3"
+      />
+    );
+
+    await act(async () => root.render(renderMusic(false)));
+    const audio = container.querySelector("audio")!;
+    audio.currentTime = 73;
+    expect(audio.muted).toBe(true);
+
+    await act(async () => root.render(renderMusic(true)));
+    expect(container.querySelector("audio")).toBe(audio);
+    expect(audio.currentTime).toBe(73);
+    expect(audio.muted).toBe(false);
+  });
+
   it("mutes an enabled YouTube player and restores its prior playback", async () => {
     const container = document.createElement("div");
     document.body.append(container);

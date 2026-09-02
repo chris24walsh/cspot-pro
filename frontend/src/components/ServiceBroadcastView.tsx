@@ -503,7 +503,11 @@ export function ServiceBroadcastView({ canControl = false, onOpenSettings }: { c
         </section>
       </div>
 
-      {hasLiveBroadcast && settings.pre_service_audio_url && plan && useViewerAmbientMusic ? (
+      {/* Keep this player mounted even while the presentation PC supplies the
+          audible media feed. Muting it lets the track continue in step, so
+          switching room playback off can reveal the local copy without
+          restarting the music from the beginning. */}
+      {hasLiveBroadcast && settings.pre_service_audio_url && plan ? (
         <PreServiceMusic
           active={ambientMusicStage}
           continuous={liveState?.serviceStage === "post_service"}
@@ -513,7 +517,7 @@ export function ServiceBroadcastView({ canControl = false, onOpenSettings }: { c
           ref={preServiceMusicRef}
           serviceDate={plan.service_date}
           showSoundControl={false}
-          soundEnabled={viewerSoundEnabled}
+          soundEnabled={viewerSoundEnabled && useViewerAmbientMusic}
           url={settings.pre_service_audio_url}
         />
       ) : null}
