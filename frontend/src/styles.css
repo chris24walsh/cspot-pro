@@ -4398,7 +4398,7 @@ button.musician-page {
   cursor: pointer;
   display: inline-flex;
   justify-content: center;
-  min-height: 24px;
+  min-height: 36px;
   min-width: 1ch;
   padding: 0;
 }
@@ -10190,6 +10190,27 @@ button.musician-page {
 
   .section-slide-list {
     grid-template-columns: 1fr;
+  }
+
+  .sorter-item-summary-row > .sorter-item-summary,
+  .sorter-item-summary-row > .sorter-song-item-summary {
+    gap: 6px;
+    grid-template-columns: 76px minmax(0, 1fr);
+    padding-right: 42px;
+  }
+
+  .sorter-item-summary-row strong {
+    display: none;
+  }
+
+  .sorter-item-summary-row small {
+    line-height: 1.2;
+    white-space: normal;
+  }
+
+  .sorter-item-summary-row .sorter-item-leaf,
+  .sorter-item-summary-row .song-slide-leaf {
+    padding-right: 4px;
   }
 
   .preview-tile {

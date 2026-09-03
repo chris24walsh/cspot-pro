@@ -1026,6 +1026,11 @@ export function PresentationView({
     setFillerMediaPlanItemId(item.id);
   }
 
+  function closePlanItemEditor() {
+    setFillerMediaPlanItemId(null);
+    setItemEditDraft({ title: "", comment: "", planned_start: "" });
+  }
+
   function closeSongEditor() {
     setEditingSongId(null);
   }
@@ -2312,7 +2317,7 @@ export function PresentationView({
         planned_start: itemEditDraft.planned_start || null,
       });
       await load(fillerMediaPlanItem.plan_id, { silent: true });
-      setFillerMediaPlanItemId(null);
+      closePlanItemEditor();
       setMessage(`Updated ${title}.`);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Could not update the item.");
@@ -5777,7 +5782,16 @@ export function PresentationView({
               ) : null}
             </div>
             <div className="app-dialog-actions">
-              <button className="text-button" disabled={fillerMediaBusy} onClick={() => setFillerMediaPlanItemId(null)} type="button">Cancel</button>
+              <button
+                className="text-button"
+                disabled={fillerMediaBusy}
+                onClick={closePlanItemEditor}
+                onPointerDown={(event) => {
+                  event.preventDefault();
+                  closePlanItemEditor();
+                }}
+                type="button"
+              >Cancel</button>
               <button className="primary-button" disabled={fillerMediaBusy || !itemEditDraft.title.trim()} onClick={() => void savePlanItemDetails()} type="button">{fillerMediaBusy ? "Saving…" : "Save"}</button>
             </div>
           </div>
