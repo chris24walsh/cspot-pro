@@ -59,6 +59,52 @@ def test_get_plan_returns_the_loaded_plan_detail() -> None:
     assert detail.title == "Sunday service"
 
 
+def test_get_plan_does_not_materialize_an_empty_outline() -> None:
+    engine = create_engine("sqlite://")
+    Base.metadata.create_all(engine)
+
+    with Session(engine) as session:
+        plan_type = PlanType(name="Sunday Service", active=True)
+        session.add(plan_type)
+        session.flush()
+        session.add_all([
+            DefaultItem(
+                plan_type_id=plan_type.id,
+                sequence=10,
+                item_type="pre_service",
+                title="Welcome",
+            ),
+            DefaultItem(
+                plan_type_id=plan_type.id,
+                sequence=20,
+                item_type="worship_set",
+                title="Worship",
+            ),
+            DefaultItem(plan_type_id=plan_type.id, sequence=30, item_type="sermon", title="Sermon"),
+            DefaultItem(
+                plan_type_id=plan_type.id,
+                sequence=40,
+                item_type="announcements",
+                title="Notices",
+            ),
+        ])
+        plan = Plan(
+            plan_type_id=plan_type.id,
+            service_date=datetime(2026, 9, 6, 10, 30, tzinfo=UTC),
+            title="Empty Sunday service",
+            status="draft",
+        )
+        session.add(plan)
+        session.commit()
+
+        first = get_plan(plan.id, None, session)  # type: ignore[arg-type]
+        second = get_plan(plan.id, None, session)  # type: ignore[arg-type]
+
+        assert first.items == []
+        assert second.items == []
+        assert list(session.scalars(select(PlanItem).where(PlanItem.plan_id == plan.id))) == []
+
+
 def test_plan_date_stays_empty_until_first_content_addition() -> None:
     engine = create_engine("sqlite://")
     Base.metadata.create_all(engine)

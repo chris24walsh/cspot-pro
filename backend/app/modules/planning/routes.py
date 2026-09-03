@@ -508,16 +508,25 @@ def get_plan(
     session: Session = Depends(get_session),
 ) -> PlanDetail:
     plan = get_plan_or_404(session, plan_id)
-    ensure_service_scaffold(session, plan)
-    items = session.scalars(
+    items = list(session.scalars(
         select(PlanItem)
         .where(PlanItem.plan_id == plan.id, PlanItem.deleted_at.is_(None))
         .order_by(
             PlanItem.sequence,
             PlanItem.created_at,
         )
-    ).all()
-    return plan_to_detail(session, plan, list(items))
+    ).all())
+    # Reading a durable date slot must not turn its template into visible
+    # content. Existing services still get legacy outline repairs, while a
+    # genuinely empty service stays empty until content is explicitly added.
+    if items:
+        ensure_service_scaffold(session, plan)
+        items = list(session.scalars(
+            select(PlanItem)
+            .where(PlanItem.plan_id == plan.id, PlanItem.deleted_at.is_(None))
+            .order_by(PlanItem.sequence, PlanItem.created_at)
+        ).all())
+    return plan_to_detail(session, plan, items)
 
 
 @router.get("/plans/{plan_id}/history", response_model=list[PlanHistoryRead])

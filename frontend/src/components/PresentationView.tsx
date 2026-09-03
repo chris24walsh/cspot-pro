@@ -2662,12 +2662,15 @@ export function PresentationView({
   }
 
   async function reloadPreservingOperatorScroll(options?: { refreshCatalogs?: boolean; silent?: boolean }) {
-    if (!plan || selectedPlanIdRef.current !== plan.id) {
-      return;
-    }
     const scrollPosition = captureOperatorScrollPositions();
     suppressNextOperatorScrollRef.current = true;
-    await load(plan.id, { refreshCatalogs: options?.refreshCatalogs, silent: options?.silent });
+    // The selected plan may have just been archived on another device. Always
+    // refresh the catalog so load() can resolve the replacement/next service;
+    // requiring the old detail here leaves this device stuck after a 404.
+    await load(selectedPlanIdRef.current || undefined, {
+      refreshCatalogs: options?.refreshCatalogs,
+      silent: options?.silent,
+    });
     restoreOperatorScrollPositions(scrollPosition);
   }
 
