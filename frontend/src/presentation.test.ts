@@ -151,6 +151,20 @@ describe("presentation slide derivation", () => {
     ]);
   });
 
+  it("hides a section's fallback image while it has child items", () => {
+    const sections = buildPresentationSections([
+      planItem({
+        id: "announcements",
+        item_type: "announcements",
+        title: "Announcements",
+        files: [{ content_type: "image/jpeg", display_name: "Fallback", file_id: "fallback-1", id: "link-1", sort_order: 0 }],
+      }),
+      planItem({ id: "notice", parent_item_id: "announcements", item_type: "announcements", title: "Church lunch" }),
+    ], []);
+
+    expect(sections[0].slides.map((slide) => slide.planItemId)).toEqual(["notice"]);
+  });
+
   it("uses the LCF background for contentless transition sections", () => {
     const slides = buildPresentationSlides([
       planItem({ id: "welcome", item_type: "welcome", title: "Welcome and prayer" }),

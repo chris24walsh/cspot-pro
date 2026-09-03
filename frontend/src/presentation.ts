@@ -349,7 +349,10 @@ export function buildPresentationSections(
       ["welcome_montage", "welcome_countdown", "welcome_seated"].includes(child.item_type),
     );
     const rootIsContentItem = Boolean(
-      root.song_id || root.comment?.trim() || root.files?.length || (root.item_type === "pre_service" && !hasWelcomeStages),
+      root.song_id ||
+      root.comment?.trim() ||
+      root.files?.some((file) => !file.content_type?.startsWith("image/")) ||
+      (root.item_type === "pre_service" && !hasWelcomeStages),
     );
     const memberSections = [
       ...(children.length && !rootIsContentItem ? [] : [rootSection]),

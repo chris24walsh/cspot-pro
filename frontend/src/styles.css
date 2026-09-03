@@ -7757,6 +7757,25 @@ button.musician-page {
   width: 100%;
 }
 .sorter-item-heading strong { font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.sorter-item-heading-row {
+  align-items: center;
+  display: flex;
+  gap: 4px;
+}
+
+.sorter-item-heading-row .sorter-item-heading {
+  flex: 1;
+  min-width: 0;
+}
+
+.sorter-item-edit-button {
+  flex: 0 0 auto;
+}
+
+.item-details-grid .wide-field {
+  grid-column: 1 / -1;
+}
 .sorter-item-summary {
   align-items: center;
   background: #fffefa;

@@ -650,6 +650,7 @@ export function PresentationView({
   const [preServiceMediaBusy, setPreServiceMediaBusy] = useState(false);
   const [fillerMediaPlanItemId, setFillerMediaPlanItemId] = useState<string | null>(null);
   const [fillerMediaBusy, setFillerMediaBusy] = useState(false);
+  const [itemEditDraft, setItemEditDraft] = useState({ title: "", comment: "", planned_start: "" });
   const [serviceSchedules, setServiceSchedules] = useState<ServiceScheduleRule[]>([]);
 
   const [liveIndex, setLiveIndex] = useState(0);
@@ -1008,6 +1009,20 @@ export function PresentationView({
       return;
     }
     setEditingSongId(song.id);
+  }
+
+  function openPlanItemEditor(item: PlanItem) {
+    if (item.song_id) {
+      openSongEditor(item.song_id);
+      return;
+    }
+    if (!FILLER_MEDIA_ITEM_TYPES.has(item.item_type)) return;
+    setItemEditDraft({
+      title: item.title,
+      comment: item.comment ?? "",
+      planned_start: item.planned_start ?? "",
+    });
+    setFillerMediaPlanItemId(item.id);
   }
 
   function closeSongEditor() {
@@ -2278,6 +2293,30 @@ export function PresentationView({
       await load(item.plan_id, { silent: true });
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Could not update montage order.");
+    }
+  }
+
+  async function savePlanItemDetails() {
+    if (!fillerMediaPlanItem) return;
+    const title = itemEditDraft.title.trim();
+    if (!title) {
+      setMessage("Item name is required.");
+      return;
+    }
+    setFillerMediaBusy(true);
+    try {
+      await updatePlanItem(fillerMediaPlanItem.id, {
+        title,
+        comment: itemEditDraft.comment.trim() || null,
+        planned_start: itemEditDraft.planned_start || null,
+      });
+      await load(fillerMediaPlanItem.plan_id, { silent: true });
+      setFillerMediaPlanItemId(null);
+      setMessage(`Updated ${title}.`);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not update the item.");
+    } finally {
+      setFillerMediaBusy(false);
     }
   }
 
@@ -4815,13 +4854,13 @@ export function PresentationView({
                         <span>Edit</span>
                       </button>
                     ) : null}
-                    {canAttachDeck && FILLER_MEDIA_ITEM_TYPES.has(section.itemType) ? (
+                    {canEditPlan && FILLER_MEDIA_ITEM_TYPES.has(section.itemType) ? (
                       <button
-                        aria-label={`Edit ${section.title} slide images`}
+                        aria-label={`Edit ${section.title}`}
                         className="section-icon-button section-edit-button"
                         disabled={fillerMediaBusy}
-                        onClick={() => setFillerMediaPlanItemId(section.id)}
-                        title={`Edit ${section.title} slide images`}
+                        onClick={() => sectionItem && openPlanItemEditor(sectionItem)}
+                        title={`Edit ${section.title}`}
                         type="button"
                       >
                         <Pencil size={14} aria-hidden="true" />
@@ -4887,7 +4926,7 @@ export function PresentationView({
                         }
                         return (
                           <div className="sorter-item-tile" key={slide.id}>
-                          {firstItemSlide && hasNestedItems ? <button className="sorter-item-heading" onClick={() => itemCanCollapse ? toggleSorterSection(slide.planItemId) : selectSlideFromOperator(slideIndex)} type="button"><strong>{item?.title ?? slide.sectionTitle}</strong>{itemCanCollapse ? <ChevronUp size={13} /> : null}</button> : null}
+                          {firstItemSlide && hasNestedItems ? <div className="sorter-item-heading-row"><button className="sorter-item-heading" onClick={() => itemCanCollapse ? toggleSorterSection(slide.planItemId) : selectSlideFromOperator(slideIndex)} type="button"><strong>{item?.title ?? slide.sectionTitle}</strong>{itemCanCollapse ? <ChevronUp size={13} /> : null}</button>{canEditPlan && item && (item.song_id || FILLER_MEDIA_ITEM_TYPES.has(item.item_type)) ? <button aria-label={`Edit ${item.title}`} className="section-icon-button sorter-item-edit-button" disabled={fillerMediaBusy} onClick={() => openPlanItemEditor(item)} title={`Edit ${item.title}`} type="button"><Pencil size={12} aria-hidden="true" /></button> : null}</div> : null}
                           <button
                             className={`slide-tile preview-tile ${presentationTypeClass(slide.itemType)} ${
                               slideIndex === liveIndex || matchesLiveBuild ? "active" : ""
@@ -5678,10 +5717,25 @@ export function PresentationView({
         <div className="app-dialog-backdrop" role="presentation">
           <div aria-labelledby="filler-media-title" aria-modal="true" className="app-dialog app-dialog-wide pre-service-media-dialog" role="dialog">
             <div>
-              <h2 id="filler-media-title">{fillerMediaPlanItem.title} slide images</h2>
-              <p>Add one image to replace the default slide background, or add several to rotate them as a montage. Blanking the screen will still show the standard LCF background.</p>
+              <h2 id="filler-media-title">Edit {fillerMediaPlanItem.title}</h2>
+              <p>Update this item without changing the surrounding section layout.</p>
             </div>
-            <label className="pre-service-upload-control">
+            <div className="form-grid item-details-grid">
+              <label>
+                <span>Item name</span>
+                <input disabled={fillerMediaBusy} onChange={(event) => setItemEditDraft((current) => ({ ...current, title: event.target.value }))} value={itemEditDraft.title} />
+              </label>
+              <label>
+                <span>Planned start <small>(optional)</small></span>
+                <input disabled={fillerMediaBusy} onChange={(event) => setItemEditDraft((current) => ({ ...current, planned_start: event.target.value }))} type="time" value={itemEditDraft.planned_start} />
+              </label>
+              <label className="wide-field">
+                <span>{fillerMediaPlanItem.item_type === "announcements" ? "Announcement details" : "Presenter notes"} <small>(optional)</small></span>
+                <textarea disabled={fillerMediaBusy} onChange={(event) => setItemEditDraft((current) => ({ ...current, comment: event.target.value }))} rows={3} value={itemEditDraft.comment} />
+              </label>
+            </div>
+            <p>Add one image to replace the default slide background, or add several to rotate them as a montage.</p>
+            {canAttachDeck ? <label className="pre-service-upload-control">
               Add images
               <input
                 accept="image/*"
@@ -5693,7 +5747,7 @@ export function PresentationView({
                 }}
                 type="file"
               />
-            </label>
+            </label> : null}
             <label className="inline-checkbox">
               <input checked={Boolean(fillerMediaPlanItem.montage_random)} disabled={fillerMediaBusy} onChange={(event) => void setMontageRandom(fillerMediaPlanItem, event.target.checked)} type="checkbox" />
               <span>Randomise montage order</span>
@@ -5727,9 +5781,8 @@ export function PresentationView({
               ) : null}
             </div>
             <div className="app-dialog-actions">
-              <button className="primary-button" onClick={() => {
-                setFillerMediaPlanItemId(null);
-              }} type="button">Done</button>
+              <button className="text-button" disabled={fillerMediaBusy} onClick={() => setFillerMediaPlanItemId(null)} type="button">Cancel</button>
+              <button className="primary-button" disabled={fillerMediaBusy || !itemEditDraft.title.trim()} onClick={() => void savePlanItemDetails()} type="button">{fillerMediaBusy ? "Saving…" : "Save"}</button>
             </div>
           </div>
         </div>
