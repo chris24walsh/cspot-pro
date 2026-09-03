@@ -15,7 +15,7 @@ import {
   UploadCloud,
   UsersRound,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import {
   AUTH_REQUIRED_EVENT,
@@ -102,7 +102,6 @@ function App() {
   const [adminAttentionCount, setAdminAttentionCount] = useState(0);
   const [profileAttentionCount, setProfileAttentionCount] = useState(0);
   const [adminSection, setAdminSection] = useState<"users" | "settings">("users");
-  const initialViewChosen = useRef(false);
   const mobileOrTabletDevice = useMemo(
     () =>
       isMobileOrTabletDevice() ||
@@ -278,19 +277,6 @@ function App() {
       return next;
     });
   }, [activeModule]);
-
-  useEffect(() => {
-    if (!sessionUser || initialViewChosen.current || !modules.length) return;
-    const preferred = (isWorshipLeader || isMusician) && modules.some((module) => module.id === "worship")
-      ? "worship"
-      : (isSundaySchoolTeacher || isSundaySchoolLeader) && modules.some((module) => module.id === "sunday_school")
-        ? "sunday_school"
-        : (isPresenter || isTeacher) && modules.some((module) => module.id === "presentation")
-          ? "presentation"
-          : modules.some((module) => module.id === "broadcast") ? "broadcast" : modules[0].id;
-    initialViewChosen.current = true;
-    setActiveModuleId(preferred);
-  }, [isMusician, isPresenter, isSundaySchoolLeader, isSundaySchoolTeacher, isTeacher, isWorshipLeader, modules, sessionUser]);
 
   const loadAdminAttention = useCallback(async () => {
     if (!canManageUsers) { setAdminAttentionCount(0); return; }

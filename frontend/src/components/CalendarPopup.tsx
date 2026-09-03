@@ -116,7 +116,7 @@ export function CalendarPopup({
   footerContent,
   actionButtons,
 }: CalendarPopupProps) {
-  const [viewMode, setViewMode] = useState<"sundays" | "all">("all");
+  const [viewMode, setViewMode] = useState<"sundays" | "all">("sundays");
   const [extensions, setExtensions] = useState({ allBefore: 0, allAfter: 0, sundayBefore: 0, sundayAfter: 0 });
   const calendarTimelineRef = useRef<HTMLDivElement | null>(null);
   const prependScrollHeightRef = useRef<number | null>(null);
@@ -139,7 +139,7 @@ export function CalendarPopup({
   }, [allDays[0]?.date, allDays[allDays.length - 1]?.date, sundayDays[0]?.date, sundayDays[sundayDays.length - 1]?.date]);
 
   useEffect(() => {
-    if (isOpen) setViewMode("all");
+    if (isOpen) setViewMode("sundays");
   }, [isOpen]);
 
   useLayoutEffect(() => {
