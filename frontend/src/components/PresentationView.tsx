@@ -647,9 +647,8 @@ export function PresentationView({
   const [plan, setPlan] = useState<PlanDetail | null>(null);
   const [worshipSetPlan, setWorshipSetPlan] = useState<PlanDetail | null>(null);
   const [loading, setLoading] = useState(true);
-  const [preServiceMediaOpen, setPreServiceMediaOpen] = useState(false);
-  const [preServiceMediaBusy, setPreServiceMediaBusy] = useState(false);
   const [fillerMediaPlanItemId, setFillerMediaPlanItemId] = useState<string | null>(null);
+  const [fillerMediaSectionId, setFillerMediaSectionId] = useState<string | null>(null);
   const [fillerMediaBusy, setFillerMediaBusy] = useState(false);
   const [itemEditDraft, setItemEditDraft] = useState({ title: "", comment: "", planned_start: "", auto_collapse_items: false });
   const [serviceSchedules, setServiceSchedules] = useState<ServiceScheduleRule[]>([]);
@@ -922,8 +921,8 @@ export function PresentationView({
   const preServicePlanItem = effectivePlanItems.find((item) => item.item_type === "welcome_montage")
     ?? effectivePlanItems.find((item) => item.item_type === "pre_service")
     ?? null;
-  const preServiceSectionItem = effectivePlanItems.find((item) => item.item_type === "pre_service" && !item.parent_item_id) ?? null;
   const fillerMediaPlanItem = effectivePlanItems.find((item) => item.id === fillerMediaPlanItemId) ?? null;
+  const fillerMediaSectionItem = effectivePlanItems.find((item) => item.id === fillerMediaSectionId) ?? null;
   const currentPlanItem = effectivePlanItems.find((item) => item.id === liveSlide?.planItemId) ?? null;
   const activeSermonRecording = broadcastRecordings.find(
     (recording) => recording.plan_id === plan?.id && (recording.status === "recording" || recording.status === "paused"),
@@ -1013,7 +1012,7 @@ export function PresentationView({
     setEditingSongId(song.id);
   }
 
-  function openPlanItemEditor(item: PlanItem) {
+  function openPlanItemEditor(item: PlanItem, sectionItem?: PlanItem | null) {
     if (item.song_id) {
       openSongEditor(item.song_id);
       return;
@@ -1023,13 +1022,15 @@ export function PresentationView({
       title: item.title,
       comment: item.comment ?? "",
       planned_start: item.planned_start ?? "",
-      auto_collapse_items: Boolean(item.auto_collapse_items),
+      auto_collapse_items: Boolean((sectionItem ?? (!item.parent_item_id ? item : null))?.auto_collapse_items),
     });
     setFillerMediaPlanItemId(item.id);
+    setFillerMediaSectionId((sectionItem ?? (!item.parent_item_id ? item : null))?.id ?? null);
   }
 
   function closePlanItemEditor() {
     setFillerMediaPlanItemId(null);
+    setFillerMediaSectionId(null);
     setItemEditDraft({ title: "", comment: "", planned_start: "", auto_collapse_items: false });
   }
 
@@ -2179,38 +2180,8 @@ export function PresentationView({
     }
   }
 
-  async function openPreServiceMedia() {
-    if (!preServicePlanItem) {
-      setMessage("This service does not have a Welcome section.");
-      return;
-    }
-    setPreServiceMediaOpen(true);
-  }
-
-  async function addPreServicePhotos(files: FileList | null) {
-    if (!files?.length || !plan || !preServicePlanItem) return;
-    setPreServiceMediaBusy(true);
-    try {
-      const existingImages = preServicePlanItem.files.filter((file) => file.content_type?.startsWith("image/"));
-      for (const [index, file] of Array.from(files).entries()) {
-        const stored = await uploadStoredFile({ file, display_name: file.name });
-        await attachItemFile(preServicePlanItem.id, {
-          file_id: stored.id,
-          sort_order: existingImages.length + index,
-        });
-      }
-      await load(plan.id, { silent: true });
-      setMessage(`${files.length} pre-service photo${files.length === 1 ? "" : "s"} added.`);
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Could not add pre-service photos.");
-    } finally {
-      setPreServiceMediaBusy(false);
-    }
-  }
-
   async function setMediaPersistence(file: PlanItem["files"][number], persistent: boolean) {
     if (!plan || file.id.startsWith("pre-service:")) return;
-    setPreServiceMediaBusy(true);
     setFillerMediaBusy(true);
     try {
       await updateItemFile(file.id, { persistent });
@@ -2219,35 +2190,7 @@ export function PresentationView({
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Could not update image persistence.");
     } finally {
-      setPreServiceMediaBusy(false);
       setFillerMediaBusy(false);
-    }
-  }
-
-  async function removePreServicePhoto(file: PlanItem["files"][number]) {
-    const legacyPersistentPhoto = file.id.startsWith("pre-service:");
-    const confirmed = await confirm({
-      confirmLabel: "Remove photo",
-      message: file.persistent
-        ? `Remove "${file.display_name}" from this and future Welcome montages?`
-        : `Remove "${file.display_name}" from this service's Welcome montage?`,
-      title: "Remove pre-service photo",
-      tone: "danger",
-    });
-    if (!confirmed || !plan) return;
-    setPreServiceMediaBusy(true);
-    try {
-      if (legacyPersistentPhoto) {
-        await deletePreServiceMedia(file.file_id);
-      } else {
-        await deleteItemFile(file.id);
-      }
-      await load(plan.id, { silent: true });
-      setMessage("Pre-service photo removed.");
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Could not remove the photo.");
-    } finally {
-      setPreServiceMediaBusy(false);
     }
   }
 
@@ -2285,7 +2228,11 @@ export function PresentationView({
     if (!confirmed) return;
     setFillerMediaBusy(true);
     try {
-      await deleteItemFile(file.id);
+      if (file.id.startsWith("pre-service:")) {
+        await deletePreServiceMedia(file.file_id);
+      } else {
+        await deleteItemFile(file.id);
+      }
       await load(plan.id, { silent: true });
       setMessage("Slide image removed.");
     } catch (error) {
@@ -2304,25 +2251,6 @@ export function PresentationView({
     }
   }
 
-  async function setAutoCollapseSectionItems(item: PlanItem, autoCollapse: boolean) {
-    setPreServiceMediaBusy(true);
-    try {
-      await updatePlanItem(item.id, { auto_collapse_items: autoCollapse });
-      if (autoCollapse) {
-        setExpandedSorterSectionIds((current) => {
-          const next = new Set(current);
-          next.delete(item.id);
-          return next;
-        });
-      }
-      await load(item.plan_id, { silent: true });
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Could not update the section display.");
-    } finally {
-      setPreServiceMediaBusy(false);
-    }
-  }
-
   async function savePlanItemDetails() {
     if (!fillerMediaPlanItem) return;
     const title = itemEditDraft.title.trim();
@@ -2332,16 +2260,23 @@ export function PresentationView({
     }
     setFillerMediaBusy(true);
     try {
-      await updatePlanItem(fillerMediaPlanItem.id, {
+      const details = {
         title,
         comment: itemEditDraft.comment.trim() || null,
         planned_start: itemEditDraft.planned_start || null,
-        auto_collapse_items: itemEditDraft.auto_collapse_items,
-      });
-      if (itemEditDraft.auto_collapse_items) {
+      };
+      if (fillerMediaSectionItem?.id === fillerMediaPlanItem.id) {
+        await updatePlanItem(fillerMediaPlanItem.id, { ...details, auto_collapse_items: itemEditDraft.auto_collapse_items });
+      } else {
+        await Promise.all([
+          updatePlanItem(fillerMediaPlanItem.id, details),
+          ...(fillerMediaSectionItem ? [updatePlanItem(fillerMediaSectionItem.id, { auto_collapse_items: itemEditDraft.auto_collapse_items })] : []),
+        ]);
+      }
+      if (itemEditDraft.auto_collapse_items && fillerMediaSectionItem) {
         setExpandedSorterSectionIds((current) => {
           const next = new Set(current);
-          next.delete(fillerMediaPlanItem.id);
+          next.delete(fillerMediaSectionItem.id);
           return next;
         });
       }
@@ -4907,8 +4842,8 @@ export function PresentationView({
                       <button
                         aria-label="Manage pre-service montage photos"
                         className="section-icon-button section-edit-button"
-                        disabled={preServiceMediaBusy}
-                        onClick={() => void openPreServiceMedia()}
+                        disabled={fillerMediaBusy || !preServicePlanItem}
+                        onClick={() => preServicePlanItem && openPlanItemEditor(preServicePlanItem, sectionItem)}
                         title="Manage pre-service montage photos"
                         type="button"
                       >
@@ -5774,7 +5709,7 @@ export function PresentationView({
                 <span>{fillerMediaPlanItem.item_type === "announcements" ? "Announcement details" : "Presenter notes"} <small>(optional)</small></span>
                 <textarea disabled={fillerMediaBusy} onChange={(event) => setItemEditDraft((current) => ({ ...current, comment: event.target.value }))} rows={3} value={itemEditDraft.comment} />
               </label>
-              {!fillerMediaPlanItem.parent_item_id ? <label className="inline-checkbox wide-field">
+              {fillerMediaSectionItem ? <label className="inline-checkbox wide-field">
                 <input checked={itemEditDraft.auto_collapse_items} disabled={fillerMediaBusy} onChange={(event) => setItemEditDraft((current) => ({ ...current, auto_collapse_items: event.target.checked }))} type="checkbox" />
                 <span>Auto-contract section items in the slide sorter</span>
               </label> : null}
@@ -5842,69 +5777,6 @@ export function PresentationView({
                 type="button"
               >Cancel</button>
               <button className="primary-button" disabled={fillerMediaBusy || !itemEditDraft.title.trim()} onClick={() => void savePlanItemDetails()} type="button">{fillerMediaBusy ? "Saving…" : "Save"}</button>
-            </div>
-          </div>
-        </div>
-      ) : null}
-
-      {preServiceMediaOpen ? (
-        <div className="app-dialog-backdrop" role="presentation">
-          <div aria-labelledby="pre-service-media-title" aria-modal="true" className="app-dialog app-dialog-wide pre-service-media-dialog" role="dialog">
-            <div>
-              <h2 id="pre-service-media-title">Pre-service montage</h2>
-              <p>Photos rotate automatically before the service. Set each photo to apply only to this service or carry into future services.</p>
-            </div>
-            <label className="pre-service-upload-control">
-              Add church or relaxing photos
-              <input
-                accept="image/*"
-                disabled={preServiceMediaBusy}
-                multiple
-                onChange={(event) => {
-                  void addPreServicePhotos(event.target.files);
-                  event.target.value = "";
-                }}
-                type="file"
-              />
-            </label>
-            {preServicePlanItem ? <label className="inline-checkbox">
-              <input checked={Boolean(preServicePlanItem.montage_random)} disabled={preServiceMediaBusy} onChange={(event) => void setMontageRandom(preServicePlanItem, event.target.checked)} type="checkbox" />
-              <span>Randomise montage order</span>
-            </label> : null}
-            {preServiceSectionItem ? <label className="inline-checkbox">
-              <input checked={Boolean(preServiceSectionItem.auto_collapse_items)} disabled={preServiceMediaBusy} onChange={(event) => void setAutoCollapseSectionItems(preServiceSectionItem, event.target.checked)} type="checkbox" />
-              <span>Auto-contract section items in the slide sorter</span>
-            </label> : null}
-            <div className="pre-service-media-grid">
-              {(preServicePlanItem?.files ?? []).filter((file) => file.content_type?.startsWith("image/")).map((file) => (
-                <article key={file.id}>
-                  <img alt={file.display_name} src={storedFileDownloadUrl(file.file_id)} />
-                  <span>{file.display_name}</span>
-                  <label className="media-persistence-control">
-                    <input
-                      checked={Boolean(file.persistent)}
-                      disabled={preServiceMediaBusy || file.id.startsWith("pre-service:")}
-                      onChange={(event) => void setMediaPersistence(file, event.target.checked)}
-                      type="checkbox"
-                    />
-                    <small>{file.persistent ? "Kept for future services" : "This service only"}</small>
-                  </label>
-                  <button
-                    className="danger-button"
-                    disabled={preServiceMediaBusy}
-                    onClick={() => void removePreServicePhoto(file)}
-                    type="button"
-                  >
-                    Remove
-                  </button>
-                </article>
-              ))}
-              {!preServicePlanItem?.files.some((file) => file.content_type?.startsWith("image/")) ? <p className="empty-state">No uploaded photos yet; the LCF background is used as the fallback.</p> : null}
-            </div>
-            <div className="app-dialog-actions">
-              <button className="primary-button" onClick={() => {
-                setPreServiceMediaOpen(false);
-              }} type="button">Done</button>
             </div>
           </div>
         </div>
