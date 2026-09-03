@@ -1,7 +1,7 @@
 from datetime import date, datetime
 from decimal import Decimal
 
-from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Numeric, String, Text
+from sqlalchemy import JSON, Boolean, Date, DateTime, ForeignKey, Numeric, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.database import Base
@@ -55,6 +55,7 @@ class PlanItem(IdMixin, TimestampMixin, Base):
     key_signature: Mapped[str | None] = mapped_column(String(20))
     montage_random: Mapped[bool] = mapped_column(default=False)
     auto_collapse_items: Mapped[bool] = mapped_column(default=False)
+    presentation_options: Mapped[dict] = mapped_column(JSON, default=dict)
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 

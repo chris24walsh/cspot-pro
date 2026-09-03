@@ -34,6 +34,7 @@ import { CountdownSlide } from "./CountdownSlide";
 import { PreServiceSlide, serviceScheduleForPlan } from "./PreServiceSlide";
 import { PreServiceMusic } from "./PreServiceMusic";
 import { ScaledSlideImage } from "./ScaledSlideImage";
+import { SlideOverlay } from "./SlideOverlay";
 
 const AUDIO_FADE_STEPS = 20;
 const AUDIO_FADE_INTERVAL_MS = PROGRAM_AUDIO_FADE_DURATION_MS / AUDIO_FADE_STEPS;
@@ -738,7 +739,7 @@ export function PresentationOutput({ mediaOutput = false, networkDisplay = false
             title={`${liveSlide.sectionTitle} audio`}
           />
         ) : null}
-        <div className="slide-visual-transition" key={blanked ? "blank" : liveSlide?.id ?? "ready"}>
+        <div className={`slide-visual-transition transition-${liveSlide?.transition ?? "fade"}`} key={blanked ? "blank" : liveSlide?.id ?? "ready"}>
         {blanked ? (
           <div
             className="blank-stage lcf-background-surface"
@@ -746,7 +747,7 @@ export function PresentationOutput({ mediaOutput = false, networkDisplay = false
             style={{ backgroundImage: `url(${LCF_BACKGROUND_URL})` }}
           />
         ) : liveSlide?.montageImageUrls && plan ? (
-          <PreServiceSlide backgroundImageUrl={LCF_BACKGROUND_URL} imageUrls={liveSlide.montageImageUrls} random={liveSlide.montageRandom} serviceDate={plan.service_date} timed={Boolean(liveSlide.preServiceTimed)} phase={liveSlide.preServiceStage ?? liveState?.preServicePhase} phaseStartedAt={liveState?.updatedAt} schedule={serviceScheduleForPlan(serviceSchedules, plan.service_date, plan.plan_type)} />
+          <PreServiceSlide backgroundImageUrl={LCF_BACKGROUND_URL} dwellSeconds={liveSlide.dwellSeconds} imageUrls={liveSlide.montageImageUrls} random={liveSlide.montageRandom} serviceDate={plan.service_date} timed={Boolean(liveSlide.preServiceTimed)} phase={liveSlide.preServiceStage ?? liveState?.preServicePhase} phaseStartedAt={liveState?.updatedAt} schedule={serviceScheduleForPlan(serviceSchedules, plan.service_date, plan.plan_type)} />
         ) : liveSlide?.countdownSeconds ? (
           <CountdownSlide durationSeconds={liveSlide.countdownSeconds} startAt={liveState?.updatedAt} />
         ) : liveSlide?.backgroundImageUrl ? (
@@ -756,7 +757,7 @@ export function PresentationOutput({ mediaOutput = false, networkDisplay = false
             aria-label={liveSlide.title}
           />
         ) : liveSlide?.imageUrl ? (
-          <ScaledSlideImage alt={liveSlide.title} src={liveSlide.imageUrl} />
+          <ScaledSlideImage alt={liveSlide.title} fitMode={liveSlide.fitMode} src={liveSlide.imageUrl} />
         ) : liveSlide?.videoUrl ? (
           <div className="stage-video-frame">
             {liveSlide.videoProvider === "file" ? (
@@ -809,6 +810,7 @@ export function PresentationOutput({ mediaOutput = false, networkDisplay = false
             />
           </>
         )}
+        {!blanked && liveSlide ? <SlideOverlay slide={liveSlide} startAt={liveState?.updatedAt} /> : null}
         </div>
       </section>
       {preServiceAudioUrl && plan ? (

@@ -49,6 +49,15 @@ export interface PresentationSlide {
   buildCount?: number;
   itemType: string;
   sequence: string;
+  fitMode?: "contain" | "cover";
+  overlayText?: string;
+  overlayMode?: "none" | "static" | "countdown";
+  overlayCountdownSeconds?: number;
+  overlayPosition?: "top" | "centre" | "bottom";
+  overlaySize?: "small" | "medium" | "large";
+  transition?: "fade" | "cut" | "slide";
+  autoAdvanceSeconds?: number;
+  dwellSeconds?: number;
 }
 
 export interface PresentationSection {
@@ -384,6 +393,18 @@ function buildIndividualPresentationSections(
     const sectionTitle = song?.title ?? item.title;
     const sectionBase = { id: item.id, title: sectionTitle, itemType: item.item_type, plannedStart: item.planned_start };
     const normalizedItemType = item.item_type.trim().toLowerCase();
+    const options = item.presentation_options ?? {};
+    const presentationOptions = {
+      fitMode: options.fit_mode,
+      overlayText: options.overlay_text,
+      overlayMode: options.overlay_mode,
+      overlayCountdownSeconds: options.overlay_countdown_seconds,
+      overlayPosition: options.overlay_position,
+      overlaySize: options.overlay_size,
+      transition: options.transition,
+      autoAdvanceSeconds: options.auto_advance ? options.dwell_seconds : undefined,
+      dwellSeconds: options.dwell_seconds,
+    };
     const fillerImageUrls = (item.files ?? [])
       .filter((file) => file.content_type?.startsWith("image/"))
       .map((file) => storedFileDownloadUrl(file.file_id));
@@ -409,6 +430,7 @@ function buildIndividualPresentationSections(
           preServiceTimed: true,
           itemType: item.item_type,
           sequence: item.sequence,
+          ...presentationOptions,
         }],
       };
     }
@@ -436,6 +458,7 @@ function buildIndividualPresentationSections(
           preServiceTimed: true,
           itemType: item.item_type,
           sequence: item.sequence,
+          ...presentationOptions,
         }],
       };
     }
@@ -460,12 +483,13 @@ function buildIndividualPresentationSections(
           buildCount,
           itemType: item.item_type,
           sequence: item.sequence,
+          ...presentationOptions,
         };
       }),
     );
 
     if (deckSlides.length) {
-      return { ...sectionBase, slides: deckSlides };
+      return { ...sectionBase, slides: deckSlides.map((slide) => ({ ...slide, ...presentationOptions })) };
     }
 
     if (item.item_type === "video") {
@@ -483,6 +507,7 @@ function buildIndividualPresentationSections(
         videoUrl: videoFile ? storedFileDownloadUrl(videoFile.file_id) : videoId ? youtubeEmbedUrl(videoId) : undefined,
         itemType: item.item_type,
         sequence: item.sequence,
+        ...presentationOptions,
       };
       return { ...sectionBase, slides: [slide] };
     }
@@ -541,13 +566,16 @@ function buildIndividualPresentationSections(
       }
     }
 
+    const announcementText = normalizedItemType === "announcements"
+      ? [item.comment, options.announcement_date, options.announcement_location, options.announcement_contact, options.announcement_url].filter(Boolean).join("\n")
+      : null;
     const slide = {
       id: item.id,
       planItemId: item.id,
       sectionId: item.id,
       sectionTitle,
       title: sectionTitle,
-      text: ["seating", "countdown"].includes(normalizedItemType) ? "" : slideTextForItem(item, songs),
+      text: ["seating", "countdown"].includes(normalizedItemType) ? "" : announcementText || slideTextForItem(item, songs),
       backgroundImageUrl: !fillerImageUrls.length && !hasSectionContent && !["seating", "countdown"].includes(normalizedItemType)
           ? LCF_BACKGROUND_URL
           : undefined,
@@ -557,6 +585,7 @@ function buildIndividualPresentationSections(
       countdownSeconds: ["seating", "countdown"].includes(normalizedItemType) ? 300 : undefined,
       itemType: item.item_type,
       sequence: item.sequence,
+      ...presentationOptions,
     };
 
     return {

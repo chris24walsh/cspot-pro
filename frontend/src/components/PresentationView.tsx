@@ -64,6 +64,7 @@ import {
   type PlanHistoryEntry,
   type PlanHistorySnapshotItem,
   type PlanItem,
+  type PresentationOptions,
   type PlanSummary,
   type PlanType,
   type Song,
@@ -98,6 +99,7 @@ import { PreServiceSlide, serviceScheduleForPlan } from "./PreServiceSlide";
 import { DateNavigator, formatNavigatorDate } from "./DateNavigator";
 import { defaultPlanningDate, nextSundayDate } from "../planningDates";
 import { ScaledSlideImage } from "./ScaledSlideImage";
+import { SlideOverlay } from "./SlideOverlay";
 import { SongEditorDialog } from "./SongEditorDialog";
 import { useEscapeClose } from "./useEscapeClose";
 import { showToast } from "../toast";
@@ -121,6 +123,15 @@ const REMOTE_LIVE_STATE_POLL_INTERVAL_MS = 250;
 const FILLER_MEDIA_ITEM_TYPES = new Set(["open_time", "sermon", "announcements"]);
 const FIXED_WELCOME_STAGE_TYPES = new Set(["welcome_montage", "welcome_countdown", "welcome_seated"]);
 const INLINE_EDIT_ITEM_TYPES = new Set([...FILLER_MEDIA_ITEM_TYPES, ...FIXED_WELCOME_STAGE_TYPES, "reading"]);
+
+const EMPTY_ITEM_EDIT_DRAFT: { title: string; comment: string; planned_start: string; auto_collapse_items: boolean } & Required<PresentationOptions> = {
+  title: "", comment: "", planned_start: "", auto_collapse_items: false,
+  dwell_seconds: 8, transition: "fade", fit_mode: "contain", overlay_text: "",
+  overlay_mode: "none", overlay_countdown_seconds: 300, overlay_position: "bottom",
+  overlay_size: "medium", auto_advance: false, repeat: false, announcement_date: "",
+  announcement_location: "", announcement_contact: "", announcement_url: "",
+  announcement_layout: "split",
+};
 
 function outputOwnerId() {
   if (crypto.randomUUID) {
@@ -652,7 +663,7 @@ export function PresentationView({
   const [fillerMediaBusy, setFillerMediaBusy] = useState(false);
   const [fillerMediaEditorLoading, setFillerMediaEditorLoading] = useState(false);
   const [loadedFillerMediaFileIds, setLoadedFillerMediaFileIds] = useState<Set<string>>(() => new Set());
-  const [itemEditDraft, setItemEditDraft] = useState({ title: "", comment: "", planned_start: "", auto_collapse_items: false });
+  const [itemEditDraft, setItemEditDraft] = useState(EMPTY_ITEM_EDIT_DRAFT);
   const [serviceSchedules, setServiceSchedules] = useState<ServiceScheduleRule[]>([]);
 
   const [liveIndex, setLiveIndex] = useState(0);
@@ -1034,10 +1045,12 @@ export function PresentationView({
       if (freshPlan.id === plan?.id) setPlan(freshPlan);
       if (freshPlan.id === worshipSetPlan?.id) setWorshipSetPlan(freshPlan);
       setItemEditDraft({
+        ...EMPTY_ITEM_EDIT_DRAFT,
         title: freshItem.title,
         comment: freshItem.comment ?? "",
         planned_start: freshItem.planned_start ?? "",
         auto_collapse_items: Boolean(freshSection?.auto_collapse_items),
+        ...freshItem.presentation_options,
       });
       setFillerMediaPlanItemId(freshItem.id);
       setFillerMediaSectionId(freshSection?.id ?? null);
@@ -1052,7 +1065,7 @@ export function PresentationView({
     setFillerMediaPlanItemId(null);
     setFillerMediaSectionId(null);
     setLoadedFillerMediaFileIds(new Set());
-    setItemEditDraft({ title: "", comment: "", planned_start: "", auto_collapse_items: false });
+    setItemEditDraft(EMPTY_ITEM_EDIT_DRAFT);
   }
 
   function closeSongEditor() {
@@ -1465,6 +1478,12 @@ export function PresentationView({
       void publishLiveState(boundedIndex, { blanked: false });
     });
   }
+
+  useEffect(() => {
+    if (!slideshowOpen || liveBlanked || !liveSlide?.autoAdvanceSeconds || liveIndex >= slides.length - 1) return undefined;
+    const timer = window.setTimeout(() => moveLive(1), Math.max(liveSlide.autoAdvanceSeconds, 1) * 1000);
+    return () => window.clearTimeout(timer);
+  }, [liveBlanked, liveIndex, liveSlide?.autoAdvanceSeconds, liveSlide?.id, slideshowOpen, slides.length]);
 
   function sorterTargetForSlide(slide: PresentationSlide | null | undefined) {
     if (!slide) return null;
@@ -2279,6 +2298,23 @@ export function PresentationView({
         title,
         comment: itemEditDraft.comment.trim() || null,
         planned_start: itemEditDraft.planned_start || null,
+        presentation_options: {
+          dwell_seconds: Number(itemEditDraft.dwell_seconds) || 8,
+          transition: itemEditDraft.transition,
+          fit_mode: itemEditDraft.fit_mode,
+          overlay_text: itemEditDraft.overlay_text.trim(),
+          overlay_mode: itemEditDraft.overlay_mode,
+          overlay_countdown_seconds: Number(itemEditDraft.overlay_countdown_seconds) || 300,
+          overlay_position: itemEditDraft.overlay_position,
+          overlay_size: itemEditDraft.overlay_size,
+          auto_advance: itemEditDraft.auto_advance,
+          repeat: itemEditDraft.repeat,
+          announcement_date: itemEditDraft.announcement_date,
+          announcement_location: itemEditDraft.announcement_location.trim(),
+          announcement_contact: itemEditDraft.announcement_contact.trim(),
+          announcement_url: itemEditDraft.announcement_url.trim(),
+          announcement_layout: itemEditDraft.announcement_layout,
+        },
       };
       if (fillerMediaSectionItem?.id === fillerMediaPlanItem.id) {
         await updatePlanItem(fillerMediaPlanItem.id, { ...details, auto_collapse_items: itemEditDraft.auto_collapse_items });
@@ -4486,7 +4522,7 @@ export function PresentationView({
                   <span>{liveSlide?.title ?? "Ready"}</span>
                 </div>
               )}
-              <div className="slide-visual-transition" key={liveBlanked ? "blank" : liveSlide?.id ?? "ready"}>
+              <div className={`slide-visual-transition transition-${liveSlide?.transition ?? "fade"}`} key={liveBlanked ? "blank" : liveSlide?.id ?? "ready"}>
               {liveBlanked ? (
                 <div
                   className="blank-stage lcf-background-surface"
@@ -4494,7 +4530,7 @@ export function PresentationView({
                   style={{ backgroundImage: `url(${LCF_BACKGROUND_URL})` }}
                 />
               ) : liveSlide?.montageImageUrls && plan ? (
-                <PreServiceSlide backgroundImageUrl={LCF_BACKGROUND_URL} imageUrls={liveSlide.montageImageUrls} random={liveSlide.montageRandom} serviceDate={plan.service_date} timed={Boolean(liveSlide.preServiceTimed)} phase={liveSlide.preServiceStage ?? currentLiveStateRef.current?.preServicePhase} phaseStartedAt={currentLiveStateRef.current?.updatedAt} schedule={serviceScheduleForPlan(serviceSchedules, plan.service_date, plan.plan_type)} />
+                <PreServiceSlide backgroundImageUrl={LCF_BACKGROUND_URL} dwellSeconds={liveSlide.dwellSeconds} imageUrls={liveSlide.montageImageUrls} random={liveSlide.montageRandom} serviceDate={plan.service_date} timed={Boolean(liveSlide.preServiceTimed)} phase={liveSlide.preServiceStage ?? currentLiveStateRef.current?.preServicePhase} phaseStartedAt={currentLiveStateRef.current?.updatedAt} schedule={serviceScheduleForPlan(serviceSchedules, plan.service_date, plan.plan_type)} />
               ) : liveSlide?.countdownSeconds ? (
                 <CountdownSlide
                   durationSeconds={liveSlide.countdownSeconds}
@@ -4507,7 +4543,7 @@ export function PresentationView({
                   aria-label={liveSlide.title}
                 />
               ) : liveSlide?.imageUrl ? (
-                <ScaledSlideImage alt={liveSlide.title} className="stage-image-frame-preview" src={liveSlide.imageUrl} />
+                <ScaledSlideImage alt={liveSlide.title} className="stage-image-frame-preview" fitMode={liveSlide.fitMode} src={liveSlide.imageUrl} />
               ) : liveSlide?.videoUrl ? (
                 <div className="stage-video-frame">
                   {liveSlide.videoProvider === "file" ? (
@@ -4528,6 +4564,7 @@ export function PresentationView({
                   text={liveSlide?.text ?? "No live slide selected"}
                 />
               )}
+              {!liveBlanked && liveSlide ? <SlideOverlay slide={liveSlide} startAt={currentLiveStateRef.current?.updatedAt} /> : null}
               </div>
             </div>
           </div>
@@ -5741,6 +5778,36 @@ export function PresentationView({
                 <span>Auto-contract this section's items in every service</span>
               </label> : null}
             </div>
+            <fieldset className="item-editor-fieldset">
+              <legend>Presentation</legend>
+              <div className="form-grid item-details-grid">
+                <label><span>Image fit</span><select disabled={fillerMediaBusy} onChange={(event) => setItemEditDraft((current) => ({ ...current, fit_mode: event.target.value as "contain" | "cover" }))} value={itemEditDraft.fit_mode}><option value="contain">Fit whole image</option><option value="cover">Fill and crop</option></select></label>
+                <label><span>Transition</span><select disabled={fillerMediaBusy} onChange={(event) => setItemEditDraft((current) => ({ ...current, transition: event.target.value as "fade" | "cut" | "slide" }))} value={itemEditDraft.transition}><option value="fade">Fade</option><option value="cut">Cut</option><option value="slide">Slide</option></select></label>
+                <label><span>Image dwell (seconds)</span><input disabled={fillerMediaBusy} min="1" onChange={(event) => setItemEditDraft((current) => ({ ...current, dwell_seconds: Number(event.target.value) }))} type="number" value={itemEditDraft.dwell_seconds} /></label>
+                <label className="inline-checkbox"><input checked={itemEditDraft.auto_advance} disabled={fillerMediaBusy} onChange={(event) => setItemEditDraft((current) => ({ ...current, auto_advance: event.target.checked }))} type="checkbox" /><span>Advance automatically</span></label>
+                {fillerMediaPlanItem.item_type === "open_time" ? <label className="inline-checkbox"><input checked={itemEditDraft.repeat} disabled={fillerMediaBusy} onChange={(event) => setItemEditDraft((current) => ({ ...current, repeat: event.target.checked }))} type="checkbox" /><span>Repeat montage</span></label> : null}
+              </div>
+            </fieldset>
+            {FIXED_WELCOME_STAGE_TYPES.has(fillerMediaPlanItem.item_type) || fillerMediaPlanItem.item_type === "open_time" ? <fieldset className="item-editor-fieldset">
+              <legend>Text overlay</legend>
+              <div className="form-grid item-details-grid">
+                <label><span>Overlay type</span><select disabled={fillerMediaBusy} onChange={(event) => setItemEditDraft((current) => ({ ...current, overlay_mode: event.target.value as "none" | "static" | "countdown" }))} value={itemEditDraft.overlay_mode}><option value="none">None</option><option value="static">Static text</option><option value="countdown">Text and countdown</option></select></label>
+                <label><span>Position</span><select disabled={fillerMediaBusy} onChange={(event) => setItemEditDraft((current) => ({ ...current, overlay_position: event.target.value as "top" | "centre" | "bottom" }))} value={itemEditDraft.overlay_position}><option value="top">Top</option><option value="centre">Centre</option><option value="bottom">Bottom</option></select></label>
+                <label className="wide-field"><span>Overlay text</span><input disabled={fillerMediaBusy || itemEditDraft.overlay_mode === "none"} onChange={(event) => setItemEditDraft((current) => ({ ...current, overlay_text: event.target.value }))} value={itemEditDraft.overlay_text} /></label>
+                <label><span>Text size</span><select disabled={fillerMediaBusy} onChange={(event) => setItemEditDraft((current) => ({ ...current, overlay_size: event.target.value as "small" | "medium" | "large" }))} value={itemEditDraft.overlay_size}><option value="small">Small</option><option value="medium">Medium</option><option value="large">Large</option></select></label>
+                {itemEditDraft.overlay_mode === "countdown" ? <label><span>Countdown seconds</span><input min="1" onChange={(event) => setItemEditDraft((current) => ({ ...current, overlay_countdown_seconds: Number(event.target.value) }))} type="number" value={itemEditDraft.overlay_countdown_seconds} /></label> : null}
+              </div>
+            </fieldset> : null}
+            {fillerMediaPlanItem.item_type === "announcements" ? <fieldset className="item-editor-fieldset">
+              <legend>Announcement details</legend>
+              <div className="form-grid item-details-grid">
+                <label><span>Layout</span><select onChange={(event) => setItemEditDraft((current) => ({ ...current, announcement_layout: event.target.value as "image" | "text" | "split" | "background" }))} value={itemEditDraft.announcement_layout}><option value="split">Split image and text</option><option value="image">Image-led</option><option value="text">Text-led</option><option value="background">Full background</option></select></label>
+                <label><span>Date / time</span><input onChange={(event) => setItemEditDraft((current) => ({ ...current, announcement_date: event.target.value }))} value={itemEditDraft.announcement_date} /></label>
+                <label><span>Location</span><input onChange={(event) => setItemEditDraft((current) => ({ ...current, announcement_location: event.target.value }))} value={itemEditDraft.announcement_location} /></label>
+                <label><span>Contact</span><input onChange={(event) => setItemEditDraft((current) => ({ ...current, announcement_contact: event.target.value }))} value={itemEditDraft.announcement_contact} /></label>
+                <label className="wide-field"><span>URL / QR destination</span><input onChange={(event) => setItemEditDraft((current) => ({ ...current, announcement_url: event.target.value }))} type="url" value={itemEditDraft.announcement_url} /></label>
+              </div>
+            </fieldset> : null}
             <p>Add one image to replace the default slide background, or add several to rotate them as a montage.</p>
             {canAttachDeck ? <label className="pre-service-upload-control">
               Add images

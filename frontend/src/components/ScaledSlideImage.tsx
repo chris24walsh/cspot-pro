@@ -4,9 +4,10 @@ type ScaledSlideImageProps = {
   alt: string;
   className?: string;
   src: string;
+  fitMode?: "contain" | "cover";
 };
 
-export function ScaledSlideImage({ alt, className = "", src }: ScaledSlideImageProps) {
+export function ScaledSlideImage({ alt, className = "", fitMode = "contain", src }: ScaledSlideImageProps) {
   const frameRef = useRef<HTMLDivElement | null>(null);
   const imageRef = useRef<HTMLImageElement | null>(null);
   const [naturalSize, setNaturalSize] = useState({ height: 0, width: 0 });
@@ -42,7 +43,9 @@ export function ScaledSlideImage({ alt, className = "", src }: ScaledSlideImageP
         return;
       }
 
-      const scale = Math.min(frameWidth / naturalSize.width, frameHeight / naturalSize.height);
+      const scale = fitMode === "cover"
+        ? Math.max(frameWidth / naturalSize.width, frameHeight / naturalSize.height)
+        : Math.min(frameWidth / naturalSize.width, frameHeight / naturalSize.height);
       setDisplaySize({
         height: Math.floor(naturalSize.height * scale),
         width: Math.floor(naturalSize.width * scale),
@@ -53,7 +56,7 @@ export function ScaledSlideImage({ alt, className = "", src }: ScaledSlideImageP
     const observer = new ResizeObserver(updateSize);
     observer.observe(frame);
     return () => observer.disconnect();
-  }, [naturalSize.height, naturalSize.width]);
+  }, [fitMode, naturalSize.height, naturalSize.width]);
 
   function updateNaturalSize() {
     const image = imageRef.current;

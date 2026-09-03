@@ -43,6 +43,32 @@ function song(overrides: Partial<Song>): Song {
 }
 
 describe("presentation slide derivation", () => {
+  it("applies type-specific presentation options and structured announcement details", () => {
+    const [slide] = buildPresentationSlides([planItem({
+      item_type: "announcements",
+      comment: "Community lunch",
+      presentation_options: {
+        dwell_seconds: 12,
+        auto_advance: true,
+        fit_mode: "cover",
+        transition: "slide",
+        overlay_mode: "static",
+        overlay_text: "This Sunday",
+        announcement_date: "12:30",
+        announcement_location: "Church hall",
+      },
+    })], []);
+
+    expect(slide).toMatchObject({
+      autoAdvanceSeconds: 12,
+      dwellSeconds: 12,
+      fitMode: "cover",
+      overlayText: "This Sunday",
+      transition: "slide",
+    });
+    expect(slide.text).toBe("Community lunch\n12:30\nChurch hall");
+  });
+
   it("keeps playing media state while navigating inside the same section", () => {
     const currentState = {
       planItemId: "song-item",

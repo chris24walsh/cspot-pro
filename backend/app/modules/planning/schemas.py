@@ -51,6 +51,7 @@ class PlanItemBase(BaseModel):
     song_id: str | None = None
     montage_random: bool = False
     auto_collapse_items: bool = False
+    presentation_options: dict[str, Any] = Field(default_factory=dict)
 
 
 class PlanItemCreate(PlanItemBase):
@@ -69,6 +70,7 @@ class PlanItemUpdate(BaseModel):
     teacher_notes: str | None = None
     montage_random: bool | None = None
     auto_collapse_items: bool | None = None
+    presentation_options: dict[str, Any] | None = None
 
 
 class PlanItemRead(PlanItemBase):

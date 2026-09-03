@@ -388,6 +388,13 @@ in the `Pre-service Montage` category remain supported as persistent entries.
 They can manage both kinds from the Welcome section. Image montages begin with
 their first configured image whenever the slide is selected; an item-level
 option can instead apply a deterministic random order shared by every output.
+Section and child-item pencils share one native editor backed by the plan item's
+`presentation_options` JSON. Section images are fallback content and are omitted
+while child items exist. The editor exposes image dwell/fit, transition and
+auto-advance controls; Welcome and Open time add positioned static/countdown
+overlays; Announcements add structured date, location, contact, URL and layout
+metadata; sermon/deck controls remain presentation-only so imported pixels are
+not rewritten. Preview and live output consume the same options.
 An open network display or viewer
 poll creates a scheduled live presentation when a configured service rule begins,
 selects Welcome, and activates the dedicated Pre-service audio scene. The

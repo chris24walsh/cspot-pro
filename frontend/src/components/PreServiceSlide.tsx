@@ -77,6 +77,7 @@ export function PreServiceSlide({
   phaseStartedAt,
   schedule,
   random = false,
+  dwellSeconds,
 }: {
   backgroundImageUrl: string;
   imageUrls: string[];
@@ -86,6 +87,7 @@ export function PreServiceSlide({
   phaseStartedAt?: number;
   schedule?: ServiceScheduleRule;
   random?: boolean;
+  dwellSeconds?: number;
 }) {
   const [now, setNow] = useState(Date.now());
   const selectedAt = useRef(Date.now());
@@ -104,7 +106,7 @@ export function PreServiceSlide({
   // Ordinary section montages reuse the photo crossfade, but must not inherit
   // the global pre-service clock/countdown phase.
   const phase = timed ? (forcedPhase ?? preServicePhaseAt(serviceDate, now, schedule)) : "montage";
-  const montageImageIndex = Math.floor((now - (phaseStartedAt ?? selectedAt.current)) / 12_000) % Math.max(images.length, 1);
+  const montageImageIndex = Math.floor((now - (phaseStartedAt ?? selectedAt.current)) / (Math.max(dwellSeconds ?? 12, 1) * 1000)) % Math.max(images.length, 1);
   const remaining = preServiceRemainingSeconds(serviceDate, now, forcedPhase, phaseStartedAt, schedule);
   const displayPhase = phase === "countdown" && remaining === 0 ? "complete" : phase;
   const displayedCountdownLabel = useRef(countdownLabel(remaining));

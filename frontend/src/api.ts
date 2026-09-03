@@ -96,6 +96,25 @@ export interface PlanItem {
   teacher_notes: string | null;
   montage_random?: boolean;
   auto_collapse_items?: boolean;
+  presentation_options?: PresentationOptions;
+}
+
+export interface PresentationOptions {
+  dwell_seconds?: number;
+  transition?: "fade" | "cut" | "slide";
+  fit_mode?: "contain" | "cover";
+  overlay_text?: string;
+  overlay_mode?: "none" | "static" | "countdown";
+  overlay_countdown_seconds?: number;
+  overlay_position?: "top" | "centre" | "bottom";
+  overlay_size?: "small" | "medium" | "large";
+  auto_advance?: boolean;
+  repeat?: boolean;
+  announcement_date?: string;
+  announcement_location?: string;
+  announcement_contact?: string;
+  announcement_url?: string;
+  announcement_layout?: "image" | "text" | "split" | "background";
 }
 
 export interface PlanHistorySnapshotItem {
@@ -531,6 +550,7 @@ export interface PlanItemPayload {
   teacher_notes?: string | null;
   montage_random?: boolean;
   auto_collapse_items?: boolean;
+  presentation_options?: PresentationOptions;
 }
 
 export interface PlanHistoryPayload {
