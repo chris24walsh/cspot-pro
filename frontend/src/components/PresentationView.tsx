@@ -4835,8 +4835,8 @@ export function PresentationView({
                 ?.map((file) => renderErrorsByFileId[file.file_id])
                 .find(Boolean);
               const hasNestedItems = visibleSectionSlides.some((slide) => slide.planItemId !== section.id);
-              const autoCollapseSectionItems = Boolean(hasNestedItems && sectionItem?.auto_collapse_items);
-              const canCollapseSection = !hasNestedItems && visibleSectionSlides.length > 1;
+              const autoCollapseSectionItems = Boolean(sectionItem?.auto_collapse_items);
+              const canCollapseSection = !autoCollapseSectionItems && !hasNestedItems && visibleSectionSlides.length > 1;
               const sectionExpanded = expandedSorterSectionIds.has(section.id) || liveSlide?.sectionId === section.id;
               const showSlideTiles =
                 !canCollapseSection ||
