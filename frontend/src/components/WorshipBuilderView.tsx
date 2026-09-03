@@ -388,6 +388,12 @@ export function WorshipBuilderView({ active = true, canAccessAdminTools, canArch
   const [customProviderSelectionLoading, setCustomProviderSelectionLoading] = useState(false);
   const [customProviderImporting, setCustomProviderImporting] = useState(false);
   const [customImportTargetSong, setCustomImportTargetSong] = useState<Song | null>(null);
+
+  useEffect(() => {
+    if (!archivedSongUndo) return;
+    const timer = window.setTimeout(() => setArchivedSongUndo(null), 5000);
+    return () => window.clearTimeout(timer);
+  }, [archivedSongUndo]);
   const [editHistory, setEditHistory] = useState<PlanHistoryEntry[]>([]);
   const [editHistoryIndex, setEditHistoryIndex] = useState(0);
   const [editHistoryOpen, setEditHistoryOpen] = useState(false);

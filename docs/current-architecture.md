@@ -396,9 +396,9 @@ independent Welcome, countdown, service-start, and cleanup times. This supports
 Sunday, midweek, and other recurring events without hard-coded plan names. When the countdown expires,
 music and montage stop and Welcome displays the LCF background in a ready state;
 this does not claim or start the main slideshow. Starting slideshow is the human
-service-start signal. It starts the selected slide, or keeps the static background
-when Welcome is selected, and hands audio-scene inference to the live service.
-Stopping slideshow enters a post-service background/music state and returns
+service-start signal. It starts the currently selected slide without blanking it
+and hands audio-scene inference to the live service.
+Stopping slideshow leaves the current slide visible without blanking it and returns
 audio to the safe Pre-service scene rather than taking the scheduled broadcast
 offline. The scheduled session is exposed only during its configured window.
 Before creating it, the scheduler retires an abandoned live session with no

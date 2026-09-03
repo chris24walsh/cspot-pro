@@ -773,7 +773,6 @@ def update_presentation_output_status(
         next_payload.pop("output_recording_item_id", None)
         next_payload["service_stage"] = "post_service"
         next_payload.pop("pre_service_phase", None)
-        next_payload["blanked"] = True
         next_payload["updated_at"] = payload.heartbeat_at
         presentation_session.status = "ended"
         presentation_session.ended_at = datetime.now(UTC)

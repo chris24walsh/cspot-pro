@@ -340,7 +340,7 @@ def test_remote_release_prevents_the_closed_output_from_reclaiming() -> None:
         session.add(
             PresentationPosition(
                 session_id=presentation_session.id,
-                payload_json=('{"output_owner_id": "output-1", "output_heartbeat_at": 10000}'),
+                payload_json=('{"output_owner_id": "output-1", "output_heartbeat_at": 10000, "blanked": false}'),
             )
         )
         session.add(BroadcastViewerSettings(audio_scene_automation=True))
@@ -377,7 +377,7 @@ def test_remote_release_prevents_the_closed_output_from_reclaiming() -> None:
     assert scheduled == [(None, None)]
     assert released_payload is not None
     assert '"service_stage": "post_service"' in released_payload
-    assert '"blanked": true' in released_payload
+    assert '"blanked": false' in released_payload
     activate_scene.assert_called_once()
     assert activate_scene.call_args.args[2] == "pre_service"
 

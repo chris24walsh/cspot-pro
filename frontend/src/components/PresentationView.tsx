@@ -958,12 +958,12 @@ export function PresentationView({
   ].includes(
     currentPlanItem?.item_type ?? "",
   );
+  const currentParentPlanItem = currentPlanItem?.parent_item_id
+    ? effectivePlanItems.find((item) => item.id === currentPlanItem.parent_item_id) ?? null
+    : null;
   const currentPlanItemAllowsNotes =
     !isWelcomePlanItem &&
-    (currentPlanItem?.item_type === "message" ||
-      currentPlanItem?.item_type === "sermon" ||
-      currentPlanItem?.item_type === "slide_deck" ||
-      Boolean(currentPlanItem?.files.length));
+    (currentPlanItem?.item_type === "sermon" || currentParentPlanItem?.item_type === "sermon");
   const currentSlideSavedNotes = slideNoteFor(currentPlanItem?.teacher_notes, liveSlide, currentPlanItemSlides);
   const slideNotesDirty = slideNotesDraft.trim() !== currentSlideSavedNotes;
   const planTextSlides = useMemo(
@@ -1674,18 +1674,14 @@ export function PresentationView({
     if (!slideshowOpen && !(await startSlideshow(openSlideshowWindowOnStart))) {
       return;
     }
-    const welcomeIndex = slides.findIndex((slide) => slide.itemType === "welcome_seated");
-    const legacyWelcomeIndex = slides.findIndex((slide) => slide.itemType === "pre_service");
-    const nextIndex = welcomeIndex >= 0 ? welcomeIndex : legacyWelcomeIndex >= 0 ? legacyWelcomeIndex : liveIndex;
-    setLiveIndex(nextIndex);
-    setLiveBlanked(true);
+    setLiveBlanked(false);
     setSlideshowStartMenuOpen(false);
-    await publishLiveState(nextIndex, {
-      blanked: true,
+    await publishLiveState(liveIndex, {
+      blanked: false,
       serviceStage: "service",
-      preServicePhase: "waiting",
+      preServicePhase: null,
     });
-    setMessage("Service started on the holding background. Use Next when worship is ready to begin.");
+    setMessage("Service started on the current slide.");
   }
 
   async function stopServiceTest() {
@@ -1746,7 +1742,6 @@ export function PresentationView({
       closeLocalSlideshowWindow();
       outputOwnerIdRef.current = null;
       setSlideshowOpen(false);
-      setLiveBlanked(true);
       setMessage(null);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Could not stop the slideshow.");
@@ -1807,9 +1802,8 @@ export function PresentationView({
 
     outputOwnerIdRef.current = ownerId;
     setSlideshowOpen(true);
-    const startOnBackground = ["pre_service", "welcome_montage", "welcome_countdown", "welcome_seated"].includes(liveSlide?.itemType ?? "");
-    setLiveBlanked(startOnBackground);
-    await publishLiveState(liveIndex, { blanked: startOnBackground, serviceStage: "service", preServicePhase: null });
+    setLiveBlanked(false);
+    await publishLiveState(liveIndex, { blanked: false, serviceStage: "service", preServicePhase: null });
 
     if (!openLocalWindow) {
       setMessage("Slideshow started. Connected TV and browser displays are active.");
@@ -5115,7 +5109,7 @@ export function PresentationView({
                     ) : null}
                     {groupExpanded ? (
                       <div className="section-group-items">
-                        {canEditPlan && section.itemType !== "pre_service" ? (
+                        {canEditPlan && groupItems.length > 0 && section.itemType !== "pre_service" ? (
                           <button
                             aria-label={`Add item at the start of ${section.title}`}
                             className="section-group-insert-button"
