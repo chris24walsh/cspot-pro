@@ -8619,9 +8619,10 @@ button.musician-page {
 
 .lcf-background-slide,
 .lcf-background-surface {
+  background-color: #17252b;
   background-position: center;
   background-repeat: no-repeat;
-  background-size: cover;
+  background-size: contain;
   height: 100%;
   width: 100%;
 }
@@ -8983,7 +8984,7 @@ button.musician-page {
 }
 
 .stage-blanked .blank-stage {
-  background: transparent;
+  background-color: #17252b;
 }
 
 .stage-blanked .presentation-stage,
