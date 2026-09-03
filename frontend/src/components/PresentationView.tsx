@@ -651,7 +651,7 @@ export function PresentationView({
   const [preServiceMediaBusy, setPreServiceMediaBusy] = useState(false);
   const [fillerMediaPlanItemId, setFillerMediaPlanItemId] = useState<string | null>(null);
   const [fillerMediaBusy, setFillerMediaBusy] = useState(false);
-  const [itemEditDraft, setItemEditDraft] = useState({ title: "", comment: "", planned_start: "" });
+  const [itemEditDraft, setItemEditDraft] = useState({ title: "", comment: "", planned_start: "", auto_collapse_items: false });
   const [serviceSchedules, setServiceSchedules] = useState<ServiceScheduleRule[]>([]);
 
   const [liveIndex, setLiveIndex] = useState(0);
@@ -922,6 +922,7 @@ export function PresentationView({
   const preServicePlanItem = effectivePlanItems.find((item) => item.item_type === "welcome_montage")
     ?? effectivePlanItems.find((item) => item.item_type === "pre_service")
     ?? null;
+  const preServiceSectionItem = effectivePlanItems.find((item) => item.item_type === "pre_service" && !item.parent_item_id) ?? null;
   const fillerMediaPlanItem = effectivePlanItems.find((item) => item.id === fillerMediaPlanItemId) ?? null;
   const currentPlanItem = effectivePlanItems.find((item) => item.id === liveSlide?.planItemId) ?? null;
   const activeSermonRecording = broadcastRecordings.find(
@@ -1022,13 +1023,14 @@ export function PresentationView({
       title: item.title,
       comment: item.comment ?? "",
       planned_start: item.planned_start ?? "",
+      auto_collapse_items: Boolean(item.auto_collapse_items),
     });
     setFillerMediaPlanItemId(item.id);
   }
 
   function closePlanItemEditor() {
     setFillerMediaPlanItemId(null);
-    setItemEditDraft({ title: "", comment: "", planned_start: "" });
+    setItemEditDraft({ title: "", comment: "", planned_start: "", auto_collapse_items: false });
   }
 
   function closeSongEditor() {
@@ -2302,6 +2304,25 @@ export function PresentationView({
     }
   }
 
+  async function setAutoCollapseSectionItems(item: PlanItem, autoCollapse: boolean) {
+    setPreServiceMediaBusy(true);
+    try {
+      await updatePlanItem(item.id, { auto_collapse_items: autoCollapse });
+      if (autoCollapse) {
+        setExpandedSorterSectionIds((current) => {
+          const next = new Set(current);
+          next.delete(item.id);
+          return next;
+        });
+      }
+      await load(item.plan_id, { silent: true });
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not update the section display.");
+    } finally {
+      setPreServiceMediaBusy(false);
+    }
+  }
+
   async function savePlanItemDetails() {
     if (!fillerMediaPlanItem) return;
     const title = itemEditDraft.title.trim();
@@ -2315,7 +2336,15 @@ export function PresentationView({
         title,
         comment: itemEditDraft.comment.trim() || null,
         planned_start: itemEditDraft.planned_start || null,
+        auto_collapse_items: itemEditDraft.auto_collapse_items,
       });
+      if (itemEditDraft.auto_collapse_items) {
+        setExpandedSorterSectionIds((current) => {
+          const next = new Set(current);
+          next.delete(fillerMediaPlanItem.id);
+          return next;
+        });
+      }
       await load(fillerMediaPlanItem.plan_id, { silent: true });
       closePlanItemEditor();
       setMessage(`Updated ${title}.`);
@@ -4806,8 +4835,9 @@ export function PresentationView({
                 ?.map((file) => renderErrorsByFileId[file.file_id])
                 .find(Boolean);
               const hasNestedItems = visibleSectionSlides.some((slide) => slide.planItemId !== section.id);
-              const canCollapseSection = !hasNestedItems && visibleSectionSlides.length > 1;
-              const sectionExpanded = expandedSorterSectionIds.has(section.id) || liveSlide?.sectionId === section.id;
+              const autoCollapseSectionItems = Boolean(hasNestedItems && sectionItem?.auto_collapse_items);
+              const canCollapseSection = autoCollapseSectionItems || (!hasNestedItems && visibleSectionSlides.length > 1);
+              const sectionExpanded = expandedSorterSectionIds.has(section.id) || (!autoCollapseSectionItems && liveSlide?.sectionId === section.id);
               const showSlideTiles =
                 !canCollapseSection ||
                 sectionExpanded;
@@ -5734,6 +5764,10 @@ export function PresentationView({
                 <span>{fillerMediaPlanItem.item_type === "announcements" ? "Announcement details" : "Presenter notes"} <small>(optional)</small></span>
                 <textarea disabled={fillerMediaBusy} onChange={(event) => setItemEditDraft((current) => ({ ...current, comment: event.target.value }))} rows={3} value={itemEditDraft.comment} />
               </label>
+              {effectivePlanItems.some((item) => item.parent_item_id === fillerMediaPlanItem.id) ? <label className="inline-checkbox wide-field">
+                <input checked={itemEditDraft.auto_collapse_items} disabled={fillerMediaBusy} onChange={(event) => setItemEditDraft((current) => ({ ...current, auto_collapse_items: event.target.checked }))} type="checkbox" />
+                <span>Keep section items contracted in the slide sorter</span>
+              </label> : null}
             </div>
             <p>Add one image to replace the default slide background, or add several to rotate them as a montage.</p>
             {canAttachDeck ? <label className="pre-service-upload-control">
@@ -5826,6 +5860,10 @@ export function PresentationView({
             {preServicePlanItem ? <label className="inline-checkbox">
               <input checked={Boolean(preServicePlanItem.montage_random)} disabled={preServiceMediaBusy} onChange={(event) => void setMontageRandom(preServicePlanItem, event.target.checked)} type="checkbox" />
               <span>Randomise montage order</span>
+            </label> : null}
+            {preServiceSectionItem ? <label className="inline-checkbox">
+              <input checked={Boolean(preServiceSectionItem.auto_collapse_items)} disabled={preServiceMediaBusy} onChange={(event) => void setAutoCollapseSectionItems(preServiceSectionItem, event.target.checked)} type="checkbox" />
+              <span>Keep Welcome items contracted in the slide sorter</span>
             </label> : null}
             <div className="pre-service-media-grid">
               {(preServicePlanItem?.files ?? []).filter((file) => file.content_type?.startsWith("image/")).map((file) => (

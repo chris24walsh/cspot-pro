@@ -50,6 +50,7 @@ class PlanItemBase(BaseModel):
     key_signature: str | None = None
     song_id: str | None = None
     montage_random: bool = False
+    auto_collapse_items: bool = False
 
 
 class PlanItemCreate(PlanItemBase):
@@ -67,6 +68,7 @@ class PlanItemUpdate(BaseModel):
     song_id: str | None = None
     teacher_notes: str | None = None
     montage_random: bool | None = None
+    auto_collapse_items: bool | None = None
 
 
 class PlanItemRead(PlanItemBase):

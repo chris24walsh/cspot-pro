@@ -95,6 +95,7 @@ export interface PlanItem {
   files: PlanItemFile[];
   teacher_notes: string | null;
   montage_random?: boolean;
+  auto_collapse_items?: boolean;
 }
 
 export interface PlanHistorySnapshotItem {
@@ -529,6 +530,7 @@ export interface PlanItemPayload {
   song_id: string | null;
   teacher_notes?: string | null;
   montage_random?: boolean;
+  auto_collapse_items?: boolean;
 }
 
 export interface PlanHistoryPayload {

@@ -54,6 +54,7 @@ class PlanItem(IdMixin, TimestampMixin, Base):
     comment: Mapped[str | None] = mapped_column(Text)
     key_signature: Mapped[str | None] = mapped_column(String(20))
     montage_random: Mapped[bool] = mapped_column(default=False)
+    auto_collapse_items: Mapped[bool] = mapped_column(default=False)
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
