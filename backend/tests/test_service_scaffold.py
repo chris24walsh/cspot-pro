@@ -10,7 +10,11 @@ from app.modules.identity.models import User
 from app.modules.library.models import ItemFile, StoredFile
 from app.modules.music.models import Song
 from app.modules.planning.models import DefaultItem, Plan, PlanItem, PlanType
-from app.modules.planning.routes import get_plan, presenter_cannot_change_outline
+from app.modules.planning.routes import (
+    changes_protected_outline_fields,
+    get_plan,
+    presenter_cannot_change_outline,
+)
 from app.modules.planning.service_scaffold import (
     SUNDAY_SERVICE_SCAFFOLD,
     ensure_service_scaffold,
@@ -136,6 +140,19 @@ def test_presenter_cannot_change_fixed_sunday_outline_item() -> None:
             )
     finally:
         session.close()
+
+
+def test_unchanged_title_does_not_block_presentation_option_update() -> None:
+    item = PlanItem(sequence=10, item_type="welcome_montage", title="Welcome montage")
+
+    assert not changes_protected_outline_fields(
+        item,
+        {
+            "title": "Welcome montage",
+            "presentation_options": {"auto_advance": True, "auto_advance_seconds": 60},
+        },
+    )
+    assert changes_protected_outline_fields(item, {"title": "Renamed montage"})
 
 
 def test_existing_welcome_photos_move_to_montage_stage() -> None:

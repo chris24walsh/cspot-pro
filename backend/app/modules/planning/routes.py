@@ -84,6 +84,14 @@ def presenter_cannot_change_outline(session: Session, user: User, item: PlanItem
     )
 
 
+def changes_protected_outline_fields(item: PlanItem, payload_data: dict[str, object]) -> bool:
+    """Return true only when a request actually changes the fixed outline."""
+    return any(
+        field in payload_data and payload_data[field] != getattr(item, field)
+        for field in {"item_type", "sequence", "title"}
+    )
+
+
 @router.get("/worship-leader-assignments", response_model=list[WorshipLeaderAssignmentRead])
 def list_worship_leader_assignments(
     _current_user: User = Depends(require_permission("plans:read")),
@@ -729,9 +737,9 @@ def update_plan_item(
     payload_data = payload.model_dump(exclude_unset=True)
     teacher_notes = payload_data.pop("teacher_notes", None)
 
-    if presenter_cannot_change_outline(session, current_user, item) and any(
-        field in payload_data for field in {"item_type", "sequence", "title"}
-    ):
+    if presenter_cannot_change_outline(
+        session, current_user, item
+    ) and changes_protected_outline_fields(item, payload_data):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Presenters cannot move or change Sunday service outline slides",

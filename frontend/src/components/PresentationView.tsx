@@ -2298,7 +2298,7 @@ export function PresentationView({
     setFillerMediaBusy(true);
     try {
       const details = {
-        title,
+        ...(title !== fillerMediaPlanItem.title ? { title } : {}),
         comment: itemEditDraft.comment.trim() || null,
         planned_start: itemEditDraft.planned_start || null,
         presentation_options: {
