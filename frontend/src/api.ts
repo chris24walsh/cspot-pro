@@ -911,6 +911,7 @@ async function getJson<T>(
 ): Promise<T> {
   const response = await fetchWithTimeout(buildApiUrl(path), {
     credentials: "include",
+    cache: "no-store",
     timeoutMs: options?.timeoutMs,
   });
 

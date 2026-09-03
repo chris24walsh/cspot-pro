@@ -670,6 +670,7 @@ export function PresentationView({
   const [audioScenes, setAudioScenes] = useState<BroadcastAudioScene[]>([]);
 
   const [liveIndex, setLiveIndex] = useState(0);
+  const [autoAdvanceArmedSlideId, setAutoAdvanceArmedSlideId] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [screens, setScreens] = useState<PresentationScreen[]>([]);
   const [selectedScreenIndex, setSelectedScreenIndex] = useState(0);
@@ -1272,7 +1273,9 @@ export function PresentationView({
     lastLiveStateRef.current = state.updatedAt;
     setSlideTheme(state.theme ?? "light");
     setLiveBlanked(Boolean(state.blanked));
-    setLiveIndex(resolveLiveIndex(slides, state));
+    const nextIndex = resolveLiveIndex(slides, state);
+    setLiveIndex(nextIndex);
+    setAutoAdvanceArmedSlideId(slides[nextIndex]?.id ?? null);
     localStorage.setItem(PRESENTATION_STORAGE_KEY, JSON.stringify(state));
     channelRef.current?.postMessage(state);
   }
@@ -1462,6 +1465,7 @@ export function PresentationView({
     void guardedLiveNavigation(nextIndex, (boundedIndex) => {
       setLiveBlanked(false);
       setLiveIndex(boundedIndex);
+      setAutoAdvanceArmedSlideId(slides[boundedIndex]?.id ?? null);
       void publishLiveState(boundedIndex, { blanked: false });
     });
   }
@@ -1478,15 +1482,17 @@ export function PresentationView({
     void guardedLiveNavigation(nextIndex, (boundedIndex) => {
       setLiveBlanked(false);
       setLiveIndex(boundedIndex);
+      setAutoAdvanceArmedSlideId(slides[boundedIndex]?.id ?? null);
       void publishLiveState(boundedIndex, { blanked: false });
     });
   }
 
   useEffect(() => {
-    if (!slideshowOpen || liveBlanked || !liveSlide?.autoAdvanceSeconds || liveIndex >= slides.length - 1) return undefined;
+    const selectedForAutoAdvance = autoAdvanceArmedSlideId === liveSlide?.id;
+    if ((!slideshowOpen && !selectedForAutoAdvance) || liveBlanked || !liveSlide?.autoAdvanceSeconds || liveIndex >= slides.length - 1) return undefined;
     const timer = window.setTimeout(() => moveLive(1), Math.max(liveSlide.autoAdvanceSeconds, 1) * 1000);
     return () => window.clearTimeout(timer);
-  }, [liveBlanked, liveIndex, liveSlide?.autoAdvanceSeconds, liveSlide?.id, slideshowOpen, slides.length]);
+  }, [autoAdvanceArmedSlideId, liveBlanked, liveIndex, liveSlide?.autoAdvanceSeconds, liveSlide?.id, slideshowOpen, slides.length]);
 
   function sorterTargetForSlide(slide: PresentationSlide | null | undefined) {
     if (!slide) return null;
