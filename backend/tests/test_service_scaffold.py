@@ -7,12 +7,13 @@ from sqlalchemy.orm import Session
 
 from app.core.database import Base
 from app.modules.identity.models import User
-from app.modules.library.models import ItemFile, StoredFile
+from app.modules.library.models import FileCategory, ItemFile, StoredFile
 from app.modules.music.models import Song
-from app.modules.planning.models import DefaultItem, Plan, PlanItem, PlanType
+from app.modules.planning.models import DefaultItem, ItemNote, Plan, PlanItem, PlanType
 from app.modules.planning.routes import (
     changes_protected_outline_fields,
     get_plan,
+    plan_item_to_read,
     presenter_cannot_change_outline,
 )
 from app.modules.planning.service_scaffold import (
@@ -35,6 +36,8 @@ def scaffold_session() -> tuple[Session, Plan]:
             DefaultItem.__table__,
             StoredFile.__table__,
             ItemFile.__table__,
+            FileCategory.__table__,
+            ItemNote.__table__,
         ],
     )
     session = Session(engine)
@@ -153,6 +156,32 @@ def test_unchanged_title_does_not_block_presentation_option_update() -> None:
         },
     )
     assert changes_protected_outline_fields(item, {"title": "Renamed montage"})
+
+
+def test_plan_item_read_includes_saved_presentation_options() -> None:
+    session, plan = scaffold_session()
+    try:
+        item = PlanItem(
+            plan_id=plan.id,
+            sequence=10,
+            item_type="announcements",
+            title="Announcement",
+            presentation_options={
+                "auto_advance": True,
+                "auto_advance_seconds": 3,
+                "overlay_mode": "static",
+                "overlay_text": "Testing overlay",
+                "audio_scene_id": "post_service",
+            },
+        )
+        session.add(item)
+        session.commit()
+
+        serialized = plan_item_to_read(session, item)
+
+        assert serialized.presentation_options == item.presentation_options
+    finally:
+        session.close()
 
 
 def test_existing_welcome_photos_move_to_montage_stage() -> None:

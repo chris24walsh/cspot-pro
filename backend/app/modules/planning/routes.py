@@ -225,6 +225,7 @@ def plan_item_to_read(session: Session, item: PlanItem) -> PlanItemRead:
         key_signature=item.key_signature,
         montage_random=item.montage_random,
         auto_collapse_items=item.auto_collapse_items,
+        presentation_options=item.presentation_options or {},
         files=files,
         teacher_notes=teacher_note.body if teacher_note else None,
     )
