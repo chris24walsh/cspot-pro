@@ -6,6 +6,7 @@ from zoneinfo import ZoneInfo
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from sqlalchemy import case, func, select
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from app.core.database import SessionLocal, get_session
@@ -526,6 +527,93 @@ def _latest_position(session: Session, session_id: str) -> PresentationPosition 
     )
 
 
+def _ordered_auto_advance_items(session: Session, plan_id: str) -> list[PlanItem]:
+    items = list(session.scalars(
+        select(PlanItem).where(
+            PlanItem.plan_id == plan_id,
+            PlanItem.deleted_at.is_(None),
+        ).order_by(PlanItem.sequence, PlanItem.created_at)
+    ).all())
+    roots = [item for item in items if item.parent_item_id is None]
+    ordered: list[PlanItem] = []
+    for root in roots:
+        children = sorted(
+            (item for item in items if item.parent_item_id == root.id),
+            key=lambda item: (item.sequence, item.created_at),
+        )
+        ordered.extend(children or [root])
+    return ordered
+
+
+def _auto_advance_options(session: Session, item_id: str | None) -> dict:
+    if not item_id:
+        return {}
+    try:
+        item = session.get(PlanItem, item_id)
+        return item.presentation_options if item else {}
+    except SQLAlchemyError:
+        # Legacy/demo sessions may deliberately exist without planning tables.
+        return {}
+
+
+def advance_expired_auto_slide(
+    session: Session,
+    presentation_session: PresentationSession | None,
+    position: PresentationPosition | None,
+    plan_id: str,
+    *,
+    now_ms: int | None = None,
+) -> PresentationPosition | None:
+    """Advance an expired item timer without requiring a presenter browser."""
+    if presentation_session is None or position is None:
+        return position
+    payload = _position_payload(position)
+    item_id = payload.get("plan_item_id") or position.plan_item_id
+    started_at = payload.get("auto_advance_started_at")
+    if not isinstance(item_id, str) or not isinstance(started_at, int | float):
+        return position
+    item = session.get(PlanItem, item_id)
+    options = item.presentation_options if item else {}
+    if not options.get("auto_advance"):
+        return position
+    duration_seconds = max(1, int(options.get("auto_advance_seconds") or options.get("dwell_seconds") or 1))
+    now_ms = now_ms if now_ms is not None else int(datetime.now(UTC).timestamp() * 1000)
+    if now_ms < int(started_at) + duration_seconds * 1000:
+        return position
+    ordered = _ordered_auto_advance_items(session, plan_id)
+    current_index = next((index for index, candidate in enumerate(ordered) if candidate.id == item_id), -1)
+    if current_index < 0 or current_index >= len(ordered) - 1:
+        payload.pop("auto_advance_started_at", None)
+        position.payload_json = json.dumps(payload)
+        session.commit()
+        return position
+    next_item = ordered[current_index + 1]
+    payload.update({
+        "index": int(payload.get("index", position.slide_index)) + 1,
+        "plan_item_id": next_item.id,
+        "slide_offset": 0,
+        "updated_at": now_ms,
+    })
+    next_options = next_item.presentation_options or {}
+    if next_options.get("auto_advance"):
+        payload["auto_advance_started_at"] = now_ms
+    else:
+        payload.pop("auto_advance_started_at", None)
+    position.plan_item_id = next_item.id
+    position.slide_index = int(payload["index"])
+    position.payload_json = json.dumps(payload)
+    session.commit()
+    settings = session.scalar(select(BroadcastViewerSettings).limit(1))
+    if settings and settings.audio_scene_automation:
+        activate_audio_scene(
+            session,
+            settings,
+            _scene_for_item(next_item, None, str(payload.get("service_stage", "service"))),
+        )
+    session.refresh(position)
+    return position
+
+
 def _serialize_output_status(
     plan_id: str, position: PresentationPosition | None, now: int | None = None
 ) -> PresentationOutputStatusRead:
@@ -581,6 +669,9 @@ def list_live_presentation_services(
         if plan is None or plan.deleted_at is not None:
             continue
         position = _latest_position(session, presentation_session.id)
+        position = advance_expired_auto_slide(
+            session, presentation_session, position, plan.id, now_ms=now
+        )
         output_status = _serialize_output_status(plan.id, position, now)
         payload = _position_payload(position)
         auto_started = payload.get("auto_started") is True
@@ -647,6 +738,7 @@ def get_presentation_live_state(
     cleanup_live_sessions(session)
     presentation_session = _latest_session(session, plan_id)
     position = _latest_position(session, presentation_session.id) if presentation_session else None
+    position = advance_expired_auto_slide(session, presentation_session, position, plan_id)
     return _serialize_live_state(presentation_session, position, plan_id)
 
 
@@ -692,6 +784,20 @@ def update_presentation_live_state(
     now = int(datetime.now(UTC).timestamp() * 1000)
     output_active = _serialize_output_status(plan_id, position, now).active
     next_payload = {**existing_payload, **payload.model_dump()}
+    selection_changed = (
+        existing_payload.get("plan_item_id") != payload.plan_item_id
+        or int(existing_payload.get("slide_offset", 0)) != payload.slide_offset
+    )
+    if selection_changed:
+        # A deliberate presenter selection takes ownership from the scheduled
+        # template timeline; any new auto-advance clock starts from this move.
+        next_payload.pop("auto_started", None)
+    selected_options = _auto_advance_options(session, payload.plan_item_id)
+    if selected_options.get("auto_advance"):
+        if selection_changed or not isinstance(next_payload.get("auto_advance_started_at"), int | float):
+            next_payload["auto_advance_started_at"] = now
+    else:
+        next_payload.pop("auto_advance_started_at", None)
     if output_active:
         next_payload["output_recording_item_id"] = payload.plan_item_id
     else:

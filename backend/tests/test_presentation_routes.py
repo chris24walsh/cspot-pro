@@ -11,11 +11,13 @@ from sqlalchemy.orm import Session
 from app.core.database import Base
 from app.modules.broadcast.models import BroadcastViewerSettings
 from app.modules.broadcast.schemas import ServiceScheduleRule
+from app.modules.music.models import Song  # noqa: F401 - registers the PlanItem FK target
 from app.modules.planning.models import Plan, PlanItem, PlanType
 from app.modules.presentation.models import PresentationPosition, PresentationSession
 from app.modules.presentation.routes import (
     PresentationLiveStateWrite,
     PresentationOutputStatusWrite,
+    advance_expired_auto_slide,
     _serialize_live_state,
     _serialize_output_status,
     admin_rehearsal_visible,
@@ -27,6 +29,36 @@ from app.modules.presentation.routes import (
     template_cue_at,
     _scene_for_item,
 )
+
+
+def test_server_advances_expired_auto_slide_and_arms_the_next_one() -> None:
+    engine = create_engine("sqlite://")
+    Base.metadata.create_all(engine)
+    with Session(engine) as session:
+        plan_type = PlanType(name="Test", active=True)
+        session.add(plan_type)
+        session.flush()
+        plan = Plan(plan_type_id=plan_type.id, service_date=datetime.now(UTC), title="Test", status="draft")
+        session.add(plan)
+        session.flush()
+        first = PlanItem(plan_id=plan.id, sequence=10, item_type="announcements", title="First", presentation_options={"auto_advance": True, "auto_advance_seconds": 3})
+        second = PlanItem(plan_id=plan.id, sequence=20, item_type="open_time", title="Second", presentation_options={"auto_advance": True, "auto_advance_seconds": 5})
+        session.add_all([first, second])
+        session.flush()
+        live = PresentationSession(plan_id=plan.id, status="live")
+        session.add(live)
+        session.flush()
+        position = PresentationPosition(session_id=live.id, plan_item_id=first.id, slide_index=4, payload_json=json.dumps({"index": 4, "plan_item_id": first.id, "slide_offset": 0, "auto_advance_started_at": 1000}))
+        session.add(position)
+        session.commit()
+
+        advance_expired_auto_slide(session, live, position, plan.id, now_ms=4000)
+
+        payload = json.loads(position.payload_json)
+        assert position.plan_item_id == second.id
+        assert payload["index"] == 5
+        assert payload["slide_offset"] == 0
+        assert payload["auto_advance_started_at"] == 4000
 
 
 def test_template_cues_advance_from_one_template_start() -> None:
