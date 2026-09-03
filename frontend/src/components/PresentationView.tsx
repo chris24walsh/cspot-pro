@@ -5776,7 +5776,17 @@ export function PresentationView({
                 }}
                 type="button"
               >Cancel</button>
-              <button className="primary-button" disabled={fillerMediaBusy || !itemEditDraft.title.trim()} onClick={() => void savePlanItemDetails()} type="button">{fillerMediaBusy ? "Saving…" : "Save"}</button>
+              <button
+                className="primary-button"
+                disabled={fillerMediaBusy || !itemEditDraft.title.trim()}
+                onClick={() => void savePlanItemDetails()}
+                onTouchEnd={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  void savePlanItemDetails();
+                }}
+                type="button"
+              >{fillerMediaBusy ? "Saving…" : "Save"}</button>
             </div>
           </div>
         </div>
