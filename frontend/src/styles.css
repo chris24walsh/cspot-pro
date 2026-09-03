@@ -9876,11 +9876,12 @@ button.musician-page {
   }
 
   .pre-service-media-dialog .app-dialog-actions {
-    background: #fffefa;
-    bottom: 0;
     padding-top: 8px;
-    position: sticky;
-    z-index: 3;
+  }
+
+  .pre-service-media-dialog .pre-service-media-grid {
+    max-height: none;
+    overflow: visible;
   }
 
   .song-editor-dialog .section-heading {
