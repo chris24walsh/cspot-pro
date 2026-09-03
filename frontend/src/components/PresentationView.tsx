@@ -5151,10 +5151,10 @@ export function PresentationView({
                                   type="button"
                                 >{playingAudioSectionId === item.id ? <Pause size={14} aria-hidden="true" /> : <Play size={14} aria-hidden="true" />}</button>
                               ) : null}
-                              {canEditPlan && !FIXED_WELCOME_STAGE_TYPES.has(item.item_type) ? <div className="section-group-item-actions">
-                                <button className="section-icon-button" disabled={itemIndex === 0} onClick={() => void moveSection(item.id, -1)} title="Move item up" type="button"><ChevronUp size={15} /></button>
-                                <button className="section-icon-button" disabled={itemIndex === groupItems.length - 1} onClick={() => void moveSection(item.id, 1)} title="Move item down" type="button"><ChevronDown size={15} /></button>
-                                <button className="section-icon-button section-remove-button" onClick={() => void removeSection(item.id)} title="Remove item" type="button"><Trash2 size={15} /></button>
+                              {canEditPlan ? <div className="section-group-item-actions">
+                                <button aria-label={`Move ${item.title} up`} className="section-icon-button" disabled={itemIndex === 0} onClick={() => void moveSection(item.id, -1)} title="Move item up" type="button"><ChevronUp size={15} /></button>
+                                <button aria-label={`Move ${item.title} down`} className="section-icon-button" disabled={itemIndex === groupItems.length - 1} onClick={() => void moveSection(item.id, 1)} title="Move item down" type="button"><ChevronDown size={15} /></button>
+                                <button aria-label={`Remove ${item.title}`} className="section-icon-button section-remove-button" onClick={() => void removeSection(item.id)} title="Remove item" type="button"><Trash2 size={15} /></button>
                               </div> : null}
                             </div>
                             {canEditPlan && section.itemType !== "pre_service" ? (
