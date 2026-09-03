@@ -4836,8 +4836,8 @@ export function PresentationView({
                 .find(Boolean);
               const hasNestedItems = visibleSectionSlides.some((slide) => slide.planItemId !== section.id);
               const autoCollapseSectionItems = Boolean(hasNestedItems && sectionItem?.auto_collapse_items);
-              const canCollapseSection = autoCollapseSectionItems || (!hasNestedItems && visibleSectionSlides.length > 1);
-              const sectionExpanded = expandedSorterSectionIds.has(section.id) || (!autoCollapseSectionItems && liveSlide?.sectionId === section.id);
+              const canCollapseSection = !hasNestedItems && visibleSectionSlides.length > 1;
+              const sectionExpanded = expandedSorterSectionIds.has(section.id) || liveSlide?.sectionId === section.id;
               const showSlideTiles =
                 !canCollapseSection ||
                 sectionExpanded;
@@ -4926,11 +4926,21 @@ export function PresentationView({
                         const firstItemSlide = itemSlides[0]?.id === slide.id;
                         const itemCanCollapse = itemSlides.length > 1;
                         const itemExpanded = expandedSorterSectionIds.has(slide.planItemId) || liveSlide?.planItemId === slide.planItemId;
+                        const itemContracted = autoCollapseSectionItems && !itemExpanded;
                         const slideIndex = slides.findIndex((candidate) => candidate.id === slide.id);
                         const matchesLiveBuild =
                           Boolean(slide.imageUrl && liveSlide?.imageUrl) &&
                           deckBuildGroupKey(slide) === deckBuildGroupKey(liveSlide);
                         const tileRefIds = matchesLiveBuild && liveSlide ? [slide.id, liveSlide.id] : [slide.id];
+                        if (itemContracted) {
+                          if (!firstItemSlide) return null;
+                          return (
+                            <div className="sorter-item-heading-row is-contracted" key={`contracted:${slide.planItemId}`}>
+                              <button className="sorter-item-heading" onClick={() => toggleSorterSection(slide.planItemId)} type="button"><strong>{item?.title ?? slide.sectionTitle}</strong><ChevronDown size={13} aria-hidden="true" /></button>
+                              {item && (item.song_id ? canEditSong : canEditPlan && INLINE_EDIT_ITEM_TYPES.has(item.item_type)) ? <button aria-label={`Edit ${item.title}`} className="section-icon-button sorter-item-inline-edit" disabled={fillerMediaBusy} onClick={() => openPlanItemEditor(item)} title={`Edit ${item.title}`} type="button"><Pencil size={12} aria-hidden="true" /></button> : null}
+                            </div>
+                          );
+                        }
                         if (itemCanCollapse && !itemExpanded) {
                           if (!firstItemSlide) return null;
                           const canEditNestedItem = Boolean(item && (item.song_id ? canEditSong : canEditPlan && INLINE_EDIT_ITEM_TYPES.has(item.item_type)));
@@ -4957,7 +4967,7 @@ export function PresentationView({
                         }
                         return (
                           <div className="sorter-item-tile" key={slide.id}>
-                          {firstItemSlide && hasNestedItems ? <div className="sorter-item-heading-row"><button className="sorter-item-heading" onClick={() => itemCanCollapse ? toggleSorterSection(slide.planItemId) : selectSlideFromOperator(slideIndex)} type="button"><strong>{item?.title ?? slide.sectionTitle}</strong>{itemCanCollapse ? <ChevronUp size={13} /> : null}</button>{item && (item.song_id ? canEditSong : canEditPlan && INLINE_EDIT_ITEM_TYPES.has(item.item_type)) ? <button aria-label={`Edit ${item.title}`} className="section-icon-button sorter-item-inline-edit" disabled={fillerMediaBusy} onClick={() => openPlanItemEditor(item)} title={`Edit ${item.title}`} type="button"><Pencil size={12} aria-hidden="true" /></button> : null}</div> : null}
+                          {firstItemSlide && hasNestedItems ? <div className="sorter-item-heading-row"><button className="sorter-item-heading" onClick={() => autoCollapseSectionItems || itemCanCollapse ? toggleSorterSection(slide.planItemId) : selectSlideFromOperator(slideIndex)} type="button"><strong>{item?.title ?? slide.sectionTitle}</strong>{autoCollapseSectionItems || itemCanCollapse ? <ChevronUp size={13} /> : null}</button>{item && (item.song_id ? canEditSong : canEditPlan && INLINE_EDIT_ITEM_TYPES.has(item.item_type)) ? <button aria-label={`Edit ${item.title}`} className="section-icon-button sorter-item-inline-edit" disabled={fillerMediaBusy} onClick={() => openPlanItemEditor(item)} title={`Edit ${item.title}`} type="button"><Pencil size={12} aria-hidden="true" /></button> : null}</div> : null}
                           <button
                             className={`slide-tile preview-tile ${presentationTypeClass(slide.itemType)} ${
                               slideIndex === liveIndex || matchesLiveBuild ? "active" : ""
@@ -5764,9 +5774,9 @@ export function PresentationView({
                 <span>{fillerMediaPlanItem.item_type === "announcements" ? "Announcement details" : "Presenter notes"} <small>(optional)</small></span>
                 <textarea disabled={fillerMediaBusy} onChange={(event) => setItemEditDraft((current) => ({ ...current, comment: event.target.value }))} rows={3} value={itemEditDraft.comment} />
               </label>
-              {effectivePlanItems.some((item) => item.parent_item_id === fillerMediaPlanItem.id) ? <label className="inline-checkbox wide-field">
+              {!fillerMediaPlanItem.parent_item_id ? <label className="inline-checkbox wide-field">
                 <input checked={itemEditDraft.auto_collapse_items} disabled={fillerMediaBusy} onChange={(event) => setItemEditDraft((current) => ({ ...current, auto_collapse_items: event.target.checked }))} type="checkbox" />
-                <span>Keep section items contracted in the slide sorter</span>
+                <span>Auto-contract section items in the slide sorter</span>
               </label> : null}
             </div>
             <p>Add one image to replace the default slide background, or add several to rotate them as a montage.</p>
@@ -5863,7 +5873,7 @@ export function PresentationView({
             </label> : null}
             {preServiceSectionItem ? <label className="inline-checkbox">
               <input checked={Boolean(preServiceSectionItem.auto_collapse_items)} disabled={preServiceMediaBusy} onChange={(event) => void setAutoCollapseSectionItems(preServiceSectionItem, event.target.checked)} type="checkbox" />
-              <span>Keep Welcome items contracted in the slide sorter</span>
+              <span>Auto-contract section items in the slide sorter</span>
             </label> : null}
             <div className="pre-service-media-grid">
               {(preServicePlanItem?.files ?? []).filter((file) => file.content_type?.startsWith("image/")).map((file) => (
