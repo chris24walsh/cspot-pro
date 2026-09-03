@@ -55,6 +55,34 @@ SUNDAY_SERVICE_SCAFFOLD = (
 )
 
 
+def section_auto_collapse_preference(
+    session: Session, item_type: str, title: str
+) -> bool:
+    query = select(PlanItem.auto_collapse_items).where(
+        PlanItem.parent_item_id.is_(None),
+        PlanItem.item_type == item_type,
+        PlanItem.deleted_at.is_(None),
+    )
+    if item_type == "custom":
+        query = query.where(PlanItem.title == title)
+    preference = session.scalar(query.order_by(PlanItem.updated_at.desc()).limit(1))
+    return bool(preference)
+
+
+def set_section_auto_collapse_preference(
+    session: Session, item: PlanItem, auto_collapse: bool
+) -> None:
+    query = select(PlanItem).where(
+        PlanItem.parent_item_id.is_(None),
+        PlanItem.item_type == item.item_type,
+        PlanItem.deleted_at.is_(None),
+    )
+    if item.item_type == "custom":
+        query = query.where(PlanItem.title == item.title)
+    for matching_section in session.scalars(query).all():
+        matching_section.auto_collapse_items = auto_collapse
+
+
 def is_sunday_service(session: Session, plan: Plan) -> bool:
     plan_type = session.get(PlanType, plan.plan_type_id)
     return bool(plan_type and plan_type.name == SUNDAY_SERVICE_PLAN_TYPE)
@@ -159,6 +187,9 @@ def ensure_service_scaffold(session: Session, plan: Plan) -> list[PlanItem]:
             planned_start=section.planned_start,
             comment=next(
                 (item.comment for item in defaults if item.sequence == section.sequence), None
+            ),
+            auto_collapse_items=section_auto_collapse_preference(
+                session, section.item_type, section.title
             ),
         )
         session.add(item)

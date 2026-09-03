@@ -38,7 +38,12 @@ from app.modules.planning.schemas import (
     WorshipLeaderAssignmentRead,
     WorshipLeaderAssignmentUpdate,
 )
-from app.modules.planning.service_scaffold import ensure_service_scaffold, is_sunday_service
+from app.modules.planning.service_scaffold import (
+    ensure_service_scaffold,
+    is_sunday_service,
+    section_auto_collapse_preference,
+    set_section_auto_collapse_preference,
+)
 
 router = APIRouter()
 PLAN_HISTORY_ACTION = "item_snapshot"
@@ -664,7 +669,12 @@ def create_plan_item(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                 detail="Items can only be added directly beneath a group in the same plan",
             )
-    item = PlanItem(plan_id=plan_id, **payload.model_dump())
+    item_values = payload.model_dump()
+    if not payload.parent_item_id and "auto_collapse_items" not in payload.model_fields_set:
+        item_values["auto_collapse_items"] = section_auto_collapse_preference(
+            session, payload.item_type, payload.title
+        )
+    item = PlanItem(plan_id=plan_id, **item_values)
     session.add(item)
     session.commit()
     session.refresh(item)
@@ -699,6 +709,11 @@ def update_plan_item(
 
     for field, value in payload_data.items():
         setattr(item, field, value)
+
+    if "auto_collapse_items" in payload.model_fields_set and not item.parent_item_id:
+        set_section_auto_collapse_preference(
+            session, item, bool(payload.auto_collapse_items)
+        )
 
     if "teacher_notes" in payload.model_fields_set:
         note = session.scalar(

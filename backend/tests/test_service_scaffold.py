@@ -14,6 +14,7 @@ from app.modules.planning.routes import get_plan, presenter_cannot_change_outlin
 from app.modules.planning.service_scaffold import (
     SUNDAY_SERVICE_SCAFFOLD,
     ensure_service_scaffold,
+    set_section_auto_collapse_preference,
 )
 
 
@@ -194,5 +195,61 @@ def test_custom_plan_type_uses_its_default_outline() -> None:
             ("custom", "Discussion"),
         ]
         assert ensure_service_scaffold(session, plan) == []
+    finally:
+        session.close()
+
+
+def test_section_auto_collapse_choice_applies_to_existing_and_future_services() -> None:
+    session, first_plan = scaffold_session()
+    try:
+        ensure_service_scaffold(session, first_plan)
+        first_welcome = session.scalar(
+            select(PlanItem).where(
+                PlanItem.plan_id == first_plan.id,
+                PlanItem.item_type == "pre_service",
+            )
+        )
+        assert first_welcome is not None
+
+        plan_type = session.get(PlanType, first_plan.plan_type_id)
+        assert plan_type is not None
+        second_plan = Plan(
+            plan_type_id=plan_type.id,
+            service_date=datetime(2026, 9, 13, 10, 30, tzinfo=UTC),
+            title="Next Sunday Service",
+            status="draft",
+        )
+        session.add(second_plan)
+        session.commit()
+        ensure_service_scaffold(session, second_plan)
+
+        set_section_auto_collapse_preference(session, first_welcome, True)
+        session.commit()
+        second_welcome = session.scalar(
+            select(PlanItem).where(
+                PlanItem.plan_id == second_plan.id,
+                PlanItem.item_type == "pre_service",
+            )
+        )
+        assert second_welcome is not None
+        assert second_welcome.auto_collapse_items is True
+
+        third_plan = Plan(
+            plan_type_id=plan_type.id,
+            service_date=datetime(2026, 9, 20, 10, 30, tzinfo=UTC),
+            title="Future Sunday Service",
+            status="draft",
+        )
+        session.add(third_plan)
+        session.commit()
+        ensure_service_scaffold(session, third_plan)
+        third_welcome = session.scalar(
+            select(PlanItem).where(
+                PlanItem.plan_id == third_plan.id,
+                PlanItem.item_type == "pre_service",
+            )
+        )
+        assert third_welcome is not None
+        assert third_welcome.auto_collapse_items is True
     finally:
         session.close()

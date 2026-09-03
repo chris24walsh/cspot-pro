@@ -5741,7 +5741,7 @@ export function PresentationView({
               </label>
               {fillerMediaSectionItem ? <label className="inline-checkbox wide-field">
                 <input checked={itemEditDraft.auto_collapse_items} disabled={fillerMediaBusy} onChange={(event) => setItemEditDraft((current) => ({ ...current, auto_collapse_items: event.target.checked }))} type="checkbox" />
-                <span>Auto-contract section items in the slide sorter</span>
+                <span>Auto-contract this section's items in every service</span>
               </label> : null}
             </div>
             <p>Add one image to replace the default slide background, or add several to rotate them as a montage.</p>
