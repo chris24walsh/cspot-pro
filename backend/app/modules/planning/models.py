@@ -14,6 +14,7 @@ class PlanType(IdMixin, TimestampMixin, Base):
     name: Mapped[str] = mapped_column(String(120), unique=True)
     description: Mapped[str | None] = mapped_column(String(500))
     starts_at: Mapped[str | None] = mapped_column(String(20))
+    automation_start: Mapped[str | None] = mapped_column(String(5))
     default_duration_minutes: Mapped[int | None]
     active: Mapped[bool] = mapped_column(Boolean, default=True)
 
@@ -63,10 +64,14 @@ class DefaultItem(IdMixin, TimestampMixin, Base):
     __tablename__ = "default_items"
 
     plan_type_id: Mapped[str] = mapped_column(ForeignKey("plan_types.id"), index=True)
+    parent_item_id: Mapped[str | None] = mapped_column(
+        ForeignKey("default_items.id", ondelete="CASCADE"), index=True
+    )
     item_type: Mapped[str] = mapped_column(String(80), default="custom")
     sequence: Mapped[Decimal] = mapped_column(Numeric(8, 2))
     title: Mapped[str] = mapped_column(String(180))
     comment: Mapped[str | None] = mapped_column(Text)
+    presentation_options: Mapped[dict] = mapped_column(JSON, default=dict)
 
 
 class PlanNote(IdMixin, TimestampMixin, Base):

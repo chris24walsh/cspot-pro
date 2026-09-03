@@ -101,7 +101,7 @@ function App() {
   const [mobileImmersive, setMobileImmersive] = useState(false);
   const [adminAttentionCount, setAdminAttentionCount] = useState(0);
   const [profileAttentionCount, setProfileAttentionCount] = useState(0);
-  const [adminSection, setAdminSection] = useState<"users" | "settings">("users");
+  const [adminSection, setAdminSection] = useState<"users" | "templates" | "settings">("users");
   const mobileOrTabletDevice = useMemo(
     () =>
       isMobileOrTabletDevice() ||
@@ -445,7 +445,7 @@ function App() {
             <h1>{activeModule.label}</h1>
           </div>
           <div className="topbar-context-slot" id="workspace-topbar-slot">
-            {activeModule.id === "admin" ? <div className="tab-row admin-topbar-tabs flat-admin-tabs" role="tablist" aria-label="Admin sections"><button className={adminSection === "users" ? "active" : ""} onClick={() => setAdminSection("users")} type="button">Manage users{adminAttentionCount ? <span>{adminAttentionCount}</span> : null}</button><button className={adminSection === "settings" ? "active" : ""} onClick={() => setAdminSection("settings")} type="button">Settings</button></div> : null}
+            {activeModule.id === "admin" ? <div className="tab-row admin-topbar-tabs flat-admin-tabs" role="tablist" aria-label="Admin sections"><button className={adminSection === "users" ? "active" : ""} onClick={() => setAdminSection("users")} type="button">Manage users{adminAttentionCount ? <span>{adminAttentionCount}</span> : null}</button><button className={adminSection === "templates" ? "active" : ""} onClick={() => setAdminSection("templates")} type="button">Service templates</button><button className={adminSection === "settings" ? "active" : ""} onClick={() => setAdminSection("settings")} type="button">Settings</button></div> : null}
             {activeModule.id === "broadcast" && canWatchBroadcast ? (
               <div className="broadcast-mode-switch segmented-control" role="tablist" aria-label="Broadcast mode">
                 <button

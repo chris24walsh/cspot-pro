@@ -38,6 +38,7 @@ import { PreServiceMusic, type PreServiceMusicHandle } from "./PreServiceMusic";
 import { LiveStreamAudio, LowLatencyCamera } from "./LowLatencyCamera";
 import { LivestreamMedia } from "./LivestreamMedia";
 import { ScaledSlideImage } from "./ScaledSlideImage";
+import { SlideOverlay } from "./SlideOverlay";
 
 const POLL_INTERVAL_MS = 2000;
 const LIVE_STATE_POLL_INTERVAL_MS = 500;
@@ -159,11 +160,13 @@ export function ServiceBroadcastView({ canControl = false, onOpenSettings }: { c
     liveAudioSource: settings.live_audio_source,
     sources: settings.audio_sources,
   });
+  const activeAudioScene = settings.audio_scenes.find((scene) => scene.id === settings.active_audio_scene);
+  const roomMediaEnabled = activeAudioScene ? Boolean(activeAudioScene.room_media_enabled) : settings.pre_service_room_audio_enabled;
   const useViewerBackingAudio = Boolean(liveSlide?.youtubeAudioUrl) && !backingAudioInLiveRoute;
   const useViewerAmbientMusic = viewerAmbientMusicUsesLocalPlayback({
     liveAudioSource: settings.live_audio_source,
     presentationOutputActive: selectedLiveService?.output_active === true,
-    preServiceRoomAudioEnabled: settings.pre_service_room_audio_enabled,
+    preServiceRoomAudioEnabled: roomMediaEnabled,
     sources: settings.audio_sources,
   });
   const preserveViewerLocalSound = Boolean(
@@ -420,10 +423,12 @@ export function ServiceBroadcastView({ canControl = false, onOpenSettings }: { c
                 aria-label="LCF background"
                 style={{ backgroundImage: `url(${LCF_BACKGROUND_URL})` }}
               />
+            ) : liveSlide?.displayTargets && !liveSlide.displayTargets.includes("livestream") ? (
+              <HoldingPane message={holdingMessage} startingSoon={startingSoon} />
             ) : !liveSlide ? (
               <HoldingPane message="The livestream is live" startingSoon />
             ) : liveSlide.montageImageUrls && plan ? (
-              <PreServiceSlide backgroundImageUrl={LCF_BACKGROUND_URL} imageUrls={liveSlide.montageImageUrls} random={liveSlide.montageRandom} serviceDate={plan.service_date} timed={Boolean(liveSlide.preServiceTimed)} phase={liveSlide.preServiceStage ?? liveState?.preServicePhase} phaseStartedAt={liveState?.updatedAt} schedule={serviceScheduleForPlan(settings.service_schedules, plan.service_date, plan.plan_type)} />
+              <PreServiceSlide backgroundImageUrl={LCF_BACKGROUND_URL} dwellSeconds={liveSlide.dwellSeconds} imageUrls={liveSlide.montageImageUrls} random={liveSlide.montageRandom} serviceDate={plan.service_date} timed={Boolean(liveSlide.preServiceTimed)} phase={liveSlide.preServiceStage ?? liveState?.preServicePhase} phaseStartedAt={liveState?.updatedAt} schedule={serviceScheduleForPlan(settings.service_schedules, plan.service_date, plan.plan_type)} />
             ) : liveSlide.countdownSeconds ? (
               <CountdownSlide durationSeconds={liveSlide.countdownSeconds} startAt={liveState?.updatedAt} />
             ) : liveSlide.backgroundImageUrl ? (
@@ -433,7 +438,7 @@ export function ServiceBroadcastView({ canControl = false, onOpenSettings }: { c
                 aria-label={liveSlide.title}
               />
             ) : liveSlide.imageUrl ? (
-              <ScaledSlideImage alt={liveSlide.title} src={liveSlide.imageUrl} />
+              <ScaledSlideImage alt={liveSlide.title} fitMode={liveSlide.fitMode} src={liveSlide.imageUrl} />
             ) : liveSlide.videoUrl ? (
               <div className="stage-video-frame">
                 <LivestreamMedia
@@ -454,6 +459,7 @@ export function ServiceBroadcastView({ canControl = false, onOpenSettings }: { c
                 />
               </div>
             )}
+            {hasVisibleSlideshow && !liveState?.blanked && liveSlide ? <SlideOverlay slide={liveSlide} startAt={liveState?.updatedAt} /> : null}
             </div>
           </div>
         </section>

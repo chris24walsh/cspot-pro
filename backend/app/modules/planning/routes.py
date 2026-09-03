@@ -286,21 +286,33 @@ def plan_type_to_read(session: Session, plan_type: PlanType) -> PlanTypeRead:
         .where(DefaultItem.plan_type_id == plan_type.id)
         .order_by(DefaultItem.sequence, DefaultItem.created_at)
     ).all()
+    default_by_parent: dict[str | None, list[DefaultItem]] = {}
+    for item in defaults:
+        default_by_parent.setdefault(item.parent_item_id, []).append(item)
+    ordered_defaults = [
+        nested
+        for root in default_by_parent.get(None, [])
+        for nested in (root, *default_by_parent.get(root.id, []))
+    ]
     return PlanTypeRead(
         id=plan_type.id,
         name=plan_type.name,
         description=plan_type.description,
         starts_at=plan_type.starts_at,
+        automation_start=plan_type.automation_start,
         default_duration_minutes=plan_type.default_duration_minutes,
         active=plan_type.active,
         default_outline=[
             {
+                "id": item.id,
+                "parent_id": item.parent_item_id,
                 "item_type": item.item_type,
                 "title": item.title,
                 "sequence": item.sequence,
                 "comment": item.comment,
+                "presentation_options": item.presentation_options or {},
             }
-            for item in defaults
+            for item in ordered_defaults
         ],
     )
 
@@ -308,13 +320,22 @@ def plan_type_to_read(session: Session, plan_type: PlanType) -> PlanTypeRead:
 def replace_default_outline(
     session: Session, plan_type: PlanType, outline: list[DefaultOutlineItem]
 ) -> None:
-    for item in session.scalars(
+    existing_defaults = list(session.scalars(
         select(DefaultItem).where(DefaultItem.plan_type_id == plan_type.id)
-    ).all():
+    ).all())
+    for item in sorted(existing_defaults, key=lambda candidate: candidate.parent_item_id is None):
         session.delete(item)
+    session.flush()
+    created_ids: dict[str, str] = {}
     for definition in outline:
-        values = definition.model_dump()
-        session.add(DefaultItem(plan_type_id=plan_type.id, **values))
+        values = definition.model_dump(exclude={"id", "parent_id"})
+        item = DefaultItem(plan_type_id=plan_type.id, **values)
+        session.add(item)
+        session.flush()
+        if definition.id:
+            created_ids[definition.id] = item.id
+        if definition.parent_id:
+            item.parent_item_id = created_ids.get(definition.parent_id)
 
 
 @router.get("/plan-types", response_model=list[PlanTypeRead])

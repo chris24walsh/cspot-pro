@@ -43,6 +43,7 @@ SCENE_LABELS = {
     "worship": "Worship",
     "media": "Media",
     "pre_service": "Pre-service",
+    "post_service": "Post-service",
 }
 
 
@@ -112,6 +113,7 @@ def default_audio_scenes(sources: list[BroadcastAudioSource]) -> list[BroadcastA
         "worship": {"room": (-12, True), "desk": (0, True), "media": (0, False)},
         "media": {"room": (-30, False), "desk": (0, False), "media": (0, True)},
         "pre_service": {"room": (-30, False), "desk": (0, False), "media": (0, True)},
+        "post_service": {"room": (-30, False), "desk": (0, False), "media": (0, True)},
     }
     return [
         BroadcastAudioScene(
@@ -134,6 +136,7 @@ def default_audio_scenes(sources: list[BroadcastAudioSource]) -> list[BroadcastA
                 )
                 for source in sources
             },
+            room_media_enabled=scene_id == "post_service",
         )
         for scene_id, label in SCENE_LABELS.items()
     ]
@@ -173,6 +176,7 @@ def audio_scenes(settings: BroadcastViewerSettings) -> list[BroadcastAudioScene]
             scene.model_copy(
                 update={
                     "label": stored.label if stored else scene.label,
+                    "room_media_enabled": stored.room_media_enabled if stored else scene.room_media_enabled,
                     "channels": {
                         source.id: (
                             stored.channels.get(source.id, scene.channels[source.id])
@@ -184,6 +188,8 @@ def audio_scenes(settings: BroadcastViewerSettings) -> list[BroadcastAudioScene]
                 }
             )
         )
+    default_ids = {scene.id for scene in defaults}
+    normalized.extend(scene for scene in parsed.values() if scene.id not in default_ids)
     return normalized
 
 

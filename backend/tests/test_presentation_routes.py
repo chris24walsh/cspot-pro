@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 from app.core.database import Base
 from app.modules.broadcast.models import BroadcastViewerSettings
 from app.modules.broadcast.schemas import ServiceScheduleRule
-from app.modules.planning.models import Plan, PlanType
+from app.modules.planning.models import Plan, PlanItem, PlanType
 from app.modules.presentation.models import PresentationPosition, PresentationSession
 from app.modules.presentation.routes import (
     PresentationLiveStateWrite,
@@ -24,7 +24,42 @@ from app.modules.presentation.routes import (
     update_presentation_live_state,
     update_presentation_output_status,
     welcome_stage_at,
+    template_cue_at,
+    _scene_for_item,
 )
+
+
+def test_template_cues_advance_from_one_template_start() -> None:
+    engine = create_engine("sqlite://")
+    Base.metadata.create_all(engine)
+    with Session(engine) as session:
+        plan_type = PlanType(name="Sunday Service", starts_at="11:00", automation_start="10:30", active=True)
+        session.add(plan_type)
+        session.flush()
+        plan = Plan(plan_type_id=plan_type.id, service_date=datetime(2026, 9, 6, 11, tzinfo=UTC), title="Sunday", status="draft")
+        session.add(plan)
+        session.flush()
+        welcome = PlanItem(plan_id=plan.id, sequence=10, item_type="pre_service", title="Welcome")
+        session.add(welcome)
+        session.flush()
+        session.add_all([
+            PlanItem(plan_id=plan.id, parent_item_id=welcome.id, sequence=10, item_type="welcome_montage", title="Montage", presentation_options={"auto_advance": True, "auto_advance_seconds": 1500}),
+            PlanItem(plan_id=plan.id, parent_item_id=welcome.id, sequence=20, item_type="welcome_countdown", title="Countdown", presentation_options={"auto_advance": True, "auto_advance_seconds": 300}),
+            PlanItem(plan_id=plan.id, parent_item_id=welcome.id, sequence=30, item_type="welcome_seated", title="Seated", presentation_options={"auto_advance": False}),
+        ])
+        session.commit()
+
+        item, stage = template_cue_at(session, plan, datetime(2026, 9, 6, 10, 56, tzinfo=UTC), "10:30")
+        assert item.item_type == "welcome_countdown"
+        assert stage == "pre_service"
+        item, stage = template_cue_at(session, plan, datetime(2026, 9, 6, 11, 0, tzinfo=UTC), "10:30")
+        assert item.item_type == "welcome_seated"
+        assert stage == "service"
+
+
+def test_item_scene_override_wins_over_type_inference() -> None:
+    item = SimpleNamespace(item_type="open_time", presentation_options={"audio_scene_id": "post_service"})
+    assert _scene_for_item(item, None, "service") == "post_service"
 
 
 def test_cleanup_live_sessions_keeps_only_selected_service_live() -> None:

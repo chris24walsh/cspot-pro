@@ -51,6 +51,7 @@ import {
   type BibleSearchHit,
   type BibleVersion,
   type BroadcastRecording,
+  type BroadcastAudioScene,
   type ServiceScheduleRule,
   type CustomProviderMatch,
   type CustomProviderSearchResult,
@@ -126,11 +127,12 @@ const INLINE_EDIT_ITEM_TYPES = new Set([...FILLER_MEDIA_ITEM_TYPES, ...FIXED_WEL
 
 const EMPTY_ITEM_EDIT_DRAFT: { title: string; comment: string; planned_start: string; auto_collapse_items: boolean } & Required<PresentationOptions> = {
   title: "", comment: "", planned_start: "", auto_collapse_items: false,
-  dwell_seconds: 8, transition: "fade", fit_mode: "contain", overlay_text: "",
+  dwell_seconds: 8, auto_advance_seconds: 8, transition: "fade", fit_mode: "contain", overlay_text: "",
   overlay_mode: "none", overlay_countdown_seconds: 300, overlay_position: "bottom",
   overlay_size: "medium", auto_advance: false, repeat: false, announcement_date: "",
   announcement_location: "", announcement_contact: "", announcement_url: "",
   announcement_layout: "split",
+  audio_scene_id: "", display_targets: ["church", "livestream"],
 };
 
 function outputOwnerId() {
@@ -665,6 +667,7 @@ export function PresentationView({
   const [loadedFillerMediaFileIds, setLoadedFillerMediaFileIds] = useState<Set<string>>(() => new Set());
   const [itemEditDraft, setItemEditDraft] = useState(EMPTY_ITEM_EDIT_DRAFT);
   const [serviceSchedules, setServiceSchedules] = useState<ServiceScheduleRule[]>([]);
+  const [audioScenes, setAudioScenes] = useState<BroadcastAudioScene[]>([]);
 
   const [liveIndex, setLiveIndex] = useState(0);
   const [message, setMessage] = useState<string | null>(null);
@@ -1129,7 +1132,7 @@ export function PresentationView({
 
   useEffect(() => {
     void getBroadcastViewerSettings()
-      .then((settings) => setServiceSchedules(settings.service_schedules))
+      .then((settings) => { setServiceSchedules(settings.service_schedules); setAudioScenes(settings.audio_scenes); })
       .catch(() => setServiceSchedules([]));
   }, []);
 
@@ -2300,6 +2303,7 @@ export function PresentationView({
         planned_start: itemEditDraft.planned_start || null,
         presentation_options: {
           dwell_seconds: Number(itemEditDraft.dwell_seconds) || 8,
+          auto_advance_seconds: Number(itemEditDraft.auto_advance_seconds) || 8,
           transition: itemEditDraft.transition,
           fit_mode: itemEditDraft.fit_mode,
           overlay_text: itemEditDraft.overlay_text.trim(),
@@ -2314,6 +2318,8 @@ export function PresentationView({
           announcement_contact: itemEditDraft.announcement_contact.trim(),
           announcement_url: itemEditDraft.announcement_url.trim(),
           announcement_layout: itemEditDraft.announcement_layout,
+          audio_scene_id: itemEditDraft.audio_scene_id || undefined,
+          display_targets: itemEditDraft.display_targets,
         },
       };
       if (fillerMediaSectionItem?.id === fillerMediaPlanItem.id) {
@@ -5783,8 +5789,12 @@ export function PresentationView({
               <div className="form-grid item-details-grid">
                 <label><span>Image fit</span><select disabled={fillerMediaBusy} onChange={(event) => setItemEditDraft((current) => ({ ...current, fit_mode: event.target.value as "contain" | "cover" }))} value={itemEditDraft.fit_mode}><option value="contain">Fit whole image</option><option value="cover">Fill and crop</option></select></label>
                 <label><span>Transition</span><select disabled={fillerMediaBusy} onChange={(event) => setItemEditDraft((current) => ({ ...current, transition: event.target.value as "fade" | "cut" | "slide" }))} value={itemEditDraft.transition}><option value="fade">Fade</option><option value="cut">Cut</option><option value="slide">Slide</option></select></label>
+                <label><span>Audio scene</span><select disabled={fillerMediaBusy} onChange={(event) => setItemEditDraft((current) => ({ ...current, audio_scene_id: event.target.value }))} value={itemEditDraft.audio_scene_id}><option value="">Automatic by item type</option>{audioScenes.map((scene) => <option key={scene.id} value={scene.id}>{scene.label}</option>)}</select></label>
                 <label><span>Image dwell (seconds)</span><input disabled={fillerMediaBusy} min="1" onChange={(event) => setItemEditDraft((current) => ({ ...current, dwell_seconds: Number(event.target.value) }))} type="number" value={itemEditDraft.dwell_seconds} /></label>
                 <label className="inline-checkbox"><input checked={itemEditDraft.auto_advance} disabled={fillerMediaBusy} onChange={(event) => setItemEditDraft((current) => ({ ...current, auto_advance: event.target.checked }))} type="checkbox" /><span>Advance automatically</span></label>
+                {itemEditDraft.auto_advance ? <label><span>Advance after (seconds)</span><input disabled={fillerMediaBusy} min="1" onChange={(event) => setItemEditDraft((current) => ({ ...current, auto_advance_seconds: Number(event.target.value) }))} type="number" value={itemEditDraft.auto_advance_seconds} /></label> : null}
+                <label className="inline-checkbox"><input checked={itemEditDraft.display_targets.includes("church")} disabled={fillerMediaBusy} onChange={(event) => setItemEditDraft((current) => ({ ...current, display_targets: event.target.checked ? [...new Set([...current.display_targets, "church" as const])] : current.display_targets.filter((target) => target !== "church") }))} type="checkbox" /><span>Show on church displays</span></label>
+                <label className="inline-checkbox"><input checked={itemEditDraft.display_targets.includes("livestream")} disabled={fillerMediaBusy} onChange={(event) => setItemEditDraft((current) => ({ ...current, display_targets: event.target.checked ? [...new Set([...current.display_targets, "livestream" as const])] : current.display_targets.filter((target) => target !== "livestream") }))} type="checkbox" /><span>Show on livestream</span></label>
                 {fillerMediaPlanItem.item_type === "open_time" ? <label className="inline-checkbox"><input checked={itemEditDraft.repeat} disabled={fillerMediaBusy} onChange={(event) => setItemEditDraft((current) => ({ ...current, repeat: event.target.checked }))} type="checkbox" /><span>Repeat montage</span></label> : null}
               </div>
             </fieldset>

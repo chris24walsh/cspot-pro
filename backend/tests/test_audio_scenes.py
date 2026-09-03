@@ -25,7 +25,7 @@ def test_presentation_state_selects_expected_scene() -> None:
     assert automatic_scene_for_item("welcome_montage", None, "service") == "pre_service"
     assert automatic_scene_for_item("welcome_countdown", None, "service") == "pre_service"
     assert automatic_scene_for_item("welcome_seated", None, "service") == "pastor"
-    assert automatic_scene_for_item("sermon", None, "post_service") == "pre_service"
+    assert automatic_scene_for_item("sermon", None, "post_service") == "post_service"
     assert automatic_scene_for_item("open_time", None) == "congregation"
     assert automatic_scene_for_item("song", "play") == "worship"
     assert automatic_scene_for_item("video", "play") == "media"
@@ -158,6 +158,7 @@ def test_persisted_scenes_merge_current_sources_and_drop_removed_channels() -> N
         "worship",
         "media",
         "pre_service",
+        "post_service",
     ]
     assert set(pastor.channels) == {"desk", "pc-media", "aux"}
     assert pastor.channels["desk"].gain_db == -4
@@ -384,6 +385,7 @@ def test_settings_update_persists_normalized_five_scene_configuration() -> None:
         "worship",
         "media",
         "pre_service",
+        "post_service",
     ]
     assert set(stored[0]["channels"]) == {"desk", "pc-media"}
     assert result.audio_scenes[0].channels["desk"].gain_db == -3

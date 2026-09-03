@@ -30,8 +30,8 @@ import {
 import { useDurableChange } from "../changePolling";
 import { useConfirmationDialog } from "./ConfirmationDialog";
 import { AdminAvailabilityPanel } from "./AdminAvailabilityPanel";
+import { AudioSceneManager } from "./AudioSceneManager";
 import { ServingRoleManager } from "./ServingRoleManager";
-import { ServiceScheduleManager } from "./ServiceScheduleManager";
 import { PlanTypeManager } from "./PlanTypeManager";
 import { VolunteerReview } from "./VolunteerReview";
 
@@ -121,7 +121,7 @@ function formatUserStatus(user: User) {
   return "active";
 }
 
-export function UserManager({ adminSection, onAdminSectionChange, onAttentionChanged }: { adminSection: "users" | "settings"; onAdminSectionChange: (section: "users" | "settings") => void; onAttentionChanged?: () => void | Promise<void> }) {
+export function UserManager({ adminSection, onAdminSectionChange, onAttentionChanged }: { adminSection: "users" | "templates" | "settings"; onAdminSectionChange: (section: "users" | "templates" | "settings") => void; onAttentionChanged?: () => void | Promise<void> }) {
   const { confirm, confirmationDialog } = useConfirmationDialog();
   const [users, setUsers] = useState<User[]>([]);
   const [roles, setRoles] = useState<Role[]>([]);
@@ -154,7 +154,6 @@ export function UserManager({ adminSection, onAdminSectionChange, onAttentionCha
   const [userFilter, setUserFilter] = useState<"all" | "attention" | "active" | "inactive">("all");
   const [userSort, setUserSort] = useState<"attention" | "name" | "recent">("attention");
   const [openRoleGroup, setOpenRoleGroup] = useState<string | null>(null);
-  const [planTypesRevision, setPlanTypesRevision] = useState(0);
   const initialAttentionRouted = useRef(false);
   const formDirty = mode === "create" || Boolean(selectedUser && JSON.stringify(form) !== JSON.stringify(formFromUser(selectedUser)));
   const roleGroups: Array<{ label: string; roles: string[] }> = [
@@ -480,6 +479,10 @@ export function UserManager({ adminSection, onAdminSectionChange, onAttentionCha
     window.location.href = buildAbsoluteApiUrl("/api/v1/integrations/google-drive/connect");
   }
 
+  if (adminSection === "templates") {
+    return <section className="admin-template-workspace"><PlanTypeManager onMessage={setMessage} />{message ? <p className="form-message">{message}</p> : null}</section>;
+  }
+
   return (
     <section className={`manager-grid admin-manager ${adminSection === "settings" ? "is-settings" : "is-users"}`} aria-label="User management">
       {confirmationDialog}
@@ -620,8 +623,7 @@ export function UserManager({ adminSection, onAdminSectionChange, onAttentionCha
 
         <ServingRoleManager onChanged={(areas) => { setServingAreas(areas); void refreshVolunteerRows(); }} />
 
-        <PlanTypeManager onChanged={() => setPlanTypesRevision((value) => value + 1)} onMessage={setMessage} />
-        <ServiceScheduleManager onMessage={setMessage} refreshToken={planTypesRevision} />
+        <AudioSceneManager onMessage={setMessage} />
 
         <section className="subsection-panel admin-settings-panel">
           <div className="section-heading">

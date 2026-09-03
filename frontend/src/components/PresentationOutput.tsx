@@ -254,7 +254,8 @@ export function PresentationOutput({ mediaOutput = false, networkDisplay = false
       setWorshipSetPlan(nextWorshipSetPlan);
       setSongs(nextSongs);
       setPreServiceAudioUrl(broadcastSettings?.pre_service_audio_url ?? null);
-      setPreServiceRoomAudioEnabled(broadcastSettings?.pre_service_room_audio_enabled !== false);
+      const activeScene = broadcastSettings?.audio_scenes.find((scene) => scene.id === broadcastSettings.active_audio_scene);
+      setPreServiceRoomAudioEnabled(activeScene ? Boolean(activeScene.room_media_enabled) : broadcastSettings?.pre_service_room_audio_enabled !== false);
       setMessage(null);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Could not load slideshow output.");
@@ -303,7 +304,8 @@ export function PresentationOutput({ mediaOutput = false, networkDisplay = false
       try {
         const settings = await getBroadcastViewerSettings();
         if (!cancelled) {
-          setPreServiceRoomAudioEnabled(settings.pre_service_room_audio_enabled !== false);
+          const activeScene = settings.audio_scenes.find((scene) => scene.id === settings.active_audio_scene);
+          setPreServiceRoomAudioEnabled(activeScene ? Boolean(activeScene.room_media_enabled) : settings.pre_service_room_audio_enabled !== false);
           setServiceSchedules(settings.service_schedules);
         }
       } catch { /* Keep the last known setting. */ }
@@ -746,6 +748,8 @@ export function PresentationOutput({ mediaOutput = false, networkDisplay = false
             aria-label="LCF background live output"
             style={{ backgroundImage: `url(${LCF_BACKGROUND_URL})` }}
           />
+        ) : liveSlide?.displayTargets && !liveSlide.displayTargets.includes("church") ? (
+          <div className="blank-stage lcf-background-surface" aria-label="Slide not routed to church displays" style={{ backgroundImage: `url(${LCF_BACKGROUND_URL})` }} />
         ) : liveSlide?.montageImageUrls && plan ? (
           <PreServiceSlide backgroundImageUrl={LCF_BACKGROUND_URL} dwellSeconds={liveSlide.dwellSeconds} imageUrls={liveSlide.montageImageUrls} random={liveSlide.montageRandom} serviceDate={plan.service_date} timed={Boolean(liveSlide.preServiceTimed)} phase={liveSlide.preServiceStage ?? liveState?.preServicePhase} phaseStartedAt={liveState?.updatedAt} schedule={serviceScheduleForPlan(serviceSchedules, plan.service_date, plan.plan_type)} />
         ) : liveSlide?.countdownSeconds ? (

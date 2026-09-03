@@ -71,13 +71,17 @@ export interface PlanType {
   name: string;
   description: string | null;
   starts_at: string | null;
+  automation_start: string | null;
   default_duration_minutes: number | null;
   active: boolean;
   default_outline: Array<{
+    id?: string | null;
+    parent_id?: string | null;
     item_type: string;
     title: string;
     sequence: string;
     comment: string | null;
+    presentation_options?: PresentationOptions;
   }>;
 }
 
@@ -101,6 +105,7 @@ export interface PlanItem {
 
 export interface PresentationOptions {
   dwell_seconds?: number;
+  auto_advance_seconds?: number;
   transition?: "fade" | "cut" | "slide";
   fit_mode?: "contain" | "cover";
   overlay_text?: string;
@@ -115,6 +120,8 @@ export interface PresentationOptions {
   announcement_contact?: string;
   announcement_url?: string;
   announcement_layout?: "image" | "text" | "split" | "background";
+  audio_scene_id?: string;
+  display_targets?: Array<"church" | "livestream">;
 }
 
 export interface PlanHistorySnapshotItem {
@@ -626,9 +633,10 @@ export interface BroadcastAudioSource {
 }
 
 export interface BroadcastAudioScene {
-  id: "pastor" | "congregation" | "worship" | "media" | "pre_service";
+  id: string;
   label: string;
   channels: Record<string, { gain_db: number; enabled: boolean }>;
+  room_media_enabled?: boolean;
 }
 
 export interface ServiceScheduleRule {

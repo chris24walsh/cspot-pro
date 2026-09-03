@@ -67,21 +67,17 @@ The app should treat sections as meaningful units such as:
 
 Sections should remain visible and directly navigable while presenting.
 
-New Sunday-service plans begin with five simple sections: Welcome, Worship,
-Open time, Sermon, and Announcements. Welcome merges fellowship and seating: its
-fixed group contains three individually selectable automation items: Welcome
-montage, Service countdown, and Please be seated. The scheduler selects those
-items at the configured boundaries. The photo montage and relaxing music begin
-at 10:30 with a small corner service-start clock, the full countdown begins at
-10:55, then Please be seated is selected at 11:00 until service output takes
-over. Administrators can override those
-clock-driven phases from the Start menu to simulate a Sunday morning at any
-time; the rehearsal uses the same synced display and broadcast state as a live
-service for administrators without activating the public output. Welcome photos
+The default Sunday template contains Welcome, Worship, Open time, Sermon,
+Announcements, and Post-service. Welcome contains individually selectable
+Montage, Countdown, and Please be seated items. Automation starts the template
+once; each item owns its duration, automatic advance, output destinations, and
+audio scene. The seeded flow shows a 25-minute montage followed by a five-minute
+countdown, then selects Please be seated. Administrators can override the flow
+from the Start menu for rehearsal without activating the public output. Welcome photos
 can be scoped to one service or retained for future services. Montage photos start their transition clock when selected, preserve configured order by default, and can be randomized per item. They crossfade gently, including the final transition back
-to the holding background. Pre-service audio fades out at countdown completion or service start,
-whichever comes first. Starting the service shows the neutral LCF holding
-background; worship starts only on the operator's next advance. These rehearsal controls are restricted to administrators. Open time is a neutral LCF background transition. Empty Sermon and Announcements sections are clickable
+to the holding background. Scene changes independently determine livestream
+mixing and whether media plays through the room. Starting the service shows the
+currently selected cue; worship starts only on the operator's next advance. These rehearsal controls are restricted to administrators. Open time is a neutral LCF background transition. Empty Sermon and Announcements sections are clickable
 deck placeholders; imported decks replace their filler backgrounds. Existing
 Sunday plans can add only their missing standard sections, preserving content.
 

@@ -35,7 +35,9 @@ def automatic_scene_for_item(
     video_action: str | None,
     service_stage: str | None = None,
 ) -> str:
-    if service_stage in {"pre_service", "post_service"}:
+    if service_stage == "post_service":
+        return "post_service"
+    if service_stage == "pre_service":
         return "pre_service"
     if item_type in {"welcome_montage", "welcome_countdown"}:
         return "pre_service"

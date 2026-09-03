@@ -1,4 +1,5 @@
 from datetime import UTC, datetime
+from unittest.mock import patch
 
 import pytest
 from sqlalchemy import create_engine, func, select
@@ -127,12 +128,13 @@ def test_plan_date_stays_empty_until_first_content_addition() -> None:
         )
         assert detail.items == []
 
-        create_plan_item(
-            detail.id,
-            PlanItemCreate(item_type="sermon", sequence=40, title="Sermon deck"),
-            None,  # type: ignore[arg-type]
-            session,
-        )
+        with patch("app.modules.planning.routes.require_plan_editable"):
+            create_plan_item(
+                detail.id,
+                PlanItemCreate(item_type="sermon", sequence=40, title="Sermon deck"),
+                None,  # type: ignore[arg-type]
+                session,
+            )
         items = list(session.scalars(select(PlanItem).where(PlanItem.plan_id == detail.id)).all())
 
     assert {(item.item_type, item.title) for item in items} == {
@@ -171,12 +173,13 @@ def test_first_worship_content_materializes_the_day_default_service(service_date
         )
         assert session.scalar(select(func.count(Plan.id))) == 1
 
-        create_plan_item(
-            set_detail.id,
-            PlanItemCreate(item_type="song", sequence=10, title="Song"),
-            None,  # type: ignore[arg-type]
-            session,
-        )
+        with patch("app.modules.planning.routes.require_plan_editable"):
+            create_plan_item(
+                set_detail.id,
+                PlanItemCreate(item_type="song", sequence=10, title="Song"),
+                None,  # type: ignore[arg-type]
+                session,
+            )
         service = session.scalar(select(Plan).where(Plan.id != set_detail.id))
         assert service is not None
         service_type = session.get(PlanType, service.plan_type_id)

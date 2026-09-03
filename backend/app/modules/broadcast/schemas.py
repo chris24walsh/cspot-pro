@@ -36,9 +36,10 @@ class BroadcastAudioSceneChannel(BaseModel):
 
 
 class BroadcastAudioScene(BaseModel):
-    id: Literal["pastor", "congregation", "worship", "media", "pre_service"]
+    id: str = Field(min_length=1, max_length=80, pattern=r"^[a-zA-Z0-9_-]+$")
     label: str = Field(min_length=1, max_length=80)
     channels: dict[str, BroadcastAudioSceneChannel] = Field(default_factory=dict)
+    room_media_enabled: bool = False
 
 
 class ServiceScheduleRule(BaseModel):
@@ -105,7 +106,7 @@ class BroadcastViewerSettingsUpdate(BaseModel):
     camera_url: str | None = None
     camera_sources: list[BroadcastCameraSource] | None = Field(default=None, max_length=8)
     audio_sources: list[BroadcastAudioSource] | None = Field(default=None, max_length=8)
-    audio_scenes: list[BroadcastAudioScene] | None = Field(default=None, max_length=5)
+    audio_scenes: list[BroadcastAudioScene] | None = Field(default=None, max_length=12)
     active_audio_scene: str | None = Field(default=None, max_length=40)
     audio_scene_automation: bool | None = None
     active_camera_id: str | None = Field(default=None, max_length=80)

@@ -375,11 +375,13 @@ decks while retaining the outline group, and manage images attached to
 Welcome, Open time, and Announcements. Administrators retain structural repair
 controls.
 
-Welcome is a fixed root group with three protected child `PlanItem` records:
-`welcome_montage`, `welcome_countdown`, and `welcome_seated`. The scheduler
-advances the live `plan_item_id` across those children at Welcome, countdown,
-and service-start time while retaining the legacy `pre_service_phase` field for
-compatible clients and rehearsal controls.
+Welcome is a root group whose nested template items normally include
+`welcome_montage`, `welcome_countdown`, and `welcome_seated`. A service type has
+one `automation_start`; durations and `auto_advance` behavior live on its child
+items. The scheduler resolves the current cue from cumulative item durations,
+so it can recover correctly after a restart without separate Welcome/countdown
+clocks. Old service-schedule records and `pre_service_phase` remain readable as
+compatibility fallbacks for services not yet using item cues.
 
 Pre-service montage images are `StoredFile` records attached to the Welcome
 montage child through `ItemFile`. Admins and presenters choose whether each new photo is scoped to the
@@ -388,6 +390,12 @@ in the `Pre-service Montage` category remain supported as persistent entries.
 They can manage both kinds from the Welcome section. Image montages begin with
 their first configured image whenever the slide is selected; an item-level
 option can instead apply a deterministic random order shared by every output.
+Each item can also select a named audio scene and route its visual to church
+displays, livestream, or both. Audio scenes are administrator-defined mixes of
+the configured inputs and include a separate `room_media_enabled` decision.
+The seeded Pre-service scene sends PC music to livestream/recording while
+keeping it out of the room; the seeded Post-service scene also enables room
+playback. Scene activation follows item selection, including automatic cues.
 Section and child-item pencils share one native editor backed by the plan item's
 `presentation_options` JSON. Section images are fallback content and are omitted
 while child items exist. The editor exposes image dwell/fit, transition and
@@ -395,16 +403,13 @@ auto-advance controls; Welcome and Open time add positioned static/countdown
 overlays; Announcements add structured date, location, contact, URL and layout
 metadata; sermon/deck controls remain presentation-only so imported pixels are
 not rewritten. Preview and live output consume the same options.
-An open network display or viewer
-poll creates a scheduled live presentation when a configured service rule begins,
-selects Welcome, and activates the dedicated Pre-service audio scene. The
-rules are managed in Admin settings and match a plan type and weekday, with
-independent Welcome, countdown, service-start, and cleanup times. This supports
-Sunday, midweek, and other recurring events without hard-coded plan names. When the countdown expires,
-music and montage stop and Welcome displays the LCF background in a ready state;
-this does not claim or start the main slideshow. Starting slideshow is the human
-service-start signal. It starts the currently selected slide without blanking it
-and hands audio-scene inference to the live service.
+An open network display or viewer poll creates a scheduled live presentation at
+the selected service type's `automation_start`, selects the current cumulative
+item cue, and activates that item's scene. The dedicated Service templates Admin
+tab owns this configuration. A legacy recurring schedule can still provide a
+fallback start and cleanup window, but no longer owns individual cue boundaries.
+Starting slideshow is the human takeover signal. It starts the currently selected
+slide without blanking it and continues item-driven audio-scene selection.
 Stopping slideshow leaves the current slide visible without blanking it and returns
 audio to the safe Pre-service scene rather than taking the scheduled broadcast
 offline. The scheduled session is exposed only during its configured window.
@@ -422,9 +427,10 @@ tests remain restricted to administrators.
 The configured pre-service track is still a transitional browser-rendered source,
 not an input owned by the server-side source mixer. Each remote viewer renders
 that track directly; browser policy may require one sound-enabling click for a
-YouTube source, while a direct audio URL can normally autoplay. During remote-only
-pre-service playback, the presentation-output copy remains muted so the track is
-not sent through the PC line-out to the sound desk. The Pre-service scene also
+YouTube source, while a direct audio URL can normally autoplay. The active
+scene's `room_media_enabled` flag decides whether the presentation-output copy
+is sent through the PC line-out to the sound desk. The Pre-service scene keeps
+that route off while the Post-service scene enables it. The Pre-service scene also
 excludes desk and room inputs, preventing musicians' rehearsal audio from being
 published with the online track. A future server-side program-audio source can
 replace this transitional split without changing the scene boundary.

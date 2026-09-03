@@ -98,6 +98,13 @@ _audio_scene_fade_lock = Lock()
 _audio_scene_fade_timers: dict[str, tuple[object, Timer]] = {}
 
 
+def _scene_for_item(item: PlanItem | None, video_action: str | None, service_stage: str | None) -> str:
+    configured = (getattr(item, "presentation_options", None) or {}).get("audio_scene_id") if item else None
+    if isinstance(configured, str) and configured.strip():
+        return configured.strip()
+    return automatic_scene_for_item(item.item_type if item else None, video_action, service_stage)
+
+
 def _audio_scene_fade_pending(plan_id: str) -> bool:
     with _audio_scene_fade_lock:
         scheduled = _audio_scene_fade_timers.get(plan_id)
@@ -123,11 +130,7 @@ def _activate_current_audio_scene(plan_id: str) -> None:
         activate_audio_scene(
             session,
             settings,
-            automatic_scene_for_item(
-                item.item_type if item else None,
-                video_action if isinstance(video_action, str) else None,
-                service_stage if isinstance(service_stage, str) else None,
-            ),
+            _scene_for_item(item, video_action if isinstance(video_action, str) else None, service_stage if isinstance(service_stage, str) else None),
         )
 
 
@@ -258,6 +261,36 @@ def welcome_stage_at(now_local: datetime, rule: ServiceScheduleRule) -> tuple[st
     return "welcome_montage", "montage"
 
 
+def template_cue_at(
+    session: Session, plan: Plan, now_local: datetime, automation_start: str
+) -> tuple[PlanItem | None, str]:
+    """Resolve a template's self-timed opening cue chain from its one start time."""
+    started_at = schedule_time(now_local, automation_start)
+    elapsed = max(0, int((now_local - started_at).total_seconds()))
+    items = list(session.scalars(select(PlanItem).where(
+        PlanItem.plan_id == plan.id, PlanItem.deleted_at.is_(None)
+    ).order_by(PlanItem.sequence, PlanItem.created_at)).all())
+    roots = [item for item in items if item.parent_item_id is None]
+    ordered: list[PlanItem] = []
+    for root in roots:
+        children = sorted(
+            (item for item in items if item.parent_item_id == root.id),
+            key=lambda item: (item.sequence, item.created_at),
+        )
+        ordered.extend(children or [root])
+    if not ordered:
+        return None, "service"
+    for index, item in enumerate(ordered):
+        options = item.presentation_options or {}
+        if not options.get("auto_advance"):
+            return item, "service" if index else "pre_service"
+        duration = max(1, int(options.get("auto_advance_seconds") or options.get("dwell_seconds") or 1))
+        if elapsed < duration:
+            return item, "pre_service"
+        elapsed -= duration
+    return ordered[-1], "service"
+
+
 def admin_rehearsal_visible(
     payload: dict[str, object], *, is_admin: bool, output_active: bool
 ) -> bool:
@@ -280,8 +313,6 @@ def ensure_scheduled_pre_service(session: Session) -> None:
         for rule in service_schedules(broadcast_settings)
         if rule.enabled and rule.weekday == now_local.weekday()
     ]
-    if not rules:
-        return
     day_start = now_local.replace(hour=0, minute=0, second=0, microsecond=0).astimezone(UTC)
     day_end = now_local.replace(hour=23, minute=59, second=59, microsecond=999999).astimezone(UTC)
     candidates = session.execute(
@@ -294,30 +325,38 @@ def ensure_scheduled_pre_service(session: Session) -> None:
         )
         .order_by(Plan.service_date)
     ).all()
-    scheduled = next(
-        (
-            (plan, rule)
-            for plan, plan_type in candidates
-            for rule in rules
-            if plan_type.name == rule.plan_type
-            and schedule_time(now_local, rule.pre_service_start)
-            <= now_local
-            <= schedule_time(now_local, rule.cleanup_time)
-        ),
-        None,
-    )
+    scheduled = None
+    for plan, plan_type in candidates:
+        legacy_rule = next((rule for rule in rules if rule.plan_type == plan_type.name), None)
+        automation_start = plan_type.automation_start or (legacy_rule.pre_service_start if legacy_rule else None)
+        if not automation_start:
+            continue
+        rule = legacy_rule or ServiceScheduleRule(
+            id=f"template-{plan_type.id}", name=plan_type.name, plan_type=plan_type.name,
+            weekday=now_local.weekday(), pre_service_start=automation_start,
+            countdown_start=plan_type.starts_at or automation_start,
+            service_start=plan_type.starts_at or automation_start,
+            cleanup_time="23:59", enabled=True,
+        )
+        if schedule_time(now_local, automation_start) <= now_local <= schedule_time(now_local, rule.cleanup_time):
+            scheduled = (plan, plan_type, rule)
+            break
     if scheduled is None:
         return
-    plan, rule = scheduled
+    plan, plan_type, rule = scheduled
     ensure_welcome_stage_items(session, plan)
-    desired_item_type, desired_phase = welcome_stage_at(now_local, rule)
-    desired_item = session.scalar(
-        select(PlanItem).where(
-            PlanItem.plan_id == plan.id,
-            PlanItem.item_type == desired_item_type,
-            PlanItem.deleted_at.is_(None),
-        )
-    )
+    automation_start = plan_type.automation_start or rule.pre_service_start
+    plan_items = session.scalars(select(PlanItem).where(
+        PlanItem.plan_id == plan.id, PlanItem.deleted_at.is_(None)
+    )).all()
+    has_item_cues = any((item.presentation_options or {}).get("auto_advance") for item in plan_items)
+    if has_item_cues:
+        desired_item, desired_stage = template_cue_at(session, plan, now_local, automation_start)
+        desired_phase = None
+    else:
+        desired_item_type, desired_phase = welcome_stage_at(now_local, rule)
+        desired_item = session.scalar(select(PlanItem).where(PlanItem.plan_id == plan.id, PlanItem.item_type == desired_item_type, PlanItem.deleted_at.is_(None)))
+        desired_stage = "ready" if now_local >= schedule_time(now_local, rule.service_start) else "pre_service"
     cleanup_live_sessions(session, active_plan_id=plan.id)
     latest = _latest_session(session, plan.id)
     if latest and latest.status == "live" and latest.ended_at is None:
@@ -339,14 +378,9 @@ def ensure_scheduled_pre_service(session: Session) -> None:
             ):
                 return
             if broadcast_settings and broadcast_settings.audio_scene_automation:
-                desired_scene = "pre_service"
+                desired_scene = _scene_for_item(desired_item, None, desired_stage)
                 if broadcast_settings.active_audio_scene != desired_scene:
                     activate_audio_scene(session, broadcast_settings, desired_scene)
-            desired_stage = (
-                "ready"
-                if now_local >= schedule_time(now_local, rule.service_start)
-                else "pre_service"
-            )
             position_changed = False
             if desired_item is not None and position.plan_item_id != desired_item.id:
                 position.plan_item_id = desired_item.id
@@ -354,8 +388,11 @@ def ensure_scheduled_pre_service(session: Session) -> None:
                 payload["plan_item_id"] = desired_item.id
                 payload["slide_offset"] = 0
                 position_changed = True
-            if payload.get("pre_service_phase") != desired_phase:
+            if desired_phase is not None and payload.get("pre_service_phase") != desired_phase:
                 payload["pre_service_phase"] = desired_phase
+                position_changed = True
+            elif desired_phase is None and "pre_service_phase" in payload:
+                payload.pop("pre_service_phase", None)
                 position_changed = True
             if payload.get("service_stage") != desired_stage:
                 payload["service_stage"] = desired_stage
@@ -414,14 +451,12 @@ def ensure_scheduled_pre_service(session: Session) -> None:
                     "auto_started": True,
                     "schedule_id": rule.id,
                     "scheduled_window_start": int(
-                        schedule_time(now_local, rule.pre_service_start).timestamp() * 1000
+                        schedule_time(now_local, automation_start).timestamp() * 1000
                     ),
                     "scheduled_window_end": int(
                         schedule_time(now_local, rule.cleanup_time).timestamp() * 1000
                     ),
-                    "service_stage": (
-                        "ready" if desired_item_type == "welcome_seated" else "pre_service"
-                    ),
+                    "service_stage": desired_stage,
                     "pre_service_phase": desired_phase,
                 }
             ),
@@ -429,7 +464,7 @@ def ensure_scheduled_pre_service(session: Session) -> None:
     )
     session.commit()
     if broadcast_settings and broadcast_settings.audio_scene_automation:
-        activate_audio_scene(session, broadcast_settings, "pre_service")
+        activate_audio_scene(session, broadcast_settings, _scene_for_item(first_item, None, desired_stage))
 
 
 def _position_payload(position: PresentationPosition | None) -> dict[str, object]:
@@ -704,11 +739,7 @@ def update_presentation_live_state(
                 activate_audio_scene(
                     session,
                     broadcast_settings,
-                    automatic_scene_for_item(
-                        item.item_type if item else None,
-                        payload.video_action,
-                        payload.service_stage,
-                    ),
+                    _scene_for_item(item, payload.video_action, payload.service_stage),
                 )
     return _serialize_live_state(presentation_session, position, plan_id)
 
@@ -821,11 +852,7 @@ def update_presentation_output_status(
             activate_audio_scene(
                 session,
                 broadcast_settings,
-                automatic_scene_for_item(
-                    item.item_type if item else None,
-                    video_action if isinstance(video_action, str) else None,
-                    service_stage if isinstance(service_stage, str) else None,
-                ),
+                _scene_for_item(item, video_action if isinstance(video_action, str) else None, service_stage if isinstance(service_stage, str) else None),
             )
         current_item_id = next_payload.get("plan_item_id")
         slide_offset = next_payload.get("slide_offset", 0)

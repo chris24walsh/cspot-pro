@@ -13,6 +13,11 @@ WELCOME_STAGE_TYPES = (
     ("welcome_countdown", "Service countdown", Decimal("20")),
     ("welcome_seated", "Please be seated", Decimal("30")),
 )
+WELCOME_STAGE_OPTIONS = {
+    "welcome_montage": {"dwell_seconds": 12, "auto_advance": True, "auto_advance_seconds": 1500, "overlay_mode": "countdown", "overlay_countdown_seconds": 1800, "overlay_text": "Service begins in", "audio_scene_id": "pre_service", "display_targets": ["church", "livestream"]},
+    "welcome_countdown": {"dwell_seconds": 12, "auto_advance": True, "auto_advance_seconds": 300, "overlay_mode": "countdown", "overlay_countdown_seconds": 300, "overlay_text": "Service begins in", "audio_scene_id": "pre_service", "display_targets": ["church", "livestream"]},
+    "welcome_seated": {"auto_advance": False, "audio_scene_id": "pastor", "display_targets": ["church", "livestream"]},
+}
 
 
 @dataclass(frozen=True)
@@ -120,6 +125,7 @@ def ensure_welcome_stage_items(session: Session, plan: Plan) -> list[PlanItem]:
             sequence=sequence,
             item_type=item_type,
             title=title,
+            presentation_options=WELCOME_STAGE_OPTIONS[item_type],
         )
         session.add(child)
         session.flush()
@@ -160,7 +166,7 @@ def ensure_service_scaffold(session: Session, plan: Plan) -> list[PlanItem]:
                 None,
                 frozenset() if item.item_type == "custom" else frozenset({item.item_type}),
             )
-            for item in defaults
+            for item in defaults if item.parent_item_id is None
         )
     elif is_sunday_service(session, plan):
         templates = SUNDAY_SERVICE_SCAFFOLD
@@ -191,6 +197,9 @@ def ensure_service_scaffold(session: Session, plan: Plan) -> list[PlanItem]:
             auto_collapse_items=section_auto_collapse_preference(
                 session, section.item_type, section.title
             ),
+            presentation_options=next(
+                (item.presentation_options for item in defaults if item.sequence == section.sequence), {}
+            ) or {},
         )
         session.add(item)
         created.append(item)
@@ -198,5 +207,26 @@ def ensure_service_scaffold(session: Session, plan: Plan) -> list[PlanItem]:
         session.commit()
         for item in created:
             session.refresh(item)
-    created.extend(ensure_welcome_stage_items(session, plan))
+    template_roots = {item.id: item for item in defaults if item.parent_item_id is None}
+    plan_roots = {
+        (item.item_type, item.title.strip().lower()): item
+        for item in session.scalars(select(PlanItem).where(PlanItem.plan_id == plan.id, PlanItem.parent_item_id.is_(None), PlanItem.deleted_at.is_(None))).all()
+    }
+    for default in defaults:
+        if not default.parent_item_id:
+            continue
+        parent_default = template_roots.get(default.parent_item_id)
+        parent = plan_roots.get((parent_default.item_type, parent_default.title.strip().lower())) if parent_default else None
+        if parent is None:
+            continue
+        exists = session.scalar(select(PlanItem.id).where(PlanItem.plan_id == plan.id, PlanItem.parent_item_id == parent.id, PlanItem.item_type == default.item_type, PlanItem.title == default.title, PlanItem.deleted_at.is_(None)))
+        if exists:
+            continue
+        child = PlanItem(plan_id=plan.id, parent_item_id=parent.id, sequence=default.sequence, item_type=default.item_type, title=default.title, comment=default.comment, presentation_options=default.presentation_options or {})
+        session.add(child)
+        created.append(child)
+    if defaults:
+        session.commit()
+    else:
+        created.extend(ensure_welcome_stage_items(session, plan))
     return created

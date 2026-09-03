@@ -67,6 +67,31 @@ def test_empty_sunday_service_gets_complete_timed_scaffold() -> None:
         session.close()
 
 
+def test_template_children_keep_their_cue_settings_when_scaffolded() -> None:
+    session, plan = scaffold_session()
+    try:
+        root = DefaultItem(plan_type_id=plan.plan_type_id, sequence=10, item_type="pre_service", title="Welcome")
+        session.add(root)
+        session.flush()
+        session.add(DefaultItem(
+            plan_type_id=plan.plan_type_id,
+            parent_item_id=root.id,
+            sequence=10,
+            item_type="welcome_montage",
+            title="Welcome montage",
+            presentation_options={"auto_advance": True, "auto_advance_seconds": 1500, "audio_scene_id": "pre_service"},
+        ))
+        session.commit()
+
+        ensure_service_scaffold(session, plan)
+        welcome = session.scalar(select(PlanItem).where(PlanItem.plan_id == plan.id, PlanItem.parent_item_id.is_(None)))
+        cue = session.scalar(select(PlanItem).where(PlanItem.parent_item_id == welcome.id))
+        assert cue.presentation_options["auto_advance_seconds"] == 1500
+        assert cue.presentation_options["audio_scene_id"] == "pre_service"
+    finally:
+        session.close()
+
+
 def test_existing_song_message_notices_and_end_are_not_duplicated() -> None:
     session, plan = scaffold_session()
     try:

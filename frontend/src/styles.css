@@ -12660,3 +12660,35 @@ button.musician-page {
 .slide-custom-overlay.size-small { font-size: clamp(1rem, 2.5vw, 2rem); }
 .slide-custom-overlay.size-medium { font-size: clamp(1.4rem, 4vw, 3.5rem); }
 .slide-custom-overlay.size-large { font-size: clamp(2rem, 6vw, 5rem); }
+.admin-template-workspace {
+  height: 100%;
+  overflow: auto;
+  padding: 1rem;
+}
+
+.plan-type-outline-row.is-child {
+  border-left: 3px solid var(--accent);
+  margin-left: 1.5rem;
+}
+
+.template-cue-controls {
+  display: grid;
+  gap: 0.55rem;
+  grid-column: 1 / -1;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  padding: 0.5rem 0;
+}
+
+.template-add-child {
+  grid-column: 1 / -1;
+  justify-self: start;
+}
+
+.scene-source-control {
+  border-top: 1px solid var(--border-color);
+  display: grid;
+  gap: 0.5rem;
+  grid-column: 1 / -1;
+  grid-template-columns: minmax(180px, 1fr) minmax(180px, 2fr);
+  padding-top: 0.65rem;
+}

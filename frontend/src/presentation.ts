@@ -58,6 +58,7 @@ export interface PresentationSlide {
   transition?: "fade" | "cut" | "slide";
   autoAdvanceSeconds?: number;
   dwellSeconds?: number;
+  displayTargets?: Array<"church" | "livestream">;
 }
 
 export interface PresentationSection {
@@ -402,8 +403,9 @@ function buildIndividualPresentationSections(
       overlayPosition: options.overlay_position,
       overlaySize: options.overlay_size,
       transition: options.transition,
-      autoAdvanceSeconds: options.auto_advance ? options.dwell_seconds : undefined,
+      autoAdvanceSeconds: options.auto_advance ? (options.auto_advance_seconds ?? options.dwell_seconds) : undefined,
       dwellSeconds: options.dwell_seconds,
+      displayTargets: options.display_targets,
     };
     const fillerImageUrls = (item.files ?? [])
       .filter((file) => file.content_type?.startsWith("image/"))
@@ -454,8 +456,8 @@ function buildIndividualPresentationSections(
             ? (fillerImageUrls.length ? fillerImageUrls : [LCF_BACKGROUND_URL])
             : [LCF_BACKGROUND_URL],
           montageRandom: item.montage_random,
-          preServiceStage,
-          preServiceTimed: true,
+          preServiceStage: options.auto_advance ? undefined : preServiceStage,
+          preServiceTimed: !options.auto_advance,
           itemType: item.item_type,
           sequence: item.sequence,
           ...presentationOptions,
