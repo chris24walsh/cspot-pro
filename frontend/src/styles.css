@@ -7762,6 +7762,9 @@ button.musician-page {
   align-items: center;
   display: flex;
   gap: 4px;
+  grid-column: 1 / -1;
+  min-width: 0;
+  width: 100%;
 }
 
 .sorter-item-heading-row .sorter-item-heading {
@@ -7769,9 +7772,11 @@ button.musician-page {
   min-width: 0;
 }
 
-.sorter-item-edit-button {
-  flex: 0 0 auto;
-}
+.sorter-item-summary-row { grid-column: 1 / -1; min-width: 0; position: relative; }
+.sorter-item-summary-row > .sorter-item-summary,
+.sorter-item-summary-row > .sorter-song-item-summary { padding-right: 34px; }
+.sorter-item-inline-edit { flex: 0 0 auto; }
+.sorter-item-summary-row > .sorter-item-inline-edit { position: absolute; right: 6px; top: 6px; z-index: 2; }
 
 .item-details-grid .wide-field {
   grid-column: 1 / -1;

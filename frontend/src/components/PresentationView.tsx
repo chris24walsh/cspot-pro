@@ -120,6 +120,7 @@ const AUDIO_FADE_INTERVAL_MS = PROGRAM_AUDIO_FADE_DURATION_MS / AUDIO_FADE_STEPS
 const REMOTE_LIVE_STATE_POLL_INTERVAL_MS = 250;
 const FILLER_MEDIA_ITEM_TYPES = new Set(["open_time", "sermon", "announcements"]);
 const FIXED_WELCOME_STAGE_TYPES = new Set(["welcome_montage", "welcome_countdown", "welcome_seated"]);
+const INLINE_EDIT_ITEM_TYPES = new Set([...FILLER_MEDIA_ITEM_TYPES, ...FIXED_WELCOME_STAGE_TYPES, "reading"]);
 
 function outputOwnerId() {
   if (crypto.randomUUID) {
@@ -1016,7 +1017,7 @@ export function PresentationView({
       openSongEditor(item.song_id);
       return;
     }
-    if (!FILLER_MEDIA_ITEM_TYPES.has(item.item_type)) return;
+    if (!INLINE_EDIT_ITEM_TYPES.has(item.item_type)) return;
     setItemEditDraft({
       title: item.title,
       comment: item.comment ?? "",
@@ -4854,7 +4855,7 @@ export function PresentationView({
                         <span>Edit</span>
                       </button>
                     ) : null}
-                    {canEditPlan && FILLER_MEDIA_ITEM_TYPES.has(section.itemType) ? (
+                    {canEditPlan && INLINE_EDIT_ITEM_TYPES.has(section.itemType) ? (
                       <button
                         aria-label={`Edit ${section.title}`}
                         className="section-icon-button section-edit-button"
@@ -4897,36 +4898,31 @@ export function PresentationView({
                         const tileRefIds = matchesLiveBuild && liveSlide ? [slide.id, liveSlide.id] : [slide.id];
                         if (itemCanCollapse && !itemExpanded) {
                           if (!firstItemSlide) return null;
+                          const canEditNestedItem = Boolean(item && (item.song_id ? canEditSong : canEditPlan && INLINE_EDIT_ITEM_TYPES.has(item.item_type)));
                           if (slide.itemType === "song") {
                             return (
-                              <button
-                                aria-label={`Expand ${item?.title ?? slide.title} slides`}
-                                className="song-slide-summary sorter-song-item-summary"
-                                key={`summary:${slide.planItemId}`}
-                                onClick={() => toggleSorterSection(slide.planItemId)}
-                                type="button"
-                              >
-                                <span className="song-slide-leaf" aria-hidden="true">{renderMiniSlide(slide, "Song", slideTheme, compactPlanTextFontCap)}</span>
-                                <span className="sorter-song-item-details"><strong>{item?.title ?? slide.title}</strong><small>{itemSlides.length} slides · Expand</small></span>
-                              </button>
+                              <div className="sorter-item-summary-row" key={`summary:${slide.planItemId}`}>
+                                <button aria-label={`Expand ${item?.title ?? slide.title} slides`} className="song-slide-summary sorter-song-item-summary" onClick={() => toggleSorterSection(slide.planItemId)} type="button">
+                                  <span className="song-slide-leaf" aria-hidden="true">{renderMiniSlide(slide, "Song", slideTheme, compactPlanTextFontCap)}</span>
+                                  <span className="sorter-song-item-details"><strong>{item?.title ?? slide.title}</strong><small>{itemSlides.length} slides · Expand</small></span>
+                                </button>
+                                {canEditNestedItem && item ? <button aria-label={`Edit ${item.title}`} className="section-icon-button sorter-item-inline-edit" onClick={() => openPlanItemEditor(item)} title={`Edit ${item.title}`} type="button"><Pencil size={12} aria-hidden="true" /></button> : null}
+                              </div>
                             );
                           }
                           return (
-                            <button
-                              aria-label={`Expand ${item?.title ?? slide.title} slides`}
-                              className={`sorter-item-summary ${slide.itemType === "song" ? "is-song" : ""}`}
-                              key={`summary:${slide.planItemId}`}
-                              onClick={() => toggleSorterSection(slide.planItemId)}
-                              type="button"
-                            >
-                              <span className="sorter-item-leaf">{renderMiniSlide(slide, "Item", slideTheme, compactPlanTextFontCap)}</span>
-                              <span><strong>{item?.title ?? slide.sectionTitle}</strong><small>{itemSlides.length} slides · Expand</small></span>
-                            </button>
+                            <div className="sorter-item-summary-row" key={`summary:${slide.planItemId}`}>
+                              <button aria-label={`Expand ${item?.title ?? slide.title} slides`} className={`sorter-item-summary ${slide.itemType === "song" ? "is-song" : ""}`} onClick={() => toggleSorterSection(slide.planItemId)} type="button">
+                                <span className="sorter-item-leaf">{renderMiniSlide(slide, "Item", slideTheme, compactPlanTextFontCap)}</span>
+                                <span><strong>{item?.title ?? slide.sectionTitle}</strong><small>{itemSlides.length} slides · Expand</small></span>
+                              </button>
+                              {canEditNestedItem && item ? <button aria-label={`Edit ${item.title}`} className="section-icon-button sorter-item-inline-edit" onClick={() => openPlanItemEditor(item)} title={`Edit ${item.title}`} type="button"><Pencil size={12} aria-hidden="true" /></button> : null}
+                            </div>
                           );
                         }
                         return (
                           <div className="sorter-item-tile" key={slide.id}>
-                          {firstItemSlide && hasNestedItems ? <div className="sorter-item-heading-row"><button className="sorter-item-heading" onClick={() => itemCanCollapse ? toggleSorterSection(slide.planItemId) : selectSlideFromOperator(slideIndex)} type="button"><strong>{item?.title ?? slide.sectionTitle}</strong>{itemCanCollapse ? <ChevronUp size={13} /> : null}</button>{canEditPlan && item && (item.song_id || FILLER_MEDIA_ITEM_TYPES.has(item.item_type)) ? <button aria-label={`Edit ${item.title}`} className="section-icon-button sorter-item-edit-button" disabled={fillerMediaBusy} onClick={() => openPlanItemEditor(item)} title={`Edit ${item.title}`} type="button"><Pencil size={12} aria-hidden="true" /></button> : null}</div> : null}
+                          {firstItemSlide && hasNestedItems ? <div className="sorter-item-heading-row"><button className="sorter-item-heading" onClick={() => itemCanCollapse ? toggleSorterSection(slide.planItemId) : selectSlideFromOperator(slideIndex)} type="button"><strong>{item?.title ?? slide.sectionTitle}</strong>{itemCanCollapse ? <ChevronUp size={13} /> : null}</button>{item && (item.song_id ? canEditSong : canEditPlan && INLINE_EDIT_ITEM_TYPES.has(item.item_type)) ? <button aria-label={`Edit ${item.title}`} className="section-icon-button sorter-item-inline-edit" disabled={fillerMediaBusy} onClick={() => openPlanItemEditor(item)} title={`Edit ${item.title}`} type="button"><Pencil size={12} aria-hidden="true" /></button> : null}</div> : null}
                           <button
                             className={`slide-tile preview-tile ${presentationTypeClass(slide.itemType)} ${
                               slideIndex === liveIndex || matchesLiveBuild ? "active" : ""
