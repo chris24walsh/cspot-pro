@@ -650,6 +650,8 @@ export function PresentationView({
   const [fillerMediaPlanItemId, setFillerMediaPlanItemId] = useState<string | null>(null);
   const [fillerMediaSectionId, setFillerMediaSectionId] = useState<string | null>(null);
   const [fillerMediaBusy, setFillerMediaBusy] = useState(false);
+  const [fillerMediaEditorLoading, setFillerMediaEditorLoading] = useState(false);
+  const [loadedFillerMediaFileIds, setLoadedFillerMediaFileIds] = useState<Set<string>>(() => new Set());
   const [itemEditDraft, setItemEditDraft] = useState({ title: "", comment: "", planned_start: "", auto_collapse_items: false });
   const [serviceSchedules, setServiceSchedules] = useState<ServiceScheduleRule[]>([]);
 
@@ -923,6 +925,8 @@ export function PresentationView({
     ?? null;
   const fillerMediaPlanItem = effectivePlanItems.find((item) => item.id === fillerMediaPlanItemId) ?? null;
   const fillerMediaSectionItem = effectivePlanItems.find((item) => item.id === fillerMediaSectionId) ?? null;
+  const fillerMediaImageFiles = fillerMediaPlanItem?.files.filter((file) => file.content_type?.startsWith("image/")) ?? [];
+  const fillerMediaEditorReady = fillerMediaImageFiles.every((file) => loadedFillerMediaFileIds.has(file.file_id));
   const currentPlanItem = effectivePlanItems.find((item) => item.id === liveSlide?.planItemId) ?? null;
   const activeSermonRecording = broadcastRecordings.find(
     (recording) => recording.plan_id === plan?.id && (recording.status === "recording" || recording.status === "paused"),
@@ -1012,25 +1016,42 @@ export function PresentationView({
     setEditingSongId(song.id);
   }
 
-  function openPlanItemEditor(item: PlanItem, sectionItem?: PlanItem | null) {
+  async function openPlanItemEditor(item: PlanItem, sectionItem?: PlanItem | null) {
     if (item.song_id) {
       openSongEditor(item.song_id);
       return;
     }
     if (!INLINE_EDIT_ITEM_TYPES.has(item.item_type)) return;
-    setItemEditDraft({
-      title: item.title,
-      comment: item.comment ?? "",
-      planned_start: item.planned_start ?? "",
-      auto_collapse_items: Boolean((sectionItem ?? (!item.parent_item_id ? item : null))?.auto_collapse_items),
-    });
-    setFillerMediaPlanItemId(item.id);
-    setFillerMediaSectionId((sectionItem ?? (!item.parent_item_id ? item : null))?.id ?? null);
+    setFillerMediaEditorLoading(true);
+    setLoadedFillerMediaFileIds(new Set());
+    try {
+      const freshPlan = await getPlan(item.plan_id);
+      const freshItem = freshPlan.items.find((candidate) => candidate.id === item.id) ?? item;
+      const requestedSection = sectionItem ?? (!item.parent_item_id ? item : null);
+      const freshSection = requestedSection
+        ? freshPlan.items.find((candidate) => candidate.id === requestedSection.id) ?? requestedSection
+        : null;
+      if (freshPlan.id === plan?.id) setPlan(freshPlan);
+      if (freshPlan.id === worshipSetPlan?.id) setWorshipSetPlan(freshPlan);
+      setItemEditDraft({
+        title: freshItem.title,
+        comment: freshItem.comment ?? "",
+        planned_start: freshItem.planned_start ?? "",
+        auto_collapse_items: Boolean(freshSection?.auto_collapse_items),
+      });
+      setFillerMediaPlanItemId(freshItem.id);
+      setFillerMediaSectionId(freshSection?.id ?? null);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not load the item editor.");
+    } finally {
+      setFillerMediaEditorLoading(false);
+    }
   }
 
   function closePlanItemEditor() {
     setFillerMediaPlanItemId(null);
     setFillerMediaSectionId(null);
+    setLoadedFillerMediaFileIds(new Set());
     setItemEditDraft({ title: "", comment: "", planned_start: "", auto_collapse_items: false });
   }
 
@@ -5689,7 +5710,16 @@ export function PresentationView({
         </div>
       ) : null}
 
-      {fillerMediaPlanItem ? (
+      {fillerMediaEditorLoading ? (
+        <div className="app-dialog-backdrop" role="presentation">
+          <div aria-modal="true" className="app-dialog pre-service-media-dialog" role="dialog">
+            <h2>Loading editor…</h2>
+            <p>Loading item details and attached images.</p>
+          </div>
+        </div>
+      ) : null}
+
+      {fillerMediaPlanItem && !fillerMediaEditorLoading ? (
         <div className="app-dialog-backdrop" role="presentation">
           <div aria-labelledby="filler-media-title" aria-modal="true" className="app-dialog app-dialog-wide pre-service-media-dialog" role="dialog">
             <div>
@@ -5733,9 +5763,14 @@ export function PresentationView({
               <span>Randomise montage order</span>
             </label>
             <div className="pre-service-media-grid">
-              {fillerMediaPlanItem.files.filter((file) => file.content_type?.startsWith("image/")).map((file) => (
+              {fillerMediaImageFiles.map((file) => (
                 <article key={file.id}>
-                  <img alt={file.display_name} src={storedFileDownloadUrl(file.file_id)} />
+                  <img
+                    alt={file.display_name}
+                    onError={() => setLoadedFillerMediaFileIds((current) => new Set(current).add(file.file_id))}
+                    onLoad={() => setLoadedFillerMediaFileIds((current) => new Set(current).add(file.file_id))}
+                    src={storedFileDownloadUrl(file.file_id)}
+                  />
                   <span>{file.display_name}</span>
                   <label className="media-persistence-control">
                     <input
@@ -5756,11 +5791,12 @@ export function PresentationView({
                   </button>
                 </article>
               ))}
-              {!fillerMediaPlanItem.files.some((file) => file.content_type?.startsWith("image/")) ? (
+              {!fillerMediaImageFiles.length ? (
                 <p className="empty-state">The standard LCF background is currently used.</p>
               ) : null}
+              {!fillerMediaEditorReady ? <p className="search-empty">Loading attached image previews…</p> : null}
             </div>
-            <div className="app-dialog-actions">
+            {fillerMediaEditorReady ? <div className="app-dialog-actions">
               <button
                 className="text-button"
                 disabled={fillerMediaBusy}
@@ -5769,25 +5805,15 @@ export function PresentationView({
                   event.stopPropagation();
                   closePlanItemEditor();
                 }}
-                onTouchEnd={(event) => {
-                  event.preventDefault();
-                  event.stopPropagation();
-                  window.setTimeout(closePlanItemEditor, 0);
-                }}
                 type="button"
               >Cancel</button>
               <button
                 className="primary-button"
                 disabled={fillerMediaBusy || !itemEditDraft.title.trim()}
                 onClick={() => void savePlanItemDetails()}
-                onTouchEnd={(event) => {
-                  event.preventDefault();
-                  event.stopPropagation();
-                  void savePlanItemDetails();
-                }}
                 type="button"
               >{fillerMediaBusy ? "Saving…" : "Save"}</button>
-            </div>
+            </div> : null}
           </div>
         </div>
       ) : null}
