@@ -116,7 +116,7 @@ export function CalendarPopup({
   footerContent,
   actionButtons,
 }: CalendarPopupProps) {
-  const [viewMode, setViewMode] = useState<"sundays" | "all">("sundays");
+  const [viewMode, setViewMode] = useState<"sundays" | "all">("all");
   const [extensions, setExtensions] = useState({ allBefore: 0, allAfter: 0, sundayBefore: 0, sundayAfter: 0 });
   const calendarTimelineRef = useRef<HTMLDivElement | null>(null);
   const prependScrollHeightRef = useRef<number | null>(null);
@@ -139,7 +139,7 @@ export function CalendarPopup({
   }, [allDays[0]?.date, allDays[allDays.length - 1]?.date, sundayDays[0]?.date, sundayDays[sundayDays.length - 1]?.date]);
 
   useEffect(() => {
-    if (isOpen) setViewMode("sundays");
+    if (isOpen) setViewMode("all");
   }, [isOpen]);
 
   useLayoutEffect(() => {
@@ -264,17 +264,17 @@ export function CalendarPopup({
                 <strong>{viewMode === "sundays" ? "Sunday schedule" : "All dates"}</strong>
               </div>
               <div className="calendar-view-toggle" aria-label="Calendar days" role="group">
-                <button aria-pressed={viewMode === "sundays"} className={viewMode === "sundays" ? "active" : ""} onClick={() => {
-                  if (calendarTimelineRef.current) calendarTimelineRef.current.dataset.calendarPositioned = "false";
-                  setViewMode("sundays");
-                }} type="button">
-                  Sundays
-                </button>
                 <button aria-pressed={viewMode === "all"} className={viewMode === "all" ? "active" : ""} onClick={() => {
                   if (calendarTimelineRef.current) calendarTimelineRef.current.dataset.calendarPositioned = "false";
                   setViewMode("all");
                 }} type="button">
                   All days
+                </button>
+                <button aria-pressed={viewMode === "sundays"} className={viewMode === "sundays" ? "active" : ""} onClick={() => {
+                  if (calendarTimelineRef.current) calendarTimelineRef.current.dataset.calendarPositioned = "false";
+                  setViewMode("sundays");
+                }} type="button">
+                  Sundays
                 </button>
               </div>
               <button aria-label="Close calendar" className="section-icon-button calendar-popup-close" onClick={onClose} type="button">

@@ -263,10 +263,11 @@ function App() {
   const compactWorkspace = true;
 
   useEffect(() => {
+    if (!sessionUser) return;
     if (!modules.some((module) => module.id === activeModuleId) && modules[0]) {
       setActiveModuleId(modules[0].id);
     }
-  }, [activeModuleId, modules]);
+  }, [activeModuleId, modules, sessionUser]);
 
   useEffect(() => {
     if (!activeModule) return;
