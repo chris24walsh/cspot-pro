@@ -5785,10 +5785,13 @@ export function PresentationView({
               <button
                 className="text-button"
                 disabled={fillerMediaBusy}
-                onClick={closePlanItemEditor}
-                onPointerDown={(event) => {
+                onClick={(event) => {
                   event.preventDefault();
+                  event.stopPropagation();
                   closePlanItemEditor();
+                }}
+                onPointerDown={(event) => {
+                  event.stopPropagation();
                 }}
                 type="button"
               >Cancel</button>
