@@ -9858,8 +9858,8 @@ button.musician-page {
 
 @media (max-width: 540px) {
   .pre-service-media-dialog {
-    align-self: stretch;
-    max-height: calc(100svh - 12px);
+    align-self: flex-start;
+    max-height: calc(100svh - 72px);
     min-width: 0;
     overflow-x: hidden;
     padding: 14px;
@@ -9873,6 +9873,14 @@ button.musician-page {
   .pre-service-media-dialog .app-dialog-actions,
   .pre-service-media-dialog .app-dialog-actions .primary-button {
     width: 100%;
+  }
+
+  .pre-service-media-dialog .app-dialog-actions {
+    background: #fffefa;
+    bottom: 0;
+    padding-top: 8px;
+    position: sticky;
+    z-index: 3;
   }
 
   .song-editor-dialog .section-heading {
