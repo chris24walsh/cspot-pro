@@ -5790,8 +5790,10 @@ export function PresentationView({
                   event.stopPropagation();
                   closePlanItemEditor();
                 }}
-                onPointerDown={(event) => {
+                onTouchEnd={(event) => {
+                  event.preventDefault();
                   event.stopPropagation();
+                  window.setTimeout(closePlanItemEditor, 0);
                 }}
                 type="button"
               >Cancel</button>
