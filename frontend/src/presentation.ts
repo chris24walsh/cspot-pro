@@ -53,8 +53,11 @@ export interface PresentationSlide {
   overlayText?: string;
   overlayMode?: "none" | "static" | "countdown";
   overlayCountdownSeconds?: number;
-  overlayPosition?: "top" | "centre" | "bottom";
+  overlayPosition?: "top-left" | "top" | "top-right" | "left" | "centre" | "right" | "bottom-left" | "bottom" | "bottom-right";
   overlaySize?: "small" | "medium" | "large";
+  overlayFont?: "sans" | "serif" | "display" | "mono";
+  overlayPanelOpacity?: number;
+  overlayBackgroundDim?: number;
   transition?: "fade" | "cut" | "slide";
   autoAdvanceSeconds?: number;
   dwellSeconds?: number;
@@ -402,6 +405,9 @@ function buildIndividualPresentationSections(
       overlayCountdownSeconds: options.overlay_countdown_seconds,
       overlayPosition: options.overlay_position,
       overlaySize: options.overlay_size,
+      overlayFont: options.overlay_font,
+      overlayPanelOpacity: options.overlay_panel_opacity,
+      overlayBackgroundDim: options.overlay_background_dim,
       transition: options.transition,
       autoAdvanceSeconds: options.auto_advance ? (options.auto_advance_seconds ?? options.dwell_seconds) : undefined,
       dwellSeconds: options.dwell_seconds,

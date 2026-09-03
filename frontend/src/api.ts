@@ -111,8 +111,11 @@ export interface PresentationOptions {
   overlay_text?: string;
   overlay_mode?: "none" | "static" | "countdown";
   overlay_countdown_seconds?: number;
-  overlay_position?: "top" | "centre" | "bottom";
+  overlay_position?: "top-left" | "top" | "top-right" | "left" | "centre" | "right" | "bottom-left" | "bottom" | "bottom-right";
   overlay_size?: "small" | "medium" | "large";
+  overlay_font?: "sans" | "serif" | "display" | "mono";
+  overlay_panel_opacity?: number;
+  overlay_background_dim?: number;
   auto_advance?: boolean;
   repeat?: boolean;
   announcement_date?: string;

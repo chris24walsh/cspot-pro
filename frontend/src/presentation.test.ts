@@ -54,6 +54,10 @@ describe("presentation slide derivation", () => {
         transition: "slide",
         overlay_mode: "static",
         overlay_text: "This Sunday",
+        overlay_font: "display",
+        overlay_panel_opacity: 25,
+        overlay_background_dim: 50,
+        overlay_position: "top-right",
         announcement_date: "12:30",
         announcement_location: "Church hall",
       },
@@ -64,6 +68,10 @@ describe("presentation slide derivation", () => {
       dwellSeconds: 12,
       fitMode: "cover",
       overlayText: "This Sunday",
+      overlayFont: "display",
+      overlayPanelOpacity: 25,
+      overlayBackgroundDim: 50,
+      overlayPosition: "top-right",
       transition: "slide",
     });
     expect(slide.text).toBe("Community lunch\n12:30\nChurch hall");

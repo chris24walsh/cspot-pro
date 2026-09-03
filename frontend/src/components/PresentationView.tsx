@@ -129,7 +129,8 @@ const EMPTY_ITEM_EDIT_DRAFT: { title: string; comment: string; planned_start: st
   title: "", comment: "", planned_start: "", auto_collapse_items: false,
   dwell_seconds: 8, auto_advance_seconds: 8, transition: "fade", fit_mode: "contain", overlay_text: "",
   overlay_mode: "none", overlay_countdown_seconds: 300, overlay_position: "bottom",
-  overlay_size: "medium", auto_advance: false, repeat: false, announcement_date: "",
+  overlay_size: "medium", overlay_font: "sans", overlay_panel_opacity: 68,
+  overlay_background_dim: 0, auto_advance: false, repeat: false, announcement_date: "",
   announcement_location: "", announcement_contact: "", announcement_url: "",
   announcement_layout: "split",
   audio_scene_id: "", display_targets: ["church", "livestream"],
@@ -2317,6 +2318,9 @@ export function PresentationView({
           overlay_countdown_seconds: Number(itemEditDraft.overlay_countdown_seconds) || 300,
           overlay_position: itemEditDraft.overlay_position,
           overlay_size: itemEditDraft.overlay_size,
+          overlay_font: itemEditDraft.overlay_font,
+          overlay_panel_opacity: Number(itemEditDraft.overlay_panel_opacity),
+          overlay_background_dim: Number(itemEditDraft.overlay_background_dim),
           auto_advance: itemEditDraft.auto_advance,
           repeat: itemEditDraft.repeat,
           announcement_date: itemEditDraft.announcement_date,
@@ -5804,13 +5808,17 @@ export function PresentationView({
                 {fillerMediaPlanItem.item_type === "open_time" ? <label className="inline-checkbox"><input checked={itemEditDraft.repeat} disabled={fillerMediaBusy} onChange={(event) => setItemEditDraft((current) => ({ ...current, repeat: event.target.checked }))} type="checkbox" /><span>Repeat montage</span></label> : null}
               </div>
             </fieldset>
-            {FIXED_WELCOME_STAGE_TYPES.has(fillerMediaPlanItem.item_type) || fillerMediaPlanItem.item_type === "open_time" ? <fieldset className="item-editor-fieldset">
+            {FIXED_WELCOME_STAGE_TYPES.has(fillerMediaPlanItem.item_type) || FILLER_MEDIA_ITEM_TYPES.has(fillerMediaPlanItem.item_type) ? <fieldset className="item-editor-fieldset">
               <legend>Text overlay</legend>
+              <button className="text-button compact-button" disabled={fillerMediaBusy} onClick={() => setItemEditDraft((current) => ({ ...current, overlay_mode: "countdown", overlay_text: "Service begins in", overlay_position: "centre", overlay_size: "large", overlay_font: "display", overlay_panel_opacity: 0, overlay_background_dim: 50 }))} type="button">Use welcome countdown style</button>
               <div className="form-grid item-details-grid">
                 <label><span>Overlay type</span><select disabled={fillerMediaBusy} onChange={(event) => setItemEditDraft((current) => ({ ...current, overlay_mode: event.target.value as "none" | "static" | "countdown" }))} value={itemEditDraft.overlay_mode}><option value="none">None</option><option value="static">Static text</option><option value="countdown">Text and countdown</option></select></label>
-                <label><span>Position</span><select disabled={fillerMediaBusy} onChange={(event) => setItemEditDraft((current) => ({ ...current, overlay_position: event.target.value as "top" | "centre" | "bottom" }))} value={itemEditDraft.overlay_position}><option value="top">Top</option><option value="centre">Centre</option><option value="bottom">Bottom</option></select></label>
+                <label><span>Position</span><select disabled={fillerMediaBusy} onChange={(event) => setItemEditDraft((current) => ({ ...current, overlay_position: event.target.value as typeof current.overlay_position }))} value={itemEditDraft.overlay_position}><option value="top-left">Top left</option><option value="top">Top centre</option><option value="top-right">Top right</option><option value="left">Centre left</option><option value="centre">Centre</option><option value="right">Centre right</option><option value="bottom-left">Bottom left</option><option value="bottom">Bottom centre</option><option value="bottom-right">Bottom right</option></select></label>
                 <label className="wide-field"><span>Overlay text</span><input disabled={fillerMediaBusy || itemEditDraft.overlay_mode === "none"} onChange={(event) => setItemEditDraft((current) => ({ ...current, overlay_text: event.target.value }))} value={itemEditDraft.overlay_text} /></label>
                 <label><span>Text size</span><select disabled={fillerMediaBusy} onChange={(event) => setItemEditDraft((current) => ({ ...current, overlay_size: event.target.value as "small" | "medium" | "large" }))} value={itemEditDraft.overlay_size}><option value="small">Small</option><option value="medium">Medium</option><option value="large">Large</option></select></label>
+                <label><span>Font</span><select disabled={fillerMediaBusy} onChange={(event) => setItemEditDraft((current) => ({ ...current, overlay_font: event.target.value as typeof current.overlay_font }))} value={itemEditDraft.overlay_font}><option value="sans">Clean sans</option><option value="display">Welcome display</option><option value="serif">Serif</option><option value="mono">Monospace</option></select></label>
+                <label><span>Text box transparency ({100 - itemEditDraft.overlay_panel_opacity}%)</span><input disabled={fillerMediaBusy} max="100" min="0" onChange={(event) => setItemEditDraft((current) => ({ ...current, overlay_panel_opacity: Number(event.target.value) }))} type="range" value={itemEditDraft.overlay_panel_opacity} /></label>
+                <label><span>Background dimming ({itemEditDraft.overlay_background_dim}%)</span><input disabled={fillerMediaBusy} max="80" min="0" onChange={(event) => setItemEditDraft((current) => ({ ...current, overlay_background_dim: Number(event.target.value) }))} type="range" value={itemEditDraft.overlay_background_dim} /></label>
                 {itemEditDraft.overlay_mode === "countdown" ? <label><span>Countdown seconds</span><input min="1" onChange={(event) => setItemEditDraft((current) => ({ ...current, overlay_countdown_seconds: Number(event.target.value) }))} type="number" value={itemEditDraft.overlay_countdown_seconds} /></label> : null}
               </div>
             </fieldset> : null}
