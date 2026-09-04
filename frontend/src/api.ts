@@ -331,6 +331,7 @@ export interface PresentationLiveSyncState {
   video_action_at: number | null;
   service_stage?: "pre_service" | "ready" | "service" | "post_service";
   pre_service_phase?: "waiting" | "montage" | "countdown" | "complete" | null;
+  auto_started?: boolean;
 }
 
 export interface PresentationLiveService {

@@ -40,6 +40,7 @@ class PresentationLiveStateRead(BaseModel):
     video_action_at: int | None = None
     service_stage: str = "ready"
     pre_service_phase: str | None = None
+    auto_started: bool = False
 
 
 class PresentationLiveStateWrite(BaseModel):
@@ -374,9 +375,16 @@ def ensure_scheduled_pre_service(session: Session) -> None:
         desired_stage = "ready" if now_local >= schedule_time(now_local, rule.service_start) else "pre_service"
     cleanup_live_sessions(session, active_plan_id=plan.id)
     latest = _latest_session(session, plan.id)
+    latest_position = _latest_position(session, latest.id) if latest else None
+    latest_payload = _position_payload(latest_position)
+    if latest and (
+        latest_payload.get("manual_control") is True
+        or (latest.status == "ended" and latest_payload.get("scheduled_stop") is True)
+    ):
+        return
     if desired_stage == "post_service":
         if latest and latest.status == "live" and latest.ended_at is None:
-            position = _latest_position(session, latest.id)
+            position = latest_position
             if position is not None:
                 payload = _position_payload(position)
                 payload.update(
@@ -396,7 +404,7 @@ def ensure_scheduled_pre_service(session: Session) -> None:
             session.commit()
         return
     if latest and latest.status == "live" and latest.ended_at is None:
-        position = _latest_position(session, latest.id)
+        position = latest_position
         payload = _position_payload(position)
         active_item = session.get(PlanItem, position.plan_item_id) if position else None
         if (
@@ -479,7 +487,7 @@ def ensure_scheduled_pre_service(session: Session) -> None:
                     "plan_item_id": first_item.id,
                     "slide_offset": 0,
                     "updated_at": now_ms,
-                    "theme": "dark",
+                    "theme": "light",
                     "blanked": False,
                     "fullscreen": False,
                     "auto_started": True,
@@ -541,6 +549,7 @@ def _serialize_live_state(
         pre_service_phase=payload.get("pre_service_phase")
         if isinstance(payload.get("pre_service_phase"), str)
         else None,
+        auto_started=payload.get("auto_started") is True,
     )
 
 
@@ -851,6 +860,12 @@ def update_presentation_live_state(
         existing_payload.get("plan_item_id") != payload.plan_item_id
         or int(existing_payload.get("slide_offset", 0)) != payload.slide_offset
     )
+    if existing_payload.get("auto_started") is True or existing_payload.get("schedule_id"):
+        # Any presenter-side change claims the scheduled session. Without this
+        # handoff, the scheduler immediately overwrites navigation and theme
+        # changes while no slideshow window is connected.
+        next_payload["manual_control"] = True
+        next_payload.pop("auto_started", None)
     if selection_changed:
         # A deliberate presenter selection takes ownership from the scheduled
         # template timeline; any new auto-advance clock starts from this move.
@@ -972,6 +987,8 @@ def update_presentation_output_status(
         next_payload.pop("output_active", None)
         next_payload.pop("output_recording_item_id", None)
         next_payload["service_stage"] = "post_service"
+        if next_payload.get("schedule_id"):
+            next_payload["scheduled_stop"] = True
         next_payload.pop("pre_service_phase", None)
         next_payload["updated_at"] = payload.heartbeat_at
         presentation_session.status = "ended"

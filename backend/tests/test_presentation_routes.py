@@ -375,7 +375,8 @@ def test_live_state_serializes_payload_over_legacy_columns() -> None:
             '{"index": 8, "plan_item_id": "payload-item", "slide_offset": 2, '
             '"updated_at": 12345, "theme": "dark", "blanked": true, "fullscreen": true, '
             '"video_action": "fade-stop", "video_action_at": 54321, '
-            '"service_stage": "pre_service", "pre_service_phase": "countdown"}'
+            '"service_stage": "pre_service", "pre_service_phase": "countdown", '
+            '"auto_started": true}'
         ),
     )
 
@@ -396,6 +397,7 @@ def test_live_state_serializes_payload_over_legacy_columns() -> None:
     assert state.video_action_at == 54321
     assert state.service_stage == "pre_service"
     assert state.pre_service_phase == "countdown"
+    assert state.auto_started is True
 
 
 def test_live_state_falls_back_to_ready_defaults_without_session() -> None:
@@ -407,6 +409,7 @@ def test_live_state_falls_back_to_ready_defaults_without_session() -> None:
     assert state.index == 0
     assert state.theme == "light"
     assert state.blanked is False
+    assert state.auto_started is False
 
 
 def test_output_status_treats_recent_heartbeat_as_active() -> None:
@@ -511,6 +514,85 @@ def test_remote_release_prevents_the_closed_output_from_reclaiming() -> None:
     assert '"blanked": false' in released_payload
     activate_scene.assert_called_once()
     assert activate_scene.call_args.args[2] == "pre_service"
+
+
+def test_presenter_change_claims_automatic_session() -> None:
+    engine = create_engine("sqlite://")
+    Base.metadata.create_all(engine)
+    with Session(engine) as session:
+        presentation_session = PresentationSession(plan_id="plan-1", status="live")
+        session.add(presentation_session)
+        session.flush()
+        session.add(
+            PresentationPosition(
+                session_id=presentation_session.id,
+                payload_json=json.dumps(
+                    {
+                        "auto_started": True,
+                        "schedule_id": "template-test",
+                        "theme": "light",
+                    }
+                ),
+            )
+        )
+        session.commit()
+
+        state = update_presentation_live_state(
+            "plan-1",
+            PresentationLiveStateWrite(
+                plan_id="plan-1", updated_at=12345, theme="dark"
+            ),
+            SimpleNamespace(id="user-1"),  # type: ignore[arg-type]
+            session,
+        )
+        position = session.scalar(select(PresentationPosition).limit(1))
+        saved = json.loads(position.payload_json)
+
+    assert state.auto_started is False
+    assert state.theme == "dark"
+    assert saved["manual_control"] is True
+    assert "auto_started" not in saved
+
+
+def test_stopping_scheduled_session_prevents_immediate_restart() -> None:
+    engine = create_engine("sqlite://")
+    Base.metadata.create_all(
+        engine,
+        tables=[
+            PresentationSession.__table__,
+            PresentationPosition.__table__,
+            BroadcastViewerSettings.__table__,
+        ],
+    )
+    with Session(engine) as session:
+        presentation_session = PresentationSession(plan_id="plan-1", status="live")
+        session.add(presentation_session)
+        session.flush()
+        session.add(
+            PresentationPosition(
+                session_id=presentation_session.id,
+                payload_json=json.dumps(
+                    {"auto_started": True, "schedule_id": "template-test"}
+                ),
+            )
+        )
+        session.commit()
+
+        update_presentation_output_status(
+            "plan-1",
+            PresentationOutputStatusWrite(
+                owner_id="service-view", heartbeat_at=12345, release=True
+            ),
+            SimpleNamespace(id="user-1"),  # type: ignore[arg-type]
+            session,
+        )
+        position = session.scalar(select(PresentationPosition).limit(1))
+        saved = json.loads(position.payload_json)
+        saved_status = session.scalar(select(PresentationSession.status).limit(1))
+
+    assert saved_status == "ended"
+    assert saved["scheduled_stop"] is True
+    assert saved["service_stage"] == "post_service"
 
 
 def test_routine_output_heartbeat_does_not_schedule_recording(monkeypatch) -> None:

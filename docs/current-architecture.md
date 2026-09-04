@@ -416,7 +416,13 @@ item cue, and activates that item's scene. The dedicated Service templates Admin
 tab owns this configuration. A legacy recurring schedule can still provide a
 fallback start and cleanup window, but no longer owns individual cue boundaries.
 Template automation is scoped to the plan's local service date and begins on its
-first configured cue at the exact automation start time.
+first configured cue at the exact automation start time. The service presenter
+reads that authoritative session state, labels the control as automatically
+started, and can stop the scheduled service even when its browser did not open
+the output window. The first presenter navigation or theme change explicitly
+claims the session from the scheduler, preventing the scheduled cue clock from
+overwriting manual control; stopping records suppression for the remainder of
+that scheduled run so polling cannot immediately recreate it.
 Starting slideshow is the human takeover signal. It starts the currently selected
 slide without blanking it and continues item-driven audio-scene selection.
 Stopping slideshow leaves the current slide visible without blanking it and returns

@@ -773,6 +773,8 @@ export function PresentationView({
   const [playingAudioSectionId, setPlayingAudioSectionId] = useState<string | null>(null);
   const [localAudioUrl, setLocalAudioUrl] = useState<string | null>(null);
   const [slideshowOpen, setSlideshowOpen] = useState(false);
+  const [presentationSessionActive, setPresentationSessionActive] = useState(false);
+  const [presentationAutoStarted, setPresentationAutoStarted] = useState(false);
   const [openSlideshowWindowOnStart, setOpenSlideshowWindowOnStart] = useState(false);
   const [slideshowStartMenuOpen, setSlideshowStartMenuOpen] = useState(false);
   const [broadcastRecordings, setBroadcastRecordings] = useState<BroadcastRecording[]>([]);
@@ -1280,6 +1282,7 @@ export function PresentationView({
       preServicePhase: overrides.preServicePhase === undefined
         ? currentLiveStateRef.current?.preServicePhase
         : overrides.preServicePhase,
+      autoStarted: overrides.autoStarted ?? currentLiveStateRef.current?.autoStarted,
     };
   }
 
@@ -1366,6 +1369,7 @@ export function PresentationView({
             videoActionAt: liveState.video_action_at ?? undefined,
             serviceStage: liveState.service_stage ?? "ready",
             preServicePhase: liveState.pre_service_phase ?? null,
+            autoStarted: Boolean(liveState.auto_started),
           }
         : null;
       const preservedIndex = options?.preserveLocation
@@ -1393,6 +1397,8 @@ export function PresentationView({
         setLiveBlanked(Boolean(preservedState.blanked));
         localStorage.setItem(PRESENTATION_STORAGE_KEY, JSON.stringify(preservedState));
       }
+      setPresentationSessionActive(liveState?.status === "live");
+      setPresentationAutoStarted(Boolean(liveState?.auto_started));
       const nextLiveIndex = preservedIndex >= 0 ? preservedIndex : 0;
       if (options?.preserveLocation && preservedIndex >= 0 && options.publishPreservedLocation !== false) {
         setLiveBlanked(false);
@@ -1684,6 +1690,8 @@ export function PresentationView({
         pre_service_phase: state.preServicePhase ?? null,
       });
       lastLiveStateRef.current = synced.updated_at;
+      setPresentationSessionActive(synced.status === "live");
+      setPresentationAutoStarted(Boolean(synced.auto_started));
     } catch (error) {
       if (!isTransientApiError(error)) {
         setMessage(error instanceof Error ? error.message : "Could not sync presentation state.");
@@ -1798,6 +1806,8 @@ export function PresentationView({
       closeLocalSlideshowWindow();
       outputOwnerIdRef.current = null;
       setSlideshowOpen(false);
+      setPresentationSessionActive(false);
+      setPresentationAutoStarted(false);
       setMessage(null);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Could not stop the slideshow.");
@@ -1858,6 +1868,7 @@ export function PresentationView({
 
     outputOwnerIdRef.current = ownerId;
     setSlideshowOpen(true);
+    setPresentationSessionActive(true);
     setLiveBlanked(false);
     await publishLiveState(liveIndex, { blanked: false, serviceStage: "service", preServicePhase: null });
 
@@ -3832,7 +3843,10 @@ export function PresentationView({
             videoActionAt: remoteState.video_action_at ?? undefined,
             serviceStage: remoteState.service_stage ?? "ready",
             preServicePhase: remoteState.pre_service_phase ?? null,
+            autoStarted: Boolean(remoteState.auto_started),
           });
+          setPresentationSessionActive(remoteState.status === "live");
+          setPresentationAutoStarted(Boolean(remoteState.auto_started));
           if (remoteState.plan_item_id && remoteState.plan_item_id === previousPlanItemId) {
             if (selectedPlanIdRef.current !== selectedPlanId) return;
             await load(selectedPlanId, {
@@ -4617,29 +4631,34 @@ export function PresentationView({
             <div className="action-row presenter-mobile-command-row">
               <div className="slideshow-split-control" ref={slideshowStartControlRef}>
                 <button
-                  className={`slideshow-start-button ${slideshowOpen ? "primary-button" : "text-button"}`}
+                  aria-label={slideshowOpen || presentationSessionActive ? "Stop service" : "Start slideshow"}
+                  className={`slideshow-start-button ${slideshowOpen || presentationSessionActive ? "primary-button" : "text-button"}`}
                   disabled={loading || !plan}
                   onClick={() => {
                     setSlideshowStartMenuOpen(false);
-                    void startSlideshow(openSlideshowWindowOnStart);
+                    void (slideshowOpen || presentationSessionActive
+                      ? closeActiveSlideshow()
+                      : startSlideshow(openSlideshowWindowOnStart));
                   }}
                   title={
                     slideshowOpen
                       ? "Stop slideshow on every display"
+                      : presentationSessionActive
+                        ? "Stop the automatically started service on every display"
                       : openSlideshowWindowOnStart
                         ? "Start slideshow and open it in a new window"
                         : "Start slideshow without opening a new window"
                   }
                   type="button"
                 >
-                  {slideshowOpen ? <CircleStop size={16} aria-hidden="true" /> : <MonitorUp size={16} aria-hidden="true" />}
-                  <span className="mobile-button-label">{slideshowOpen ? "Stop" : "Start"}</span>
+                  {slideshowOpen || presentationSessionActive ? <CircleStop size={16} aria-hidden="true" /> : <MonitorUp size={16} aria-hidden="true" />}
+                  <span className="mobile-button-label">{presentationAutoStarted && !slideshowOpen ? "Auto started" : slideshowOpen || presentationSessionActive ? "Stop" : "Start"}</span>
                 </button>
                 <button
                   aria-expanded={slideshowStartMenuOpen}
                   aria-haspopup="menu"
                   aria-label="Choose how the slideshow starts"
-                  className={`slideshow-start-menu-button ${slideshowOpen ? "primary-button" : "text-button"}`}
+                  className={`slideshow-start-menu-button ${slideshowOpen || presentationSessionActive ? "primary-button" : "text-button"}`}
                   disabled={loading || !plan}
                   onClick={() => setSlideshowStartMenuOpen((open) => !open)}
                   title="Choose how the slideshow starts"

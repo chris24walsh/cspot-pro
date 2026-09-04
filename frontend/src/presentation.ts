@@ -21,6 +21,7 @@ export interface PresentationLiveState {
   videoActionAt?: number;
   serviceStage?: "pre_service" | "ready" | "service" | "post_service";
   preServicePhase?: "waiting" | "montage" | "countdown" | "complete" | null;
+  autoStarted?: boolean;
 }
 
 export interface PresentationSlide {
