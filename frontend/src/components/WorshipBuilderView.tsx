@@ -414,7 +414,10 @@ export function WorshipBuilderView({ active = true, canAccessAdminTools, canArch
   const reorderSavingRef = useRef(false);
 
   useEffect(() => {
-    if (!active) setViewMode("builder");
+    if (!active) {
+      setViewMode("builder");
+      setSetPickerOpen(false);
+    }
   }, [active]);
 
   const hasDismissiblePopup = suggestionReviewOpen || newSongPromptOpen || historyImportOpen || editHistoryOpen;

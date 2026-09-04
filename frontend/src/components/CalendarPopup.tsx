@@ -70,6 +70,10 @@ export function calendarItemCountLabel(day: CalendarDay) {
   return `${day.itemCount} ${day.itemCount === 1 ? singular : plural}`;
 }
 
+export function canExtendCalendarTimeline(timeline: Pick<HTMLElement, "clientHeight" | "scrollHeight">) {
+  return timeline.clientHeight > 0 && timeline.scrollHeight > 0;
+}
+
 export function extendCalendarDays(
   baseDays: CalendarDay[],
   beforeChunks: number,
@@ -286,7 +290,7 @@ export function CalendarPopup({
               className="calendar-timeline"
               onScroll={(event) => {
                 const timeline = event.currentTarget;
-                if (timeline.dataset.calendarPositioned !== "true") return;
+                if (timeline.dataset.calendarPositioned !== "true" || !canExtendCalendarTimeline(timeline)) return;
                 if (timeline.scrollTop < 160 && prependScrollHeightRef.current === null) {
                   prependScrollHeightRef.current = timeline.scrollHeight;
                   setExtensions((current) => viewMode === "all"

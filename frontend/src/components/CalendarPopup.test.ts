@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { calendarItemCountLabel, calendarWeekBounds, extendCalendarDays, groupCalendarDays, visibleCalendarDays } from "./CalendarPopup";
+import { calendarItemCountLabel, calendarWeekBounds, canExtendCalendarTimeline, extendCalendarDays, groupCalendarDays, visibleCalendarDays } from "./CalendarPopup";
 
 describe("visibleCalendarDays", () => {
   const days = [
@@ -55,5 +55,10 @@ describe("visibleCalendarDays", () => {
     expect(calendarItemCountLabel({ date: "2026-08-16", itemCount: 1, itemLabel: "entry", itemLabelPlural: "entries" })).toBe("1 entry");
     expect(calendarItemCountLabel({ date: "2026-08-23", itemCount: 2, itemLabel: "entry", itemLabelPlural: "entries" })).toBe("2 entries");
     expect(calendarItemCountLabel({ date: "2026-08-30", itemCount: 0 })).toBe("");
+  });
+
+  it("does not extend a calendar after its workspace is hidden", () => {
+    expect(canExtendCalendarTimeline({ clientHeight: 640, scrollHeight: 1800 })).toBe(true);
+    expect(canExtendCalendarTimeline({ clientHeight: 0, scrollHeight: 0 })).toBe(false);
   });
 });

@@ -711,6 +711,10 @@ export function PresentationView({
   const [topbarSlot, setTopbarSlot] = useState<HTMLElement | null>(null);
   const [servicePickerOpen, setServicePickerOpen] = useState(false);
 
+  useEffect(() => {
+    if (!active) setServicePickerOpen(false);
+  }, [active]);
+
   const [serviceDraftDate, setServiceDraftDate] = useState("");
   const [serviceHistoryOpen, setServiceHistoryOpen] = useState(false);
   const [pendingServiceDate, setPendingServiceDate] = useState<string | null>(null);
