@@ -60,6 +60,29 @@ FIXED_SUNDAY_OUTLINE_ITEM_TYPES = {
     "announcements",
 }
 
+PRESENTATION_DEFAULT_GROUP_FIELDS = {
+    "visual": {"fit_mode", "transition", "dwell_seconds"},
+    "playback": {"auto_advance", "auto_advance_seconds", "repeat"},
+    "overlay_style": {
+        "overlay_mode", "overlay_countdown_seconds", "overlay_position", "overlay_size",
+        "overlay_font", "overlay_panel_opacity", "overlay_background_dim",
+    },
+    "routing": {"audio_scene_id", "display_targets"},
+}
+
+
+def presentation_defaults_for_groups(
+    existing: dict, item_options: dict, groups: list[str]
+) -> dict:
+    next_defaults = dict(existing)
+    for group in groups:
+        for option_name in PRESENTATION_DEFAULT_GROUP_FIELDS.get(group, set()):
+            if option_name in item_options:
+                next_defaults[option_name] = item_options[option_name]
+            else:
+                next_defaults.pop(option_name, None)
+    return next_defaults
+
 
 def presenter_cannot_change_outline(session: Session, user: User, item: PlanItem) -> bool:
     roles = set(list_role_names(session, user.id))
@@ -737,6 +760,7 @@ def update_plan_item(
     require_plan_editable(session, plan, current_user)
     payload_data = payload.model_dump(exclude_unset=True)
     teacher_notes = payload_data.pop("teacher_notes", None)
+    default_groups = payload_data.pop("default_groups", [])
 
     if presenter_cannot_change_outline(
         session, current_user, item
@@ -748,6 +772,23 @@ def update_plan_item(
 
     for field, value in payload_data.items():
         setattr(item, field, value)
+
+    if default_groups and item.presentation_options:
+        plan_type_id = plan.plan_type_id
+        default_query = select(DefaultItem).where(
+            DefaultItem.plan_type_id == plan_type_id,
+            DefaultItem.item_type == item.item_type,
+        )
+        default_query = default_query.where(
+            DefaultItem.parent_item_id.is_not(None)
+            if item.parent_item_id
+            else DefaultItem.parent_item_id.is_(None)
+        )
+        default_item = session.scalar(default_query.order_by(DefaultItem.sequence).limit(1))
+        if default_item is not None:
+            default_item.presentation_options = presentation_defaults_for_groups(
+                default_item.presentation_options or {}, item.presentation_options, default_groups
+            )
 
     if "auto_collapse_items" in payload.model_fields_set and not item.parent_item_id:
         set_section_auto_collapse_preference(

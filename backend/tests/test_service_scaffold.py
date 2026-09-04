@@ -14,6 +14,7 @@ from app.modules.planning.routes import (
     changes_protected_outline_fields,
     get_plan,
     plan_item_to_read,
+    presentation_defaults_for_groups,
     presenter_cannot_change_outline,
 )
 from app.modules.planning.service_scaffold import (
@@ -182,6 +183,19 @@ def test_plan_item_read_includes_saved_presentation_options() -> None:
         assert serialized.presentation_options == item.presentation_options
     finally:
         session.close()
+
+
+def test_type_default_groups_only_copy_reusable_settings() -> None:
+    defaults = presentation_defaults_for_groups(
+        {"overlay_text": "Keep template wording", "fit_mode": "contain", "audio_scene_id": "pastor"},
+        {"overlay_text": "One-off wording", "fit_mode": "cover", "audio_scene_id": "post_service", "display_targets": ["church"]},
+        ["visual", "routing"],
+    )
+
+    assert defaults["overlay_text"] == "Keep template wording"
+    assert defaults["fit_mode"] == "cover"
+    assert defaults["audio_scene_id"] == "post_service"
+    assert defaults["display_targets"] == ["church"]
 
 
 def test_existing_welcome_photos_move_to_montage_stage() -> None:

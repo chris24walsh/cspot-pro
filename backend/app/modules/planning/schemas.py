@@ -77,6 +77,7 @@ class PlanItemUpdate(BaseModel):
     montage_random: bool | None = None
     auto_collapse_items: bool | None = None
     presentation_options: dict[str, Any] | None = None
+    default_groups: list[str] = Field(default_factory=list)
 
 
 class PlanItemRead(PlanItemBase):

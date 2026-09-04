@@ -561,6 +561,7 @@ export interface PlanItemPayload {
   montage_random?: boolean;
   auto_collapse_items?: boolean;
   presentation_options?: PresentationOptions;
+  default_groups?: string[];
 }
 
 export interface PlanHistoryPayload {

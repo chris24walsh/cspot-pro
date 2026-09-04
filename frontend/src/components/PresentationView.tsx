@@ -144,6 +144,14 @@ function outputOwnerId() {
   return `output-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
 
+function automaticSceneIdForItem(itemType: string, parentType?: string) {
+  if (parentType === "post_service" || itemType === "post_service") return "post_service";
+  if (["pre_service", "welcome_montage", "welcome_countdown", "welcome_seated"].includes(itemType)) return "pre_service";
+  if (itemType === "song") return "worship";
+  if (["seating", "testimony", "sharing", "community", "open_time", "end"].includes(itemType)) return "congregation";
+  return "pastor";
+}
+
 interface PresentationScreen {
   label: string;
   left: number;
@@ -668,6 +676,7 @@ export function PresentationView({
   const [fillerMediaEditorLoading, setFillerMediaEditorLoading] = useState(false);
   const [loadedFillerMediaFileIds, setLoadedFillerMediaFileIds] = useState<Set<string>>(() => new Set());
   const [itemEditDraft, setItemEditDraft] = useState(EMPTY_ITEM_EDIT_DRAFT);
+  const [itemDefaultGroups, setItemDefaultGroups] = useState<Set<string>>(() => new Set());
   const [serviceSchedules, setServiceSchedules] = useState<ServiceScheduleRule[]>([]);
   const [audioScenes, setAudioScenes] = useState<BroadcastAudioScene[]>([]);
 
@@ -940,6 +949,10 @@ export function PresentationView({
     ?? null;
   const fillerMediaPlanItem = effectivePlanItems.find((item) => item.id === fillerMediaPlanItemId) ?? null;
   const fillerMediaSectionItem = effectivePlanItems.find((item) => item.id === fillerMediaSectionId) ?? null;
+  const automaticAudioSceneId = fillerMediaPlanItem
+    ? automaticSceneIdForItem(fillerMediaPlanItem.item_type, fillerMediaSectionItem?.item_type)
+    : "pastor";
+  const automaticAudioSceneLabel = audioScenes.find((scene) => scene.id === automaticAudioSceneId)?.label ?? automaticAudioSceneId;
   const fillerMediaImageFiles = fillerMediaPlanItem?.files.filter((file) => file.content_type?.startsWith("image/")) ?? [];
   const fillerMediaEditorReady = fillerMediaImageFiles.every((file) => loadedFillerMediaFileIds.has(file.file_id));
   const currentPlanItem = effectivePlanItems.find((item) => item.id === liveSlide?.planItemId) ?? null;
@@ -1039,6 +1052,7 @@ export function PresentationView({
     if (!INLINE_EDIT_ITEM_TYPES.has(item.item_type)) return;
     setFillerMediaEditorLoading(true);
     setLoadedFillerMediaFileIds(new Set());
+    setItemDefaultGroups(new Set());
     try {
       const freshPlan = await getPlan(item.plan_id);
       const freshItem = freshPlan.items.find((candidate) => candidate.id === item.id) ?? item;
@@ -1069,6 +1083,7 @@ export function PresentationView({
     setFillerMediaPlanItemId(null);
     setFillerMediaSectionId(null);
     setLoadedFillerMediaFileIds(new Set());
+    setItemDefaultGroups(new Set());
     setItemEditDraft(EMPTY_ITEM_EDIT_DRAFT);
   }
 
@@ -2295,7 +2310,7 @@ export function PresentationView({
 
   async function savePlanItemDetails() {
     if (!fillerMediaPlanItem) return;
-    const title = itemEditDraft.title.trim();
+    const title = itemEditDraft.title.trim() || itemEditDraft.overlay_text.trim();
     if (!title) {
       setMessage("Item name is required.");
       return;
@@ -2304,8 +2319,8 @@ export function PresentationView({
     try {
       const details = {
         ...(title !== fillerMediaPlanItem.title ? { title } : {}),
-        comment: itemEditDraft.comment.trim() || null,
-        planned_start: itemEditDraft.planned_start || null,
+        ...(fillerMediaPlanItem.item_type === "announcements" ? { comment: itemEditDraft.comment.trim() || null } : {}),
+        default_groups: [...itemDefaultGroups],
         presentation_options: {
           dwell_seconds: Number(itemEditDraft.dwell_seconds) || 8,
           auto_advance_seconds: Number(itemEditDraft.auto_advance_seconds) || 8,
@@ -5771,43 +5786,49 @@ export function PresentationView({
         <div className="app-dialog-backdrop" role="presentation">
           <div aria-labelledby="filler-media-title" aria-modal="true" className="app-dialog app-dialog-wide pre-service-media-dialog" role="dialog">
             <div>
-              <h2 id="filler-media-title">Edit {fillerMediaPlanItem.title}</h2>
-              <p>Update this item without changing the surrounding section layout.</p>
+              <h2 id="filler-media-title">Edit {fillerMediaSectionItem?.id === fillerMediaPlanItem.id ? "section" : "item"}: {fillerMediaPlanItem.title}</h2>
+              <p>Item-specific content stays with this service. Checked defaults apply to future items of this type.</p>
             </div>
             <div className="form-grid item-details-grid">
               <label>
                 <span>Item name</span>
                 <input disabled={fillerMediaBusy} onChange={(event) => setItemEditDraft((current) => ({ ...current, title: event.target.value }))} value={itemEditDraft.title} />
               </label>
-              <label>
-                <span>Planned start <small>(optional)</small></span>
-                <input disabled={fillerMediaBusy} onChange={(event) => setItemEditDraft((current) => ({ ...current, planned_start: event.target.value }))} type="time" value={itemEditDraft.planned_start} />
-              </label>
-              <label className="wide-field">
-                <span>{fillerMediaPlanItem.item_type === "announcements" ? "Announcement details" : "Presenter notes"} <small>(optional)</small></span>
-                <textarea disabled={fillerMediaBusy} onChange={(event) => setItemEditDraft((current) => ({ ...current, comment: event.target.value }))} rows={3} value={itemEditDraft.comment} />
-              </label>
+              {fillerMediaPlanItem.item_type === "announcements" ? <label className="wide-field"><span>Announcement text <small>(optional)</small></span><textarea disabled={fillerMediaBusy} onChange={(event) => setItemEditDraft((current) => ({ ...current, comment: event.target.value }))} rows={3} value={itemEditDraft.comment} /></label> : null}
               {fillerMediaSectionItem ? <label className="inline-checkbox wide-field">
                 <input checked={itemEditDraft.auto_collapse_items} disabled={fillerMediaBusy} onChange={(event) => setItemEditDraft((current) => ({ ...current, auto_collapse_items: event.target.checked }))} type="checkbox" />
                 <span>Auto-contract this section's items in every service</span>
               </label> : null}
             </div>
-            <fieldset className="item-editor-fieldset">
-              <legend>Presentation</legend>
+            <details className="item-editor-fieldset item-editor-disclosure" open>
+              <summary>Visual presentation</summary>
               <div className="form-grid item-details-grid">
                 <label><span>Image fit</span><select disabled={fillerMediaBusy} onChange={(event) => setItemEditDraft((current) => ({ ...current, fit_mode: event.target.value as "contain" | "cover" }))} value={itemEditDraft.fit_mode}><option value="contain">Fit whole image</option><option value="cover">Fill and crop</option></select></label>
                 <label><span>Transition</span><select disabled={fillerMediaBusy} onChange={(event) => setItemEditDraft((current) => ({ ...current, transition: event.target.value as "fade" | "cut" | "slide" }))} value={itemEditDraft.transition}><option value="fade">Fade</option><option value="cut">Cut</option><option value="slide">Slide</option></select></label>
-                <label><span>Audio scene</span><select disabled={fillerMediaBusy} onChange={(event) => setItemEditDraft((current) => ({ ...current, audio_scene_id: event.target.value }))} value={itemEditDraft.audio_scene_id}><option value="">Automatic by item type</option>{audioScenes.map((scene) => <option key={scene.id} value={scene.id}>{scene.label}</option>)}</select></label>
                 <label><span>Image dwell (seconds)</span><input disabled={fillerMediaBusy} min="1" onChange={(event) => setItemEditDraft((current) => ({ ...current, dwell_seconds: Number(event.target.value) }))} type="number" value={itemEditDraft.dwell_seconds} /></label>
+                <label className="inline-checkbox wide-field"><input checked={itemDefaultGroups.has("visual")} onChange={(event) => setItemDefaultGroups((current) => { const next = new Set(current); event.target.checked ? next.add("visual") : next.delete("visual"); return next; })} type="checkbox" /><span>Use these visual settings as the default for future {fillerMediaPlanItem.item_type.replace(/_/g, " ")} items</span></label>
+              </div>
+            </details>
+            <details className="item-editor-fieldset item-editor-disclosure" open>
+              <summary>Timing and playback</summary>
+              <div className="form-grid item-details-grid">
                 <label className="inline-checkbox"><input checked={itemEditDraft.auto_advance} disabled={fillerMediaBusy} onChange={(event) => setItemEditDraft((current) => ({ ...current, auto_advance: event.target.checked }))} type="checkbox" /><span>Advance automatically</span></label>
                 {itemEditDraft.auto_advance ? <label><span>Advance after (seconds)</span><input disabled={fillerMediaBusy} min="1" onChange={(event) => setItemEditDraft((current) => ({ ...current, auto_advance_seconds: Number(event.target.value) }))} type="number" value={itemEditDraft.auto_advance_seconds} /></label> : null}
+                {fillerMediaPlanItem.item_type === "open_time" ? <label className="inline-checkbox"><input checked={itemEditDraft.repeat} disabled={fillerMediaBusy} onChange={(event) => setItemEditDraft((current) => ({ ...current, repeat: event.target.checked }))} type="checkbox" /><span>Repeat montage</span></label> : null}
+                <label className="inline-checkbox wide-field"><input checked={itemDefaultGroups.has("playback")} onChange={(event) => setItemDefaultGroups((current) => { const next = new Set(current); event.target.checked ? next.add("playback") : next.delete("playback"); return next; })} type="checkbox" /><span>Use these timing settings as the type default</span></label>
+              </div>
+            </details>
+            <details className="item-editor-fieldset item-editor-disclosure" open>
+              <summary>Audio scene and destinations</summary>
+              <div className="form-grid item-details-grid">
+                <label><span>Audio scene</span><select disabled={fillerMediaBusy} onChange={(event) => setItemEditDraft((current) => ({ ...current, audio_scene_id: event.target.value }))} value={itemEditDraft.audio_scene_id}><option value="">{automaticAudioSceneLabel} (automatic)</option>{audioScenes.map((scene) => <option key={scene.id} value={scene.id}>{scene.label}</option>)}</select></label>
                 <label className="inline-checkbox"><input checked={itemEditDraft.display_targets.includes("church")} disabled={fillerMediaBusy} onChange={(event) => setItemEditDraft((current) => ({ ...current, display_targets: event.target.checked ? [...new Set([...current.display_targets, "church" as const])] : current.display_targets.filter((target) => target !== "church") }))} type="checkbox" /><span>Show on church displays</span></label>
                 <label className="inline-checkbox"><input checked={itemEditDraft.display_targets.includes("livestream")} disabled={fillerMediaBusy} onChange={(event) => setItemEditDraft((current) => ({ ...current, display_targets: event.target.checked ? [...new Set([...current.display_targets, "livestream" as const])] : current.display_targets.filter((target) => target !== "livestream") }))} type="checkbox" /><span>Show on livestream</span></label>
-                {fillerMediaPlanItem.item_type === "open_time" ? <label className="inline-checkbox"><input checked={itemEditDraft.repeat} disabled={fillerMediaBusy} onChange={(event) => setItemEditDraft((current) => ({ ...current, repeat: event.target.checked }))} type="checkbox" /><span>Repeat montage</span></label> : null}
+                <label className="inline-checkbox wide-field"><input checked={itemDefaultGroups.has("routing")} onChange={(event) => setItemDefaultGroups((current) => { const next = new Set(current); event.target.checked ? next.add("routing") : next.delete("routing"); return next; })} type="checkbox" /><span>Use this scene and these destinations as the type default</span></label>
               </div>
-            </fieldset>
-            {FIXED_WELCOME_STAGE_TYPES.has(fillerMediaPlanItem.item_type) || FILLER_MEDIA_ITEM_TYPES.has(fillerMediaPlanItem.item_type) ? <fieldset className="item-editor-fieldset">
-              <legend>Text overlay</legend>
+            </details>
+            {FIXED_WELCOME_STAGE_TYPES.has(fillerMediaPlanItem.item_type) || FILLER_MEDIA_ITEM_TYPES.has(fillerMediaPlanItem.item_type) ? <details className="item-editor-fieldset item-editor-disclosure">
+              <summary>Text overlay</summary>
               <button className="text-button compact-button" disabled={fillerMediaBusy} onClick={() => setItemEditDraft((current) => ({ ...current, overlay_mode: "countdown", overlay_text: "Service begins in", overlay_position: "centre", overlay_size: "large", overlay_font: "display", overlay_panel_opacity: 0, overlay_background_dim: 50 }))} type="button">Use welcome countdown style</button>
               <div className="form-grid item-details-grid">
                 <label><span>Overlay type</span><select disabled={fillerMediaBusy} onChange={(event) => setItemEditDraft((current) => ({ ...current, overlay_mode: event.target.value as "none" | "static" | "countdown" }))} value={itemEditDraft.overlay_mode}><option value="none">None</option><option value="static">Static text</option><option value="countdown">Text and countdown</option></select></label>
@@ -5818,10 +5839,11 @@ export function PresentationView({
                 <label><span>Text box transparency ({100 - itemEditDraft.overlay_panel_opacity}%)</span><input disabled={fillerMediaBusy} max="100" min="0" onChange={(event) => setItemEditDraft((current) => ({ ...current, overlay_panel_opacity: Number(event.target.value) }))} type="range" value={itemEditDraft.overlay_panel_opacity} /></label>
                 <label><span>Background dimming ({itemEditDraft.overlay_background_dim}%)</span><input disabled={fillerMediaBusy} max="80" min="0" onChange={(event) => setItemEditDraft((current) => ({ ...current, overlay_background_dim: Number(event.target.value) }))} type="range" value={itemEditDraft.overlay_background_dim} /></label>
                 {itemEditDraft.overlay_mode === "countdown" ? <label><span>Countdown seconds</span><input min="1" onChange={(event) => setItemEditDraft((current) => ({ ...current, overlay_countdown_seconds: Number(event.target.value) }))} type="number" value={itemEditDraft.overlay_countdown_seconds} /></label> : null}
+                <label className="inline-checkbox wide-field"><input checked={itemDefaultGroups.has("overlay_style")} onChange={(event) => setItemDefaultGroups((current) => { const next = new Set(current); event.target.checked ? next.add("overlay_style") : next.delete("overlay_style"); return next; })} type="checkbox" /><span>Use this overlay style as the type default (overlay text remains item-specific)</span></label>
               </div>
-            </fieldset> : null}
-            {fillerMediaPlanItem.item_type === "announcements" ? <fieldset className="item-editor-fieldset">
-              <legend>Announcement details</legend>
+            </details> : null}
+            {fillerMediaPlanItem.item_type === "announcements" ? <details className="item-editor-fieldset item-editor-disclosure">
+              <summary>Announcement details</summary>
               <div className="form-grid item-details-grid">
                 <label><span>Layout</span><select onChange={(event) => setItemEditDraft((current) => ({ ...current, announcement_layout: event.target.value as "image" | "text" | "split" | "background" }))} value={itemEditDraft.announcement_layout}><option value="split">Split image and text</option><option value="image">Image-led</option><option value="text">Text-led</option><option value="background">Full background</option></select></label>
                 <label><span>Date / time</span><input onChange={(event) => setItemEditDraft((current) => ({ ...current, announcement_date: event.target.value }))} value={itemEditDraft.announcement_date} /></label>
@@ -5829,7 +5851,9 @@ export function PresentationView({
                 <label><span>Contact</span><input onChange={(event) => setItemEditDraft((current) => ({ ...current, announcement_contact: event.target.value }))} value={itemEditDraft.announcement_contact} /></label>
                 <label className="wide-field"><span>URL / QR destination</span><input onChange={(event) => setItemEditDraft((current) => ({ ...current, announcement_url: event.target.value }))} type="url" value={itemEditDraft.announcement_url} /></label>
               </div>
-            </fieldset> : null}
+            </details> : null}
+            <details className="item-editor-fieldset item-editor-disclosure">
+            <summary>Images and montage</summary>
             <p>Add one image to replace the default slide background, or add several to rotate them as a montage.</p>
             {canAttachDeck ? <label className="pre-service-upload-control">
               Add images
@@ -5882,6 +5906,7 @@ export function PresentationView({
               ) : null}
               {!fillerMediaEditorReady ? <p className="search-empty">Loading attached image previews…</p> : null}
             </div>
+            </details>
             {fillerMediaEditorReady ? <div className="app-dialog-actions">
               <button
                 className="text-button"
@@ -5895,7 +5920,7 @@ export function PresentationView({
               >Cancel</button>
               <button
                 className="primary-button"
-                disabled={fillerMediaBusy || !itemEditDraft.title.trim()}
+                disabled={fillerMediaBusy || !(itemEditDraft.title.trim() || itemEditDraft.overlay_text.trim())}
                 onClick={() => void savePlanItemDetails()}
                 type="button"
               >{fillerMediaBusy ? "Saving…" : "Save"}</button>

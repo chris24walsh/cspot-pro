@@ -12635,6 +12635,16 @@ button.musician-page {
   padding: 0 0.35rem;
 }
 
+.item-editor-disclosure > summary {
+  cursor: pointer;
+  font-weight: 700;
+  padding: 0.15rem 0;
+}
+
+.item-editor-disclosure[open] > summary {
+  margin-bottom: 0.75rem;
+}
+
 .slide-visual-transition { position: relative; }
 .slide-visual-transition.transition-cut { animation: none; }
 .slide-visual-transition.transition-slide { animation: item-slide-in 280ms ease-out; }

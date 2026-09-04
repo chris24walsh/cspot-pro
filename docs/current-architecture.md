@@ -399,8 +399,11 @@ playback. Scene activation follows item selection, including automatic cues.
 Section and child-item pencils share one native editor backed by the plan item's
 `presentation_options` JSON. Section images are fallback content and are omitted
 while child items exist. The editor exposes image dwell/fit, transition and
-auto-advance controls; Welcome and Open time add positioned static/countdown
-overlays; Announcements add structured date, location, contact, URL and layout
+auto-advance controls. Editors group visual, timing, routing, overlay and media
+settings into collapsible sections; reusable groups can be promoted to the
+current service type's defaults without copying item-specific text. Welcome,
+Open time, Sermon and Announcements support styled static/countdown overlays;
+Announcements also add structured date, location, contact, URL and layout
 metadata; sermon/deck controls remain presentation-only so imported pixels are
 not rewritten. Preview and live output consume the same options.
 An open network display or viewer poll creates a scheduled live presentation at
