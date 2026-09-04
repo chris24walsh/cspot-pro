@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { PlanDetail, PlanItem, PlanSummary } from "./api";
-import { WORSHIP_SET_ANCHOR_ITEM_TYPE, combinedPlanningItemCount, dateKey, explicitPlanningItemCount, isPlanEditingLocked, matchingWorshipSetForService, mergeWorshipSetIntoService, preferredWorshipSetPlanId } from "./worshipSets";
+import { WORSHIP_SET_ANCHOR_ITEM_TYPE, combinedPlanningItemCount, dateKey, explicitPlanningItemCount, isPlanEditingLocked, matchingWorshipSetForService, mergeWorshipSetIntoService, preferredServicePlanId, preferredWorshipSetPlanId } from "./worshipSets";
 
 function item(id: string, sequence: string, itemType: string, songId: string | null = null): PlanItem {
   return {
@@ -49,15 +49,29 @@ describe("worship set merge", () => {
   });
 
   it("keeps today's worship set selected on Sunday and rolls forward on Monday", () => {
-    const today = summary("today", "2026-07-05T10:30:00.000Z", "Worship Set");
-    const following = summary("following", "2026-07-12T10:30:00.000Z", "Worship Set");
+    const today = { ...summary("today", "2026-07-05T10:30:00.000Z", "Worship Set"), item_count: 3 };
+    const following = { ...summary("following", "2026-07-12T10:30:00.000Z", "Worship Set"), item_count: 3 };
 
     expect(preferredWorshipSetPlanId([following, today], new Date(2026, 6, 5, 12))).toBe("today");
     expect(preferredWorshipSetPlanId([following, today], new Date(2026, 6, 6, 12))).toBe("following");
   });
 
+  it("selects today's service when its linked worship set supplies the content", () => {
+    const service = summary("service-today", "2026-09-04T10:30:00.000Z", "Midweek Meeting");
+    const worshipSet = { ...summary("worship-today", "2026-09-04T10:30:00.000Z", "Worship Set"), item_count: 4 };
+
+    expect(preferredServicePlanId([service], [worshipSet], new Date(2026, 8, 4, 9))).toBe("service-today");
+  });
+
+  it("ignores empty worship sets when choosing the worship default", () => {
+    const emptyToday = summary("empty-today", "2026-09-04T10:30:00.000Z", "Worship Set");
+    const sunday = { ...summary("worship-sunday", "2026-09-06T10:30:00.000Z", "Worship Set"), item_count: 3 };
+
+    expect(preferredWorshipSetPlanId([emptyToday, sunday], new Date(2026, 8, 4, 9))).toBe("worship-sunday");
+  });
+
   it("locks a worship set after the matching service start while retaining same-day selection", () => {
-    const today = summary("today", "2026-07-05T10:30:00.000Z", "Worship Set");
+    const today = { ...summary("today", "2026-07-05T10:30:00.000Z", "Worship Set"), item_count: 3 };
     const service = summary("service", "2026-07-05T10:30:00.000Z", "Sunday Service");
     const plan = { ...today, plan_type_id: "worship", items: [], teacher_id: null, info: null } as PlanDetail;
     const types = [

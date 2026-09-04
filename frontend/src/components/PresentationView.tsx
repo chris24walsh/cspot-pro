@@ -114,6 +114,7 @@ import {
   isWorshipSetPlan,
   matchingWorshipSetForService,
   mergeWorshipSetIntoService,
+  preferredServicePlanId,
   worshipSetType,
 } from "../worshipSets";
 
@@ -880,12 +881,6 @@ export function PresentationView({
     [servicePlans],
   );
 
-  function nextServicePlanId(planList: PlanSummary[]) {
-    const targetDate = defaultPlanningDate(
-      planList.filter((candidate) => candidate.item_count > 0).map((candidate) => dateInputFromIso(candidate.service_date)),
-    );
-    return planList.find((candidate) => dateInputFromIso(candidate.service_date) === targetDate)?.id ?? "";
-  }
   const plansByDate = useMemo(
     () =>
       new Map(
@@ -1309,16 +1304,15 @@ export function PresentationView({
       const nextServicePlans = nextPlans.filter((candidate) => !isWorshipSetPlan(candidate));
       const nextWorshipSetPlans = nextPlans.filter(isWorshipSetPlan);
       const requestedPlan = nextServicePlans.find((candidate) => candidate.id === requestedPlanId);
-      const defaultServiceDate = defaultPlanningDate(
-        nextServicePlans
-          .filter((candidate) => candidate.item_count > 0)
-          .map((candidate) => dateInputFromIso(candidate.service_date)),
-      );
+      const defaultServicePlanId = preferredServicePlanId(nextServicePlans, nextWorshipSetPlans);
+      const defaultServiceDate = dateInputFromIso(
+        nextServicePlans.find((candidate) => candidate.id === defaultServicePlanId)?.service_date,
+      ) || defaultPlanningDate([]);
       const requestedPlanIsUsable =
         planId !== undefined || (requestedPlan && dateInputFromIso(requestedPlan.service_date) === defaultServiceDate);
       const targetPlanId = requestedPlan && requestedPlanIsUsable
         ? requestedPlanId
-        : nextServicePlanId(nextServicePlans);
+        : defaultServicePlanId;
       const [targetPlan, liveState] = await Promise.all([
         targetPlanId ? getPlan(targetPlanId) : Promise.resolve(null),
         targetPlanId ? getPresentationLiveState(targetPlanId) : Promise.resolve(null),

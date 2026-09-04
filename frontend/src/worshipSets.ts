@@ -55,8 +55,22 @@ export function explicitPlanningItemCount(items: PlanItem[]) {
 }
 
 export function preferredWorshipSetPlanId(sets: PlanSummary[], now = new Date()) {
-  const targetDate = defaultPlanningDate(sets.map((candidate) => dateKey(candidate.service_date)), now);
+  const targetDate = defaultPlanningDate(
+    sets.filter((candidate) => candidate.item_count > 0).map((candidate) => dateKey(candidate.service_date)),
+    now,
+  );
   return sets.find((candidate) => dateKey(candidate.service_date) === targetDate)?.id ?? "";
+}
+
+export function preferredServicePlanId(services: PlanSummary[], worshipSets: PlanSummary[], now = new Date()) {
+  const worshipSetsByDate = new Map(worshipSets.map((set) => [dateKey(set.service_date), set]));
+  const targetDate = defaultPlanningDate(
+    services
+      .filter((service) => combinedPlanningItemCount(service, worshipSetsByDate.get(dateKey(service.service_date))) > 0)
+      .map((service) => dateKey(service.service_date)),
+    now,
+  );
+  return services.find((service) => dateKey(service.service_date) === targetDate)?.id ?? "";
 }
 
 export function isPlanEditingLocked(

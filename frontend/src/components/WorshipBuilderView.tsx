@@ -54,7 +54,7 @@ import { undoHistoryEntrySnapshot } from "../planHistory";
 import { parseChordChart } from "../chordSheet";
 import { showToast } from "../toast";
 import { analyzeImportedSongSlides, analyzeWorshipText, buildLyricsFromSections, canonicalizeWorshipLyrics } from "../worshipText";
-import { dateKey, explicitPlanningItemCount, isPlanEditingLocked, isWorshipSetPlan, worshipSetType } from "../worshipSets";
+import { dateKey, explicitPlanningItemCount, isPlanEditingLocked, isWorshipSetPlan, preferredWorshipSetPlanId, worshipSetType } from "../worshipSets";
 import { lastUsedLabel, worshipRoleLabel } from "../worshipSongMetadata";
 import { reorderedWorshipSequences } from "../worshipOrdering";
 import { calendarColors, calendarMarkers } from "../userCalendarStyle";
@@ -804,14 +804,10 @@ export function WorshipBuilderView({ active = true, canAccessAdminTools, canArch
         getWorshipSongUsage(),
       ]);
       const nextWorshipPlans = nextPlans.filter(isWorshipSetPlan);
-      const defaultSetDate = defaultPlanningDate(
-        nextPlans
-          .filter((candidate) => candidate.item_count > 0)
-          .map((candidate) => dateInputFromIso(candidate.service_date)),
-      );
-      const preferredPlanId = nextWorshipPlans.find(
-        (candidate) => dateInputFromIso(candidate.service_date) === defaultSetDate,
-      )?.id ?? "";
+      const preferredPlanId = preferredWorshipSetPlanId(nextWorshipPlans);
+      const defaultSetDate = dateInputFromIso(
+        nextWorshipPlans.find((candidate) => candidate.id === preferredPlanId)?.service_date,
+      ) || defaultPlanningDate([]);
       const requestedPlanId =
         targetPlanId !== undefined
           ? targetPlanId
