@@ -35,6 +35,7 @@ export function PlanTypeManager({ onChanged, onMessage }: { onChanged?: () => vo
   const [draft, setDraft] = useState<PlanType>(blankType());
   const [saving, setSaving] = useState(false);
   const [scenes, setScenes] = useState<BroadcastAudioScene[]>([]);
+  const [expandedSectionSettings, setExpandedSectionSettings] = useState<Set<string>>(() => new Set());
 
   async function load(preferredId?: string) {
     const [next, settings] = await Promise.all([getPlanTypes(), getBroadcastViewerSettings()]);
@@ -85,24 +86,59 @@ export function PlanTypeManager({ onChanged, onMessage }: { onChanged?: () => vo
 
   function moveOutline(index: number, delta: -1 | 1) {
     setDraft((current) => {
-      const next = [...current.default_outline];
-      const target = index + delta;
-      if (!next[index] || !next[target]) return current;
-      [next[index], next[target]] = [next[target], next[index]];
-      return { ...current, default_outline: next.map((item, itemIndex) => ({ ...item, sequence: String((itemIndex + 1) * 10) })) };
+      const currentItem = current.default_outline[index];
+      if (!currentItem) return current;
+      let next: PlanType["default_outline"];
+      if (!currentItem.parent_id) {
+        const roots = current.default_outline.filter((item) => !item.parent_id);
+        const rootIndex = roots.findIndex((item) => item.id === currentItem.id);
+        const targetIndex = rootIndex + delta;
+        if (targetIndex < 0 || targetIndex >= roots.length) return current;
+        [roots[rootIndex], roots[targetIndex]] = [roots[targetIndex], roots[rootIndex]];
+        next = roots.flatMap((root) => [root, ...current.default_outline.filter((item) => item.parent_id === root.id)]);
+      } else {
+        next = [...current.default_outline];
+        const siblingIndices = next.flatMap((item, itemIndex) => item.parent_id === currentItem.parent_id ? [itemIndex] : []);
+        const siblingIndex = siblingIndices.indexOf(index);
+        const target = siblingIndices[siblingIndex + delta];
+        if (target === undefined) return current;
+        [next[index], next[target]] = [next[target], next[index]];
+      }
+      return { ...current, default_outline: next.map((item) => {
+        const nextSiblingIndex = next.filter((candidate) => (candidate.parent_id ?? null) === (item.parent_id ?? null)).findIndex((candidate) => candidate.id === item.id);
+        return { ...item, sequence: String((nextSiblingIndex + 1) * 10) };
+      }) };
     });
   }
 
+  function canMoveOutline(index: number, delta: -1 | 1) {
+    const item = draft.default_outline[index];
+    if (!item) return false;
+    const siblings = draft.default_outline.filter((candidate) => (candidate.parent_id ?? null) === (item.parent_id ?? null));
+    const siblingIndex = siblings.findIndex((candidate) => candidate.id === item.id);
+    return siblingIndex + delta >= 0 && siblingIndex + delta < siblings.length;
+  }
+
   function addOutlineItem(parentId: string | null = null) {
-    setDraft((current) => ({ ...current, default_outline: [...current.default_outline, {
-      id: crypto.randomUUID?.() ?? `template-${Date.now()}`,
-      parent_id: parentId,
-      item_type: parentId ? "open_time" : "custom",
-      title: parentId ? "New slide" : "New section",
-      sequence: String((current.default_outline.filter((item) => (item.parent_id ?? null) === parentId).length + 1) * 10),
-      comment: null,
-      presentation_options: {},
-    }] }));
+    setDraft((current) => {
+      const item = {
+        id: crypto.randomUUID?.() ?? `template-${Date.now()}`,
+        parent_id: parentId,
+        item_type: parentId ? "open_time" : "custom",
+        title: parentId ? "New slide" : "New section",
+        sequence: String((current.default_outline.filter((candidate) => (candidate.parent_id ?? null) === parentId).length + 1) * 10),
+        comment: null,
+        presentation_options: {},
+      };
+      if (!parentId) return { ...current, default_outline: [...current.default_outline, item] };
+      const parentIndex = current.default_outline.findIndex((candidate) => candidate.id === parentId);
+      if (parentIndex < 0) return current;
+      let insertIndex = parentIndex + 1;
+      while (current.default_outline[insertIndex]?.parent_id === parentId) insertIndex += 1;
+      const next = [...current.default_outline];
+      next.splice(insertIndex, 0, item);
+      return { ...current, default_outline: next };
+    });
   }
 
   return (
@@ -132,12 +168,13 @@ export function PlanTypeManager({ onChanged, onMessage }: { onChanged?: () => vo
               <input aria-label={`${item.parent_id ? "Slide" : "Section"} ${index + 1} title`} onChange={(event) => updateOutline(index, { title: event.target.value })} placeholder={item.parent_id ? "Slide title" : "Section title"} value={item.title} />
               <select aria-label={`${item.parent_id ? "Slide" : "Section"} ${index + 1} type`} onChange={(event) => updateOutline(index, { item_type: event.target.value })} value={item.item_type}>{SECTION_TYPES.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select>
               <div className="template-row-actions">
-                <button aria-label={`Move ${item.title} up`} className="section-icon-button" disabled={index === 0} onClick={() => moveOutline(index, -1)} title="Move up" type="button"><ChevronUp size={14} /></button>
-                <button aria-label={`Move ${item.title} down`} className="section-icon-button" disabled={index === draft.default_outline.length - 1} onClick={() => moveOutline(index, 1)} title="Move down" type="button"><ChevronDown size={14} /></button>
+                <button aria-label={`Move ${item.title} up`} className="section-icon-button" disabled={!canMoveOutline(index, -1)} onClick={() => moveOutline(index, -1)} title="Move up" type="button"><ChevronUp size={14} /></button>
+                <button aria-label={`Move ${item.title} down`} className="section-icon-button" disabled={!canMoveOutline(index, 1)} onClick={() => moveOutline(index, 1)} title="Move down" type="button"><ChevronDown size={14} /></button>
                 <button aria-label={`Remove ${item.title}`} className="section-icon-button section-remove-button" onClick={() => setDraft((current) => ({ ...current, default_outline: current.default_outline.filter((entry, itemIndex) => itemIndex !== index && entry.parent_id !== item.id) }))} title="Remove" type="button"><Trash2 size={14} /></button>
               </div>
             </div>
-            {item.parent_id ? <div className="template-cue-controls">
+            {!item.parent_id ? <div className="template-section-options"><label className="toggle-row"><input checked={Boolean(item.presentation_options?.auto_collapse_items)} onChange={(event) => updateOutline(index, { presentation_options: { ...item.presentation_options, auto_collapse_items: event.target.checked } })} type="checkbox" /> Auto-contract items</label><label className="toggle-row"><input checked={Boolean(item.presentation_options?.end_after_section)} onChange={(event) => updateOutline(index, { presentation_options: { ...item.presentation_options, end_after_section: event.target.checked } })} type="checkbox" /> End service after this section</label><button className="text-button template-add-child" onClick={() => addOutlineItem(item.id ?? null)} type="button"><Plus size={13} /> Add slide</button><button aria-expanded={expandedSectionSettings.has(item.id ?? String(index))} className="text-button template-section-settings-toggle" onClick={() => { const key = item.id ?? String(index); setExpandedSectionSettings((current) => { const next = new Set(current); next.has(key) ? next.delete(key) : next.add(key); return next; }); }} type="button">Settings <ChevronDown size={13} /></button></div> : null}
+            {(item.parent_id || expandedSectionSettings.has(item.id ?? String(index))) ? <div className={`template-cue-controls ${item.parent_id ? "" : "is-section-controls"}`}>
               <span className="template-controls-label">Playback</span>
               <label>Image dwell <span className="field-unit">seconds</span><input min={1} onChange={(event) => updateOutline(index, { presentation_options: { ...item.presentation_options, dwell_seconds: Number(event.target.value) } })} type="number" value={item.presentation_options?.dwell_seconds ?? 12} /></label>
               <label className="toggle-row"><input checked={Boolean(item.presentation_options?.auto_advance)} onChange={(event) => updateOutline(index, { presentation_options: { ...item.presentation_options, auto_advance: event.target.checked } })} type="checkbox" /> Auto-advance</label>
@@ -145,7 +182,26 @@ export function PlanTypeManager({ onChanged, onMessage }: { onChanged?: () => vo
               <label>Scene<select onChange={(event) => updateOutline(index, { presentation_options: { ...item.presentation_options, audio_scene_id: event.target.value || undefined } })} value={item.presentation_options?.audio_scene_id ?? ""}><option value="">Automatic</option>{scenes.map((scene) => <option key={scene.id} value={scene.id}>{scene.label}</option>)}</select></label>
               <label className="toggle-row"><input checked={(item.presentation_options?.display_targets ?? ["church", "livestream"]).includes("church")} onChange={(event) => { const targets = new Set(item.presentation_options?.display_targets ?? ["church", "livestream"]); event.target.checked ? targets.add("church") : targets.delete("church"); updateOutline(index, { presentation_options: { ...item.presentation_options, display_targets: [...targets] as Array<"church" | "livestream"> } }); }} type="checkbox" /> Church displays</label>
               <label className="toggle-row"><input checked={(item.presentation_options?.display_targets ?? ["church", "livestream"]).includes("livestream")} onChange={(event) => { const targets = new Set(item.presentation_options?.display_targets ?? ["church", "livestream"]); event.target.checked ? targets.add("livestream") : targets.delete("livestream"); updateOutline(index, { presentation_options: { ...item.presentation_options, display_targets: [...targets] as Array<"church" | "livestream"> } }); }} type="checkbox" /> Livestream</label>
-            </div> : <button className="text-button template-add-child" onClick={() => addOutlineItem(item.id ?? null)} type="button"><Plus size={13} /> Add slide</button>}
+              <details className="template-advanced-controls">
+                <summary>Visual and overlay settings</summary>
+                <div className="template-advanced-grid">
+                  <label>Image fit<select onChange={(event) => updateOutline(index, { presentation_options: { ...item.presentation_options, fit_mode: event.target.value as "contain" | "cover" } })} value={item.presentation_options?.fit_mode ?? "contain"}><option value="contain">Fit whole image</option><option value="cover">Fill and crop</option></select></label>
+                  <label>Transition<select onChange={(event) => updateOutline(index, { presentation_options: { ...item.presentation_options, transition: event.target.value as "fade" | "cut" | "slide" } })} value={item.presentation_options?.transition ?? "fade"}><option value="fade">Fade</option><option value="cut">Cut</option><option value="slide">Slide</option></select></label>
+                  {item.item_type === "open_time" ? <label className="toggle-row"><input checked={Boolean(item.presentation_options?.repeat)} onChange={(event) => updateOutline(index, { presentation_options: { ...item.presentation_options, repeat: event.target.checked } })} type="checkbox" /> Repeat montage</label> : null}
+                  {["welcome_montage", "welcome_countdown", "welcome_seated", "open_time", "sermon", "announcements"].includes(item.item_type) ? <>
+                    <label>Overlay type<select onChange={(event) => updateOutline(index, { presentation_options: { ...item.presentation_options, overlay_mode: event.target.value as "none" | "static" | "countdown" } })} value={item.presentation_options?.overlay_mode ?? "none"}><option value="none">None</option><option value="static">Static text</option><option value="countdown">Text and countdown</option></select></label>
+                    <label>Overlay text<input onChange={(event) => updateOutline(index, { presentation_options: { ...item.presentation_options, overlay_text: event.target.value } })} value={item.presentation_options?.overlay_text ?? ""} /></label>
+                    {item.presentation_options?.overlay_mode === "countdown" ? <label>Countdown <span className="field-unit">seconds</span><input min={1} onChange={(event) => updateOutline(index, { presentation_options: { ...item.presentation_options, overlay_countdown_seconds: Number(event.target.value) } })} type="number" value={item.presentation_options?.overlay_countdown_seconds ?? 300} /></label> : null}
+                    <label>Position<select onChange={(event) => updateOutline(index, { presentation_options: { ...item.presentation_options, overlay_position: event.target.value as NonNullable<typeof item.presentation_options>["overlay_position"] } })} value={item.presentation_options?.overlay_position ?? "bottom"}><option value="top-left">Top left</option><option value="top">Top centre</option><option value="top-right">Top right</option><option value="left">Centre left</option><option value="centre">Centre</option><option value="right">Centre right</option><option value="bottom-left">Bottom left</option><option value="bottom">Bottom centre</option><option value="bottom-right">Bottom right</option></select></label>
+                    <label>Text size<select onChange={(event) => updateOutline(index, { presentation_options: { ...item.presentation_options, overlay_size: event.target.value as "small" | "medium" | "large" } })} value={item.presentation_options?.overlay_size ?? "medium"}><option value="small">Small</option><option value="medium">Medium</option><option value="large">Large</option></select></label>
+                    <label>Font<select onChange={(event) => updateOutline(index, { presentation_options: { ...item.presentation_options, overlay_font: event.target.value as NonNullable<typeof item.presentation_options>["overlay_font"] } })} value={item.presentation_options?.overlay_font ?? "sans"}><option value="sans">Clean sans</option><option value="display">Welcome display</option><option value="serif">Serif</option><option value="mono">Monospace</option></select></label>
+                    <label>Text box opacity <span className="field-unit">{item.presentation_options?.overlay_panel_opacity ?? 68}%</span><input max={100} min={0} onChange={(event) => updateOutline(index, { presentation_options: { ...item.presentation_options, overlay_panel_opacity: Number(event.target.value) } })} type="range" value={item.presentation_options?.overlay_panel_opacity ?? 68} /></label>
+                    <label>Background dim <span className="field-unit">{item.presentation_options?.overlay_background_dim ?? 0}%</span><input max={80} min={0} onChange={(event) => updateOutline(index, { presentation_options: { ...item.presentation_options, overlay_background_dim: Number(event.target.value) } })} type="range" value={item.presentation_options?.overlay_background_dim ?? 0} /></label>
+                    {item.item_type === "announcements" ? <label>Announcement layout<select onChange={(event) => updateOutline(index, { presentation_options: { ...item.presentation_options, announcement_layout: event.target.value as "image" | "text" | "split" | "background" } })} value={item.presentation_options?.announcement_layout ?? "split"}><option value="split">Split image and text</option><option value="image">Image-led</option><option value="text">Text-led</option><option value="background">Full background</option></select></label> : null}
+                  </> : null}
+                </div>
+              </details>
+            </div> : null}
           </div>
         ))}
       </div>

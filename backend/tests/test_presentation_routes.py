@@ -81,12 +81,76 @@ def test_template_cues_advance_from_one_template_start() -> None:
         ])
         session.commit()
 
+        item, stage = template_cue_at(session, plan, datetime(2026, 9, 6, 10, 30, tzinfo=UTC), "10:30")
+        assert item.item_type == "welcome_montage"
+        assert stage == "pre_service"
         item, stage = template_cue_at(session, plan, datetime(2026, 9, 6, 10, 56, tzinfo=UTC), "10:30")
         assert item.item_type == "welcome_countdown"
         assert stage == "pre_service"
         item, stage = template_cue_at(session, plan, datetime(2026, 9, 6, 11, 0, tzinfo=UTC), "10:30")
         assert item.item_type == "welcome_seated"
         assert stage == "service"
+
+
+def test_template_cue_stops_after_configured_section() -> None:
+    engine = create_engine("sqlite://")
+    Base.metadata.create_all(engine)
+    with Session(engine) as session:
+        plan_type = PlanType(name="Test", automation_start="10:30", active=True)
+        session.add(plan_type)
+        session.flush()
+        plan = Plan(plan_type_id=plan_type.id, service_date=datetime(2026, 9, 6, 10, 30, tzinfo=UTC), title="Test", status="draft")
+        session.add(plan)
+        session.flush()
+        opening = PlanItem(plan_id=plan.id, sequence=10, item_type="custom", title="Opening", presentation_options={"end_after_section": True})
+        session.add(opening)
+        session.flush()
+        session.add_all([
+            PlanItem(plan_id=plan.id, parent_item_id=opening.id, sequence=10, item_type="open_time", title="First", presentation_options={"auto_advance": True, "auto_advance_seconds": 10}),
+            PlanItem(plan_id=plan.id, parent_item_id=opening.id, sequence=20, item_type="open_time", title="Last", presentation_options={"auto_advance": True, "auto_advance_seconds": 10}),
+            PlanItem(plan_id=plan.id, sequence=20, item_type="sermon", title="Must not play"),
+        ])
+        session.commit()
+
+        item, stage = template_cue_at(session, plan, datetime(2026, 9, 6, 10, 30, 19, tzinfo=UTC), "10:30")
+        assert item.title == "Last"
+        assert stage == "pre_service"
+        item, stage = template_cue_at(session, plan, datetime(2026, 9, 6, 10, 30, 20, tzinfo=UTC), "10:30")
+        assert item.title == "Last"
+        assert stage == "post_service"
+
+
+def test_server_auto_advance_ends_presentation_at_section_boundary() -> None:
+    engine = create_engine("sqlite://")
+    Base.metadata.create_all(engine)
+    with Session(engine) as session:
+        plan_type = PlanType(name="Test", active=True)
+        session.add(plan_type)
+        session.flush()
+        plan = Plan(plan_type_id=plan_type.id, service_date=datetime.now(UTC), title="Test", status="draft")
+        session.add(plan)
+        session.flush()
+        section = PlanItem(plan_id=plan.id, sequence=10, item_type="custom", title="Opening", presentation_options={"end_after_section": True})
+        session.add(section)
+        session.flush()
+        last = PlanItem(plan_id=plan.id, parent_item_id=section.id, sequence=10, item_type="open_time", title="Last", presentation_options={"auto_advance": True, "auto_advance_seconds": 3})
+        following = PlanItem(plan_id=plan.id, sequence=20, item_type="sermon", title="Following")
+        session.add_all([last, following])
+        session.flush()
+        live = PresentationSession(plan_id=plan.id, status="live")
+        session.add(live)
+        session.flush()
+        position = PresentationPosition(session_id=live.id, plan_item_id=last.id, slide_index=0, payload_json=json.dumps({"index": 0, "plan_item_id": last.id, "auto_advance_started_at": 1000, "output_active": True}))
+        session.add(position)
+        session.commit()
+
+        advance_expired_auto_slide(session, live, position, plan.id, now_ms=4000)
+
+        payload = json.loads(position.payload_json)
+        assert live.status == "ended"
+        assert payload["service_stage"] == "post_service"
+        assert payload["auto_ended"] is True
+        assert "output_active" not in payload
 
 
 def test_item_scene_override_wins_over_type_inference() -> None:

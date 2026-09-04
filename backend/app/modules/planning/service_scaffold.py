@@ -185,6 +185,17 @@ def ensure_service_scaffold(session: Session, plan: Plan) -> list[PlanItem]:
         type_match = bool(section.aliases & existing_types)
         if title_match or type_match:
             continue
+        section_options = (
+            next(
+                (
+                    item.presentation_options
+                    for item in defaults
+                    if item.sequence == section.sequence
+                ),
+                {},
+            )
+            or {}
+        )
         item = PlanItem(
             plan_id=plan.id,
             sequence=section.sequence,
@@ -194,12 +205,12 @@ def ensure_service_scaffold(session: Session, plan: Plan) -> list[PlanItem]:
             comment=next(
                 (item.comment for item in defaults if item.sequence == section.sequence), None
             ),
-            auto_collapse_items=section_auto_collapse_preference(
-                session, section.item_type, section.title
+            auto_collapse_items=(
+                bool(section_options.get("auto_collapse_items"))
+                if "auto_collapse_items" in section_options
+                else section_auto_collapse_preference(session, section.item_type, section.title)
             ),
-            presentation_options=next(
-                (item.presentation_options for item in defaults if item.sequence == section.sequence), {}
-            ) or {},
+            presentation_options=section_options,
         )
         session.add(item)
         created.append(item)

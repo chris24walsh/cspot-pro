@@ -62,6 +62,7 @@ export interface PresentationSlide {
   autoAdvanceSeconds?: number;
   dwellSeconds?: number;
   displayTargets?: Array<"church" | "livestream">;
+  endAfterSection?: boolean;
 }
 
 export interface PresentationSection {
@@ -377,6 +378,7 @@ export function buildPresentationSections(
         ...slide,
         sectionId: root.id,
         sectionTitle: rootSection.title,
+        endAfterSection: Boolean(root.presentation_options?.end_after_section),
       }))),
     };
   });

@@ -104,6 +104,8 @@ export interface PlanItem {
 }
 
 export interface PresentationOptions {
+  auto_collapse_items?: boolean;
+  end_after_section?: boolean;
   dwell_seconds?: number;
   auto_advance_seconds?: number;
   transition?: "fade" | "cut" | "slide";

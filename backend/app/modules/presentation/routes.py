@@ -281,6 +281,7 @@ def template_cue_at(
         ordered.extend(children or [root])
     if not ordered:
         return None, "service"
+    item_by_id = {item.id: item for item in items}
     for index, item in enumerate(ordered):
         options = item.presentation_options or {}
         if not options.get("auto_advance"):
@@ -289,6 +290,19 @@ def template_cue_at(
         if elapsed < duration:
             return item, "pre_service"
         elapsed -= duration
+        section = item_by_id.get(item.parent_item_id) if item.parent_item_id else item
+        next_item = ordered[index + 1] if index + 1 < len(ordered) else None
+        next_in_section = bool(
+            section
+            and next_item
+            and (next_item.id == section.id or next_item.parent_item_id == section.id)
+        )
+        if (
+            section
+            and (section.presentation_options or {}).get("end_after_section")
+            and not next_in_section
+        ):
+            return item, "post_service"
     return ordered[-1], "service"
 
 
@@ -360,6 +374,27 @@ def ensure_scheduled_pre_service(session: Session) -> None:
         desired_stage = "ready" if now_local >= schedule_time(now_local, rule.service_start) else "pre_service"
     cleanup_live_sessions(session, active_plan_id=plan.id)
     latest = _latest_session(session, plan.id)
+    if desired_stage == "post_service":
+        if latest and latest.status == "live" and latest.ended_at is None:
+            position = _latest_position(session, latest.id)
+            if position is not None:
+                payload = _position_payload(position)
+                payload.update(
+                    {
+                        "service_stage": "post_service",
+                        "auto_ended": True,
+                        "updated_at": int(datetime.now(UTC).timestamp() * 1000),
+                    }
+                )
+                payload.pop("auto_advance_started_at", None)
+                payload.pop("output_owner_id", None)
+                payload.pop("output_heartbeat_at", None)
+                payload.pop("output_active", None)
+                position.payload_json = json.dumps(payload)
+            latest.status = "ended"
+            latest.ended_at = datetime.now(UTC)
+            session.commit()
+        return
     if latest and latest.status == "live" and latest.ended_at is None:
         position = _latest_position(session, latest.id)
         payload = _position_payload(position)
@@ -367,8 +402,6 @@ def ensure_scheduled_pre_service(session: Session) -> None:
         if (
             payload.get("auto_started") is True
             and active_item is not None
-            and active_item.item_type
-            in {"pre_service", "welcome_montage", "welcome_countdown", "welcome_seated"}
         ):
             # Once a leader claims the output, or explicitly ends the service,
             # the scheduled pre-service clock no longer owns presentation or
@@ -582,12 +615,42 @@ def advance_expired_auto_slide(
         return position
     ordered = _ordered_auto_advance_items(session, plan_id)
     current_index = next((index for index, candidate in enumerate(ordered) if candidate.id == item_id), -1)
-    if current_index < 0 or current_index >= len(ordered) - 1:
+    if current_index < 0:
         payload.pop("auto_advance_started_at", None)
         position.payload_json = json.dumps(payload)
         session.commit()
         return position
-    next_item = ordered[current_index + 1]
+    root = session.get(PlanItem, item.parent_item_id) if item and item.parent_item_id else item
+    next_item = ordered[current_index + 1] if current_index < len(ordered) - 1 else None
+    next_in_section = bool(
+        root and next_item and (next_item.id == root.id or next_item.parent_item_id == root.id)
+    )
+    if (
+        root
+        and (root.presentation_options or {}).get("end_after_section")
+        and not next_in_section
+    ):
+        payload.update(
+            {"service_stage": "post_service", "auto_ended": True, "updated_at": now_ms}
+        )
+        for key in (
+            "auto_advance_started_at",
+            "output_owner_id",
+            "output_heartbeat_at",
+            "output_active",
+        ):
+            payload.pop(key, None)
+        presentation_session.status = "ended"
+        presentation_session.ended_at = datetime.now(UTC)
+        position.payload_json = json.dumps(payload)
+        session.commit()
+        session.refresh(position)
+        return position
+    if next_item is None:
+        payload.pop("auto_advance_started_at", None)
+        position.payload_json = json.dumps(payload)
+        session.commit()
+        return position
     payload.update({
         "index": int(payload.get("index", position.slide_index)) + 1,
         "plan_item_id": next_item.id,

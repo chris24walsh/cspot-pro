@@ -124,7 +124,7 @@ const AUDIO_FADE_INTERVAL_MS = PROGRAM_AUDIO_FADE_DURATION_MS / AUDIO_FADE_STEPS
 const REMOTE_LIVE_STATE_POLL_INTERVAL_MS = 250;
 const FILLER_MEDIA_ITEM_TYPES = new Set(["open_time", "sermon", "announcements"]);
 const FIXED_WELCOME_STAGE_TYPES = new Set(["welcome_montage", "welcome_countdown", "welcome_seated"]);
-const INLINE_EDIT_ITEM_TYPES = new Set([...FILLER_MEDIA_ITEM_TYPES, ...FIXED_WELCOME_STAGE_TYPES, "reading"]);
+const INLINE_EDIT_ITEM_TYPES = new Set([...FILLER_MEDIA_ITEM_TYPES, ...FIXED_WELCOME_STAGE_TYPES, "reading", "pre_service", "worship_set", "post_service", "custom"]);
 
 const EMPTY_ITEM_EDIT_DRAFT: { title: string; comment: string; planned_start: string; auto_collapse_items: boolean } & Required<PresentationOptions> = {
   title: "", comment: "", planned_start: "", auto_collapse_items: false,
@@ -134,7 +134,7 @@ const EMPTY_ITEM_EDIT_DRAFT: { title: string; comment: string; planned_start: st
   overlay_background_dim: 0, auto_advance: false, repeat: false, announcement_date: "",
   announcement_location: "", announcement_contact: "", announcement_url: "",
   announcement_layout: "split",
-  audio_scene_id: "", display_targets: ["church", "livestream"],
+  audio_scene_id: "", display_targets: ["church", "livestream"], end_after_section: false,
 };
 
 function outputOwnerId() {
@@ -1058,7 +1058,9 @@ export function PresentationView({
     try {
       const freshPlan = await getPlan(item.plan_id);
       const freshItem = freshPlan.items.find((candidate) => candidate.id === item.id) ?? item;
-      const requestedSection = sectionItem ?? (!item.parent_item_id ? item : null);
+      const requestedSection = sectionItem ?? (!item.parent_item_id
+        ? item
+        : freshPlan.items.find((candidate) => candidate.id === item.parent_item_id) ?? null);
       const freshSection = requestedSection
         ? freshPlan.items.find((candidate) => candidate.id === requestedSection.id) ?? requestedSection
         : null;
@@ -1506,10 +1508,19 @@ export function PresentationView({
 
   useEffect(() => {
     const selectedForAutoAdvance = autoAdvanceArmedSlideId === liveSlide?.id;
-    if ((!slideshowOpen && !selectedForAutoAdvance) || liveBlanked || !liveSlide?.autoAdvanceSeconds || liveIndex >= slides.length - 1) return undefined;
-    const timer = window.setTimeout(() => moveLive(1), Math.max(liveSlide.autoAdvanceSeconds, 1) * 1000);
+    if ((!slideshowOpen && !selectedForAutoAdvance) || liveBlanked || !liveSlide?.autoAdvanceSeconds) return undefined;
+    const nextSlide = slides[liveIndex + 1];
+    const endsHere = liveSlide.endAfterSection && nextSlide?.sectionId !== liveSlide.sectionId;
+    if (!endsHere && liveIndex >= slides.length - 1) return undefined;
+    const timer = window.setTimeout(() => {
+      if (endsHere) {
+        void closeActiveSlideshow().then(() => setMessage(`Service ended after ${liveSlide.sectionTitle}.`));
+      } else {
+        moveLive(1);
+      }
+    }, Math.max(liveSlide.autoAdvanceSeconds, 1) * 1000);
     return () => window.clearTimeout(timer);
-  }, [autoAdvanceArmedSlideId, liveBlanked, liveIndex, liveSlide?.autoAdvanceSeconds, liveSlide?.id, slideshowOpen, slides.length]);
+  }, [autoAdvanceArmedSlideId, liveBlanked, liveIndex, liveSlide?.autoAdvanceSeconds, liveSlide?.endAfterSection, liveSlide?.id, liveSlide?.sectionId, liveSlide?.sectionTitle, slideshowOpen, slides]);
 
   function sorterTargetForSlide(slide: PresentationSlide | null | undefined) {
     if (!slide) return null;
@@ -2346,6 +2357,7 @@ export function PresentationView({
           announcement_layout: itemEditDraft.announcement_layout,
           audio_scene_id: itemEditDraft.audio_scene_id || undefined,
           display_targets: itemEditDraft.display_targets,
+          end_after_section: fillerMediaSectionItem?.id === fillerMediaPlanItem.id ? itemEditDraft.end_after_section : undefined,
         },
       };
       if (fillerMediaSectionItem?.id === fillerMediaPlanItem.id) {
@@ -5802,6 +5814,10 @@ export function PresentationView({
                 <input checked={itemEditDraft.auto_collapse_items} disabled={fillerMediaBusy} onChange={(event) => setItemEditDraft((current) => ({ ...current, auto_collapse_items: event.target.checked }))} type="checkbox" />
                 <span>Auto-contract this section's items in every service</span>
               </label> : null}
+              {fillerMediaSectionItem?.id === fillerMediaPlanItem.id ? <label className="inline-checkbox wide-field">
+                <input checked={itemEditDraft.end_after_section} disabled={fillerMediaBusy} onChange={(event) => setItemEditDraft((current) => ({ ...current, end_after_section: event.target.checked }))} type="checkbox" />
+                <span>End the service when this section's final auto-advancing slide finishes</span>
+              </label> : null}
             </div>
             <details className="item-editor-fieldset item-editor-disclosure" open={itemEditorSection === "visual"}>
               <summary onClick={(event) => { event.preventDefault(); setItemEditorSection((current) => current === "visual" ? null : "visual"); }}>Visual presentation</summary>
@@ -5809,7 +5825,7 @@ export function PresentationView({
                 <label><span>Image fit</span><select disabled={fillerMediaBusy} onChange={(event) => setItemEditDraft((current) => ({ ...current, fit_mode: event.target.value as "contain" | "cover" }))} value={itemEditDraft.fit_mode}><option value="contain">Fit whole image</option><option value="cover">Fill and crop</option></select></label>
                 <label><span>Transition</span><select disabled={fillerMediaBusy} onChange={(event) => setItemEditDraft((current) => ({ ...current, transition: event.target.value as "fade" | "cut" | "slide" }))} value={itemEditDraft.transition}><option value="fade">Fade</option><option value="cut">Cut</option><option value="slide">Slide</option></select></label>
                 <label><span>Image dwell (seconds)</span><input disabled={fillerMediaBusy} min="1" onChange={(event) => setItemEditDraft((current) => ({ ...current, dwell_seconds: Number(event.target.value) }))} type="number" value={itemEditDraft.dwell_seconds} /></label>
-                <label className="inline-checkbox wide-field"><input checked={itemDefaultGroups.has("visual")} onChange={(event) => setItemDefaultGroups((current) => { const next = new Set(current); event.target.checked ? next.add("visual") : next.delete("visual"); return next; })} type="checkbox" /><span>Use these visual settings as the default for future {fillerMediaPlanItem.item_type.replace(/_/g, " ")} items</span></label>
+                {canAccessAdminTools ? <label className="inline-checkbox wide-field"><input checked={itemDefaultGroups.has("visual")} onChange={(event) => setItemDefaultGroups((current) => { const next = new Set(current); event.target.checked ? next.add("visual") : next.delete("visual"); return next; })} type="checkbox" /><span>Use these visual settings as the default for future {fillerMediaPlanItem.item_type.replace(/_/g, " ")} items</span></label> : null}
               </div>
             </details>
             <details className="item-editor-fieldset item-editor-disclosure" open={itemEditorSection === "playback"}>
@@ -5818,7 +5834,7 @@ export function PresentationView({
                 <label className="inline-checkbox"><input checked={itemEditDraft.auto_advance} disabled={fillerMediaBusy} onChange={(event) => setItemEditDraft((current) => ({ ...current, auto_advance: event.target.checked }))} type="checkbox" /><span>Advance automatically</span></label>
                 {itemEditDraft.auto_advance ? <label><span>Advance after (seconds)</span><input disabled={fillerMediaBusy} min="1" onChange={(event) => setItemEditDraft((current) => ({ ...current, auto_advance_seconds: Number(event.target.value) }))} type="number" value={itemEditDraft.auto_advance_seconds} /></label> : null}
                 {fillerMediaPlanItem.item_type === "open_time" ? <label className="inline-checkbox"><input checked={itemEditDraft.repeat} disabled={fillerMediaBusy} onChange={(event) => setItemEditDraft((current) => ({ ...current, repeat: event.target.checked }))} type="checkbox" /><span>Repeat montage</span></label> : null}
-                <label className="inline-checkbox wide-field"><input checked={itemDefaultGroups.has("playback")} onChange={(event) => setItemDefaultGroups((current) => { const next = new Set(current); event.target.checked ? next.add("playback") : next.delete("playback"); return next; })} type="checkbox" /><span>Use these timing settings as the type default</span></label>
+                {canAccessAdminTools ? <label className="inline-checkbox wide-field"><input checked={itemDefaultGroups.has("playback")} onChange={(event) => setItemDefaultGroups((current) => { const next = new Set(current); event.target.checked ? next.add("playback") : next.delete("playback"); return next; })} type="checkbox" /><span>Use these timing settings as the type default</span></label> : null}
               </div>
             </details>
             <details className="item-editor-fieldset item-editor-disclosure" open={itemEditorSection === "routing"}>
@@ -5827,7 +5843,7 @@ export function PresentationView({
                 <label><span>Audio scene</span><select disabled={fillerMediaBusy} onChange={(event) => setItemEditDraft((current) => ({ ...current, audio_scene_id: event.target.value }))} value={itemEditDraft.audio_scene_id}><option value="">{automaticAudioSceneLabel} (automatic)</option>{audioScenes.map((scene) => <option key={scene.id} value={scene.id}>{scene.label}</option>)}</select></label>
                 <label className="inline-checkbox"><input checked={itemEditDraft.display_targets.includes("church")} disabled={fillerMediaBusy} onChange={(event) => setItemEditDraft((current) => ({ ...current, display_targets: event.target.checked ? [...new Set([...current.display_targets, "church" as const])] : current.display_targets.filter((target) => target !== "church") }))} type="checkbox" /><span>Show on church displays</span></label>
                 <label className="inline-checkbox"><input checked={itemEditDraft.display_targets.includes("livestream")} disabled={fillerMediaBusy} onChange={(event) => setItemEditDraft((current) => ({ ...current, display_targets: event.target.checked ? [...new Set([...current.display_targets, "livestream" as const])] : current.display_targets.filter((target) => target !== "livestream") }))} type="checkbox" /><span>Show on livestream</span></label>
-                <label className="inline-checkbox wide-field"><input checked={itemDefaultGroups.has("routing")} onChange={(event) => setItemDefaultGroups((current) => { const next = new Set(current); event.target.checked ? next.add("routing") : next.delete("routing"); return next; })} type="checkbox" /><span>Use this scene and these destinations as the type default</span></label>
+                {canAccessAdminTools ? <label className="inline-checkbox wide-field"><input checked={itemDefaultGroups.has("routing")} onChange={(event) => setItemDefaultGroups((current) => { const next = new Set(current); event.target.checked ? next.add("routing") : next.delete("routing"); return next; })} type="checkbox" /><span>Use this scene and these destinations as the type default</span></label> : null}
               </div>
             </details>
             {FIXED_WELCOME_STAGE_TYPES.has(fillerMediaPlanItem.item_type) || FILLER_MEDIA_ITEM_TYPES.has(fillerMediaPlanItem.item_type) ? <details className="item-editor-fieldset item-editor-disclosure" open={itemEditorSection === "overlay"}>
@@ -5842,7 +5858,7 @@ export function PresentationView({
                 <label><span>Text box transparency ({100 - itemEditDraft.overlay_panel_opacity}%)</span><input disabled={fillerMediaBusy} max="100" min="0" onChange={(event) => setItemEditDraft((current) => ({ ...current, overlay_panel_opacity: Number(event.target.value) }))} type="range" value={itemEditDraft.overlay_panel_opacity} /></label>
                 <label><span>Background dimming ({itemEditDraft.overlay_background_dim}%)</span><input disabled={fillerMediaBusy} max="80" min="0" onChange={(event) => setItemEditDraft((current) => ({ ...current, overlay_background_dim: Number(event.target.value) }))} type="range" value={itemEditDraft.overlay_background_dim} /></label>
                 {itemEditDraft.overlay_mode === "countdown" ? <label><span>Countdown seconds</span><input min="1" onChange={(event) => setItemEditDraft((current) => ({ ...current, overlay_countdown_seconds: Number(event.target.value) }))} type="number" value={itemEditDraft.overlay_countdown_seconds} /></label> : null}
-                <label className="inline-checkbox wide-field"><input checked={itemDefaultGroups.has("overlay_style")} onChange={(event) => setItemDefaultGroups((current) => { const next = new Set(current); event.target.checked ? next.add("overlay_style") : next.delete("overlay_style"); return next; })} type="checkbox" /><span>Use this overlay style as the type default (overlay text remains item-specific)</span></label>
+                {canAccessAdminTools ? <label className="inline-checkbox wide-field"><input checked={itemDefaultGroups.has("overlay_style")} onChange={(event) => setItemDefaultGroups((current) => { const next = new Set(current); event.target.checked ? next.add("overlay_style") : next.delete("overlay_style"); return next; })} type="checkbox" /><span>Use this overlay style as the type default (overlay text remains item-specific)</span></label> : null}
               </div>
             </details> : null}
             {fillerMediaPlanItem.item_type === "announcements" ? <details className="item-editor-fieldset item-editor-disclosure" open={itemEditorSection === "announcement"}>

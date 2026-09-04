@@ -401,7 +401,11 @@ Section and child-item pencils share one native editor backed by the plan item's
 while child items exist. The editor exposes image dwell/fit, transition and
 auto-advance controls. Editors group visual, timing, routing, overlay and media
 settings into collapsible sections; reusable groups can be promoted to the
-current service type's defaults without copying item-specific text. Welcome,
+current service type's defaults by administrators without copying item-specific text. The Admin
+template editor exposes the same presentation settings, while service editors
+show only settings relevant to the selected section or item. A template section
+can auto-contract its children or end the live service when its final timed cue
+finishes. Welcome,
 Open time, Sermon and Announcements support styled static/countdown overlays;
 Announcements also add structured date, location, contact, URL and layout
 metadata; sermon/deck controls remain presentation-only so imported pixels are
@@ -411,6 +415,8 @@ the selected service type's `automation_start`, selects the current cumulative
 item cue, and activates that item's scene. The dedicated Service templates Admin
 tab owns this configuration. A legacy recurring schedule can still provide a
 fallback start and cleanup window, but no longer owns individual cue boundaries.
+Template automation is scoped to the plan's local service date and begins on its
+first configured cue at the exact automation start time.
 Starting slideshow is the human takeover signal. It starts the currently selected
 slide without blanking it and continues item-driven audio-scene selection.
 Stopping slideshow leaves the current slide visible without blanking it and returns

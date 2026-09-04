@@ -12745,6 +12745,14 @@ button.musician-page {
 .template-cue-controls select { min-height: 34px; padding: 5px 8px; }
 .template-cue-controls .toggle-row { align-items: center; align-self: end; display: flex; gap: 7px; min-height: 34px; white-space: nowrap; }
 .template-cue-controls .toggle-row input { min-height: 0; width: auto; }
+.template-section-options { align-items: center; display: flex; gap: 16px; margin: 7px 0 0 66px; }
+.template-section-options .toggle-row { align-items: center; color: #435149; display: flex; font-size: 11px; font-weight: 800; gap: 7px; }
+.template-section-options .toggle-row input { min-height: 0; width: auto; }
+.template-section-settings-toggle { margin-left: auto; }
+.template-section-settings-toggle[aria-expanded="true"] svg { transform: rotate(180deg); }
+.template-advanced-controls { border-top: 1px solid #ded7c5; grid-column: 1 / -1; margin-top: 2px; padding-top: 7px; }
+.template-advanced-controls > summary { color: #53615a; cursor: pointer; font-size: 11px; font-weight: 850; }
+.template-advanced-grid { align-items: end; display: grid; gap: 8px 12px; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); padding-top: 8px; }
 
 @media (max-width: 1200px) {
   .template-cue-controls { grid-template-columns: 58px repeat(3, minmax(130px, 1fr)); }
@@ -12752,7 +12760,6 @@ button.musician-page {
 }
 
 .template-add-child {
-  grid-column: 1 / -1;
   justify-self: start;
 }
 

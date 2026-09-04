@@ -8,7 +8,12 @@ from sqlalchemy.orm import Session
 from app.core.database import get_session
 from app.modules.broadcast.models import BroadcastViewerSettings
 from app.modules.broadcast.settings import DEFAULT_SERVICE_SCHEDULES, service_schedules
-from app.modules.identity.auth import list_role_names, require_any_permission, require_permission
+from app.modules.identity.auth import (
+    list_permissions,
+    list_role_names,
+    require_any_permission,
+    require_permission,
+)
 from app.modules.identity.models import User
 from app.modules.library.models import FileCategory, ItemFile, StoredFile
 from app.modules.planning.completion import require_plan_editable
@@ -761,6 +766,12 @@ def update_plan_item(
     payload_data = payload.model_dump(exclude_unset=True)
     teacher_notes = payload_data.pop("teacher_notes", None)
     default_groups = payload_data.pop("default_groups", [])
+
+    if default_groups and "users:manage" not in set(list_permissions(session, current_user.id)):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only administrators can change service template defaults",
+        )
 
     if presenter_cannot_change_outline(
         session, current_user, item
