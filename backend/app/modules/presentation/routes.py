@@ -263,6 +263,25 @@ def welcome_stage_at(now_local: datetime, rule: ServiceScheduleRule) -> tuple[st
     return "welcome_montage", "montage"
 
 
+def template_schedule_rule(
+    plan_type: PlanType, now_local: datetime, automation_start: str
+) -> ServiceScheduleRule:
+    """Build a valid template-only window with automation as its first boundary."""
+    configured_service_start = plan_type.starts_at or automation_start
+    service_start = max(automation_start, configured_service_start)
+    return ServiceScheduleRule(
+        id=f"template-{plan_type.id}",
+        name=plan_type.name,
+        plan_type=plan_type.name,
+        weekday=now_local.weekday(),
+        pre_service_start=automation_start,
+        countdown_start=service_start,
+        service_start=service_start,
+        cleanup_time="23:59",
+        enabled=True,
+    )
+
+
 def template_cue_at(
     session: Session, plan: Plan, now_local: datetime, automation_start: str
 ) -> tuple[PlanItem | None, str]:
@@ -347,13 +366,7 @@ def ensure_scheduled_pre_service(session: Session) -> None:
         automation_start = plan_type.automation_start or (legacy_rule.pre_service_start if legacy_rule else None)
         if not automation_start:
             continue
-        rule = legacy_rule or ServiceScheduleRule(
-            id=f"template-{plan_type.id}", name=plan_type.name, plan_type=plan_type.name,
-            weekday=now_local.weekday(), pre_service_start=automation_start,
-            countdown_start=plan_type.starts_at or automation_start,
-            service_start=plan_type.starts_at or automation_start,
-            cleanup_time="23:59", enabled=True,
-        )
+        rule = legacy_rule or template_schedule_rule(plan_type, now_local, automation_start)
         if schedule_time(now_local, automation_start) <= now_local <= schedule_time(now_local, rule.cleanup_time):
             scheduled = (plan, plan_type, rule)
             break
@@ -362,6 +375,7 @@ def ensure_scheduled_pre_service(session: Session) -> None:
     plan, plan_type, rule = scheduled
     ensure_welcome_stage_items(session, plan)
     automation_start = plan_type.automation_start or rule.pre_service_start
+    scheduled_run_id = f"{rule.id}:{now_local.date().isoformat()}:{automation_start}"
     plan_items = session.scalars(select(PlanItem).where(
         PlanItem.plan_id == plan.id, PlanItem.deleted_at.is_(None)
     )).all()
@@ -377,7 +391,8 @@ def ensure_scheduled_pre_service(session: Session) -> None:
     latest = _latest_session(session, plan.id)
     latest_position = _latest_position(session, latest.id) if latest else None
     latest_payload = _position_payload(latest_position)
-    if latest and (
+    same_scheduled_run = latest_payload.get("scheduled_run_id") == scheduled_run_id
+    if latest and same_scheduled_run and (
         latest_payload.get("manual_control") is True
         or (latest.status == "ended" and latest_payload.get("scheduled_stop") is True)
     ):
@@ -423,7 +438,8 @@ def ensure_scheduled_pre_service(session: Session) -> None:
                 desired_scene = _scene_for_item(desired_item, None, desired_stage)
                 if broadcast_settings.active_audio_scene != desired_scene:
                     activate_audio_scene(session, broadcast_settings, desired_scene)
-            position_changed = False
+            position_changed = payload.get("scheduled_run_id") != scheduled_run_id
+            payload["scheduled_run_id"] = scheduled_run_id
             if desired_item is not None and position.plan_item_id != desired_item.id:
                 position.plan_item_id = desired_item.id
                 position.slide_index = 0
@@ -492,6 +508,7 @@ def ensure_scheduled_pre_service(session: Session) -> None:
                     "fullscreen": False,
                     "auto_started": True,
                     "schedule_id": rule.id,
+                    "scheduled_run_id": scheduled_run_id,
                     "scheduled_window_start": int(
                         schedule_time(now_local, automation_start).timestamp() * 1000
                     ),

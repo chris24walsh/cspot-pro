@@ -423,6 +423,9 @@ the output window. The first presenter navigation or theme change explicitly
 claims the session from the scheduler, preventing the scheduled cue clock from
 overwriting manual control; stopping records suppression for the remainder of
 that scheduled run so polling cannot immediately recreate it.
+For template-only schedules, an automation time later than the service type's
+nominal start is treated as the effective start instead of producing an invalid
+legacy schedule; this keeps live-service discovery available to livestreams.
 Starting slideshow is the human takeover signal. It starts the currently selected
 slide without blanking it and continues item-driven audio-scene selection.
 Stopping slideshow leaves the current slide visible without blanking it and returns

@@ -27,8 +27,27 @@ from app.modules.presentation.routes import (
     update_presentation_output_status,
     welcome_stage_at,
     template_cue_at,
+    template_schedule_rule,
     _scene_for_item,
 )
+
+
+def test_template_schedule_uses_automation_start_when_default_start_is_earlier() -> None:
+    plan_type = PlanType(
+        id="midweek",
+        name="Midweek Test",
+        starts_at="10:30",
+        automation_start="11:56",
+        active=True,
+    )
+
+    rule = template_schedule_rule(
+        plan_type, datetime(2026, 9, 4, 11, 56, tzinfo=UTC), "11:56"
+    )
+
+    assert rule.pre_service_start == "11:56"
+    assert rule.countdown_start == "11:56"
+    assert rule.service_start == "11:56"
 
 
 def test_server_advances_expired_auto_slide_and_arms_the_next_one() -> None:
