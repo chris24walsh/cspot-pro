@@ -2220,7 +2220,11 @@ h3 {
 .plan-type-settings { display: grid; gap: 12px; }
 .plan-type-settings > label { color: #3b4741; display: grid; font-size: 12px; font-weight: 850; gap: 5px; }
 .plan-type-settings textarea { min-height: 70px; }
-.plan-type-outline-row { align-items: center; display: grid; gap: 7px; grid-template-columns: minmax(150px, 1fr) minmax(150px, 0.8fr) 34px 34px 34px; }
+.plan-type-outline { gap: 8px; }
+.plan-type-outline-row { min-width: 0; }
+.template-row-main { align-items: center; display: grid; gap: 8px; grid-template-columns: 58px minmax(180px, 1.2fr) minmax(180px, 0.95fr) auto; }
+.template-row-kind { color: #65736c; font-size: 10px; font-weight: 900; letter-spacing: 0.08em; text-transform: uppercase; }
+.template-row-actions { display: flex; gap: 5px; }
 .plan-type-outline-row input,
 .plan-type-outline-row select,
 .plan-type-settings > label > select,
@@ -12689,16 +12693,62 @@ button.musician-page {
 }
 
 .plan-type-outline-row.is-child {
+  background: #fffdf8;
+  border: 1px solid #ded7c5;
   border-left: 3px solid var(--accent);
-  margin-left: 1.5rem;
+  border-radius: 8px;
+  box-shadow: 0 1px 2px rgb(23 32 27 / 4%);
+  margin-left: 1rem;
+  padding: 9px 10px 8px;
+}
+
+.plan-type-outline-row.is-section {
+  background: #edf3ee;
+  border: 1px solid #c9d8cf;
+  border-radius: 9px;
+  margin-top: 6px;
+  padding: 9px 10px;
+}
+
+.plan-type-outline-row.is-section:first-child { margin-top: 0; }
+.plan-type-outline-row.is-section .template-row-kind { color: #245d4d; }
+.plan-type-outline-row.is-section .template-row-main > input {
+  background: transparent;
+  border-color: transparent;
+  font-weight: 850;
+}
+.plan-type-outline-row.is-section .template-row-main > input:focus { background: #fffdf7; border-color: #91aa9c; }
+.plan-type-outline-row .section-icon-button { min-height: 34px; min-width: 34px; }
+.plan-type-outline-row .section-icon-button:disabled { opacity: 0.32; }
+.field-unit { color: #768078; font-size: 10px; font-weight: 650; }
+
+@media (max-width: 900px) {
+  .template-row-main { grid-template-columns: 48px minmax(140px, 1fr) auto; }
+  .template-row-main > select { grid-column: 2 / 3; }
+  .template-row-actions { grid-column: 3; grid-row: 1 / span 2; }
 }
 
 .template-cue-controls {
+  align-items: end;
+  background: #f7f4ea;
+  border-radius: 6px;
   display: grid;
-  gap: 0.55rem;
-  grid-column: 1 / -1;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-  padding: 0.5rem 0;
+  gap: 8px 12px;
+  grid-template-columns: 58px minmax(110px, 0.7fr) minmax(120px, 0.8fr) minmax(130px, 0.8fr) minmax(145px, 1fr) minmax(130px, 0.8fr) minmax(110px, 0.7fr);
+  margin-top: 8px;
+  padding: 8px;
+}
+
+.template-controls-label { align-self: center; color: #65736c; font-size: 10px; font-weight: 900; letter-spacing: 0.08em; text-transform: uppercase; }
+.template-cue-controls label { color: #435149; display: grid; font-size: 11px; font-weight: 800; gap: 3px; min-width: 0; }
+.template-cue-controls input,
+.template-cue-controls select { min-height: 34px; padding: 5px 8px; }
+.template-cue-controls .toggle-row { align-items: center; align-self: end; display: flex; gap: 7px; min-height: 34px; white-space: nowrap; }
+.template-cue-controls .toggle-row input { min-height: 0; width: auto; }
+
+@media (max-width: 1200px) {
+  .template-cue-controls { grid-template-columns: 58px repeat(3, minmax(130px, 1fr)); }
+  .template-controls-label { grid-row: 1 / span 2; }
 }
 
 .template-add-child {
