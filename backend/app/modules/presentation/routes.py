@@ -41,6 +41,7 @@ class PresentationLiveStateRead(BaseModel):
     service_stage: str = "ready"
     pre_service_phase: str | None = None
     auto_started: bool = False
+    worship_coupled: bool = False
 
 
 class PresentationLiveStateWrite(BaseModel):
@@ -56,6 +57,7 @@ class PresentationLiveStateWrite(BaseModel):
     video_action_at: int | None = None
     service_stage: str = "ready"
     pre_service_phase: str | None = None
+    worship_coupled: bool | None = None
 
 
 class PresentationOutputStatusRead(BaseModel):
@@ -579,6 +581,7 @@ def _serialize_live_state(
         if isinstance(payload.get("pre_service_phase"), str)
         else None,
         auto_started=payload.get("auto_started") is True,
+        worship_coupled=payload.get("worship_coupled") is True,
     )
 
 
@@ -901,7 +904,9 @@ def update_presentation_live_state(
     previous_slide_offset = existing_payload.get("slide_offset", 0)
     now = int(datetime.now(UTC).timestamp() * 1000)
     output_active = _serialize_output_status(plan_id, position, now).active
-    next_payload = {**existing_payload, **payload.model_dump()}
+    next_payload = {**existing_payload, **payload.model_dump(exclude={"worship_coupled"})}
+    if payload.worship_coupled is not None:
+        next_payload["worship_coupled"] = payload.worship_coupled
     selection_changed = (
         existing_payload.get("plan_item_id") != payload.plan_item_id
         or int(existing_payload.get("slide_offset", 0)) != payload.slide_offset

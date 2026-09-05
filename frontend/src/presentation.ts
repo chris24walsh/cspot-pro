@@ -22,6 +22,7 @@ export interface PresentationLiveState {
   serviceStage?: "pre_service" | "ready" | "service" | "post_service";
   preServicePhase?: "waiting" | "montage" | "countdown" | "complete" | null;
   autoStarted?: boolean;
+  worshipCoupled?: boolean;
 }
 
 export interface PresentationSlide {

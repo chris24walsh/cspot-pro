@@ -427,6 +427,11 @@ the configured inputs and include a separate `room_media_enabled` decision.
 The seeded Pre-service scene sends PC music to livestream/recording while
 keeping it out of the room; the seeded Post-service scene also enables room
 playback. Scene activation follows item selection, including automatic cues.
+Backing-audio playback is owned by each song item and uses the shared live
+presentation media command, so Service Live and Worship Live show and control
+the same playback state. Administrators can persistently couple Worship Live
+navigation to Service Live (jumping to the first worship item) or decouple it
+(jumping the service to the first section after worship).
 Section and child-item pencils share one native editor backed by the plan item's
 `presentation_options` JSON. Section images are fallback content and are omitted
 while child items exist. The editor exposes image dwell/fit, transition and

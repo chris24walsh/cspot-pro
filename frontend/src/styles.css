@@ -3123,7 +3123,9 @@ h3 {
   justify-content: flex-end;
 }
 
-.musician-edit-button {
+.musician-edit-button,
+.musician-audio-button,
+.musician-service-couple-button {
   align-items: center;
   background: #fffefa;
   border: 1px solid #cfc7b4;
@@ -3137,9 +3139,14 @@ h3 {
   white-space: nowrap;
 }
 
-.musician-edit-button:not(:disabled) {
+.musician-edit-button:not(:disabled),
+.musician-audio-button:not(:disabled),
+.musician-service-couple-button:not(:disabled) {
   cursor: pointer;
 }
+.musician-audio-button:disabled { cursor: not-allowed; opacity: .45; }
+.musician-audio-button.is-active,
+.musician-service-couple-button.is-active { background: #dcefe6; border-color: #8ebba9; color: #173f34; }
 
 .musician-song-navigation {
   background: #f7f3e8;

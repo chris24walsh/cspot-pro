@@ -1899,6 +1899,7 @@ export function WorshipBuilderView({ active = true, canAccessAdminTools, canArch
       <>
         <section className="worship-live-shell" aria-label="Musician live worship">
           <MusicianLiveView
+            canCoupleService={canAccessAdminTools}
             controlPlanId={liveControlPlanId}
             onEditSong={openSongEditor}
             onExit={() => setViewMode("builder")}

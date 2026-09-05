@@ -337,6 +337,7 @@ export interface PresentationLiveSyncState {
   service_stage?: "pre_service" | "ready" | "service" | "post_service";
   pre_service_phase?: "waiting" | "montage" | "countdown" | "complete" | null;
   auto_started?: boolean;
+  worship_coupled?: boolean;
 }
 
 export interface PresentationLiveService {
@@ -1132,6 +1133,7 @@ export async function updatePresentationLiveState(
     video_action_at?: number | null;
     service_stage?: "pre_service" | "ready" | "service" | "post_service";
     pre_service_phase?: "waiting" | "montage" | "countdown" | "complete" | null;
+    worship_coupled?: boolean;
   },
 ): Promise<PresentationLiveSyncState> {
   return sendJson<PresentationLiveSyncState>(`/api/v1/presentation/live/${planId}`, "PATCH", payload, {

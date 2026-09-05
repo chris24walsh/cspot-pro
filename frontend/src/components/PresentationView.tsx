@@ -1312,6 +1312,8 @@ export function PresentationView({
     lastLiveStateRef.current = state.updatedAt;
     setSlideTheme(state.theme ?? "light");
     setLiveBlanked(Boolean(state.blanked));
+    if (state.videoAction === "play" && state.planItemId) setPlayingAudioSectionId(state.planItemId);
+    if (["pause", "stop", "fade-stop"].includes(state.videoAction ?? "")) setPlayingAudioSectionId(null);
     const nextIndex = resolveLiveIndex(slides, state);
     setLiveIndex(nextIndex);
     setAutoAdvanceArmedSlideId(slides[nextIndex]?.id ?? null);
@@ -5285,7 +5287,7 @@ export function PresentationView({
                         {groupItems.map((item, itemIndex) => {
                           const itemSlideIndex = slides.findIndex((slide) => slide.planItemId === item.id);
                           const itemHasOwnAudio = Boolean(item.presentation_options?.backing_audio_id);
-                          const itemAudioOwner = sectionItem?.presentation_options?.backing_audio_id ? section : {
+                          const itemAudioOwner = {
                             id: item.id,
                             slides: section.slides.filter((slide) => slide.planItemId === item.id),
                           };
@@ -5296,7 +5298,7 @@ export function PresentationView({
                               <button onClick={() => itemSlideIndex >= 0 && selectSlideFromOperator(itemSlideIndex)} type="button">
                                 <span>{itemIndex + 1}</span><strong>{item.title}</strong>
                               </button>
-                              {(sectionItem?.presentation_options?.backing_audio_id || itemHasOwnAudio) && section.slides.some((slide) => slide.planItemId === item.id && slide.youtubeAudioUrl) ? (
+                              {item.song_id && itemHasOwnAudio && section.slides.some((slide) => slide.planItemId === item.id && slide.youtubeAudioUrl) ? (
                                 <button
                                   aria-label={`${itemAudioPlaying ? "Fade out" : "Play"} YouTube audio for ${item.title}`}
                                   aria-pressed={itemAudioPlaying}
