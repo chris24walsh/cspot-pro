@@ -821,6 +821,8 @@ Search modes:
   Stashes are archived worship-set plans exposed with their ordered song items for
   preview. Applying one first stashes the current set, then copies the selected
   stash into the fresh plan on the current date; the source stash remains reusable.
+  Editors with plan-delete permission can also permanently delete a stash from
+  its preview after confirmation.
 - Migration `0031_remove_empty_ends` removes legacy End slides only when they
   are the sole active item in an otherwise empty service; populated services
   and their intentional End slides are preserved.

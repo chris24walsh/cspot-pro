@@ -1100,6 +1100,10 @@ export async function getStashedWorshipSets(): Promise<StashedWorshipSet[]> {
   return getJson<StashedWorshipSet[]>("/api/v1/planning/plans/stashed-worship-sets");
 }
 
+export async function deleteStashedWorshipSet(planId: string): Promise<void> {
+  return deleteRequest(`/api/v1/planning/plans/${planId}/stash`);
+}
+
 export async function getWorshipLeaderAssignments(): Promise<WorshipLeaderAssignment[]> {
   return getJson<WorshipLeaderAssignment[]>("/api/v1/planning/worship-leader-assignments");
 }

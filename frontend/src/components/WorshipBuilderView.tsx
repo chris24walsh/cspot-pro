@@ -10,6 +10,7 @@ import {
   deletePlan,
   deletePlanItem,
   deleteSong,
+  deleteStashedWorshipSet,
   getPlan,
   getPlanHistory,
   getPlanTypes,
@@ -1144,6 +1145,29 @@ export function WorshipBuilderView({ active = true, canAccessAdminTools, canArch
     }
   }
 
+  async function removeStashedWorshipSet(stash: StashedWorshipSet) {
+    if (!canDeletePlan || editHistoryApplying) return;
+    const confirmed = await confirm({
+      confirmLabel: "Delete stash",
+      message: `Permanently delete the stashed worship set “${stash.title}”? This cannot be undone.`,
+      title: "Delete Stashed Set",
+      tone: "danger",
+    });
+    if (!confirmed) return;
+    setEditHistoryApplying(true);
+    try {
+      await deleteStashedWorshipSet(stash.id);
+      const remaining = stashedSets.filter((candidate) => candidate.id !== stash.id);
+      setStashedSets(remaining);
+      setSelectedStashId(null);
+      setMessage(`Deleted stash “${stash.title}”.`);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not delete the stashed worship set.");
+    } finally {
+      setEditHistoryApplying(false);
+    }
+  }
+
   async function undoArchivedWorshipSet() {
     if (!archivedSetUndo) return;
     try {
@@ -2103,7 +2127,10 @@ export function WorshipBuilderView({ active = true, canAccessAdminTools, canArch
                               <button className="section-icon-button" onClick={() => setSelectedStashId(null)} type="button" aria-label="Close stash preview"><X size={14} aria-hidden="true" /></button>
                             </div>
                             <ol>{stashSongs.map((item) => <li key={item.id}>{item.title}{item.key_signature ? <small> · {item.key_signature}</small> : null}</li>)}</ol>
-                            {canDeletePlan ? <button className="primary-button" disabled={editHistoryApplying} onClick={() => void applyStashedWorshipSet(stash)} type="button">Apply to current date</button> : null}
+                            {canDeletePlan ? <div className="worship-stash-preview-actions">
+                              <button className="text-button danger-button" disabled={editHistoryApplying} onClick={() => void removeStashedWorshipSet(stash)} type="button"><Trash2 size={14} aria-hidden="true" /> Delete stash</button>
+                              <button className="primary-button" disabled={editHistoryApplying} onClick={() => void applyStashedWorshipSet(stash)} type="button">Apply to current date</button>
+                            </div> : null}
                           </aside>;
                         })() : null}
                       </div>

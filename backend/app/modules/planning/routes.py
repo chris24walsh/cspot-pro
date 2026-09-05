@@ -785,6 +785,24 @@ def restore_plan(
     return plan_to_detail(session, plan, list(items))
 
 
+@router.delete("/plans/{plan_id}/stash", status_code=status.HTTP_204_NO_CONTENT)
+def delete_stashed_worship_set(
+    plan_id: str,
+    current_user: User = Depends(require_permission("plans:delete")),
+    session: Session = Depends(get_session),
+) -> Response:
+    plan = session.get(Plan, plan_id)
+    if plan is None or plan.deleted_at is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Stash not found")
+    plan_type = session.get(PlanType, plan.plan_type_id)
+    if plan_type is None or plan_type.name != "Worship Set":
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Stash not found")
+    require_plan_editable(session, plan, current_user)
+    session.delete(plan)
+    session.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
 @router.post(
     "/plans/{plan_id}/items",
     response_model=PlanItemRead,

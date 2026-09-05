@@ -459,6 +459,20 @@ button {
   padding: 4px 0;
 }
 
+.worship-stash-preview-actions {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+  justify-content: space-between;
+}
+
+.worship-stash-preview-actions .danger-button {
+  align-items: center;
+  color: #9b2c2c;
+  display: inline-flex;
+  gap: 5px;
+}
+
 @media (max-width: 620px) {
   .worship-history-popover {
     min-width: min(360px, calc(100vw - 16px));

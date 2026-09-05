@@ -13,6 +13,7 @@ from app.modules.planning.reference_data import ensure_worship_set_plan_type
 from app.modules.planning.routes import (
     create_plan,
     create_plan_item,
+    delete_stashed_worship_set,
     get_plan,
     list_stashed_worship_sets,
     plan_item_to_read,
@@ -123,6 +124,32 @@ def test_stashed_worship_sets_returns_only_archived_worship_sets_with_items() ->
     assert [result.id for result in results] == [stashed.id]
     assert [item.title for item in results[0].items] == ["First song"]
     assert results[0].stashed_at.date().isoformat() == "2026-08-10"
+
+
+def test_delete_stashed_worship_set_permanently_removes_archive() -> None:
+    engine = create_engine("sqlite://")
+    Base.metadata.create_all(engine)
+
+    with Session(engine) as session:
+        worship_type = PlanType(name="Worship Set", active=True)
+        session.add(worship_type)
+        session.flush()
+        stash = Plan(
+            plan_type_id=worship_type.id,
+            service_date=datetime(2026, 8, 9, tzinfo=UTC),
+            title="Disposable stash",
+            status="draft",
+            deleted_at=datetime(2026, 8, 10, tzinfo=UTC),
+        )
+        session.add(stash)
+        session.commit()
+        stash_id = stash.id
+
+        with patch("app.modules.planning.routes.require_plan_editable"):
+            response = delete_stashed_worship_set(stash_id, None, session)  # type: ignore[arg-type]
+
+        assert response.status_code == 204
+        assert session.get(Plan, stash_id) is None
 
 
 def test_get_plan_does_not_materialize_an_empty_outline() -> None:
