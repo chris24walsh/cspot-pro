@@ -44,6 +44,7 @@ import {
   stopBroadcastRecording,
   uploadStoredFile,
   updatePlan,
+  updatePlanType,
   updateSong,
   restoreSong,
   restorePlan,
@@ -1087,7 +1088,7 @@ export function PresentationView({
         ...freshItem.presentation_options,
         title: freshItem.title,
         comment: freshItem.comment ?? "",
-        planned_start: freshItem.parent_item_id ? (freshItem.planned_start ?? "") : (plan?.queued_start ?? ""),
+        planned_start: freshItem.parent_item_id ? (freshItem.planned_start ?? "") : (freshPlan.queued_start ?? ""),
         auto_collapse_items: Boolean(freshSection?.auto_collapse_items),
       });
       setFillerMediaPlanItemId(freshItem.id);
@@ -2400,6 +2401,9 @@ export function PresentationView({
       };
       if (fillerMediaSectionItem?.id === fillerMediaPlanItem.id) {
         if (plan) await updatePlan(plan.id, { queued_start: itemEditDraft.planned_start || null });
+        if (canAccessAdminTools && currentPlanType && fillerMediaPlanItem.id === effectivePlanItems.find((item) => !item.parent_item_id)?.id) {
+          await updatePlanType(currentPlanType.id, { automation_start: itemEditDraft.planned_start || null, starts_at: itemEditDraft.planned_start || null });
+        }
         await updatePlanItem(fillerMediaPlanItem.id, { ...details, auto_collapse_items: itemEditDraft.auto_collapse_items });
       } else {
         await Promise.all([
@@ -5900,7 +5904,7 @@ export function PresentationView({
             <details className="item-editor-fieldset item-editor-disclosure" open={itemEditorSection === "playback"}>
               <summary onClick={(event) => { event.preventDefault(); setItemEditorSection((current) => current === "playback" ? null : "playback"); }}>Timing</summary>
               <div className="form-grid item-details-grid">
-                {fillerMediaSectionItem?.id === fillerMediaPlanItem.id ? <><label className="inline-checkbox wide-field"><input type="checkbox" checked={Boolean(itemEditDraft.planned_start)} disabled={fillerMediaBusy} onChange={(event) => setItemEditDraft((current) => ({ ...current, planned_start: event.target.checked ? (currentPlanType?.automation_start ?? currentPlanType?.starts_at ?? "10:30") : "" }))} /><span>Queue this service to start automatically</span></label>
+                {fillerMediaSectionItem?.id === fillerMediaPlanItem.id && fillerMediaPlanItem.id === effectivePlanItems.find((item) => !item.parent_item_id)?.id ? <><label className="inline-checkbox wide-field"><input type="checkbox" checked={Boolean(itemEditDraft.planned_start)} disabled={fillerMediaBusy} onChange={(event) => setItemEditDraft((current) => ({ ...current, planned_start: event.target.checked ? (currentPlanType?.automation_start ?? currentPlanType?.starts_at ?? "10:30") : "" }))} /><span>Queue this service to start automatically</span></label>
                 {itemEditDraft.planned_start ? <label>Queued start<input type="time" required disabled={fillerMediaBusy} value={itemEditDraft.planned_start} onChange={(event) => setItemEditDraft((current) => ({ ...current, planned_start: event.target.value }))} /></label> : null}
                 <label className="inline-checkbox wide-field"><input checked={itemEditDraft.end_after_section} disabled={fillerMediaBusy} onChange={(event) => setItemEditDraft((current) => ({ ...current, end_after_section: event.target.checked }))} type="checkbox" /><span>End the service when this section's final auto-advancing slide finishes</span></label></> : null}
                 <label className="inline-checkbox"><input checked={itemEditDraft.auto_advance} disabled={fillerMediaBusy} onChange={(event) => setItemEditDraft((current) => ({ ...current, auto_advance: event.target.checked }))} type="checkbox" /><span>Advance automatically</span></label>

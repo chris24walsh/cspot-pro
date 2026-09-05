@@ -1,5 +1,6 @@
 import json
 from datetime import UTC, date, datetime
+from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy import func, or_, select
@@ -51,6 +52,7 @@ from app.modules.planning.service_scaffold import (
 )
 
 router = APIRouter()
+SERVICE_TIME_ZONE = ZoneInfo("Europe/Dublin")
 PLAN_HISTORY_ACTION = "item_snapshot"
 PLAN_HISTORY_ENTITY_TYPE = "plan"
 PLAN_HISTORY_LIMIT = 80
@@ -437,8 +439,7 @@ def update_plan_type(
             Plan.service_date >= datetime.now(UTC),
         )).all()
         for future_plan in future_plans:
-            if future_plan.queued_start in {None, old_queue_start}:
-                future_plan.queued_start = new_queue_start
+            future_plan.queued_start = new_queue_start
     if plan_type.name != old_name:
         settings = session.scalar(select(BroadcastViewerSettings).limit(1))
         if settings is not None:
@@ -568,6 +569,16 @@ def add_missing_service_sections(
 ) -> PlanDetail:
     plan = get_plan_or_404(session, plan_id)
     require_plan_editable(session, plan, current_user)
+    if "queued_start" in payload.model_fields_set and payload.queued_start:
+        now_local = datetime.now(SERVICE_TIME_ZONE)
+        service_day = plan.service_date.astimezone(SERVICE_TIME_ZONE).date()
+        queued_hour, queued_minute = (int(part) for part in payload.queued_start.split(":"))
+        queued_at = now_local.replace(hour=queued_hour, minute=queued_minute, second=0, microsecond=0)
+        if service_day < now_local.date() or (service_day == now_local.date() and queued_at <= now_local):
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="Queued start must be in the future for today's service",
+            )
     ensure_service_scaffold(session, plan)
     items = list(
         session.scalars(

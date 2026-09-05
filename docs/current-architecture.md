@@ -405,7 +405,11 @@ has one authoritative `queued_start`, initially copied from its service type's
 `automation_start`. Changing the template start updates future plans which have
 not received a dated override; changing it in the service editor updates that
 same plan field. Durations and `auto_advance` behavior live on child items and
-cannot create competing service starts. The scheduler resolves the current cue from cumulative item durations,
+cannot create competing service starts. A newly activated queue always begins
+at the first cue, records its actual activation time, and resolves later cues
+from durations elapsed since that activation. Legacy item start fields do not
+skip ahead within the service, and a same-day queue cannot be newly set to an
+already-past time. The scheduler resolves the current cue from cumulative item durations,
 so it can recover correctly after a restart without separate Welcome/countdown
 clocks. Old service-schedule records and `pre_service_phase` remain readable as
 compatibility fallbacks for services not yet using item cues.

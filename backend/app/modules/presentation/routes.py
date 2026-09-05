@@ -283,10 +283,15 @@ def template_schedule_rule(
 
 
 def template_cue_at(
-    session: Session, plan: Plan, now_local: datetime, automation_start: str
+    session: Session,
+    plan: Plan,
+    now_local: datetime,
+    automation_start: str,
+    *,
+    run_started_at: datetime | None = None,
 ) -> tuple[PlanItem | None, str]:
     """Resolve a template's self-timed opening cue chain from its one start time."""
-    started_at = schedule_time(now_local, automation_start)
+    started_at = run_started_at or schedule_time(now_local, automation_start)
     elapsed = max(0, int((now_local - started_at).total_seconds()))
     items = list(session.scalars(select(PlanItem).where(
         PlanItem.plan_id == plan.id, PlanItem.deleted_at.is_(None)
@@ -302,25 +307,7 @@ def template_cue_at(
     if not ordered:
         return None, "service"
     item_by_id = {item.id: item for item in items}
-    # A dated start is an anchor: it can resume after an earlier manual-duration cue.
-    due = []
-    starts_by_item: dict[str, str] = {}
     for index, item in enumerate(ordered):
-        root = item_by_id.get(item.parent_item_id) if item.parent_item_id else item
-        first_in_section = index == 0 or ordered[index - 1].parent_item_id != item.parent_item_id
-        start = item.planned_start or (root.planned_start if root and first_in_section else None)
-        if start:
-            starts_by_item[item.id] = start
-            if schedule_time(now_local, start) <= now_local:
-                due.append((schedule_time(now_local, start), index))
-    if due:
-        anchor, start_index = max(due)
-        elapsed = max(0, int((now_local - anchor).total_seconds()))
-        ordered = ordered[start_index:]
-    for index, item in enumerate(ordered):
-        start = starts_by_item.get(item.id)
-        if index and start and schedule_time(now_local, start) > now_local:
-            return ordered[index - 1], "pre_service"
         options = item.presentation_options or {}
         if not options.get("auto_advance"):
             return item, "service" if index else "pre_service"
@@ -400,18 +387,20 @@ def ensure_scheduled_pre_service(session: Session) -> None:
     plan_items = session.scalars(select(PlanItem).where(
         PlanItem.plan_id == plan.id, PlanItem.deleted_at.is_(None)
     )).all()
+    latest = _latest_session(session, plan.id)
+    latest_position = _latest_position(session, latest.id) if latest else None
+    latest_payload = _position_payload(latest_position)
+    actual_start_ms = latest_payload.get("scheduled_actual_started_at")
+    actual_start = datetime.fromtimestamp(actual_start_ms / 1000, SERVICE_TIME_ZONE) if isinstance(actual_start_ms, int | float) else now_local
     has_item_cues = any(item.planned_start or (item.presentation_options or {}).get("auto_advance") for item in plan_items)
     if has_item_cues:
-        desired_item, desired_stage = template_cue_at(session, plan, now_local, automation_start)
+        desired_item, desired_stage = template_cue_at(session, plan, now_local, automation_start, run_started_at=actual_start)
         desired_phase = None
     else:
         desired_item_type, desired_phase = welcome_stage_at(now_local, rule)
         desired_item = session.scalar(select(PlanItem).where(PlanItem.plan_id == plan.id, PlanItem.item_type == desired_item_type, PlanItem.deleted_at.is_(None)))
         desired_stage = "ready" if now_local >= schedule_time(now_local, rule.service_start) else "pre_service"
     cleanup_live_sessions(session, active_plan_id=plan.id)
-    latest = _latest_session(session, plan.id)
-    latest_position = _latest_position(session, latest.id) if latest else None
-    latest_payload = _position_payload(latest_position)
     same_scheduled_run = latest_payload.get("scheduled_run_id") == scheduled_run_id
     if latest and same_scheduled_run and (
         latest_payload.get("manual_control") is True
@@ -530,6 +519,7 @@ def ensure_scheduled_pre_service(session: Session) -> None:
                     "auto_started": True,
                     "schedule_id": rule.id,
                     "scheduled_run_id": scheduled_run_id,
+                    "scheduled_actual_started_at": now_ms,
                     "scheduled_window_start": int(
                         schedule_time(now_local, automation_start).timestamp() * 1000
                     ),

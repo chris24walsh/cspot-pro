@@ -908,7 +908,7 @@ def test_live_state_only_schedules_real_sermon_slide_changes(monkeypatch) -> Non
     assert scheduled == [("sermon-a", "sermon-a", 3)]
 
 
-def test_dated_section_start_resumes_after_manual_cue() -> None:
+def test_dated_section_start_does_not_override_service_queue() -> None:
     engine = create_engine("sqlite://")
     Base.metadata.create_all(engine)
     with Session(engine) as session:
@@ -926,10 +926,11 @@ def test_dated_section_start_resumes_after_manual_cue() -> None:
         session.add(child)
         session.commit()
         assert template_cue_at(session, plan, datetime(2026, 9, 6, 19, 29, tzinfo=UTC), "19:00")[0].id == first.id
-        assert template_cue_at(session, plan, datetime(2026, 9, 6, 19, 30, tzinfo=UTC), "19:00")[0].id == child.id
+        assert template_cue_at(session, plan, datetime(2026, 9, 6, 19, 30, tzinfo=UTC), "19:00")[0].id == first.id
         first.presentation_options = {"auto_advance": True, "auto_advance_seconds": 10}
         session.flush()
-        assert template_cue_at(session, plan, datetime(2026, 9, 6, 19, 29, tzinfo=UTC), "19:00")[0].id == first.id
+        now = datetime(2026, 9, 6, 19, 29, tzinfo=UTC)
+        assert template_cue_at(session, plan, now, "19:00", run_started_at=now)[0].id == first.id
 
 
 def test_scheduler_never_starts_a_worship_set_plan() -> None:
