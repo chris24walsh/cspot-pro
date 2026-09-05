@@ -382,11 +382,10 @@ def ensure_scheduled_pre_service(session: Session) -> None:
     scheduled = None
     for plan, plan_type in candidates:
         legacy_rule = next((rule for rule in rules if rule.plan_type == plan_type.name), None)
-        dated_starts = list(session.scalars(select(PlanItem.planned_start).where(
-            PlanItem.plan_id == plan.id, PlanItem.deleted_at.is_(None), PlanItem.planned_start.is_not(None)
-        )).all())
-        starts = [value for value in [plan_type.automation_start or (legacy_rule.pre_service_start if legacy_rule else None), *dated_starts] if value]
-        automation_start = min(starts) if starts else None
+        # Every dated service owns exactly one queue time. Template and legacy
+        # schedule values are defaults only; item cue times must never create a
+        # second presentation session or move the service window earlier.
+        automation_start = plan.queued_start
         if not automation_start:
             continue
         rule = legacy_rule or template_schedule_rule(plan_type, now_local, automation_start)

@@ -1087,7 +1087,7 @@ export function PresentationView({
         ...freshItem.presentation_options,
         title: freshItem.title,
         comment: freshItem.comment ?? "",
-        planned_start: freshItem.planned_start ?? "",
+        planned_start: freshItem.parent_item_id ? (freshItem.planned_start ?? "") : (plan?.queued_start ?? ""),
         auto_collapse_items: Boolean(freshSection?.auto_collapse_items),
       });
       setFillerMediaPlanItemId(freshItem.id);
@@ -2367,13 +2367,13 @@ export function PresentationView({
       const details = {
         ...(title !== fillerMediaPlanItem.title ? { title } : {}),
         ...(fillerMediaPlanItem.item_type === "announcements" ? { comment: itemEditDraft.comment.trim() || null } : {}),
-        planned_start: itemEditDraft.planned_start || null,
+        ...(fillerMediaPlanItem.parent_item_id ? { planned_start: fillerMediaPlanItem.planned_start ?? null } : {}),
         save_template: saveItemTemplate,
         presentation_options: {
           ...fillerMediaPlanItem.presentation_options,
           backing_audio_id: itemEditDraft.backing_audio_id,
           stop_backing_audio: itemEditDraft.stop_backing_audio,
-          scheduled_start: itemEditDraft.planned_start,
+          scheduled_start: fillerMediaPlanItem.parent_item_id ? fillerMediaPlanItem.planned_start ?? "" : undefined,
           dwell_seconds: Number(itemEditDraft.dwell_seconds) || 8,
           auto_advance_seconds: Number(itemEditDraft.auto_advance_seconds) || 8,
           transition: itemEditDraft.transition,
@@ -2399,6 +2399,7 @@ export function PresentationView({
         },
       };
       if (fillerMediaSectionItem?.id === fillerMediaPlanItem.id) {
+        if (plan) await updatePlan(plan.id, { queued_start: itemEditDraft.planned_start || null });
         await updatePlanItem(fillerMediaPlanItem.id, { ...details, auto_collapse_items: itemEditDraft.auto_collapse_items });
       } else {
         await Promise.all([
@@ -5021,19 +5022,6 @@ export function PresentationView({
                         <span>Edit</span>
                       </button>
                     ) : null}
-                    {canManagePreServiceMedia && section.itemType === "pre_service" ? (
-                      <button
-                        aria-label="Manage pre-service montage photos"
-                        className="section-icon-button section-edit-button"
-                        disabled={fillerMediaBusy || !preServicePlanItem}
-                        onClick={() => preServicePlanItem && openPlanItemEditor(preServicePlanItem, sectionItem)}
-                        title="Manage pre-service montage photos"
-                        type="button"
-                      >
-                        <Pencil size={14} aria-hidden="true" />
-                        <span>Edit</span>
-                      </button>
-                    ) : null}
                   </div> : null}
                   {sectionRenderError ? <p className="render-error-message">{sectionRenderError}</p> : null}
                   {showSlideTiles ? (
@@ -5908,35 +5896,29 @@ export function PresentationView({
                 <input disabled={fillerMediaBusy} onChange={(event) => setItemEditDraft((current) => ({ ...current, title: event.target.value }))} value={itemEditDraft.title} />
               </label>
               {fillerMediaPlanItem.item_type === "announcements" ? <label className="wide-field"><span>Announcement text <small>(optional)</small></span><textarea disabled={fillerMediaBusy} onChange={(event) => setItemEditDraft((current) => ({ ...current, comment: event.target.value }))} rows={3} value={itemEditDraft.comment} /></label> : null}
-              {fillerMediaSectionItem ? <label className="inline-checkbox wide-field">
-                <input checked={itemEditDraft.auto_collapse_items} disabled={fillerMediaBusy} onChange={(event) => setItemEditDraft((current) => ({ ...current, auto_collapse_items: event.target.checked }))} type="checkbox" />
-                <span>Auto-contract this section’s items</span>
-              </label> : null}
-              {fillerMediaSectionItem?.id === fillerMediaPlanItem.id ? <label className="inline-checkbox wide-field">
-                <input checked={itemEditDraft.end_after_section} disabled={fillerMediaBusy} onChange={(event) => setItemEditDraft((current) => ({ ...current, end_after_section: event.target.checked }))} type="checkbox" />
-                <span>End the service when this section's final auto-advancing slide finishes</span>
-              </label> : null}
             </div>
-            <details className="item-editor-fieldset item-editor-disclosure" open={itemEditorSection === "visual"}>
-              <summary onClick={(event) => { event.preventDefault(); setItemEditorSection((current) => current === "visual" ? null : "visual"); }}>Visual presentation</summary>
-              <div className="form-grid item-details-grid">
-                <label><span>Image fit</span><select disabled={fillerMediaBusy} onChange={(event) => setItemEditDraft((current) => ({ ...current, fit_mode: event.target.value as "contain" | "cover" }))} value={itemEditDraft.fit_mode}><option value="contain">Fit whole image</option><option value="cover">Fill and crop</option></select></label>
-                <label><span>Transition</span><select disabled={fillerMediaBusy} onChange={(event) => setItemEditDraft((current) => ({ ...current, transition: event.target.value as "fade" | "cut" | "slide" }))} value={itemEditDraft.transition}><option value="fade">Fade</option><option value="cut">Cut</option><option value="slide">Slide</option></select></label>
-                <label><span>Image dwell (seconds)</span><input disabled={fillerMediaBusy} min="1" onChange={(event) => setItemEditDraft((current) => ({ ...current, dwell_seconds: Number(event.target.value) }))} type="number" value={itemEditDraft.dwell_seconds} /></label>
-              </div>
-            </details>
             <details className="item-editor-fieldset item-editor-disclosure" open={itemEditorSection === "playback"}>
-              <summary onClick={(event) => { event.preventDefault(); setItemEditorSection((current) => current === "playback" ? null : "playback"); }}>Timing and playback</summary>
+              <summary onClick={(event) => { event.preventDefault(); setItemEditorSection((current) => current === "playback" ? null : "playback"); }}>Timing</summary>
               <div className="form-grid item-details-grid">
-                <label className="inline-checkbox wide-field"><input type="checkbox" checked={Boolean(itemEditDraft.planned_start)} disabled={fillerMediaBusy} onChange={(event) => setItemEditDraft((current) => ({ ...current, planned_start: event.target.checked ? (currentPlanType?.starts_at ?? "10:30") : "" }))} /><span>Automated start on this service’s date</span></label>
-                {itemEditDraft.planned_start ? <label>Start time<input type="time" required disabled={fillerMediaBusy} value={itemEditDraft.planned_start} onChange={(event) => setItemEditDraft((current) => ({ ...current, planned_start: event.target.value }))} /></label> : null}
+                {fillerMediaSectionItem?.id === fillerMediaPlanItem.id ? <><label className="inline-checkbox wide-field"><input type="checkbox" checked={Boolean(itemEditDraft.planned_start)} disabled={fillerMediaBusy} onChange={(event) => setItemEditDraft((current) => ({ ...current, planned_start: event.target.checked ? (currentPlanType?.automation_start ?? currentPlanType?.starts_at ?? "10:30") : "" }))} /><span>Queue this service to start automatically</span></label>
+                {itemEditDraft.planned_start ? <label>Queued start<input type="time" required disabled={fillerMediaBusy} value={itemEditDraft.planned_start} onChange={(event) => setItemEditDraft((current) => ({ ...current, planned_start: event.target.value }))} /></label> : null}
+                <label className="inline-checkbox wide-field"><input checked={itemEditDraft.end_after_section} disabled={fillerMediaBusy} onChange={(event) => setItemEditDraft((current) => ({ ...current, end_after_section: event.target.checked }))} type="checkbox" /><span>End the service when this section's final auto-advancing slide finishes</span></label></> : null}
                 <label className="inline-checkbox"><input checked={itemEditDraft.auto_advance} disabled={fillerMediaBusy} onChange={(event) => setItemEditDraft((current) => ({ ...current, auto_advance: event.target.checked }))} type="checkbox" /><span>Advance automatically</span></label>
                 {itemEditDraft.auto_advance ? <label><span>Advance after (seconds)</span><input disabled={fillerMediaBusy} min="1" onChange={(event) => setItemEditDraft((current) => ({ ...current, auto_advance_seconds: Number(event.target.value) }))} type="number" value={itemEditDraft.auto_advance_seconds} /></label> : null}
                 {fillerMediaPlanItem.item_type === "open_time" ? <label className="inline-checkbox"><input checked={itemEditDraft.repeat} disabled={fillerMediaBusy} onChange={(event) => setItemEditDraft((current) => ({ ...current, repeat: event.target.checked }))} type="checkbox" /><span>Repeat montage</span></label> : null}
               </div>
             </details>
+            <details className="item-editor-fieldset item-editor-disclosure" open={itemEditorSection === "visual"}>
+              <summary onClick={(event) => { event.preventDefault(); setItemEditorSection((current) => current === "visual" ? null : "visual"); }}>Visuals</summary>
+              <div className="form-grid item-details-grid">
+                {fillerMediaSectionItem ? <label className="inline-checkbox wide-field"><input checked={itemEditDraft.auto_collapse_items} disabled={fillerMediaBusy} onChange={(event) => setItemEditDraft((current) => ({ ...current, auto_collapse_items: event.target.checked }))} type="checkbox" /><span>Auto-contract this section’s items</span></label> : null}
+                <label><span>Image fit</span><select disabled={fillerMediaBusy} onChange={(event) => setItemEditDraft((current) => ({ ...current, fit_mode: event.target.value as "contain" | "cover" }))} value={itemEditDraft.fit_mode}><option value="contain">Fit whole image</option><option value="cover">Fill and crop</option></select></label>
+                <label><span>Transition</span><select disabled={fillerMediaBusy} onChange={(event) => setItemEditDraft((current) => ({ ...current, transition: event.target.value as "fade" | "cut" | "slide" }))} value={itemEditDraft.transition}><option value="fade">Fade</option><option value="cut">Cut</option><option value="slide">Slide</option></select></label>
+                <label><span>Image dwell (seconds)</span><input disabled={fillerMediaBusy} min="1" onChange={(event) => setItemEditDraft((current) => ({ ...current, dwell_seconds: Number(event.target.value) }))} type="number" value={itemEditDraft.dwell_seconds} /></label>
+              </div>
+            </details>
             <details className="item-editor-fieldset item-editor-disclosure" open={itemEditorSection === "routing"}>
-              <summary onClick={(event) => { event.preventDefault(); setItemEditorSection((current) => current === "routing" ? null : "routing"); }}>Audio and destinations</summary>
+              <summary onClick={(event) => { event.preventDefault(); setItemEditorSection((current) => current === "routing" ? null : "routing"); }}>Audio</summary>
               <div className="form-grid item-details-grid">
                 <div className="wide-field"><span>Backing audio</span>
                   {inheritedSectionBackingAudioId ? <>

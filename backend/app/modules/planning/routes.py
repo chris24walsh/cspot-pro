@@ -272,6 +272,7 @@ def plan_to_detail(session: Session, plan: Plan, items: list[PlanItem]) -> PlanD
         teacher_id=plan.teacher_id,
         status=plan.status,
         info=plan.info,
+        queued_start=plan.queued_start,
         items=[plan_item_to_read(session, item) for item in items],
     )
 
@@ -417,6 +418,7 @@ def update_plan_type(
     plan_type = session.get(PlanType, plan_type_id)
     if plan_type is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Plan type not found")
+    old_queue_start = plan_type.automation_start or plan_type.starts_at
     updates = payload.model_dump(exclude_unset=True, exclude={"default_outline"})
     if "name" in updates and session.scalar(
         select(PlanType).where(
@@ -427,6 +429,16 @@ def update_plan_type(
     old_name = plan_type.name
     for field, value in updates.items():
         setattr(plan_type, field, value)
+    new_queue_start = plan_type.automation_start or plan_type.starts_at
+    if new_queue_start != old_queue_start:
+        future_plans = session.scalars(select(Plan).where(
+            Plan.plan_type_id == plan_type.id,
+            Plan.deleted_at.is_(None),
+            Plan.service_date >= datetime.now(UTC),
+        )).all()
+        for future_plan in future_plans:
+            if future_plan.queued_start in {None, old_queue_start}:
+                future_plan.queued_start = new_queue_start
     if plan_type.name != old_name:
         settings = session.scalar(select(BroadcastViewerSettings).limit(1))
         if settings is not None:
@@ -498,6 +510,8 @@ def create_plan(
         )
 
     plan = Plan(**payload.model_dump())
+    if plan.queued_start is None:
+        plan.queued_start = plan_type.automation_start or plan_type.starts_at
     session.add(plan)
     session.commit()
     session.refresh(plan)
@@ -538,6 +552,7 @@ def ensure_service_for_worship_set(session: Session, plan: Plan) -> None:
                     teacher_id=None,
                     status="draft",
                     info=None,
+                    queued_start=service_type.automation_start or service_type.starts_at,
                 )
                 session.add(service_plan)
                 session.commit()

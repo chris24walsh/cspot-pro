@@ -400,9 +400,12 @@ Welcome, Open time, and Announcements. Administrators retain structural repair
 controls.
 
 Welcome is a root group whose nested template items normally include
-`welcome_montage`, `welcome_countdown`, and `welcome_seated`. A service type has
-one `automation_start`; durations and `auto_advance` behavior live on its child
-items. The scheduler resolves the current cue from cumulative item durations,
+`welcome_montage`, `welcome_countdown`, and `welcome_seated`. Each dated `Plan`
+has one authoritative `queued_start`, initially copied from its service type's
+`automation_start`. Changing the template start updates future plans which have
+not received a dated override; changing it in the service editor updates that
+same plan field. Durations and `auto_advance` behavior live on child items and
+cannot create competing service starts. The scheduler resolves the current cue from cumulative item durations,
 so it can recover correctly after a restart without separate Welcome/countdown
 clocks. Old service-schedule records and `pre_service_phase` remain readable as
 compatibility fallbacks for services not yet using item cues.
@@ -423,7 +426,7 @@ playback. Scene activation follows item selection, including automatic cues.
 Section and child-item pencils share one native editor backed by the plan item's
 `presentation_options` JSON. Section images are fallback content and are omitted
 while child items exist. The editor exposes image dwell/fit, transition and
-auto-advance controls. Editors group visual, timing, routing, overlay and media
+auto-advance controls. Editors group timing, visuals, audio, overlay and media
 settings into collapsible sections; reusable groups can be promoted to the
 current service type's defaults by administrators without copying item-specific text. The Admin
 template editor exposes the same presentation settings, while service editors
@@ -435,7 +438,7 @@ Announcements also add structured date, location, contact, URL and layout
 metadata; sermon/deck controls remain presentation-only so imported pixels are
 not rewritten. Preview and live output consume the same options.
 An open network display or viewer poll creates a scheduled live presentation at
-the selected service type's `automation_start`, selects the current cumulative
+the dated plan's `queued_start`, selects the current cumulative
 item cue, and activates that item's scene. The dedicated Service templates Admin
 tab owns this configuration. A legacy recurring schedule can still provide a
 fallback start and cleanup window, but no longer owns individual cue boundaries.

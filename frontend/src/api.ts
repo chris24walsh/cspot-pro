@@ -182,6 +182,7 @@ export interface PlanDetail {
   teacher_id: string | null;
   status: string;
   info: string | null;
+  queued_start: string | null;
   items: PlanItem[];
 }
 
@@ -553,6 +554,7 @@ export interface PlanPayload {
   teacher_id: string | null;
   status: string;
   info: string | null;
+  queued_start?: string | null;
 }
 
 export interface PlanItemPayload {

@@ -73,7 +73,7 @@ describe("worship set merge", () => {
   it("locks a worship set after the matching service start while retaining same-day selection", () => {
     const today = { ...summary("today", "2026-07-05T10:30:00.000Z", "Worship Set"), item_count: 3 };
     const service = summary("service", "2026-07-05T10:30:00.000Z", "Sunday Service");
-    const plan = { ...today, plan_type_id: "worship", items: [], teacher_id: null, info: null } as PlanDetail;
+    const plan = { ...today, plan_type_id: "worship", items: [], teacher_id: null, info: null, queued_start: null } as PlanDetail;
     const types = [
       { id: "worship", name: "Worship Set", starts_at: null },
       { id: "sunday", name: "Sunday Service", starts_at: "11:00" },
