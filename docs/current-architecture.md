@@ -1,5 +1,24 @@
 # Development environments
 
+## Service template persistence
+
+`POST /planning/plans/{id}/sections` copies a default section and its children in
+one transaction. `PATCH /planning/items/{id}` accepts `save_template`; it updates
+only the owning service type's matching default configuration. The JSON
+`template_id` preserves identity through renames, and outline edits retain
+existing DefaultItem IDs. `POST /planning/plans/{id}/save-outline` saves structure
+and reusable configuration, excluding song selections, uploads and dated
+announcement details. Planning editors can create and populate templates; global
+service-type administration retains its existing permission checks.
+
+Default JSON stores reusable `scheduled_start`, `backing_audio_id` and
+`stop_backing_audio`. A dated instance uses `planned_start`; the server scheduler
+resolves due start anchors within the existing manual-control rules. Section
+backing audio is inherited by child slides, with fade cues handled by display
+and viewer playback. Reads no longer reapply explicit templates, preserving
+service-only changes and removals. Legacy implicit Sunday outlines still receive
+repairs and are materialised before their first saved customisation.
+
 The repository has a hot-reload local stack, an isolated production-image
 sandbox, and production deployments. The sandbox owns a separate Compose
 project, database volume, storage volume, credentials, and localhost port.

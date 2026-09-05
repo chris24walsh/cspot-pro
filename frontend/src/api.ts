@@ -104,6 +104,10 @@ export interface PlanItem {
 }
 
 export interface PresentationOptions {
+  template_id?: string;
+  scheduled_start?: string;
+  backing_audio_id?: string;
+  stop_backing_audio?: boolean;
   auto_collapse_items?: boolean;
   end_after_section?: boolean;
   dwell_seconds?: number;
@@ -565,6 +569,7 @@ export interface PlanItemPayload {
   auto_collapse_items?: boolean;
   presentation_options?: PresentationOptions;
   default_groups?: string[];
+  save_template?: boolean;
 }
 
 export interface PlanHistoryPayload {
@@ -1173,6 +1178,14 @@ export async function createPlanItem(planId: string, payload: PlanItemPayload): 
 
 export async function addMissingServiceSections(planId: string): Promise<PlanDetail> {
   return sendJson<PlanDetail>(`/api/v1/planning/plans/${planId}/service-scaffold`, "POST", {});
+}
+
+export async function saveServiceOutline(planId: string): Promise<PlanType> {
+  return sendJson<PlanType>(`/api/v1/planning/plans/${planId}/save-outline`, "POST", {});
+}
+
+export async function insertSectionTemplate(planId: string, payload: { template_id: string | null; title: string; sequence: string; save_template: boolean }): Promise<PlanItem> {
+  return sendJson<PlanItem>(`/api/v1/planning/plans/${planId}/sections`, "POST", payload);
 }
 
 export async function updatePlanItem(

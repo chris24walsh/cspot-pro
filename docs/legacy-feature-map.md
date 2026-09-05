@@ -1,5 +1,12 @@
 # Legacy Feature Map
 
+## Service template customisation
+
+The presenter now selects or creates service and section templates in place,
+saves configuration into the current service type explicitly, and keeps dated
+service edits independent. Section scheduling and YouTube backing audio/fade
+cues are configured with the section's other presentation settings.
+
 This map keeps the rewrite honest. The legacy Laravel project remains the
 behavioural reference, while cspot-pro uses clearer module boundaries.
 

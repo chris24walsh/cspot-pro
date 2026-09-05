@@ -26,6 +26,9 @@ import {
   getPlan,
   getPlans,
   getPlanTypes,
+  createPlanType,
+  insertSectionTemplate,
+  saveServiceOutline,
   getPresentationLiveState,
   getBroadcastRecordings,
   getPlanHistory,
@@ -101,6 +104,7 @@ import { DateNavigator, formatNavigatorDate } from "./DateNavigator";
 import { defaultPlanningDate, nextSundayDate } from "../planningDates";
 import { ScaledSlideImage } from "./ScaledSlideImage";
 import { SlideOverlay } from "./SlideOverlay";
+import { SongYouTubeSearch } from "./SongYouTubeSearch";
 import { SongEditorDialog } from "./SongEditorDialog";
 import { useEscapeClose } from "./useEscapeClose";
 import { showToast } from "../toast";
@@ -128,6 +132,7 @@ const INLINE_EDIT_ITEM_TYPES = new Set([...FILLER_MEDIA_ITEM_TYPES, ...FIXED_WEL
 
 const EMPTY_ITEM_EDIT_DRAFT: { title: string; comment: string; planned_start: string; auto_collapse_items: boolean } & Required<PresentationOptions> = {
   title: "", comment: "", planned_start: "", auto_collapse_items: false,
+  template_id: "", scheduled_start: "", backing_audio_id: "", stop_backing_audio: false,
   dwell_seconds: 8, auto_advance_seconds: 8, transition: "fade", fit_mode: "contain", overlay_text: "",
   overlay_mode: "none", overlay_countdown_seconds: 300, overlay_position: "bottom",
   overlay_size: "medium", overlay_font: "sans", overlay_panel_opacity: 68,
@@ -676,7 +681,6 @@ export function PresentationView({
   const [fillerMediaEditorLoading, setFillerMediaEditorLoading] = useState(false);
   const [loadedFillerMediaFileIds, setLoadedFillerMediaFileIds] = useState<Set<string>>(() => new Set());
   const [itemEditDraft, setItemEditDraft] = useState(EMPTY_ITEM_EDIT_DRAFT);
-  const [itemDefaultGroups, setItemDefaultGroups] = useState<Set<string>>(() => new Set());
   const [itemEditorSection, setItemEditorSection] = useState<string | null>("visual");
   const [serviceSchedules, setServiceSchedules] = useState<ServiceScheduleRule[]>([]);
   const [audioScenes, setAudioScenes] = useState<BroadcastAudioScene[]>([]);
@@ -704,6 +708,12 @@ export function PresentationView({
   const [bibleVerseTo, setBibleVerseTo] = useState("");
   const [searchOverlayOpen, setSearchOverlayOpen] = useState(false);
   const [groupInsertIndex, setGroupInsertIndex] = useState<number | null>(null);
+  const [newTemplateName, setNewTemplateName] = useState("");
+  const [sectionTemplateKey, setSectionTemplateKey] = useState("");
+  const [saveSectionTemplate, setSaveSectionTemplate] = useState(true);
+  const [addingSection, setAddingSection] = useState(false);
+  const [saveItemTemplate, setSaveItemTemplate] = useState(false);
+  const [audioSearchOpen, setAudioSearchOpen] = useState(false);
   const [groupTitleDraft, setGroupTitleDraft] = useState("");
   const [searchMode, setSearchMode] = useState<SearchOverlayMode>("songs");
   const [searchInsertIndex, setSearchInsertIndex] = useState<number | null>(null);
@@ -1055,8 +1065,9 @@ export function PresentationView({
     if (!INLINE_EDIT_ITEM_TYPES.has(item.item_type)) return;
     setFillerMediaEditorLoading(true);
     setLoadedFillerMediaFileIds(new Set());
-    setItemDefaultGroups(new Set());
-    setItemEditorSection("visual");
+    setItemEditorSection(null);
+    setSaveItemTemplate(false);
+    setAudioSearchOpen(false);
     try {
       const freshPlan = await getPlan(item.plan_id);
       const freshItem = freshPlan.items.find((candidate) => candidate.id === item.id) ?? item;
@@ -1089,8 +1100,9 @@ export function PresentationView({
     setFillerMediaPlanItemId(null);
     setFillerMediaSectionId(null);
     setLoadedFillerMediaFileIds(new Set());
-    setItemDefaultGroups(new Set());
-    setItemEditorSection("visual");
+    setItemEditorSection(null);
+    setSaveItemTemplate(false);
+    setAudioSearchOpen(false);
     setItemEditDraft(EMPTY_ITEM_EDIT_DRAFT);
   }
 
@@ -1470,8 +1482,8 @@ export function PresentationView({
 
     const boundedIndex = Math.min(Math.max(nextIndex, 0), slideCount - 1);
     const targetSlide = slides[boundedIndex];
-    if (playingAudioSectionId && targetSlide?.planItemId !== playingAudioSectionId) {
-      const confirmed = await confirm({
+    if (playingAudioSectionId && (targetSlide?.stopBackingAudio || (targetSlide?.planItemId !== playingAudioSectionId && targetSlide?.sectionId !== playingAudioSectionId))) {
+      const confirmed = targetSlide?.stopBackingAudio || await confirm({
         confirmLabel: "Fade Out",
         message: "This will fade out the playing YouTube audio. Continue?",
         title: "Fade Playing Audio",
@@ -1628,7 +1640,7 @@ export function PresentationView({
     if (audioIndex < 0) {
       return;
     }
-    const targetIndex = liveSlide?.planItemId === section.id ? liveIndex : audioIndex;
+    const targetIndex = liveSlide?.planItemId === section.id || liveSlide?.sectionId === section.id ? liveIndex : audioIndex;
     if (isPlaying) {
       publishFadeOutAudio();
       return;
@@ -2153,6 +2165,12 @@ export function PresentationView({
     const selectedType = planTypes.find((type) => type.id === selectedTypeId && type.active);
     if (selectedType) return selectedType;
     const date = new Date(serviceIsoFromDateInput(dateInput));
+    const scheduled = serviceSchedules.find((rule) => rule.enabled && rule.weekday === (date.getUTCDay() + 6) % 7);
+    const scheduledType = planTypes.find((type) => type.active && type.name === scheduled?.plan_type);
+    if (scheduledType) return scheduledType;
+    const weekday = date.toLocaleDateString("en", { weekday: "long", timeZone: "UTC" });
+    const weekdayType = planTypes.find((type) => type.active && type.name.toLowerCase().includes(weekday.toLowerCase()));
+    if (weekdayType) return weekdayType;
     const defaultName = !Number.isNaN(date.getTime()) && date.getUTCDay() === 0
       ? "Sunday Service"
       : "Midweek Meeting";
@@ -2225,10 +2243,10 @@ export function PresentationView({
       if (pendingServiceMode === "edit" && plan) {
         if (plan.plan_type_id !== primaryPlanType.id) {
           await updatePlan(plan.id, { plan_type_id: primaryPlanType.id });
-          await addMissingServiceSections(plan.id);
-          await load(plan.id, { refreshCatalogs: true });
-          setMessage(`Service changed to ${primaryPlanType.name}; existing content was preserved and missing outline sections were added.`);
         }
+        await addMissingServiceSections(plan.id);
+        await load(plan.id, { refreshCatalogs: true });
+        setMessage(`Applied ${primaryPlanType.name}; existing content was preserved and missing outline sections were added.`);
         setPendingServiceDate(null);
         return;
       }
@@ -2345,8 +2363,13 @@ export function PresentationView({
       const details = {
         ...(title !== fillerMediaPlanItem.title ? { title } : {}),
         ...(fillerMediaPlanItem.item_type === "announcements" ? { comment: itemEditDraft.comment.trim() || null } : {}),
-        default_groups: [...itemDefaultGroups],
+        planned_start: itemEditDraft.planned_start || null,
+        save_template: saveItemTemplate,
         presentation_options: {
+          ...fillerMediaPlanItem.presentation_options,
+          backing_audio_id: itemEditDraft.backing_audio_id,
+          stop_backing_audio: itemEditDraft.stop_backing_audio,
+          scheduled_start: itemEditDraft.planned_start,
           dwell_seconds: Number(itemEditDraft.dwell_seconds) || 8,
           auto_advance_seconds: Number(itemEditDraft.auto_advance_seconds) || 8,
           transition: itemEditDraft.transition,
@@ -2386,7 +2409,7 @@ export function PresentationView({
           return next;
         });
       }
-      await load(fillerMediaPlanItem.plan_id, { silent: true });
+      await load(fillerMediaPlanItem.plan_id, { silent: true, refreshCatalogs: true });
       closePlanItemEditor();
       setMessage(`Updated ${title}.`);
     } catch (error) {
@@ -2861,24 +2884,51 @@ export function PresentationView({
     }
   }
 
-  async function addOutlineGroup() {
-    if (!plan || groupInsertIndex === null || !groupTitleDraft.trim()) return;
+  const sectionTemplates = [...planTypes].sort((a, b) => Number(b.id === plan?.plan_type_id) - Number(a.id === plan?.plan_type_id))
+    .flatMap((type) => type.default_outline.filter((item) => !item.parent_id).map((item) => ({ type, item, key: `${type.id}:${item.id}` })));
+
+  async function saveCurrentOutline() {
+    if (!plan || creatingService) return;
+    setCreatingService(true);
     try {
-      const created = await createPlanItem(plan.id, {
-        parent_item_id: null,
-        item_type: "custom",
-        sequence: sequenceForInsert(groupInsertIndex),
-        title: groupTitleDraft.trim(),
-        comment: null,
-        key_signature: null,
-        song_id: null,
+      const saved = await saveServiceOutline(plan.id);
+      setPlanTypes((current) => current.map((type) => type.id === saved.id ? saved : type));
+      setMessage(`Saved the current outline and settings to “${saved.name}” for future services.`);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not save the outline.");
+    } finally { setCreatingService(false); }
+  }
+
+  async function createAndUseTemplate() {
+    if (!newTemplateName.trim() || !pendingServiceDate || creatingService) return;
+    setCreatingService(true);
+    try {
+      const created = await createPlanType({ name: newTemplateName.trim(), description: null, starts_at: null, automation_start: null, default_duration_minutes: null, active: true, default_outline: [] });
+      setPlanTypes((current) => [...current, created]);
+      setPendingServiceTypeId(created.id);
+      setNewTemplateName("");
+      setMessage(`Template “${created.name}” created. Apply it, then add sections to populate it.`);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not create template.");
+    } finally { setCreatingService(false); }
+  }
+
+  async function addOutlineGroup() {
+    if (!plan || groupInsertIndex === null || !groupTitleDraft.trim() || addingSection) return;
+    setAddingSection(true);
+    try {
+      const source = sectionTemplates.find((entry) => entry.key === sectionTemplateKey);
+      const created = await insertSectionTemplate(plan.id, {
+        template_id: source?.item.id ?? null, title: groupTitleDraft.trim(),
+        sequence: sequenceForInsert(groupInsertIndex), save_template: saveSectionTemplate,
       });
-      setGroupInsertIndex(null);
-      setGroupTitleDraft("");
+      setGroupInsertIndex(null); setGroupTitleDraft(""); setSectionTemplateKey("");
+      setPlanTypes(await getPlanTypes());
       await reloadAfterInsertedItem(created);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Could not add section group.");
-    }
+      if (plan) await load(plan.id, { silent: true });
+    } finally { setAddingSection(false); }
   }
 
   async function insertSongById(songId: string, afterIndex: number, fallbackTitle?: string) {
@@ -4462,17 +4512,25 @@ export function PresentationView({
           <section aria-labelledby="create-service-title" aria-modal="true" className="app-dialog create-service-dialog" onMouseDown={(event) => event.stopPropagation()} role="dialog">
             <div>
               <p className="dialog-eyebrow">{pendingServiceMode === "edit" ? "Service setup" : "New service"}</p>
-              <h2 id="create-service-title">{pendingServiceMode === "edit" ? "Change service type" : "Prepare"} {formatNavigatorDate(pendingServiceDate)}</h2>
-              <p>{pendingServiceMode === "edit" ? "Choose the better service type for this date. Existing content is preserved; any missing sections from the selected outline are added." : "Nothing is created until you confirm. The scheduled type is selected automatically; change it here only when this date is an exception."}</p>
+              <h2 id="create-service-title">{pendingServiceMode === "edit" ? "Service outline ·" : "Prepare"} {formatNavigatorDate(pendingServiceDate)}</h2>
+              <p>Choose a template or create one. Applying adds missing sections and keeps existing content.</p>
             </div>
             <label>
-              Service type
+              Service template
               <select disabled={creatingService} onChange={(event) => setPendingServiceTypeId(event.target.value)} value={pendingServiceTypeId}>
                 {planTypes.filter((type) => type.active && type.name !== "Worship Set").map((type) => (
                   <option key={type.id} value={type.id}>{type.name}</option>
                 ))}
               </select>
             </label>
+            {pendingServiceMode === "edit" && pendingServiceTypeId === plan?.plan_type_id ? <details className="item-editor-disclosure"><summary>Update this template</summary>
+              <p>Replace its outline with this service’s section order and configuration. Songs, uploads and dated announcement content stay with this service.</p>
+              <button className="text-button" disabled={creatingService} onClick={() => void saveCurrentOutline()} type="button">Save current outline to template</button>
+            </details> : null}
+            <details className="item-editor-disclosure"><summary>Create a service template</summary>
+              <label>Name<input maxLength={120} value={newTemplateName} onChange={(event) => setNewTemplateName(event.target.value)} placeholder="e.g. Wednesday prayer" /></label>
+              <button className="text-button" disabled={creatingService || !newTemplateName.trim()} onClick={() => void createAndUseTemplate()} type="button">Create and select</button>
+            </details>
             <div className="create-service-outline-preview">
               <strong>{pendingServiceType?.name ?? "Service"} outline</strong>
               {pendingServiceType?.default_outline.length ? (
@@ -4480,12 +4538,12 @@ export function PresentationView({
               ) : (
                 <span>{pendingServiceType?.name === "Sunday Service" ? "Welcome · Worship · Open time · Sermon · Announcements" : "No automatic sections configured"}</span>
               )}
-              <small>Pre-service media is queued only when the selected service type includes a Welcome / pre-service section.</small>
+
             </div>
             <div className="app-dialog-actions">
               <button className="text-button" disabled={creatingService} onClick={() => setPendingServiceDate(null)} type="button">Cancel</button>
               <button className="primary-button" disabled={creatingService || !pendingServiceType} onClick={() => void createServiceForDate(pendingServiceDate, pendingServiceTypeId)} type="button">
-                {creatingService ? "Saving…" : pendingServiceMode === "edit" ? "Apply service type" : "Prepare service"}
+                {creatingService ? "Saving…" : pendingServiceMode === "edit" ? "Use template" : "Prepare service"}
               </button>
             </div>
           </section>
@@ -5111,19 +5169,19 @@ export function PresentationView({
             {canEditPlan && plan ? (
               <button
                 aria-expanded={pendingServiceMode === "edit" && Boolean(pendingServiceDate)}
-                aria-label="Choose service type"
-                className="section-rail-service-type"
+                aria-label="Service outline"
+                className="section-rail-service-type section-icon-button"
                 onClick={() => {
                   setServiceHistoryOpen(false);
                   setPendingServiceMode("edit");
                   setPendingServiceDate(dateInputFromIso(plan.service_date));
                   setPendingServiceTypeId(plan.plan_type_id);
                 }}
-                title="Choose the type used for this service"
+                title="Service outline"
                 type="button"
               >
                 <Layers3 size={13} aria-hidden="true" />
-                <span>{currentPlanType?.name ?? "Service type"}</span>
+
               </button>
             ) : null}
           </div>
@@ -5154,7 +5212,7 @@ export function PresentationView({
               const sectionStart = slides.findIndex((slide) => slide.sectionId === section.id);
               const ownerItems = sectionOwner(section.id) === "worship" ? orderedWorshipSetItems() : orderedPlanItemsWithWorshipAnchor();
               const ownerItemIndex = ownerItems.findIndex((item) => item.id === section.id);
-              const sectionAudioSlide = section.slides.find((slide) => slide.planItemId === section.id && slide.youtubeAudioUrl);
+              const sectionAudioSlide = section.slides.find((slide) => slide.youtubeAudioUrl);
               const sectionAudioPlaying = playingAudioSectionId === section.id;
               const sectionItem = sectionPlanItem(section.id);
               const fixedOutlineSection = Boolean(
@@ -5245,6 +5303,7 @@ export function PresentationView({
                                 >{playingAudioSectionId === item.id ? <Pause size={14} aria-hidden="true" /> : <Play size={14} aria-hidden="true" />}</button>
                               ) : null}
                               {canEditPlan ? <div className="section-group-item-actions">
+                                <button aria-label={`Edit ${item.title}`} className="section-icon-button" title="Item settings" onClick={() => void openPlanItemEditor(item, sectionItem)} type="button"><Pencil size={14} /></button>
                                 <button aria-label={`Move ${item.title} up`} className="section-icon-button" disabled={itemIndex === 0} onClick={() => void moveSection(item.id, -1)} title="Move item up" type="button"><ChevronUp size={15} /></button>
                                 <button aria-label={`Move ${item.title} down`} className="section-icon-button" disabled={itemIndex === groupItems.length - 1} onClick={() => void moveSection(item.id, 1)} title="Move item down" type="button"><ChevronDown size={15} /></button>
                                 <button aria-label={`Remove ${item.title}`} className="section-icon-button section-remove-button" onClick={() => void removeSection(item.id)} title="Remove item" type="button"><Trash2 size={15} /></button>
@@ -5297,6 +5356,7 @@ export function PresentationView({
                         ) : null}
                         {canEditPlan ? (
                           <>
+                            {sectionItem ? <button aria-label={`Edit ${section.title}`} className="section-icon-button" title="Section settings" onClick={() => void openPlanItemEditor(sectionItem)} type="button"><Pencil size={14} /></button> : null}
                             {sermonDeckAttached && sectionItem ? (
                               <button
                                 aria-label={`Remove ${section.title} deck`}
@@ -5362,12 +5422,18 @@ export function PresentationView({
 
       {groupInsertIndex !== null ? (
         <div className="app-dialog-backdrop" role="presentation">
-          <form className="app-dialog" onSubmit={(event) => { event.preventDefault(); void addOutlineGroup(); }}>
-            <div><h2>Add section group</h2><p>Create an outline group here, then add one or more named items with its + button.</p></div>
-            <label>Group name<input autoFocus onChange={(event) => setGroupTitleDraft(event.target.value)} placeholder="e.g. Announcements" value={groupTitleDraft} /></label>
+          <form aria-label="Add section" aria-modal="true" role="dialog" className="app-dialog compact-template-dialog" onSubmit={(event) => { event.preventDefault(); void addOutlineGroup(); }}>
+            <h2>Add section</h2>
+            <label>Section template<select disabled={addingSection} value={sectionTemplateKey} onChange={(event) => {
+              setSectionTemplateKey(event.target.value);
+              const source = sectionTemplates.find((entry) => entry.key === event.target.value);
+              setGroupTitleDraft(source?.item.title ?? "");
+            }}><option value="">Create a new section template</option>{sectionTemplates.map(({ type, item, key }) => <option key={key} value={key}>{type.name} · {item.title}</option>)}</select></label>
+            <label>Section name<input autoFocus onChange={(event) => setGroupTitleDraft(event.target.value)} placeholder="e.g. Announcements" value={groupTitleDraft} /></label>
+            <label className="inline-checkbox"><input type="checkbox" checked={saveSectionTemplate} onChange={(event) => setSaveSectionTemplate(event.target.checked)} /><span>Keep in {currentPlanType?.name ?? "this service template"} for future services</span></label>
             <div className="app-dialog-actions">
-              <button className="text-button" onClick={() => { setGroupInsertIndex(null); setGroupTitleDraft(""); }} type="button">Cancel</button>
-              <button className="primary-button" disabled={!groupTitleDraft.trim()} type="submit">Add group</button>
+              <button disabled={addingSection} className="text-button" onClick={() => { setGroupInsertIndex(null); setGroupTitleDraft(""); }} type="button">Cancel</button>
+              <button className="primary-button" disabled={addingSection || !groupTitleDraft.trim()} type="submit">{addingSection ? "Adding…" : "Add section"}</button>
             </div>
           </form>
         </div>
@@ -5821,7 +5887,7 @@ export function PresentationView({
           <div aria-labelledby="filler-media-title" aria-modal="true" className="app-dialog app-dialog-wide pre-service-media-dialog" role="dialog">
             <div>
               <h2 id="filler-media-title">Edit {fillerMediaSectionItem?.id === fillerMediaPlanItem.id ? "section" : "item"}: {fillerMediaPlanItem.title}</h2>
-              <p>Item-specific content stays with this service. Checked defaults apply to future items of this type.</p>
+              <p>Configure this service, then choose whether to update its template.</p>
             </div>
             <div className="form-grid item-details-grid">
               <label>
@@ -5831,7 +5897,7 @@ export function PresentationView({
               {fillerMediaPlanItem.item_type === "announcements" ? <label className="wide-field"><span>Announcement text <small>(optional)</small></span><textarea disabled={fillerMediaBusy} onChange={(event) => setItemEditDraft((current) => ({ ...current, comment: event.target.value }))} rows={3} value={itemEditDraft.comment} /></label> : null}
               {fillerMediaSectionItem ? <label className="inline-checkbox wide-field">
                 <input checked={itemEditDraft.auto_collapse_items} disabled={fillerMediaBusy} onChange={(event) => setItemEditDraft((current) => ({ ...current, auto_collapse_items: event.target.checked }))} type="checkbox" />
-                <span>Auto-contract this section's items in every service</span>
+                <span>Auto-contract this section’s items</span>
               </label> : null}
               {fillerMediaSectionItem?.id === fillerMediaPlanItem.id ? <label className="inline-checkbox wide-field">
                 <input checked={itemEditDraft.end_after_section} disabled={fillerMediaBusy} onChange={(event) => setItemEditDraft((current) => ({ ...current, end_after_section: event.target.checked }))} type="checkbox" />
@@ -5844,25 +5910,31 @@ export function PresentationView({
                 <label><span>Image fit</span><select disabled={fillerMediaBusy} onChange={(event) => setItemEditDraft((current) => ({ ...current, fit_mode: event.target.value as "contain" | "cover" }))} value={itemEditDraft.fit_mode}><option value="contain">Fit whole image</option><option value="cover">Fill and crop</option></select></label>
                 <label><span>Transition</span><select disabled={fillerMediaBusy} onChange={(event) => setItemEditDraft((current) => ({ ...current, transition: event.target.value as "fade" | "cut" | "slide" }))} value={itemEditDraft.transition}><option value="fade">Fade</option><option value="cut">Cut</option><option value="slide">Slide</option></select></label>
                 <label><span>Image dwell (seconds)</span><input disabled={fillerMediaBusy} min="1" onChange={(event) => setItemEditDraft((current) => ({ ...current, dwell_seconds: Number(event.target.value) }))} type="number" value={itemEditDraft.dwell_seconds} /></label>
-                {canAccessAdminTools ? <label className="inline-checkbox wide-field"><input checked={itemDefaultGroups.has("visual")} onChange={(event) => setItemDefaultGroups((current) => { const next = new Set(current); event.target.checked ? next.add("visual") : next.delete("visual"); return next; })} type="checkbox" /><span>Use these visual settings as the default for future {fillerMediaPlanItem.item_type.replace(/_/g, " ")} items</span></label> : null}
               </div>
             </details>
             <details className="item-editor-fieldset item-editor-disclosure" open={itemEditorSection === "playback"}>
               <summary onClick={(event) => { event.preventDefault(); setItemEditorSection((current) => current === "playback" ? null : "playback"); }}>Timing and playback</summary>
               <div className="form-grid item-details-grid">
+                <label className="inline-checkbox wide-field"><input type="checkbox" checked={Boolean(itemEditDraft.planned_start)} disabled={fillerMediaBusy} onChange={(event) => setItemEditDraft((current) => ({ ...current, planned_start: event.target.checked ? (currentPlanType?.starts_at ?? "10:30") : "" }))} /><span>Automated start on this service’s date</span></label>
+                {itemEditDraft.planned_start ? <label>Start time<input type="time" required disabled={fillerMediaBusy} value={itemEditDraft.planned_start} onChange={(event) => setItemEditDraft((current) => ({ ...current, planned_start: event.target.value }))} /></label> : null}
                 <label className="inline-checkbox"><input checked={itemEditDraft.auto_advance} disabled={fillerMediaBusy} onChange={(event) => setItemEditDraft((current) => ({ ...current, auto_advance: event.target.checked }))} type="checkbox" /><span>Advance automatically</span></label>
                 {itemEditDraft.auto_advance ? <label><span>Advance after (seconds)</span><input disabled={fillerMediaBusy} min="1" onChange={(event) => setItemEditDraft((current) => ({ ...current, auto_advance_seconds: Number(event.target.value) }))} type="number" value={itemEditDraft.auto_advance_seconds} /></label> : null}
                 {fillerMediaPlanItem.item_type === "open_time" ? <label className="inline-checkbox"><input checked={itemEditDraft.repeat} disabled={fillerMediaBusy} onChange={(event) => setItemEditDraft((current) => ({ ...current, repeat: event.target.checked }))} type="checkbox" /><span>Repeat montage</span></label> : null}
-                {canAccessAdminTools ? <label className="inline-checkbox wide-field"><input checked={itemDefaultGroups.has("playback")} onChange={(event) => setItemDefaultGroups((current) => { const next = new Set(current); event.target.checked ? next.add("playback") : next.delete("playback"); return next; })} type="checkbox" /><span>Use these timing settings as the type default</span></label> : null}
               </div>
             </details>
             <details className="item-editor-fieldset item-editor-disclosure" open={itemEditorSection === "routing"}>
-              <summary onClick={(event) => { event.preventDefault(); setItemEditorSection((current) => current === "routing" ? null : "routing"); }}>Audio scene and destinations</summary>
+              <summary onClick={(event) => { event.preventDefault(); setItemEditorSection((current) => current === "routing" ? null : "routing"); }}>Audio and destinations</summary>
               <div className="form-grid item-details-grid">
+                <div className="wide-field"><span>Backing audio</span>
+                  <div className="action-row"><button className="text-button" disabled={fillerMediaBusy} type="button" onClick={() => setAudioSearchOpen((current) => !current)}>{itemEditDraft.backing_audio_id ? "Change YouTube audio" : "Search YouTube"}</button>
+                  {itemEditDraft.backing_audio_id ? <button className="text-button" disabled={fillerMediaBusy} type="button" onClick={() => setItemEditDraft((current) => ({ ...current, backing_audio_id: "" }))}>Remove audio</button> : null}</div>
+                  {itemEditDraft.backing_audio_id ? <small>YouTube backing audio selected</small> : null}
+                </div>
+                {audioSearchOpen ? <SongYouTubeSearch context="section" initialQuery="" value={itemEditDraft.backing_audio_id || null} canEdit={!fillerMediaBusy} onClose={() => setAudioSearchOpen(false)} onSelect={(id) => { setItemEditDraft((current) => ({ ...current, backing_audio_id: id })); setAudioSearchOpen(false); }} /> : null}
+                <label className="inline-checkbox wide-field"><input type="checkbox" disabled={fillerMediaBusy} checked={itemEditDraft.stop_backing_audio} onChange={(event) => setItemEditDraft((current) => ({ ...current, stop_backing_audio: event.target.checked }))} /><span>Fade out backing audio when this item starts</span></label>
                 <label><span>Audio scene</span><select disabled={fillerMediaBusy} onChange={(event) => setItemEditDraft((current) => ({ ...current, audio_scene_id: event.target.value }))} value={itemEditDraft.audio_scene_id}><option value="">{automaticAudioSceneLabel} (automatic)</option>{audioScenes.map((scene) => <option key={scene.id} value={scene.id}>{scene.label}</option>)}</select></label>
                 <label className="inline-checkbox"><input checked={itemEditDraft.display_targets.includes("church")} disabled={fillerMediaBusy} onChange={(event) => setItemEditDraft((current) => ({ ...current, display_targets: event.target.checked ? [...new Set([...current.display_targets, "church" as const])] : current.display_targets.filter((target) => target !== "church") }))} type="checkbox" /><span>Show on church displays</span></label>
                 <label className="inline-checkbox"><input checked={itemEditDraft.display_targets.includes("livestream")} disabled={fillerMediaBusy} onChange={(event) => setItemEditDraft((current) => ({ ...current, display_targets: event.target.checked ? [...new Set([...current.display_targets, "livestream" as const])] : current.display_targets.filter((target) => target !== "livestream") }))} type="checkbox" /><span>Show on livestream</span></label>
-                {canAccessAdminTools ? <label className="inline-checkbox wide-field"><input checked={itemDefaultGroups.has("routing")} onChange={(event) => setItemDefaultGroups((current) => { const next = new Set(current); event.target.checked ? next.add("routing") : next.delete("routing"); return next; })} type="checkbox" /><span>Use this scene and these destinations as the type default</span></label> : null}
               </div>
             </details>
             {FIXED_WELCOME_STAGE_TYPES.has(fillerMediaPlanItem.item_type) || FILLER_MEDIA_ITEM_TYPES.has(fillerMediaPlanItem.item_type) ? <details className="item-editor-fieldset item-editor-disclosure" open={itemEditorSection === "overlay"}>
@@ -5877,7 +5949,6 @@ export function PresentationView({
                 <label><span>Text box transparency ({100 - itemEditDraft.overlay_panel_opacity}%)</span><input disabled={fillerMediaBusy} max="100" min="0" onChange={(event) => setItemEditDraft((current) => ({ ...current, overlay_panel_opacity: Number(event.target.value) }))} type="range" value={itemEditDraft.overlay_panel_opacity} /></label>
                 <label><span>Background dimming ({itemEditDraft.overlay_background_dim}%)</span><input disabled={fillerMediaBusy} max="80" min="0" onChange={(event) => setItemEditDraft((current) => ({ ...current, overlay_background_dim: Number(event.target.value) }))} type="range" value={itemEditDraft.overlay_background_dim} /></label>
                 {itemEditDraft.overlay_mode === "countdown" ? <label><span>Countdown seconds</span><input min="1" onChange={(event) => setItemEditDraft((current) => ({ ...current, overlay_countdown_seconds: Number(event.target.value) }))} type="number" value={itemEditDraft.overlay_countdown_seconds} /></label> : null}
-                {canAccessAdminTools ? <label className="inline-checkbox wide-field"><input checked={itemDefaultGroups.has("overlay_style")} onChange={(event) => setItemDefaultGroups((current) => { const next = new Set(current); event.target.checked ? next.add("overlay_style") : next.delete("overlay_style"); return next; })} type="checkbox" /><span>Use this overlay style as the type default (overlay text remains item-specific)</span></label> : null}
               </div>
             </details> : null}
             {fillerMediaPlanItem.item_type === "announcements" ? <details className="item-editor-fieldset item-editor-disclosure" open={itemEditorSection === "announcement"}>
@@ -5945,7 +6016,8 @@ export function PresentationView({
               {!fillerMediaEditorReady ? <p className="search-empty">Loading attached image previews…</p> : null}
             </div>
             </details>
-            {fillerMediaEditorReady ? <div className="app-dialog-actions">
+            <label className="inline-checkbox template-save-choice"><input type="checkbox" disabled={fillerMediaBusy} checked={saveItemTemplate} onChange={(event) => setSaveItemTemplate(event.target.checked)} /><span>Save configuration to {currentPlanType?.name ?? "service"} template <small>{saveItemTemplate ? "Future services use these settings." : "This service only."}</small></span></label>
+            <div className="app-dialog-actions">
               <button
                 className="text-button"
                 disabled={fillerMediaBusy}
@@ -5962,7 +6034,7 @@ export function PresentationView({
                 onClick={() => void savePlanItemDetails()}
                 type="button"
               >{fillerMediaBusy ? "Saving…" : "Save"}</button>
-            </div> : null}
+            </div>
           </div>
         </div>
       ) : null}

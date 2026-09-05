@@ -1,5 +1,16 @@
 # Project Context
 
+## Service template workflow
+
+Service and section templates are selected in compact presenter dialogs. The
+outline control is an accessible icon at every viewport size. Existing edits
+stay with the service unless the operator chooses to update its template; new
+sections default to joining the template so it can grow during preparation.
+Templates copied from another service type become local defaults for the current
+type. Saving a child configuration must not overwrite its parent's settings.
+The section editor follows the expandable configuration groups used for roles,
+including dated starts, inline YouTube backing audio, and an item fade-out cue.
+
 This document captures the intent that has been communicated while shaping
 `cspot-pro`. It is meant to be useful both for humans joining the project
 and for coding agents that need durable context between sessions.

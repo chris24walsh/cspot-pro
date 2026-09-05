@@ -60,6 +60,13 @@ class PlanItemBase(BaseModel):
     presentation_options: dict[str, Any] = Field(default_factory=dict)
 
 
+class SectionTemplateInsert(BaseModel):
+    template_id: str | None = None
+    title: str = Field(min_length=1, max_length=180)
+    sequence: Decimal = Field(decimal_places=2)
+    save_template: bool = True
+
+
 class PlanItemCreate(PlanItemBase):
     pass
 
@@ -78,6 +85,7 @@ class PlanItemUpdate(BaseModel):
     auto_collapse_items: bool | None = None
     presentation_options: dict[str, Any] | None = None
     default_groups: list[str] = Field(default_factory=list)
+    save_template: bool = False
 
 
 class PlanItemRead(PlanItemBase):

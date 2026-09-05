@@ -906,3 +906,27 @@ def test_live_state_only_schedules_real_sermon_slide_changes(monkeypatch) -> Non
         )
 
     assert scheduled == [("sermon-a", "sermon-a", 3)]
+
+
+def test_dated_section_start_resumes_after_manual_cue() -> None:
+    engine = create_engine("sqlite://")
+    Base.metadata.create_all(engine)
+    with Session(engine) as session:
+        kind = PlanType(name="Prayer", active=True)
+        session.add(kind)
+        session.flush()
+        plan = Plan(plan_type_id=kind.id, service_date=datetime(2026, 9, 6, 19, tzinfo=UTC), title="Prayer")
+        session.add(plan)
+        session.flush()
+        first = PlanItem(plan_id=plan.id, sequence=10, item_type="custom", title="Welcome")
+        second = PlanItem(plan_id=plan.id, sequence=20, item_type="custom", title="Prayer", planned_start="19:30")
+        session.add_all([first, second])
+        session.flush()
+        child = PlanItem(plan_id=plan.id, parent_item_id=second.id, sequence=10, item_type="custom", title="Quiet prayer")
+        session.add(child)
+        session.commit()
+        assert template_cue_at(session, plan, datetime(2026, 9, 6, 19, 29, tzinfo=UTC), "19:00")[0].id == first.id
+        assert template_cue_at(session, plan, datetime(2026, 9, 6, 19, 30, tzinfo=UTC), "19:00")[0].id == child.id
+        first.presentation_options = {"auto_advance": True, "auto_advance_seconds": 10}
+        session.flush()
+        assert template_cue_at(session, plan, datetime(2026, 9, 6, 19, 29, tzinfo=UTC), "19:00")[0].id == first.id

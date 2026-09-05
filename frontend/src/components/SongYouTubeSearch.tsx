@@ -3,7 +3,8 @@ import { useEffect, useRef, useState } from "react";
 import { searchYouTubeVideos, type YouTubeVideo } from "../api";
 import { extractYouTubeId } from "../presentation";
 
-export function SongYouTubeSearch({ initialQuery, value, canEdit, onSelect, onClose }: {
+export function SongYouTubeSearch({ initialQuery, value, canEdit, onSelect, onClose, context = "song" }: {
+  context?: "song" | "section";
   initialQuery: string;
   value: string | null;
   canEdit: boolean;
@@ -62,9 +63,9 @@ export function SongYouTubeSearch({ initialQuery, value, canEdit, onSelect, onCl
   }
 
   return (
-    <section className="song-youtube-search wide-field" aria-label="Song YouTube search">
+    <section className="song-youtube-search wide-field" aria-label={`${context === "song" ? "Song" : "Section"} YouTube search`}>
       <div className="action-row">
-        <strong>Find a song video</strong>
+        <strong>{context === "song" ? "Find a song video" : "Find backing audio"}</strong>
         <button type="button" onClick={onClose}>Close search</button>
       </div>
       <label>
@@ -93,11 +94,11 @@ export function SongYouTubeSearch({ initialQuery, value, canEdit, onSelect, onCl
                 <strong>{preview.title}</strong>
                 <div className="action-row">
                   <button type="button" disabled={!canEdit || extractYouTubeId(value) === preview.id} onClick={() => onSelect(preview.id)}>
-                    {extractYouTubeId(value) === preview.id ? "Selected for song" : "Use this video"}
+                    {extractYouTubeId(value) === preview.id ? `Selected for ${context}` : "Use this video"}
                   </button>
                   <button type="button" onClick={() => setPreview(null)}>Close preview</button>
                 </div>
-                <small>Save the song to keep your choice. Some videos cannot be played in an embedded player.</small>
+                <small>Save the {context} to keep your choice. Some videos cannot be played in an embedded player.</small>
               </div>
             ) : null}
           </div>

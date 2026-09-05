@@ -163,7 +163,7 @@ def ensure_service_scaffold(session: Session, plan: Plan) -> list[PlanItem]:
                 item.sequence,
                 item.item_type,
                 item.title,
-                None,
+                (item.presentation_options or {}).get("scheduled_start") or None,
                 frozenset() if item.item_type == "custom" else frozenset({item.item_type}),
             )
             for item in defaults if item.parent_item_id is None
@@ -177,20 +177,22 @@ def ensure_service_scaffold(session: Session, plan: Plan) -> list[PlanItem]:
             select(PlanItem).where(PlanItem.plan_id == plan.id, PlanItem.deleted_at.is_(None))
         ).all()
     )
-    existing_types = {item.item_type.lower() for item in existing}
-    existing_titles = {item.title.strip().lower() for item in existing}
+    existing_types = {item.item_type.lower() for item in existing if not item.parent_item_id}
+    existing_titles = {item.title.strip().lower() for item in existing if not item.parent_item_id}
     created: list[PlanItem] = []
     for section in templates:
         title_match = section.title.lower() in existing_titles
         type_match = bool(section.aliases & existing_types)
-        if title_match or type_match:
+        definition = next((entry for entry in defaults if entry.parent_item_id is None and entry.sequence == section.sequence), None)
+        linked = definition and any((item.presentation_options or {}).get("template_id") == definition.id for item in existing)
+        if linked or title_match or (type_match and not defaults):
             continue
         section_options = (
             next(
                 (
                     item.presentation_options
                     for item in defaults
-                    if item.sequence == section.sequence
+                    if item.sequence == section.sequence and item.parent_item_id is None
                 ),
                 {},
             )
@@ -203,14 +205,14 @@ def ensure_service_scaffold(session: Session, plan: Plan) -> list[PlanItem]:
             title=section.title,
             planned_start=section.planned_start,
             comment=next(
-                (item.comment for item in defaults if item.sequence == section.sequence), None
+                (item.comment for item in defaults if item.sequence == section.sequence and item.parent_item_id is None), None
             ),
             auto_collapse_items=(
                 bool(section_options.get("auto_collapse_items"))
                 if "auto_collapse_items" in section_options
                 else section_auto_collapse_preference(session, section.item_type, section.title)
             ),
-            presentation_options=section_options,
+            presentation_options={**section_options, **({"template_id": next(d.id for d in defaults if d.sequence == section.sequence and d.parent_item_id is None)} if defaults else {})},
         )
         session.add(item)
         created.append(item)
@@ -233,7 +235,7 @@ def ensure_service_scaffold(session: Session, plan: Plan) -> list[PlanItem]:
         exists = session.scalar(select(PlanItem.id).where(PlanItem.plan_id == plan.id, PlanItem.parent_item_id == parent.id, PlanItem.item_type == default.item_type, PlanItem.title == default.title, PlanItem.deleted_at.is_(None)))
         if exists:
             continue
-        child = PlanItem(plan_id=plan.id, parent_item_id=parent.id, sequence=default.sequence, item_type=default.item_type, title=default.title, comment=default.comment, presentation_options=default.presentation_options or {})
+        child = PlanItem(plan_id=plan.id, parent_item_id=parent.id, sequence=default.sequence, item_type=default.item_type, title=default.title, comment=default.comment, planned_start=(default.presentation_options or {}).get("scheduled_start") or None, presentation_options={**(default.presentation_options or {}), "template_id": default.id})
         session.add(child)
         created.append(child)
     if defaults:

@@ -185,6 +185,20 @@ export function ServiceBroadcastView({ canControl = false, onOpenSettings }: { c
     if (settings.camera_cycle_seconds > 0) lastCameraCycleSecondsRef.current = settings.camera_cycle_seconds;
   }, [settings.camera_cycle_seconds]);
 
+  useEffect(() => {
+    if (!liveSlide?.stopBackingAudio || !useViewerBackingAudio) return;
+    let step = 0;
+    const timer = window.setInterval(() => {
+      step += 1;
+      backingAudioFrameRef.current?.contentWindow?.postMessage(JSON.stringify({ event: "command", func: "setVolume", args: [Math.max(0, 100 - step * 10)] }), "*");
+      if (step >= 10) {
+        window.clearInterval(timer);
+        controlBackingAudio("pauseVideo");
+      }
+    }, 100);
+    return () => window.clearInterval(timer);
+  }, [liveSlide?.id, liveSlide?.stopBackingAudio, useViewerBackingAudio]);
+
   function controlBackingAudio(command: "playVideo" | "pauseVideo" | "stopVideo" | "unMute" | "mute") {
     backingAudioFrameRef.current?.contentWindow?.postMessage(
       JSON.stringify({ event: "command", func: command, args: [] }),
@@ -201,7 +215,7 @@ export function ServiceBroadcastView({ canControl = false, onOpenSettings }: { c
 
   useEffect(() => {
     if (!useViewerBackingAudio) return;
-    if (liveState?.videoAction === "play") controlBackingAudio("playVideo");
+    if (!liveSlide?.stopBackingAudio && liveState?.videoAction === "play") controlBackingAudio("playVideo");
     else if (liveState?.videoAction === "pause") controlBackingAudio("pauseVideo");
     else if (liveState?.videoAction === "stop" || liveState?.videoAction === "fade-stop") controlBackingAudio("stopVideo");
   }, [liveSlide?.youtubeAudioUrl, liveState?.videoAction, liveState?.videoActionAt, useViewerBackingAudio]);
@@ -537,7 +551,7 @@ export function ServiceBroadcastView({ canControl = false, onOpenSettings }: { c
               className="youtube-audio-frame"
               onLoad={() => {
                 controlBackingAudio(viewerSoundEnabled ? "unMute" : "mute");
-                if (liveState?.videoAction === "play") controlBackingAudio("playVideo");
+                if (!liveSlide?.stopBackingAudio && (liveState?.videoAction === "play" || liveSlide?.autoPlayBackingAudio)) controlBackingAudio("playVideo");
               }}
               ref={backingAudioFrameRef}
               src={liveSlide.youtubeAudioUrl}

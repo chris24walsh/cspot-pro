@@ -42,6 +42,8 @@ export interface PresentationSlide {
   videoProvider?: "youtube" | "file";
   videoId?: string;
   youtubeAudioUrl?: string;
+  stopBackingAudio?: boolean;
+  autoPlayBackingAudio?: boolean;
   youtubeAudioId?: string;
   slideKind?: "title" | "content";
   renderedSlideIndex?: number;
@@ -375,10 +377,13 @@ export function buildPresentationSections(
     ];
     return {
       ...rootSection,
-      slides: memberSections.flatMap((member) => member.slides.map((slide) => ({
+      slides: memberSections.flatMap((member, memberIndex) => member.slides.map((slide, slideIndex) => ({
         ...slide,
         sectionId: root.id,
         sectionTitle: rootSection.title,
+        youtubeAudioUrl: slide.youtubeAudioUrl ?? (root.presentation_options?.backing_audio_id ? youtubeEmbedUrl(root.presentation_options.backing_audio_id) : undefined),
+        stopBackingAudio: Boolean(itemById.get(slide.planItemId)?.presentation_options?.stop_backing_audio || (memberIndex === 0 && slideIndex === 0 && root.presentation_options?.stop_backing_audio)),
+        autoPlayBackingAudio: Boolean(itemById.get(slide.planItemId)?.presentation_options?.backing_audio_id || root.presentation_options?.backing_audio_id),
         endAfterSection: Boolean(root.presentation_options?.end_after_section),
       }))),
     };
@@ -402,6 +407,7 @@ function buildIndividualPresentationSections(
     const normalizedItemType = item.item_type.trim().toLowerCase();
     const options = item.presentation_options ?? {};
     const presentationOptions = {
+      youtubeAudioUrl: options.backing_audio_id ? youtubeEmbedUrl(options.backing_audio_id) : undefined,
       fitMode: options.fit_mode,
       overlayText: options.overlay_text,
       overlayMode: options.overlay_mode,

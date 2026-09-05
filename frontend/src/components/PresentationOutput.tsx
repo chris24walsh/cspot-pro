@@ -393,6 +393,21 @@ export function PresentationOutput({ mediaOutput = false, networkDisplay = false
   }, [networkDisplay]);
 
   useEffect(() => {
+    if (!liveSlide?.stopBackingAudio) return;
+    // Retain the section player while its volume falls, including automatic cues.
+    let step = 0;
+    const timer = window.setInterval(() => {
+      step += 1;
+      videoFrameRef.current?.contentWindow?.postMessage(JSON.stringify({ event: "command", func: "setVolume", args: [Math.max(0, Math.round(100 * (1 - step / AUDIO_FADE_STEPS)))] }), "*");
+      if (step >= AUDIO_FADE_STEPS) {
+        window.clearInterval(timer);
+        videoFrameRef.current?.contentWindow?.postMessage(JSON.stringify({ event: "command", func: "pauseVideo", args: [] }), "*");
+      }
+    }, AUDIO_FADE_INTERVAL_MS);
+    return () => window.clearInterval(timer);
+  }, [liveSlide?.id, liveSlide?.stopBackingAudio]);
+
+  useEffect(() => {
     setBlanked(Boolean(liveState?.blanked));
   }, [liveState?.blanked]);
 
@@ -718,7 +733,7 @@ export function PresentationOutput({ mediaOutput = false, networkDisplay = false
                 JSON.stringify({ event: "command", func: outputAudioEnabled ? "unMute" : "mute", args: [] }),
                 "*",
               );
-              if (liveState?.videoAction === "play" && liveState.videoActionAt) {
+              if (!liveSlide.stopBackingAudio && ((liveState?.videoAction === "play" && liveState.videoActionAt) || liveSlide.autoPlayBackingAudio)) {
                 window.setTimeout(() => {
                   videoFrameRef.current?.contentWindow?.postMessage(
                     JSON.stringify({ event: "command", func: "setVolume", args: [100] }),
@@ -782,7 +797,7 @@ export function PresentationOutput({ mediaOutput = false, networkDisplay = false
                     JSON.stringify({ event: "command", func: outputAudioEnabled ? "unMute" : "mute", args: [] }),
                     "*",
                   );
-                  if (liveState?.videoAction === "play" && liveState.videoActionAt) {
+                  if (!liveSlide.stopBackingAudio && ((liveState?.videoAction === "play" && liveState.videoActionAt) || liveSlide.autoPlayBackingAudio)) {
                     window.setTimeout(() => {
                       videoFrameRef.current?.contentWindow?.postMessage(
                         JSON.stringify({ event: "command", func: "setVolume", args: [100] }),

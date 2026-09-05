@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_session
 from app.modules.broadcast.models import BroadcastViewerSettings
-from app.modules.broadcast.settings import DEFAULT_SERVICE_SCHEDULES, service_schedules
+from app.modules.broadcast.settings import service_schedules
 from app.modules.identity.auth import (
     list_permissions,
     list_role_names,
@@ -33,6 +33,7 @@ from app.modules.planning.schemas import (
     PlanHistoryCreate,
     PlanHistoryRead,
     PlanItemCreate,
+    SectionTemplateInsert,
     PlanItemRead,
     PlanItemUpdate,
     PlanSummary,
@@ -47,7 +48,6 @@ from app.modules.planning.service_scaffold import (
     ensure_service_scaffold,
     is_sunday_service,
     section_auto_collapse_preference,
-    set_section_auto_collapse_preference,
 )
 
 router = APIRouter()
@@ -357,22 +357,27 @@ def plan_type_to_read(session: Session, plan_type: PlanType) -> PlanTypeRead:
 def replace_default_outline(
     session: Session, plan_type: PlanType, outline: list[DefaultOutlineItem]
 ) -> None:
-    existing_defaults = list(session.scalars(
+    existing = {item.id: item for item in session.scalars(
         select(DefaultItem).where(DefaultItem.plan_type_id == plan_type.id)
-    ).all())
-    for item in sorted(existing_defaults, key=lambda candidate: candidate.parent_item_id is None):
-        session.delete(item)
-    session.flush()
+    ).all()}
+    retained: set[str] = set()
     created_ids: dict[str, str] = {}
     for definition in outline:
-        values = definition.model_dump(exclude={"id", "parent_id"})
-        item = DefaultItem(plan_type_id=plan_type.id, **values)
-        session.add(item)
+        item = existing.get(definition.id)
+        if item is None:
+            item = DefaultItem(plan_type_id=plan_type.id)
+            session.add(item)
+        for field, value in definition.model_dump(exclude={"id", "parent_id"}).items():
+            setattr(item, field, value)
+        item.parent_item_id = created_ids.get(definition.parent_id) if definition.parent_id else None
         session.flush()
+        retained.add(item.id)
         if definition.id:
             created_ids[definition.id] = item.id
-        if definition.parent_id:
-            item.parent_item_id = created_ids.get(definition.parent_id)
+    for item in sorted(existing.values(), key=lambda candidate: candidate.parent_item_id is None):
+        if item.id not in retained:
+            session.delete(item)
+    session.flush()
 
 
 @router.get("/plan-types", response_model=list[PlanTypeRead])
@@ -387,7 +392,7 @@ def list_plan_types(
 @router.post("/plan-types", response_model=PlanTypeRead, status_code=status.HTTP_201_CREATED)
 def create_plan_type(
     payload: PlanTypeCreate,
-    _current_user: User = Depends(require_permission("users:manage")),
+    _current_user: User = Depends(require_any_permission("plans:edit", "plans:create")),
     session: Session = Depends(get_session),
 ) -> PlanTypeRead:
     if session.scalar(select(PlanType).where(func.lower(PlanType.name) == payload.name.lower())):
@@ -577,7 +582,7 @@ def get_plan(
     # Reading a durable date slot must not turn its template into visible
     # content. Existing services still get legacy outline repairs, while a
     # genuinely empty service stays empty until content is explicitly added.
-    if items:
+    if items and not session.scalar(select(DefaultItem.id).where(DefaultItem.plan_type_id == plan.plan_type_id).limit(1)):
         ensure_service_scaffold(session, plan)
         items = list(session.scalars(
             select(PlanItem)
@@ -736,6 +741,9 @@ def create_plan_item(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                 detail="Items can only be added directly beneath a group in the same plan",
             )
+    first_content = not session.scalar(select(PlanItem.id).where(
+        PlanItem.plan_id == plan.id, PlanItem.deleted_at.is_(None)
+    ).limit(1))
     item_values = payload.model_dump()
     if not payload.parent_item_id and "auto_collapse_items" not in payload.model_fields_set:
         item_values["auto_collapse_items"] = section_auto_collapse_preference(
@@ -748,8 +756,113 @@ def create_plan_item(
     plan_type = session.get(PlanType, plan.plan_type_id)
     if plan_type is not None and plan_type.name == "Worship Set":
         ensure_service_for_worship_set(session, plan)
-    else:
+    elif first_content or not session.scalar(select(DefaultItem.id).where(DefaultItem.plan_type_id == plan.plan_type_id).limit(1)):
         ensure_service_scaffold(session, plan)
+    return plan_item_to_read(session, item)
+
+
+def seed_implicit_template(session: Session, plan: Plan) -> None:
+    if not is_sunday_service(session, plan) or session.scalar(select(DefaultItem.id).where(DefaultItem.plan_type_id == plan.plan_type_id).limit(1)):
+        return
+    items = list(session.scalars(select(PlanItem).where(PlanItem.plan_id == plan.id, PlanItem.deleted_at.is_(None)).order_by(PlanItem.sequence)).all())
+    for item in sorted(items, key=lambda candidate: candidate.parent_item_id is not None):
+        if not item.song_id:
+            save_item_template(session, plan, item, item.title)
+
+
+def save_item_template(session: Session, plan: Plan, item: PlanItem, original_title: str, *, update_existing: bool = True) -> DefaultItem:
+    """Copy configuration into this service type, never into the source type."""
+    parent_default = None
+    if item.parent_item_id:
+        parent = get_item_or_404(session, item.parent_item_id)
+        parent_default = save_item_template(session, plan, parent, parent.title, update_existing=False)
+    defaults = list(session.scalars(select(DefaultItem).where(
+        DefaultItem.plan_type_id == plan.plan_type_id,
+        DefaultItem.parent_item_id == (parent_default.id if parent_default else None),
+    )).all())
+    source_id = (item.presentation_options or {}).get("template_id")
+    default = next((entry for entry in defaults if entry.id == source_id), None)
+    if default is None:
+        matches = [entry for entry in defaults if entry.item_type == item.item_type and entry.title == original_title]
+        default = matches[0] if len(matches) == 1 else None
+    if default is not None and not update_existing:
+        return default
+    if default is None:
+        default = DefaultItem(plan_type_id=plan.plan_type_id, parent_item_id=parent_default.id if parent_default else None,
+                              item_type=item.item_type, title=item.title, sequence=item.sequence)
+        session.add(default)
+        session.flush()
+    default.title = item.title
+    default.presentation_options = {
+        **{key: value for key, value in (item.presentation_options or {}).items() if key not in {"template_id", "announcement_date", "announcement_location", "announcement_contact", "announcement_url"}},
+        "auto_collapse_items": item.auto_collapse_items,
+        "scheduled_start": item.planned_start or "",
+    }
+    item.presentation_options = {**(item.presentation_options or {}), "template_id": default.id}
+    return default
+
+
+@router.post("/plans/{plan_id}/save-outline", response_model=PlanTypeRead)
+def save_service_outline(
+    plan_id: str,
+    current_user: User = Depends(require_any_permission("plans:edit", "plans:create")),
+    session: Session = Depends(get_session),
+) -> PlanTypeRead:
+    plan = get_plan_or_404(session, plan_id)
+    require_plan_editable(session, plan, current_user)
+    items = list(session.scalars(select(PlanItem).where(
+        PlanItem.plan_id == plan.id, PlanItem.deleted_at.is_(None), PlanItem.song_id.is_(None)
+    ).order_by(PlanItem.sequence, PlanItem.created_at)).all())
+    retained: set[str] = set()
+    for item in sorted(items, key=lambda candidate: candidate.parent_item_id is not None):
+        default = save_item_template(session, plan, item, item.title)
+        default.sequence = item.sequence
+        retained.add(default.id)
+    defaults = list(session.scalars(select(DefaultItem).where(DefaultItem.plan_type_id == plan.plan_type_id)).all())
+    for default in sorted(defaults, key=lambda candidate: candidate.parent_item_id is None):
+        if default.id not in retained:
+            session.delete(default)
+    session.commit()
+    return plan_type_to_read(session, session.get(PlanType, plan.plan_type_id))
+
+
+@router.post("/plans/{plan_id}/sections", response_model=PlanItemRead, status_code=status.HTTP_201_CREATED)
+def insert_section_template(
+    plan_id: str,
+    payload: SectionTemplateInsert,
+    current_user: User = Depends(require_any_permission("plans:edit", "plans:create")),
+    session: Session = Depends(get_session),
+) -> PlanItemRead:
+    plan = get_plan_or_404(session, plan_id)
+    require_plan_editable(session, plan, current_user)
+    source = session.get(DefaultItem, payload.template_id) if payload.template_id else None
+    if payload.template_id and (source is None or source.parent_item_id):
+        raise HTTPException(status_code=404, detail="Section template not found")
+    options = dict(source.presentation_options or {}) if source else {}
+    options.pop("template_id", None)
+    item = PlanItem(plan_id=plan.id, sequence=payload.sequence, title=payload.title.strip(),
+                    item_type=source.item_type if source else "custom", comment=source.comment if source else None,
+                    planned_start=options.get("scheduled_start") or None,
+                    auto_collapse_items=bool(options.get("auto_collapse_items")), presentation_options=options)
+    if not item.title:
+        raise HTTPException(status_code=422, detail="Section name is required")
+    session.add(item)
+    session.flush()
+    if payload.save_template:
+        seed_implicit_template(session, plan)
+        save_item_template(session, plan, item, item.title)
+    children = list(session.scalars(select(DefaultItem).where(DefaultItem.parent_item_id == source.id).order_by(DefaultItem.sequence)).all()) if source else []
+    for child in children:
+        child_options = {key: value for key, value in (child.presentation_options or {}).items() if key != "template_id"}
+        added = PlanItem(plan_id=plan.id, parent_item_id=item.id, sequence=child.sequence,
+                         item_type=child.item_type, title=child.title, comment=child.comment,
+                         planned_start=child_options.get("scheduled_start") or None, presentation_options=child_options)
+        session.add(added)
+        session.flush()
+        if payload.save_template:
+            save_item_template(session, plan, added, added.title)
+    session.commit()
+    session.refresh(item)
     return plan_item_to_read(session, item)
 
 
@@ -766,6 +879,8 @@ def update_plan_item(
     payload_data = payload.model_dump(exclude_unset=True)
     teacher_notes = payload_data.pop("teacher_notes", None)
     default_groups = payload_data.pop("default_groups", [])
+    save_template = payload_data.pop("save_template", False)
+    original_title = item.title
 
     if default_groups and "users:manage" not in set(list_permissions(session, current_user.id)):
         raise HTTPException(
@@ -780,6 +895,9 @@ def update_plan_item(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Presenters cannot move or change Sunday service outline slides",
         )
+
+    if save_template:
+        seed_implicit_template(session, plan)
 
     for field, value in payload_data.items():
         setattr(item, field, value)
@@ -801,10 +919,8 @@ def update_plan_item(
                 default_item.presentation_options or {}, item.presentation_options, default_groups
             )
 
-    if "auto_collapse_items" in payload.model_fields_set and not item.parent_item_id:
-        set_section_auto_collapse_preference(
-            session, item, bool(payload.auto_collapse_items)
-        )
+    if save_template:
+        save_item_template(session, plan, item, original_title)
 
     if "teacher_notes" in payload.model_fields_set:
         note = session.scalar(

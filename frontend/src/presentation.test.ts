@@ -383,3 +383,19 @@ describe("presentation slide derivation", () => {
     expect(suggestedSlideFontCap(reading)).toBe(68);
   });
 });
+
+
+describe("section backing audio", () => {
+  it("keeps the section track across child items and marks the fade cue", () => {
+    const slides = buildPresentationSlides([
+      planItem({ id: "root", title: "Prayer", presentation_options: { backing_audio_id: "abcdefghijk" } }),
+      planItem({ id: "first", parent_item_id: "root", title: "Quiet", sequence: "10" }),
+      planItem({ id: "stop", parent_item_id: "root", title: "Speaking", sequence: "20", presentation_options: { stop_backing_audio: true } }),
+    ], []);
+    expect(slides).toHaveLength(2);
+    expect(slides[0].youtubeAudioUrl).toContain("abcdefghijk");
+    expect(slides[1].youtubeAudioUrl).toBe(slides[0].youtubeAudioUrl);
+    expect(slides[0].stopBackingAudio).toBe(false);
+    expect(slides[1].stopBackingAudio).toBe(true);
+  });
+});

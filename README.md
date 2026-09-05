@@ -1,5 +1,21 @@
 # cspot-pro
 
+## Service outlines and section settings
+
+The icon beside Sections opens the service template picker. New services prefer
+the scheduled weekday template, then a matching weekday name or Midweek Meeting.
+Create a template there, apply it, and populate it with section templates from
+any service type. New sections are kept in the current template by default.
+
+Section and item settings use compact expandable groups for visuals, timing,
+audio, overlays and media. Existing edits default to this service only; select
+“Save configuration to template” to evolve that service's template. The outline
+picker can also save the current structure and order. Songs, uploads and dated
+announcement details are not copied by that action. Backing audio uses inline
+YouTube search, continues through section items, and can fade at a marked item.
+Automated section starts use the service date and the configured church timezone;
+manual presenter control continues to take precedence over the scheduler.
+
 Modern reimplementation of c-SPOT, the church service online planning tool.
 
 This repository is intentionally separate from the legacy Laravel application in

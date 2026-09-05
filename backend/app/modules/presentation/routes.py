@@ -302,7 +302,25 @@ def template_cue_at(
     if not ordered:
         return None, "service"
     item_by_id = {item.id: item for item in items}
+    # A dated start is an anchor: it can resume after an earlier manual-duration cue.
+    due = []
+    starts_by_item: dict[str, str] = {}
     for index, item in enumerate(ordered):
+        root = item_by_id.get(item.parent_item_id) if item.parent_item_id else item
+        first_in_section = index == 0 or ordered[index - 1].parent_item_id != item.parent_item_id
+        start = item.planned_start or (root.planned_start if root and first_in_section else None)
+        if start:
+            starts_by_item[item.id] = start
+            if schedule_time(now_local, start) <= now_local:
+                due.append((schedule_time(now_local, start), index))
+    if due:
+        anchor, start_index = max(due)
+        elapsed = max(0, int((now_local - anchor).total_seconds()))
+        ordered = ordered[start_index:]
+    for index, item in enumerate(ordered):
+        start = starts_by_item.get(item.id)
+        if index and start and schedule_time(now_local, start) > now_local:
+            return ordered[index - 1], "pre_service"
         options = item.presentation_options or {}
         if not options.get("auto_advance"):
             return item, "service" if index else "pre_service"
@@ -363,23 +381,26 @@ def ensure_scheduled_pre_service(session: Session) -> None:
     scheduled = None
     for plan, plan_type in candidates:
         legacy_rule = next((rule for rule in rules if rule.plan_type == plan_type.name), None)
-        automation_start = plan_type.automation_start or (legacy_rule.pre_service_start if legacy_rule else None)
+        dated_starts = list(session.scalars(select(PlanItem.planned_start).where(
+            PlanItem.plan_id == plan.id, PlanItem.deleted_at.is_(None), PlanItem.planned_start.is_not(None)
+        )).all())
+        starts = [value for value in [plan_type.automation_start or (legacy_rule.pre_service_start if legacy_rule else None), *dated_starts] if value]
+        automation_start = min(starts) if starts else None
         if not automation_start:
             continue
         rule = legacy_rule or template_schedule_rule(plan_type, now_local, automation_start)
         if schedule_time(now_local, automation_start) <= now_local <= schedule_time(now_local, rule.cleanup_time):
-            scheduled = (plan, plan_type, rule)
+            scheduled = (plan, plan_type, rule, automation_start)
             break
     if scheduled is None:
         return
-    plan, plan_type, rule = scheduled
+    plan, plan_type, rule, automation_start = scheduled
     ensure_welcome_stage_items(session, plan)
-    automation_start = plan_type.automation_start or rule.pre_service_start
     scheduled_run_id = f"{rule.id}:{now_local.date().isoformat()}:{automation_start}"
     plan_items = session.scalars(select(PlanItem).where(
         PlanItem.plan_id == plan.id, PlanItem.deleted_at.is_(None)
     )).all()
-    has_item_cues = any((item.presentation_options or {}).get("auto_advance") for item in plan_items)
+    has_item_cues = any(item.planned_start or (item.presentation_options or {}).get("auto_advance") for item in plan_items)
     if has_item_cues:
         desired_item, desired_stage = template_cue_at(session, plan, now_local, automation_start)
         desired_phase = None

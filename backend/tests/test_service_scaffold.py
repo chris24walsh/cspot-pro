@@ -338,3 +338,83 @@ def test_section_auto_collapse_choice_applies_to_existing_and_future_services() 
         assert third_welcome.auto_collapse_items is True
     finally:
         session.close()
+
+
+def test_section_template_copy_is_scoped_and_children_are_not_duplicated() -> None:
+    from app.modules.planning.routes import insert_section_template, save_item_template
+    from app.modules.planning.schemas import SectionTemplateInsert
+    session, plan = scaffold_session()
+    try:
+        source_type = PlanType(name="Midweek", active=True)
+        session.add(source_type)
+        session.flush()
+        source = DefaultItem(plan_type_id=source_type.id, sequence=10, item_type="custom", title="Prayer", presentation_options={"backing_audio_id": "abcdefghijk", "scheduled_start": "19:30"})
+        session.add(source)
+        session.flush()
+        session.add(DefaultItem(plan_type_id=source_type.id, parent_item_id=source.id, sequence=10, item_type="custom", title="Quiet prayer", presentation_options={"stop_backing_audio": True}))
+        session.commit()
+        with patch("app.modules.planning.routes.require_plan_editable"):
+            result = insert_section_template(plan.id, SectionTemplateInsert(template_id=source.id, title="Prayer", sequence=60), SimpleNamespace(id="editor"), session)
+        children = list(session.scalars(select(PlanItem).where(PlanItem.parent_item_id == result.id)).all())
+        assert len(children) == 1
+        assert result.planned_start == "19:30"
+        assert children[0].presentation_options["stop_backing_audio"] is True
+        target = session.get(DefaultItem, result.presentation_options["template_id"])
+        assert target.plan_type_id == plan.plan_type_id
+        item = session.get(PlanItem, result.id)
+        item.title = "Evening prayer"
+        item.presentation_options = {**item.presentation_options, "backing_audio_id": "newtrack123"}
+        save_item_template(session, plan, item, "Prayer")
+        session.commit()
+        assert target.title == "Evening prayer"
+        assert source.title == "Prayer"
+        assert source.presentation_options["backing_audio_id"] == "abcdefghijk"
+    finally:
+        session.close()
+
+
+def test_saving_child_configuration_does_not_overwrite_parent_defaults() -> None:
+    from app.modules.planning.routes import save_item_template
+    session, plan = scaffold_session()
+    try:
+        template = DefaultItem(plan_type_id=plan.plan_type_id, sequence=10, item_type="custom", title="Prayer", presentation_options={"dwell_seconds": 12})
+        session.add(template)
+        session.flush()
+        root = PlanItem(plan_id=plan.id, sequence=10, item_type="custom", title="Prayer", presentation_options={"template_id": template.id, "dwell_seconds": 99})
+        session.add(root)
+        session.flush()
+        child = PlanItem(plan_id=plan.id, parent_item_id=root.id, sequence=10, item_type="custom", title="Quiet prayer", presentation_options={"stop_backing_audio": True})
+        session.add(child)
+        session.flush()
+        saved = save_item_template(session, plan, child, child.title)
+        assert saved.parent_item_id == template.id
+        assert template.presentation_options == {"dwell_seconds": 12}
+    finally:
+        session.close()
+
+
+def test_reading_customised_service_does_not_restore_removed_template_sections() -> None:
+    session, plan = scaffold_session()
+    try:
+        session.add(DefaultItem(plan_type_id=plan.plan_type_id, sequence=10, item_type="custom", title="Template title"))
+        session.add(PlanItem(plan_id=plan.id, sequence=10, item_type="custom", title="This week only"))
+        session.commit()
+        detail = get_plan(plan.id, None, session)
+        assert [item.title for item in detail.items] == ["This week only"]
+    finally:
+        session.close()
+
+
+def test_replacing_outline_preserves_section_identity() -> None:
+    from app.modules.planning.routes import replace_default_outline
+    from app.modules.planning.schemas import DefaultOutlineItem
+    session, plan = scaffold_session()
+    try:
+        template = DefaultItem(plan_type_id=plan.plan_type_id, sequence=10, item_type="custom", title="Prayer")
+        session.add(template)
+        session.flush()
+        original_id = template.id
+        replace_default_outline(session, session.get(PlanType, plan.plan_type_id), [DefaultOutlineItem(id=original_id, sequence=10, title="Renamed", item_type="custom")])
+        assert session.get(DefaultItem, original_id).title == "Renamed"
+    finally:
+        session.close()

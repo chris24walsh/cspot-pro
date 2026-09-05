@@ -12799,3 +12799,31 @@ button.musician-page {
   outline: 2px solid currentColor;
   outline-offset: -2px;
 }
+
+/* Compact service configuration uses the same disclosure hierarchy as roles. */
+.section-rail-title .section-rail-service-type { flex: 0 0 32px; width: 32px; min-width: 32px; padding: 5px; justify-content: center; }
+.pre-service-media-dialog, .compact-template-dialog, .create-service-dialog {
+  gap: 10px;
+  padding: 12px;
+  max-height: calc(100dvh - 24px);
+}
+.pre-service-media-dialog > div > p, .create-service-dialog p { margin: 4px 0; font-size: 12px; }
+.pre-service-media-dialog .item-editor-fieldset { padding: 8px 10px; border-radius: 5px; }
+.pre-service-media-dialog .item-editor-disclosure > summary { font-size: 13px; padding: 4px 0; }
+.pre-service-media-dialog .item-editor-disclosure[open] > summary { margin-bottom: 8px; }
+.pre-service-media-dialog .item-details-grid { gap: 8px; }
+.pre-service-media-dialog .template-save-choice { border-top: 1px solid #d8d3c8; padding-top: 8px; }
+.template-save-choice small { display: block; font-weight: 400; }
+.pre-service-media-dialog .app-dialog-actions { position: sticky; bottom: -12px; background: #fffefa; padding: 8px 0; margin-bottom: -8px; }
+@media (max-width: 540px) {
+  .app-dialog-backdrop:has(.pre-service-media-dialog, .compact-template-dialog) { padding: 8px; align-items: center; }
+  .pre-service-media-dialog, .compact-template-dialog, .create-service-dialog { align-self: center; max-height: calc(100dvh - 16px); padding: 10px; }
+  .pre-service-media-dialog .app-dialog-actions { flex-wrap: nowrap; }
+  .pre-service-media-dialog .app-dialog-actions > button { width: auto; flex: 1; min-height: 38px; }
+  .pre-service-media-dialog .form-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .pre-service-media-dialog input, .pre-service-media-dialog select { min-width: 0; }
+}
+.pre-service-media-dialog .item-editor-disclosure > summary { display: flex; align-items: center; justify-content: space-between; list-style: none; }
+.pre-service-media-dialog .item-editor-disclosure > summary::-webkit-details-marker { display: none; }
+.pre-service-media-dialog .item-editor-disclosure > summary::after { content: "+"; font-size: 17px; font-weight: 400; }
+.pre-service-media-dialog .item-editor-disclosure[open] > summary::after { content: "−"; }
