@@ -38,6 +38,7 @@ from app.modules.planning.schemas import (
     PlanItemRead,
     PlanItemUpdate,
     PlanSummary,
+    StashedWorshipSetRead,
     PlanTypeCreate,
     PlanTypeRead,
     PlanTypeUpdate,
@@ -498,26 +499,40 @@ def list_plans(
     return summaries
 
 
-@router.get("/plans/stashed-worship-sets", response_model=list[PlanDetail])
+@router.get("/plans/stashed-worship-sets", response_model=list[StashedWorshipSetRead])
 def list_stashed_worship_sets(
     _current_user: User = Depends(require_permission("plans:read")),
     session: Session = Depends(get_session),
-) -> list[PlanDetail]:
+) -> list[StashedWorshipSetRead]:
     """Return archived worship sets, including their songs, for reuse on another date."""
     plans = session.scalars(
         select(Plan)
         .join(PlanType, Plan.plan_type_id == PlanType.id)
-        .where(Plan.deleted_at.is_not(None), PlanType.name == "Worship Set")
+        .where(
+            Plan.deleted_at.is_not(None),
+            PlanType.name == "Worship Set",
+            select(PlanItem.id)
+            .where(
+                PlanItem.plan_id == Plan.id,
+                PlanItem.deleted_at.is_(None),
+                PlanItem.song_id.is_not(None),
+            )
+            .exists(),
+        )
         .order_by(Plan.deleted_at.desc(), Plan.service_date.desc())
     ).all()
-    results: list[PlanDetail] = []
+    results: list[StashedWorshipSetRead] = []
     for plan in plans:
         items = list(session.scalars(
             select(PlanItem)
             .where(PlanItem.plan_id == plan.id, PlanItem.deleted_at.is_(None))
             .order_by(PlanItem.sequence, PlanItem.created_at)
         ).all())
-        results.append(plan_to_detail(session, plan, items))
+        detail = plan_to_detail(session, plan, items)
+        results.append(StashedWorshipSetRead(
+            **detail.model_dump(),
+            stashed_at=plan.deleted_at,
+        ))
     return results
 
 

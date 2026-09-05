@@ -45,6 +45,7 @@ import {
   type PlanSummary,
   type PlanType,
   type Song,
+  type StashedWorshipSet,
   type WorshipSuggestedSong,
   type WorshipSongUsage,
   type WorshipLeaderAssignment,
@@ -400,7 +401,7 @@ export function WorshipBuilderView({ active = true, canAccessAdminTools, canArch
   const [editHistoryOpen, setEditHistoryOpen] = useState(false);
   const [editHistoryApplying, setEditHistoryApplying] = useState(false);
   const [historyTab, setHistoryTab] = useState<"history" | "stashes">("history");
-  const [stashedSets, setStashedSets] = useState<PlanDetail[]>([]);
+  const [stashedSets, setStashedSets] = useState<StashedWorshipSet[]>([]);
   const [selectedStashId, setSelectedStashId] = useState<string | null>(null);
   const [reorderSaving, setReorderSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -634,6 +635,13 @@ export function WorshipBuilderView({ active = true, canAccessAdminTools, canArch
       return "";
     }
     return date.toLocaleString(undefined, { day: "numeric", hour: "2-digit", minute: "2-digit", month: "short" });
+  }
+
+  function formatStashTime(value: string) {
+    const date = new Date(value);
+    return Number.isNaN(date.getTime())
+      ? ""
+      : date.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
   }
 
   function formatHistoryLabel(label: string) {
@@ -1107,7 +1115,7 @@ export function WorshipBuilderView({ active = true, canAccessAdminTools, canArch
     }
   }
 
-  async function applyStashedWorshipSet(stash: PlanDetail) {
+  async function applyStashedWorshipSet(stash: StashedWorshipSet) {
     if (!plan || !canDeletePlan || editHistoryApplying) return;
     const targetDate = longDateForInput(dateInputFromIso(plan.service_date));
     const songsToApply = sortedWorshipItems(stash.items);
@@ -2082,7 +2090,7 @@ export function WorshipBuilderView({ active = true, canAccessAdminTools, canArch
                           {stashedSets.length ? stashedSets.map((stash) => (
                             <button className={`worship-stash-row ${selectedStashId === stash.id ? "active" : ""}`} key={stash.id} onClick={() => setSelectedStashId(stash.id)} type="button">
                               <strong>{stash.title}</strong>
-                              <small>{formatServiceDate(stash.service_date)} · {sortedWorshipItems(stash.items).length} songs</small>
+                              <small>{formatServiceDate(stash.service_date)} · stashed {formatStashTime(stash.stashed_at)} · {sortedWorshipItems(stash.items).length} songs</small>
                             </button>
                           )) : <p className="empty-state">No stashed sets yet.</p>}
                         </div>
@@ -2090,7 +2098,10 @@ export function WorshipBuilderView({ active = true, canAccessAdminTools, canArch
                           const stash = stashedSets.find((candidate) => candidate.id === selectedStashId)!;
                           const stashSongs = sortedWorshipItems(stash.items);
                           return <aside className="worship-stash-preview" aria-label={`Preview ${stash.title}`}>
-                            <div><strong>{stash.title}</strong><small>{longDateForInput(dateInputFromIso(stash.service_date))}</small></div>
+                            <div className="worship-stash-preview-heading">
+                              <div><strong>{stash.title}</strong><small>{longDateForInput(dateInputFromIso(stash.service_date))} · stashed {formatStashTime(stash.stashed_at)}</small></div>
+                              <button className="section-icon-button" onClick={() => setSelectedStashId(null)} type="button" aria-label="Close stash preview"><X size={14} aria-hidden="true" /></button>
+                            </div>
                             <ol>{stashSongs.map((item) => <li key={item.id}>{item.title}{item.key_signature ? <small> · {item.key_signature}</small> : null}</li>)}</ol>
                             {canDeletePlan ? <button className="primary-button" disabled={editHistoryApplying} onClick={() => void applyStashedWorshipSet(stash)} type="button">Apply to current date</button> : null}
                           </aside>;

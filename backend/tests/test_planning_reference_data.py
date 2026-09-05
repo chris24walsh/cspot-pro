@@ -88,6 +88,13 @@ def test_stashed_worship_sets_returns_only_archived_worship_sets_with_items() ->
             title="Active set",
             status="draft",
         )
+        empty_archive = Plan(
+            plan_type_id=worship_type.id,
+            service_date=datetime(2026, 8, 2, tzinfo=UTC),
+            title="Empty archived set",
+            status="draft",
+            deleted_at=datetime(2026, 8, 11, tzinfo=UTC),
+        )
         archived_service = Plan(
             plan_type_id=service_type.id,
             service_date=datetime(2026, 8, 9, tzinfo=UTC),
@@ -95,10 +102,14 @@ def test_stashed_worship_sets_returns_only_archived_worship_sets_with_items() ->
             status="draft",
             deleted_at=datetime(2026, 8, 10, tzinfo=UTC),
         )
-        session.add_all([stashed, active, archived_service])
+        session.add_all([stashed, active, empty_archive, archived_service])
+        session.flush()
+        song = Song(title="First song")
+        session.add(song)
         session.flush()
         session.add(PlanItem(
             plan_id=stashed.id,
+            song_id=song.id,
             item_type="song",
             sequence=10,
             title="First song",
@@ -111,6 +122,7 @@ def test_stashed_worship_sets_returns_only_archived_worship_sets_with_items() ->
 
     assert [result.id for result in results] == [stashed.id]
     assert [item.title for item in results[0].items] == ["First song"]
+    assert results[0].stashed_at.date().isoformat() == "2026-08-10"
 
 
 def test_get_plan_does_not_materialize_an_empty_outline() -> None:

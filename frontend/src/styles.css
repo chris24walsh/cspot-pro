@@ -438,9 +438,15 @@ button {
   padding: 12px;
 }
 
-.worship-stash-preview > div {
+.worship-stash-preview-heading,
+.worship-stash-preview-heading > div {
   display: grid;
   gap: 3px;
+}
+
+.worship-stash-preview-heading {
+  align-items: start;
+  grid-template-columns: minmax(0, 1fr) auto;
 }
 
 .worship-stash-preview ol {

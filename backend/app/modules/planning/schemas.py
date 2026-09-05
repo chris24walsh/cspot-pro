@@ -181,6 +181,10 @@ class PlanDetail(PlanBase):
     items: list[PlanItemRead]
 
 
+class StashedWorshipSetRead(PlanDetail):
+    stashed_at: datetime
+
+
 class WorshipLeaderAssignmentRead(BaseModel):
     service_date: date
     leader_id: str
