@@ -15,6 +15,7 @@ import {
   getPlanTypes,
   getPlans,
   getSongs,
+  getStashedWorshipSets,
   getMembers,
   getLivePresentationServices,
   getWorshipLeaderAssignments,
@@ -398,6 +399,9 @@ export function WorshipBuilderView({ active = true, canAccessAdminTools, canArch
   const [editHistoryIndex, setEditHistoryIndex] = useState(0);
   const [editHistoryOpen, setEditHistoryOpen] = useState(false);
   const [editHistoryApplying, setEditHistoryApplying] = useState(false);
+  const [historyTab, setHistoryTab] = useState<"history" | "stashes">("history");
+  const [stashedSets, setStashedSets] = useState<PlanDetail[]>([]);
+  const [selectedStashId, setSelectedStashId] = useState<string | null>(null);
   const [reorderSaving, setReorderSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<"builder" | "live">("builder");
@@ -782,8 +786,10 @@ export function WorshipBuilderView({ active = true, canAccessAdminTools, canArch
       return;
     }
     try {
-      const nextHistory = await getPlanHistory(plan.id);
+      const [nextHistory, nextStashes] = await Promise.all([getPlanHistory(plan.id), getStashedWorshipSets()]);
       setEditHistory(nextHistory);
+      setStashedSets(nextStashes);
+      setSelectedStashId((current) => nextStashes.some((stash) => stash.id === current) ? current : nextStashes[0]?.id ?? null);
       setEditHistoryIndex(nextHistory.filter((entry) => entry.restorable && entry.entity_type !== "song" && entry.after.length > 0).length);
       setEditHistoryOpen(true);
     } catch (error) {
@@ -1032,19 +1038,20 @@ export function WorshipBuilderView({ active = true, canAccessAdminTools, canArch
     }
   }
 
-  async function archiveSelectedWorshipSet() {
+  async function stashSelectedWorshipSet(options: { confirmFirst?: boolean; successMessage?: boolean } = {}) {
     if (!plan || !canDeletePlan) {
-      return;
+      return null;
     }
 
     const archived = { id: plan.id, title: plan.title, serviceDate: dateInputFromIso(plan.service_date) };
-    const confirmed = await confirm({
-      confirmLabel: "Archive",
-      message: `Archive worship set “${plan.title}”?`,
-      title: "Archive Worship Set",
-      tone: "danger",
-    });
-    if (!confirmed) return;
+    if (options.confirmFirst !== false) {
+      const confirmed = await confirm({
+        confirmLabel: "Stash set",
+        message: `Stash worship set “${plan.title}”? The current date will be left with a fresh empty set.`,
+        title: "Stash Worship Set",
+      });
+      if (!confirmed) return null;
+    }
 
     try {
       await deletePlan(plan.id);
@@ -1092,9 +1099,40 @@ export function WorshipBuilderView({ active = true, canAccessAdminTools, canArch
       setArchivedSetUndo({ id: archived.id, title: archived.title, replacementId: replacement.id, archivedServiceId, replacementServiceId });
       setSetPickerOpen(false);
       await load(replacement.id);
-      setMessage("Worship set archived.");
+      if (options.successMessage !== false) setMessage("Worship set stashed.");
+      return replacement;
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Could not archive worship set.");
+      setMessage(error instanceof Error ? error.message : "Could not stash worship set.");
+      return null;
+    }
+  }
+
+  async function applyStashedWorshipSet(stash: PlanDetail) {
+    if (!plan || !canDeletePlan || editHistoryApplying) return;
+    const targetDate = longDateForInput(dateInputFromIso(plan.service_date));
+    const songsToApply = sortedWorshipItems(stash.items);
+    const confirmed = await confirm({
+      confirmLabel: "Apply set",
+      message: `Stash the current set, then apply ${songsToApply.length} song${songsToApply.length === 1 ? "" : "s"} from “${stash.title}” to ${targetDate}?`,
+      title: "Apply Stashed Set",
+    });
+    if (!confirmed) return;
+    setEditHistoryApplying(true);
+    try {
+      const replacement = await stashSelectedWorshipSet({ confirmFirst: false, successMessage: false });
+      if (!replacement) return;
+      const before: PlanHistorySnapshotItem[] = [];
+      const sourceSnapshot = snapshotWorshipItems(songsToApply);
+      await applyWorshipSetSnapshot(replacement.id, sourceSnapshot);
+      const applied = await getPlan(replacement.id);
+      const after = snapshotWorshipItems(applied.items);
+      await recordSetHistory(replacement.id, `applying stashed set “${stash.title}”`, before, after, stash.title);
+      await load(replacement.id);
+      setMessage(`Applied “${stash.title}”; the previous set was stashed.`);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not apply the stashed worship set.");
+    } finally {
+      setEditHistoryApplying(false);
     }
   }
 
@@ -1943,7 +1981,7 @@ export function WorshipBuilderView({ active = true, canAccessAdminTools, canArch
       {confirmationDialog}
       {archivedSetUndo ? (
         <div className="archive-undo-banner" role="status">
-          <span>Archived “{archivedSetUndo.title}”</span>
+          <span>Stashed “{archivedSetUndo.title}”</span>
           <button className="text-button" onClick={() => void undoArchivedWorshipSet()} type="button">Undo</button>
         </div>
       ) : null}
@@ -1980,15 +2018,19 @@ export function WorshipBuilderView({ active = true, canAccessAdminTools, canArch
                   historyContent={editHistoryOpen ? (
                   <section className="worship-history-popover" aria-label="Worship set edit history">
                     <div className="worship-history-popover-heading">
-                      <strong>Edit History</strong>
+                      <strong>Worship sets</strong>
                       {plan && canAccessAdminTools && canDeletePlan ? (
-                        <button className="text-button history-archive-button" onClick={() => void archiveSelectedWorshipSet()} type="button"><Archive size={14} /> Archive</button>
+                        <button className="text-button history-archive-button" onClick={() => void stashSelectedWorshipSet()} type="button"><Archive size={14} /> Stash</button>
                       ) : null}
                       <button className="section-icon-button" onClick={() => setEditHistoryOpen(false)} type="button" aria-label="Close edit history">
                         <X size={14} aria-hidden="true" />
                       </button>
                     </div>
-                    <div className="worship-history-list">
+                    <div className="worship-history-tabs" role="tablist" aria-label="Worship set records">
+                      <button className={historyTab === "history" ? "active" : ""} onClick={() => setHistoryTab("history")} role="tab" aria-selected={historyTab === "history"} type="button">History</button>
+                      <button className={historyTab === "stashes" ? "active" : ""} onClick={() => setHistoryTab("stashes")} role="tab" aria-selected={historyTab === "stashes"} type="button">Stashed sets</button>
+                    </div>
+                    {historyTab === "history" ? <div className="worship-history-list">
                       <div className={`worship-history-row ${editHistoryIndex === 0 ? "active" : ""}`}>
                         <button className="history-version-button" disabled={editHistoryApplying || editHistoryIndex === 0} onClick={() => void restoreSetHistory(0)} title="Restore the original set" type="button">
                           <span>Original set</span>
@@ -2034,7 +2076,27 @@ export function WorshipBuilderView({ active = true, canAccessAdminTools, canArch
                           );
                         });
                       })()}
-                    </div>
+                    </div> : (
+                      <div className="worship-stash-browser">
+                        <div className="worship-history-list worship-stash-list">
+                          {stashedSets.length ? stashedSets.map((stash) => (
+                            <button className={`worship-stash-row ${selectedStashId === stash.id ? "active" : ""}`} key={stash.id} onClick={() => setSelectedStashId(stash.id)} type="button">
+                              <strong>{stash.title}</strong>
+                              <small>{formatServiceDate(stash.service_date)} · {sortedWorshipItems(stash.items).length} songs</small>
+                            </button>
+                          )) : <p className="empty-state">No stashed sets yet.</p>}
+                        </div>
+                        {stashedSets.find((stash) => stash.id === selectedStashId) ? (() => {
+                          const stash = stashedSets.find((candidate) => candidate.id === selectedStashId)!;
+                          const stashSongs = sortedWorshipItems(stash.items);
+                          return <aside className="worship-stash-preview" aria-label={`Preview ${stash.title}`}>
+                            <div><strong>{stash.title}</strong><small>{longDateForInput(dateInputFromIso(stash.service_date))}</small></div>
+                            <ol>{stashSongs.map((item) => <li key={item.id}>{item.title}{item.key_signature ? <small> · {item.key_signature}</small> : null}</li>)}</ol>
+                            {canDeletePlan ? <button className="primary-button" disabled={editHistoryApplying} onClick={() => void applyStashedWorshipSet(stash)} type="button">Apply to current date</button> : null}
+                          </aside>;
+                        })() : null}
+                      </div>
+                    )}
                   </section>
                   ) : null}
                 />

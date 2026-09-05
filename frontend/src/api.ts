@@ -1092,6 +1092,10 @@ export async function getPlans(): Promise<PlanSummary[]> {
   return getJson<PlanSummary[]>("/api/v1/planning/plans");
 }
 
+export async function getStashedWorshipSets(): Promise<PlanDetail[]> {
+  return getJson<PlanDetail[]>("/api/v1/planning/plans/stashed-worship-sets");
+}
+
 export async function getWorshipLeaderAssignments(): Promise<WorshipLeaderAssignment[]> {
   return getJson<WorshipLeaderAssignment[]>("/api/v1/planning/worship-leader-assignments");
 }

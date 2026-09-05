@@ -362,15 +362,114 @@ button {
   color: #17201b;
   display: grid;
   gap: 8px;
-  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-rows: auto auto minmax(0, 1fr);
   max-height: min(430px, calc(100svh - 112px));
-  min-width: min(320px, calc(100vw - 24px));
+  min-width: min(680px, calc(100vw - 24px));
   overflow: hidden;
   padding: 10px;
   position: absolute;
   right: 0;
   top: calc(100% + 6px);
   z-index: 35;
+}
+
+.worship-history-tabs {
+  background: #eee9dc;
+  border-radius: 7px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  padding: 3px;
+}
+
+.worship-history-tabs button {
+  background: transparent;
+  border: 0;
+  border-radius: 5px;
+  color: #59625d;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 700;
+  padding: 7px 12px;
+}
+
+.worship-history-tabs button.active {
+  background: #fffefa;
+  box-shadow: 0 1px 3px rgba(23, 32, 27, 0.14);
+  color: #17201b;
+}
+
+.worship-stash-browser {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: minmax(220px, 0.85fr) minmax(260px, 1.15fr);
+  min-height: 0;
+}
+
+.worship-stash-row {
+  background: #f9f6eb;
+  border: 1px solid #e3dcc8;
+  border-radius: 8px;
+  color: #17201b;
+  cursor: pointer;
+  display: grid;
+  gap: 4px;
+  padding: 10px;
+  text-align: left;
+}
+
+.worship-stash-row.active {
+  background: #e8f0e9;
+  border-color: #829988;
+}
+
+.worship-stash-row small,
+.worship-stash-preview small {
+  color: #66716b;
+}
+
+.worship-stash-preview {
+  background: #f9f6eb;
+  border: 1px solid #e3dcc8;
+  border-radius: 8px;
+  display: grid;
+  gap: 10px;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  min-height: 0;
+  padding: 12px;
+}
+
+.worship-stash-preview > div {
+  display: grid;
+  gap: 3px;
+}
+
+.worship-stash-preview ol {
+  margin: 0;
+  overflow: auto;
+  padding-left: 24px;
+}
+
+.worship-stash-preview li {
+  padding: 4px 0;
+}
+
+@media (max-width: 620px) {
+  .worship-history-popover {
+    min-width: min(360px, calc(100vw - 16px));
+  }
+
+  .worship-stash-browser {
+    grid-template-columns: 1fr;
+    overflow: auto;
+  }
+
+  .worship-stash-list {
+    max-height: 155px;
+  }
+
+  .worship-stash-preview {
+    min-height: 190px;
+  }
 }
 
 .worship-history-popover-heading {

@@ -10,7 +10,13 @@ from app.modules.library.models import ItemFile, StoredFile
 from app.modules.music.models import Song  # noqa: F401 - registers the foreign-key table
 from app.modules.planning.models import DefaultItem, Plan, PlanItem, PlanType
 from app.modules.planning.reference_data import ensure_worship_set_plan_type
-from app.modules.planning.routes import create_plan, create_plan_item, get_plan, plan_item_to_read
+from app.modules.planning.routes import (
+    create_plan,
+    create_plan_item,
+    get_plan,
+    list_stashed_worship_sets,
+    plan_item_to_read,
+)
 from app.modules.planning.schemas import PlanCreate, PlanItemCreate
 
 
@@ -58,6 +64,53 @@ def test_get_plan_returns_the_loaded_plan_detail() -> None:
 
     assert detail.id == plan.id
     assert detail.title == "Sunday service"
+
+
+def test_stashed_worship_sets_returns_only_archived_worship_sets_with_items() -> None:
+    engine = create_engine("sqlite://")
+    Base.metadata.create_all(engine)
+
+    with Session(engine) as session:
+        worship_type = PlanType(name="Worship Set", active=True)
+        service_type = PlanType(name="Sunday Service", active=True)
+        session.add_all([worship_type, service_type])
+        session.flush()
+        stashed = Plan(
+            plan_type_id=worship_type.id,
+            service_date=datetime(2026, 8, 9, tzinfo=UTC),
+            title="Reusable set",
+            status="draft",
+            deleted_at=datetime(2026, 8, 10, tzinfo=UTC),
+        )
+        active = Plan(
+            plan_type_id=worship_type.id,
+            service_date=datetime(2026, 8, 16, tzinfo=UTC),
+            title="Active set",
+            status="draft",
+        )
+        archived_service = Plan(
+            plan_type_id=service_type.id,
+            service_date=datetime(2026, 8, 9, tzinfo=UTC),
+            title="Archived service",
+            status="draft",
+            deleted_at=datetime(2026, 8, 10, tzinfo=UTC),
+        )
+        session.add_all([stashed, active, archived_service])
+        session.flush()
+        session.add(PlanItem(
+            plan_id=stashed.id,
+            item_type="song",
+            sequence=10,
+            title="First song",
+            comment=None,
+            key_signature="G",
+        ))
+        session.commit()
+
+        results = list_stashed_worship_sets(None, session)  # type: ignore[arg-type]
+
+    assert [result.id for result in results] == [stashed.id]
+    assert [item.title for item in results[0].items] == ["First song"]
 
 
 def test_get_plan_does_not_materialize_an_empty_outline() -> None:

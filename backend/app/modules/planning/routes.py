@@ -498,6 +498,29 @@ def list_plans(
     return summaries
 
 
+@router.get("/plans/stashed-worship-sets", response_model=list[PlanDetail])
+def list_stashed_worship_sets(
+    _current_user: User = Depends(require_permission("plans:read")),
+    session: Session = Depends(get_session),
+) -> list[PlanDetail]:
+    """Return archived worship sets, including their songs, for reuse on another date."""
+    plans = session.scalars(
+        select(Plan)
+        .join(PlanType, Plan.plan_type_id == PlanType.id)
+        .where(Plan.deleted_at.is_not(None), PlanType.name == "Worship Set")
+        .order_by(Plan.deleted_at.desc(), Plan.service_date.desc())
+    ).all()
+    results: list[PlanDetail] = []
+    for plan in plans:
+        items = list(session.scalars(
+            select(PlanItem)
+            .where(PlanItem.plan_id == plan.id, PlanItem.deleted_at.is_(None))
+            .order_by(PlanItem.sequence, PlanItem.created_at)
+        ).all())
+        results.append(plan_to_detail(session, plan, items))
+    return results
+
+
 @router.post("/plans", response_model=PlanDetail, status_code=status.HTTP_201_CREATED)
 def create_plan(
     payload: PlanCreate,

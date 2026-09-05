@@ -813,10 +813,14 @@ Search modes:
 - Sunday School edit history includes an Archive action for editors. Archiving
   clears explicitly added lesson content while retaining the dated slot and its
   history, so the lesson can be restored from a previous version.
-- Service and worship-set archives leave a fresh empty plan on the same date,
+- Service archives and worship-set stashes leave a fresh empty plan on the same date,
   so archive never removes the calendar foundation or reopens a preparation
   prompt. Their immediate Undo actions discard that replacement and restore the
   archived plan through the permission-checked endpoint.
+- Worship set history is split between edit history and reusable stashed sets.
+  Stashes are archived worship-set plans exposed with their ordered song items for
+  preview. Applying one first stashes the current set, then copies the selected
+  stash into the fresh plan on the current date; the source stash remains reusable.
 - Migration `0031_remove_empty_ends` removes legacy End slides only when they
   are the sole active item in an otherwise empty service; populated services
   and their intentional End slides are preserved.
