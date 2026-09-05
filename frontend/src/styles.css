@@ -12033,6 +12033,8 @@ button.musician-page {
   }
 
   .shell.is-mobile-device .musician-edit-button,
+  .shell.is-mobile-device .musician-audio-button,
+  .shell.is-mobile-device .musician-service-couple-button,
   .shell.is-mobile-device .chord-toggle-button {
     justify-content: center;
     padding: 0;
@@ -12040,6 +12042,8 @@ button.musician-page {
   }
 
   .shell.is-mobile-device .musician-edit-button .musician-control-text,
+  .shell.is-mobile-device .musician-audio-button .musician-control-text,
+  .shell.is-mobile-device .musician-service-couple-button .musician-control-text,
   .shell.is-mobile-device .musician-reader-toggle .musician-control-text,
   .shell.is-mobile-device .chord-toggle-button .musician-control-text,
   .shell.is-mobile-device .chord-toggle-button .chord-toggle-indicator {
@@ -12444,6 +12448,8 @@ button.musician-page {
    without a meaningful icon, such as the date and key selectors, keep text. */
 @media (orientation: portrait) {
   .shell.is-mobile-device .musician-edit-button .musician-control-text,
+  .shell.is-mobile-device .musician-audio-button .musician-control-text,
+  .shell.is-mobile-device .musician-service-couple-button .musician-control-text,
   .shell.is-mobile-device .musician-reader-toggle .musician-control-text,
   .shell.is-mobile-device .chord-toggle-button .musician-control-text,
   .shell.is-mobile-device .chord-toggle-button .chord-toggle-indicator,
@@ -12457,6 +12463,8 @@ button.musician-page {
 
   .shell.is-mobile-device .musician-reader-toggle,
   .shell.is-mobile-device .musician-edit-button,
+  .shell.is-mobile-device .musician-audio-button,
+  .shell.is-mobile-device .musician-service-couple-button,
   .shell.is-mobile-device .chord-toggle-button {
     justify-content: center;
     padding: 0;
@@ -12464,6 +12472,8 @@ button.musician-page {
 
   .shell.is-tablet-device .musician-reader-toggle,
   .shell.is-tablet-device .musician-edit-button,
+  .shell.is-tablet-device .musician-audio-button,
+  .shell.is-tablet-device .musician-service-couple-button,
   .shell.is-tablet-device .chord-toggle-button {
     width: 40px;
   }
