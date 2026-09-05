@@ -2222,9 +2222,12 @@ h3 {
 .plan-type-settings textarea { min-height: 70px; }
 .plan-type-outline { gap: 8px; }
 .plan-type-outline-row { min-width: 0; }
-.template-row-main { align-items: center; display: grid; gap: 8px; grid-template-columns: 58px minmax(180px, 1.2fr) minmax(180px, 0.95fr) auto; }
+.template-row-main { align-items: center; display: grid; gap: 8px; grid-template-columns: 30px 58px minmax(180px, 1.2fr) minmax(180px, 0.95fr) auto; }
 .template-row-kind { color: #65736c; font-size: 10px; font-weight: 900; letter-spacing: 0.08em; text-transform: uppercase; }
 .template-row-actions { display: flex; gap: 5px; }
+.template-drag-handle { align-items: center; align-self: stretch; background: transparent; border: 0; color: #718078; cursor: grab; display: flex; justify-content: center; margin: -3px 0; padding: 3px; touch-action: none; }
+.template-drag-handle:active { cursor: grabbing; }
+.plan-type-outline-row.is-dragging { opacity: .48; }
 .plan-type-outline-row input,
 .plan-type-outline-row select,
 .plan-type-settings > label > select,
@@ -12698,7 +12701,7 @@ button.musician-page {
   border-left: 3px solid var(--accent);
   border-radius: 8px;
   box-shadow: 0 1px 2px rgb(23 32 27 / 4%);
-  margin-left: 1rem;
+  margin-left: 2rem;
   padding: 9px 10px 8px;
 }
 
@@ -12711,6 +12714,10 @@ button.musician-page {
 }
 
 .plan-type-outline-row.is-section:first-child { margin-top: 0; }
+.plan-type-outline-row.is-section + .plan-type-outline-row.is-child { border-top-left-radius: 3px; border-top-right-radius: 3px; margin-top: -5px; }
+.plan-type-outline-row.is-child + .plan-type-outline-row.is-child { border-radius: 3px; margin-top: -5px; }
+.plan-type-settings label.toggle-row { align-items: center; display: inline-flex; gap: 8px; }
+.plan-type-settings label.toggle-row input { min-height: auto; width: auto; }
 .plan-type-outline-row.is-section .template-row-kind { color: #245d4d; }
 .plan-type-outline-row.is-section .template-row-main > input {
   background: transparent;
@@ -12723,9 +12730,10 @@ button.musician-page {
 .field-unit { color: #768078; font-size: 10px; font-weight: 650; }
 
 @media (max-width: 900px) {
-  .template-row-main { grid-template-columns: 48px minmax(140px, 1fr) auto; }
-  .template-row-main > select { grid-column: 2 / 3; }
-  .template-row-actions { grid-column: 3; grid-row: 1 / span 2; }
+  .template-row-main { grid-template-columns: 28px 48px minmax(120px, 1fr) auto; }
+  .template-row-main > select { grid-column: 3 / 4; }
+  .template-row-actions { grid-column: 4; grid-row: 1 / span 2; }
+  .template-drag-handle { grid-row: 1 / span 2; }
 }
 
 .template-cue-controls {
@@ -12808,9 +12816,14 @@ button.musician-page {
   max-height: calc(100dvh - 24px);
 }
 .pre-service-media-dialog > div > p, .create-service-dialog p { margin: 4px 0; font-size: 12px; }
-.pre-service-media-dialog .item-editor-fieldset { padding: 8px 10px; border-radius: 5px; }
-.pre-service-media-dialog .item-editor-disclosure > summary { font-size: 13px; padding: 4px 0; }
-.pre-service-media-dialog .item-editor-disclosure[open] > summary { margin-bottom: 8px; }
+.pre-service-media-dialog .item-editor-fieldset { background: #fffefa; border-color: #e3dcc8; border-radius: 6px; overflow: hidden; padding: 0; }
+.pre-service-media-dialog .item-editor-disclosure > summary { font-size: 13px; min-height: 38px; padding: 7px 9px; }
+.pre-service-media-dialog .item-editor-disclosure[open] > summary { border-bottom: 1px solid #e8e2d3; margin-bottom: 0; }
+.pre-service-media-dialog .item-editor-disclosure > .form-grid { margin: 8px 9px; padding-left: 17px; }
+.pre-service-media-dialog .item-editor-disclosure > button { margin: 8px 9px; }
+.pre-service-media-dialog .inline-checkbox { align-items: center; display: flex; grid-template-columns: none; }
+.pre-service-media-dialog .inline-checkbox > input { flex: 0 0 auto; margin: 0; }
+.pre-service-media-dialog .inline-checkbox > span { display: inline; }
 .pre-service-media-dialog .item-details-grid { gap: 8px; }
 .pre-service-media-dialog .template-save-choice { border-top: 1px solid #d8d3c8; padding-top: 8px; }
 .template-save-choice small { display: block; font-weight: 400; }
@@ -12822,6 +12835,11 @@ button.musician-page {
   .pre-service-media-dialog .app-dialog-actions > button { width: auto; flex: 1; min-height: 38px; }
   .pre-service-media-dialog .form-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .pre-service-media-dialog input, .pre-service-media-dialog select { min-width: 0; }
+  .plan-type-outline-row.is-child { margin-left: 12px; }
+  .template-row-kind { display: none; }
+  .template-row-main { grid-template-columns: 26px minmax(0, 1fr) auto; }
+  .template-row-main > input, .template-row-main > select { grid-column: 2; }
+  .template-row-actions { grid-column: 3; }
 }
 .pre-service-media-dialog .item-editor-disclosure > summary { display: flex; align-items: center; justify-content: space-between; list-style: none; }
 .pre-service-media-dialog .item-editor-disclosure > summary::-webkit-details-marker { display: none; }

@@ -1,4 +1,4 @@
-import { ChevronDown, ChevronUp, Plus, Save, Trash2 } from "lucide-react";
+import { ChevronDown, GripVertical, Plus, Save, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { createPlanType, getBroadcastViewerSettings, getPlanTypes, updatePlanType, type BroadcastAudioScene, type PlanType } from "../api";
@@ -36,6 +36,7 @@ export function PlanTypeManager({ onChanged, onMessage }: { onChanged?: () => vo
   const [saving, setSaving] = useState(false);
   const [scenes, setScenes] = useState<BroadcastAudioScene[]>([]);
   const [expandedSectionSettings, setExpandedSectionSettings] = useState<Set<string>>(() => new Set());
+  const [draggedOutlineId, setDraggedOutlineId] = useState<string | null>(null);
 
   async function load(preferredId?: string) {
     const [next, settings] = await Promise.all([getPlanTypes(), getBroadcastViewerSettings()]);
@@ -84,39 +85,33 @@ export function PlanTypeManager({ onChanged, onMessage }: { onChanged?: () => vo
     }));
   }
 
-  function moveOutline(index: number, delta: -1 | 1) {
+  function dropOutline(targetIndex: number) {
+    if (!draggedOutlineId) return;
     setDraft((current) => {
-      const currentItem = current.default_outline[index];
-      if (!currentItem) return current;
+      const sourceIndex = current.default_outline.findIndex((item) => item.id === draggedOutlineId);
+      const source = current.default_outline[sourceIndex];
+      const target = current.default_outline[targetIndex];
+      if (!source || !target || (source.parent_id ?? null) !== (target.parent_id ?? null) || sourceIndex === targetIndex) return current;
+      const siblings = current.default_outline.filter((item) => (item.parent_id ?? null) === (source.parent_id ?? null));
+      const sourceSiblingIndex = siblings.findIndex((item) => item.id === source.id);
+      const targetSiblingIndex = siblings.findIndex((item) => item.id === target.id);
+      siblings.splice(sourceSiblingIndex, 1);
+      siblings.splice(targetSiblingIndex, 0, source);
       let next: PlanType["default_outline"];
-      if (!currentItem.parent_id) {
-        const roots = current.default_outline.filter((item) => !item.parent_id);
-        const rootIndex = roots.findIndex((item) => item.id === currentItem.id);
-        const targetIndex = rootIndex + delta;
-        if (targetIndex < 0 || targetIndex >= roots.length) return current;
-        [roots[rootIndex], roots[targetIndex]] = [roots[targetIndex], roots[rootIndex]];
-        next = roots.flatMap((root) => [root, ...current.default_outline.filter((item) => item.parent_id === root.id)]);
+      if (source.parent_id) {
+        const siblingIds = new Set(siblings.map((item) => item.id));
+        let siblingIndex = 0;
+        next = current.default_outline.map((item) => siblingIds.has(item.id) ? siblings[siblingIndex++] : item);
       } else {
-        next = [...current.default_outline];
-        const siblingIndices = next.flatMap((item, itemIndex) => item.parent_id === currentItem.parent_id ? [itemIndex] : []);
-        const siblingIndex = siblingIndices.indexOf(index);
-        const target = siblingIndices[siblingIndex + delta];
-        if (target === undefined) return current;
-        [next[index], next[target]] = [next[target], next[index]];
+        next = siblings.flatMap((root) => [root, ...current.default_outline.filter((item) => item.parent_id === root.id)]);
       }
-      return { ...current, default_outline: next.map((item) => {
-        const nextSiblingIndex = next.filter((candidate) => (candidate.parent_id ?? null) === (item.parent_id ?? null)).findIndex((candidate) => candidate.id === item.id);
-        return { ...item, sequence: String((nextSiblingIndex + 1) * 10) };
-      }) };
+      next = next.map((item) => {
+        const position = next.filter((candidate) => (candidate.parent_id ?? null) === (item.parent_id ?? null)).findIndex((candidate) => candidate.id === item.id);
+        return { ...item, sequence: String((position + 1) * 10) };
+      });
+      return { ...current, default_outline: next };
     });
-  }
-
-  function canMoveOutline(index: number, delta: -1 | 1) {
-    const item = draft.default_outline[index];
-    if (!item) return false;
-    const siblings = draft.default_outline.filter((candidate) => (candidate.parent_id ?? null) === (item.parent_id ?? null));
-    const siblingIndex = siblings.findIndex((candidate) => candidate.id === item.id);
-    return siblingIndex + delta >= 0 && siblingIndex + delta < siblings.length;
+    setDraggedOutlineId(null);
   }
 
   function addOutlineItem(parentId: string | null = null) {
@@ -161,14 +156,13 @@ export function PlanTypeManager({ onChanged, onMessage }: { onChanged?: () => vo
       <label>Description<textarea maxLength={500} onChange={(event) => setDraft({ ...draft, description: event.target.value || null })} value={draft.description ?? ""} /></label>
       <div className="stack plan-type-outline" aria-label="Template outline">
         {draft.default_outline.map((item, index) => (
-          <div className={`plan-type-outline-row ${item.parent_id ? "is-child" : "is-section"}`} key={item.id ?? `${index}:${item.sequence}`}>
+          <div className={`plan-type-outline-row ${item.parent_id ? "is-child" : "is-section"} ${draggedOutlineId === item.id ? "is-dragging" : ""}`} key={item.id ?? `${index}:${item.sequence}`} onDragOver={(event) => { if (draggedOutlineId) event.preventDefault(); }} onDrop={() => dropOutline(index)}>
             <div className="template-row-main">
+              <button aria-label={`Reorder ${item.title}`} className="template-drag-handle" draggable onDragEnd={() => setDraggedOutlineId(null)} onDragStart={(event) => { setDraggedOutlineId(item.id ?? null); event.dataTransfer.effectAllowed = "move"; }} title={`Drag to reorder ${item.parent_id ? "within this section" : "sections"}`} type="button"><GripVertical size={17} aria-hidden="true" /></button>
               <span className="template-row-kind">{item.parent_id ? "Slide" : "Section"}</span>
               <input aria-label={`${item.parent_id ? "Slide" : "Section"} ${index + 1} title`} onChange={(event) => updateOutline(index, { title: event.target.value })} placeholder={item.parent_id ? "Slide title" : "Section title"} value={item.title} />
               <select aria-label={`${item.parent_id ? "Slide" : "Section"} ${index + 1} type`} onChange={(event) => updateOutline(index, { item_type: event.target.value })} value={item.item_type}>{SECTION_TYPES.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select>
               <div className="template-row-actions">
-                <button aria-label={`Move ${item.title} up`} className="section-icon-button" disabled={!canMoveOutline(index, -1)} onClick={() => moveOutline(index, -1)} title="Move up" type="button"><ChevronUp size={14} /></button>
-                <button aria-label={`Move ${item.title} down`} className="section-icon-button" disabled={!canMoveOutline(index, 1)} onClick={() => moveOutline(index, 1)} title="Move down" type="button"><ChevronDown size={14} /></button>
                 <button aria-label={`Remove ${item.title}`} className="section-icon-button section-remove-button" onClick={() => setDraft((current) => ({ ...current, default_outline: current.default_outline.filter((entry, itemIndex) => itemIndex !== index && entry.parent_id !== item.id) }))} title="Remove" type="button"><Trash2 size={14} /></button>
               </div>
             </div>

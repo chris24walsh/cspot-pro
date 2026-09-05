@@ -432,7 +432,9 @@ current service type's defaults by administrators without copying item-specific 
 template editor exposes the same presentation settings, while service editors
 show only settings relevant to the selected section or item. A template section
 can auto-contract its children or end the live service when its final timed cue
-finishes. Welcome,
+finishes. Both editors use the compact nested disclosure treatment shared with
+profile Serving settings. Template items render beneath their owning section
+and expose left-edge drag handles that reorder only among valid siblings. Welcome,
 Open time, Sermon and Announcements support styled static/countdown overlays;
 Announcements also add structured date, location, contact, URL and layout
 metadata; sermon/deck controls remain presentation-only so imported pixels are
