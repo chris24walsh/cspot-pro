@@ -4,6 +4,9 @@ This document captures the intent that has been communicated while shaping
 `cspot-pro`. It is meant to be useful both for humans joining the project
 and for coding agents that need durable context between sessions.
 
+Song video selection stays inside the song editor: search with thumbnails,
+watch an embedded preview, and choose the video before saving the song.
+
 ## Core Purpose
 
 `cspot-pro` is a complete reimplementation of the legacy `cspot` church

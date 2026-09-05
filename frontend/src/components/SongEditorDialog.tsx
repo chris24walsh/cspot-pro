@@ -29,6 +29,7 @@ import {
 } from "../chordSheet";
 import { canonicalizeWorshipLyrics, normalizeWorshipSequence } from "../worshipText";
 import { useConfirmationDialog } from "./ConfirmationDialog";
+import { SongYouTubeSearch } from "./SongYouTubeSearch";
 import { useEscapeClose } from "./useEscapeClose";
 
 type SongForm = Omit<Song, "id" | "lyrics_status">;
@@ -283,6 +284,7 @@ export function SongEditorDialog({
 }) {
   const { confirm, confirmationDialog } = useConfirmationDialog();
   useEscapeClose(true, onClose);
+  const [youtubeSearchOpen, setYoutubeSearchOpen] = useState(false);
   const [tab, setTab] = useState<SongEditorTab>("lyrics");
   const [form, setForm] = useState<SongForm>(() => formFromSong(song));
   const [chordChart, setChordChart] = useState<ChordChartDocument>(() => parseChordChart(song.chords, song.lyrics).document);
@@ -377,11 +379,6 @@ export function SongEditorDialog({
     setLegacyChords(null);
   }
 
-  function openYouTubeSearch() {
-    const query = (form.title || song.title).trim();
-    if (!query) return;
-    window.open(`https://www.youtube.com/results?search_query=${encodeURIComponent(query)}`, "_blank", "noopener,noreferrer");
-  }
 
   function startInlineChordEdit(lineIndex: number, anchorIndex: number, annotation?: ChordAnnotation) {
     if (!chordChart.absoluteKey && !chordChart.capoKey) {
@@ -708,11 +705,20 @@ export function SongEditorDialog({
                 <span>YouTube Link / ID</span>
                 <span className="inline-input-action">
                   <input disabled={!canEdit} onBlur={(event) => setForm({ ...form, youtube_id: extractYouTubeId(event.target.value) })} onChange={(event) => setForm({ ...form, youtube_id: event.target.value })} value={form.youtube_id ?? ""} />
-                  <button aria-label="Search YouTube for this song" className="section-icon-button" onClick={openYouTubeSearch} title="Search YouTube" type="button">
+                  <button aria-label="Search YouTube for this song" className="section-icon-button" onClick={() => setYoutubeSearchOpen((open) => !open)} title="Search YouTube" type="button">
                     <Search size={15} aria-hidden="true" />
                   </button>
                 </span>
               </label>
+              {youtubeSearchOpen ? (
+                <SongYouTubeSearch
+                  initialQuery={(form.title || song.title).trim()}
+                  value={form.youtube_id}
+                  canEdit={canEdit}
+                  onSelect={(id) => setForm((current) => ({ ...current, youtube_id: id }))}
+                  onClose={() => setYoutubeSearchOpen(false)}
+                />
+              ) : null}
             </div>
           ) : null}
 

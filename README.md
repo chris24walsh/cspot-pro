@@ -53,6 +53,10 @@ presenter selects **Start**, the TV output remains active until a presenter
 stops it or starts another service. Only one service can be live system-wide,
 and unclosed past-service sessions are expired by the following day.
 
+Song editing includes inline YouTube search under Details. Preview a result in
+the popup, choose **Use this video**, then save the song to keep its YouTube link.
+Search uses the same shared Google integration as service video search.
+
 ## Local Development
 
 Copy the environment file:

@@ -12771,3 +12771,30 @@ button.musician-page {
   grid-template-columns: minmax(180px, 1fr) minmax(180px, 2fr);
   padding-top: 0.65rem;
 }
+
+.song-youtube-search,
+.song-youtube-preview {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+
+.song-youtube-preview iframe {
+  aspect-ratio: 16 / 9;
+  width: 100%;
+  border: 0;
+  border-radius: 8px;
+  background: #000;
+}
+
+.song-youtube-results {
+  display: grid;
+  gap: 6px;
+  max-height: 280px;
+  overflow-y: auto;
+}
+
+.song-youtube-results [aria-pressed="true"] {
+  outline: 2px solid currentColor;
+  outline-offset: -2px;
+}

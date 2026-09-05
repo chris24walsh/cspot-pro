@@ -11,6 +11,11 @@ Private remote access uses Tailscale Serve and never production data.
 This document describes the current architecture of `cspot-pro` in a way
 that should be readable by both humans and coding agents.
 
+`SongYouTubeSearch` uses the existing YouTube search API for debounced, paginated
+results inside the song editor Details tab. A single embedded player previews
+the chosen result; selection updates the draft `youtube_id` and the normal song
+save persists it. Unmounting the preview stops playback.
+
 ## High-Level Shape
 
 The system is a modular monolith with three primary runtime pieces:
