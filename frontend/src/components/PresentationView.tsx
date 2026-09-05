@@ -1863,8 +1863,9 @@ export function PresentationView({
     if (currentOutputStatus?.active) {
       outputOwnerIdRef.current = currentOutputStatus.owner_id;
       setSlideshowOpen(true);
-      await closeActiveSlideshow();
-      return false;
+      setPresentationSessionActive(true);
+      setPresentationAutoStarted(false);
+      return true;
     }
 
     const ownerId = outputOwnerId();
@@ -4689,28 +4690,30 @@ export function PresentationView({
             <div className="action-row presenter-mobile-command-row">
               <div className="slideshow-split-control" ref={slideshowStartControlRef}>
                 <button
-                  aria-label={slideshowOpen || presentationSessionActive ? "Stop service" : "Start slideshow"}
-                  className={`slideshow-start-button ${slideshowOpen || presentationSessionActive ? "primary-button" : "text-button"}`}
+                  aria-label={slideshowOpen || (presentationSessionActive && !presentationAutoStarted) ? "Stop service" : "Start slideshow"}
+                  className={`slideshow-start-button ${slideshowOpen || (presentationSessionActive && !presentationAutoStarted) ? "primary-button" : "text-button"}`}
                   disabled={loading || !plan}
                   onClick={() => {
                     setSlideshowStartMenuOpen(false);
-                    void (slideshowOpen || presentationSessionActive
+                    void (slideshowOpen || (presentationSessionActive && !presentationAutoStarted)
                       ? closeActiveSlideshow()
-                      : startSlideshow(openSlideshowWindowOnStart));
+                      : startServiceFromMenu());
                   }}
                   title={
                     slideshowOpen
                       ? "Stop slideshow on every display"
+                      : presentationAutoStarted
+                        ? "Take control of the automatically started service"
                       : presentationSessionActive
-                        ? "Stop the automatically started service on every display"
+                        ? "Stop the active service on every display"
                       : openSlideshowWindowOnStart
                         ? "Start slideshow and open it in a new window"
                         : "Start slideshow without opening a new window"
                   }
                   type="button"
                 >
-                  {slideshowOpen || presentationSessionActive ? <CircleStop size={16} aria-hidden="true" /> : <MonitorUp size={16} aria-hidden="true" />}
-                  <span className="mobile-button-label">{presentationAutoStarted && !slideshowOpen ? "Auto started" : slideshowOpen || presentationSessionActive ? "Stop" : "Start"}</span>
+                  {slideshowOpen || (presentationSessionActive && !presentationAutoStarted) ? <CircleStop size={16} aria-hidden="true" /> : <MonitorUp size={16} aria-hidden="true" />}
+                  <span className="mobile-button-label">{presentationAutoStarted && !slideshowOpen ? "Start service" : slideshowOpen || presentationSessionActive ? "Stop" : "Start"}</span>
                 </button>
                 <button
                   aria-expanded={slideshowStartMenuOpen}
