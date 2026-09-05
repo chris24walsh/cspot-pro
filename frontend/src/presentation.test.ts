@@ -390,11 +390,12 @@ describe("section backing audio", () => {
     const slides = buildPresentationSlides([
       planItem({ id: "root", title: "Prayer", presentation_options: { backing_audio_id: "abcdefghijk" } }),
       planItem({ id: "first", parent_item_id: "root", title: "Quiet", sequence: "10" }),
-      planItem({ id: "stop", parent_item_id: "root", title: "Speaking", sequence: "20", presentation_options: { stop_backing_audio: true } }),
+      planItem({ id: "stop", parent_item_id: "root", title: "Speaking", sequence: "20", presentation_options: { backing_audio_id: "childtrack1", stop_backing_audio: true } }),
     ], []);
     expect(slides).toHaveLength(2);
     expect(slides[0].youtubeAudioUrl).toContain("abcdefghijk");
     expect(slides[1].youtubeAudioUrl).toBe(slides[0].youtubeAudioUrl);
+    expect(slides[1].youtubeAudioUrl).not.toContain("childtrack1");
     expect(slides[0].stopBackingAudio).toBe(false);
     expect(slides[1].stopBackingAudio).toBe(true);
   });

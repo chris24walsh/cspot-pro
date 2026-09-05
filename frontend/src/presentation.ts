@@ -375,15 +375,21 @@ export function buildPresentationSections(
       ...(children.length && !rootIsContentItem ? [] : [rootSection]),
       ...children.map((child) => sectionById.get(child.id)!).filter(Boolean),
     ];
+    const sectionBackingAudioUrl = root.presentation_options?.backing_audio_id
+      ? youtubeEmbedUrl(root.presentation_options.backing_audio_id)
+      : undefined;
     return {
       ...rootSection,
       slides: memberSections.flatMap((member, memberIndex) => member.slides.map((slide, slideIndex) => ({
         ...slide,
         sectionId: root.id,
         sectionTitle: rootSection.title,
-        youtubeAudioUrl: slide.youtubeAudioUrl ?? (root.presentation_options?.backing_audio_id ? youtubeEmbedUrl(root.presentation_options.backing_audio_id) : undefined),
+        // A section track owns the whole section. Keeping one URL and one
+        // section-based player key prevents navigation between child items
+        // from remounting YouTube and restarting the audio.
+        youtubeAudioUrl: sectionBackingAudioUrl ?? slide.youtubeAudioUrl,
         stopBackingAudio: Boolean(itemById.get(slide.planItemId)?.presentation_options?.stop_backing_audio || (memberIndex === 0 && slideIndex === 0 && root.presentation_options?.stop_backing_audio)),
-        autoPlayBackingAudio: Boolean(itemById.get(slide.planItemId)?.presentation_options?.backing_audio_id || root.presentation_options?.backing_audio_id),
+        autoPlayBackingAudio: Boolean(sectionBackingAudioUrl || itemById.get(slide.planItemId)?.presentation_options?.backing_audio_id),
         endAfterSection: Boolean(root.presentation_options?.end_after_section),
       }))),
     };
