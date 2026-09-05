@@ -444,7 +444,7 @@ export function ServiceBroadcastView({ canControl = false, onOpenSettings }: { c
             ) : liveSlide.montageImageUrls && plan ? (
               <PreServiceSlide backgroundImageUrl={LCF_BACKGROUND_URL} dwellSeconds={liveSlide.dwellSeconds} imageUrls={liveSlide.montageImageUrls} random={liveSlide.montageRandom} serviceDate={plan.service_date} timed={Boolean(liveSlide.preServiceTimed)} phase={liveSlide.preServiceStage ?? liveState?.preServicePhase} phaseStartedAt={liveState?.updatedAt} schedule={serviceScheduleForPlan(settings.service_schedules, plan.service_date, plan.plan_type)} />
             ) : liveSlide.countdownSeconds ? (
-              <CountdownSlide durationSeconds={liveSlide.countdownSeconds} startAt={liveState?.updatedAt} />
+              <CountdownSlide durationSeconds={liveSlide.countdownSeconds} running={hasVisibleSlideshow} startAt={liveState?.updatedAt} />
             ) : liveSlide.backgroundImageUrl ? (
               <div
                 className="lcf-background-slide"
@@ -473,7 +473,7 @@ export function ServiceBroadcastView({ canControl = false, onOpenSettings }: { c
                 />
               </div>
             )}
-            {hasVisibleSlideshow && !liveState?.blanked && liveSlide ? <SlideOverlay slide={liveSlide} startAt={liveState?.updatedAt} /> : null}
+            {hasVisibleSlideshow && !liveState?.blanked && liveSlide ? <SlideOverlay running={hasVisibleSlideshow} slide={liveSlide} startAt={liveState?.updatedAt} /> : null}
             </div>
           </div>
         </section>

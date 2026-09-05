@@ -6,22 +6,25 @@ function remainingSeconds(startAt: number, durationSeconds: number, now: number)
 
 export function CountdownSlide({
   durationSeconds = 300,
+  running = true,
   startAt,
 }: {
   durationSeconds?: number;
+  running?: boolean;
   startAt?: number | null;
 }) {
   const mountedAtRef = useRef(Date.now());
   const [now, setNow] = useState(Date.now());
   const effectiveStart = startAt ?? mountedAtRef.current;
-  const remaining = remainingSeconds(effectiveStart, durationSeconds, now);
+  const remaining = running ? remainingSeconds(effectiveStart, durationSeconds, now) : durationSeconds;
   const minutes = Math.floor(remaining / 60);
   const seconds = String(remaining % 60).padStart(2, "0");
 
   useEffect(() => {
+    if (!running) return undefined;
     const timer = window.setInterval(() => setNow(Date.now()), 250);
     return () => window.clearInterval(timer);
-  }, []);
+  }, [running]);
 
   return (
     <div className="service-countdown-slide" aria-label={`${minutes} minutes ${seconds} seconds until the service begins`}>

@@ -44,7 +44,7 @@ export function PlanTypeManager({ onChanged, onMessage }: { onChanged?: () => vo
     const selected = next.find((type) => type.id === (preferredId ?? selectedId)) ?? next[0];
     if (selected) {
       setSelectedId(selected.id);
-      setDraft(structuredClone(selected));
+      setDraft(structuredClone({ ...selected, automation_start: selected.automation_start ?? selected.starts_at }));
     }
   }
 
@@ -53,7 +53,7 @@ export function PlanTypeManager({ onChanged, onMessage }: { onChanged?: () => vo
   function selectType(id: string) {
     setSelectedId(id);
     const selected = types.find((type) => type.id === id);
-    setDraft(selected ? structuredClone(selected) : blankType());
+    setDraft(selected ? structuredClone({ ...selected, automation_start: selected.automation_start ?? selected.starts_at }) : blankType());
   }
 
   async function save() {
@@ -63,7 +63,7 @@ export function PlanTypeManager({ onChanged, onMessage }: { onChanged?: () => vo
     }
     setSaving(true);
     try {
-      const { id: _id, ...payload } = { ...draft, name: draft.name.trim() };
+      const { id: _id, ...payload } = { ...draft, name: draft.name.trim(), starts_at: draft.automation_start };
       const saved = draft.id
         ? await updatePlanType(draft.id, payload)
         : await createPlanType(payload);
@@ -154,8 +154,7 @@ export function PlanTypeManager({ onChanged, onMessage }: { onChanged?: () => vo
       <label>Service type<select onChange={(event) => selectType(event.target.value)} value={selectedId}><option value="">New service type</option>{types.map((type) => <option key={type.id} value={type.id}>{type.name}</option>)}</select></label>
       <div className="broadcast-settings-grid">
         <label>Name<input maxLength={120} onChange={(event) => setDraft({ ...draft, name: event.target.value })} value={draft.name} /></label>
-        <label>Default start<input onChange={(event) => setDraft({ ...draft, starts_at: event.target.value || null })} type="time" value={draft.starts_at ?? ""} /></label>
-        <label>Automated template start<input onChange={(event) => setDraft({ ...draft, automation_start: event.target.value || null })} type="time" value={draft.automation_start ?? ""} /></label>
+        <label>Automated start<input onChange={(event) => setDraft({ ...draft, automation_start: event.target.value || null, starts_at: event.target.value || null })} type="time" value={draft.automation_start ?? draft.starts_at ?? ""} /></label>
         <label>Default duration (minutes)<input min={1} onChange={(event) => setDraft({ ...draft, default_duration_minutes: Number(event.target.value) || null })} type="number" value={draft.default_duration_minutes ?? ""} /></label>
         <label className="toggle-row"><input checked={draft.active} onChange={(event) => setDraft({ ...draft, active: event.target.checked })} type="checkbox" /> Available when creating services</label>
       </div>
@@ -178,6 +177,7 @@ export function PlanTypeManager({ onChanged, onMessage }: { onChanged?: () => vo
               <span className="template-controls-label">Playback</span>
               <label>Image dwell <span className="field-unit">seconds</span><input min={1} onChange={(event) => updateOutline(index, { presentation_options: { ...item.presentation_options, dwell_seconds: Number(event.target.value) } })} type="number" value={item.presentation_options?.dwell_seconds ?? 12} /></label>
               <label className="toggle-row"><input checked={Boolean(item.presentation_options?.auto_advance)} onChange={(event) => updateOutline(index, { presentation_options: { ...item.presentation_options, auto_advance: event.target.checked } })} type="checkbox" /> Auto-advance</label>
+              <label>Automated start<input onChange={(event) => updateOutline(index, { presentation_options: { ...item.presentation_options, scheduled_start: event.target.value } })} type="time" value={item.presentation_options?.scheduled_start ?? ""} /></label>
               {item.presentation_options?.auto_advance ? <label>Advance after <span className="field-unit">seconds</span><input min={1} onChange={(event) => updateOutline(index, { presentation_options: { ...item.presentation_options, auto_advance_seconds: Number(event.target.value) } })} type="number" value={item.presentation_options?.auto_advance_seconds ?? item.presentation_options?.dwell_seconds ?? 12} /></label> : null}
               <label>Scene<select onChange={(event) => updateOutline(index, { presentation_options: { ...item.presentation_options, audio_scene_id: event.target.value || undefined } })} value={item.presentation_options?.audio_scene_id ?? ""}><option value="">Automatic</option>{scenes.map((scene) => <option key={scene.id} value={scene.id}>{scene.label}</option>)}</select></label>
               <label className="toggle-row"><input checked={(item.presentation_options?.display_targets ?? ["church", "livestream"]).includes("church")} onChange={(event) => { const targets = new Set(item.presentation_options?.display_targets ?? ["church", "livestream"]); event.target.checked ? targets.add("church") : targets.delete("church"); updateOutline(index, { presentation_options: { ...item.presentation_options, display_targets: [...targets] as Array<"church" | "livestream"> } }); }} type="checkbox" /> Church displays</label>

@@ -1084,11 +1084,11 @@ export function PresentationView({
       if (freshPlan.id === worshipSetPlan?.id) setWorshipSetPlan(freshPlan);
       setItemEditDraft({
         ...EMPTY_ITEM_EDIT_DRAFT,
+        ...freshItem.presentation_options,
         title: freshItem.title,
         comment: freshItem.comment ?? "",
         planned_start: freshItem.planned_start ?? "",
         auto_collapse_items: Boolean(freshSection?.auto_collapse_items),
-        ...freshItem.presentation_options,
       });
       setFillerMediaPlanItemId(freshItem.id);
       setFillerMediaSectionId(freshSection?.id ?? null);
@@ -1529,7 +1529,7 @@ export function PresentationView({
 
   useEffect(() => {
     const selectedForAutoAdvance = autoAdvanceArmedSlideId === liveSlide?.id;
-    if ((!slideshowOpen && !selectedForAutoAdvance) || liveBlanked || !liveSlide?.autoAdvanceSeconds) return undefined;
+    if (!presentationSessionActive || (!slideshowOpen && !selectedForAutoAdvance) || liveBlanked || !liveSlide?.autoAdvanceSeconds) return undefined;
     const nextSlide = slides[liveIndex + 1];
     const endsHere = liveSlide.endAfterSection && nextSlide?.sectionId !== liveSlide.sectionId;
     if (!endsHere && liveIndex >= slides.length - 1) return undefined;
@@ -1541,7 +1541,7 @@ export function PresentationView({
       }
     }, Math.max(liveSlide.autoAdvanceSeconds, 1) * 1000);
     return () => window.clearTimeout(timer);
-  }, [autoAdvanceArmedSlideId, liveBlanked, liveIndex, liveSlide?.autoAdvanceSeconds, liveSlide?.endAfterSection, liveSlide?.id, liveSlide?.sectionId, liveSlide?.sectionTitle, slideshowOpen, slides]);
+  }, [autoAdvanceArmedSlideId, liveBlanked, liveIndex, liveSlide?.autoAdvanceSeconds, liveSlide?.endAfterSection, liveSlide?.id, liveSlide?.sectionId, liveSlide?.sectionTitle, presentationSessionActive, slideshowOpen, slides]);
 
   function sorterTargetForSlide(slide: PresentationSlide | null | undefined) {
     if (!slide) return null;
@@ -4650,10 +4650,11 @@ export function PresentationView({
                   style={{ backgroundImage: `url(${LCF_BACKGROUND_URL})` }}
                 />
               ) : liveSlide?.montageImageUrls && plan ? (
-                <PreServiceSlide backgroundImageUrl={LCF_BACKGROUND_URL} dwellSeconds={liveSlide.dwellSeconds} imageUrls={liveSlide.montageImageUrls} random={liveSlide.montageRandom} serviceDate={plan.service_date} timed={Boolean(liveSlide.preServiceTimed)} phase={liveSlide.preServiceStage ?? currentLiveStateRef.current?.preServicePhase} phaseStartedAt={currentLiveStateRef.current?.updatedAt} schedule={serviceScheduleForPlan(serviceSchedules, plan.service_date, plan.plan_type)} />
+                <PreServiceSlide backgroundImageUrl={LCF_BACKGROUND_URL} dwellSeconds={liveSlide.dwellSeconds} imageUrls={liveSlide.montageImageUrls} random={liveSlide.montageRandom} serviceDate={plan.service_date} timed={Boolean(liveSlide.preServiceTimed) && presentationSessionActive} phase={liveSlide.preServiceStage ?? currentLiveStateRef.current?.preServicePhase} phaseStartedAt={currentLiveStateRef.current?.updatedAt} schedule={serviceScheduleForPlan(serviceSchedules, plan.service_date, plan.plan_type)} />
               ) : liveSlide?.countdownSeconds ? (
                 <CountdownSlide
                   durationSeconds={liveSlide.countdownSeconds}
+                  running={presentationSessionActive}
                   startAt={currentLiveStateRef.current?.updatedAt}
                 />
               ) : liveSlide?.backgroundImageUrl ? (
@@ -4684,7 +4685,7 @@ export function PresentationView({
                   text={liveSlide?.text ?? "No live slide selected"}
                 />
               )}
-              {!liveBlanked && liveSlide ? <SlideOverlay slide={liveSlide} startAt={currentLiveStateRef.current?.updatedAt} /> : null}
+              {!liveBlanked && liveSlide ? <SlideOverlay running={presentationSessionActive} slide={liveSlide} startAt={currentLiveStateRef.current?.updatedAt} /> : null}
               </div>
             </div>
           </div>
