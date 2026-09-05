@@ -930,3 +930,45 @@ def test_dated_section_start_resumes_after_manual_cue() -> None:
         first.presentation_options = {"auto_advance": True, "auto_advance_seconds": 10}
         session.flush()
         assert template_cue_at(session, plan, datetime(2026, 9, 6, 19, 29, tzinfo=UTC), "19:00")[0].id == first.id
+
+
+def test_scheduler_never_starts_a_worship_set_plan() -> None:
+    engine = create_engine("sqlite://")
+    Base.metadata.create_all(engine)
+    with Session(engine) as session:
+        plan_type = PlanType(
+            name="Worship Set", automation_start="11:05", starts_at="11:05", active=True
+        )
+        session.add(plan_type)
+        session.flush()
+        plan = Plan(
+            plan_type_id=plan_type.id,
+            service_date=datetime(2026, 9, 5, 11, 5, tzinfo=UTC),
+            title="Worship Set Saturday, 5 September 2026",
+            status="draft",
+        )
+        session.add(plan)
+        session.flush()
+        session.add(
+            PlanItem(
+                plan_id=plan.id,
+                sequence=10,
+                item_type="song",
+                title="I Could Sing of Your Love Forever",
+            )
+        )
+        session.add(BroadcastViewerSettings(service_schedules_json="[]"))
+        session.commit()
+
+        with patch(
+            "app.modules.presentation.routes.datetime",
+            wraps=datetime,
+        ) as clock:
+            clock.now.return_value = datetime(2026, 9, 5, 11, 6, tzinfo=UTC)
+            from app.modules.presentation.routes import ensure_scheduled_pre_service
+
+            ensure_scheduled_pre_service(session)
+
+        assert session.scalar(
+            select(PresentationSession).where(PresentationSession.plan_id == plan.id)
+        ) is None

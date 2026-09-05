@@ -373,6 +373,7 @@ def ensure_scheduled_pre_service(session: Session) -> None:
         .join(PlanType, Plan.plan_type_id == PlanType.id)
         .where(
             Plan.deleted_at.is_(None),
+            PlanType.name != "Worship Set",
             Plan.service_date >= day_start,
             Plan.service_date <= day_end,
         )
