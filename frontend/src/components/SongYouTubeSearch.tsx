@@ -12,10 +12,7 @@ export function SongYouTubeSearch({ initialQuery, value, canEdit, onSelect, onCl
 }) {
   const [query, setQuery] = useState(initialQuery);
   const [results, setResults] = useState<YouTubeVideo[]>([]);
-  const [preview, setPreview] = useState<YouTubeVideo | null>(() => {
-    const id = extractYouTubeId(value);
-    return id ? { id, title: "Current song video", channel_title: "", thumbnail_url: null } : null;
-  });
+  const [preview, setPreview] = useState<YouTubeVideo | null>(null);
   const [nextPage, setNextPage] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -25,6 +22,7 @@ export function SongYouTubeSearch({ initialQuery, value, canEdit, onSelect, onCl
     const id = ++requestId.current;
     const search = query.trim();
     setResults([]);
+    setPreview(null);
     setNextPage(null);
     setError(null);
     const videoId = extractYouTubeId(search);
@@ -75,32 +73,34 @@ export function SongYouTubeSearch({ initialQuery, value, canEdit, onSelect, onCl
           if (event.key === "Enter") event.preventDefault();
         }} />
       </label>
-      {preview ? (
-        <div className="song-youtube-preview">
-          <iframe
-            key={preview.id}
-            title={`Preview: ${preview.title}`}
-            src={`https://www.youtube-nocookie.com/embed/${encodeURIComponent(preview.id)}?playsinline=1&rel=0`}
-            allow="autoplay; encrypted-media; picture-in-picture; fullscreen"
-            allowFullScreen
-          />
-          <strong>{preview.title}</strong>
-          <div className="action-row">
-            <button type="button" disabled={!canEdit || extractYouTubeId(value) === preview.id} onClick={() => onSelect(preview.id)}>
-              {extractYouTubeId(value) === preview.id ? "Selected for song" : "Use this video"}
-            </button>
-            <button type="button" onClick={() => setPreview(null)}>Close preview</button>
-          </div>
-          <small>Save the song to keep your choice. Some videos cannot be played in an embedded player.</small>
-        </div>
-      ) : null}
       <div className="song-youtube-results">
         {results.map((video) => (
-          <button className="search-result-card video-search-result-card" type="button" key={video.id}
-            aria-label={`Preview ${video.title}`} aria-pressed={preview?.id === video.id} onClick={() => setPreview(video)}>
-            {video.thumbnail_url ? <img alt="" src={video.thumbnail_url} /> : null}
-            <span><strong>{video.title}</strong><small>{video.channel_title} · Preview video</small></span>
-          </button>
+          <div className="song-youtube-result" key={video.id}>
+            <button className="search-result-card video-search-result-card" type="button"
+              aria-label={`Preview ${video.title}`} aria-pressed={preview?.id === video.id} onClick={() => setPreview(video)}>
+              {video.thumbnail_url ? <img alt="" src={video.thumbnail_url} /> : null}
+              <span><strong>{video.title}</strong><small>{video.channel_title} · Preview video</small></span>
+            </button>
+            {preview?.id === video.id ? (
+              <div className="song-youtube-preview">
+                <iframe
+                  key={preview.id}
+                  title={`Preview: ${preview.title}`}
+                  src={`https://www.youtube-nocookie.com/embed/${encodeURIComponent(preview.id)}?playsinline=1&rel=0`}
+                  allow="autoplay; encrypted-media; picture-in-picture; fullscreen"
+                  allowFullScreen
+                />
+                <strong>{preview.title}</strong>
+                <div className="action-row">
+                  <button type="button" disabled={!canEdit || extractYouTubeId(value) === preview.id} onClick={() => onSelect(preview.id)}>
+                    {extractYouTubeId(value) === preview.id ? "Selected for song" : "Use this video"}
+                  </button>
+                  <button type="button" onClick={() => setPreview(null)}>Close preview</button>
+                </div>
+                <small>Save the song to keep your choice. Some videos cannot be played in an embedded player.</small>
+              </div>
+            ) : null}
+          </div>
         ))}
       </div>
       {loading ? <p role="status">Searching YouTube…</p> : null}

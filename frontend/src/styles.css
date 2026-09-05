@@ -12773,6 +12773,7 @@ button.musician-page {
 }
 
 .song-youtube-search,
+.song-youtube-result,
 .song-youtube-preview {
   display: grid;
   gap: 10px;
@@ -12790,7 +12791,7 @@ button.musician-page {
 .song-youtube-results {
   display: grid;
   gap: 6px;
-  max-height: 280px;
+  max-height: min(560px, 65svh);
   overflow-y: auto;
 }
 
