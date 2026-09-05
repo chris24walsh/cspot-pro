@@ -206,6 +206,21 @@ export function ServiceBroadcastView({ canControl = false, onOpenSettings }: { c
     );
   }
 
+  function fadeBackingAudio() {
+    let step = 0;
+    const timer = window.setInterval(() => {
+      step += 1;
+      backingAudioFrameRef.current?.contentWindow?.postMessage(
+        JSON.stringify({ event: "command", func: "setVolume", args: [Math.max(0, 100 - step * 10)] }),
+        "*",
+      );
+      if (step >= 10) {
+        window.clearInterval(timer);
+        controlBackingAudio("pauseVideo");
+      }
+    }, 100);
+  }
+
   function setLivestreamSound(enabled: boolean) {
     preServiceMusicRef.current?.setSoundEnabled(enabled);
     setViewerSoundEnabled(enabled);
@@ -216,8 +231,7 @@ export function ServiceBroadcastView({ canControl = false, onOpenSettings }: { c
   useEffect(() => {
     if (!useViewerBackingAudio) return;
     if (!liveSlide?.stopBackingAudio && liveState?.videoAction === "play") controlBackingAudio("playVideo");
-    else if (liveState?.videoAction === "pause") controlBackingAudio("pauseVideo");
-    else if (liveState?.videoAction === "stop" || liveState?.videoAction === "fade-stop") controlBackingAudio("stopVideo");
+    else if (liveState?.videoAction === "pause" || liveState?.videoAction === "stop" || liveState?.videoAction === "fade-stop") fadeBackingAudio();
   }, [liveSlide?.youtubeAudioUrl, liveState?.videoAction, liveState?.videoActionAt, useViewerBackingAudio]);
 
   async function updateLiveControls(patch: Partial<BroadcastViewerSettings>) {

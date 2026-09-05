@@ -102,8 +102,8 @@ describe("presentation slide derivation", () => {
     const nextSlide = { planItemId: "reading-item", sectionId: "reading-section" };
 
     expect(videoPlaybackStateForSlideTransition(currentState, currentSlide, nextSlide)).toEqual({
-      videoAction: null,
-      videoActionAt: undefined,
+      videoAction: "fade-stop",
+      videoActionAt: expect.any(Number),
     });
     expect(videoPlaybackStateForSlideTransition(currentState, currentSlide, currentSlide, {
       videoAction: "pause",

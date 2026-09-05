@@ -109,6 +109,10 @@ export function videoPlaybackStateForSlideTransition(
     };
   }
 
+  if (currentSlideMatchesState && (currentState?.videoAction === "play" || currentState?.videoAction === "pause")) {
+    return { videoAction: "fade-stop", videoActionAt: Date.now() };
+  }
+
   return { videoAction: null, videoActionAt: undefined };
 }
 

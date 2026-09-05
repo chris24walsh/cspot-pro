@@ -430,7 +430,11 @@ playback. Scene activation follows item selection, including automatic cues.
 Backing-audio playback is owned by each song item and uses the shared live
 presentation media command, so Service Live and Worship Live show and control
 the same playback state. Administrators can persistently couple Worship Live
-navigation to Service Live (jumping to the first worship item) or decouple it
+navigation to Service Live. Coupling adopts the service's current song when it
+is already in worship; otherwise it moves the service to Worship Live's selected
+song. Both views then share slide and audio play/fade state until either control
+decouples them or Service Live leaves worship. Backing audio always fades before
+pausing or leaving its song. Operators can decouple Worship Live
 (jumping the service to the first section after worship).
 Section and child-item pencils share one native editor backed by the plan item's
 `presentation_options` JSON. Section images are fallback content and are omitted

@@ -1492,14 +1492,6 @@ export function PresentationView({
     const boundedIndex = Math.min(Math.max(nextIndex, 0), slideCount - 1);
     const targetSlide = slides[boundedIndex];
     if (playingAudioSectionId && (targetSlide?.stopBackingAudio || (targetSlide?.planItemId !== playingAudioSectionId && targetSlide?.sectionId !== playingAudioSectionId))) {
-      const confirmed = targetSlide?.stopBackingAudio || await confirm({
-        confirmLabel: "Fade Out",
-        message: "This will fade out the playing YouTube audio. Continue?",
-        title: "Fade Playing Audio",
-      });
-      if (!confirmed) {
-        return;
-      }
       publishFadeOutAudio();
       window.setTimeout(() => navigate(boundedIndex), PROGRAM_AUDIO_FADE_DURATION_MS);
       return;

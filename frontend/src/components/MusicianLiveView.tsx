@@ -35,6 +35,7 @@ import {
 } from "../presentation";
 import { isEditableKeyboardTarget, slideKeyboardDirection, type SlideKeyboardDirection } from "../keyboardNavigation";
 import { isMobileOrTabletDevice } from "../presentationDevice";
+import { PROGRAM_AUDIO_FADE_DURATION_MS } from "../audioTransitions";
 import { worshipSequenceBlocks } from "../worshipText";
 import { mergeWorshipSetIntoService } from "../worshipSets";
 
@@ -453,7 +454,8 @@ export function MusicianLiveView({ canCoupleService = false, controlPlanId, onEd
     const exactIndex = slides.findIndex((slide) => slide.id === remoteSlide.id);
     return exactIndex >= 0 ? exactIndex : slides.findIndex((slide) => slide.planItemId === remoteSlide.planItemId);
   }, [liveState, presentationSlides, slides, worshipItems]);
-  const syncedIndex = remoteWorshipIndex >= 0 ? remoteWorshipIndex : boundedIndex(localIndex, slides.length);
+  const worshipCoupled = Boolean(liveState?.worshipCoupled);
+  const syncedIndex = worshipCoupled && remoteWorshipIndex >= 0 ? remoteWorshipIndex : boundedIndex(localIndex, slides.length);
   const liveIndex = syncedIndex;
   const liveSlide = slides[liveIndex] ?? null;
   const isWorshipEndSlide = liveSlide?.itemType === "worship_end";
@@ -471,7 +473,6 @@ export function MusicianLiveView({ canCoupleService = false, controlPlanId, onEd
     previousPageLeadIndexRef.current = pageLeadIndex;
   }, [pageLeadIndex]);
   const liveItem = worshipItems.find((item) => item.id === liveSlide?.planItemId) ?? null;
-  const worshipCoupled = Boolean(liveState?.worshipCoupled);
   const backingAudioAvailable = Boolean(liveSlide?.youtubeAudioUrl);
   const backingAudioPlaying = Boolean(backingAudioAvailable && liveState?.planItemId === liveItem?.id && liveState?.videoAction === "play");
   const liveSong = liveItem?.song_id ? songs.find((song) => song.id === liveItem.song_id) ?? null : null;
@@ -685,7 +686,17 @@ export function MusicianLiveView({ canCoupleService = false, controlPlanId, onEd
       return;
     }
 
-    const presentationIndex = presentationSlides.findIndex((candidate) => candidate.id === slide.id);
+    if (
+      worshipCoupled
+      && liveState?.planItemId !== slide.planItemId
+      && (liveState?.videoAction === "play" || liveState?.videoAction === "pause")
+    ) {
+      await publishAudioFade();
+      window.setTimeout(() => void publishWorshipSlide(nextIndex), PROGRAM_AUDIO_FADE_DURATION_MS);
+      return;
+    }
+
+    const presentationIndex = serviceSlides.findIndex((candidate) => candidate.id === slide.id);
     const slideOffset = Math.max(
       presentationSlides.filter((candidate) => candidate.planItemId === slide.planItemId).findIndex((candidate) => candidate.id === slide.id),
       0,
@@ -699,7 +710,8 @@ export function MusicianLiveView({ canCoupleService = false, controlPlanId, onEd
       theme: liveState?.theme ?? "light",
       blanked: false,
       fullscreen: liveState?.fullscreen ?? false,
-      videoAction: null,
+      videoAction: liveState?.planItemId === slide.planItemId ? liveState.videoAction : null,
+      videoActionAt: liveState?.planItemId === slide.planItemId ? liveState.videoActionAt : undefined,
       worshipCoupled,
     };
 
@@ -718,8 +730,8 @@ export function MusicianLiveView({ canCoupleService = false, controlPlanId, onEd
         theme: state.theme ?? "light",
         blanked: false,
         fullscreen: Boolean(state.fullscreen),
-        video_action: null,
-        video_action_at: null,
+        video_action: state.videoAction ?? null,
+        video_action_at: state.videoActionAt ?? null,
         worship_coupled: true,
       });
       setLiveState(syncStateFromApi(synced));
@@ -731,6 +743,14 @@ export function MusicianLiveView({ canCoupleService = false, controlPlanId, onEd
 
   async function publishServiceSlide(slide: (typeof serviceSlides)[number], coupled = worshipCoupled) {
     if (!liveSyncPlanId) return;
+    if (
+      liveState?.planItemId !== slide.planItemId
+      && (liveState?.videoAction === "play" || liveState?.videoAction === "pause")
+    ) {
+      await publishAudioFade();
+      window.setTimeout(() => void publishServiceSlide(slide, coupled), PROGRAM_AUDIO_FADE_DURATION_MS);
+      return;
+    }
     const presentationIndex = serviceSlides.findIndex((candidate) => candidate.id === slide.id);
     const slideOffset = Math.max(
       serviceSlides.filter((candidate) => candidate.planItemId === slide.planItemId).findIndex((candidate) => candidate.id === slide.id),
@@ -799,13 +819,43 @@ export function MusicianLiveView({ canCoupleService = false, controlPlanId, onEd
     }
   }
 
+  async function publishAudioFade() {
+    if (!liveSyncPlanId || !liveState?.planItemId) return;
+    const now = Date.now();
+    const state = { ...liveState, updatedAt: now, videoAction: "fade-stop" as const, videoActionAt: now };
+    setLiveState(state);
+    localStorage.setItem(PRESENTATION_STORAGE_KEY, JSON.stringify(state));
+    channelRef.current?.postMessage(state);
+    await updatePresentationLiveState(liveSyncPlanId, {
+      plan_id: liveSyncPlanId,
+      index: liveState.index,
+      plan_item_id: liveState.planItemId,
+      slide_offset: liveState.slideOffset ?? 0,
+      updated_at: now,
+      theme: liveState.theme ?? "light",
+      blanked: Boolean(liveState.blanked),
+      fullscreen: Boolean(liveState.fullscreen),
+      video_action: "fade-stop",
+      video_action_at: now,
+      worship_coupled: worshipCoupled,
+    });
+  }
+
   async function toggleServiceCoupling() {
     if (worshipCoupled) {
       if (nextServiceSlide) await publishServiceSlide(nextServiceSlide, false);
       return;
     }
-    const firstWorshipSlide = serviceSlides.find((slide) => worshipItems.some((item) => item.id === slide.planItemId));
-    if (firstWorshipSlide) await publishServiceSlide(firstWorshipSlide, true);
+    if (remoteWorshipIndex >= 0 && liveState) {
+      const currentServiceSlide = serviceSlides[resolveLiveIndex(serviceSlides, liveState)];
+      if (currentServiceSlide) await publishServiceSlide(currentServiceSlide, true);
+      return;
+    }
+    const selectedWorshipSlide = slides[boundedIndex(localIndex, slides.length)];
+    const targetSlide = selectedWorshipSlide?.itemType === "song"
+      ? serviceSlides.find((slide) => slide.id === selectedWorshipSlide.id)
+      : serviceSlides.find((slide) => worshipItems.some((item) => item.id === slide.planItemId));
+    if (targetSlide) await publishServiceSlide(targetSlide, true);
   }
 
   useEffect(() => {
@@ -1011,7 +1061,7 @@ export function MusicianLiveView({ canCoupleService = false, controlPlanId, onEd
         </label>
       </div>
       <div className="musician-live-controls" aria-label="Musician display controls">
-        {canCoupleService && servicePlan ? <button aria-label={worshipCoupled ? "Stop syncing Worship Live with service and move after worship" : "Sync Worship Live with service and move to first worship item"} aria-pressed={worshipCoupled} className={`musician-service-couple-button ${worshipCoupled ? "is-active" : ""}`} onClick={() => void toggleServiceCoupling()} title={worshipCoupled ? "Stop syncing and go after worship" : "Sync and go to first worship item"} type="button">{worshipCoupled ? <Unlink2 size={16} aria-hidden="true" /> : <Link2 size={16} aria-hidden="true" />}<span className="musician-control-text">Sync</span></button> : null}
+        {canCoupleService && servicePlan ? <button aria-label={worshipCoupled ? "Stop syncing Worship Live with service and move after worship" : "Sync Worship Live with service"} aria-pressed={worshipCoupled} className={`musician-service-couple-button ${worshipCoupled ? "is-active" : ""}`} onClick={() => void toggleServiceCoupling()} title={worshipCoupled ? "Stop syncing and go after worship" : "Sync with service"} type="button">{worshipCoupled ? <Unlink2 size={16} aria-hidden="true" /> : <Link2 size={16} aria-hidden="true" />}<span className="musician-control-text">Sync</span></button> : null}
         <button aria-label={`${backingAudioPlaying ? "Fade out" : "Play"} backing audio for ${liveSong?.title ?? "song"}`} aria-pressed={backingAudioPlaying} className={`musician-audio-button ${backingAudioPlaying ? "is-active" : ""}`} disabled={!backingAudioAvailable} onClick={() => void toggleBackingAudio()} title={backingAudioAvailable ? `${backingAudioPlaying ? "Fade out" : "Play"} backing audio` : "No backing audio for this song"} type="button">{backingAudioPlaying ? <Pause size={16} aria-hidden="true" /> : <Play size={16} aria-hidden="true" />}<span className="musician-control-text">Audio</span></button>
         <button
           aria-label={`Switch to ${readerMode === "pages" ? "Scroll" : "Pages"} view`}
