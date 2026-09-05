@@ -962,6 +962,9 @@ export function PresentationView({
     ?? null;
   const fillerMediaPlanItem = effectivePlanItems.find((item) => item.id === fillerMediaPlanItemId) ?? null;
   const fillerMediaSectionItem = effectivePlanItems.find((item) => item.id === fillerMediaSectionId) ?? null;
+  const inheritedSectionBackingAudioId = fillerMediaPlanItem && fillerMediaSectionItem?.id !== fillerMediaPlanItem.id
+    ? fillerMediaSectionItem?.presentation_options?.backing_audio_id ?? ""
+    : "";
   const automaticAudioSceneId = fillerMediaPlanItem
     ? automaticSceneIdForItem(fillerMediaPlanItem.item_type, fillerMediaSectionItem?.item_type)
     : "pastor";
@@ -5288,22 +5291,28 @@ export function PresentationView({
                         ) : null}
                         {groupItems.map((item, itemIndex) => {
                           const itemSlideIndex = slides.findIndex((slide) => slide.planItemId === item.id);
+                          const itemHasOwnAudio = Boolean(item.presentation_options?.backing_audio_id);
+                          const itemAudioOwner = sectionItem?.presentation_options?.backing_audio_id ? section : {
+                            id: item.id,
+                            slides: section.slides.filter((slide) => slide.planItemId === item.id),
+                          };
+                          const itemAudioPlaying = playingAudioSectionId === itemAudioOwner.id;
                           return (
                             <Fragment key={item.id}>
                             <div className={`section-group-item ${liveSlide?.planItemId === item.id ? "active" : ""}`} ref={(element) => { sectionRailRefs.current[item.id] = element; }}>
                               <button onClick={() => itemSlideIndex >= 0 && selectSlideFromOperator(itemSlideIndex)} type="button">
                                 <span>{itemIndex + 1}</span><strong>{item.title}</strong>
                               </button>
-                              {section.slides.some((slide) => slide.planItemId === item.id && slide.youtubeAudioUrl) ? (
+                              {(sectionItem?.presentation_options?.backing_audio_id || itemHasOwnAudio) && section.slides.some((slide) => slide.planItemId === item.id && slide.youtubeAudioUrl) ? (
                                 <button
-                                  aria-label={`${playingAudioSectionId === item.id ? "Fade out" : "Play"} YouTube audio for ${item.title}`}
-                                  aria-pressed={playingAudioSectionId === item.id}
-                                  className={`section-icon-button section-audio-button ${playingAudioSectionId === item.id ? "is-active" : ""}`}
-                                  disabled={!audioControlsEnabled && playingAudioSectionId !== item.id}
-                                  onClick={() => void toggleSectionAudio({ id: item.id, slides: section.slides.filter((slide) => slide.planItemId === item.id) })}
-                                  title={audioControlsEnabled || playingAudioSectionId === item.id ? `${playingAudioSectionId === item.id ? "Fade out" : "Play"} YouTube audio` : "Enable audio on the preview first"}
+                                  aria-label={`${itemAudioPlaying ? "Fade out" : "Play"} YouTube audio for ${item.title}`}
+                                  aria-pressed={itemAudioPlaying}
+                                  className={`section-icon-button section-audio-button ${itemAudioPlaying ? "is-active" : ""}`}
+                                  disabled={!audioControlsEnabled && !itemAudioPlaying}
+                                  onClick={() => void toggleSectionAudio(itemAudioOwner)}
+                                  title={audioControlsEnabled || itemAudioPlaying ? `${itemAudioPlaying ? "Fade out" : "Play"} YouTube audio` : "Enable audio on the preview first"}
                                   type="button"
-                                >{playingAudioSectionId === item.id ? <Pause size={14} aria-hidden="true" /> : <Play size={14} aria-hidden="true" />}</button>
+                                >{itemAudioPlaying ? <Pause size={14} aria-hidden="true" /> : <Play size={14} aria-hidden="true" />}</button>
                               ) : null}
                               {canEditPlan ? <div className="section-group-item-actions">
                                 <button aria-label={`Edit ${item.title}`} className="section-icon-button" title="Item settings" onClick={() => void openPlanItemEditor(item, sectionItem)} type="button"><Pencil size={14} /></button>
@@ -5929,11 +5938,16 @@ export function PresentationView({
               <summary onClick={(event) => { event.preventDefault(); setItemEditorSection((current) => current === "routing" ? null : "routing"); }}>Audio and destinations</summary>
               <div className="form-grid item-details-grid">
                 <div className="wide-field"><span>Backing audio</span>
-                  <div className="action-row"><button className="text-button" disabled={fillerMediaBusy} type="button" onClick={() => setAudioSearchOpen((current) => !current)}>{itemEditDraft.backing_audio_id ? "Change YouTube audio" : "Search YouTube"}</button>
-                  {itemEditDraft.backing_audio_id ? <button className="text-button" disabled={fillerMediaBusy} type="button" onClick={() => setItemEditDraft((current) => ({ ...current, backing_audio_id: "" }))}>Remove audio</button> : null}</div>
-                  {itemEditDraft.backing_audio_id ? <small>YouTube backing audio selected</small> : null}
+                  {inheritedSectionBackingAudioId ? <>
+                    <small>YouTube backing audio inherited from {fillerMediaSectionItem?.title}. It continues through this section.</small>
+                    <div className="action-row"><button className="text-button" disabled={fillerMediaBusy || !fillerMediaSectionItem} type="button" onClick={() => fillerMediaSectionItem && void openPlanItemEditor(fillerMediaSectionItem)}>Edit section audio</button></div>
+                  </> : <>
+                    <div className="action-row"><button className="text-button" disabled={fillerMediaBusy} type="button" onClick={() => setAudioSearchOpen((current) => !current)}>{itemEditDraft.backing_audio_id ? "Change YouTube audio" : "Search YouTube"}</button>
+                    {itemEditDraft.backing_audio_id ? <button className="text-button" disabled={fillerMediaBusy} type="button" onClick={() => setItemEditDraft((current) => ({ ...current, backing_audio_id: "" }))}>Remove audio</button> : null}</div>
+                    {itemEditDraft.backing_audio_id ? <small>YouTube backing audio selected</small> : null}
+                  </>}
                 </div>
-                {audioSearchOpen ? <SongYouTubeSearch context="section" initialQuery="" value={itemEditDraft.backing_audio_id || null} canEdit={!fillerMediaBusy} onClose={() => setAudioSearchOpen(false)} onSelect={(id) => { setItemEditDraft((current) => ({ ...current, backing_audio_id: id })); setAudioSearchOpen(false); }} /> : null}
+                {audioSearchOpen && !inheritedSectionBackingAudioId ? <SongYouTubeSearch context="section" initialQuery="" value={itemEditDraft.backing_audio_id || null} canEdit={!fillerMediaBusy} onClose={() => setAudioSearchOpen(false)} onSelect={(id) => { setItemEditDraft((current) => ({ ...current, backing_audio_id: id })); setAudioSearchOpen(false); }} /> : null}
                 <label className="inline-checkbox wide-field"><input type="checkbox" disabled={fillerMediaBusy} checked={itemEditDraft.stop_backing_audio} onChange={(event) => setItemEditDraft((current) => ({ ...current, stop_backing_audio: event.target.checked }))} /><span>Fade out backing audio when this item starts</span></label>
                 <label><span>Audio scene</span><select disabled={fillerMediaBusy} onChange={(event) => setItemEditDraft((current) => ({ ...current, audio_scene_id: event.target.value }))} value={itemEditDraft.audio_scene_id}><option value="">{automaticAudioSceneLabel} (automatic)</option>{audioScenes.map((scene) => <option key={scene.id} value={scene.id}>{scene.label}</option>)}</select></label>
                 <label className="inline-checkbox"><input checked={itemEditDraft.display_targets.includes("church")} disabled={fillerMediaBusy} onChange={(event) => setItemEditDraft((current) => ({ ...current, display_targets: event.target.checked ? [...new Set([...current.display_targets, "church" as const])] : current.display_targets.filter((target) => target !== "church") }))} type="checkbox" /><span>Show on church displays</span></label>
