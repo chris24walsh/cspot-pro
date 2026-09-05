@@ -390,7 +390,7 @@ export function buildPresentationSections(
         youtubeAudioUrl: sectionBackingAudioUrl ?? slide.youtubeAudioUrl,
         stopBackingAudio: Boolean(itemById.get(slide.planItemId)?.presentation_options?.stop_backing_audio || (memberIndex === 0 && slideIndex === 0 && root.presentation_options?.stop_backing_audio)),
         autoPlayBackingAudio: Boolean(sectionBackingAudioUrl || itemById.get(slide.planItemId)?.presentation_options?.backing_audio_id),
-        endAfterSection: Boolean(root.presentation_options?.end_after_section),
+        endAfterSection: Boolean(root.id === roots.slice(-1)[0]?.id && root.presentation_options?.end_after_section),
       }))),
     };
   });

@@ -435,8 +435,8 @@ settings into collapsible sections; reusable groups can be promoted to the
 current service type's defaults by administrators without copying item-specific text. The Admin
 template editor exposes the same presentation settings, while service editors
 show only settings relevant to the selected section or item. A template section
-can auto-contract its children or end the live service when its final timed cue
-finishes. Both editors use the compact nested disclosure treatment shared with
+can auto-contract its children. Only the final section can end the live service
+when its final timed cue finishes. Both editors use the compact nested disclosure treatment shared with
 profile Serving settings. Template items render beneath their owning section
 and expose left-edge drag handles that reorder only among valid siblings. Welcome,
 Open time, Sermon and Announcements support styled static/countdown overlays;

@@ -185,15 +185,15 @@ describe("presentation slide derivation", () => {
     ]);
   });
 
-  it("marks every slide in a configured ending section", () => {
+  it("honours the ending flag only on the final section", () => {
     const sections = buildPresentationSections([
       planItem({ id: "closing", item_type: "custom", title: "Closing", presentation_options: { end_after_section: true } }),
       planItem({ id: "closing-a", parent_item_id: "closing", item_type: "open_time", sequence: "10.00", title: "Closing slide" }),
-      planItem({ id: "later", item_type: "sermon", sequence: "20.00", title: "Later" }),
+      planItem({ id: "later", item_type: "sermon", sequence: "20.00", title: "Later", presentation_options: { end_after_section: true } }),
     ], []);
 
-    expect(sections[0].slides.every((slide) => slide.endAfterSection)).toBe(true);
-    expect(sections[1].slides.some((slide) => slide.endAfterSection)).toBe(false);
+    expect(sections[0].slides.some((slide) => slide.endAfterSection)).toBe(false);
+    expect(sections[1].slides.every((slide) => slide.endAfterSection)).toBe(true);
   });
 
   it("hides a section's fallback image while it has child items", () => {

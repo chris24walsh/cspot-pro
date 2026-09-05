@@ -127,7 +127,6 @@ def test_template_cue_stops_after_configured_section() -> None:
         session.add_all([
             PlanItem(plan_id=plan.id, parent_item_id=opening.id, sequence=10, item_type="open_time", title="First", presentation_options={"auto_advance": True, "auto_advance_seconds": 10}),
             PlanItem(plan_id=plan.id, parent_item_id=opening.id, sequence=20, item_type="open_time", title="Last", presentation_options={"auto_advance": True, "auto_advance_seconds": 10}),
-            PlanItem(plan_id=plan.id, sequence=20, item_type="sermon", title="Must not play"),
         ])
         session.commit()
 
@@ -153,8 +152,7 @@ def test_server_auto_advance_ends_presentation_at_section_boundary() -> None:
         session.add(section)
         session.flush()
         last = PlanItem(plan_id=plan.id, parent_item_id=section.id, sequence=10, item_type="open_time", title="Last", presentation_options={"auto_advance": True, "auto_advance_seconds": 3})
-        following = PlanItem(plan_id=plan.id, sequence=20, item_type="sermon", title="Following")
-        session.add_all([last, following])
+        session.add(last)
         session.flush()
         live = PresentationSession(plan_id=plan.id, status="live")
         session.add(live)

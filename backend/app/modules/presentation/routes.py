@@ -324,6 +324,7 @@ def template_cue_at(
         )
         if (
             section
+            and section.id == roots[-1].id
             and (section.presentation_options or {}).get("end_after_section")
             and not next_in_section
         ):
@@ -658,12 +659,24 @@ def advance_expired_auto_slide(
         session.commit()
         return position
     root = session.get(PlanItem, item.parent_item_id) if item and item.parent_item_id else item
+    last_root = session.scalar(
+        select(PlanItem)
+        .where(
+            PlanItem.plan_id == plan_id,
+            PlanItem.parent_item_id.is_(None),
+            PlanItem.deleted_at.is_(None),
+        )
+        .order_by(PlanItem.sequence.desc(), PlanItem.created_at.desc())
+        .limit(1)
+    )
     next_item = ordered[current_index + 1] if current_index < len(ordered) - 1 else None
     next_in_section = bool(
         root and next_item and (next_item.id == root.id or next_item.parent_item_id == root.id)
     )
     if (
         root
+        and last_root is not None
+        and root.id == last_root.id
         and (root.presentation_options or {}).get("end_after_section")
         and not next_in_section
     ):
