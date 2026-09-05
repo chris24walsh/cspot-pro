@@ -472,7 +472,7 @@ export function MusicianLiveView({ canCoupleService = false, controlPlanId, onEd
   }, [pageLeadIndex]);
   const liveItem = worshipItems.find((item) => item.id === liveSlide?.planItemId) ?? null;
   const worshipCoupled = Boolean(liveState?.worshipCoupled);
-  const backingAudioAvailable = Boolean(liveItem?.presentation_options?.backing_audio_id);
+  const backingAudioAvailable = Boolean(liveSlide?.youtubeAudioUrl);
   const backingAudioPlaying = Boolean(backingAudioAvailable && liveState?.planItemId === liveItem?.id && liveState?.videoAction === "play");
   const liveSong = liveItem?.song_id ? songs.find((song) => song.id === liveItem.song_id) ?? null : null;
   const chordChart = useMemo(

@@ -1282,6 +1282,7 @@ export function PresentationView({
       slide,
       overrides,
     );
+    const targetIsWorshipItem = Boolean(slide && worshipSetItemsById.has(slide.planItemId));
 
     return {
       planId,
@@ -1299,6 +1300,8 @@ export function PresentationView({
         ? currentLiveStateRef.current?.preServicePhase
         : overrides.preServicePhase,
       autoStarted: overrides.autoStarted ?? currentLiveStateRef.current?.autoStarted,
+      worshipCoupled: overrides.worshipCoupled
+        ?? Boolean(currentLiveStateRef.current?.worshipCoupled && targetIsWorshipItem),
     };
   }
 
@@ -1706,6 +1709,7 @@ export function PresentationView({
         video_action_at: state.videoActionAt ?? null,
         service_stage: state.serviceStage ?? "ready",
         pre_service_phase: state.preServicePhase ?? null,
+        worship_coupled: Boolean(state.worshipCoupled),
       });
       lastLiveStateRef.current = synced.updated_at;
       setPresentationSessionActive(synced.status === "live");
@@ -3905,6 +3909,7 @@ export function PresentationView({
             serviceStage: remoteState.service_stage ?? "ready",
             preServicePhase: remoteState.pre_service_phase ?? null,
             autoStarted: Boolean(remoteState.auto_started),
+            worshipCoupled: Boolean(remoteState.worship_coupled),
           });
           setPresentationSessionActive(remoteState.status === "live");
           setPresentationAutoStarted(Boolean(remoteState.auto_started));
@@ -5286,11 +5291,11 @@ export function PresentationView({
                         ) : null}
                         {groupItems.map((item, itemIndex) => {
                           const itemSlideIndex = slides.findIndex((slide) => slide.planItemId === item.id);
-                          const itemHasOwnAudio = Boolean(item.presentation_options?.backing_audio_id);
                           const itemAudioOwner = {
                             id: item.id,
                             slides: section.slides.filter((slide) => slide.planItemId === item.id),
                           };
+                          const itemHasOwnAudio = itemAudioOwner.slides.some((slide) => Boolean(slide.youtubeAudioUrl));
                           const itemAudioPlaying = playingAudioSectionId === itemAudioOwner.id;
                           return (
                             <Fragment key={item.id}>
@@ -5298,22 +5303,21 @@ export function PresentationView({
                               <button onClick={() => itemSlideIndex >= 0 && selectSlideFromOperator(itemSlideIndex)} type="button">
                                 <span>{itemIndex + 1}</span><strong>{item.title}</strong>
                               </button>
-                              {item.song_id && itemHasOwnAudio && section.slides.some((slide) => slide.planItemId === item.id && slide.youtubeAudioUrl) ? (
-                                <button
-                                  aria-label={`${itemAudioPlaying ? "Fade out" : "Play"} YouTube audio for ${item.title}`}
+                              {canEditPlan || item.song_id ? <div className={`section-group-item-actions ${canEditPlan ? "" : "audio-only"}`}>
+                                {item.song_id ? <button
+                                  aria-label={itemHasOwnAudio ? `${itemAudioPlaying ? "Fade out" : "Play"} YouTube audio for ${item.title}` : `No backing audio configured for ${item.title}`}
                                   aria-pressed={itemAudioPlaying}
                                   className={`section-icon-button section-audio-button ${itemAudioPlaying ? "is-active" : ""}`}
-                                  disabled={!audioControlsEnabled && !itemAudioPlaying}
+                                  disabled={!itemHasOwnAudio || (!audioControlsEnabled && !itemAudioPlaying)}
                                   onClick={() => void toggleSectionAudio(itemAudioOwner)}
-                                  title={audioControlsEnabled || itemAudioPlaying ? `${itemAudioPlaying ? "Fade out" : "Play"} YouTube audio` : "Enable audio on the preview first"}
+                                  title={!itemHasOwnAudio ? "No backing audio configured" : audioControlsEnabled || itemAudioPlaying ? `${itemAudioPlaying ? "Fade out" : "Play"} YouTube audio` : "Enable audio on the preview first"}
                                   type="button"
-                                >{itemAudioPlaying ? <Pause size={14} aria-hidden="true" /> : <Play size={14} aria-hidden="true" />}</button>
-                              ) : null}
-                              {canEditPlan ? <div className="section-group-item-actions">
-                                <button aria-label={`Edit ${item.title}`} className="section-icon-button" title="Item settings" onClick={() => void openPlanItemEditor(item, sectionItem)} type="button"><Pencil size={14} /></button>
-                                <button aria-label={`Move ${item.title} up`} className="section-icon-button" disabled={itemIndex === 0} onClick={() => void moveSection(item.id, -1)} title="Move item up" type="button"><ChevronUp size={15} /></button>
-                                <button aria-label={`Move ${item.title} down`} className="section-icon-button" disabled={itemIndex === groupItems.length - 1} onClick={() => void moveSection(item.id, 1)} title="Move item down" type="button"><ChevronDown size={15} /></button>
-                                <button aria-label={`Remove ${item.title}`} className="section-icon-button section-remove-button" onClick={() => void removeSection(item.id)} title="Remove item" type="button"><Trash2 size={15} /></button>
+                                >{itemAudioPlaying ? <Pause size={14} aria-hidden="true" /> : <Play size={14} aria-hidden="true" />}</button> : <button aria-label={`Edit ${item.title}`} className="section-icon-button" title="Item settings" onClick={() => void openPlanItemEditor(item, sectionItem)} type="button"><Pencil size={14} /></button>}
+                                {canEditPlan ? <>
+                                  <button aria-label={`Move ${item.title} up`} className="section-icon-button" disabled={itemIndex === 0} onClick={() => void moveSection(item.id, -1)} title="Move item up" type="button"><ChevronUp size={15} /></button>
+                                  <button aria-label={`Move ${item.title} down`} className="section-icon-button" disabled={itemIndex === groupItems.length - 1} onClick={() => void moveSection(item.id, 1)} title="Move item down" type="button"><ChevronDown size={15} /></button>
+                                  <button aria-label={`Remove ${item.title}`} className="section-icon-button section-remove-button" onClick={() => void removeSection(item.id)} title="Remove item" type="button"><Trash2 size={15} /></button>
+                                </> : null}
                               </div> : null}
                             </div>
                             {canEditPlan && section.itemType !== "pre_service" ? (
