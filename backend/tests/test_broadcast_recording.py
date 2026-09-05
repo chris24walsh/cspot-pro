@@ -596,14 +596,19 @@ def test_live_audio_relay_remains_available_for_explicit_output_session() -> Non
     assert live_output_exists(session) is True
 
 
-def test_live_audio_relay_is_available_during_scheduled_pre_service(
+@pytest.mark.parametrize("scheduled_payload", [
+    {"auto_started": True, "service_stage": "pre_service"},
+    {"schedule_id": "template-test", "manual_control": True, "service_stage": "service"},
+])
+def test_live_audio_relay_is_available_during_scheduled_service_handoff(
     monkeypatch: pytest.MonkeyPatch,
+    scheduled_payload: dict[str, object],
 ) -> None:
     presentation_session = SimpleNamespace(id="session-1", plan_id="plan-1")
     plan = SimpleNamespace(id="plan-1")
     position = SimpleNamespace(
         session_id=presentation_session.id,
-        payload_json=json.dumps({"auto_started": True, "service_stage": "pre_service"}),
+        payload_json=json.dumps(scheduled_payload),
     )
 
     class ScheduledSession:

@@ -4700,7 +4700,7 @@ export function PresentationView({
               <div className="slideshow-split-control" ref={slideshowStartControlRef}>
                 <button
                   aria-label={slideshowOpen || (presentationSessionActive && !presentationAutoStarted) ? "Stop service" : "Start slideshow"}
-                  className={`slideshow-start-button ${slideshowOpen || (presentationSessionActive && !presentationAutoStarted) ? "primary-button" : "text-button"}`}
+                  className={`slideshow-start-button ${slideshowOpen || presentationSessionActive ? "primary-button" : "text-button"}`}
                   disabled={loading || !plan}
                   onClick={() => {
                     setSlideshowStartMenuOpen(false);

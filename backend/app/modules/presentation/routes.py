@@ -788,13 +788,18 @@ def list_live_presentation_services(
         output_status = _serialize_output_status(plan.id, position, now)
         payload = _position_payload(position)
         auto_started = payload.get("auto_started") is True
+        scheduled_run_active = bool(
+            (auto_started or payload.get("schedule_id"))
+            and scheduled_service_window_active(plan, payload=payload)
+        )
         admin_rehearsal = admin_rehearsal_visible(
             payload, is_admin=is_admin, output_active=output_status.active
         )
-        if auto_started and not scheduled_service_window_active(plan, payload=payload):
+        if (auto_started or payload.get("schedule_id")) and not scheduled_run_active:
             continue
         if (
             not auto_started
+            and not scheduled_run_active
             and not admin_rehearsal
             and (
                 not output_status.active

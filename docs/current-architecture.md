@@ -448,6 +448,9 @@ the dated plan's `queued_start`, selects the current cumulative
 item cue, and activates that item's scene. The dedicated Service templates Admin
 tab owns this configuration. A legacy recurring schedule can still provide a
 fallback start and cleanup window, but no longer owns individual cue boundaries.
+When a presenter navigates an automatically started service, manual control
+replaces scheduler navigation without ending the scheduled live window; public
+livestream discovery and media authorization remain active through the handoff.
 Template automation is scoped to the plan's local service date and begins on its
 first configured cue at the exact automation start time. The service presenter
 reads that authoritative session state, labels the control as automatically

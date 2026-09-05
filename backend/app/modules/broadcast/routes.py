@@ -353,7 +353,7 @@ def live_output_exists(session: Session) -> bool:
         # PresentationOutput. Treat that auto-started service window as live for
         # camera/audio authorization too; otherwise ordinary viewers can see
         # the stream but only administrators can turn its sound on.
-        if payload.get("auto_started") is True:
+        if payload.get("auto_started") is True or payload.get("schedule_id"):
             presentation_session = session.get(
                 PresentationSession,
                 position.session_id,
