@@ -886,11 +886,6 @@ def update_presentation_live_state(
         )
         session.add(presentation_session)
         session.flush()
-    else:
-        presentation_session.presenter_id = current_user.id
-        if presentation_session.status == "live" or payload.pre_service_phase is not None:
-            presentation_session.status = "live"
-            presentation_session.ended_at = None
 
     position = _latest_position(session, presentation_session.id)
     if position is None:
@@ -898,6 +893,13 @@ def update_presentation_live_state(
         session.add(position)
 
     existing_payload = _position_payload(position)
+    if payload.updated_at < int(existing_payload.get("updated_at", 0)):
+        return _serialize_live_state(presentation_session, position, plan_id)
+
+    presentation_session.presenter_id = current_user.id
+    if presentation_session.status == "live" or payload.pre_service_phase is not None:
+        presentation_session.status = "live"
+        presentation_session.ended_at = None
     previous_video_action = existing_payload.get("video_action")
     previous_service_stage = existing_payload.get("service_stage")
     previous_live_item_id = existing_payload.get("output_recording_item_id")

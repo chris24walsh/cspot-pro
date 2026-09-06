@@ -258,6 +258,49 @@ def test_selecting_a_slide_on_another_date_does_not_end_the_active_output() -> N
         assert future.status == "ready"
 
 
+def test_stale_live_slide_update_does_not_replace_newer_selection() -> None:
+    engine = create_engine("sqlite://")
+    Base.metadata.create_all(
+        engine, tables=[PresentationSession.__table__, PresentationPosition.__table__]
+    )
+    with Session(engine) as session:
+        presentation_session = PresentationSession(plan_id="plan-1", status="live")
+        session.add(presentation_session)
+        session.flush()
+        session.add(
+            PresentationPosition(
+                session_id=presentation_session.id,
+                plan_item_id="new-slide",
+                slide_index=4,
+                payload_json=(
+                    '{"index": 4, "plan_item_id": "new-slide", '
+                    '"slide_offset": 1, "updated_at": 200, "worship_coupled": true}'
+                ),
+            )
+        )
+        session.commit()
+
+        result = update_presentation_live_state(
+            "plan-1",
+            PresentationLiveStateWrite(
+                plan_id="plan-1",
+                plan_item_id="old-slide",
+                index=2,
+                slide_offset=0,
+                updated_at=100,
+                worship_coupled=False,
+            ),
+            SimpleNamespace(id="operator"),  # type: ignore[arg-type]
+            session,
+        )
+
+        assert result.plan_item_id == "new-slide"
+        assert result.index == 4
+        assert result.slide_offset == 1
+        assert result.updated_at == 200
+        assert result.worship_coupled is True
+
+
 def test_cleanup_live_sessions_ends_past_service_by_next_day() -> None:
     engine = create_engine("sqlite://")
     Base.metadata.create_all(

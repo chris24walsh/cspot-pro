@@ -819,6 +819,7 @@ export function PresentationView({
   const currentLiveStateRef = useRef<PresentationLiveState | null>(null);
   const lastLiveStateRef = useRef<number>(0);
   const livePollInFlightRef = useRef(false);
+  const liveNavigationGenerationRef = useRef(0);
   const loadRequestIdRef = useRef(0);
   const selectedPlanIdRef = useRef("");
   const suppressPublishRef = useRef(false);
@@ -1481,6 +1482,7 @@ export function PresentationView({
   }
 
   async function guardedLiveNavigation(nextIndex: number, navigate: (boundedIndex: number) => void) {
+    const navigationGeneration = ++liveNavigationGenerationRef.current;
     const slideCount = slides.length;
     if (!slideCount) {
       setLiveBlanked(false);
@@ -1493,7 +1495,11 @@ export function PresentationView({
     const targetSlide = slides[boundedIndex];
     if (playingAudioSectionId && (targetSlide?.stopBackingAudio || (targetSlide?.planItemId !== playingAudioSectionId && targetSlide?.sectionId !== playingAudioSectionId))) {
       publishFadeOutAudio();
-      window.setTimeout(() => navigate(boundedIndex), PROGRAM_AUDIO_FADE_DURATION_MS);
+      window.setTimeout(() => {
+        if (liveNavigationGenerationRef.current === navigationGeneration) {
+          navigate(boundedIndex);
+        }
+      }, PROGRAM_AUDIO_FADE_DURATION_MS);
       return;
     }
     navigate(boundedIndex);
