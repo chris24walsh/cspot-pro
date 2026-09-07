@@ -49,6 +49,7 @@ from app.modules.planning.schemas import (
 from app.modules.planning.service_scaffold import (
     ensure_service_scaffold,
     is_sunday_service,
+    restore_template_files,
     section_auto_collapse_preference,
 )
 
@@ -875,10 +876,20 @@ def save_item_template(session: Session, plan: Plan, item: PlanItem, original_ti
         session.add(default)
         session.flush()
     default.title = item.title
+    default.item_type = item.item_type
+    default.comment = item.comment
     default.presentation_options = {
         **{key: value for key, value in (item.presentation_options or {}).items() if key not in {"template_id", "announcement_date", "announcement_location", "announcement_contact", "announcement_url"}},
         "auto_collapse_items": item.auto_collapse_items,
         "scheduled_start": item.planned_start or "",
+        "montage_random": item.montage_random,
+        "template_files": [
+            {"file_id": link.file_id, "sort_order": link.sort_order}
+            for link in session.scalars(
+                select(ItemFile).where(ItemFile.plan_item_id == item.id)
+                .order_by(ItemFile.sort_order)
+            ).all()
+        ],
     }
     item.presentation_options = {**(item.presentation_options or {}), "template_id": default.id}
     return default
@@ -926,10 +937,12 @@ def insert_section_template(
                     item_type=source.item_type if source else "custom", comment=source.comment if source else None,
                     planned_start=options.get("scheduled_start") or None,
                     auto_collapse_items=bool(options.get("auto_collapse_items")), presentation_options=options)
+    item.montage_random = bool(options.get("montage_random"))
     if not item.title:
         raise HTTPException(status_code=422, detail="Section name is required")
     session.add(item)
     session.flush()
+    restore_template_files(session, item)
     if payload.save_template:
         seed_implicit_template(session, plan)
         save_item_template(session, plan, item, item.title)
@@ -939,8 +952,11 @@ def insert_section_template(
         added = PlanItem(plan_id=plan.id, parent_item_id=item.id, sequence=child.sequence,
                          item_type=child.item_type, title=child.title, comment=child.comment,
                          planned_start=child_options.get("scheduled_start") or None, presentation_options=child_options)
+        added.montage_random = bool(child_options.get("montage_random"))
+        added.auto_collapse_items = bool(child_options.get("auto_collapse_items"))
         session.add(added)
         session.flush()
+        restore_template_files(session, added)
         if payload.save_template:
             save_item_template(session, plan, added, added.title)
     session.commit()

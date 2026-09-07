@@ -7,9 +7,16 @@ one transaction. `PATCH /planning/items/{id}` accepts `save_template`; it update
 only the owning service type's matching default configuration. The JSON
 `template_id` preserves identity through renames, and outline edits retain
 existing DefaultItem IDs. `POST /planning/plans/{id}/save-outline` saves structure
-and reusable configuration, excluding song selections, uploads and dated
+and reusable configuration, excluding song selections and dated
 announcement details. Planning editors can create and populate templates; global
 service-type administration retains its existing permission checks.
+
+Saved items retain their type and text (including Bible readings), overlay
+formatting, backing audio and montage ordering. `template_files` records stored
+file IDs and ordering; new services and inserted sections receive independent
+attachment links to those files. Deleted stored files are skipped. Existing
+templates missing content or attachments must be saved again from an intact
+service item; existing service instances are not rewritten.
 
 Default JSON stores reusable `scheduled_start`, `backing_audio_id` and
 `stop_backing_audio`. A dated instance uses `planned_start`; the server scheduler

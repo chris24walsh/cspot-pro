@@ -4,7 +4,7 @@ from decimal import Decimal
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.modules.library.models import ItemFile
+from app.modules.library.models import ItemFile, StoredFile
 from app.modules.planning.models import DefaultItem, Plan, PlanItem, PlanType
 
 SUNDAY_SERVICE_PLAN_TYPE = "Sunday Service"
@@ -149,6 +149,16 @@ def ensure_welcome_stage_items(session: Session, plan: Plan) -> list[PlanItem]:
     return created
 
 
+def restore_template_files(session: Session, item: PlanItem) -> None:
+    """Give each new item independent links to the template's stored media."""
+    for entry in (item.presentation_options or {}).get("template_files", []):
+        if session.get(StoredFile, entry["file_id"]) is not None:
+            session.add(ItemFile(
+                plan_item_id=item.id, file_id=entry["file_id"],
+                sort_order=entry.get("sort_order", 0),
+            ))
+
+
 def ensure_service_scaffold(session: Session, plan: Plan) -> list[PlanItem]:
     defaults = list(
         session.scalars(
@@ -204,6 +214,7 @@ def ensure_service_scaffold(session: Session, plan: Plan) -> list[PlanItem]:
             item_type=section.item_type,
             title=section.title,
             planned_start=section.planned_start,
+            montage_random=bool(section_options.get("montage_random")),
             comment=next(
                 (item.comment for item in defaults if item.sequence == section.sequence and item.parent_item_id is None), None
             ),
@@ -215,6 +226,8 @@ def ensure_service_scaffold(session: Session, plan: Plan) -> list[PlanItem]:
             presentation_options={**section_options, **({"template_id": next(d.id for d in defaults if d.sequence == section.sequence and d.parent_item_id is None)} if defaults else {})},
         )
         session.add(item)
+        session.flush()
+        restore_template_files(session, item)
         created.append(item)
     if created:
         session.commit()
@@ -237,6 +250,10 @@ def ensure_service_scaffold(session: Session, plan: Plan) -> list[PlanItem]:
             continue
         child = PlanItem(plan_id=plan.id, parent_item_id=parent.id, sequence=default.sequence, item_type=default.item_type, title=default.title, comment=default.comment, planned_start=(default.presentation_options or {}).get("scheduled_start") or None, presentation_options={**(default.presentation_options or {}), "template_id": default.id})
         session.add(child)
+        child.montage_random = bool((default.presentation_options or {}).get("montage_random"))
+        child.auto_collapse_items = bool((default.presentation_options or {}).get("auto_collapse_items"))
+        session.flush()
+        restore_template_files(session, child)
         created.append(child)
     if defaults:
         session.commit()

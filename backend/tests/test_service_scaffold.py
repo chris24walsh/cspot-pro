@@ -393,6 +393,59 @@ def test_saving_child_configuration_does_not_overwrite_parent_defaults() -> None
         session.close()
 
 
+def test_saved_template_preserves_reading_audio_and_overlay_in_future_services() -> None:
+    from app.modules.planning.routes import insert_section_template, update_plan_item
+    from app.modules.planning.schemas import PlanItemUpdate, SectionTemplateInsert
+
+    session, plan = scaffold_session()
+    try:
+        root = PlanItem(plan_id=plan.id, sequence=10, item_type="custom", title="Prayer")
+        session.add(root)
+        session.flush()
+        reading = PlanItem(
+            plan_id=plan.id, parent_item_id=root.id, sequence=10,
+            item_type="reading", title="John 3:16", comment="16 For God so loved the world",
+            montage_random=True,
+        )
+        audio = StoredFile(display_name="Prayer audio", storage_path="prayer.mp3", content_type="audio/mpeg")
+        session.add_all([reading, audio])
+        session.flush()
+        session.add(ItemFile(plan_item_id=reading.id, file_id=audio.id, sort_order=2))
+        session.commit()
+        options = {"backing_audio_id": "abcdefghijk", "overlay_size": "large", "overlay_font": "serif"}
+        with patch("app.modules.planning.routes.require_plan_editable"), patch(
+            "app.modules.planning.routes.presenter_cannot_change_outline", return_value=False
+        ):
+            update_plan_item(reading.id, PlanItemUpdate(
+                save_template=True, presentation_options=options,
+            ), SimpleNamespace(id="editor"), session)
+
+        future = Plan(plan_type_id=plan.plan_type_id, service_date=datetime(2026, 9, 13, tzinfo=UTC), title="Future")
+        session.add(future)
+        session.commit()
+        ensure_service_scaffold(session, future)
+        copied = session.scalar(select(PlanItem).where(PlanItem.plan_id == future.id, PlanItem.item_type == "reading"))
+        assert copied.comment == reading.comment
+        assert copied.montage_random is True
+        assert all(copied.presentation_options[key] == value for key, value in options.items())
+        assert [(file.file_id, file.sort_order) for file in plan_item_to_read(session, copied).files] == [(audio.id, 2)]
+        assert ensure_service_scaffold(session, future) == []
+
+        with patch("app.modules.planning.routes.require_plan_editable"):
+            inserted = insert_section_template(future.id, SectionTemplateInsert(
+                template_id=root.presentation_options["template_id"], title="Copied prayer",
+                sequence=20, save_template=False,
+            ), SimpleNamespace(id="editor"), session)
+        child = session.scalar(select(PlanItem).where(PlanItem.parent_item_id == inserted.id))
+        assert child.item_type == "reading"
+        assert child.comment == reading.comment
+        assert child.presentation_options["overlay_size"] == "large"
+        assert child.presentation_options["backing_audio_id"] == "abcdefghijk"
+        assert plan_item_to_read(session, child).files[0].file_id == audio.id
+    finally:
+        session.close()
+
+
 def test_reading_customised_service_does_not_restore_removed_template_sections() -> None:
     session, plan = scaffold_session()
     try:
