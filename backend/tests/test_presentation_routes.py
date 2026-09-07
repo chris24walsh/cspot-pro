@@ -334,6 +334,51 @@ def test_cleanup_live_sessions_ends_past_service_by_next_day() -> None:
         assert stale.status == "ended"
 
 
+def test_cleanup_live_sessions_keeps_started_past_service_with_fresh_output() -> None:
+    engine = create_engine("sqlite://")
+    Base.metadata.create_all(
+        engine,
+        tables=[
+            PlanType.__table__,
+            Plan.__table__,
+            PresentationSession.__table__,
+            PresentationPosition.__table__,
+        ],
+    )
+    now = datetime(2026, 8, 31, 12, 0, tzinfo=UTC)
+    with Session(engine) as session:
+        plan_type = PlanType(name="Sunday Service", starts_at="10:30", active=True)
+        session.add(plan_type)
+        session.flush()
+        plan = Plan(
+            plan_type_id=plan_type.id,
+            service_date=datetime(2026, 8, 30, 9, 30, tzinfo=UTC),
+            title="Sunday Service replay",
+            status="draft",
+        )
+        session.add(plan)
+        session.flush()
+        live = PresentationSession(plan_id=plan.id, status="live")
+        session.add(live)
+        session.flush()
+        session.add(
+            PresentationPosition(
+                session_id=live.id,
+                payload_json=json.dumps(
+                    {
+                        "output_owner_id": "historical-presenter",
+                        "output_heartbeat_at": int(now.timestamp() * 1000),
+                        "output_active": True,
+                    }
+                ),
+            )
+        )
+        session.commit()
+
+        assert cleanup_live_sessions(session, now=now) == 0
+        assert live.status == "live"
+
+
 def test_pre_service_rehearsal_is_visible_only_to_admins_before_output_starts() -> None:
     payload = {"service_stage": "pre_service", "pre_service_phase": "countdown"}
 

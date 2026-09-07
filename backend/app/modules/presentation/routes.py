@@ -186,6 +186,19 @@ def cleanup_live_sessions(
                 continue
             service_date = plan.service_date.astimezone(SERVICE_TIME_ZONE).date()
             past_service = service_date < current_local_date
+            if past_service:
+                position = _latest_position(session, presentation_session.id)
+                output = _position_payload(position)
+                heartbeat_at = output.get("output_heartbeat_at")
+                if (
+                    isinstance(output.get("output_owner_id"), str)
+                    and isinstance(heartbeat_at, int | float)
+                    and current_time.timestamp() * 1000 - heartbeat_at < OUTPUT_STALE_MS
+                ):
+                    # Historical plans may be started deliberately for a replay
+                    # or special event. Keep them live while their presenter is
+                    # actively heartbeating, but still retire abandoned sessions.
+                    continue
             expired_today = False
             if service_date == current_local_date:
                 plan_type = session.get(PlanType, plan.plan_type_id)

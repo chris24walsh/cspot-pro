@@ -67,7 +67,8 @@ over the server without an HDMI cable or extended desktop. Use the short
 `/app/tv` production route; public HTTP visits are upgraded to HTTPS. Once the
 presenter selects **Start**, the TV output remains active until a presenter
 stops it or starts another service. Only one service can be live system-wide,
-and unclosed past-service sessions are expired by the following day.
+and abandoned past-service sessions are expired by the following day while an
+actively presented historical service remains available.
 
 Song editing includes inline YouTube search under Details. Preview a result in
 the popup, choose **Use this video**, then save the song to keep its YouTube link.
