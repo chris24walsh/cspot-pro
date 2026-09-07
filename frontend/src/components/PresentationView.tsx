@@ -651,7 +651,6 @@ export function PresentationView({
   canDeletePlan,
   canEditPlan: hasPlanEditPermission,
   canManagePreServiceMedia,
-  canSimulateService,
   canEditSlideNotes,
   canCreateSong,
   canEditSong,
@@ -663,7 +662,6 @@ export function PresentationView({
   canDeletePlan: boolean;
   canEditPlan: boolean;
   canManagePreServiceMedia: boolean;
-  canSimulateService: boolean;
   canEditSlideNotes: boolean;
   canCreateSong: boolean;
   canEditSong: boolean;
@@ -788,6 +786,8 @@ export function PresentationView({
   const [presentationAutoStarted, setPresentationAutoStarted] = useState(false);
   const [openSlideshowWindowOnStart, setOpenSlideshowWindowOnStart] = useState(false);
   const [slideshowStartMenuOpen, setSlideshowStartMenuOpen] = useState(false);
+  const [automatedStartDraft, setAutomatedStartDraft] = useState("");
+  const [automatedStartSaving, setAutomatedStartSaving] = useState(false);
   const [broadcastRecordings, setBroadcastRecordings] = useState<BroadcastRecording[]>([]);
   const [recordingAction, setRecordingAction] = useState(false);
   const [recordingClock, setRecordingClock] = useState(Date.now());
@@ -1723,37 +1723,6 @@ export function PresentationView({
     await publishLiveStateForSlides(slides, nextIndex, overrides);
   }
 
-  async function showPreServiceRehearsalPhase(phase: "montage" | "countdown" | "complete") {
-    const stageType = phase === "montage"
-      ? "welcome_montage"
-      : phase === "countdown"
-        ? "welcome_countdown"
-        : "welcome_seated";
-    const stageIndex = slides.findIndex((slide) => slide.itemType === stageType);
-    const welcomeIndex = stageIndex >= 0
-      ? stageIndex
-      : slides.findIndex((slide) => slide.itemType === "pre_service");
-    if (welcomeIndex < 0) {
-      setMessage("This service does not have a Welcome section to rehearse.");
-      return;
-    }
-    setLiveIndex(welcomeIndex);
-    setLiveBlanked(false);
-    setSlideshowStartMenuOpen(false);
-    await publishLiveState(welcomeIndex, {
-      blanked: false,
-      serviceStage: "pre_service",
-      preServicePhase: phase,
-    });
-    setMessage(
-      phase === "montage"
-        ? "Test preview: welcome montage selected. The slideshow has not started."
-        : phase === "countdown"
-          ? "Test preview: pre-service countdown selected. The slideshow has not started."
-          : "Test preview: countdown ending selected. The slideshow has not started.",
-    );
-  }
-
   async function startServiceFromMenu() {
     if (!slideshowOpen && !(await startSlideshow(openSlideshowWindowOnStart))) {
       return;
@@ -1768,10 +1737,21 @@ export function PresentationView({
     setMessage("Service started on the current slide.");
   }
 
-  async function stopServiceTest() {
-    setSlideshowStartMenuOpen(false);
-    await closeActiveSlideshow();
-    setMessage("Service test stopped and live output reset.");
+  async function saveAutomatedStart() {
+    if (!plan || !canEditPlan) return;
+    setAutomatedStartSaving(true);
+    try {
+      const updated = await updatePlan(plan.id, { queued_start: automatedStartDraft || null });
+      setPlan(updated);
+      setSlideshowStartMenuOpen(false);
+      setMessage(automatedStartDraft
+        ? `Automated start set for ${automatedStartDraft}.`
+        : "Automated start cleared for this service.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not update the automated start.");
+    } finally {
+      setAutomatedStartSaving(false);
+    }
   }
 
   async function detectDisplays() {
@@ -4735,7 +4715,10 @@ export function PresentationView({
                   aria-label="Choose how the slideshow starts"
                   className={`slideshow-start-menu-button ${slideshowOpen || presentationSessionActive ? "primary-button" : "text-button"}`}
                   disabled={loading || !plan}
-                  onClick={() => setSlideshowStartMenuOpen((open) => !open)}
+                  onClick={() => setSlideshowStartMenuOpen((open) => {
+                    if (!open) setAutomatedStartDraft(plan?.queued_start ?? "");
+                    return !open;
+                  })}
                   title="Choose how the slideshow starts"
                   type="button"
                 >
@@ -4769,33 +4752,31 @@ export function PresentationView({
                       <span aria-hidden="true">{openSlideshowWindowOnStart ? "✓" : ""}</span>
                       Open slideshow in new window
                     </button>
-                    {canSimulateService ? (
-                      <>
-                        <div className="slideshow-start-menu-divider" role="separator" />
-                        <span className="slideshow-start-menu-label">Test service flow</span>
-                        <button onClick={() => void showPreServiceRehearsalPhase("montage")} role="menuitem" type="button">
-                          <span aria-hidden="true">1</span>
-                          Welcome montage
+                    {canEditPlan ? <>
+                      <div className="slideshow-start-menu-divider" role="separator" />
+                      <span className="slideshow-start-menu-label">Automated start</span>
+                      <div className="slideshow-start-schedule">
+                        <label className="inline-checkbox">
+                          <input
+                            checked={Boolean(automatedStartDraft)}
+                            disabled={automatedStartSaving}
+                            onChange={(event) => setAutomatedStartDraft(event.target.checked
+                              ? (plan?.queued_start ?? currentPlanType?.automation_start ?? currentPlanType?.starts_at ?? "10:30")
+                              : "")}
+                            type="checkbox"
+                          />
+                          Enable for this service
+                        </label>
+                        {automatedStartDraft ? <label>
+                          Start time
+                          <input disabled={automatedStartSaving} onChange={(event) => setAutomatedStartDraft(event.target.value)} required type="time" value={automatedStartDraft} />
+                        </label> : null}
+                        <button disabled={automatedStartSaving} onClick={() => void saveAutomatedStart()} type="button">
+                          <span aria-hidden="true">✓</span>
+                          {automatedStartSaving ? "Saving…" : "Save automated start"}
                         </button>
-                        <button onClick={() => void showPreServiceRehearsalPhase("countdown")} role="menuitem" type="button">
-                          <span aria-hidden="true">2</span>
-                          Countdown
-                        </button>
-                        <button onClick={() => void showPreServiceRehearsalPhase("complete")} role="menuitem" type="button">
-                          <span aria-hidden="true">3</span>
-                          End countdown
-                        </button>
-                        <div className="slideshow-start-menu-divider" role="separator" />
-                        <button onClick={() => void startServiceFromMenu()} role="menuitem" type="button">
-                          <span aria-hidden="true">▶</span>
-                          Start service
-                        </button>
-                        <button onClick={() => void stopServiceTest()} role="menuitem" type="button">
-                          <span aria-hidden="true">■</span>
-                          Stop service
-                        </button>
-                      </>
-                    ) : null}
+                      </div>
+                    </> : null}
                   </div>
                 ) : null}
               </div>

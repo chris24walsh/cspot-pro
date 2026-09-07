@@ -538,7 +538,8 @@ When the presenter selects **Start**, the presenter control page
 creates a server-authoritative output session. The presenter Start control is a
 split button: by default it enables network output without opening a local
 window, while its dropdown can make the next start also open a local slideshow
-window.
+window and lets plan editors enable, change, or clear that service's automated
+start time.
 The session remains active if controller tabs, local output windows, or TV
 browsers close or become suspended. Another presenter can reconnect and stop it
 explicitly, which causes open desktop output windows to close and TV browsers to

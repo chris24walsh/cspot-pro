@@ -534,7 +534,6 @@ function App() {
             canDeletePlan={canDeletePlans}
             canEditPlan={canEditPlans}
             canManagePreServiceMedia={canUsePresentation || canManageUsers}
-            canSimulateService={isAdmin}
             canCreateSong={canCreateSongs}
             canEditSong={canEditSongs}
             canEditSlideNotes={canEditSlideNotes}

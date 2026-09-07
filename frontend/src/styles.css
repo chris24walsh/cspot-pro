@@ -7101,6 +7101,38 @@ button.musician-page {
   text-transform: uppercase;
 }
 
+.slideshow-start-schedule {
+  display: grid;
+  gap: 7px;
+  padding: 3px 8px 5px;
+}
+
+.slideshow-start-schedule > label {
+  color: #4f594f;
+  display: grid;
+  font-size: 12px;
+  font-weight: 700;
+  gap: 4px;
+}
+
+.slideshow-start-schedule > label.inline-checkbox {
+  align-items: center;
+  display: flex;
+}
+
+.slideshow-start-schedule input[type="time"] {
+  border: 1px solid #cfc7b4;
+  border-radius: 6px;
+  color: #23332b;
+  font: inherit;
+  padding: 6px 8px;
+}
+
+.slideshow-start-menu .slideshow-start-schedule > button {
+  background: #edf3ee;
+  border: 1px solid #cbd8ce;
+}
+
 .presenter-controls-compact {
   background: #fffefa;
   border: 1px solid #e3dcc8;

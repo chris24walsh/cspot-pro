@@ -86,12 +86,12 @@ Announcements, and Post-service. Welcome contains individually selectable
 Montage, Countdown, and Please be seated items. Automation starts the template
 once; each item owns its duration, automatic advance, output destinations, and
 audio scene. The seeded flow shows a 25-minute montage followed by a five-minute
-countdown, then selects Please be seated. Administrators can override the flow
-from the Start menu for rehearsal without activating the public output. Welcome photos
+countdown, then selects Please be seated. Operators configure the selected
+service's automated start from the Start menu. Welcome photos
 can be scoped to one service or retained for future services. Montage photos start their transition clock when selected, preserve configured order by default, and can be randomized per item. They crossfade gently, including the final transition back
 to the holding background. Scene changes independently determine livestream
 mixing and whether media plays through the room. Starting the service shows the
-currently selected cue; worship starts only on the operator's next advance. These rehearsal controls are restricted to administrators. Open time is a neutral LCF background transition. Empty Sermon and Announcements sections are clickable
+currently selected cue; worship starts only on the operator's next advance. Open time is a neutral LCF background transition. Empty Sermon and Announcements sections are clickable
 deck placeholders; imported decks replace their filler backgrounds. Existing
 Sunday plans can add only their missing standard sections, preserving content.
 
