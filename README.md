@@ -347,3 +347,9 @@ against the audio duration, and retains compact mono Opus at 48 kbps. Replacemen
 uses a temporary backup and restores the original if media or database work fails. Slide
 snapshots are retained and timings are rebased; `trimmed-sermon` copies contain
 actual slide display times, so the player does not apply its camera delay again.
+
+Song library search combines text with immediately applied Key, Theme and Source
+filters, a matching-song count, and Clear all. Options come from saved library
+metadata, including missing-value choices. Themes use comma-separated categories;
+sources group book references without song numbers. Key uses the saved sounding
+key (or derives it from the capo key and position), and is shown in library rows.

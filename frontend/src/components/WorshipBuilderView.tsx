@@ -1,3 +1,4 @@
+import { matchesSongLibraryFilters, songLibraryMetadata } from "../songLibraryFilters";
 import { Archive, ChevronDown, ChevronUp, MonitorUp, Music2, Pencil, RefreshCw, RotateCcw, Trash2, WandSparkles, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -176,10 +177,6 @@ function songLibraryStatusClass(song: Song) {
     return "song-library-row-missing-chords";
   }
   return "song-library-row-complete";
-}
-
-function songBookSource(song: Song) {
-  return song.book_reference?.replace(/\s+#\d+\s*$/, "").trim() || null;
 }
 
 function normalizedTitle(value: string) {
@@ -365,6 +362,8 @@ export function WorshipBuilderView({ active = true, canAccessAdminTools, canArch
   const [archivedSongUndo, setArchivedSongUndo] = useState<{ id: string; title: string } | null>(null);
   const [query, setQuery] = useState("");
   const [bookSourceFilter, setBookSourceFilter] = useState("all");
+  const [keyFilter, setKeyFilter] = useState("all");
+  const [themeFilter, setThemeFilter] = useState("all");
   const [loading, setLoading] = useState(true);
   const [suggesting, setSuggesting] = useState(false);
   const [historyImportOpen, setHistoryImportOpen] = useState(false);
@@ -581,30 +580,22 @@ export function WorshipBuilderView({ active = true, canAccessAdminTools, canArch
     [worshipSections],
   );
 
-  const bookSourceOptions = useMemo(
-    () =>
-      Array.from(new Set(songs.map(songBookSource).filter((source): source is string => Boolean(source)))).sort((left, right) =>
-        left.localeCompare(right),
-      ),
-    [songs],
-  );
-
-  const filteredSongs = useMemo(() => {
-    const normalized = query.trim().toLowerCase();
-    return songs
-      .filter((song) => {
-        const source = songBookSource(song);
-        const sourceMismatch =
-          bookSourceFilter === "none" ? source !== null : bookSourceFilter !== "all" && source !== bookSourceFilter;
-        if (sourceMismatch) {
-          return false;
-        }
-        if (!normalized) return true;
-        return `${song.title} ${song.author ?? ""} ${song.alternate_title ?? ""} ${song.lyrics ?? ""} ${song.book_reference ?? ""} ${song.theme_tags ?? ""}`
-          .toLowerCase()
-          .includes(normalized);
-      });
-  }, [bookSourceFilter, query, songs]);
+  const libraryMetadata = useMemo(() => new Map(songs.map((song) => [song.id, songLibraryMetadata(song)])), [songs]);
+  const filterOptions = useMemo(() => {
+    const entries = [...libraryMetadata.values()];
+    const sorted = (values: (string | null)[]) => [...new Set(values.filter((value): value is string => Boolean(value)))].sort((a, b) => a.localeCompare(b));
+    return { keys: sorted(entries.map((entry) => entry.key)), themes: sorted(entries.flatMap((entry) => entry.themes)), sources: sorted(entries.map((entry) => entry.source)) };
+  }, [libraryMetadata]);
+  const filteredSongs = useMemo(() => songs.filter((song) => matchesSongLibraryFilters(song, libraryMetadata.get(song.id)!, {
+    query, key: keyFilter, theme: themeFilter, source: bookSourceFilter,
+  })), [songs, libraryMetadata, query, keyFilter, themeFilter, bookSourceFilter]);
+  const hasLibraryFilters = Boolean(query || keyFilter !== "all" || themeFilter !== "all" || bookSourceFilter !== "all");
+  function clearLibraryFilters() {
+    setQuery("");
+    setKeyFilter("all");
+    setThemeFilter("all");
+    setBookSourceFilter("all");
+  }
 
   const selectedCustomProviderMatch =
     customProviderResult?.matches.find((match) => match.id === selectedCustomProviderMatchId) ?? null;
@@ -2183,20 +2174,36 @@ export function WorshipBuilderView({ active = true, canAccessAdminTools, canArch
           <button className="text-button" disabled={!canCreateSong} onClick={openNewSongPrompt} type="button">
             New Song
           </button>
-          <select
-            aria-label="Filter songs by book or source"
-            className="worship-source-filter"
-            onChange={(event) => setBookSourceFilter(event.target.value)}
-            value={bookSourceFilter}
-          >
-            <option value="all">All books and sources</option>
-            {bookSourceOptions.map((source) => (
-              <option key={source} value={source}>{source}</option>
-            ))}
-            <option value="none">No book or source</option>
-          </select>
+          <div className="worship-library-filters">
+            <label>Key
+              <select aria-label="Filter songs by key" value={keyFilter} onChange={(event) => setKeyFilter(event.target.value)}>
+                <option value="all">Any key</option>
+                {filterOptions.keys.map((key) => <option key={key} value={key}>{key}</option>)}
+                <option value="none">No key</option>
+              </select>
+            </label>
+            <label>Theme
+              <select aria-label="Filter songs by theme" value={themeFilter} onChange={(event) => setThemeFilter(event.target.value)}>
+                <option value="all">Any theme</option>
+                {filterOptions.themes.map((theme) => <option key={theme} value={theme}>{theme}</option>)}
+                <option value="none">No theme</option>
+              </select>
+            </label>
+            <label>Source
+              <select aria-label="Filter songs by book or source" value={bookSourceFilter} onChange={(event) => setBookSourceFilter(event.target.value)}>
+                <option value="all">Any source</option>
+                {filterOptions.sources.map((source) => <option key={source} value={source}>{source}</option>)}
+                <option value="none">No book or source</option>
+              </select>
+            </label>
+          </div>
+          <div className="worship-library-filter-summary">
+            <small role="status">{filteredSongs.length} of {songs.length} songs</small>
+            {hasLibraryFilters ? <button className="text-button" onClick={clearLibraryFilters} type="button">Clear all</button> : null}
+          </div>
         </div>
         <div className="worship-song-list">
+          {!filteredSongs.length ? <p className="empty-state">{songs.length ? "No songs match. Try another filter or clear all to start again." : "No songs in the library yet."}</p> : null}
           {filteredSongs.map((song) => (
             <div
               className={`song-library-row ${songLibraryStatusClass(song)}`}
@@ -2212,7 +2219,7 @@ export function WorshipBuilderView({ active = true, canAccessAdminTools, canArch
                 <span>
                   <strong>{song.title}</strong>
                   <small>
-                    {worshipRoleLabel(song.worship_role)} · {usageLabel(song.id)}
+                    {libraryMetadata.get(song.id)?.key ?? "No key"} · {worshipRoleLabel(song.worship_role)} · {usageLabel(song.id)}
                   </small>
                 </span>
               </button>

@@ -13085,3 +13085,38 @@ button.musician-page {
 .recording-trim { margin-top: 10px; border: 1px solid #496056; border-radius: 6px; padding: 10px; }
 .recording-trim input { width: 90px; }
 .recording-trim p, .recording-transport > p { font-size: 13px; margin: 8px 0; }
+
+.worship-library-filters {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.worship-library-filters label {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.worship-library-filters select {
+  width: 100%;
+  min-width: 0;
+  min-height: 34px;
+  padding: 4px;
+  font: inherit;
+  color: #234a40;
+  background: #fffefa;
+  border: 1px solid #cfc7b4;
+  border-radius: 6px;
+}
+
+.worship-library-filter-summary {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: var(--control-height);
+}
