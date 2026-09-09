@@ -11,6 +11,7 @@ from app.modules.library.models import FileCategory, ItemFile, StoredFile
 from app.modules.music.models import Song
 from app.modules.planning.models import DefaultItem, ItemNote, Plan, PlanItem, PlanType
 from app.modules.planning.routes import (
+    add_missing_service_sections,
     changes_protected_outline_fields,
     get_plan,
     plan_item_to_read,
@@ -469,5 +470,19 @@ def test_replacing_outline_preserves_section_identity() -> None:
         original_id = template.id
         replace_default_outline(session, session.get(PlanType, plan.plan_type_id), [DefaultOutlineItem(id=original_id, sequence=10, title="Renamed", item_type="custom")])
         assert session.get(DefaultItem, original_id).title == "Renamed"
+    finally:
+        session.close()
+
+
+def test_applying_outline_to_empty_service_returns_items_without_duplicates() -> None:
+    session, plan = scaffold_session()
+    try:
+        with patch("app.modules.planning.routes.require_plan_editable"):
+            detail = add_missing_service_sections(plan.id, None, session)
+            assert len(detail.items) == 8
+            repeated = add_missing_service_sections(plan.id, None, session)
+        assert [item.id for item in repeated.items] == [item.id for item in detail.items]
+        session.expire_all()
+        assert len(get_plan(plan.id, None, session).items) == 8
     finally:
         session.close()

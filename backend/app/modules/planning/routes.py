@@ -608,16 +608,6 @@ def add_missing_service_sections(
 ) -> PlanDetail:
     plan = get_plan_or_404(session, plan_id)
     require_plan_editable(session, plan, current_user)
-    if "queued_start" in payload.model_fields_set and payload.queued_start:
-        now_local = datetime.now(SERVICE_TIME_ZONE)
-        service_day = plan.service_date.astimezone(SERVICE_TIME_ZONE).date()
-        queued_hour, queued_minute = (int(part) for part in payload.queued_start.split(":"))
-        queued_at = now_local.replace(hour=queued_hour, minute=queued_minute, second=0, microsecond=0)
-        if service_day < now_local.date() or (service_day == now_local.date() and queued_at <= now_local):
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail="Queued start must be in the future for today's service",
-            )
     ensure_service_scaffold(session, plan)
     items = list(
         session.scalars(
