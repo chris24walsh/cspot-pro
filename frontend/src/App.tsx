@@ -40,6 +40,7 @@ import { AuthScreen } from "./components/AuthScreen";
 import { BroadcastManager } from "./components/BroadcastManager";
 import { PresentationOutput } from "./components/PresentationOutput";
 import { PresentationView } from "./components/PresentationView";
+import { PublicRecordingView } from "./components/PublicRecordingView";
 import { ServiceBroadcastView } from "./components/ServiceBroadcastView";
 import { SundaySchoolView } from "./components/SundaySchoolView";
 import { UserManager } from "./components/UserManager";
@@ -81,6 +82,7 @@ function isTransientApiError(error: unknown) {
 
 function App() {
   const initialParams = new URLSearchParams(window.location.search);
+  const publicRecordingToken = initialParams.get("recording");
   const isPresentationOutput = initialParams.get("presentation") === "output";
   const isNetworkDisplay = isNetworkDisplayLocation(window.location);
   const isMediaOutput = isMediaOutputLocation(window.location);
@@ -333,6 +335,10 @@ function App() {
       document.removeEventListener("webkitfullscreenchange", updateFullscreenState);
     };
   }, []);
+
+  if (publicRecordingToken) {
+    return <PublicRecordingView token={publicRecordingToken} />;
+  }
 
   if (authLoading) {
     return <main className="auth-shell"><section className="auth-card"><p>Loading cspot-pro...</p></section></main>;

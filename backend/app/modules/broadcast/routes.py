@@ -1,4 +1,6 @@
 import json
+import re
+import secrets
 import subprocess
 from collections.abc import AsyncIterator
 from datetime import UTC, datetime
@@ -37,7 +39,12 @@ from app.modules.broadcast.recording import (
     stop_recording,
 )
 from app.modules.broadcast.recording_trim import create_trimmed_recording
-from app.modules.broadcast.recording_video import delete_video, start_video, video_path, video_status
+from app.modules.broadcast.recording_video import (
+    delete_video,
+    start_video,
+    video_path,
+    video_status,
+)
 from app.modules.broadcast.schemas import (
     BroadcastAudioSceneChannel,
     BroadcastAudioSourceRead,
@@ -47,6 +54,7 @@ from app.modules.broadcast.schemas import (
     BroadcastViewerSettingsRead,
     BroadcastViewerSettingsUpdate,
     ManualLivestreamUpdate,
+    PublicRecordingRead,
 )
 from app.modules.broadcast.settings import (
     apply_scene_to_sources,
@@ -71,10 +79,34 @@ from app.modules.identity.auth import (
 )
 from app.modules.identity.models import User
 from app.modules.library.models import ItemFile, StoredFile
+from app.modules.library.routes import _render_slides
 from app.modules.planning.models import Plan, PlanItem
 from app.modules.presentation.models import PresentationPosition, PresentationSession
 
 router = APIRouter()
+
+
+def clean_recording_title(recording: BroadcastRecording, timeline: list[dict]) -> str:
+    names = [
+        file.get("display_name", "")
+        for event in timeline
+        for file in event.get("files", [])
+        if isinstance(file, dict)
+    ]
+    title = (
+        names[0]
+        if names
+        else next(
+            (str(event.get("item_title")) for event in timeline if event.get("item_title")),
+            recording.title,
+        )
+    )
+    title = re.sub(r"\.(pptx?|pdf|odp|key)$", "", title, flags=re.IGNORECASE)
+    title = re.sub(r"_+", " ", title)
+    title = re.sub(r"\s*[-–—]\s*", " ", title)
+    title = re.sub(r"\s+", " ", title).strip()
+    title = re.sub(r"\s+(final|slides?|sermon deck|copy)\s*$", "", title, flags=re.IGNORECASE)
+    return title or "Sermon recording"
 
 
 def recording_read(session: Session, recording: BroadcastRecording) -> BroadcastRecordingRead:
@@ -113,6 +145,7 @@ def recording_read(session: Session, recording: BroadcastRecording) -> Broadcast
                         )
                 snapshots[item_id] = {
                     "item_title": item.title if item else "Recorded slides",
+                    "item_comment": item.comment if item else None,
                     "item_type": item.item_type if item else "sermon",
                     "files": files,
                 }
@@ -123,7 +156,7 @@ def recording_read(session: Session, recording: BroadcastRecording) -> Broadcast
         source=recording.source,
         plan_id=recording.plan_id,
         plan_item_id=recording.plan_item_id,
-        title=recording.title,
+        title=clean_recording_title(recording, timeline if isinstance(timeline, list) else []),
         status=recording.status,
         media_kind=recording.media_kind,
         content_type=recording.content_type,
@@ -135,6 +168,8 @@ def recording_read(session: Session, recording: BroadcastRecording) -> Broadcast
         pending_stop_at=recording.pending_stop_at,
         pending_stop_reason=recording.pending_stop_reason,
         end_reason=recording.end_reason,
+        public_token=recording.public_token,
+        published_at=recording.published_at,
         timeline=timeline if isinstance(timeline, list) else [],
     )
 
@@ -229,17 +264,120 @@ def trim_recording(
     if recording.status != "ready":
         raise HTTPException(status_code=409, detail="Stop recording before trimming")
     try:
+        if payload.replace_original:
+            delete_video(recording)
         copy = create_trimmed_recording(
-            session, recording, payload.start_seconds, payload.end_seconds,
-            recording_read(session, recording).timeline, current_user.id,
+            session,
+            recording,
+            payload.start_seconds,
+            payload.end_seconds,
+            recording_read(session, recording).timeline,
+            current_user.id,
+            replace_original=payload.replace_original,
         )
     except ValueError as error:
         raise HTTPException(status_code=422, detail=str(error)) from error
     except FileNotFoundError as error:
-        raise HTTPException(status_code=404, detail="Recording audio or media tools unavailable") from error
+        raise HTTPException(
+            status_code=404, detail="Recording audio or media tools unavailable"
+        ) from error
     except (RuntimeError, OSError, subprocess.TimeoutExpired) as error:
-        raise HTTPException(status_code=503, detail="Could not trim audio. Please try again.") from error
+        raise HTTPException(
+            status_code=503, detail="Could not trim audio. Please try again."
+        ) from error
     return recording_read(session, copy)
+
+
+@router.post("/recordings/{recording_id}/publish", response_model=BroadcastRecordingRead)
+def publish_recording(
+    recording_id: str,
+    current_user: User = Depends(require_permission("broadcast:use")),
+    session: Session = Depends(get_session),
+) -> BroadcastRecordingRead:
+    recording = ready_recording(session, recording_id)
+    if recording.public_token is None:
+        recording.public_token = secrets.token_urlsafe(24)
+        recording.published_at = datetime.now(UTC)
+        session.commit()
+        session.refresh(recording)
+    return recording_read(session, recording)
+
+
+@router.delete("/recordings/{recording_id}/publish", response_model=BroadcastRecordingRead)
+def unpublish_recording(
+    recording_id: str,
+    current_user: User = Depends(require_permission("broadcast:use")),
+    session: Session = Depends(get_session),
+) -> BroadcastRecordingRead:
+    recording = ready_recording(session, recording_id)
+    recording.public_token = None
+    recording.published_at = None
+    session.commit()
+    session.refresh(recording)
+    return recording_read(session, recording)
+
+
+def public_recording(session: Session, token: str) -> BroadcastRecording:
+    recording = session.scalar(
+        select(BroadcastRecording).where(BroadcastRecording.public_token == token)
+    )
+    if recording is None or recording.status != "ready":
+        raise HTTPException(status_code=404, detail="Public recording not found")
+    return recording
+
+
+@router.get("/public-recordings/{token}", response_model=PublicRecordingRead)
+def get_public_recording(
+    token: str, session: Session = Depends(get_session)
+) -> PublicRecordingRead:
+    recording = public_recording(session, token)
+    details = recording_read(session, recording)
+    delay = 0 if recording.source == "trimmed-sermon" else 1.5
+    slides = [
+        {
+            "at": 0 if index == 0 else max(0, float(event.get("at", 0)) + delay),
+            "image_url": f"/api/v1/broadcast/public-recordings/{token}/slides/{index}.png",
+        }
+        for index, event in enumerate(details.timeline)
+    ]
+    return PublicRecordingRead(
+        title=details.title,
+        recorded_at=details.recorded_at,
+        duration_seconds=details.duration_seconds,
+        audio_url=f"/api/v1/broadcast/public-recordings/{token}/audio",
+        slides=slides,
+    )
+
+
+@router.get("/public-recordings/{token}/audio")
+def public_recording_audio(token: str, session: Session = Depends(get_session)) -> FileResponse:
+    recording = public_recording(session, token)
+    path = Path(recording.audio_file_path or recording.file_path)
+    if not path.is_file():
+        raise HTTPException(status_code=404, detail="Recording audio not found")
+    session.close()
+    return FileResponse(path, media_type=recording.content_type or "audio/webm")
+
+
+@router.get("/public-recordings/{token}/slides/{event_index}.png")
+def public_recording_slide(
+    token: str, event_index: int, session: Session = Depends(get_session)
+) -> FileResponse:
+    recording = public_recording(session, token)
+    details = recording_read(session, recording)
+    if event_index < 0 or event_index >= len(details.timeline):
+        raise HTTPException(status_code=404, detail="Recorded slide not found")
+    event = details.timeline[event_index]
+    images: list[Path] = []
+    for file in event.get("files", []):
+        stored = session.get(StoredFile, file.get("file_id"))
+        if stored is not None:
+            images.extend(_render_slides(stored))
+    offset = int(event.get("slide_offset", 0))
+    if not images or offset < 0 or offset >= len(images):
+        raise HTTPException(status_code=404, detail="Recorded slide image not found")
+    session.close()
+    return FileResponse(images[offset], media_type="image/png")
 
 
 def ready_recording(session: Session, recording_id: str) -> BroadcastRecording:

@@ -12,11 +12,12 @@ export function parseRecordingTime(value: string): number {
   return minutes * 60 + seconds;
 }
 
-export function RecordingTransport({ recording, canManage = false, onTimeChange, onTrimmed }: {
+export function RecordingTransport({ recording, canManage = false, onTimeChange, onTrimmed, audioUrl }: {
   recording: BroadcastRecording;
   canManage?: boolean;
   onTimeChange: (seconds: number) => void;
-  onTrimmed?: (recording: BroadcastRecording) => void;
+  onTrimmed?: (recording: BroadcastRecording, replaced: boolean) => void;
+  audioUrl?: string;
 }) {
   const audioRef = useRef<HTMLAudioElement>(null);
   const previewEnd = useRef<number | null>(null);
@@ -48,24 +49,24 @@ export function RecordingTransport({ recording, canManage = false, onTimeChange,
     catch { setMessage("Could not play audio. Please try again."); }
   }
 
-  async function saveTrim() {
+  async function saveTrim(replaceOriginal = false) {
     if (!validTrim || saving) return;
     audioRef.current?.pause();
     previewEnd.current = null;
     setSaving(true);
     setMessage("");
     try {
-      const copy = await trimBroadcastRecording(recording.id, startSeconds, endSeconds);
-      setMessage("Trimmed copy saved. The original recording is still available.");
+      const copy = await trimBroadcastRecording(recording.id, startSeconds, endSeconds, replaceOriginal);
+      setMessage(replaceOriginal ? "Recording replaced with the trimmed selection." : "Trimmed copy saved.");
       setTrimOpen(false);
-      onTrimmed?.(copy);
+      onTrimmed?.(copy, replaceOriginal);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Could not save trimmed copy.");
     } finally { setSaving(false); }
   }
 
   return <div className="recording-transport">
-    <audio ref={audioRef} autoPlay preload="metadata" src={broadcastRecordingAudioUrl(recording.id)}
+    <audio ref={audioRef} autoPlay preload="metadata" src={audioUrl ?? broadcastRecordingAudioUrl(recording.id)}
       onLoadedMetadata={(event) => {
         if (Number.isFinite(event.currentTarget.duration)) setDuration(event.currentTarget.duration);
       }}
@@ -117,7 +118,7 @@ export function RecordingTransport({ recording, canManage = false, onTimeChange,
         <label>End (m:ss) <input aria-label="Trim end" value={end} onChange={(event) => { previewEnd.current = null; setEnd(event.target.value); }} /></label>
         <button className="text-button" type="button" onClick={() => setEnd(recordingTime(time))}>Set end here</button>
       </div>
-      <p>{validTrim ? `Keep ${recordingTime(endSeconds - startSeconds)}. The original will stay available.` : "Enter valid m:ss times, keeping at least one second within the recording."}</p>
+      <p>{validTrim ? `Keep ${recordingTime(endSeconds - startSeconds)}.` : "Enter valid m:ss times, keeping at least one second within the recording."}</p>
       <div className="action-row">
         <button className="text-button" type="button" disabled={!validTrim} onClick={() => {
           seek(startSeconds); previewEnd.current = endSeconds; void play();
@@ -125,7 +126,8 @@ export function RecordingTransport({ recording, canManage = false, onTimeChange,
         <button className="text-button" type="button" disabled={!validTrim} onClick={() => {
           seek(Math.max(startSeconds, endSeconds - 5)); previewEnd.current = endSeconds; void play();
         }}>Preview last 5 seconds</button>
-        <button className="primary-button" type="button" disabled={!validTrim} onClick={() => void saveTrim()}>{saving ? "Saving trimmed copy…" : "Save trimmed copy"}</button>
+        <button className="text-button" type="button" disabled={!validTrim} onClick={() => void saveTrim()}>{saving ? "Saving…" : "Save as copy"}</button>
+        <button className="primary-button" type="button" disabled={!validTrim} onClick={() => void saveTrim(true)}>{saving ? "Replacing…" : "Replace original"}</button>
       </div>
     </fieldset> : null}
     {message ? <p role="status">{message}</p> : null}

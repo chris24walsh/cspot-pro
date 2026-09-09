@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { recordedPlanItems, recordingTimelineEventAt, recordingTimestampTitle } from "./SermonRecordingPlayer";
+import { recordedPlanItems, recordingTimelineEventAt, recordingTimestamp, recordingTimestampTitle } from "./SermonRecordingPlayer";
 
 const timeline = [
   { at: 0.5, plan_item_id: "sermon", slide_offset: 0 },
@@ -23,13 +23,13 @@ describe("sermon recording timeline", () => {
     expect(recordingTimelineEventAt(timeline, 13.6)?.slide_offset).toBe(1);
   });
 
-  it("labels recordings by their timestamp instead of the sermon item title", () => {
-    const title = recordingTimestampTitle({
+  it("uses the sermon title with its timestamp as secondary information", () => {
+    const recording = {
       recorded_at: "2026-07-03T12:03:02.000Z",
-      title: "Old sermon title",
-    } as never);
-    expect(title).not.toContain("Old sermon title");
-    expect(title).toContain("2026");
+      title: "Faith in difficult times",
+    } as never;
+    expect(recordingTimestampTitle(recording)).toBe("Faith in difficult times");
+    expect(recordingTimestamp(recording)).toContain("2026");
   });
 
   it("preserves each deleted deck independently without guessing from duration or slides visited", () => {

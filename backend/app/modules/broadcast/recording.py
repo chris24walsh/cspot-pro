@@ -207,7 +207,12 @@ def _slide_source_snapshot(session: Session, plan_item_id: str) -> dict[str, obj
                     "sort_order": link.sort_order,
                 }
             )
-    return {"item_title": item.title, "item_type": item.item_type, "files": files}
+    return {
+        "item_title": item.title,
+        "item_comment": item.comment,
+        "item_type": item.item_type,
+        "files": files,
+    }
 
 
 def _recording_title(now: datetime) -> str:

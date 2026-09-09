@@ -1,4 +1,4 @@
-"""Create trimmed audio copies without modifying the source recording."""
+"""Trim sermon audio as a replacement or a separate compact copy."""
 
 import json
 import math
@@ -39,6 +39,7 @@ def create_trimmed_recording(
     end: float,
     timeline: list[dict],
     user_id: str,
+    replace_original: bool = False,
 ) -> BroadcastRecording:
     if recording.status != "ready":
         raise ValueError("Only finished recordings can be trimmed")
@@ -56,7 +57,8 @@ def create_trimmed_recording(
     end = min(end, duration)
     if end - start < 1:
         raise ValueError("Select at least one second within the recording")
-    output = path.with_name(f"sermon-trimmed-{uuid4().hex}.m4a")
+    output = path.with_name(f"sermon-trimmed-{uuid4().hex}.webm")
+    backup: Path | None = None
     try:
         result = subprocess.run(
             [
@@ -75,11 +77,9 @@ def create_trimmed_recording(
                 "0:a:0",
                 "-vn",
                 "-c:a",
-                "aac",
+                "libopus",
                 "-b:a",
-                "96k",
-                "-movflags",
-                "+faststart",
+                "48k",
                 str(output),
             ],
             capture_output=True,
@@ -89,6 +89,32 @@ def create_trimmed_recording(
         actual_duration = _media_duration(output) if output.is_file() else None
         if result.returncode or actual_duration is None or actual_duration <= 0:
             raise RuntimeError("Could not trim recording audio")
+        rebased_timeline = trimmed_timeline(
+            timeline,
+            start,
+            end,
+            0 if recording.source == "trimmed-sermon" else 1.5,
+        )
+        if replace_original:
+            backup = path.with_name(f".{path.name}.{uuid4().hex}.backup")
+            path.replace(backup)
+            output.replace(path)
+            recording.size_bytes = path.stat().st_size
+            recording.duration_seconds = round(actual_duration)
+            recording.started_at = (
+                recording.started_at + timedelta(seconds=start) if recording.started_at else None
+            )
+            recording.ended_at = (
+                recording.started_at + timedelta(seconds=actual_duration)
+                if recording.started_at
+                else None
+            )
+            recording.end_reason = "Trimmed"
+            recording.timeline_json = json.dumps(rebased_timeline)
+            session.commit()
+            session.refresh(recording)
+            backup.unlink(missing_ok=True)
+            return recording
         copy = BroadcastRecording(
             plan_id=recording.plan_id,
             plan_item_id=recording.plan_item_id,
@@ -100,7 +126,7 @@ def create_trimmed_recording(
             file_path=str(output),
             audio_file_path=str(output),
             file_name=output.name,
-            content_type="audio/mp4",
+            content_type="audio/webm; codecs=opus",
             size_bytes=output.stat().st_size,
             duration_seconds=round(actual_duration),
             recorded_at=recording.recorded_at,
@@ -111,20 +137,16 @@ def create_trimmed_recording(
             if recording.started_at
             else None,
             end_reason="Trimmed copy",
-            timeline_json=json.dumps(
-                trimmed_timeline(
-                    timeline,
-                    start,
-                    end,
-                    0 if recording.source == "trimmed-sermon" else 1.5,
-                )
-            ),
+            timeline_json=json.dumps(rebased_timeline),
         )
         session.add(copy)
         session.commit()
     except Exception:
         session.rollback()
         output.unlink(missing_ok=True)
+        if backup is not None and backup.is_file():
+            path.unlink(missing_ok=True)
+            backup.replace(path)
         raise
     session.refresh(copy)
     return copy

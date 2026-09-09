@@ -22,7 +22,7 @@ import {
   mergeAudioSourceConfiguration,
   mergeBroadcastServerState,
 } from "../broadcastSettingsSave";
-import { recordingTimestampTitle, SermonRecordingPlayer } from "./SermonRecordingPlayer";
+import { recordingTimestamp, recordingTimestampTitle, SermonRecordingPlayer } from "./SermonRecordingPlayer";
 import { RecordingActions } from "./RecordingActions";
 import { AudioMixerPanel } from "./AudioMixerPanel";
 import { useConfirmationDialog } from "./ConfirmationDialog";
@@ -705,8 +705,9 @@ export function BroadcastManager({
         <div className="broadcast-recording-list">
           {recordings.length ? recordings.map((recording) => (
             <article className="broadcast-recording-row" key={recording.id}>
-              <div>
+              <div className="broadcast-recording-summary">
                 <strong>{recordingTimestampTitle(recording)}</strong>
+                <time>{recordingTimestamp(recording)}</time>
                 <span>{recording.status === "recording" || recording.status === "paused"
                   ? recording.status === "paused"
                     ? "Recording paused"
@@ -720,19 +721,19 @@ export function BroadcastManager({
                       recording.end_reason ? `Ended: ${recording.end_reason}` : null,
                     ].filter(Boolean).join(" · ")}
                 </span>
-              </div>
-              <div className="broadcast-recording-actions">
-                {recording.status === "ready" ? (
-                  <button className="text-button icon-text-button" onClick={() => setPlayingRecording(recording)} type="button">
-                    <Play size={15} aria-hidden="true" /> Play sermon
+                <div className="broadcast-recording-actions">
+                {recording.status === "ready" ? <>
+                  <button aria-label="Play sermon" className="recording-icon-button is-primary" onClick={() => setPlayingRecording(recording)} title="Play sermon" type="button">
+                    <Play size={18} aria-hidden="true" />
                   </button>
-                ) : <span className={`status-badge ${recording.status}`}>{recording.status}</span>}
-                <RecordingActions recording={recording} />
+                  <RecordingActions canManage={canManage} recording={recording} onRecordingChange={(updated) => setRecordings((current) => current.map((item) => item.id === updated.id ? updated : item))} />
+                </> : <span className={`status-badge ${recording.status}`}>{recording.status}</span>}
                 {canManage && recording.status !== "recording" && recording.status !== "paused" ? (
-                  <button aria-label="Delete recording" className="danger-button" onClick={() => void removeRecording(recording)} title="Delete recording" type="button">
+                  <button aria-label="Delete recording" className="recording-icon-button is-danger" onClick={() => void removeRecording(recording)} title="Delete recording" type="button">
                     <Trash2 size={15} aria-hidden="true" />
                   </button>
                 ) : null}
+                </div>
               </div>
             </article>
           )) : <p className="muted-copy">No sermon recordings yet.</p>}
@@ -824,10 +825,10 @@ export function BroadcastManager({
         </section>
       ) : null}
       {playingRecording ? <SermonRecordingPlayer key={playingRecording.id} onClose={() => setPlayingRecording(null)} recording={playingRecording}
-        canManage={canManage} onTrimmed={(copy) => {
-          setRecordings((current) => [copy, ...current]);
+        canManage={canManage} onTrimmed={(copy, replaced) => {
+          setRecordings((current) => replaced ? current.map((item) => item.id === copy.id ? copy : item) : [copy, ...current]);
           setPlayingRecording(copy);
-          setMessage("Trimmed copy saved. The original recording is still available.");
+          setMessage(replaced ? "Recording replaced with the trimmed selection." : "Trimmed copy saved.");
         }} /> : null}
       {confirmationDialog}
     </form>

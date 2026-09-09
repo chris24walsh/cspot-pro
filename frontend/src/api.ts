@@ -700,6 +700,8 @@ export interface BroadcastViewerSettings {
 
 export interface BroadcastRecording {
   source?: string;
+  public_token: string | null;
+  published_at: string | null;
   id: string;
   file_name: string;
   plan_id: string | null;
@@ -940,7 +942,7 @@ async function getJson<T>(
 
 async function sendJson<T>(
   path: string,
-  method: "POST" | "PATCH" | "PUT",
+  method: "POST" | "PATCH" | "PUT" | "DELETE",
   body: unknown,
   options?: { suppressAuthEvent?: boolean; timeoutMs?: number },
 ): Promise<T> {
@@ -1747,10 +1749,11 @@ export async function selectCustomProviderMatch(matchId: string): Promise<Custom
   });
 }
 
-export function trimBroadcastRecording(recordingId: string, startSeconds: number, endSeconds: number) {
+export function trimBroadcastRecording(recordingId: string, startSeconds: number, endSeconds: number, replaceOriginal = false) {
   return sendJson<BroadcastRecording>(`/api/v1/broadcast/recordings/${recordingId}/trim`, "POST", {
     start_seconds: startSeconds,
     end_seconds: endSeconds,
+    replace_original: replaceOriginal,
   }, { timeoutMs: 330000 });
 }
 
@@ -1769,4 +1772,30 @@ export function prepareRecordingVideo(recordingId: string) {
 
 export function broadcastRecordingVideoUrl(recordingId: string) {
   return buildApiUrl(`/api/v1/broadcast/recordings/${recordingId}/video`);
+}
+
+export function publishBroadcastRecording(recordingId: string) {
+  return sendJson<BroadcastRecording>(`/api/v1/broadcast/recordings/${recordingId}/publish`, "POST", {});
+}
+
+export function unpublishBroadcastRecording(recordingId: string) {
+  return sendJson<BroadcastRecording>(`/api/v1/broadcast/recordings/${recordingId}/publish`, "DELETE", {});
+}
+
+export interface PublicRecording {
+  title: string;
+  recorded_at: string | null;
+  duration_seconds: number | null;
+  audio_url: string;
+  slides: Array<{ at: number; image_url: string }>;
+}
+
+export function getPublicRecording(token: string) {
+  return getJson<PublicRecording>(`/api/v1/broadcast/public-recordings/${encodeURIComponent(token)}`,
+    { suppressAuthEvent: true });
+}
+
+export function publicRecordingAssetUrl(path: string) {
+  const suffix = path.startsWith("/api/") ? path.slice(4) : path;
+  return buildApiUrl(suffix.startsWith("/") ? suffix : `/${suffix}`);
 }

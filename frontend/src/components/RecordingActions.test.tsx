@@ -23,12 +23,14 @@ describe("recording exports", () => {
     const root = createRoot(host);
     try {
       await act(async () => root.render(<RecordingActions recording={recording} />));
-      expect(host.textContent).toContain("Prepare video (audio + slides)");
+      await act(async () => host.querySelector<HTMLButtonElement>("[aria-label='Share or download recording']")!.click());
+      expect(host.textContent).toContain("Prepare video with slides");
       vi.mocked(getRecordingVideoStatus).mockResolvedValue({ status: "ready" });
-      await act(async () => host.querySelector("button")!.click());
+      const prepare = [...host.querySelectorAll("button")].find((button) => button.textContent?.includes("Prepare video"))!;
+      await act(async () => prepare.click());
       expect(prepareRecordingVideo).toHaveBeenCalledWith(recording.id);
-      expect(host.textContent).toContain("Download video");
-      expect(host.textContent).toContain("Audio only");
+      expect(host.textContent).toContain("Preparing video");
+      expect(host.textContent).toContain("Download audio");
     } finally { await act(async () => root.unmount()); }
   });
 
@@ -45,22 +47,18 @@ describe("recording exports", () => {
     await expect(loadRecordingFile(recording)).rejects.toThrow("Could not load recording video");
   });
 
-  it("prepares on first click and shares the file on a fresh user click", async () => {
+  it("keeps one icon-only row action and opens the combined menu", async () => {
     vi.mocked(getRecordingVideoStatus).mockResolvedValue({ status: "ready" });
     vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
-    const share = vi.fn().mockResolvedValue(undefined);
-    vi.stubGlobal("navigator", { share, canShare: vi.fn().mockReturnValue(true) });
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, blob: async () => new Blob(["video"], { type: "video/mp4" }) }));
     const host = document.createElement("div");
     const root = createRoot(host);
     try {
       await act(async () => root.render(<RecordingActions recording={recording} />));
-      expect(host.querySelector("a")?.download).toBe("sermon-with-slides.mp4");
+      expect(host.querySelectorAll("button")).toHaveLength(1);
+      expect(host.querySelector("button")?.textContent).toBe("");
       await act(async () => host.querySelector("button")!.click());
-      expect(share).not.toHaveBeenCalled();
-      expect(host.textContent).toContain("Video ready");
-      await act(async () => host.querySelector("button")!.click());
-      expect(share).toHaveBeenCalledWith({ files: [expect.any(File)], title: "Sermon" });
+      expect(host.querySelector("a")?.download).toBe("sermon.m4a");
+      expect(host.textContent).toContain("Download video with slides");
     } finally {
       await act(async () => root.unmount());
     }

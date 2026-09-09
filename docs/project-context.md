@@ -286,22 +286,18 @@ If a future change seems technically sensible but pushes against the principles
 above, stop and re-evaluate before shipping it. This document should be treated
 as a durable expression of product intent.
 
-Sermon recordings export as an MP4 containing both audio and synchronized slides.
-Choose Prepare video (audio + slides), then Download video or Share video. Exports
-run in a bounded background queue and are cached on disk; users can leave and
-return during preparation. The device share menu offers WhatsApp, email, and
-other supported targets. Audio only remains available as a secondary download.
-Recipients can watch the video without an app account. The export endpoints retain
-recording read permissions, preserve deck images and camera-delay-adjusted timings,
-and also support trimmed copies. Missing slideshow assets cause preparation to fail
-rather than silently producing an audio-only video. Cached exports are removed
-when a recording is deleted; deletion waits while that recording is being exported.
+Each recording has one share/download menu for audio, synchronized MP4 export,
+and admin-controlled public access. Public recordings are opt-in and available
+only through a random individual link; removing public access revokes that link.
+The public page plays the original audio with its synchronized slide images and
+does not require an account. Recordings are named from the sermon deck, with the
+recorded timestamp shown as secondary information.
 
 The sermon player includes a full-width seek bar, ±30-second skips, playback speed,
 and volume controls. Broadcast admins can select start/end times, mark the current
-playhead, preview the selection or its final five seconds, and save a trimmed copy.
-The original remains available. The trim endpoint requires `broadcast:use`, validates
-against the audio duration, and produces a separate AAC/M4A file with FFmpeg. Slide
+playhead, preview the selection or its final five seconds, and either replace the
+original or save a separate copy. The trim endpoint requires `broadcast:use`, validates
+against the audio duration, and retains compact mono Opus at 48 kbps. Replacement
+uses a temporary backup and restores the original if media or database work fails. Slide
 snapshots are retained and timings are rebased; `trimmed-sermon` copies contain
 actual slide display times, so the player does not apply its camera delay again.
-No database migration is required.

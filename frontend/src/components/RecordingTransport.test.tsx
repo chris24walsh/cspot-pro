@@ -61,9 +61,9 @@ describe("recording transport", () => {
       await act(async () => { audio.currentTime = 61; audio.dispatchEvent(new Event("timeupdate")); });
       expect(audio.currentTime).toBe(60);
       expect(audio.pause).toHaveBeenCalled();
-      await view.click("Save trimmed copy");
-      expect(trimBroadcastRecording).toHaveBeenCalledWith("recording", 30, 60);
-      expect(view.onTrimmed).toHaveBeenCalledWith(copy);
+      await view.click("Save as copy");
+      expect(trimBroadcastRecording).toHaveBeenCalledWith("recording", 30, 60, false);
+      expect(view.onTrimmed).toHaveBeenCalledWith(copy, false);
     } finally { await view.close(); }
   });
 });

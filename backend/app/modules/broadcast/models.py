@@ -37,6 +37,8 @@ class BroadcastRecording(IdMixin, TimestampMixin, Base):
     pending_stop_reason: Mapped[str | None] = mapped_column(String(240))
     pending_stop_offset_ms: Mapped[int | None] = mapped_column(Integer)
     end_reason: Mapped[str | None] = mapped_column(String(240))
+    public_token: Mapped[str | None] = mapped_column(String(80), unique=True, index=True)
+    published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     ended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     recorded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)

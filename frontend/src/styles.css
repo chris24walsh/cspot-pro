@@ -5648,23 +5648,23 @@ button.musician-page {
 }
 
 .broadcast-recording-row {
-  align-items: center;
   background: #faf7ee;
   border: 1px solid #ded8c7;
   border-radius: 7px;
   display: grid;
   gap: 12px;
-  grid-template-columns: minmax(0, 1fr) minmax(220px, 42%);
+  grid-template-columns: minmax(0, 1fr);
   padding: 9px 10px;
 }
 
-.broadcast-recording-row > div {
+.broadcast-recording-summary {
   display: grid;
-  gap: 2px;
+  gap: 3px;
   min-width: 0;
 }
 
 .broadcast-recording-row strong,
+.broadcast-recording-row time,
 .broadcast-recording-row span {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -5676,18 +5676,23 @@ button.musician-page {
   font-size: 12px;
 }
 
+.broadcast-recording-row time {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
 .broadcast-recording-row audio {
   height: 34px;
   width: 100%;
 }
 
 .broadcast-recording-actions {
-  flex-wrap: wrap;
   align-items: center;
   display: flex !important;
   flex-direction: row;
   gap: 6px !important;
-  justify-content: flex-end;
+  justify-content: flex-start;
+  margin-top: 5px;
 }
 
 .broadcast-recording-actions .danger-button {
@@ -5695,6 +5700,51 @@ button.musician-page {
   min-width: 36px;
   padding: 5px 8px;
 }
+
+.recording-icon-button {
+  align-items: center;
+  background: transparent;
+  border: 1px solid #cbc4b2;
+  border-radius: 7px;
+  color: #294f43;
+  cursor: pointer;
+  display: inline-flex;
+  height: 34px;
+  justify-content: center;
+  padding: 0;
+  width: 36px;
+}
+
+.recording-icon-button.is-primary {
+  background: #294f43;
+  border-color: #294f43;
+  color: white;
+  height: 38px;
+  width: 42px;
+}
+
+.recording-icon-button.is-danger { color: #a13c35; }
+
+.recording-share-dialog { width: min(92vw, 520px); }
+.recording-share-dialog > header { align-items: flex-start; display: flex; justify-content: space-between; }
+.recording-share-dialog h2 { margin: 3px 0 0; }
+.recording-share-options { display: grid; gap: 8px; margin-top: 14px; }
+.recording-share-options > a,
+.recording-share-options > button { justify-content: flex-start; }
+.recording-public-link input { box-sizing: border-box; width: 100%; }
+
+.public-recording-shell {
+  background: #111915;
+  box-sizing: border-box;
+  color: #f8fbf9;
+  min-height: 100dvh;
+  padding: clamp(12px, 3vw, 36px);
+}
+.public-recording-card { display: grid; gap: 14px; margin: 0 auto; max-width: 1120px; }
+.public-recording-card h1 { margin: 2px 0; }
+.public-recording-card time { color: #aebdb5; font-size: 13px; }
+.public-recording-stage { aspect-ratio: 16 / 9; background: #fff; overflow: hidden; }
+.public-recording-stage img { height: 100%; object-fit: contain; width: 100%; }
 
 .broadcast-mixer {
   display: grid;

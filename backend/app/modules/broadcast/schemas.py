@@ -148,6 +148,7 @@ class BroadcastRecordingStart(BaseModel):
 class BroadcastRecordingTrim(BaseModel):
     start_seconds: float = Field(ge=0, allow_inf_nan=False)
     end_seconds: float = Field(gt=0, allow_inf_nan=False)
+    replace_original: bool = False
 
 
 class BroadcastRecordingRead(BaseModel):
@@ -168,4 +169,14 @@ class BroadcastRecordingRead(BaseModel):
     pending_stop_at: datetime | None = None
     pending_stop_reason: str | None = None
     end_reason: str | None = None
+    public_token: str | None = None
+    published_at: datetime | None = None
     timeline: list[dict[str, object]] = Field(default_factory=list)
+
+
+class PublicRecordingRead(BaseModel):
+    title: str
+    recorded_at: datetime | None = None
+    duration_seconds: int | None = None
+    audio_url: str
+    slides: list[dict[str, object]] = Field(default_factory=list)

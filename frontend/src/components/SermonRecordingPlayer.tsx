@@ -26,14 +26,18 @@ interface SermonRecordingPlayerProps {
   recording: BroadcastRecording;
   onClose: () => void;
   canManage?: boolean;
-  onTrimmed?: (recording: BroadcastRecording) => void;
+  onTrimmed?: (recording: BroadcastRecording, replaced: boolean) => void;
 }
 
 export function recordingTimestampTitle(recording: BroadcastRecording) {
-  if (!recording.recorded_at) return recording.title;
+  return recording.title;
+}
+
+export function recordingTimestamp(recording: BroadcastRecording) {
+  if (!recording.recorded_at) return "Date unavailable";
   const recordedAt = new Date(recording.recorded_at);
-  const title = Number.isNaN(recordedAt.getTime())
-    ? recording.title
+  return Number.isNaN(recordedAt.getTime())
+    ? "Date unavailable"
     : recordedAt.toLocaleString(undefined, {
         day: "2-digit",
         hour: "2-digit",
@@ -42,7 +46,6 @@ export function recordingTimestampTitle(recording: BroadcastRecording) {
         second: "2-digit",
         year: "numeric",
       });
-  return recording.source === "trimmed-sermon" ? `${title} (trimmed)` : title;
 }
 
 export function recordingTimelineEventAt(
@@ -157,6 +160,7 @@ export function SermonRecordingPlayer({ recording, onClose, canManage, onTrimmed
           <div>
             <span>Recorded sermon</span>
             <strong>{recordingTimestampTitle(recording)}</strong>
+            <small>{recordingTimestamp(recording)}</small>
           </div>
           <button aria-label="Close recording" className="section-icon-button" onClick={onClose} type="button">
             <X size={18} aria-hidden="true" />
@@ -174,7 +178,7 @@ export function SermonRecordingPlayer({ recording, onClose, canManage, onTrimmed
             </div>
           )}
         </div>
-        <RecordingActions key={recording.id} recording={recording} />
+        <RecordingActions key={recording.id} recording={recording} canManage={canManage} onRecordingChange={onTrimmed ? (updated) => onTrimmed(updated, true) : undefined} />
         <RecordingTransport key={recording.id} recording={recording} canManage={canManage}
           onTimeChange={setCurrentTime} onTrimmed={onTrimmed} />
       </section>
