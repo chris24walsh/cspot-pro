@@ -7,8 +7,10 @@ from app.modules.broadcast.routes import (
     clean_recording_title,
     get_public_recording,
     publish_recording,
+    rename_recording,
     unpublish_recording,
 )
+from app.modules.broadcast.schemas import BroadcastRecordingRename
 
 
 def recording() -> BroadcastRecording:
@@ -49,6 +51,23 @@ def test_title_comes_from_cleaned_recorded_deck_name():
         )
         == "The Good Shepherd"
     )
+
+
+def test_custom_title_overrides_deck_name_and_can_be_cleared():
+    row = recording()
+    session = Mock()
+    session.get.return_value = row
+    renamed = rename_recording(
+        row.id, BroadcastRecordingRename(title="  A Better Name  "), SimpleNamespace(id="admin"), session
+    )
+    assert renamed.title == "A Better Name"
+    assert renamed.custom_title == "A Better Name"
+    assert clean_recording_title(row, [{"files": [{"display_name": "Deck.pptx"}]}]) == "A Better Name"
+    restored = rename_recording(
+        row.id, BroadcastRecordingRename(title=" "), SimpleNamespace(id="admin"), session
+    )
+    assert restored.custom_title is None
+    assert session.commit.call_count == 2
 
 
 def test_publish_is_opt_in_stable_and_revocable():

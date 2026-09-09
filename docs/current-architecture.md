@@ -940,7 +940,8 @@ and admin-controlled public access. Public recordings are opt-in and available
 only through a random individual link; removing public access revokes that link.
 The public page plays the original audio with its synchronized slide images and
 does not require an account. Recordings are named from the sermon deck, with the
-recorded timestamp shown as secondary information.
+recorded timestamp shown as secondary information. Admins can set a custom name
+or clear it to restore the deck-derived name; public links use the current name.
 
 The sermon player includes a full-width seek bar, ±30-second skips, playback speed,
 and volume controls. Broadcast admins can select start/end times, mark the current

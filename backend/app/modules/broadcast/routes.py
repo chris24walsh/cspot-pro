@@ -49,6 +49,7 @@ from app.modules.broadcast.schemas import (
     BroadcastAudioSceneChannel,
     BroadcastAudioSourceRead,
     BroadcastRecordingRead,
+    BroadcastRecordingRename,
     BroadcastRecordingStart,
     BroadcastRecordingTrim,
     BroadcastViewerSettingsRead,
@@ -87,6 +88,9 @@ router = APIRouter()
 
 
 def clean_recording_title(recording: BroadcastRecording, timeline: list[dict]) -> str:
+    custom_title = (recording.custom_title or "").strip()
+    if custom_title:
+        return custom_title
     names = [
         file.get("display_name", "")
         for event in timeline
@@ -160,6 +164,7 @@ def recording_read(session: Session, recording: BroadcastRecording) -> Broadcast
         plan_id=recording.plan_id,
         plan_item_id=recording.plan_item_id,
         title=clean_recording_title(recording, timeline if isinstance(timeline, list) else []),
+        custom_title=recording.custom_title,
         status=recording.status,
         media_kind=recording.media_kind,
         content_type=recording.content_type,
@@ -289,6 +294,22 @@ def trim_recording(
             status_code=503, detail="Could not trim audio. Please try again."
         ) from error
     return recording_read(session, copy)
+
+
+@router.patch("/recordings/{recording_id}/title", response_model=BroadcastRecordingRead)
+def rename_recording(
+    recording_id: str,
+    payload: BroadcastRecordingRename,
+    _current_user: User = Depends(require_permission("broadcast:use")),
+    session: Session = Depends(get_session),
+) -> BroadcastRecordingRead:
+    recording = session.get(BroadcastRecording, recording_id)
+    if recording is None:
+        raise HTTPException(status_code=404, detail="Recording not found")
+    recording.custom_title = (payload.title or "").strip() or None
+    session.commit()
+    session.refresh(recording)
+    return recording_read(session, recording)
 
 
 @router.post("/recordings/{recording_id}/publish", response_model=BroadcastRecordingRead)

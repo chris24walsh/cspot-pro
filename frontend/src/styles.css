@@ -5732,6 +5732,10 @@ button.musician-page {
 .recording-share-options > a,
 .recording-share-options > button { justify-content: flex-start; }
 .recording-public-link input { box-sizing: border-box; width: 100%; }
+.recording-rename { display: grid; gap: 6px; padding-bottom: 6px; }
+.recording-rename > div { display: flex; gap: 8px; }
+.recording-rename input { box-sizing: border-box; flex: 1; min-width: 0; }
+.recording-rename .subtle-link-button { justify-self: start; }
 
 .public-recording-shell {
   background: #111915;

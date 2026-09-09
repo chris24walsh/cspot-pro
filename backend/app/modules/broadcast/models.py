@@ -23,6 +23,7 @@ class BroadcastRecording(IdMixin, TimestampMixin, Base):
         index=True,
     )
     title: Mapped[str] = mapped_column(String(220))
+    custom_title: Mapped[str | None] = mapped_column(String(220))
     source: Mapped[str] = mapped_column(String(80), default="obs")
     media_kind: Mapped[str] = mapped_column(String(40), default="video")
     status: Mapped[str] = mapped_column(String(40), default="ready")

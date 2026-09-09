@@ -1,9 +1,10 @@
-import { Download, Globe2, Link2, Share2, Volume2, X } from "lucide-react";
+import { Download, Globe2, Link2, Pencil, Share2, Volume2, X } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import {
   broadcastRecordingAudioUrl, broadcastRecordingVideoUrl, getRecordingVideoStatus,
-  prepareRecordingVideo, publishBroadcastRecording, unpublishBroadcastRecording,
+  prepareRecordingVideo, publishBroadcastRecording, renameBroadcastRecording,
+  unpublishBroadcastRecording,
   type BroadcastRecording, type RecordingVideoStatus,
 } from "../api";
 
@@ -33,6 +34,9 @@ export function RecordingActions({ recording, canManage = false, onRecordingChan
   const [video, setVideo] = useState<RecordingVideoStatus>({ status: "idle" });
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
+  const [title, setTitle] = useState(recording.title);
+
+  useEffect(() => setTitle(recording.title), [recording.title]);
 
   useEffect(() => {
     if (!open) return;
@@ -77,6 +81,17 @@ export function RecordingActions({ recording, canManage = false, onRecordingChan
     finally { setBusy(false); }
   }
 
+  async function rename(requestedTitle: string | null = title.trim()) {
+    setBusy(true); setMessage("");
+    try {
+      const updated = await renameBroadcastRecording(recording.id, requestedTitle || null);
+      setTitle(updated.title);
+      onRecordingChange?.(updated);
+      setMessage(requestedTitle ? "Recording renamed." : "Deck-derived name restored.");
+    } catch (error) { setMessage(error instanceof Error ? error.message : "Could not rename recording."); }
+    finally { setBusy(false); }
+  }
+
   async function copyLink() {
     if (!recording.public_token) return;
     await navigator.clipboard.writeText(publicRecordingUrl(recording.public_token));
@@ -98,6 +113,11 @@ export function RecordingActions({ recording, canManage = false, onRecordingChan
       <section aria-label={`Share or download ${recording.title}`} aria-modal="true" className="app-dialog recording-share-dialog" onMouseDown={(event) => event.stopPropagation()} role="dialog">
         <header><div><p className="eyebrow">Share or download</p><h2>{recording.title}</h2></div><button aria-label="Close" className="section-icon-button" onClick={() => setOpen(false)} type="button"><X size={18} /></button></header>
         <div className="recording-share-options">
+          {canManage ? <div className="recording-rename">
+            <label htmlFor={`recording-title-${recording.id}`}>Recording name</label>
+            <div><input aria-label="Recording name" id={`recording-title-${recording.id}`} maxLength={220} onChange={(event) => setTitle(event.target.value)} value={title} /><button className="text-button icon-text-button" disabled={busy || !title.trim() || title.trim() === recording.title} onClick={() => void rename()} type="button"><Pencil size={16} /> Save name</button></div>
+            {recording.custom_title ? <button className="subtle-link-button" disabled={busy} onClick={() => void rename(null)} type="button">Restore deck name</button> : null}
+          </div> : null}
           <a className="text-button icon-text-button" download={recording.file_name} href={broadcastRecordingAudioUrl(recording.id)}><Volume2 size={16} /> Download audio</a>
           {video.status === "ready" ? <a className="text-button icon-text-button" download={recordingVideoFilename(recording)} href={broadcastRecordingVideoUrl(recording.id)}><Download size={16} /> Download video with slides</a> : <button className="text-button icon-text-button" disabled={busy || video.status === "preparing"} onClick={() => void prepare()} type="button"><Download size={16} />{video.status === "preparing" ? "Preparing video…" : "Prepare video with slides"}</button>}
           {canManage ? recording.public_token ? <>

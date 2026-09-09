@@ -707,6 +707,7 @@ export interface BroadcastRecording {
   plan_id: string | null;
   plan_item_id: string | null;
   title: string;
+  custom_title: string | null;
   status: "recording" | "paused" | "ready" | "failed";
   media_kind: string;
   content_type: string | null;
@@ -1776,6 +1777,10 @@ export function broadcastRecordingVideoUrl(recordingId: string) {
 
 export function publishBroadcastRecording(recordingId: string) {
   return sendJson<BroadcastRecording>(`/api/v1/broadcast/recordings/${recordingId}/publish`, "POST", {});
+}
+
+export function renameBroadcastRecording(recordingId: string, title: string | null) {
+  return sendJson<BroadcastRecording>(`/api/v1/broadcast/recordings/${recordingId}/title`, "PATCH", { title });
 }
 
 export function unpublishBroadcastRecording(recordingId: string) {

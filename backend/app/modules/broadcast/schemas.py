@@ -151,6 +151,10 @@ class BroadcastRecordingTrim(BaseModel):
     replace_original: bool = False
 
 
+class BroadcastRecordingRename(BaseModel):
+    title: str | None = Field(default=None, max_length=220)
+
+
 class BroadcastRecordingRead(BaseModel):
     id: str
     file_name: str = "recording.m4a"
@@ -158,6 +162,7 @@ class BroadcastRecordingRead(BaseModel):
     plan_id: str | None = None
     plan_item_id: str | None = None
     title: str
+    custom_title: str | None = None
     status: str
     media_kind: str
     content_type: str | None = None

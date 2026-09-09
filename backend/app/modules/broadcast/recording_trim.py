@@ -120,6 +120,7 @@ def create_trimmed_recording(
             plan_item_id=recording.plan_item_id,
             created_by_user_id=user_id,
             title=f"{recording.title.removesuffix(' (trimmed)')[:210]} (trimmed)",
+            custom_title=recording.custom_title,
             source="trimmed-sermon",
             media_kind="audio-slides",
             status="ready",

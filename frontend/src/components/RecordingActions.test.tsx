@@ -2,13 +2,14 @@
 import { act } from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { getRecordingVideoStatus, prepareRecordingVideo, type BroadcastRecording } from "../api";
+import { getRecordingVideoStatus, prepareRecordingVideo, renameBroadcastRecording, type BroadcastRecording } from "../api";
 import { loadRecordingFile, RecordingActions } from "./RecordingActions";
 
 vi.mock("../api", async (original) => ({
   ...await original<typeof import("../api")>(),
   prepareRecordingVideo: vi.fn(),
   getRecordingVideoStatus: vi.fn().mockResolvedValue({ status: "ready" }),
+  renameBroadcastRecording: vi.fn(),
 }));
 
 const recording = { id: "recording-1", title: "Sermon", status: "ready", file_name: "sermon.m4a", content_type: "audio/mp4" } as BroadcastRecording;
@@ -62,5 +63,27 @@ describe("recording exports", () => {
     } finally {
       await act(async () => root.unmount());
     }
+  });
+
+  it("lets admins rename a recording from the combined menu", async () => {
+    vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+    vi.mocked(getRecordingVideoStatus).mockResolvedValue({ status: "ready" });
+    vi.mocked(renameBroadcastRecording).mockResolvedValue({ ...recording, title: "Grace for Today", custom_title: "Grace for Today" });
+    const onRecordingChange = vi.fn();
+    const host = document.createElement("div");
+    const root = createRoot(host);
+    try {
+      await act(async () => root.render(<RecordingActions canManage recording={recording} onRecordingChange={onRecordingChange} />));
+      await act(async () => host.querySelector<HTMLButtonElement>("[aria-label='Share or download recording']")!.click());
+      const input = host.querySelector<HTMLInputElement>("[aria-label='Recording name']")!;
+      await act(async () => {
+        Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, "Grace for Today");
+        input.dispatchEvent(new Event("input", { bubbles: true }));
+      });
+      const save = [...host.querySelectorAll("button")].find((button) => button.textContent?.includes("Save name"))!;
+      await act(async () => save.click());
+      expect(renameBroadcastRecording).toHaveBeenCalledWith(recording.id, "Grace for Today");
+      expect(onRecordingChange).toHaveBeenCalledWith(expect.objectContaining({ title: "Grace for Today" }));
+    } finally { await act(async () => root.unmount()); }
   });
 });
