@@ -2,7 +2,6 @@ import { X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
 import {
-  broadcastRecordingAudioUrl,
   getFileSlides,
   getPlan,
   getSongs,
@@ -18,6 +17,7 @@ import {
   suggestSlideGroupFontCap,
 } from "../presentation";
 import { AutoFitSlideText } from "./AutoFitSlideText";
+import { RecordingTransport } from "./RecordingTransport";
 import { RecordingActions } from "./RecordingActions";
 import { ScaledSlideImage } from "./ScaledSlideImage";
 import { useEscapeClose } from "./useEscapeClose";
@@ -25,12 +25,14 @@ import { useEscapeClose } from "./useEscapeClose";
 interface SermonRecordingPlayerProps {
   recording: BroadcastRecording;
   onClose: () => void;
+  canManage?: boolean;
+  onTrimmed?: (recording: BroadcastRecording) => void;
 }
 
 export function recordingTimestampTitle(recording: BroadcastRecording) {
   if (!recording.recorded_at) return recording.title;
   const recordedAt = new Date(recording.recorded_at);
-  return Number.isNaN(recordedAt.getTime())
+  const title = Number.isNaN(recordedAt.getTime())
     ? recording.title
     : recordedAt.toLocaleString(undefined, {
         day: "2-digit",
@@ -40,6 +42,7 @@ export function recordingTimestampTitle(recording: BroadcastRecording) {
         second: "2-digit",
         year: "numeric",
       });
+  return recording.source === "trimmed-sermon" ? `${title} (trimmed)` : title;
 }
 
 export function recordingTimelineEventAt(
@@ -81,7 +84,7 @@ export function recordedPlanItems(recording: BroadcastRecording, plan: PlanDetai
   }, []);
 }
 
-export function SermonRecordingPlayer({ recording, onClose }: SermonRecordingPlayerProps) {
+export function SermonRecordingPlayer({ recording, onClose, canManage, onTrimmed }: SermonRecordingPlayerProps) {
   useEscapeClose(true, onClose);
   const [plan, setPlan] = useState<PlanDetail | null>(null);
   const [songs, setSongs] = useState<Song[]>([]);
@@ -128,8 +131,8 @@ export function SermonRecordingPlayer({ recording, onClose }: SermonRecordingPla
     [plan?.items, renderedSlidesByFileId, songs],
   );
   const event = useMemo(() => {
-    return recordingTimelineEventAt(recording.timeline, currentTime);
-  }, [currentTime, recording.timeline]);
+    return recordingTimelineEventAt(recording.timeline, currentTime, recording.source === "trimmed-sermon" ? 0 : 1.5);
+  }, [currentTime, recording.timeline, recording.source]);
   const matchingSlides = event ? slides.filter((slide) => slide.planItemId === event.plan_item_id) : [];
   const slide = matchingSlides[Math.min(Math.max(event?.slide_offset ?? 0, 0), matchingSlides.length - 1)] ?? null;
   const fontCap = useMemo(
@@ -144,6 +147,10 @@ export function SermonRecordingPlayer({ recording, onClose }: SermonRecordingPla
         aria-modal="true"
         className="sermon-recording-player"
         onMouseDown={(event) => event.stopPropagation()}
+        onKeyDown={(event) => {
+          if (event.key === "Enter" && event.target instanceof HTMLInputElement) event.preventDefault();
+          event.stopPropagation();
+        }}
         role="dialog"
       >
         <header>
@@ -168,13 +175,8 @@ export function SermonRecordingPlayer({ recording, onClose }: SermonRecordingPla
           )}
         </div>
         <RecordingActions key={recording.id} recording={recording} />
-        <audio
-          autoPlay
-          controls
-          onTimeUpdate={(event) => setCurrentTime(event.currentTarget.currentTime)}
-          preload="metadata"
-          src={broadcastRecordingAudioUrl(recording.id)}
-        />
+        <RecordingTransport key={recording.id} recording={recording} canManage={canManage}
+          onTimeChange={setCurrentTime} onTrimmed={onTrimmed} />
       </section>
     </div>
   );

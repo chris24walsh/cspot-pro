@@ -13018,3 +13018,13 @@ button.musician-page {
 .recording-export-actions { min-width: 0; }
 .recording-export-actions .action-row { flex-wrap: wrap; }
 .recording-export-message { font-size: 12px; margin: 4px 0 0; max-width: 380px; }
+
+.recording-transport { min-height: 0; max-height: 42dvh; overflow-y: auto; }
+.recording-transport .action-row { flex-wrap: wrap; gap: 8px; }
+.recording-seek-row { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; font-variant-numeric: tabular-nums; }
+.recording-seek-row input { flex: 1; min-width: 0; cursor: pointer; }
+.recording-transport label { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; }
+.recording-transport input[aria-label="Recording volume"] { width: 85px; }
+.recording-trim { margin-top: 10px; border: 1px solid #496056; border-radius: 6px; padding: 10px; }
+.recording-trim input { width: 90px; }
+.recording-trim p, .recording-transport > p { font-size: 13px; margin: 8px 0; }

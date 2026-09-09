@@ -293,3 +293,12 @@ Browsers without file sharing can download and attach the audio manually.
 Downloads retain the existing authenticated recording access; recipients receive
 the audio attachment without needing an app account. Synchronized slides remain
 in the in-app player and are not included in the shared audio.
+
+The sermon player includes a full-width seek bar, ±30-second skips, playback speed,
+and volume controls. Broadcast admins can select start/end times, mark the current
+playhead, preview the selection or its final five seconds, and save a trimmed copy.
+The original remains available. The trim endpoint requires `broadcast:use`, validates
+against the audio duration, and produces a separate AAC/M4A file with FFmpeg. Slide
+snapshots are retained and timings are rebased; `trimmed-sermon` copies contain
+actual slide display times, so the player does not apply its camera delay again.
+No database migration is required.

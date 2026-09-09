@@ -823,7 +823,12 @@ export function BroadcastManager({
           </div>
         </section>
       ) : null}
-      {playingRecording ? <SermonRecordingPlayer onClose={() => setPlayingRecording(null)} recording={playingRecording} /> : null}
+      {playingRecording ? <SermonRecordingPlayer key={playingRecording.id} onClose={() => setPlayingRecording(null)} recording={playingRecording}
+        canManage={canManage} onTrimmed={(copy) => {
+          setRecordings((current) => [copy, ...current]);
+          setPlayingRecording(copy);
+          setMessage("Trimmed copy saved. The original recording is still available.");
+        }} /> : null}
       {confirmationDialog}
     </form>
   );

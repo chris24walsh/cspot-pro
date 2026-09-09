@@ -145,9 +145,15 @@ class BroadcastRecordingStart(BaseModel):
     plan_item_id: str | None = None
 
 
+class BroadcastRecordingTrim(BaseModel):
+    start_seconds: float = Field(ge=0, allow_inf_nan=False)
+    end_seconds: float = Field(gt=0, allow_inf_nan=False)
+
+
 class BroadcastRecordingRead(BaseModel):
     id: str
     file_name: str = "recording.m4a"
+    source: str = "obs"
     plan_id: str | None = None
     plan_item_id: str | None = None
     title: str

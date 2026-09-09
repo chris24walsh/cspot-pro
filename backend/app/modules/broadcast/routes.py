@@ -36,11 +36,13 @@ from app.modules.broadcast.recording import (
     start_recording,
     stop_recording,
 )
+from app.modules.broadcast.recording_trim import create_trimmed_recording
 from app.modules.broadcast.schemas import (
     BroadcastAudioSceneChannel,
     BroadcastAudioSourceRead,
     BroadcastRecordingRead,
     BroadcastRecordingStart,
+    BroadcastRecordingTrim,
     BroadcastViewerSettingsRead,
     BroadcastViewerSettingsUpdate,
     ManualLivestreamUpdate,
@@ -117,6 +119,7 @@ def recording_read(session: Session, recording: BroadcastRecording) -> Broadcast
     return BroadcastRecordingRead(
         id=recording.id,
         file_name=recording.file_name,
+        source=recording.source,
         plan_id=recording.plan_id,
         plan_item_id=recording.plan_item_id,
         title=recording.title,
@@ -206,6 +209,32 @@ def delete_recording(
         if value:
             Path(value).unlink(missing_ok=True)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.post("/recordings/{recording_id}/trim", response_model=BroadcastRecordingRead)
+def trim_recording(
+    recording_id: str,
+    payload: BroadcastRecordingTrim,
+    current_user: User = Depends(require_permission("broadcast:use")),
+    session: Session = Depends(get_session),
+) -> BroadcastRecordingRead:
+    recording = session.get(BroadcastRecording, recording_id)
+    if not recording:
+        raise HTTPException(status_code=404, detail="Recording not found")
+    if recording.status != "ready":
+        raise HTTPException(status_code=409, detail="Stop recording before trimming")
+    try:
+        copy = create_trimmed_recording(
+            session, recording, payload.start_seconds, payload.end_seconds,
+            recording_read(session, recording).timeline, current_user.id,
+        )
+    except ValueError as error:
+        raise HTTPException(status_code=422, detail=str(error)) from error
+    except FileNotFoundError as error:
+        raise HTTPException(status_code=404, detail="Recording audio or media tools unavailable") from error
+    except (RuntimeError, OSError, subprocess.TimeoutExpired) as error:
+        raise HTTPException(status_code=503, detail="Could not trim audio. Please try again.") from error
+    return recording_read(session, copy)
 
 
 @router.get("/recordings/{recording_id}/audio")

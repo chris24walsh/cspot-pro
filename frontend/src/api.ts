@@ -699,6 +699,7 @@ export interface BroadcastViewerSettings {
 }
 
 export interface BroadcastRecording {
+  source?: string;
   id: string;
   file_name: string;
   plan_id: string | null;
@@ -1744,4 +1745,11 @@ export async function selectCustomProviderMatch(matchId: string): Promise<Custom
   return sendJson<CustomProviderSelectResult>("/api/v1/imports/custom-provider/select", "POST", {
     match_id: matchId,
   });
+}
+
+export function trimBroadcastRecording(recordingId: string, startSeconds: number, endSeconds: number) {
+  return sendJson<BroadcastRecording>(`/api/v1/broadcast/recordings/${recordingId}/trim`, "POST", {
+    start_seconds: startSeconds,
+    end_seconds: endSeconds,
+  }, { timeoutMs: 330000 });
 }
