@@ -33,6 +33,7 @@ def test_mp3_export_is_mono_compact_and_cached(tmp_path, monkeypatch):
     assert prepare_mp3(row).read_bytes() == b"mp3"
     assert prepare_mp3(row).read_bytes() == b"mp3"
     assert len(calls) == 1
+    assert "-y" in calls[0]
     assert [calls[0][calls[0].index("-ac") + 1], calls[0][calls[0].index("-b:a") + 1]] == ["1", "64k"]
 
     delete_mp3(row)

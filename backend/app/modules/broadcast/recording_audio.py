@@ -29,7 +29,7 @@ def prepare_mp3(recording: BroadcastRecording) -> Path:
         try:
             result = subprocess.run(
                 [
-                    "ffmpeg", "-nostdin", "-hide_banner", "-loglevel", "error",
+                    "ffmpeg", "-y", "-nostdin", "-hide_banner", "-loglevel", "error",
                     "-i", str(source), "-map", "0:a:0", "-vn", "-ac", "1",
                     "-c:a", "libmp3lame", "-b:a", "64k", str(output),
                 ],

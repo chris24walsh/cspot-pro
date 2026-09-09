@@ -3,7 +3,7 @@ import { act } from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { getRecordingVideoStatus, prepareRecordingVideo, renameBroadcastRecording, type BroadcastRecording } from "../api";
-import { loadRecordingFile, RecordingActions } from "./RecordingActions";
+import { loadRecordingFile, loadRecordingMp3, RecordingActions } from "./RecordingActions";
 
 vi.mock("../api", async (original) => ({
   ...await original<typeof import("../api")>(),
@@ -58,12 +58,15 @@ describe("recording exports", () => {
       expect(host.querySelectorAll("button")).toHaveLength(1);
       expect(host.querySelector("button")?.textContent).toBe("");
       await act(async () => host.querySelector("button")!.click());
-      expect(host.querySelector("a")?.download).toBe("Sermon.mp3");
-      expect(host.querySelector("a")?.href).toContain("/recordings/recording-1/audio.mp3");
       expect(host.textContent).toContain("Download video with slides");
     } finally {
       await act(async () => root.unmount());
     }
+  });
+
+  it("rejects an MP3 error response instead of saving it as audio", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false }));
+    await expect(loadRecordingMp3(recording)).rejects.toThrow("Could not prepare the MP3 download");
   });
 
   it("lets admins rename a recording from the combined menu", async () => {
