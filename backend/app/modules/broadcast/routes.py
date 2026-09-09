@@ -3,7 +3,7 @@ import re
 import secrets
 import subprocess
 from collections.abc import AsyncIterator
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Annotated
 from urllib.parse import parse_qs, urlsplit
@@ -86,6 +86,8 @@ from app.modules.planning.models import Plan, PlanItem
 from app.modules.presentation.models import PresentationPosition, PresentationSession
 
 router = APIRouter()
+RECORDING_RETENTION_DAYS = 365
+_last_recording_cleanup: datetime | None = None
 
 
 def clean_recording_title(recording: BroadcastRecording, timeline: list[dict]) -> str:
@@ -179,19 +181,64 @@ def recording_read(session: Session, recording: BroadcastRecording) -> Broadcast
         end_reason=recording.end_reason,
         public_token=recording.public_token,
         published_at=recording.published_at,
+        archived_at=recording.archived_at,
         timeline=timeline if isinstance(timeline, list) else [],
     )
 
 
+def purge_expired_recordings(
+    session: Session,
+    *,
+    now: datetime | None = None,
+    retention_days: int = RECORDING_RETENTION_DAYS,
+) -> int:
+    cutoff = (now or datetime.now(UTC)) - timedelta(days=retention_days)
+    recordings = session.scalars(
+        select(BroadcastRecording).where(BroadcastRecording.archived_at <= cutoff)
+    ).all()
+    source_paths: set[Path] = set()
+    deleted = 0
+    for recording in recordings:
+        try:
+            delete_video(recording)
+            delete_mp3(recording)
+        except ValueError:
+            continue
+        source_paths.update(
+            Path(value) for value in {recording.file_path, recording.audio_file_path} if value
+        )
+        session.delete(recording)
+        deleted += 1
+    session.commit()
+    for path in source_paths:
+        path.unlink(missing_ok=True)
+    return deleted
+
+
 @router.get("/recordings", response_model=list[BroadcastRecordingRead])
 def list_recordings(
-    _current_user: User = Depends(
+    include_archived: bool = False,
+    current_user: User = Depends(
         require_any_permission("plans:read", "broadcast:use", "presentation:use")
     ),
     session: Session = Depends(get_session),
 ) -> list[BroadcastRecordingRead]:
+    global _last_recording_cleanup
+    now = datetime.now(UTC)
+    if _last_recording_cleanup is None or now - _last_recording_cleanup >= timedelta(days=1):
+        purge_expired_recordings(session, now=now)
+        _last_recording_cleanup = now
+    if include_archived and "broadcast:use" not in set(list_permissions(session, current_user.id)):
+        raise HTTPException(status_code=403, detail="Broadcast permission required")
+    archive_filter = (
+        BroadcastRecording.archived_at.is_not(None)
+        if include_archived
+        else BroadcastRecording.archived_at.is_(None)
+    )
     recordings = session.scalars(
-        select(BroadcastRecording).order_by(BroadcastRecording.recorded_at.desc())
+        select(BroadcastRecording)
+        .where(archive_filter)
+        .order_by(BroadcastRecording.recorded_at.desc())
     ).all()
     return [recording_read(session, recording) for recording in recordings]
 
@@ -236,29 +283,38 @@ def manually_resume_recording(
     return recording_read(session, recording) if recording else None
 
 
-@router.delete("/recordings/{recording_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_recording(
+@router.post("/recordings/{recording_id}/archive", response_model=BroadcastRecordingRead)
+def archive_recording(
     recording_id: str,
     _current_user: User = Depends(require_permission("broadcast:use")),
     session: Session = Depends(get_session),
-) -> Response:
+) -> BroadcastRecordingRead:
     recording = session.get(BroadcastRecording, recording_id)
     if not recording:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Recording not found")
     if recording.status in {"recording", "paused"}:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Stop recording first")
-    try:
-        delete_video(recording)
-        delete_mp3(recording)
-    except ValueError as error:
-        raise HTTPException(status_code=409, detail=str(error)) from error
-    paths = {recording.file_path, recording.audio_file_path}
-    session.delete(recording)
+    recording.archived_at = datetime.now(UTC)
+    recording.public_token = None
+    recording.published_at = None
     session.commit()
-    for value in paths:
-        if value:
-            Path(value).unlink(missing_ok=True)
-    return Response(status_code=status.HTTP_204_NO_CONTENT)
+    session.refresh(recording)
+    return recording_read(session, recording)
+
+
+@router.delete("/recordings/{recording_id}/archive", response_model=BroadcastRecordingRead)
+def restore_recording(
+    recording_id: str,
+    _current_user: User = Depends(require_permission("broadcast:use")),
+    session: Session = Depends(get_session),
+) -> BroadcastRecordingRead:
+    recording = session.get(BroadcastRecording, recording_id)
+    if recording is None:
+        raise HTTPException(status_code=404, detail="Recording not found")
+    recording.archived_at = None
+    session.commit()
+    session.refresh(recording)
+    return recording_read(session, recording)
 
 
 @router.post("/recordings/{recording_id}/trim", response_model=BroadcastRecordingRead)
@@ -322,6 +378,8 @@ def publish_recording(
     session: Session = Depends(get_session),
 ) -> BroadcastRecordingRead:
     recording = ready_recording(session, recording_id)
+    if recording.archived_at is not None:
+        raise HTTPException(status_code=409, detail="Restore the recording before sharing it")
     if recording.public_token is None:
         recording.public_token = secrets.token_urlsafe(24)
         recording.published_at = datetime.now(UTC)
@@ -348,7 +406,7 @@ def public_recording(session: Session, token: str) -> BroadcastRecording:
     recording = session.scalar(
         select(BroadcastRecording).where(BroadcastRecording.public_token == token)
     )
-    if recording is None or recording.status != "ready":
+    if recording is None or recording.status != "ready" or recording.archived_at is not None:
         raise HTTPException(status_code=404, detail="Public recording not found")
     return recording
 

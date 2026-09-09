@@ -120,7 +120,7 @@ export function RecordingActions({ recording, canManage = false, onRecordingChan
           </div> : null}
           <a className="text-button icon-text-button" download={`${recording.title}.mp3`} href={broadcastRecordingMp3Url(recording.id)}><Volume2 size={16} /> Download MP3</a>
           {video.status === "ready" ? <a className="text-button icon-text-button" download={recordingVideoFilename(recording)} href={broadcastRecordingVideoUrl(recording.id)}><Download size={16} /> Download video with slides</a> : <button className="text-button icon-text-button" disabled={busy || video.status === "preparing"} onClick={() => void prepare()} type="button"><Download size={16} />{video.status === "preparing" ? "Preparing video…" : "Prepare video with slides"}</button>}
-          {canManage ? recording.public_token ? <>
+          {canManage && !recording.archived_at ? recording.public_token ? <>
             <div className="recording-public-link"><input aria-label="Public recording link" readOnly value={publicRecordingUrl(recording.public_token)} /></div>
             <button className="primary-button icon-text-button" onClick={() => void shareLink()} type="button"><Share2 size={16} /> Share public link</button>
             <button className="text-button icon-text-button" onClick={() => void copyLink()} type="button"><Link2 size={16} /> Copy public link</button>

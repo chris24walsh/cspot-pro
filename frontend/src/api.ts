@@ -702,6 +702,7 @@ export interface BroadcastRecording {
   source?: string;
   public_token: string | null;
   published_at: string | null;
+  archived_at: string | null;
   id: string;
   file_name: string;
   plan_id: string | null;
@@ -1326,8 +1327,8 @@ export async function updateManualLivestream(
   return sendJson<BroadcastViewerSettings>("/api/v1/broadcast/manual-live", "PATCH", { audience });
 }
 
-export async function getBroadcastRecordings(): Promise<BroadcastRecording[]> {
-  return getJson<BroadcastRecording[]>("/api/v1/broadcast/recordings");
+export async function getBroadcastRecordings(includeArchived = false): Promise<BroadcastRecording[]> {
+  return getJson<BroadcastRecording[]>(`/api/v1/broadcast/recordings${includeArchived ? "?include_archived=true" : ""}`);
 }
 
 export async function startBroadcastRecording(payload: {
@@ -1349,8 +1350,12 @@ export async function resumeBroadcastRecording(): Promise<BroadcastRecording | n
   return sendJson<BroadcastRecording | null>("/api/v1/broadcast/recordings/resume", "POST", {});
 }
 
-export async function deleteBroadcastRecording(recordingId: string): Promise<void> {
-  return deleteRequest(`/api/v1/broadcast/recordings/${recordingId}`);
+export function archiveBroadcastRecording(recordingId: string) {
+  return sendJson<BroadcastRecording>(`/api/v1/broadcast/recordings/${recordingId}/archive`, "POST", {});
+}
+
+export function restoreBroadcastRecording(recordingId: string) {
+  return sendJson<BroadcastRecording>(`/api/v1/broadcast/recordings/${recordingId}/archive`, "DELETE", {});
 }
 
 export function broadcastRecordingAudioUrl(recordingId: string) {

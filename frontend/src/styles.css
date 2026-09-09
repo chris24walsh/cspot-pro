@@ -5701,6 +5701,9 @@ button.musician-page {
   padding: 5px 8px;
 }
 
+.recording-list-filter { align-items: center; display: flex; gap: 8px; margin: 10px 0; width: fit-content; }
+.recording-list-filter select { min-width: 180px; }
+
 .recording-icon-button {
   align-items: center;
   background: transparent;

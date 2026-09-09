@@ -942,6 +942,9 @@ The public page plays the original audio with its synchronized slide images and
 does not require an account. Recordings are named from the sermon deck, with the
 recorded timestamp shown as secondary information. Admins can set a custom name
 or clear it to restore the deck-derived name; public links use the current name.
+The archive action revokes public access and hides the recording from the current
+list. Admins can filter, play, download, and restore archived recordings. Archived
+media is permanently cleaned up after one year.
 
 The sermon player includes a full-width seek bar, ±30-second skips, playback speed,
 and volume controls. Broadcast admins can select start/end times, mark the current

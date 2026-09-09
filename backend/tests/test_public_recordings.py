@@ -4,10 +4,12 @@ from unittest.mock import Mock
 
 from app.modules.broadcast.models import BroadcastRecording
 from app.modules.broadcast.routes import (
+    archive_recording,
     clean_recording_title,
     get_public_recording,
     publish_recording,
     rename_recording,
+    restore_recording,
     unpublish_recording,
 )
 from app.modules.broadcast.schemas import BroadcastRecordingRename
@@ -81,6 +83,18 @@ def test_publish_is_opt_in_stable_and_revocable():
     assert second.public_token == token
     unpublished = unpublish_recording(row.id, SimpleNamespace(id="admin"), session)
     assert unpublished.public_token is None
+
+
+def test_archiving_revokes_public_access_and_can_be_restored():
+    row = recording()
+    row.public_token = "public-token"
+    session = Mock()
+    session.get.return_value = row
+    archived = archive_recording(row.id, SimpleNamespace(id="admin"), session)
+    assert archived.archived_at is not None
+    assert archived.public_token is None
+    restored = restore_recording(row.id, SimpleNamespace(id="admin"), session)
+    assert restored.archived_at is None
 
 
 def test_public_metadata_contains_only_public_player_assets(monkeypatch):

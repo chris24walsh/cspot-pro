@@ -176,6 +176,7 @@ class BroadcastRecordingRead(BaseModel):
     end_reason: str | None = None
     public_token: str | None = None
     published_at: datetime | None = None
+    archived_at: datetime | None = None
     timeline: list[dict[str, object]] = Field(default_factory=list)
 
 

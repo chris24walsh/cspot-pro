@@ -16,6 +16,10 @@ from app.modules.planning.reference_data import ensure_worship_set_plan_type
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
+    from app.modules.broadcast.routes import purge_expired_recordings
+
+    with SessionLocal() as session:
+        purge_expired_recordings(session)
     with SessionLocal.begin() as session:
         ensure_worship_set_plan_type(session)
         viewer_settings = session.scalar(select(BroadcastViewerSettings).limit(1))

@@ -40,6 +40,7 @@ class BroadcastRecording(IdMixin, TimestampMixin, Base):
     end_reason: Mapped[str | None] = mapped_column(String(240))
     public_token: Mapped[str | None] = mapped_column(String(80), unique=True, index=True)
     published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    archived_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     ended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     recorded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)

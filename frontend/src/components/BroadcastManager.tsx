@@ -1,12 +1,13 @@
-import { CircleStop, ExternalLink, Headphones, Mic, MicOff, MonitorPlay, Play, Plus, Radio, Save, Trash2, X } from "lucide-react";
+import { Archive, CircleStop, ExternalLink, Headphones, Mic, MicOff, MonitorPlay, Play, Plus, Radio, RotateCcw, Save, X } from "lucide-react";
 import { type FormEvent, useEffect, useRef, useState } from "react";
 
 import {
   getBroadcastViewerSettings,
   broadcastAudioSourceTestUrl,
-  deleteBroadcastRecording,
+  archiveBroadcastRecording,
   getBroadcastRecordings,
   getLivePresentationServices,
+  restoreBroadcastRecording,
   startBroadcastRecording,
   stopBroadcastRecording,
   updateManualLivestream,
@@ -88,6 +89,8 @@ export function BroadcastManager({
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [recordings, setRecordings] = useState<BroadcastRecording[]>([]);
+  const [recordingFilter, setRecordingFilter] = useState<"active" | "archived">("active");
+  const [activeRecording, setActiveRecording] = useState<BroadcastRecording | null>(null);
   const [liveService, setLiveService] = useState<PresentationLiveService | null>(null);
   const [recordingAction, setRecordingAction] = useState(false);
   const [autoRecordingAction, setAutoRecordingAction] = useState(false);
@@ -119,11 +122,14 @@ export function BroadcastManager({
   }
 
   async function loadRecordings() {
-    const [nextRecordings, liveServices] = await Promise.all([
-      getBroadcastRecordings(),
+    const requestedRecordings = getBroadcastRecordings(recordingFilter === "archived");
+    const [nextRecordings, currentRecordings, liveServices] = await Promise.all([
+      requestedRecordings,
+      recordingFilter === "archived" ? getBroadcastRecordings() : requestedRecordings,
       canManage ? getLivePresentationServices() : Promise.resolve([]),
     ]);
     setRecordings(nextRecordings);
+    setActiveRecording(currentRecordings.find((recording) => recording.status === "recording" || recording.status === "paused") ?? null);
     setLiveService(liveServices[0] ?? null);
   }
 
@@ -138,9 +144,7 @@ export function BroadcastManager({
     void refresh();
     const timer = window.setInterval(() => void refresh(), 5000);
     return () => window.clearInterval(timer);
-  }, [canManage]);
-
-  const activeRecording = recordings.find((recording) => recording.status === "recording" || recording.status === "paused") ?? null;
+  }, [canManage, recordingFilter]);
 
   async function startRecording() {
     if (!liveService) return;
@@ -207,20 +211,29 @@ export function BroadcastManager({
     }
   }
 
-  async function removeRecording(recording: BroadcastRecording) {
+  async function archiveRecording(recording: BroadcastRecording) {
     const confirmed = await confirm({
-      confirmLabel: "Delete recording",
-      message: `Permanently delete the recording from ${recordingTimestampTitle(recording)}?`,
-      title: "Delete sermon recording",
-      tone: "danger",
+      confirmLabel: "Archive recording",
+      message: `Archive ${recordingTimestampTitle(recording)}? It will remain available in the archived filter for one year.`,
+      title: "Archive sermon recording",
     });
     if (!confirmed) return;
     try {
-      await deleteBroadcastRecording(recording.id);
+      await archiveBroadcastRecording(recording.id);
       await loadRecordings();
-      setMessage("Recording deleted.");
+      setMessage("Recording archived.");
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Could not delete recording.");
+      setMessage(error instanceof Error ? error.message : "Could not archive recording.");
+    }
+  }
+
+  async function restoreRecording(recording: BroadcastRecording) {
+    try {
+      await restoreBroadcastRecording(recording.id);
+      await loadRecordings();
+      setMessage("Recording restored.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not restore recording.");
     }
   }
 
@@ -702,6 +715,13 @@ export function BroadcastManager({
             : "Automatic sermon recording is off. You can still start a recording manually with Record now.")
             : "Listen to saved sermon audio with its synchronized slides."}
         </p>
+        {canManage ? <label className="recording-list-filter">
+          <span>Show</span>
+          <select onChange={(event) => setRecordingFilter(event.target.value as "active" | "archived")} value={recordingFilter}>
+            <option value="active">Current recordings</option>
+            <option value="archived">Archived recordings</option>
+          </select>
+        </label> : null}
         <div className="broadcast-recording-list">
           {recordings.length ? recordings.map((recording) => (
             <article className="broadcast-recording-row" key={recording.id}>
@@ -728,15 +748,19 @@ export function BroadcastManager({
                   </button>
                   <RecordingActions canManage={canManage} recording={recording} onRecordingChange={(updated) => setRecordings((current) => current.map((item) => item.id === updated.id ? updated : item))} />
                 </> : <span className={`status-badge ${recording.status}`}>{recording.status}</span>}
-                {canManage && recording.status !== "recording" && recording.status !== "paused" ? (
-                  <button aria-label="Delete recording" className="recording-icon-button is-danger" onClick={() => void removeRecording(recording)} title="Delete recording" type="button">
-                    <Trash2 size={15} aria-hidden="true" />
+                {canManage && recording.status !== "recording" && recording.status !== "paused" ? recording.archived_at ? (
+                  <button aria-label="Restore recording" className="recording-icon-button" onClick={() => void restoreRecording(recording)} title="Restore recording" type="button">
+                    <RotateCcw size={15} aria-hidden="true" />
+                  </button>
+                ) : (
+                  <button aria-label="Archive recording" className="recording-icon-button" onClick={() => void archiveRecording(recording)} title="Archive recording" type="button">
+                    <Archive size={15} aria-hidden="true" />
                   </button>
                 ) : null}
                 </div>
               </div>
             </article>
-          )) : <p className="muted-copy">No sermon recordings yet.</p>}
+          )) : <p className="muted-copy">{recordingFilter === "archived" ? "No archived recordings." : "No sermon recordings yet."}</p>}
         </div>
       </section> : null}
 
