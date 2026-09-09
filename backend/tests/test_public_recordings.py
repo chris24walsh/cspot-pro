@@ -27,11 +27,28 @@ def recording() -> BroadcastRecording:
 
 def test_title_comes_from_cleaned_recorded_deck_name():
     row = recording()
-    assert clean_recording_title(
-        row,
-        [{"files": [{"display_name": "  Grace_under-pressure-FINAL.pptx"}]}],
-    ) == "Grace under pressure"
+    assert (
+        clean_recording_title(
+            row,
+            [{"files": [{"display_name": "  Grace_under-pressure-FINAL.pptx"}]}],
+        )
+        == "Grace under pressure"
+    )
     assert clean_recording_title(row, [{"item_title": "Faith and Hope"}]) == "Faith and Hope"
+    assert (
+        clean_recording_title(
+            row,
+            [
+                {
+                    "files": [
+                        {"display_name": "background.jpg"},
+                        {"display_name": "The_Good_Shepherd.pptx"},
+                    ]
+                }
+            ],
+        )
+        == "The Good Shepherd"
+    )
 
 
 def test_publish_is_opt_in_stable_and_revocable():

@@ -93,15 +93,18 @@ def clean_recording_title(recording: BroadcastRecording, timeline: list[dict]) -
         for file in event.get("files", [])
         if isinstance(file, dict)
     ]
+    deck_names = [
+        name for name in names if re.search(r"\.(pptx?|pdf|odp|key)$", name, re.IGNORECASE)
+    ]
     title = (
-        names[0]
+        (deck_names or names)[0]
         if names
         else next(
             (str(event.get("item_title")) for event in timeline if event.get("item_title")),
             recording.title,
         )
     )
-    title = re.sub(r"\.(pptx?|pdf|odp|key)$", "", title, flags=re.IGNORECASE)
+    title = re.sub(r"\.(pptx?|pdf|odp|key|png|jpe?g)$", "", title, flags=re.IGNORECASE)
     title = re.sub(r"_+", " ", title)
     title = re.sub(r"\s*[-–—]\s*", " ", title)
     title = re.sub(r"\s+", " ", title).strip()
