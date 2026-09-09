@@ -38,6 +38,7 @@ from app.modules.broadcast.recording import (
     start_recording,
     stop_recording,
 )
+from app.modules.broadcast.recording_audio import delete_mp3, prepare_mp3
 from app.modules.broadcast.recording_trim import create_trimmed_recording
 from app.modules.broadcast.recording_video import (
     delete_video,
@@ -248,6 +249,7 @@ def delete_recording(
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Stop recording first")
     try:
         delete_video(recording)
+        delete_mp3(recording)
     except ValueError as error:
         raise HTTPException(status_code=409, detail=str(error)) from error
     paths = {recording.file_path, recording.audio_file_path}
@@ -274,6 +276,7 @@ def trim_recording(
     try:
         if payload.replace_original:
             delete_video(recording)
+            delete_mp3(recording)
         copy = create_trimmed_recording(
             session,
             recording,
@@ -460,6 +463,26 @@ def recording_audio(
     file_name = recording.file_name
     session.close()
     return FileResponse(path, media_type=content_type, filename=file_name)
+
+
+@router.get("/recordings/{recording_id}/audio.mp3")
+def recording_audio_download(
+    recording_id: str,
+    _current_user: User = Depends(require_permission("plans:read")),
+    session: Session = Depends(get_session),
+) -> FileResponse:
+    recording = ready_recording(session, recording_id)
+    source = Path(recording.audio_file_path or recording.file_path)
+    if not source.is_file():
+        raise HTTPException(status_code=404, detail="Recording audio not found")
+    title = recording_read(session, recording).title
+    filename = re.sub(r"[^\w .()-]+", "", title, flags=re.UNICODE).strip() or "Sermon recording"
+    try:
+        path = prepare_mp3(recording)
+    except (OSError, RuntimeError, subprocess.TimeoutExpired) as error:
+        raise HTTPException(status_code=503, detail="Could not prepare MP3 download") from error
+    session.close()
+    return FileResponse(path, media_type="audio/mpeg", filename=f"{filename}.mp3")
 
 
 def viewer_settings(session: Session) -> BroadcastViewerSettings:

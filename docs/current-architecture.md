@@ -935,7 +935,7 @@ implementations.
 4. Strengthen import workflows for songs, Bible data, and slide decks.
 5. Add focused automated tests around presenter behavior and plan editing.
 
-Each recording has one share/download menu for audio, synchronized MP4 export,
+Each recording has one share/download menu for a compatible MP3 audio export, synchronized MP4 export,
 and admin-controlled public access. Public recordings are opt-in and available
 only through a random individual link; removing public access revokes that link.
 The public page plays the original audio with its synchronized slide images and

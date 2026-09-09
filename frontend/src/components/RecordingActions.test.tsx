@@ -31,7 +31,7 @@ describe("recording exports", () => {
       await act(async () => prepare.click());
       expect(prepareRecordingVideo).toHaveBeenCalledWith(recording.id);
       expect(host.textContent).toContain("Preparing video");
-      expect(host.textContent).toContain("Download audio");
+      expect(host.textContent).toContain("Download MP3");
     } finally { await act(async () => root.unmount()); }
   });
 
@@ -58,7 +58,8 @@ describe("recording exports", () => {
       expect(host.querySelectorAll("button")).toHaveLength(1);
       expect(host.querySelector("button")?.textContent).toBe("");
       await act(async () => host.querySelector("button")!.click());
-      expect(host.querySelector("a")?.download).toBe("sermon.m4a");
+      expect(host.querySelector("a")?.download).toBe("Sermon.mp3");
+      expect(host.querySelector("a")?.href).toContain("/recordings/recording-1/audio.mp3");
       expect(host.textContent).toContain("Download video with slides");
     } finally {
       await act(async () => root.unmount());

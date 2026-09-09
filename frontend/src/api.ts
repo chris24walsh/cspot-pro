@@ -1357,6 +1357,10 @@ export function broadcastRecordingAudioUrl(recordingId: string) {
   return buildApiUrl(`/api/v1/broadcast/recordings/${recordingId}/audio`);
 }
 
+export function broadcastRecordingMp3Url(recordingId: string) {
+  return buildApiUrl(`/api/v1/broadcast/recordings/${recordingId}/audio.mp3`);
+}
+
 export function broadcastLiveAudioUrl(mixKey?: string) {
   const query = mixKey ? `?mix=${encodeURIComponent(mixKey)}` : "";
   return buildApiUrl(`/api/v1/broadcast/live-audio${query}`);

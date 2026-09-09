@@ -2,7 +2,7 @@ import { Download, Globe2, Link2, Pencil, Share2, Volume2, X } from "lucide-reac
 import { useEffect, useState } from "react";
 
 import {
-  broadcastRecordingAudioUrl, broadcastRecordingVideoUrl, getRecordingVideoStatus,
+  broadcastRecordingMp3Url, broadcastRecordingVideoUrl, getRecordingVideoStatus,
   prepareRecordingVideo, publishBroadcastRecording, renameBroadcastRecording,
   unpublishBroadcastRecording,
   type BroadcastRecording, type RecordingVideoStatus,
@@ -118,7 +118,7 @@ export function RecordingActions({ recording, canManage = false, onRecordingChan
             <div><input aria-label="Recording name" id={`recording-title-${recording.id}`} maxLength={220} onChange={(event) => setTitle(event.target.value)} value={title} /><button className="text-button icon-text-button" disabled={busy || !title.trim() || title.trim() === recording.title} onClick={() => void rename()} type="button"><Pencil size={16} /> Save name</button></div>
             {recording.custom_title ? <button className="subtle-link-button" disabled={busy} onClick={() => void rename(null)} type="button">Restore deck name</button> : null}
           </div> : null}
-          <a className="text-button icon-text-button" download={recording.file_name} href={broadcastRecordingAudioUrl(recording.id)}><Volume2 size={16} /> Download audio</a>
+          <a className="text-button icon-text-button" download={`${recording.title}.mp3`} href={broadcastRecordingMp3Url(recording.id)}><Volume2 size={16} /> Download MP3</a>
           {video.status === "ready" ? <a className="text-button icon-text-button" download={recordingVideoFilename(recording)} href={broadcastRecordingVideoUrl(recording.id)}><Download size={16} /> Download video with slides</a> : <button className="text-button icon-text-button" disabled={busy || video.status === "preparing"} onClick={() => void prepare()} type="button"><Download size={16} />{video.status === "preparing" ? "Preparing video…" : "Prepare video with slides"}</button>}
           {canManage ? recording.public_token ? <>
             <div className="recording-public-link"><input aria-label="Public recording link" readOnly value={publicRecordingUrl(recording.public_token)} /></div>

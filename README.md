@@ -328,7 +328,7 @@ Current legacy stack summary:
 - Support safe import workflows for song metadata and lyrics, with source
   provenance and licensing/status recorded alongside imported content.
 
-Each recording has one share/download menu for audio, synchronized MP4 export,
+Each recording has one share/download menu for a compatible MP3 audio export, synchronized MP4 export,
 and admin-controlled public access. Public recordings are opt-in and available
 only through a random individual link; removing public access revokes that link.
 The public page plays the original audio with its synchronized slide images and
