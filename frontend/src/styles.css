@@ -5682,6 +5682,7 @@ button.musician-page {
 }
 
 .broadcast-recording-actions {
+  flex-wrap: wrap;
   align-items: center;
   display: flex !important;
   flex-direction: row;
@@ -5776,7 +5777,7 @@ button.musician-page {
   color: #f8fbf9;
   display: grid;
   gap: 10px;
-  grid-template-rows: auto minmax(0, 1fr) auto;
+  grid-template-rows: auto minmax(0, 1fr) auto auto;
   height: min(86dvh, 820px);
   max-width: 1120px;
   overflow: hidden;
@@ -13013,3 +13014,7 @@ button.musician-page {
 .pre-service-media-dialog .item-editor-disclosure > summary::-webkit-details-marker { display: none; }
 .pre-service-media-dialog .item-editor-disclosure > summary::after { content: "+"; font-size: 17px; font-weight: 400; }
 .pre-service-media-dialog .item-editor-disclosure[open] > summary::after { content: "−"; }
+
+.recording-export-actions { min-width: 0; }
+.recording-export-actions .action-row { flex-wrap: wrap; }
+.recording-export-message { font-size: 12px; margin: 4px 0 0; max-width: 380px; }

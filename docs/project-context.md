@@ -285,3 +285,11 @@ known architectural concern, not just a UI bug.
 If a future change seems technically sensible but pushes against the principles
 above, stop and re-evaluate before shipping it. This document should be treated
 as a durable expression of product intent.
+
+Sermon recordings offer Download audio and Share audio in the recording list and
+player. Sharing prepares the original audio file, then a second click opens the
+device share menu (WhatsApp, email, or other installed targets where supported).
+Browsers without file sharing can download and attach the audio manually.
+Downloads retain the existing authenticated recording access; recipients receive
+the audio attachment without needing an app account. Synchronized slides remain
+in the in-app player and are not included in the shared audio.

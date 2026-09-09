@@ -23,6 +23,7 @@ import {
   mergeBroadcastServerState,
 } from "../broadcastSettingsSave";
 import { recordingTimestampTitle, SermonRecordingPlayer } from "./SermonRecordingPlayer";
+import { RecordingActions } from "./RecordingActions";
 import { AudioMixerPanel } from "./AudioMixerPanel";
 import { useConfirmationDialog } from "./ConfirmationDialog";
 import { LiveStreamAudio, LowLatencyCamera } from "./LowLatencyCamera";
@@ -726,6 +727,7 @@ export function BroadcastManager({
                     <Play size={15} aria-hidden="true" /> Play sermon
                   </button>
                 ) : <span className={`status-badge ${recording.status}`}>{recording.status}</span>}
+                <RecordingActions recording={recording} />
                 {canManage && recording.status !== "recording" && recording.status !== "paused" ? (
                   <button aria-label="Delete recording" className="danger-button" onClick={() => void removeRecording(recording)} title="Delete recording" type="button">
                     <Trash2 size={15} aria-hidden="true" />

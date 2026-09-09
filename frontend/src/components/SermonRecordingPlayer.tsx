@@ -18,6 +18,7 @@ import {
   suggestSlideGroupFontCap,
 } from "../presentation";
 import { AutoFitSlideText } from "./AutoFitSlideText";
+import { RecordingActions } from "./RecordingActions";
 import { ScaledSlideImage } from "./ScaledSlideImage";
 import { useEscapeClose } from "./useEscapeClose";
 
@@ -166,6 +167,7 @@ export function SermonRecordingPlayer({ recording, onClose }: SermonRecordingPla
             </div>
           )}
         </div>
+        <RecordingActions key={recording.id} recording={recording} />
         <audio
           autoPlay
           controls

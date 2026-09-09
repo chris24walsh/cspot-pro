@@ -116,6 +116,7 @@ def recording_read(session: Session, recording: BroadcastRecording) -> Broadcast
             event.update(snapshots[item_id])
     return BroadcastRecordingRead(
         id=recording.id,
+        file_name=recording.file_name,
         plan_id=recording.plan_id,
         plan_item_id=recording.plan_item_id,
         title=recording.title,

@@ -700,6 +700,7 @@ export interface BroadcastViewerSettings {
 
 export interface BroadcastRecording {
   id: string;
+  file_name: string;
   plan_id: string | null;
   plan_item_id: string | null;
   title: string;

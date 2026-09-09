@@ -147,6 +147,7 @@ class BroadcastRecordingStart(BaseModel):
 
 class BroadcastRecordingRead(BaseModel):
     id: str
+    file_name: str = "recording.m4a"
     plan_id: str | None = None
     plan_item_id: str | None = None
     title: str

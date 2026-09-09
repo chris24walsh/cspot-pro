@@ -327,3 +327,11 @@ Current legacy stack summary:
   performance.
 - Support safe import workflows for song metadata and lyrics, with source
   provenance and licensing/status recorded alongside imported content.
+
+Sermon recordings offer Download audio and Share audio in the recording list and
+player. Sharing prepares the original audio file, then a second click opens the
+device share menu (WhatsApp, email, or other installed targets where supported).
+Browsers without file sharing can download and attach the audio manually.
+Downloads retain the existing authenticated recording access; recipients receive
+the audio attachment without needing an app account. Synchronized slides remain
+in the in-app player and are not included in the shared audio.
