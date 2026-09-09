@@ -1753,3 +1753,20 @@ export function trimBroadcastRecording(recordingId: string, startSeconds: number
     end_seconds: endSeconds,
   }, { timeoutMs: 330000 });
 }
+
+export interface RecordingVideoStatus {
+  status: "idle" | "preparing" | "ready" | "failed" | "busy";
+  message?: string;
+}
+
+export function getRecordingVideoStatus(recordingId: string) {
+  return getJson<RecordingVideoStatus>(`/api/v1/broadcast/recordings/${recordingId}/video-export`);
+}
+
+export function prepareRecordingVideo(recordingId: string) {
+  return sendJson<RecordingVideoStatus>(`/api/v1/broadcast/recordings/${recordingId}/video-export`, "POST", {});
+}
+
+export function broadcastRecordingVideoUrl(recordingId: string) {
+  return buildApiUrl(`/api/v1/broadcast/recordings/${recordingId}/video`);
+}

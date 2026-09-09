@@ -37,6 +37,7 @@ from app.modules.broadcast.recording import (
     stop_recording,
 )
 from app.modules.broadcast.recording_trim import create_trimmed_recording
+from app.modules.broadcast.recording_video import delete_video, start_video, video_path, video_status
 from app.modules.broadcast.schemas import (
     BroadcastAudioSceneChannel,
     BroadcastAudioSourceRead,
@@ -202,6 +203,10 @@ def delete_recording(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Recording not found")
     if recording.status in {"recording", "paused"}:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Stop recording first")
+    try:
+        delete_video(recording)
+    except ValueError as error:
+        raise HTTPException(status_code=409, detail=str(error)) from error
     paths = {recording.file_path, recording.audio_file_path}
     session.delete(recording)
     session.commit()
@@ -235,6 +240,48 @@ def trim_recording(
     except (RuntimeError, OSError, subprocess.TimeoutExpired) as error:
         raise HTTPException(status_code=503, detail="Could not trim audio. Please try again.") from error
     return recording_read(session, copy)
+
+
+def ready_recording(session: Session, recording_id: str) -> BroadcastRecording:
+    recording = session.get(BroadcastRecording, recording_id)
+    if recording is None:
+        raise HTTPException(status_code=404, detail="Recording not found")
+    if recording.status != "ready":
+        raise HTTPException(status_code=409, detail="Recording is not ready")
+    return recording
+
+
+@router.get("/recordings/{recording_id}/video-export")
+def recording_video_status(
+    recording_id: str,
+    _current_user: User = Depends(require_permission("plans:read")),
+    session: Session = Depends(get_session),
+) -> dict[str, str]:
+    return video_status(ready_recording(session, recording_id))
+
+
+@router.post("/recordings/{recording_id}/video-export")
+def prepare_recording_video(
+    recording_id: str,
+    _current_user: User = Depends(require_permission("plans:read")),
+    session: Session = Depends(get_session),
+) -> dict[str, str]:
+    return start_video(ready_recording(session, recording_id))
+
+
+@router.get("/recordings/{recording_id}/video")
+def recording_video(
+    recording_id: str,
+    _current_user: User = Depends(require_permission("plans:read")),
+    session: Session = Depends(get_session),
+) -> FileResponse:
+    recording = ready_recording(session, recording_id)
+    path = video_path(recording)
+    if not path.is_file():
+        raise HTTPException(status_code=409, detail="Prepare the video before downloading")
+    filename = f"{Path(recording.file_name).stem}-with-slides.mp4"
+    session.close()
+    return FileResponse(path, media_type="video/mp4", filename=filename)
 
 
 @router.get("/recordings/{recording_id}/audio")

@@ -935,13 +935,16 @@ implementations.
 4. Strengthen import workflows for songs, Bible data, and slide decks.
 5. Add focused automated tests around presenter behavior and plan editing.
 
-Sermon recordings offer Download audio and Share audio in the recording list and
-player. Sharing prepares the original audio file, then a second click opens the
-device share menu (WhatsApp, email, or other installed targets where supported).
-Browsers without file sharing can download and attach the audio manually.
-Downloads retain the existing authenticated recording access; recipients receive
-the audio attachment without needing an app account. Synchronized slides remain
-in the in-app player and are not included in the shared audio.
+Sermon recordings export as an MP4 containing both audio and synchronized slides.
+Choose Prepare video (audio + slides), then Download video or Share video. Exports
+run in a bounded background queue and are cached on disk; users can leave and
+return during preparation. The device share menu offers WhatsApp, email, and
+other supported targets. Audio only remains available as a secondary download.
+Recipients can watch the video without an app account. The export endpoints retain
+recording read permissions, preserve deck images and camera-delay-adjusted timings,
+and also support trimmed copies. Missing slideshow assets cause preparation to fail
+rather than silently producing an audio-only video. Cached exports are removed
+when a recording is deleted; deletion waits while that recording is being exported.
 
 The sermon player includes a full-width seek bar, ±30-second skips, playback speed,
 and volume controls. Broadcast admins can select start/end times, mark the current
