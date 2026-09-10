@@ -1707,7 +1707,8 @@ export function PresentationView({
         video_action_at: state.videoActionAt ?? null,
         service_stage: state.serviceStage ?? "ready",
         pre_service_phase: state.preServicePhase ?? null,
-        worship_coupled: Boolean(state.worshipCoupled),
+        // Worship Live owns coupling. Omitting this field preserves its current
+        // value while the presenter publishes ordinary slide and display state.
       });
       lastLiveStateRef.current = synced.updated_at;
       setPresentationSessionActive(synced.status === "live");

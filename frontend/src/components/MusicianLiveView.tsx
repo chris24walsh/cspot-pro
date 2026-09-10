@@ -34,13 +34,12 @@ import {
   type PresentationLiveState,
 } from "../presentation";
 import { isEditableKeyboardTarget, slideKeyboardDirection, type SlideKeyboardDirection } from "../keyboardNavigation";
-import { isMobileOrTabletDevice } from "../presentationDevice";
 import { PROGRAM_AUDIO_FADE_DURATION_MS } from "../audioTransitions";
 import { worshipSequenceBlocks } from "../worshipText";
 import { mergeWorshipSetIntoService } from "../worshipSets";
 
 interface MusicianLiveViewProps {
-  canCoupleService?: boolean;
+  canControlAudio?: boolean;
   controlPlanId?: string | null;
   onEditSong: (song: Song) => void;
   onExit: () => void;
@@ -385,7 +384,7 @@ function chordAnnotationsBySlideLine(
   return grouped;
 }
 
-export function MusicianLiveView({ canCoupleService = false, controlPlanId, onEditSong, onExit, plan, servicePlan, songs, topbarSlot }: MusicianLiveViewProps) {
+export function MusicianLiveView({ canControlAudio = false, controlPlanId, onEditSong, onExit, plan, servicePlan, songs, topbarSlot }: MusicianLiveViewProps) {
   const [liveState, setLiveState] = useState<PresentationLiveState | null>(null);
   const [showChords, setShowChords] = useState(true);
   const [capo, setCapo] = useState(0);
@@ -393,9 +392,7 @@ export function MusicianLiveView({ canCoupleService = false, controlPlanId, onEd
   const [keySelectExpanded, setKeySelectExpanded] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [stageSize, setStageSize] = useState({ height: 650, width: 1120 });
-  const [readerMode, setReaderMode] = useState<"pages" | "scroll">(() =>
-    isMobileOrTabletDevice() && window.matchMedia("(orientation: portrait)").matches ? "scroll" : "pages",
-  );
+  const [readerMode, setReaderMode] = useState<"pages" | "scroll">("scroll");
   const keyCaptureRef = useRef<HTMLInputElement | null>(null);
   const stageRef = useRef<HTMLDivElement | null>(null);
   const fullSongRef = useRef<HTMLDivElement | null>(null);
@@ -574,15 +571,6 @@ export function MusicianLiveView({ canCoupleService = false, controlPlanId, onEd
   }, [liveSyncPlanId, plan?.id]);
 
   useEffect(() => {
-    if (!isMobileOrTabletDevice()) return undefined;
-    const portraitQuery = window.matchMedia("(orientation: portrait)");
-    const applyOrientationMode = () => setReaderMode(portraitQuery.matches ? "scroll" : "pages");
-    applyOrientationMode();
-    portraitQuery.addEventListener("change", applyOrientationMode);
-    return () => portraitQuery.removeEventListener("change", applyOrientationMode);
-  }, []);
-
-  useEffect(() => {
     keyCaptureRef.current?.focus({ preventScroll: true });
   }, [liveSyncPlanId]);
 
@@ -737,6 +725,7 @@ export function MusicianLiveView({ canCoupleService = false, controlPlanId, onEd
     };
 
     setLiveState(state);
+    lastLiveStateAtRef.current = state.updatedAt;
     localStorage.setItem(PRESENTATION_STORAGE_KEY, JSON.stringify(state));
     channelRef.current?.postMessage(state);
     try {
@@ -799,6 +788,7 @@ export function MusicianLiveView({ canCoupleService = false, controlPlanId, onEd
       worshipCoupled: coupled,
     };
     setLiveState(state);
+    lastLiveStateAtRef.current = state.updatedAt;
     localStorage.setItem(PRESENTATION_STORAGE_KEY, JSON.stringify(state));
     channelRef.current?.postMessage(state);
     try {
@@ -831,6 +821,7 @@ export function MusicianLiveView({ canCoupleService = false, controlPlanId, onEd
     const now = Date.now();
     const state = { ...liveState, planId: liveSyncPlanId, index: liveIndex, planItemId: liveItem.id, updatedAt: now, videoAction: action as "play" | "fade-stop", videoActionAt: now };
     setLiveState(state);
+    lastLiveStateAtRef.current = state.updatedAt;
     channelRef.current?.postMessage(state);
     try {
       const synced = await updatePresentationLiveState(liveSyncPlanId, {
@@ -857,6 +848,7 @@ export function MusicianLiveView({ canCoupleService = false, controlPlanId, onEd
     const now = Date.now();
     const state = { ...liveState, updatedAt: now, videoAction: "fade-stop" as const, videoActionAt: now };
     setLiveState(state);
+    lastLiveStateAtRef.current = state.updatedAt;
     localStorage.setItem(PRESENTATION_STORAGE_KEY, JSON.stringify(state));
     channelRef.current?.postMessage(state);
     await updatePresentationLiveState(liveSyncPlanId, {
@@ -1090,8 +1082,8 @@ export function MusicianLiveView({ canCoupleService = false, controlPlanId, onEd
         </label>
       </div>
       <div className="musician-live-controls" aria-label="Musician display controls">
-        {canCoupleService && servicePlan ? <button aria-label={worshipCoupled ? "Stop syncing Worship Live with service and move after worship" : "Sync Worship Live with service"} aria-pressed={worshipCoupled} className={`musician-service-couple-button ${worshipCoupled ? "is-active" : ""}`} onClick={() => void toggleServiceCoupling()} title={worshipCoupled ? "Stop syncing and go after worship" : "Sync with service"} type="button">{worshipCoupled ? <Unlink2 size={16} aria-hidden="true" /> : <Link2 size={16} aria-hidden="true" />}<span className="musician-control-text">Sync</span></button> : null}
-        <button aria-label={`${backingAudioPlaying ? "Fade out" : "Play"} backing audio for ${liveSong?.title ?? "song"}`} aria-pressed={backingAudioPlaying} className={`musician-audio-button ${backingAudioPlaying ? "is-active" : ""}`} disabled={!backingAudioAvailable || !worshipCoupled} onClick={() => void toggleBackingAudio()} title={!worshipCoupled ? "Sync with the service to control backing audio" : backingAudioAvailable ? `${backingAudioPlaying ? "Fade out" : "Play"} backing audio` : "No backing audio for this song"} type="button">{backingAudioPlaying ? <Pause size={16} aria-hidden="true" /> : <Play size={16} aria-hidden="true" />}<span className="musician-control-text">Audio</span></button>
+        {servicePlan ? <button aria-label={worshipCoupled ? "Stop syncing Worship Live with service and move after worship" : "Sync Worship Live with service"} aria-pressed={worshipCoupled} className={`musician-service-couple-button ${worshipCoupled ? "is-active" : ""}`} onClick={() => void toggleServiceCoupling()} title={worshipCoupled ? "Stop syncing and go after worship" : "Sync with service"} type="button">{worshipCoupled ? <Unlink2 size={16} aria-hidden="true" /> : <Link2 size={16} aria-hidden="true" />}<span className="musician-control-text">Sync</span></button> : null}
+        {canControlAudio ? <button aria-label={`${backingAudioPlaying ? "Fade out" : "Play"} backing audio for ${liveSong?.title ?? "song"}`} aria-pressed={backingAudioPlaying} className={`musician-audio-button ${backingAudioPlaying ? "is-active" : ""}`} disabled={!backingAudioAvailable || !worshipCoupled} onClick={() => void toggleBackingAudio()} title={!worshipCoupled ? "Sync with the service to control backing audio" : backingAudioAvailable ? `${backingAudioPlaying ? "Fade out" : "Play"} backing audio` : "No backing audio for this song"} type="button">{backingAudioPlaying ? <Pause size={16} aria-hidden="true" /> : <Play size={16} aria-hidden="true" />}<span className="musician-control-text">Audio</span></button> : null}
         <button
           aria-label={`Switch to ${readerMode === "pages" ? "Scroll" : "Pages"} view`}
           className="musician-reader-toggle"
