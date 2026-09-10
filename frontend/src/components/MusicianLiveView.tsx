@@ -34,6 +34,7 @@ import {
   type PresentationLiveState,
 } from "../presentation";
 import { isEditableKeyboardTarget, slideKeyboardDirection, type SlideKeyboardDirection } from "../keyboardNavigation";
+import { isMobileOrTabletDevice } from "../presentationDevice";
 import { PROGRAM_AUDIO_FADE_DURATION_MS } from "../audioTransitions";
 import { worshipSequenceBlocks } from "../worshipText";
 import { mergeWorshipSetIntoService } from "../worshipSets";
@@ -392,7 +393,9 @@ export function MusicianLiveView({ canControlAudio = false, controlPlanId, onEdi
   const [keySelectExpanded, setKeySelectExpanded] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [stageSize, setStageSize] = useState({ height: 650, width: 1120 });
-  const [readerMode, setReaderMode] = useState<"pages" | "scroll">("scroll");
+  const [readerMode, setReaderMode] = useState<"pages" | "scroll">(() =>
+    isMobileOrTabletDevice() && window.matchMedia("(orientation: portrait)").matches ? "scroll" : "pages",
+  );
   const keyCaptureRef = useRef<HTMLInputElement | null>(null);
   const stageRef = useRef<HTMLDivElement | null>(null);
   const fullSongRef = useRef<HTMLDivElement | null>(null);
@@ -569,6 +572,15 @@ export function MusicianLiveView({ canControlAudio = false, controlPlanId, onEdi
     lastLiveStateAtRef.current = 0;
     navigationGenerationRef.current += 1;
   }, [liveSyncPlanId, plan?.id]);
+
+  useEffect(() => {
+    if (!isMobileOrTabletDevice()) return undefined;
+    const portraitQuery = window.matchMedia("(orientation: portrait)");
+    const applyOrientationMode = () => setReaderMode(portraitQuery.matches ? "scroll" : "pages");
+    applyOrientationMode();
+    portraitQuery.addEventListener("change", applyOrientationMode);
+    return () => portraitQuery.removeEventListener("change", applyOrientationMode);
+  }, []);
 
   useEffect(() => {
     keyCaptureRef.current?.focus({ preventScroll: true });
