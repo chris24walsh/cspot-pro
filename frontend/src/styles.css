@@ -8030,6 +8030,13 @@ button.musician-page {
   min-width: 0;
 }
 
+.sorter-item-collapse-button {
+  align-self: stretch;
+  min-height: 24px;
+  min-width: 28px;
+  padding: 0 6px;
+}
+
 .sorter-item-summary-row { grid-column: 1 / -1; min-width: 0; position: relative; }
 .sorter-item-summary-row > .sorter-item-summary,
 .sorter-item-summary-row > .sorter-song-item-summary { padding-right: 34px; }
