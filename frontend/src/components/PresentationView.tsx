@@ -1290,8 +1290,6 @@ export function PresentationView({
       slide,
       overrides,
     );
-    const targetIsWorshipItem = Boolean(slide && worshipSetItemsById.has(slide.planItemId));
-
     return {
       planId,
       index: nextIndex,
@@ -1308,8 +1306,9 @@ export function PresentationView({
         ? currentLiveStateRef.current?.preServicePhase
         : overrides.preServicePhase,
       autoStarted: overrides.autoStarted ?? currentLiveStateRef.current?.autoStarted,
-      worshipCoupled: overrides.worshipCoupled
-        ?? Boolean(currentLiveStateRef.current?.worshipCoupled && targetIsWorshipItem),
+      // Moving the service view outside worship is an override, not a request
+      // to disconnect Worship Live. Only Worship Live explicitly changes this.
+      worshipCoupled: overrides.worshipCoupled ?? currentLiveStateRef.current?.worshipCoupled,
     };
   }
 

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { findSlideLineOffset, keySetupLabel } from "./MusicianLiveView";
+import { findSlideLineOffset, isWorshipSyncOverridden, keySetupLabel } from "./MusicianLiveView";
 import { chordEditorLineLengthForWidth } from "./SongEditorDialog";
 
 describe("musician chord alignment", () => {
@@ -25,5 +25,14 @@ describe("musician key selector labels", () => {
 
     expect(keySetupLabel(setup, false)).toBe("C5");
     expect(keySetupLabel(setup, true)).toBe("C capo 5 (F)");
+  });
+});
+
+describe("worship live sync status", () => {
+  it("warns when coupling remains enabled after the service moves outside worship", () => {
+    expect(isWorshipSyncOverridden(true, true, -1)).toBe(true);
+    expect(isWorshipSyncOverridden(true, true, 0)).toBe(false);
+    expect(isWorshipSyncOverridden(false, true, -1)).toBe(false);
+    expect(isWorshipSyncOverridden(true, false, -1)).toBe(false);
   });
 });

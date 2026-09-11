@@ -104,6 +104,14 @@ function boundedIndex(index: number, length: number) {
   return Math.min(Math.max(index, 0), length - 1);
 }
 
+export function isWorshipSyncOverridden(
+  worshipCoupled: boolean,
+  hasLiveState: boolean,
+  remoteWorshipIndex: number,
+) {
+  return worshipCoupled && hasLiveState && remoteWorshipIndex < 0;
+}
+
 function clampNumber(value: number, min: number, max: number) {
   return Math.min(Math.max(value, min), max);
 }
@@ -457,6 +465,7 @@ export function MusicianLiveView({ canControlAudio = false, controlPlanId, onEdi
     return exactIndex >= 0 ? exactIndex : slides.findIndex((slide) => slide.planItemId === remoteSlide.planItemId);
   }, [liveState, presentationSlides, slides, worshipItems]);
   const worshipCoupled = Boolean(liveState?.worshipCoupled);
+  const worshipSyncOverridden = isWorshipSyncOverridden(worshipCoupled, Boolean(liveState), remoteWorshipIndex);
   const syncedIndex = worshipCoupled && remoteWorshipIndex >= 0 ? remoteWorshipIndex : boundedIndex(localIndex, slides.length);
   const liveIndex = syncedIndex;
   const liveSlide = slides[liveIndex] ?? null;
@@ -585,6 +594,10 @@ export function MusicianLiveView({ canControlAudio = false, controlPlanId, onEdi
   useEffect(() => {
     keyCaptureRef.current?.focus({ preventScroll: true });
   }, [liveSyncPlanId]);
+
+  function nextLiveUpdateAt() {
+    return Math.max(Date.now(), lastLiveStateAtRef.current + 1);
+  }
 
   useEffect(() => {
     if (typeof BroadcastChannel === "undefined") {
@@ -725,7 +738,7 @@ export function MusicianLiveView({ canControlAudio = false, controlPlanId, onEdi
     const state: PresentationLiveState = {
       planId: liveSyncPlanId,
       index: presentationIndex,
-      updatedAt: Date.now(),
+      updatedAt: nextLiveUpdateAt(),
       planItemId: slide.planItemId,
       slideOffset,
       theme: liveState?.theme ?? "light",
@@ -790,7 +803,7 @@ export function MusicianLiveView({ canControlAudio = false, controlPlanId, onEdi
     const state: PresentationLiveState = {
       planId: liveSyncPlanId,
       index: presentationIndex,
-      updatedAt: Date.now(),
+      updatedAt: nextLiveUpdateAt(),
       planItemId: slide.planItemId,
       slideOffset,
       theme: liveState?.theme ?? "light",
@@ -830,7 +843,7 @@ export function MusicianLiveView({ canControlAudio = false, controlPlanId, onEdi
   async function toggleBackingAudio() {
     if (!worshipCoupled || !liveSyncPlanId || !liveItem || !backingAudioAvailable) return;
     const action = backingAudioPlaying ? "fade-stop" : "play";
-    const now = Date.now();
+    const now = nextLiveUpdateAt();
     const state = { ...liveState, planId: liveSyncPlanId, index: liveIndex, planItemId: liveItem.id, updatedAt: now, videoAction: action as "play" | "fade-stop", videoActionAt: now };
     setLiveState(state);
     lastLiveStateAtRef.current = state.updatedAt;
@@ -849,7 +862,10 @@ export function MusicianLiveView({ canControlAudio = false, controlPlanId, onEdi
         video_action_at: now,
         worship_coupled: worshipCoupled,
       });
-      setLiveState(syncStateFromApi(synced));
+      if (synced.updated_at >= lastLiveStateAtRef.current) {
+        lastLiveStateAtRef.current = synced.updated_at;
+        setLiveState(syncStateFromApi(synced));
+      }
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Could not control backing audio.");
     }
@@ -857,7 +873,7 @@ export function MusicianLiveView({ canControlAudio = false, controlPlanId, onEdi
 
   async function publishAudioFade() {
     if (!liveSyncPlanId || !liveState?.planItemId) return;
-    const now = Date.now();
+    const now = nextLiveUpdateAt();
     const state = { ...liveState, updatedAt: now, videoAction: "fade-stop" as const, videoActionAt: now };
     setLiveState(state);
     lastLiveStateAtRef.current = state.updatedAt;
@@ -1094,7 +1110,7 @@ export function MusicianLiveView({ canControlAudio = false, controlPlanId, onEdi
         </label>
       </div>
       <div className="musician-live-controls" aria-label="Musician display controls">
-        {servicePlan ? <button aria-label={worshipCoupled ? "Stop syncing Worship Live with service and move after worship" : "Sync Worship Live with service"} aria-pressed={worshipCoupled} className={`musician-service-couple-button ${worshipCoupled ? "is-active" : ""}`} onClick={() => void toggleServiceCoupling()} title={worshipCoupled ? "Stop syncing and go after worship" : "Sync with service"} type="button">{worshipCoupled ? <Unlink2 size={16} aria-hidden="true" /> : <Link2 size={16} aria-hidden="true" />}<span className="musician-control-text">Sync</span></button> : null}
+        {servicePlan ? <button aria-label={worshipSyncOverridden ? "Worship sync is enabled but the service view has moved outside worship" : worshipCoupled ? "Stop syncing Worship Live with service and move after worship" : "Sync Worship Live with service"} aria-pressed={worshipCoupled} className={`musician-service-couple-button ${worshipCoupled ? "is-active" : ""} ${worshipSyncOverridden ? "is-overridden" : ""}`} onClick={() => void toggleServiceCoupling()} title={worshipSyncOverridden ? "Service view moved outside worship. Change a worship slide to resync." : worshipCoupled ? "Stop syncing and go after worship" : "Sync with service"} type="button">{worshipCoupled ? <Unlink2 size={16} aria-hidden="true" /> : <Link2 size={16} aria-hidden="true" />}<span className="musician-control-text">Sync</span></button> : null}
         {canControlAudio ? <button aria-label={`${backingAudioPlaying ? "Fade out" : "Play"} backing audio for ${liveSong?.title ?? "song"}`} aria-pressed={backingAudioPlaying} className={`musician-audio-button ${backingAudioPlaying ? "is-active" : ""}`} disabled={!backingAudioAvailable || !worshipCoupled} onClick={() => void toggleBackingAudio()} title={!worshipCoupled ? "Sync with the service to control backing audio" : backingAudioAvailable ? `${backingAudioPlaying ? "Fade out" : "Play"} backing audio` : "No backing audio for this song"} type="button">{backingAudioPlaying ? <Pause size={16} aria-hidden="true" /> : <Play size={16} aria-hidden="true" />}<span className="musician-control-text">Audio</span></button> : null}
         <button
           aria-label={`Switch to ${readerMode === "pages" ? "Scroll" : "Pages"} view`}
