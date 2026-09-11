@@ -655,6 +655,18 @@ def advance_expired_auto_slide(
     if presentation_session is None or position is None:
         return position
     payload = _position_payload(position)
+    now_ms = now_ms if now_ms is not None else int(datetime.now(UTC).timestamp() * 1000)
+    output_active = _serialize_output_status(plan_id, position, now_ms).active
+    scheduled_active = bool(
+        presentation_session.status == "live"
+        and (payload.get("auto_started") is True or payload.get("schedule_id"))
+    )
+    if presentation_session.status != "live" or not (output_active or scheduled_active):
+        if "auto_advance_started_at" in payload:
+            payload.pop("auto_advance_started_at", None)
+            position.payload_json = json.dumps(payload)
+            session.commit()
+        return position
     item_id = payload.get("plan_item_id") or position.plan_item_id
     started_at = payload.get("auto_advance_started_at")
     if not isinstance(item_id, str) or not isinstance(started_at, int | float):
@@ -664,7 +676,6 @@ def advance_expired_auto_slide(
     if not options.get("auto_advance"):
         return position
     duration_seconds = max(1, int(options.get("auto_advance_seconds") or options.get("dwell_seconds") or 1))
-    now_ms = now_ms if now_ms is not None else int(datetime.now(UTC).timestamp() * 1000)
     if now_ms < int(started_at) + duration_seconds * 1000:
         return position
     ordered = _ordered_auto_advance_items(session, plan_id)
@@ -937,7 +948,11 @@ def update_presentation_live_state(
         # template timeline; any new auto-advance clock starts from this move.
         next_payload.pop("auto_started", None)
     selected_options = _auto_advance_options(session, payload.plan_item_id)
-    if selected_options.get("auto_advance"):
+    timing_active = bool(
+        presentation_session.status == "live"
+        and (output_active or next_payload.get("auto_started") is True or next_payload.get("schedule_id"))
+    )
+    if timing_active and selected_options.get("auto_advance"):
         if selection_changed or not isinstance(next_payload.get("auto_advance_started_at"), int | float):
             next_payload["auto_advance_started_at"] = now
     else:
@@ -1052,6 +1067,7 @@ def update_presentation_output_status(
         next_payload.pop("output_heartbeat_at", None)
         next_payload.pop("output_active", None)
         next_payload.pop("output_recording_item_id", None)
+        next_payload.pop("auto_advance_started_at", None)
         next_payload["service_stage"] = "post_service"
         if next_payload.get("schedule_id"):
             next_payload["scheduled_stop"] = True

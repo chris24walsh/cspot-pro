@@ -67,7 +67,7 @@ import { CalendarPopup } from "./CalendarPopup";
 import { useConfirmationDialog } from "./ConfirmationDialog";
 import { AutoFitSlideText } from "./AutoFitSlideText";
 import { DateNavigator, formatNavigatorDate } from "./DateNavigator";
-import { adjacentPlanningDate, defaultPlanningDate } from "../planningDates";
+import { adjacentPlanningDate, defaultPlanningDate, mergePlannedDatesWithSundays } from "../planningDates";
 import { LeaderAssignmentDialog } from "./LeaderAssignmentDialog";
 import { MusicianLiveView } from "./MusicianLiveView";
 import { SongEditorDialog } from "./SongEditorDialog";
@@ -539,8 +539,11 @@ export function WorshipBuilderView({ active = true, canAccessAdminTools, canArch
     [setDraftDate],
   );
   const sundayCalendarDates = useMemo(
-    () => sundayDatesAround(setDraftDate || dateInputFromIso(new Date().toISOString())),
-    [setDraftDate],
+    () => mergePlannedDatesWithSundays(
+      sundayDatesAround(setDraftDate || dateInputFromIso(new Date().toISOString())),
+      plans.filter((candidate) => candidate.item_count > 0).map((candidate) => dateInputFromIso(candidate.service_date)),
+    ),
+    [plans, setDraftDate],
   );
   function worshipCalendarItemCount(dateInput: string) {
     if (dateInputFromIso(plan?.service_date) === dateInput) return explicitPlanningItemCount(plan?.items ?? []);
@@ -914,7 +917,9 @@ export function WorshipBuilderView({ active = true, canAccessAdminTools, canArch
     const targetDate = adjacentPlanningDate(
       currentDate,
       direction,
-      plans.filter((candidate) => candidate.item_count > 0).map((candidate) => dateInputFromIso(candidate.service_date)),
+      plans
+        .filter((candidate) => candidate.item_count > 0)
+        .map((candidate) => dateInputFromIso(candidate.service_date)),
     );
     if (targetDate) await openSetDate(targetDate);
   }
@@ -2100,7 +2105,7 @@ export function WorshipBuilderView({ active = true, canAccessAdminTools, canArch
                         });
                       })()}
                     </div> : (
-                      <div className="worship-stash-browser">
+                      <div className={`worship-stash-browser ${selectedStashId ? "has-preview" : ""}`}>
                         <div className="worship-history-list worship-stash-list">
                           {stashedSets.length ? stashedSets.map((stash) => (
                             <button className={`worship-stash-row ${selectedStashId === stash.id ? "active" : ""}`} key={stash.id} onClick={() => setSelectedStashId(stash.id)} type="button">

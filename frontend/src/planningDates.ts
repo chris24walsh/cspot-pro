@@ -36,3 +36,7 @@ export function adjacentPlanningDate(currentDate: string, direction: "next" | "p
     ? (planDate < sundayDate ? planDate : sundayDate)
     : (planDate > sundayDate ? planDate : sundayDate);
 }
+
+export function mergePlannedDatesWithSundays(sundayDates: string[], planDates: string[]) {
+  return [...new Set([...sundayDates, ...planDates].filter(Boolean))].sort();
+}

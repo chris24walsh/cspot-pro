@@ -47,7 +47,7 @@ import { useDurableChange } from "../changePolling";
 import { calendarColors, calendarMarkers } from "../userCalendarStyle";
 import { calendarDatesAround, effectiveLeaderIdForDate, sundayDatesAround, unavailabilityForRole, type SundayLeader } from "../leaderSchedule";
 import { explicitSundaySchoolItemCount } from "../sundaySchool";
-import { adjacentPlanningDate, defaultPlanningDate, nextSundayDate } from "../planningDates";
+import { adjacentPlanningDate, defaultPlanningDate, mergePlannedDatesWithSundays, nextSundayDate } from "../planningDates";
 import { CalendarPopup } from "./CalendarPopup";
 import { DateNavigator, formatNavigatorDate } from "./DateNavigator";
 import { LeaderAssignmentDialog } from "./LeaderAssignmentDialog";
@@ -305,7 +305,15 @@ export function SundaySchoolView({ active = true, canEdit }: { active?: boolean;
   const selectedTeacherName = draft.teacher_name.trim() || teacherNameForDate(selectedDate);
   const selectedElement = LESSON_ELEMENTS.find((element) => element.key === selectedElementKey) ?? LESSON_ELEMENTS[0];
   const allCalendarDates = useMemo(() => calendarDatesAround(selectedDate), [selectedDate]);
-  const sundayCalendarDates = useMemo(() => sundayDatesAround(selectedDate), [selectedDate]);
+  const sundayCalendarDates = useMemo(
+    () => mergePlannedDatesWithSundays(
+      sundayDatesAround(selectedDate),
+      lessons
+        .filter((lesson) => explicitSundaySchoolItemCount(lesson) > 0)
+        .map((lesson) => dateInputFromIso(lesson.lesson_date)),
+    ),
+    [lessons, selectedDate],
+  );
   function sundaySchoolCalendarDay(dateInput: string) {
     const lesson = lessonsByDate.get(dateInput);
     const teacherName = teacherNameForDate(dateInput);

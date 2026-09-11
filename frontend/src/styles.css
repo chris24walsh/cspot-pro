@@ -475,20 +475,27 @@ button {
 
 @media (max-width: 620px) {
   .worship-history-popover {
+    height: min(430px, calc(100svh - 112px));
     min-width: min(360px, calc(100vw - 16px));
   }
 
   .worship-stash-browser {
-    grid-template-columns: 1fr;
-    overflow: auto;
+    display: block;
+    height: 100%;
+    overflow: hidden;
   }
 
   .worship-stash-list {
-    max-height: 155px;
+    max-height: none;
+  }
+
+  .worship-stash-browser.has-preview .worship-stash-list {
+    display: none;
   }
 
   .worship-stash-preview {
-    min-height: 190px;
+    height: 100%;
+    min-height: 0;
   }
 }
 

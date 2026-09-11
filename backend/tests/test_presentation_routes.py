@@ -67,7 +67,7 @@ def test_server_advances_expired_auto_slide_and_arms_the_next_one() -> None:
         live = PresentationSession(plan_id=plan.id, status="live")
         session.add(live)
         session.flush()
-        position = PresentationPosition(session_id=live.id, plan_item_id=first.id, slide_index=4, payload_json=json.dumps({"index": 4, "plan_item_id": first.id, "slide_offset": 0, "auto_advance_started_at": 1000}))
+        position = PresentationPosition(session_id=live.id, plan_item_id=first.id, slide_index=4, payload_json=json.dumps({"index": 4, "plan_item_id": first.id, "slide_offset": 0, "auto_advance_started_at": 1000, "output_owner_id": "screen", "output_heartbeat_at": 4000, "output_active": True}))
         session.add(position)
         session.commit()
 
@@ -78,6 +78,35 @@ def test_server_advances_expired_auto_slide_and_arms_the_next_one() -> None:
         assert payload["index"] == 5
         assert payload["slide_offset"] == 0
         assert payload["auto_advance_started_at"] == 4000
+
+
+def test_server_does_not_advance_expired_auto_slide_when_service_is_stopped() -> None:
+    engine = create_engine("sqlite://")
+    Base.metadata.create_all(engine)
+    with Session(engine) as session:
+        plan_type = PlanType(name="Test", active=True)
+        session.add(plan_type)
+        session.flush()
+        plan = Plan(plan_type_id=plan_type.id, service_date=datetime.now(UTC), title="Test", status="draft")
+        session.add(plan)
+        session.flush()
+        first = PlanItem(plan_id=plan.id, sequence=10, item_type="announcements", title="First", presentation_options={"auto_advance": True, "auto_advance_seconds": 3})
+        second = PlanItem(plan_id=plan.id, sequence=20, item_type="open_time", title="Second")
+        session.add_all([first, second])
+        session.flush()
+        stopped = PresentationSession(plan_id=plan.id, status="ended", ended_at=datetime.now(UTC))
+        session.add(stopped)
+        session.flush()
+        position = PresentationPosition(session_id=stopped.id, plan_item_id=first.id, slide_index=4, payload_json=json.dumps({"index": 4, "plan_item_id": first.id, "auto_advance_started_at": 1000}))
+        session.add(position)
+        session.commit()
+
+        advance_expired_auto_slide(session, stopped, position, plan.id, now_ms=4000)
+
+        payload = json.loads(position.payload_json)
+        assert position.plan_item_id == first.id
+        assert payload["index"] == 4
+        assert "auto_advance_started_at" not in payload
 
 
 def test_template_cues_advance_from_one_template_start() -> None:
@@ -157,7 +186,7 @@ def test_server_auto_advance_ends_presentation_at_section_boundary() -> None:
         live = PresentationSession(plan_id=plan.id, status="live")
         session.add(live)
         session.flush()
-        position = PresentationPosition(session_id=live.id, plan_item_id=last.id, slide_index=0, payload_json=json.dumps({"index": 0, "plan_item_id": last.id, "auto_advance_started_at": 1000, "output_active": True}))
+        position = PresentationPosition(session_id=live.id, plan_item_id=last.id, slide_index=0, payload_json=json.dumps({"index": 0, "plan_item_id": last.id, "auto_advance_started_at": 1000, "output_owner_id": "screen", "output_heartbeat_at": 4000, "output_active": True}))
         session.add(position)
         session.commit()
 

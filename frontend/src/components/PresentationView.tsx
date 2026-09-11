@@ -102,7 +102,7 @@ import { CalendarPopup } from "./CalendarPopup";
 import { CountdownSlide } from "./CountdownSlide";
 import { PreServiceSlide, serviceScheduleForPlan } from "./PreServiceSlide";
 import { DateNavigator, formatNavigatorDate } from "./DateNavigator";
-import { defaultPlanningDate, nextSundayDate } from "../planningDates";
+import { defaultPlanningDate, mergePlannedDatesWithSundays, nextSundayDate } from "../planningDates";
 import { ScaledSlideImage } from "./ScaledSlideImage";
 import { SlideOverlay } from "./SlideOverlay";
 import { SongYouTubeSearch } from "./SongYouTubeSearch";
@@ -938,8 +938,11 @@ export function PresentationView({
     [serviceDraftDate],
   );
   const sundayCalendarDates = useMemo(
-    () => sundayDatesAround(serviceDraftDate || nextSundayDateInput()),
-    [serviceDraftDate],
+    () => mergePlannedDatesWithSundays(
+      sundayDatesAround(serviceDraftDate || nextSundayDateInput()),
+      plannedServiceDates.map(([date]) => date),
+    ),
+    [plannedServiceDates, serviceDraftDate],
   );
   function serviceCalendarItemCount(dateInput: string) {
     if (dateInputFromIso(plan?.service_date) === dateInput) return explicitPlanningItemCount(effectivePlanItems);
