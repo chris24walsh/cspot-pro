@@ -700,7 +700,7 @@ export function MusicianLiveView({ canControlAudio = false, controlPlanId, onEdi
     // here makes another tab move even though the shared service state is unchanged.
     if (!worshipCoupled) return;
     if (slide.itemType === "worship_end") {
-      if (nextServiceSlide) await publishServiceSlide(nextServiceSlide);
+      if (nextServiceSlide) await publishServiceSlide(nextServiceSlide, false);
       return;
     }
 
