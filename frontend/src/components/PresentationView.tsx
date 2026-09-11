@@ -260,11 +260,11 @@ function scrollItemIntoOperatorView(container: HTMLElement | null, item: HTMLEle
   const containerRect = container.getBoundingClientRect();
   const itemRect = item.getBoundingClientRect();
   const itemTop = itemRect.top - containerRect.top + container.scrollTop;
-  const rowHeight = Math.max(itemRect.height + 6, 1);
-  const visibleRows = Math.floor(container.clientHeight / rowHeight);
-  const preferredOffset = visibleRows > 2 ? rowHeight : 0;
   const maxScroll = Math.max(container.scrollHeight - container.clientHeight, 0);
-  const targetTop = Math.min(Math.max(itemTop - preferredOffset, 0), maxScroll);
+  const targetTop = Math.min(
+    Math.max(itemTop + itemRect.height / 2 - container.clientHeight / 2, 0),
+    maxScroll,
+  );
 
   if (Math.abs(container.scrollTop - targetTop) < 2) {
     return;
@@ -4950,6 +4950,12 @@ export function PresentationView({
           >
             {sections.map((section) => {
               const sectionStart = slides.findIndex((slide) => slide.sectionId === section.id);
+              const sectionTitleSlide = section.slides.find(
+                (slide) => slide.planItemId === section.id && slide.slideKind === "title",
+              );
+              const sectionTitleIndex = sectionTitleSlide
+                ? slides.findIndex((slide) => slide.id === sectionTitleSlide.id)
+                : sectionStart;
               const visibleSectionSlides = sorterSlidesForSection(section.slides);
               const sectionItem = sectionPlanItem(section.id);
               const sectionFileIds = sectionItem?.item_type === "video"
@@ -4990,9 +4996,12 @@ export function PresentationView({
                   {section.itemType !== "end" ? <div className="section-jump-row">
                     <button
                       className={`section-jump ${presentationTypeClass(section.itemType)} ${
-                        liveSlide?.sectionId === section.id ? "active" : ""
+                        sectionTitleSlide?.id === liveSlide?.id ? "active" : ""
                       }`}
-                      onClick={() => selectSlideFromOperator(sectionStart)}
+                      onClick={() => selectSlideFromOperator(sectionTitleIndex)}
+                      ref={(element) => {
+                        if (sectionTitleSlide) thumbnailRefs.current[sectionTitleSlide.id] = element;
+                      }}
                       type="button"
                     >
                       <strong>{section.title}</strong>
@@ -5048,6 +5057,12 @@ export function PresentationView({
                       {visibleSectionSlides.map((slide) => {
                         const itemSlides = visibleSectionSlides.filter((candidate) => candidate.planItemId === slide.planItemId);
                         const item = sectionPlanItem(slide.planItemId);
+                        const itemTitleSlide = section.slides.find(
+                          (candidate) => candidate.planItemId === slide.planItemId && candidate.slideKind === "title",
+                        );
+                        const itemTitleIndex = itemTitleSlide
+                          ? slides.findIndex((candidate) => candidate.id === itemTitleSlide.id)
+                          : -1;
                         const firstItemSlide = itemSlides[0]?.id === slide.id;
                         const itemCanCollapse = itemSlides.length > 1;
                         const itemExpanded = expandedSorterSectionIds.has(slide.planItemId) || liveSlide?.planItemId === slide.planItemId;
@@ -5060,8 +5075,8 @@ export function PresentationView({
                         if (itemContracted) {
                           if (!firstItemSlide) return null;
                           return (
-                            <div className="sorter-item-heading-row is-contracted" key={`contracted:${slide.planItemId}`}>
-                              <button className="sorter-item-heading" onClick={() => toggleSorterSection(slide.planItemId)} type="button"><strong>{item?.title ?? slide.sectionTitle}</strong><ChevronDown size={13} aria-hidden="true" /></button>
+                            <div className={`sorter-item-heading-row is-contracted ${itemTitleSlide?.id === liveSlide?.id ? "active" : ""}`} key={`contracted:${slide.planItemId}`}>
+                              <button className="sorter-item-heading" onClick={() => itemTitleIndex >= 0 ? selectSlideFromOperator(itemTitleIndex) : toggleSorterSection(slide.planItemId)} ref={(element) => { if (itemTitleSlide) thumbnailRefs.current[itemTitleSlide.id] = element; }} type="button"><strong>{item?.title ?? slide.sectionTitle}</strong><ChevronDown size={13} aria-hidden="true" /></button>
                               {item && (item.song_id ? canEditSong : canEditPlan && INLINE_EDIT_ITEM_TYPES.has(item.item_type)) ? <button aria-label={`Edit ${item.title}`} className="section-icon-button sorter-item-inline-edit" disabled={fillerMediaBusy} onClick={() => openPlanItemEditor(item)} title={`Edit ${item.title}`} type="button"><Pencil size={12} aria-hidden="true" /></button> : null}
                             </div>
                           );
@@ -5071,8 +5086,8 @@ export function PresentationView({
                           const canEditNestedItem = Boolean(item && (item.song_id ? canEditSong : canEditPlan && INLINE_EDIT_ITEM_TYPES.has(item.item_type)));
                           if (slide.itemType === "song") {
                             return (
-                              <div className="sorter-item-summary-row" key={`summary:${slide.planItemId}`}>
-                                <button aria-label={`Expand ${item?.title ?? slide.title} slides`} className="song-slide-summary sorter-song-item-summary" onClick={() => toggleSorterSection(slide.planItemId)} type="button">
+                              <div className={`sorter-item-summary-row ${itemTitleSlide?.id === liveSlide?.id ? "active" : ""}`} key={`summary:${slide.planItemId}`}>
+                                <button aria-label={`Select ${item?.title ?? slide.title} title slide`} className="song-slide-summary sorter-song-item-summary" onClick={() => itemTitleIndex >= 0 ? selectSlideFromOperator(itemTitleIndex) : toggleSorterSection(slide.planItemId)} ref={(element) => { if (itemTitleSlide) thumbnailRefs.current[itemTitleSlide.id] = element; }} type="button">
                                   <span className="song-slide-leaf" aria-hidden="true">{renderMiniSlide(slide, "Song", slideTheme, compactPlanTextFontCap)}</span>
                                   <span className="sorter-song-item-details"><strong>{item?.title ?? slide.title}</strong><small>{itemSlides.length} slides · Expand</small></span>
                                 </button>
@@ -5081,8 +5096,8 @@ export function PresentationView({
                             );
                           }
                           return (
-                            <div className="sorter-item-summary-row" key={`summary:${slide.planItemId}`}>
-                              <button aria-label={`Expand ${item?.title ?? slide.title} slides`} className={`sorter-item-summary ${slide.itemType === "song" ? "is-song" : ""}`} onClick={() => toggleSorterSection(slide.planItemId)} type="button">
+                            <div className={`sorter-item-summary-row ${itemTitleSlide?.id === liveSlide?.id ? "active" : ""}`} key={`summary:${slide.planItemId}`}>
+                              <button aria-label={`Select ${item?.title ?? slide.title} title slide`} className={`sorter-item-summary ${slide.itemType === "song" ? "is-song" : ""}`} onClick={() => itemTitleIndex >= 0 ? selectSlideFromOperator(itemTitleIndex) : toggleSorterSection(slide.planItemId)} ref={(element) => { if (itemTitleSlide) thumbnailRefs.current[itemTitleSlide.id] = element; }} type="button">
                                 <span className="sorter-item-leaf">{renderMiniSlide(slide, "Item", slideTheme, compactPlanTextFontCap)}</span>
                                 <span><strong>{item?.title ?? slide.sectionTitle}</strong><small>{itemSlides.length} slides · Expand</small></span>
                               </button>
@@ -5092,7 +5107,7 @@ export function PresentationView({
                         }
                         return (
                           <div className="sorter-item-tile" key={slide.id}>
-                          {firstItemSlide && hasNestedItems ? <div className="sorter-item-heading-row"><button className="sorter-item-heading" onClick={() => autoCollapseSectionItems || itemCanCollapse ? toggleSorterSection(slide.planItemId) : selectSlideFromOperator(slideIndex)} type="button"><strong>{item?.title ?? slide.sectionTitle}</strong>{autoCollapseSectionItems || itemCanCollapse ? <ChevronUp size={13} /> : null}</button>{item && (item.song_id ? canEditSong : canEditPlan && INLINE_EDIT_ITEM_TYPES.has(item.item_type)) ? <button aria-label={`Edit ${item.title}`} className="section-icon-button sorter-item-inline-edit" disabled={fillerMediaBusy} onClick={() => openPlanItemEditor(item)} title={`Edit ${item.title}`} type="button"><Pencil size={12} aria-hidden="true" /></button> : null}</div> : null}
+                          {firstItemSlide && hasNestedItems ? <div className={`sorter-item-heading-row ${itemTitleSlide?.id === liveSlide?.id ? "active" : ""}`}><button className="sorter-item-heading" onClick={() => itemTitleIndex >= 0 ? selectSlideFromOperator(itemTitleIndex) : autoCollapseSectionItems || itemCanCollapse ? toggleSorterSection(slide.planItemId) : selectSlideFromOperator(slideIndex)} ref={(element) => { if (itemTitleSlide) thumbnailRefs.current[itemTitleSlide.id] = element; }} type="button"><strong>{item?.title ?? slide.sectionTitle}</strong>{autoCollapseSectionItems || itemCanCollapse ? <ChevronUp size={13} /> : null}</button>{item && (item.song_id ? canEditSong : canEditPlan && INLINE_EDIT_ITEM_TYPES.has(item.item_type)) ? <button aria-label={`Edit ${item.title}`} className="section-icon-button sorter-item-inline-edit" disabled={fillerMediaBusy} onClick={() => openPlanItemEditor(item)} title={`Edit ${item.title}`} type="button"><Pencil size={12} aria-hidden="true" /></button> : null}</div> : null}
                           <button
                             className={`slide-tile preview-tile ${presentationTypeClass(slide.itemType)} ${
                               slideIndex === liveIndex || matchesLiveBuild ? "active" : ""
