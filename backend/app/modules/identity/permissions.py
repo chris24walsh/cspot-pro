@@ -70,6 +70,9 @@ ADMIN_PERMISSIONS: set[PermissionName] = {
     "site:edit",
 }
 
+WEBSITE_EDIT_PERMISSIONS: set[PermissionName] = {"website:edit"}
+WEBSITE_PUBLISH_PERMISSIONS: set[PermissionName] = {"website:edit", "website:publish"}
+
 ALL_PERMISSIONS: set[PermissionName] = (
     READ_PERMISSIONS
     | TEAM_READ_PERMISSIONS
@@ -128,6 +131,14 @@ ROLE_DEFINITIONS: dict[str, RoleDefinition] = {
         | {"songs:create", "songs:edit"}
         | {"library:create", "library:edit"}
         | PRESENTATION_CONTROL_PERMISSIONS,
+    },
+    "website_editor": {
+        "description": "Edit website drafts and media without publishing them.",
+        "permissions": WEBSITE_EDIT_PERMISSIONS,
+    },
+    "website_publisher": {
+        "description": "Edit and publish website content and media.",
+        "permissions": WEBSITE_PUBLISH_PERMISSIONS,
     },
     "administrator": {
         "description": "Full access across users, planning, worship, Sunday school, broadcast, and site settings.",

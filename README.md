@@ -1,5 +1,8 @@
 # cspot-pro
 
+Website visual-editor sign-in is specified in
+[`docs/website-editor-sso.md`](docs/website-editor-sso.md).
+
 ## Service outlines and section settings
 
 The icon beside Sections opens the service template picker. New services prefer

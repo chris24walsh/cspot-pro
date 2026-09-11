@@ -22,6 +22,11 @@ class Settings(BaseSettings):
     google_oauth_client_id: str | None = None
     google_oauth_client_secret: str | None = None
     google_drive_project_number: str | None = None
+    website_editor_start_url: str | None = None
+    website_editor_callback_url: str | None = None
+    website_editor_client_id: str | None = None
+    website_editor_client_secret: str | None = None
+    website_editor_handoff_seconds: int = 60
     camera_proxy_upstream: str | None = None
     smtp_host: str | None = None
     smtp_port: int = 587

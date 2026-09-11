@@ -34,6 +34,15 @@ Private remote access uses Tailscale Serve and never production data.
 
 # Current Architecture
 
+## Website editor identity bridge
+
+CSpot can authorize the website's Strapi admin through a short-lived,
+single-use authorization-code exchange. CSpot remains the authority for the
+explicit `website:edit` and `website:publish` permissions; Strapi establishes
+and owns its own restricted administrator session for the mapped individual.
+The browser flow and Strapi implementation contract are documented in
+[`website-editor-sso.md`](website-editor-sso.md).
+
 This document describes the current architecture of `cspot-pro` in a way
 that should be readable by both humans and coding agents.
 

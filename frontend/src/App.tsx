@@ -20,6 +20,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   AUTH_REQUIRED_EVENT,
   ApiError,
+  buildAbsoluteApiUrl,
   getBootstrapStatus,
   getPlan,
   getPlans,
@@ -136,6 +137,7 @@ function App() {
   const canUseBroadcast = permissions.has("broadcast:use");
   const canWatchBroadcast = isViewer || isAdmin || canUseBroadcast;
   const canCreateLibrary = permissions.has("library:create");
+  const canEditWebsite = permissions.has("website:edit");
   const canUseServiceOperator = canUsePresentation && (isAdmin || isTeacher || isPresenter);
   const canUseWorshipTools = canReadSongs && (isAdmin || isMusician || isWorshipLeader);
   const canUseSundaySchool = isAdmin || isSundaySchoolTeacher || isSundaySchoolLeader;
@@ -421,6 +423,18 @@ function App() {
             <Globe2 size={18} aria-hidden="true" />
             <span>Website</span>
           </a>
+          {canEditWebsite ? (
+            <a
+              className="nav-item"
+              href={buildAbsoluteApiUrl("/api/v1/integrations/website-editor/start")}
+              rel="noopener noreferrer"
+              target="_blank"
+              title="Edit website"
+            >
+              <Globe2 size={18} aria-hidden="true" />
+              <span>Edit website</span>
+            </a>
+          ) : null}
           {modules.map((module) => {
             const Icon = iconMap[module.id];
             return (

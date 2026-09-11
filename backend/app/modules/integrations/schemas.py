@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from app.modules.library.schemas import StoredFileRead
 
@@ -48,3 +48,15 @@ class YouTubeVideoRead(BaseModel):
 class YouTubeSearchRead(BaseModel):
     items: list[YouTubeVideoRead]
     next_page_token: str | None = None
+
+
+class WebsiteEditorExchangeRequest(BaseModel):
+    code: str = Field(min_length=32, max_length=128)
+    destination: str = Field(min_length=1, max_length=80)
+
+
+class WebsiteEditorIdentityRead(BaseModel):
+    subject: str
+    email: str
+    name: str
+    permissions: list[str]
