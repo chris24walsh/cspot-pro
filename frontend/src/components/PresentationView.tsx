@@ -1555,7 +1555,13 @@ export function PresentationView({
     const directTarget = thumbnailRefs.current[slide.id];
     if (directTarget) return directTarget;
     const section = sections.find((candidate) => candidate.id === slide.sectionId);
-    const firstVisibleSlide = section ? sorterSlidesForSection(section.slides)[0] : null;
+    const visibleSlides = section ? sorterSlidesForSection(section.slides) : [];
+    // Title slides are not rendered as separate sorter tiles. In a grouped
+    // section, keep their target with their own item instead of falling all the
+    // way back to the section's first child and making sequential navigation
+    // appear to jump backwards.
+    const firstVisibleSlide = visibleSlides.find((candidate) => candidate.planItemId === slide.planItemId)
+      ?? visibleSlides[0];
     return (firstVisibleSlide ? thumbnailRefs.current[firstVisibleSlide.id] : null) ?? sorterSectionRefs.current[slide.sectionId] ?? null;
   }
 
@@ -4004,6 +4010,25 @@ export function PresentationView({
     }, 180);
     return () => window.clearTimeout(timer);
   }, [liveIndex, slides]);
+
+  useEffect(() => {
+    const activeSectionId = liveSlide?.sectionId;
+    const activeItemId = liveSlide?.planItemId;
+    if (!activeSectionId || !activeItemId || activeSectionId === activeItemId) {
+      return;
+    }
+    // Preserve groups once presentation navigation has opened them. Otherwise
+    // leaving the final child collapses the previous group during the same
+    // render that selects the next section, producing an abrupt rail jump.
+    setExpandedRailGroupIds((current) => {
+      if (current.has(activeSectionId)) {
+        return current;
+      }
+      const next = new Set(current);
+      next.add(activeSectionId);
+      return next;
+    });
+  }, [liveSlide?.planItemId, liveSlide?.sectionId]);
 
   useEffect(() => {
     const token = catchUpCheckTokenRef.current;
