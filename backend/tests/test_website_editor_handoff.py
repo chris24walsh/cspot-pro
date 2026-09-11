@@ -85,8 +85,10 @@ def _exchange(session: Session, code: str):
     )
 
 
-def test_website_access_is_explicit_and_not_inherited_by_administrators() -> None:
-    assert "website:edit" not in permissions_for_roles(["administrator"])
+def test_website_access_is_available_to_administrators() -> None:
+    assert {"website:edit", "website:publish"}.issubset(
+        permissions_for_roles(["administrator"])
+    )
     assert permissions_for_roles(["website_editor"]) == {"website:edit"}
     assert permissions_for_roles(["website_publisher"]) == {
         "website:edit",

@@ -16,9 +16,9 @@ code. Existing Strapi username/password administrator login remains available.
 
 - `website_editor` grants `website:edit` (draft content and permitted media).
 - `website_publisher` grants both `website:edit` and `website:publish`.
-- `administrator` does not implicitly include either permission. Website access
-  is an explicit, individually assigned decision. No Strapi account created by
-  this bridge may be assigned Strapi Super Admin.
+- `administrator` includes both website permissions by default. This grants the
+  CSpot entry point and publishing claim, but no Strapi account created by this
+  bridge may be assigned Strapi Super Admin.
 
 These roles appear in CSpot's existing user-role administration. Both the UI
 entry point and CSpot authorization endpoint require `website:edit`. The
