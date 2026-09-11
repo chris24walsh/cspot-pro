@@ -7,6 +7,7 @@ import {
   unpublishBroadcastRecording,
   type BroadcastRecording, type RecordingVideoStatus,
 } from "../api";
+import { useEscapeClose } from "./useEscapeClose";
 
 export function recordingVideoFilename(recording: BroadcastRecording) {
   return `${recording.file_name.replace(/\.[^.]+$/, "")}-with-slides.mp4`;
@@ -43,6 +44,7 @@ export function RecordingActions({ recording, canManage = false, onRecordingChan
   const [title, setTitle] = useState(recording.title);
 
   useEffect(() => setTitle(recording.title), [recording.title]);
+  useEscapeClose(open, () => setOpen(false));
 
   useEffect(() => {
     if (!open) return;

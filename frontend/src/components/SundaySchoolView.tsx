@@ -12,7 +12,6 @@ import {
   Printer,
   RefreshCw,
   RotateCcw,
-  Save,
   Scissors,
   Search,
   WandSparkles,
@@ -224,7 +223,7 @@ export function SundaySchoolView({ active = true, canEdit }: { active?: boolean;
   const [topbarSlot, setTopbarSlot] = useState<HTMLElement | null>(null);
   const [selectedDate, setSelectedDate] = useState(() => nextSundayDate());
   const [draft, setDraft] = useState<SundaySchoolLessonPayload>(() => blankLesson(nextSundayDate()));
-  const [mobilePane, setMobilePane] = useState<SundaySchoolPane>("library");
+  const [mobilePane, setMobilePane] = useState<SundaySchoolPane>("set");
   const [calendarOpen, setCalendarOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [history, setHistory] = useState<SundaySchoolHistoryEntry[]>([]);
@@ -245,6 +244,9 @@ export function SundaySchoolView({ active = true, canEdit }: { active?: boolean;
   const [message, setMessage] = useState<string | null>(null);
   const lessonRefs = useRef<Record<string, HTMLButtonElement | null>>({});
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const autosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const autosaveVersionRef = useRef(0);
+  const locallySavedDraftsRef = useRef(new Map<string, string>());
 
   useEscapeClose(resourcePickerOpen, () => setResourcePickerOpen(false));
   useEscapeClose(historyOpen, () => setHistoryOpen(false));
@@ -427,8 +429,40 @@ export function SundaySchoolView({ active = true, canEdit }: { active?: boolean;
 
   useEffect(() => {
     const lesson = lessonsByDate.get(selectedDate);
-    setDraft(lesson ? draftFromLesson(lesson) : blankLesson(selectedDate));
+    const nextDraft = lesson ? draftFromLesson(lesson) : blankLesson(selectedDate);
+    if (locallySavedDraftsRef.current.get(selectedDate) === JSON.stringify(nextDraft)) return;
+    setDraft(nextDraft);
   }, [lessonsByDate, selectedDate]);
+
+  useEffect(() => {
+    if (!canEdit || loading || draft.lesson_date !== selectedDate) return;
+    const lesson = lessonsByDate.get(selectedDate);
+    const persistedDraft = lesson ? draftFromLesson(lesson) : blankLesson(selectedDate);
+    if (JSON.stringify(draft) === JSON.stringify(persistedDraft)) return;
+
+    const version = ++autosaveVersionRef.current;
+    if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current);
+    autosaveTimerRef.current = setTimeout(async () => {
+      setSaving(true);
+      setMessage(null);
+      try {
+        const saved = await saveLessonDraft(draft, selectedDate);
+        if (saved) {
+          locallySavedDraftsRef.current.set(selectedDate, JSON.stringify(draftFromLesson(saved)));
+          if (version === autosaveVersionRef.current) setMessage("Saved automatically.");
+        }
+      } catch (error) {
+        if (version === autosaveVersionRef.current) {
+          setMessage(error instanceof ApiError && error.status === 409 ? "There is already a lesson for this date." : error instanceof Error ? error.message : "Could not save lesson.");
+        }
+      } finally {
+        if (version === autosaveVersionRef.current) setSaving(false);
+      }
+    }, 700);
+    return () => {
+      if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current);
+    };
+  }, [canEdit, draft, lessonsByDate, loading, selectedDate]);
 
   useEffect(() => {
     window.setTimeout(() => lessonRefs.current[selectedDate]?.scrollIntoView({ block: "center", behavior: "smooth" }), 60);
@@ -604,7 +638,7 @@ export function SundaySchoolView({ active = true, canEdit }: { active?: boolean;
         uploaded.push({ id: boardItemId(), kind: "file" as const, title: stored.display_name, detail: stored.content_type || "File", file_id: stored.id, file_name: file.name });
       }
       setDraft((current) => ({ ...current, board_items: [...current.board_items, ...uploaded] }));
-      setMessage(`${uploaded.length} file${uploaded.length === 1 ? "" : "s"} added. Save the lesson to keep the board.`);
+      setMessage(`${uploaded.length} file${uploaded.length === 1 ? "" : "s"} added. Saving automatically…`);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Could not upload the file.");
     } finally {
@@ -693,25 +727,6 @@ export function SundaySchoolView({ active = true, canEdit }: { active?: boolean;
       teacher_notes: current.teacher_notes || generated.teacher_notes,
     }));
     setMessage("Generated a starter lesson plan.");
-  }
-
-  async function saveLesson() {
-    if (!canEdit) {
-      setMessage("You do not have permission to edit Sunday School lessons.");
-      return;
-    }
-    setSaving(true);
-    setMessage(null);
-    try {
-      const saved = await saveLessonDraft(draft);
-      if (!saved) return;
-      setSelectedDate(dateInputFromIso(saved.lesson_date));
-      setMessage("Lesson saved.");
-    } catch (error) {
-      setMessage(error instanceof ApiError && error.status === 409 ? "There is already a lesson for this date." : error instanceof Error ? error.message : "Could not save lesson.");
-    } finally {
-      setSaving(false);
-    }
   }
 
   async function importResources() {
@@ -964,10 +979,7 @@ export function SundaySchoolView({ active = true, canEdit }: { active?: boolean;
             <h2>{longDate(selectedDate)}</h2>
           </div>
           <div className="worship-set-toolbar-actions sunday-school-toolbar-actions">
-            <button className="primary-button" disabled={!canEdit || saving} onClick={() => void saveLesson()} type="button">
-              <Save size={16} aria-hidden="true" />
-              {saving ? "Saving..." : "Save"}
-            </button>
+            <span className="sunday-school-autosave-status" role="status">{saving ? "Saving…" : "Autosaved"}</span>
           </div>
         </div>
         {message ? <p className="status-message">{message}</p> : null}

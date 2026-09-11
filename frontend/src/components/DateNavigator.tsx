@@ -79,6 +79,7 @@ export function DateNavigator({
         type="button"
       >
         <History size={14} aria-hidden="true" />
+        <span className="date-navigator-history-label">History</span>
       </button>
       {onAssignment ? (
         <button

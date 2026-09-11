@@ -64,6 +64,22 @@ describe("recording exports", () => {
     }
   });
 
+  it("closes the combined menu with Escape", async () => {
+    vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+    vi.mocked(getRecordingVideoStatus).mockResolvedValue({ status: "ready" });
+    const host = document.createElement("div");
+    const root = createRoot(host);
+    try {
+      await act(async () => root.render(<RecordingActions recording={recording} />));
+      await act(async () => host.querySelector<HTMLButtonElement>("[aria-label='Share or download recording']")!.click());
+      expect(host.querySelector("[role='dialog']")).not.toBeNull();
+      await act(async () => window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })));
+      expect(host.querySelector("[role='dialog']")).toBeNull();
+    } finally {
+      await act(async () => root.unmount());
+    }
+  });
+
   it("rejects an MP3 error response instead of saving it as audio", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false }));
     await expect(loadRecordingMp3(recording)).rejects.toThrow("Could not prepare the MP3 download");

@@ -286,21 +286,21 @@ button {
   align-items: center;
   display: grid;
   gap: 3px;
-  grid-template-columns: 30px minmax(72px, auto) 30px 30px;
+  grid-template-columns: 30px minmax(72px, auto) 30px auto;
   min-width: 0;
   position: relative;
 }
 
 .date-navigator.has-assignment {
-  grid-template-columns: 30px minmax(72px, auto) 30px 30px minmax(54px, auto);
+  grid-template-columns: 30px minmax(72px, auto) 30px auto minmax(54px, auto);
 }
 
 .date-navigator.has-service-type {
-  grid-template-columns: 30px minmax(72px, auto) 30px minmax(72px, 180px) 30px;
+  grid-template-columns: 30px minmax(72px, auto) 30px minmax(72px, 180px) auto;
 }
 
 .date-navigator.has-service-type.has-assignment {
-  grid-template-columns: 30px minmax(72px, auto) 30px minmax(72px, 180px) 30px minmax(54px, auto);
+  grid-template-columns: 30px minmax(72px, auto) 30px minmax(72px, 180px) auto minmax(54px, auto);
 }
 
 .date-navigator > .section-icon-button,
@@ -313,6 +313,16 @@ button {
   min-width: 30px;
   padding: 0;
   width: 30px;
+}
+
+.date-navigator > .date-navigator-history {
+  gap: 5px;
+  padding: 0 8px;
+  width: auto;
+}
+
+.date-navigator-history-label {
+  font-size: 12px;
 }
 
 .date-navigator-date {
@@ -1426,10 +1436,15 @@ button {
 }
 
 .worship-live-launch-button {
+  align-items: center;
   background: #fffdf7;
   border: 1px solid #b9b09b;
   border-radius: 8px;
   color: #526058;
+  display: inline-flex;
+  gap: 6px;
+  justify-content: center;
+  line-height: 1;
 }
 
 .worship-live-launch-button.is-live {
@@ -5754,7 +5769,7 @@ button.musician-page {
 
 .recording-icon-button.is-danger { color: #a13c35; }
 
-.recording-share-dialog { width: min(92vw, 520px); }
+.recording-share-dialog { box-sizing: border-box; max-height: calc(100dvh - 24px); overflow: auto; width: min(calc(100vw - 24px), 520px); }
 .recording-share-dialog > header { align-items: flex-start; display: flex; justify-content: space-between; }
 .recording-share-dialog h2 { margin: 3px 0 0; }
 .recording-share-options { display: grid; gap: 8px; margin-top: 14px; }
@@ -5765,6 +5780,12 @@ button.musician-page {
 .recording-rename > div { display: flex; gap: 8px; }
 .recording-rename input { box-sizing: border-box; flex: 1; min-width: 0; }
 .recording-rename .subtle-link-button { justify-self: start; }
+
+.sunday-school-autosave-status {
+  color: #68746d;
+  font-size: 12px;
+  white-space: nowrap;
+}
 
 .public-recording-shell {
   background: #111915;
@@ -12149,6 +12170,38 @@ button.musician-page {
 .shell.is-mobile-device .worship-topbar-tools .worship-set-step-button {
   height: 30px;
   min-height: 30px;
+}
+
+.shell.is-mobile-device .date-navigator-history-label {
+  display: none;
+}
+
+.shell.is-mobile-device .date-navigator > .date-navigator-history {
+  padding: 0;
+  width: 30px;
+}
+
+.shell.is-mobile-device .recording-share-dialog {
+  margin: 12px;
+  max-height: calc(100dvh - 24px);
+  padding: 14px;
+  width: calc(100vw - 24px);
+}
+
+.shell.is-mobile-device .recording-rename > div {
+  align-items: stretch;
+  flex-direction: column;
+}
+
+@media (max-width: 860px) and (orientation: portrait) {
+  .date-navigator-history-label {
+    display: none;
+  }
+
+  .date-navigator > .date-navigator-history {
+    padding: 0;
+    width: 30px;
+  }
 }
 
 .shell.is-mobile-device .date-navigator-date,
