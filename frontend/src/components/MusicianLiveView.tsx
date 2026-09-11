@@ -897,6 +897,45 @@ export function MusicianLiveView({ canControlAudio = false, controlPlanId, onEdi
   async function toggleServiceCoupling() {
     navigationGenerationRef.current += 1;
     if (worshipCoupled) {
+      if (worshipSyncOverridden && liveState && liveSyncPlanId) {
+        const navigationGeneration = navigationGenerationRef.current;
+        const updatedAt = nextLiveUpdateAt();
+        const state: PresentationLiveState = {
+          ...liveState,
+          updatedAt,
+          worshipCoupled: false,
+        };
+        setLiveState(state);
+        lastLiveStateAtRef.current = updatedAt;
+        localStorage.setItem(PRESENTATION_STORAGE_KEY, JSON.stringify(state));
+        channelRef.current?.postMessage(state);
+        try {
+          const synced = await updatePresentationLiveState(liveSyncPlanId, {
+            plan_id: liveSyncPlanId,
+            index: liveState.index,
+            plan_item_id: liveState.planItemId ?? null,
+            slide_offset: liveState.slideOffset ?? 0,
+            updated_at: updatedAt,
+            theme: liveState.theme ?? "light",
+            blanked: Boolean(liveState.blanked),
+            fullscreen: Boolean(liveState.fullscreen),
+            video_action: liveState.videoAction ?? null,
+            video_action_at: liveState.videoActionAt ?? null,
+            worship_coupled: false,
+          });
+          if (
+            navigationGenerationRef.current === navigationGeneration
+            && synced.updated_at >= lastLiveStateAtRef.current
+          ) {
+            lastLiveStateAtRef.current = synced.updated_at;
+            setLiveState(syncStateFromApi(synced));
+          }
+          setMessage(null);
+        } catch (error) {
+          setMessage(error instanceof Error ? error.message : "Could not stop worship sync.");
+        }
+        return;
+      }
       if (nextServiceSlide) await publishServiceSlide(nextServiceSlide, false);
       return;
     }
