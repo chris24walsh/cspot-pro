@@ -1122,6 +1122,11 @@ export function WorshipBuilderView({ active = true, canAccessAdminTools, canArch
       title: "Apply Stashed Set",
     });
     if (!confirmed) return;
+    // Confirming happens in a portal outside the history popover, so the
+    // outside-click handler sees it as a dismissal. Restore the stash browser;
+    // only the deleted stash preview should close.
+    setEditHistoryOpen(true);
+    setHistoryTab("stashes");
     setEditHistoryApplying(true);
     try {
       const replacement = await stashSelectedWorshipSet({ confirmFirst: false, successMessage: false });
