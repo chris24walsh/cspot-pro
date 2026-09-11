@@ -373,6 +373,11 @@ button {
   z-index: 35;
 }
 
+.worship-history-popover,
+.worship-history-popover * {
+  box-sizing: border-box;
+}
+
 .worship-history-tabs {
   background: #eee9dc;
   border-radius: 7px;
@@ -415,6 +420,8 @@ button {
   gap: 4px;
   padding: 10px;
   text-align: left;
+  min-width: 0;
+  width: 100%;
 }
 
 .worship-stash-row.active {
@@ -425,6 +432,7 @@ button {
 .worship-stash-row small,
 .worship-stash-preview small {
   color: #66716b;
+  overflow-wrap: anywhere;
 }
 
 .worship-stash-preview {
@@ -486,7 +494,9 @@ button {
   }
 
   .worship-stash-list {
+    height: 100%;
     max-height: none;
+    overflow-y: auto;
   }
 
   .worship-stash-browser.has-preview .worship-stash-list {
@@ -496,6 +506,15 @@ button {
   .worship-stash-preview {
     height: 100%;
     min-height: 0;
+    width: 100%;
+  }
+
+  .worship-stash-preview-actions {
+    flex-wrap: wrap;
+  }
+
+  .worship-stash-preview-actions .primary-button {
+    min-width: 0;
   }
 }
 
