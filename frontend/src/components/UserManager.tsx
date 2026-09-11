@@ -159,6 +159,7 @@ export function UserManager({ adminSection, onAdminSectionChange, onAttentionCha
   const roleGroups: Array<{ label: string; roles: string[] }> = [
     ...Array.from(new Set(servingAreas.map((area) => area.category))).sort().map((label) => ({ label, roles: [] })),
     { label: "General", roles: ["viewer"] },
+    { label: "Website", roles: ["website_editor", "website_publisher"] },
     { label: "Administration", roles: ["administrator"] },
   ];
 
