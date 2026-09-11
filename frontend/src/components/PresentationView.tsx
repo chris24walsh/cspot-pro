@@ -5015,7 +5015,8 @@ export function PresentationView({
               const hasNestedItems = visibleSectionSlides.some((slide) => slide.planItemId !== section.id);
               const autoCollapseSectionItems = Boolean(sectionItem?.auto_collapse_items);
               const canCollapseSection = !autoCollapseSectionItems && !hasNestedItems && visibleSectionSlides.length > 1;
-              const sectionExpanded = expandedSorterSectionIds.has(section.id) || liveSlide?.sectionId === section.id;
+              const sectionRetainedExpanded = expandedSorterSectionIds.has(section.id);
+              const sectionExpanded = sectionRetainedExpanded || liveSlide?.sectionId === section.id;
               const showSlideTiles =
                 !canCollapseSection ||
                 sectionExpanded;
@@ -5051,13 +5052,14 @@ export function PresentationView({
                     {canCollapseSection ? (
                       <button
                         aria-expanded={showSlideTiles}
-                        aria-label={`${showSlideTiles ? "Collapse" : "Expand"} ${section.title} slides`}
-                        className="section-icon-button section-collapse-button"
+                        aria-label={`${sectionRetainedExpanded ? "Return" : "Keep"} ${section.title} ${sectionRetainedExpanded ? "to automatic collapsing" : "expanded"}`}
+                        aria-pressed={sectionRetainedExpanded}
+                        className={`section-icon-button section-collapse-button sorter-retained-expansion-button ${sectionRetainedExpanded ? "is-active" : ""}`}
                         onClick={() => toggleSorterSection(section.id)}
-                        title={showSlideTiles ? "Collapse slides" : "Expand slides"}
+                        title={sectionRetainedExpanded ? "Expanded by default — click to return to automatic collapsing" : "Automatic — click to keep expanded"}
                         type="button"
                       >
-                        {showSlideTiles ? <ChevronUp size={15} aria-hidden="true" /> : <ChevronDown size={15} aria-hidden="true" />}
+                        {sectionRetainedExpanded ? <ChevronUp size={15} aria-hidden="true" /> : <ChevronDown size={15} aria-hidden="true" />}
                       </button>
                     ) : null}
                     {canEditSectionSong ? (
