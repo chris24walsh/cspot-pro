@@ -985,7 +985,16 @@ export function MusicianLiveView({ canControlAudio = false, controlPlanId, onEdi
       window.removeEventListener("keydown", onKeyDown, { capture: true });
       document.removeEventListener("keydown", onKeyDown, { capture: true });
     };
-  }, [liveIndex, nextServiceSlide, slides.length]);
+  }, [
+    liveIndex,
+    liveState,
+    liveSyncPlanId,
+    nextServiceSlide,
+    presentationSlides,
+    serviceSlides,
+    slides,
+    worshipCoupled,
+  ]);
 
   const lyricLinesForSlide = lyricLines(pageLeadSlide?.text ?? "");
   const wrappedLyricLinesForSlide = useMemo(
