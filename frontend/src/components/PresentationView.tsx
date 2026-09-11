@@ -697,7 +697,6 @@ export function PresentationView({
   const [renderingFileIds, setRenderingFileIds] = useState<string[]>([]);
   const [renderErrorsByFileId, setRenderErrorsByFileId] = useState<Record<string, string>>({});
   const [expandedSorterSectionIds, setExpandedSorterSectionIds] = useState<Set<string>>(() => new Set());
-  const [contractedSorterItemIds, setContractedSorterItemIds] = useState<Set<string>>(() => new Set());
   const [expandedRailGroupIds, setExpandedRailGroupIds] = useState<Set<string>>(() => new Set());
   const [bibleVersions, setBibleVersions] = useState<BibleVersion[]>([]);
   const [bibleBooks, setBibleBooks] = useState<BibleBook[]>([]);
@@ -1256,23 +1255,7 @@ export function PresentationView({
   }
 
   function expandSorterItem(itemId: string) {
-    setContractedSorterItemIds((current) => {
-      if (!current.has(itemId)) return current;
-      const next = new Set(current);
-      next.delete(itemId);
-      return next;
-    });
     setExpandedSorterSectionIds((current) => new Set(current).add(itemId));
-  }
-
-  function contractSorterItem(itemId: string) {
-    setExpandedSorterSectionIds((current) => {
-      if (!current.has(itemId)) return current;
-      const next = new Set(current);
-      next.delete(itemId);
-      return next;
-    });
-    setContractedSorterItemIds((current) => new Set(current).add(itemId));
   }
 
   function toggleRailGroup(groupId: string) {
@@ -4052,19 +4035,6 @@ export function PresentationView({
   }, [liveSlide?.planItemId, liveSlide?.sectionId]);
 
   useEffect(() => {
-    const activeItemId = liveSlide?.planItemId;
-    if (!activeItemId) return;
-    // A deliberate collapse may hide the currently selected title. Resume
-    // automatic following as soon as presentation navigation advances again.
-    setContractedSorterItemIds((current) => {
-      if (!current.has(activeItemId)) return current;
-      const next = new Set(current);
-      next.delete(activeItemId);
-      return next;
-    });
-  }, [liveSlide?.id]);
-
-  useEffect(() => {
     const token = catchUpCheckTokenRef.current;
     const timer = window.setTimeout(() => {
       if (catchUpCheckTokenRef.current !== token) {
@@ -5101,8 +5071,8 @@ export function PresentationView({
                           : -1;
                         const firstItemSlide = itemSlides[0]?.id === slide.id;
                         const itemCanCollapse = itemSlides.length > 1;
-                        const itemExpanded = !contractedSorterItemIds.has(slide.planItemId)
-                          && (expandedSorterSectionIds.has(slide.planItemId) || liveSlide?.planItemId === slide.planItemId);
+                        const itemRetainedExpanded = expandedSorterSectionIds.has(slide.planItemId);
+                        const itemExpanded = itemRetainedExpanded || liveSlide?.planItemId === slide.planItemId;
                         const itemContracted = autoCollapseSectionItems && !itemExpanded;
                         const slideIndex = slides.findIndex((candidate) => candidate.id === slide.id);
                         const matchesLiveBuild =
@@ -5144,7 +5114,7 @@ export function PresentationView({
                         }
                         return (
                           <div className="sorter-item-tile" key={slide.id}>
-                          {firstItemSlide && hasNestedItems ? <div className={`sorter-item-heading-row ${itemTitleSlide?.id === liveSlide?.id ? "active" : ""}`}><button className="sorter-item-heading" onClick={() => itemTitleIndex >= 0 ? selectSlideFromOperator(itemTitleIndex) : selectSlideFromOperator(slideIndex)} ref={(element) => { if (itemTitleSlide) thumbnailRefs.current[itemTitleSlide.id] = element; }} type="button"><strong>{item?.title ?? slide.sectionTitle}</strong></button>{slide.itemType === "song" && (autoCollapseSectionItems || itemCanCollapse) ? <button aria-label={`Collapse ${item?.title ?? slide.sectionTitle} slides`} className="section-icon-button sorter-item-collapse-button" onClick={() => contractSorterItem(slide.planItemId)} title="Collapse slides" type="button"><ChevronUp size={13} aria-hidden="true" /></button> : autoCollapseSectionItems || itemCanCollapse ? <button aria-label={`Collapse ${item?.title ?? slide.sectionTitle} slides`} className="section-icon-button sorter-item-collapse-button" onClick={() => toggleSorterSection(slide.planItemId)} title="Collapse slides" type="button"><ChevronUp size={13} aria-hidden="true" /></button> : null}{item && (item.song_id ? canEditSong : canEditPlan && INLINE_EDIT_ITEM_TYPES.has(item.item_type)) ? <button aria-label={`Edit ${item.title}`} className="section-icon-button sorter-item-inline-edit" disabled={fillerMediaBusy} onClick={() => openPlanItemEditor(item)} title={`Edit ${item.title}`} type="button"><Pencil size={12} aria-hidden="true" /></button> : null}</div> : null}
+                          {firstItemSlide && hasNestedItems ? <div className={`sorter-item-heading-row ${itemTitleSlide?.id === liveSlide?.id ? "active" : ""}`}><button className="sorter-item-heading" onClick={() => itemTitleIndex >= 0 ? selectSlideFromOperator(itemTitleIndex) : selectSlideFromOperator(slideIndex)} ref={(element) => { if (itemTitleSlide) thumbnailRefs.current[itemTitleSlide.id] = element; }} type="button"><strong>{item?.title ?? slide.sectionTitle}</strong></button>{autoCollapseSectionItems || itemCanCollapse ? <button aria-label={`${itemRetainedExpanded ? "Return" : "Keep"} ${item?.title ?? slide.sectionTitle} ${itemRetainedExpanded ? "to automatic collapsing" : "expanded"}`} aria-pressed={itemRetainedExpanded} className={`section-icon-button sorter-item-collapse-button sorter-retained-expansion-button ${itemRetainedExpanded ? "is-active" : ""}`} onClick={() => toggleSorterSection(slide.planItemId)} title={itemRetainedExpanded ? "Expanded by default — click to return to automatic collapsing" : "Automatic — click to keep expanded"} type="button">{itemRetainedExpanded ? <ChevronUp size={13} aria-hidden="true" /> : <ChevronDown size={13} aria-hidden="true" />}</button> : null}{item && (item.song_id ? canEditSong : canEditPlan && INLINE_EDIT_ITEM_TYPES.has(item.item_type)) ? <button aria-label={`Edit ${item.title}`} className="section-icon-button sorter-item-inline-edit" disabled={fillerMediaBusy} onClick={() => openPlanItemEditor(item)} title={`Edit ${item.title}`} type="button"><Pencil size={12} aria-hidden="true" /></button> : null}</div> : null}
                           <button
                             className={`slide-tile preview-tile ${presentationTypeClass(slide.itemType)} ${
                               slideIndex === liveIndex || matchesLiveBuild ? "active" : ""
