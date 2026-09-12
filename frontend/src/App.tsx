@@ -84,6 +84,7 @@ function isTransientApiError(error: unknown) {
 function App() {
   const initialParams = new URLSearchParams(window.location.search);
   const publicRecordingToken = initialParams.get("recording");
+  const websiteEditorRequested = initialParams.get("websiteEditor") === "1";
   const isPresentationOutput = initialParams.get("presentation") === "output";
   const isNetworkDisplay = isNetworkDisplayLocation(window.location);
   const isMediaOutput = isMediaOutputLocation(window.location);
@@ -185,6 +186,12 @@ function App() {
   useEffect(() => {
     void loadAuth();
   }, [loadAuth]);
+
+  useEffect(() => {
+    if (!authLoading && sessionUser && websiteEditorRequested) {
+      window.location.replace(buildAbsoluteApiUrl("/api/v1/integrations/website-editor/start"));
+    }
+  }, [authLoading, sessionUser, websiteEditorRequested]);
 
   useEffect(() => {
     void loadWorkspace();
