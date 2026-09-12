@@ -1,6 +1,7 @@
 import {
   CalendarDays,
   BookOpen,
+  ChevronRight,
   Clapperboard,
   Globe2,
   ListMusic,
@@ -104,6 +105,7 @@ function App() {
   const [broadcastWorkspace, setBroadcastWorkspace] = useState<"viewer" | "recordings" | "livestream" | "mixer">("viewer");
   const [mobileImmersive, setMobileImmersive] = useState(false);
   const [adminAttentionCount, setAdminAttentionCount] = useState(0);
+  const [websiteMenuOpen, setWebsiteMenuOpen] = useState(false);
   const [profileAttentionCount, setProfileAttentionCount] = useState(0);
   const [adminSection, setAdminSection] = useState<"users" | "templates" | "settings">("users");
   const mobileOrTabletDevice = useMemo(
@@ -426,22 +428,61 @@ function App() {
         </div>
 
         <nav className="nav-list">
-          <a className="nav-item" href={publicWebsiteUrl} title="Website">
-            <Globe2 size={18} aria-hidden="true" />
-            <span>Website</span>
-          </a>
           {canEditWebsite ? (
-            <a
-              className="nav-item"
-              href={buildAbsoluteApiUrl("/api/v1/integrations/website-editor/start")}
-              rel="noopener noreferrer"
-              target="_blank"
-              title="Edit website"
+            <div
+              className={`website-nav-menu ${websiteMenuOpen ? "is-open" : ""}`}
+              onBlur={(event) => {
+                if (!event.currentTarget.contains(event.relatedTarget)) setWebsiteMenuOpen(false);
+              }}
             >
+              <div className="website-nav-desktop">
+                <a className="nav-item website-nav-primary" href={publicWebsiteUrl} title="View website">
+                  <Globe2 size={18} aria-hidden="true" />
+                  <span>Website</span>
+                </a>
+                <button
+                  aria-expanded={websiteMenuOpen}
+                  aria-haspopup="menu"
+                  aria-label="Website options"
+                  className="website-nav-toggle"
+                  onClick={() => setWebsiteMenuOpen((current) => !current)}
+                  type="button"
+                >
+                  <ChevronRight size={15} aria-hidden="true" />
+                </button>
+              </div>
+              <button
+                aria-expanded={websiteMenuOpen}
+                aria-haspopup="menu"
+                className="nav-item website-nav-mobile"
+                onClick={() => setWebsiteMenuOpen((current) => !current)}
+                title="Website options"
+                type="button"
+              >
+                <Globe2 size={18} aria-hidden="true" />
+                <span>Website</span>
+              </button>
+              {websiteMenuOpen ? (
+                <div className="website-nav-dropdown" role="menu">
+                  <a href={publicWebsiteUrl} role="menuitem" onClick={() => setWebsiteMenuOpen(false)}>View website</a>
+                  <a
+                    href={buildAbsoluteApiUrl("/api/v1/integrations/website-editor/start")}
+                    onClick={() => setWebsiteMenuOpen(false)}
+                    rel="noopener noreferrer"
+                    role="menuitem"
+                    target="_blank"
+                  >
+                    Edit website
+                  </a>
+                </div>
+              ) : null}
+            </div>
+          ) : (
+            <a className="nav-item" href={publicWebsiteUrl} title="Website">
               <Globe2 size={18} aria-hidden="true" />
-              <span>Edit website</span>
+              <span>Website</span>
             </a>
-          ) : null}
+          )}
           {modules.map((module) => {
             const Icon = iconMap[module.id];
             return (
