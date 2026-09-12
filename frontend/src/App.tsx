@@ -1,7 +1,7 @@
 import {
   CalendarDays,
   BookOpen,
-  ChevronRight,
+  ChevronDown,
   Clapperboard,
   Globe2,
   ListMusic,
@@ -105,7 +105,6 @@ function App() {
   const [broadcastWorkspace, setBroadcastWorkspace] = useState<"viewer" | "recordings" | "livestream" | "mixer">("viewer");
   const [mobileImmersive, setMobileImmersive] = useState(false);
   const [adminAttentionCount, setAdminAttentionCount] = useState(0);
-  const [websiteMenuOpen, setWebsiteMenuOpen] = useState(false);
   const [profileAttentionCount, setProfileAttentionCount] = useState(0);
   const [adminSection, setAdminSection] = useState<"users" | "templates" | "settings">("users");
   const mobileOrTabletDevice = useMemo(
@@ -429,54 +428,25 @@ function App() {
 
         <nav className="nav-list">
           {canEditWebsite ? (
-            <div
-              className={`website-nav-menu ${websiteMenuOpen ? "is-open" : ""}`}
-              onBlur={(event) => {
-                if (!event.currentTarget.contains(event.relatedTarget)) setWebsiteMenuOpen(false);
-              }}
-            >
-              <div className="website-nav-desktop">
-                <a className="nav-item website-nav-primary" href={publicWebsiteUrl} title="View website">
-                  <Globe2 size={18} aria-hidden="true" />
-                  <span>Website</span>
-                </a>
-                <button
-                  aria-expanded={websiteMenuOpen}
-                  aria-haspopup="menu"
-                  aria-label="Website options"
-                  className="website-nav-toggle"
-                  onClick={() => setWebsiteMenuOpen((current) => !current)}
-                  type="button"
-                >
-                  <ChevronRight size={15} aria-hidden="true" />
-                </button>
-              </div>
-              <button
-                aria-expanded={websiteMenuOpen}
-                aria-haspopup="menu"
-                className="nav-item website-nav-mobile"
-                onClick={() => setWebsiteMenuOpen((current) => !current)}
-                title="Website options"
-                type="button"
-              >
+            <details className="website-nav-menu">
+              <summary className="nav-item" title="Website options">
                 <Globe2 size={18} aria-hidden="true" />
                 <span>Website</span>
-              </button>
-              {websiteMenuOpen ? (
-                <div className="website-nav-dropdown" role="menu">
-                  <a href={publicWebsiteUrl} role="menuitem" onClick={() => setWebsiteMenuOpen(false)}>View website</a>
-                  <a
-                    href={buildAbsoluteApiUrl("/api/v1/integrations/website-editor/start")}
-                    onClick={() => setWebsiteMenuOpen(false)}
-                    rel="noopener noreferrer"
-                    role="menuitem"
-                    target="_blank"
-                  >
-                    Edit website
-                  </a>
-                </div>
-              ) : null}
-            </div>
+                <ChevronDown className="website-nav-chevron" size={14} aria-hidden="true" />
+              </summary>
+              <div className="website-nav-options">
+                <a href={publicWebsiteUrl} rel="noopener noreferrer" target="_blank">
+                  Visit website
+                </a>
+                <a
+                  href={buildAbsoluteApiUrl("/api/v1/integrations/website-editor/start")}
+                  rel="noopener noreferrer"
+                  target="_blank"
+                >
+                  Edit website
+                </a>
+              </div>
+            </details>
           ) : (
             <a className="nav-item" href={publicWebsiteUrl} title="Website">
               <Globe2 size={18} aria-hidden="true" />

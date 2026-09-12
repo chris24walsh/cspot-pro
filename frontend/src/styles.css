@@ -140,77 +140,58 @@ button {
 }
 
 .website-nav-menu {
+  min-width: 0;
   position: relative;
 }
 
-.website-nav-desktop {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 30px;
+.website-nav-menu > summary {
+  list-style: none;
 }
 
-.website-nav-primary {
-  border-radius: 8px 0 0 8px;
-}
-
-.website-nav-toggle {
-  align-items: center;
-  background: transparent;
-  border: 0;
-  border-left: 1px solid rgba(255, 255, 255, 0.14);
-  border-radius: 0 8px 8px 0;
-  color: #eef7ed;
-  cursor: pointer;
-  display: flex;
-  justify-content: center;
-}
-
-.website-nav-toggle:hover,
-.website-nav-toggle:focus-visible,
-.website-nav-menu.is-open .website-nav-toggle,
-.website-nav-menu.is-open .website-nav-primary {
-  background: #245d4d;
-  outline: none;
-}
-
-.website-nav-toggle svg {
-  transition: transform 120ms ease;
-}
-
-.website-nav-menu.is-open .website-nav-toggle svg {
-  transform: rotate(90deg);
-}
-
-.website-nav-mobile {
+.website-nav-menu > summary::-webkit-details-marker {
   display: none;
 }
 
-.website-nav-dropdown {
-  background: #fffdf5;
-  border: 1px solid #d7dfd9;
-  border-radius: 9px;
-  box-shadow: 0 12px 30px rgba(17, 42, 35, 0.24);
-  display: grid;
-  left: calc(100% + 8px);
-  min-width: 160px;
-  overflow: hidden;
-  padding: 5px;
-  position: absolute;
-  top: 0;
-  z-index: 100;
+.website-nav-chevron {
+  margin-left: auto;
+  opacity: 0;
+  transition: opacity 120ms ease, transform 120ms ease;
 }
 
-.website-nav-dropdown a {
-  border-radius: 6px;
-  color: #173f34;
-  font-size: 13px;
+.sidebar:hover .website-nav-chevron,
+.website-nav-menu[open] .website-nav-chevron {
+  opacity: 1;
+}
+
+.website-nav-menu[open] .website-nav-chevron {
+  transform: rotate(180deg);
+}
+
+.website-nav-options {
+  background: #fffdf5;
+  border: 1px solid rgba(19, 53, 45, 0.2);
+  border-radius: 8px;
+  box-shadow: 0 12px 28px rgba(12, 33, 27, 0.28);
+  display: grid;
+  left: 8px;
+  overflow: hidden;
+  position: absolute;
+  top: calc(100% + 4px);
+  width: 208px;
+  z-index: 30;
+}
+
+.website-nav-options a {
+  color: #173f35;
+  font-size: 14px;
   font-weight: 700;
-  padding: 9px 10px;
+  padding: 11px 13px;
   text-decoration: none;
 }
 
-.website-nav-dropdown a:hover,
-.website-nav-dropdown a:focus-visible {
-  background: #e9f1ec;
+.website-nav-options a:hover,
+.website-nav-options a:focus-visible {
+  background: #e5efe9;
   outline: none;
 }
 
@@ -9673,19 +9654,6 @@ button.musician-page {
   .nav-item svg {
     height: 17px;
     width: 17px;
-  }
-
-  .website-nav-desktop {
-    display: none;
-  }
-
-  .website-nav-mobile {
-    display: flex;
-  }
-
-  .website-nav-dropdown {
-    left: 0;
-    top: calc(100% + 5px);
   }
 
   .module-hero,
