@@ -435,13 +435,11 @@ function App() {
                 <ChevronDown className="website-nav-chevron" size={14} aria-hidden="true" />
               </summary>
               <div className="website-nav-options">
-                <a href={publicWebsiteUrl} rel="noopener noreferrer" target="_blank">
+                <a href={publicWebsiteUrl}>
                   Visit website
                 </a>
                 <a
                   href={buildAbsoluteApiUrl("/api/v1/integrations/website-editor/start")}
-                  rel="noopener noreferrer"
-                  target="_blank"
                 >
                   Edit website
                 </a>
