@@ -311,3 +311,8 @@ filters, a matching-song count, and Clear all. Options come from saved library
 metadata, including missing-value choices. Themes use comma-separated categories;
 sources group book references without song numbers. Key uses the saved sounding
 key (or derives it from the capo key and position), and is shown in library rows.
+
+Sermon recording must follow the service lifecycle, not output-window ownership.
+A scheduled service can remain live without a local slideshow window. Automatic
+stop/trim must retain recoverable source audio; short automatic captures belong
+in Archived recordings rather than being permanently deleted.

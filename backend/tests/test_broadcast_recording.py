@@ -24,9 +24,9 @@ from app.modules.broadcast.recording import (
     ActiveRecording,
     _assemble_recording_segments,
     _finalize_recording_file,
+    _is_short_automatic_recording,
     _media_duration,
     _recording_command,
-    _should_discard_short_automatic_recording,
     _source_has_audio,
     _source_url,
     _trim_recording_file,
@@ -46,8 +46,48 @@ from app.modules.broadcast.schemas import (
     BroadcastViewerSettingsUpdate,
     ManualLivestreamUpdate,
 )
-from app.modules.planning.models import Plan
-from app.modules.presentation.models import PresentationSession
+from app.modules.planning.models import Plan, PlanItem
+from app.modules.presentation.models import PresentationPosition, PresentationSession
+
+
+@pytest.mark.parametrize("service_status,owner,expected", [
+    ("live", None, "cancel"),
+    ("live", "screen", "cancel"),
+    ("ended", "screen", "stop"),
+    ("ready", None, "stop"),
+])
+def test_recording_watcher_uses_service_lifecycle(monkeypatch, service_status, owner, expected):
+    from app.modules.broadcast import recording as recorder
+
+    engine = create_engine("sqlite://")
+    Base.metadata.create_all(engine)
+    with Session(engine) as session:
+        item = PlanItem(plan_id="plan-1", item_type="sermon", title="Sermon", sequence=10)
+        live = PresentationSession(plan_id="plan-1", status=service_status)
+        session.add_all([item, live])
+        session.flush()
+        session.add(PresentationPosition(session_id=live.id, payload_json=json.dumps({
+            "plan_item_id": item.id, "schedule_id": "sunday-morning",
+            "output_owner_id": owner, "output_active": bool(owner), "blanked": True,
+        })))
+        session.commit()
+    monkeypatch.setattr(recorder, "SessionLocal", lambda: Session(engine))
+    monkeypatch.setattr(
+        recorder, "_active", SimpleNamespace(recording_id="capture", plan_id="plan-1")
+    )
+    calls = []
+    monkeypatch.setattr(
+        recorder, "cancel_pending_recording_stop", lambda *_: calls.append("cancel")
+    )
+    monkeypatch.setattr(recorder, "request_recording_stop", lambda *_: calls.append("stop"))
+
+    def tick(_seconds):
+        if calls:
+            monkeypatch.setattr(recorder, "_active", None)
+
+    monkeypatch.setattr(recorder.time, "sleep", tick)
+    recorder._watch_recording("capture", "plan-1")
+    assert calls == [expected]
 
 
 def test_admin_test_livestream_is_hidden_from_regular_viewers() -> None:
@@ -511,7 +551,7 @@ def test_grace_audio_can_be_trimmed_back_to_departure(tmp_path: Path) -> None:
     assert 1.9 < duration < 2.1
 
 
-def test_short_automatic_recording_is_only_discarded_after_automatic_departure() -> None:
+def test_short_automatic_recording_is_only_archived_after_automatic_departure() -> None:
     recording = BroadcastRecording(
         title="Sermon",
         source="automatic-sermon",
@@ -521,14 +561,14 @@ def test_short_automatic_recording_is_only_discarded_after_automatic_departure()
         file_name="sermon.webm",
     )
 
-    assert _should_discard_short_automatic_recording(recording, 29.999, automatic_departure=True)
-    assert not _should_discard_short_automatic_recording(recording, 30, automatic_departure=True)
-    assert not _should_discard_short_automatic_recording(recording, 2, automatic_departure=False)
+    assert _is_short_automatic_recording(recording, 29.999, automatic_departure=True)
+    assert not _is_short_automatic_recording(recording, 30, automatic_departure=True)
+    assert not _is_short_automatic_recording(recording, 2, automatic_departure=False)
     recording.source = "manual"
-    assert not _should_discard_short_automatic_recording(recording, 2, automatic_departure=True)
+    assert not _is_short_automatic_recording(recording, 2, automatic_departure=True)
 
 
-def test_short_automatic_recording_and_file_are_deleted_after_grace(
+def test_short_automatic_recording_is_archived_with_full_audio_after_grace(
     monkeypatch, tmp_path: Path
 ) -> None:
     class CompletedProcess:
@@ -558,11 +598,55 @@ def test_short_automatic_recording_and_file_are_deleted_after_grace(
             ActiveRecording(recording_id, "plan-1", CompletedProcess()),
         )
 
+        monkeypatch.setattr(
+            "app.modules.broadcast.recording._finalize_recording_file", lambda *_: 62
+        )
         result = stop_recording(session, "plan-1", "Left sermon; grace period elapsed")
 
-        assert result is None
-        assert session.get(BroadcastRecording, recording_id) is None
-        assert not recording_path.exists()
+        assert result is not None
+        assert result.archived_at is not None
+        assert result.duration_seconds == 62
+        assert session.get(BroadcastRecording, recording_id) is result
+        assert recording_path.read_bytes() == b"short recording"
+        recovery = tmp_path / "recovery" / recording_id
+        assert (recovery / recording_path.name).read_bytes() == b"short recording"
+        metadata = json.loads((recovery / "recording.json").read_text())
+        assert metadata["pending_stop_offset_ms"] == 2000
+
+
+@pytest.mark.parametrize("preservation_fails", [False, True])
+def test_grace_finalization_preserves_original_or_skips_trim(
+    monkeypatch, tmp_path, preservation_fails
+):
+    from app.modules.broadcast import recording as recorder
+
+    path = tmp_path / "capture.webm"
+    subprocess.run([
+        "ffmpeg", "-hide_banner", "-loglevel", "error", "-f", "lavfi", "-i",
+        "sine=frequency=1000:sample_rate=48000:duration=62", "-c:a", "libopus", str(path),
+    ], check=True)
+    original = path.read_bytes()
+    engine = create_engine("sqlite://")
+    Base.metadata.create_all(engine, tables=[BroadcastRecording.__table__])
+    with Session(engine) as session:
+        row = BroadcastRecording(
+            title="Sermon", source="automatic-sermon", status="recording",
+            file_path=str(path), file_name=path.name, pending_stop_offset_ms=32_000,
+        )
+        session.add(row)
+        session.commit()
+        monkeypatch.setattr(recorder, "_active", ActiveRecording(
+            row.id, "plan-1", SimpleNamespace(poll=lambda: 0),
+        ))
+        if preservation_fails:
+            monkeypatch.setattr(recorder, "_preserve_recording_capture", lambda *_: False)
+        result = stop_recording(session, "plan-1", "Left sermon; grace period elapsed")
+        assert result.status == "ready"
+        assert result.duration_seconds == (62 if preservation_fails else 32)
+        if preservation_fails:
+            assert path.read_bytes() == original
+        else:
+            assert (tmp_path / "recovery" / row.id / path.name).read_bytes() == original
 
 
 def test_live_audio_relay_requires_a_fresh_output_heartbeat() -> None:

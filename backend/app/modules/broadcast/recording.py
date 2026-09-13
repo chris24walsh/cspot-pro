@@ -1,5 +1,6 @@
 import json
 import logging
+import shutil
 import signal
 import subprocess
 import threading
@@ -491,7 +492,7 @@ def _finalize_recording_file(path: Path, expected_duration: float | None) -> flo
     return media_duration
 
 
-def _should_discard_short_automatic_recording(
+def _is_short_automatic_recording(
     recording: BroadcastRecording,
     duration_seconds: float | None,
     *,
@@ -505,17 +506,26 @@ def _should_discard_short_automatic_recording(
     )
 
 
-def _delete_recording(session: Session, recording: BroadcastRecording) -> None:
-    paths = {recording.file_path, recording.audio_file_path}
-    session.delete(recording)
-    session.commit()
-    for value in paths:
-        if not value:
-            continue
-        try:
-            Path(value).unlink(missing_ok=True)
-        except OSError:
-            logger.exception("Could not delete discarded recording file %s", value)
+def _preserve_recording_capture(recording: BroadcastRecording, path: Path) -> bool:
+    """Keep full audio and slide metadata before automatic grace trimming."""
+    recovery = path.parent / "recovery" / recording.id
+    try:
+        recovery.mkdir(parents=True, exist_ok=True)
+        original = recovery / path.name
+        if not original.exists():
+            temporary = recovery / f"{path.name}.copying"
+            shutil.copy2(path, temporary)
+            temporary.replace(original)
+        metadata = recovery / "recording.json"
+        if not metadata.exists():
+            metadata.write_text(json.dumps({
+                column.name: getattr(recording, column.name)
+                for column in BroadcastRecording.__table__.columns
+            }, default=str, indent=2), encoding="utf-8")
+        return True
+    except OSError:
+        logger.exception("Could not preserve full recording %s; skipping automatic trim", path)
+        return False
 
 
 def start_recording(
@@ -618,19 +628,14 @@ def _watch_recording(recording_id: str, plan_id: str) -> None:
                 payload = json.loads(position.payload_json or "{}") if position else {}
             except json.JSONDecodeError:
                 payload = {}
-            heartbeat = payload.get("output_heartbeat_at")
-            owner_id = payload.get("output_owner_id")
             item_id = payload.get("plan_item_id")
             item = session.get(PlanItem, item_id) if isinstance(item_id, str) else None
-            now_ms = int(datetime.now(UTC).timestamp() * 1000)
-            explicitly_active = payload.get("output_active") is True
-            legacy_heartbeat_active = bool(
-                "output_active" not in payload
-                and isinstance(heartbeat, int)
-                and now_ms - heartbeat < 7000
-            )
-            output_live = isinstance(owner_id, str) and (
-                explicitly_active or legacy_heartbeat_active
+            # Scheduled services and remote presenters need no output window.
+            # Explicit Stop ends the service session; a missing owner does not.
+            output_live = bool(
+                presentation_session
+                and presentation_session.status == "live"
+                and presentation_session.ended_at is None
             )
             on_sermon = bool(item and item.item_type == "sermon" and item.deleted_at is None)
             if output_live and on_sermon:
@@ -784,6 +789,12 @@ def stop_recording(
         segments_ready = _assemble_recording_segments(active)
         if recording:
             recording.ended_at = datetime.now(UTC)
+            path = Path(recording.audio_file_path or recording.file_path)
+            capture_preserved = (
+                _preserve_recording_capture(recording, path)
+                if recording.pending_stop_offset_ms is not None and path.exists()
+                else False
+            )
             pending_stop_reason = recording.pending_stop_reason
             trim_at_seconds = (
                 recording.pending_stop_offset_ms / 1000
@@ -805,23 +816,22 @@ def stop_recording(
                     (recording.ended_at - recording.started_at).total_seconds()
                     - active.paused_seconds,
                 )
-            path = Path(recording.audio_file_path or recording.file_path)
             retained_duration = (
                 trim_at_seconds if trim_at_seconds is not None else expected_duration
             )
-            if _should_discard_short_automatic_recording(
+            if _is_short_automatic_recording(
                 recording,
                 retained_duration,
                 automatic_departure=trim_at_seconds is not None or reason != "Stopped manually",
             ):
                 logger.info(
-                    "Discarding short automatic sermon recording %s (%.3fs)",
+                    "Archiving short automatic sermon recording %s (%.3fs), retaining full audio",
                     recording.id,
                     retained_duration,
                 )
-                _delete_recording(session, recording)
-                return None
-            if trim_at_seconds is not None and path.exists():
+                recording.archived_at = recording.ended_at
+                trim_at_seconds = None
+            if trim_at_seconds is not None and path.exists() and capture_preserved:
                 if _trim_recording_file(path, trim_at_seconds):
                     expected_duration = trim_at_seconds
                 else:

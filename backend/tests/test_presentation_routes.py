@@ -650,6 +650,31 @@ def test_remote_release_prevents_the_closed_output_from_reclaiming() -> None:
     assert activate_scene.call_args.args[2] == "pre_service"
 
 
+def test_scheduled_sermon_navigation_records_without_output_window() -> None:
+    engine = create_engine("sqlite://")
+    Base.metadata.create_all(engine)
+    with Session(engine) as session:
+        sermon = PlanItem(plan_id="plan-1", item_type="sermon", title="Sermon", sequence=10)
+        live = PresentationSession(plan_id="plan-1", status="live")
+        session.add_all([sermon, live])
+        session.flush()
+        session.add(PresentationPosition(session_id=live.id, payload_json=json.dumps({
+            "schedule_id": "sunday-morning", "manual_control": True,
+            "plan_item_id": sermon.id, "output_recording_item_id": sermon.id,
+            "slide_offset": 0,
+        })))
+        session.commit()
+        with patch("app.modules.presentation.routes.schedule_sermon_recording") as record:
+            update_presentation_live_state(
+                "plan-1",
+                PresentationLiveStateWrite(
+                    plan_id="plan-1", plan_item_id=sermon.id, slide_offset=1, updated_at=12345,
+                ),
+                SimpleNamespace(id="user-1"), session,
+            )
+        record.assert_called_once_with("plan-1", sermon.id, sermon.id, 1, "user-1")
+
+
 def test_presenter_change_claims_automatic_session() -> None:
     engine = create_engine("sqlite://")
     Base.metadata.create_all(engine)

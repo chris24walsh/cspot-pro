@@ -45,15 +45,16 @@ the desk USB feed from being mixed with the same direct playback a second time.
   Its presentation-output copy remains muted during remote-only playback, and
   the Pre-service scene excludes desk/room rehearsal audio.
 - At other times, both panels clearly show that no service is currently streaming.
-- Moving from a non-sermon section into a sermon while the presentation output
-  has a fresh live heartbeat automatically records mono Opus audio and timestamps
+- Moving from a non-sermon section into a sermon while the service session
+  is live automatically records mono Opus audio and timestamps
   slide changes. Opening on a sermon or moving between sermon slides does not
   restart a stopped recording. A paused recording resumes on the next sermon
-  slide. Leaving the sermon, reaching End, or closing output starts a configurable
+  slide. Leaving the sermon, reaching End, or explicitly stopping the service starts a configurable
   stop countdown; blanking does not affect recording. Returning to the sermon
   cancels the countdown without splitting the file. Expiry trims the retained
   audio back to the departure point and annotates the archive with the stop reason.
-  Automatic captures under 30 seconds are discarded after an automatic departure,
+  Automatic captures under 30 seconds are archived with their full audio after
+  an automatic departure,
   while a deliberate stop made on the sermon retains a short recording. Broadcast
   settings provide a persistent auto-record toggle; disabling it skips automatic
   source probes and recorder startup while keeping manual recording available.

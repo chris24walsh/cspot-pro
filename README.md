@@ -356,3 +356,8 @@ filters, a matching-song count, and Clear all. Options come from saved library
 metadata, including missing-value choices. Themes use comma-separated categories;
 sources group book references without song numbers. Key uses the saved sounding
 key (or derives it from the capo key and position), and is shown in library rows.
+
+Sermon recording follows the live service session, including scheduled services
+without a separate output window. Short automatic captures remain recoverable
+in Archived recordings; automatic grace trimming first preserves the full audio
+and slide metadata under `storage/recordings/recovery/`.

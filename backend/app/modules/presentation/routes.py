@@ -957,7 +957,10 @@ def update_presentation_live_state(
             next_payload["auto_advance_started_at"] = now
     else:
         next_payload.pop("auto_advance_started_at", None)
-    if output_active:
+    recording_live = (
+        presentation_session.status == "live" and presentation_session.ended_at is None
+    )
+    if recording_live:
         next_payload["output_recording_item_id"] = payload.plan_item_id
     else:
         next_payload.pop("output_recording_item_id", None)
@@ -971,7 +974,7 @@ def update_presentation_live_state(
     slide_changed = (
         previous_item_id == payload.plan_item_id and previous_slide_offset != payload.slide_offset
     )
-    if output_active and (previous_item_id != payload.plan_item_id or slide_changed):
+    if recording_live and (previous_item_id != payload.plan_item_id or slide_changed):
         schedule_sermon_recording(
             plan_id,
             previous_item_id,
@@ -979,7 +982,7 @@ def update_presentation_live_state(
             payload.slide_offset,
             current_user.id,
         )
-    elif not output_active and previous_item_id is not None:
+    elif not recording_live and previous_item_id is not None:
         schedule_sermon_recording(
             plan_id,
             previous_item_id,

@@ -862,15 +862,20 @@ Search modes:
   kept out of automatic worship rotation while remaining a manual option.
 - Sermon recording stores compact Opus audio plus timestamped presentation
   transitions. Automatic start is edge-triggered by a non-sermon-to-sermon move
-  while the output session is active; it does not restart a manually stopped
+  while the service session is live, including scheduled services without an
+  output window; it does not restart a manually stopped
   recording on later sermon slides. A paused recording resumes on the next sermon
-  slide. Leaving the sermon, reaching End, or closing output starts a persisted,
+  slide. Leaving the sermon, reaching End, or explicitly stopping the service starts a persisted,
   configurable stop countdown (60 seconds by default); blanking never starts it.
   Returning to a sermon slide cancels the countdown and retains one continuous
   recording. If the countdown expires or End now is chosen, the grace audio is
   trimmed back to the departure point and the archive records the stop reason.
-  Automatic captures shorter than 30 seconds are discarded after an automatic
-  departure instead of being saved as false-positive sermon archives. A deliberate
+  Before trimming, the complete capture and recording metadata are preserved in
+  `storage/recordings/recovery/<recording-id>/`; if preservation fails, trimming is
+  skipped. Captures with an automatic departure point under 30 seconds are moved
+  to Archived recordings with their full audio retained, rather than deleted.
+  The normal archive retention period applies; recovery copies have no automatic
+  purge. A deliberate
   stop while still on the sermon retains even a short recording. Recorder transitions
   run on one background worker with a separate database session;
   stream probing and FFmpeg startup never block presenter API requests. Failed
