@@ -199,11 +199,6 @@ def set_user_roles(session: Session, user: User, role_names: list[str]) -> None:
     normalized_role_names = canonical_role_names(role_names)
     if not normalized_role_names:
         normalized_role_names = ["viewer"]
-    elif (
-        any(role_name != "viewer" for role_name in normalized_role_names)
-        and "viewer" not in normalized_role_names
-    ):
-        normalized_role_names.insert(0, "viewer")
     ensure_system_roles(session)
     session.flush()
     roles = session.scalars(select(Role).where(Role.name.in_(normalized_role_names))).all()

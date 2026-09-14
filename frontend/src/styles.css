@@ -3870,13 +3870,27 @@ button.musician-page {
 .musician-edge-nav:not(:disabled):hover { opacity: 0.8; }
 
 .musician-full-song {
+  align-self: stretch;
   align-content: start;
   box-sizing: border-box;
   height: 100%;
+  min-height: 0;
   overflow-x: hidden;
   overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
   padding: clamp(10px, 2vw, 28px);
   width: min(var(--musician-content-width, 88%), 1180px);
+}
+
+.musician-reader-scroll {
+  align-items: stretch;
+}
+
+@supports (-webkit-touch-callout: none) {
+  .musician-reader-scroll .musician-full-song {
+    height: auto;
+    max-height: 100%;
+  }
 }
 
 .musician-full-song section {
@@ -12590,6 +12604,21 @@ button.musician-page {
   gap: 5px;
   grid-template-columns: 42px minmax(0, 1fr) 42px;
   padding: 5px 7px;
+}
+
+.shell.is-tablet-device .musician-reader-mode-pages .musician-page {
+  padding-bottom: 8px;
+  padding-top: 22px;
+}
+
+.shell.is-tablet-device .musician-reader-mode-pages .musician-chord-line {
+  font-size: min(var(--musician-live-font-size, 40px), 6.8vh);
+  line-height: 1.1;
+}
+
+.shell.is-tablet-device .musician-reader-mode-pages .musician-lyrics-only p {
+  font-size: min(var(--musician-live-font-size, 40px), 6.8vh);
+  line-height: 1.08;
 }
 
 .shell.is-tablet-device .musician-song-step-button {

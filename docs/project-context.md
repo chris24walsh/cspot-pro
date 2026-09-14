@@ -325,3 +325,6 @@ against a production build; the Vite development server requires a modern browse
 Presentation views tolerate missing BroadcastChannel and ResizeObserver; local
 output retains storage-event synchronization. Device testing is still needed for
 older Safari media playback and layout capabilities.
+
+For dedicated older worship devices, assign musician and remove viewer. This hides
+Broadcast and My Profile while retaining worship-set and Worship Live access.

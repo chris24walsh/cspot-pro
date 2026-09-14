@@ -370,3 +370,8 @@ against a production build; the Vite development server requires a modern browse
 Presentation views tolerate missing BroadcastChannel and ResizeObserver; local
 output retains storage-event synchronization. Device testing is still needed for
 older Safari media playback and layout capabilities.
+
+Worship-only accounts can use the musician role without the viewer role. Removing
+viewer access hides Broadcast and My Profile, leaving the Worship workspace and
+sign-out available. Worship Live includes older-WebKit scrolling and compact tablet
+page-mode sizing fallbacks.

@@ -370,7 +370,7 @@ def test_live_worship_and_teacher_service_permissions_match_role_workflows() -> 
     assert "users:manage" not in presenter_permissions
 
 
-def test_every_non_viewer_role_also_assigns_viewer() -> None:
+def test_non_viewer_role_can_be_assigned_without_broadcast_viewer_access() -> None:
     engine = create_engine("sqlite://")
     Base.metadata.create_all(engine, tables=[User.__table__, Role.__table__, UserRole.__table__])
 
@@ -392,4 +392,4 @@ def test_every_non_viewer_role_also_assigns_viewer() -> None:
         set_user_roles(session, user, ["presenter"])
         session.flush()
 
-        assert list_role_names(session, user.id) == ["viewer", "presenter"]
+        assert list_role_names(session, user.id) == ["presenter"]

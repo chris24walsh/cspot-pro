@@ -144,6 +144,7 @@ function App() {
   const canUseWorshipTools = canReadSongs && (isAdmin || isMusician || isWorshipLeader);
   const canUseSundaySchool = isAdmin || isSundaySchoolTeacher || isSundaySchoolLeader;
   const canEditSlideNotes = isAdmin || isTeacher || isPresenter;
+  const canAccessProfile = isViewer || isAdmin;
 
   const loadAuth = useCallback(async (silent = false) => {
     if (!silent) setAuthLoading(true);
@@ -241,9 +242,12 @@ function App() {
         if (module.id === "admin") {
           return canManageUsers;
         }
+        if (module.id === "profile") {
+          return canAccessProfile;
+        }
         return true;
       }).sort((left, right) => Number(left.id === "profile") - Number(right.id === "profile")),
-    [canManageUsers, canUseServiceOperator, canUseSundaySchool, canUseWorshipTools, canWatchBroadcast, workspace],
+    [canAccessProfile, canManageUsers, canUseServiceOperator, canUseSundaySchool, canUseWorshipTools, canWatchBroadcast, workspace],
   );
 
   const activeModule = useMemo(
@@ -302,9 +306,9 @@ function App() {
   useEffect(() => { void loadAdminAttention(); }, [loadAdminAttention]);
 
   const loadProfileAttention = useCallback(async () => {
-    if (!sessionUser) { setProfileAttentionCount(0); return; }
+    if (!sessionUser || !canAccessProfile) { setProfileAttentionCount(0); return; }
     try { setProfileAttentionCount((await getServingProfile()).preferences.filter((preference) => preference.initiated_by === "admin" && preference.status === "pending").length); } catch { setProfileAttentionCount(0); }
-  }, [sessionUser]);
+  }, [canAccessProfile, sessionUser]);
 
   useEffect(() => { void loadProfileAttention(); }, [loadProfileAttention]);
 

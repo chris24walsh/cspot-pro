@@ -983,3 +983,7 @@ against a production build; the Vite development server requires a modern browse
 Presentation views tolerate missing BroadcastChannel and ResizeObserver; local
 output retains storage-event synchronization. Device testing is still needed for
 older Safari media playback and layout capabilities.
+
+Roles are independently assignable. A musician without the viewer role gets a
+worship-only shell: Broadcast and My Profile are omitted. Worship Live uses explicit
+shrinkable overflow geometry for scroll mode and a compact tablet page layout.
