@@ -416,6 +416,7 @@ export function MusicianLiveView({ canControlAudio = false, controlPlanId, onEdi
   const handledKeyboardEventsRef = useRef<WeakSet<KeyboardEvent>>(new WeakSet());
   const lastKeyboardNavigationRef = useRef<{ direction: SlideKeyboardDirection; key: string; time: number } | null>(null);
   const liveSyncPlanId = controlPlanId ?? plan?.id ?? null;
+  const keyboardCaptureEnabled = !isMobileOrTabletDevice();
   const displayMode: ChordDisplayMode = "absolute";
   const detailMode: ChordDetailMode = "simple";
 
@@ -501,6 +502,7 @@ export function MusicianLiveView({ canControlAudio = false, controlPlanId, onEdi
   const pageContentWidth = pageColumnWidth;
   const pageContentHeight = stageSize.height;
   const pageFontSizesByPlanItem = useMemo(() => {
+    if (readerMode !== "pages") return new Map<string, number>();
     const contentSlides = slides.filter(
       (slide) => slide.itemType === "song" && slide.slideKind === "content",
     );
@@ -518,7 +520,7 @@ export function MusicianLiveView({ canControlAudio = false, controlPlanId, onEdi
       groupedFits.set(planItemId, Math.min(songFit, baselineFit + discreetUplift));
     }
     return groupedFits;
-  }, [pageContentHeight, pageContentWidth, slides]);
+  }, [pageContentHeight, pageContentWidth, readerMode, slides]);
   const liveFontSize = readerMode === "pages"
     ? pageFontSizesByPlanItem.get(pageLeadSlide?.planItemId ?? "") ?? 40
     : fitFontSizeForSlide(
@@ -596,8 +598,8 @@ export function MusicianLiveView({ canControlAudio = false, controlPlanId, onEdi
   }, []);
 
   useEffect(() => {
-    keyCaptureRef.current?.focus({ preventScroll: true });
-  }, [liveSyncPlanId]);
+    if (keyboardCaptureEnabled) keyCaptureRef.current?.focus({ preventScroll: true });
+  }, [keyboardCaptureEnabled, liveSyncPlanId]);
 
   function nextLiveUpdateAt() {
     return Math.max(Date.now(), lastLiveStateAtRef.current + 1);
@@ -670,7 +672,7 @@ export function MusicianLiveView({ canControlAudio = false, controlPlanId, onEdi
       pollingRef.current = true;
       try {
         const remoteState = await getPresentationLiveState(liveSyncPlanId);
-        if (remoteState.updated_at >= lastLiveStateAtRef.current) {
+        if (remoteState.updated_at > lastLiveStateAtRef.current) {
           lastLiveStateAtRef.current = remoteState.updated_at;
           setLiveState(syncStateFromApi(remoteState));
         }
@@ -683,7 +685,10 @@ export function MusicianLiveView({ canControlAudio = false, controlPlanId, onEdi
     }
 
     void pullLiveState();
-    const timer = window.setInterval(() => void pullLiveState(), WORSHIP_LIVE_POLL_INTERVAL_MS);
+    const timer = window.setInterval(
+      () => void pullLiveState(),
+      isMobileOrTabletDevice() ? 1000 : WORSHIP_LIVE_POLL_INTERVAL_MS,
+    );
     return () => window.clearInterval(timer);
   }, [liveSyncPlanId]);
 
@@ -1118,11 +1123,14 @@ export function MusicianLiveView({ canControlAudio = false, controlPlanId, onEdi
         const container = fullSongRef.current;
         const activePart = activeSongPartRef.current;
         if (!container || !activePart) return;
-        container.scrollTo({
-          behavior: "smooth",
-          left: Math.max(activePart.offsetLeft - (container.clientWidth - activePart.clientWidth) / 2, 0),
-          top: Math.max(activePart.offsetTop - (container.clientHeight - activePart.clientHeight) / 2, 0),
-        });
+        const left = Math.max(activePart.offsetLeft - (container.clientWidth - activePart.clientWidth) / 2, 0);
+        const top = Math.max(activePart.offsetTop - (container.clientHeight - activePart.clientHeight) / 2, 0);
+        if (isMobileOrTabletDevice()) {
+          container.scrollLeft = left;
+          container.scrollTop = top;
+        } else {
+          container.scrollTo({ behavior: "smooth", left, top });
+        }
       });
     });
     return () => {
@@ -1210,6 +1218,7 @@ export function MusicianLiveView({ canControlAudio = false, controlPlanId, onEdi
       className={`musician-live-view musician-reader-mode-${readerMode} ${isLastSongSlide ? "is-song-end" : ""}`}
       aria-label="Musician live view"
       onPointerDownCapture={(event) => {
+        if (!keyboardCaptureEnabled) return;
         if (isEditableKeyboardTarget(event.target) || isInteractivePointerTarget(event.target)) {
           return;
         }
@@ -1217,7 +1226,7 @@ export function MusicianLiveView({ canControlAudio = false, controlPlanId, onEdi
       }}
       tabIndex={-1}
     >
-      <input
+      {keyboardCaptureEnabled ? <input
         aria-hidden="true"
         autoCapitalize="off"
         autoComplete="off"
@@ -1233,7 +1242,7 @@ export function MusicianLiveView({ canControlAudio = false, controlPlanId, onEdi
         ref={keyCaptureRef}
         spellCheck={false}
         tabIndex={-1}
-      />
+      /> : null}
       {topbarSlot ? createPortal(toolbar, topbarSlot) : null}
 
       <div className="musician-song-navigation">

@@ -374,4 +374,5 @@ older Safari media playback and layout capabilities.
 Worship-only accounts can use the musician role without the viewer role. Removing
 viewer access hides Broadcast and My Profile, leaving the Worship workspace and
 sign-out available. Worship Live includes older-WebKit scrolling and compact tablet
-page-mode sizing fallbacks.
+page-mode sizing fallbacks. Touch devices do not focus the hidden hardware-keyboard
+capture input, and use a lower-cost live-state polling cadence.

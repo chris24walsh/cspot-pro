@@ -327,4 +327,5 @@ output retains storage-event synchronization. Device testing is still needed for
 older Safari media playback and layout capabilities.
 
 For dedicated older worship devices, assign musician and remove viewer. This hides
-Broadcast and My Profile while retaining worship-set and Worship Live access.
+Broadcast and My Profile while retaining worship-set and Worship Live access. Worship
+Live avoids software-keyboard focus and reduces background work on touch devices.
