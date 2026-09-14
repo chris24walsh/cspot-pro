@@ -431,7 +431,7 @@ function App() {
         </div>
 
         <nav className="nav-list">
-          {canEditWebsite ? (
+          {isViewer ? canEditWebsite ? (
             <details className="website-nav-menu">
               <summary className="nav-item" title="Website options">
                 <Globe2 size={18} aria-hidden="true" />
@@ -454,7 +454,7 @@ function App() {
               <Globe2 size={18} aria-hidden="true" />
               <span>Website</span>
             </a>
-          )}
+          ) : null}
           {modules.map((module) => {
             const Icon = iconMap[module.id];
             return (

@@ -992,3 +992,4 @@ and only rerender when the live-state timestamp advances. Scroll mode leaves ver
 touch gestures with the lyrics pane instead of capturing them for page navigation.
 Admin prevents removal of a user's final direct role and explains that approved
 serving assignments are separate from direct access roles.
+The shell hides Website, Broadcast, and My Profile when the viewer role is absent.
