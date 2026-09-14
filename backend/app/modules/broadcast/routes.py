@@ -823,6 +823,7 @@ def record_viewer_heartbeat(
             last_seen_at=now,
             ended_at=None if payload.viewing else now,
             duration_seconds=0,
+            playback_active=payload.playback_active,
         )
         session.add(visit)
     else:
@@ -831,9 +832,12 @@ def record_viewer_heartbeat(
             if visit.ended_at is not None
             else max(0, int((now - _utc(visit.last_seen_at)).total_seconds()))
         )
-        visit.duration_seconds += min(elapsed, VIEWER_HEARTBEAT_MAX_SECONDS)
+        visit.duration_seconds += (
+            elapsed if visit.playback_active else min(elapsed, VIEWER_HEARTBEAT_MAX_SECONDS)
+        )
         visit.last_seen_at = now
         visit.ended_at = None if payload.viewing else now
+        visit.playback_active = payload.playback_active
     session.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
@@ -869,7 +873,7 @@ def livestream_viewership(
             is_watching = (
                 event.ended_at is None
                 and visit.ended_at is None
-                and _utc(visit.last_seen_at) >= active_cutoff
+                and (visit.playback_active or _utc(visit.last_seen_at) >= active_cutoff)
             )
             existing = viewers.get(user.id)
             if existing is None:

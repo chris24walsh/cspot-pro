@@ -183,8 +183,9 @@ These preferences have been made explicit and should guide future changes.
   recording, with compact live controls available beside the admin camera view.
 - Authenticated livestream viewing is recorded by event and user. Broadcast
   administrators can see who is currently watching and review unique viewers
-  and accumulated watch time for previous livestreams; only visible viewer tabs
-  continue sending presence heartbeats.
+  and accumulated watch time for previous livestreams. Background tabs and
+  locked phones continue to count while livestream audio is enabled; mobile
+  playback uses a native stream so the operating system can keep it alive.
   Runtime mix changes update the active server-side audio filter graph and do
   not replace the viewer's browser stream.
   Saved Pastor, Congregation, Worship, Media, and Pre-service scenes can be

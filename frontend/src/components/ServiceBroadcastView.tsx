@@ -10,6 +10,7 @@ import {
   getPlans,
   getPresentationLiveState,
   getSongs,
+  broadcastLiveAudioUrl,
   sendLivestreamHeartbeat,
   updateBroadcastViewerSettings,
   type BroadcastViewerSettings,
@@ -30,6 +31,7 @@ import {
   type PresentationLiveState,
 } from "../presentation";
 import { isBroadcastStartingSoon } from "../broadcastTiming";
+import { isMobileOrTabletDevice } from "../presentationDevice";
 import { isWorshipSetPlan, matchingWorshipSetForService, mergeWorshipSetIntoService } from "../worshipSets";
 import { AutoFitSlideText } from "./AutoFitSlideText";
 import { AudioMixerPanel } from "./AudioMixerPanel";
@@ -175,12 +177,16 @@ export function ServiceBroadcastView({ canControl = false, onOpenSettings }: { c
     (ambientMusicStage && useViewerAmbientMusic && settings.pre_service_audio_url && plan)
     || (useViewerBackingAudio && liveState?.videoAction === "play")
   );
-  const liveAudioUrl = resolveBroadcastLiveAudioUrl({
+  const resolvedLiveAudioUrl = resolveBroadcastLiveAudioUrl({
     audioSources: settings.audio_sources,
     cameraSources: settings.camera_sources,
     liveAudioSource: settings.live_audio_source,
     liveAudioStreamName: settings.live_audio_stream_name,
   });
+  const liveAudioUrl = (
+    isMobileOrTabletDevice()
+    && (settings.live_audio_source === "mix" || Boolean(selectedIndependentAudio))
+  ) ? broadcastLiveAudioUrl() : resolvedLiveAudioUrl;
   const textFontCap = suggestedSlideFontCap(liveSlide);
 
   useEffect(() => {
@@ -191,29 +197,35 @@ export function ServiceBroadcastView({ canControl = false, onOpenSettings }: { c
         ?? (typeof crypto.randomUUID === "function" ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`);
       window.sessionStorage.setItem(storageKey, viewerSessionIdRef.current);
     }
-    const payload = () => ({
+    const payload = (viewing = document.visibilityState === "visible" || viewerSoundEnabled) => ({
       client_session_id: viewerSessionIdRef.current as string,
       plan_id: selectedLiveService?.plan_id ?? null,
-      viewing: true,
+      viewing,
+      playback_active: viewerSoundEnabled,
     });
     const heartbeat = () => {
-      if (document.visibilityState === "visible") void sendLivestreamHeartbeat(payload()).catch(() => undefined);
+      if (document.visibilityState === "visible" || viewerSoundEnabled) {
+        void sendLivestreamHeartbeat(payload()).catch(() => undefined);
+      }
     };
     const visibilityChanged = () => {
-      void sendLivestreamHeartbeat({
-        ...payload(),
-        viewing: document.visibilityState === "visible",
-      }).catch(() => undefined);
+      void sendLivestreamHeartbeat(payload()).catch(() => undefined);
     };
+    const leave = () => void sendLivestreamHeartbeat({
+      ...payload(false),
+      playback_active: false,
+    }).catch(() => undefined);
     heartbeat();
     const timer = window.setInterval(heartbeat, 15000);
     document.addEventListener("visibilitychange", visibilityChanged);
+    window.addEventListener("pagehide", leave);
     return () => {
       window.clearInterval(timer);
       document.removeEventListener("visibilitychange", visibilityChanged);
-      void sendLivestreamHeartbeat({ ...payload(), viewing: false }).catch(() => undefined);
+      window.removeEventListener("pagehide", leave);
+      leave();
     };
-  }, [hasLiveBroadcast, selectedLiveService?.plan_id]);
+  }, [hasLiveBroadcast, selectedLiveService?.plan_id, viewerSoundEnabled]);
 
   useEffect(() => {
     if (settings.camera_cycle_seconds > 0) lastCameraCycleSecondsRef.current = settings.camera_cycle_seconds;

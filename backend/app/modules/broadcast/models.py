@@ -118,3 +118,4 @@ class LivestreamViewerVisit(IdMixin, TimestampMixin, Base):
     last_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
     ended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     duration_seconds: Mapped[int] = mapped_column(Integer, default=0)
+    playback_active: Mapped[bool] = mapped_column(Boolean, default=False)

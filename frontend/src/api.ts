@@ -1354,6 +1354,7 @@ export async function sendLivestreamHeartbeat(payload: {
   client_session_id: string;
   plan_id: string | null;
   viewing: boolean;
+  playback_active: boolean;
 }): Promise<void> {
   const response = await fetch(buildApiUrl("/api/v1/broadcast/viewer-heartbeat"), {
     method: "POST",

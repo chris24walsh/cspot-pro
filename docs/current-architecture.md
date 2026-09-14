@@ -996,6 +996,10 @@ The shell hides Website, Broadcast, and My Profile when the viewer role is absen
 The Livestream tab also exposes authenticated viewership. A visible viewer sends
 a small heartbeat every 15 seconds; the API groups visits under the active
 presentation session (or manual livestream), retains per-user accumulated watch
-time, and considers a viewer live for 35 seconds after the last heartbeat.
+time, and considers a viewer live for 35 seconds after the last heartbeat. An
+audio-enabled viewer remains live while background playback is active, including
+when mobile JavaScript timers are suspended after the screen locks. Mobile and
+tablet mixed audio uses the native MP3 stream and OS media-session controls.
 Administrators can expand current and previous events to see names, email
-addresses, live status, and watch duration. Hidden tabs stop accruing time.
+addresses, live status, and watch duration. Hidden tabs without audio stop
+accruing time.

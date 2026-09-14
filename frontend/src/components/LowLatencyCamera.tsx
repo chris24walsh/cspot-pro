@@ -557,6 +557,34 @@ function FallbackLiveStreamAudio({ label, onSoundEnabledChange, preserveSoundOnP
 
   useEffect(() => {
     const audio = audioRef.current;
+    if (!audio || !("mediaSession" in navigator)) return undefined;
+    navigator.mediaSession.metadata = new MediaMetadata({
+      title: label,
+      artist: "CSpot Livestream",
+      album: "Live service",
+    });
+    const play = () => {
+      audio.muted = false;
+      soundEnabledRef.current = true;
+      onSoundEnabledChange(true);
+      void audio.play().catch(() => undefined);
+    };
+    const pause = () => {
+      audio.pause();
+      soundEnabledRef.current = false;
+      onSoundEnabledChange(false);
+    };
+    navigator.mediaSession.setActionHandler("play", play);
+    navigator.mediaSession.setActionHandler("pause", pause);
+    return () => {
+      navigator.mediaSession.setActionHandler("play", null);
+      navigator.mediaSession.setActionHandler("pause", null);
+      navigator.mediaSession.metadata = null;
+    };
+  }, [label, onSoundEnabledChange]);
+
+  useEffect(() => {
+    const audio = audioRef.current;
     if (!audio) return undefined;
     let cancelled = false;
     let hls: InstanceType<typeof import("hls.js").default> | null = null;

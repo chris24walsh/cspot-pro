@@ -144,6 +144,7 @@ class LivestreamHeartbeat(BaseModel):
     client_session_id: str = Field(min_length=8, max_length=80)
     plan_id: str | None = None
     viewing: bool = True
+    playback_active: bool = False
 
 
 class LivestreamViewerRead(BaseModel):

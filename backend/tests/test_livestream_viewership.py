@@ -50,7 +50,14 @@ def test_manual_livestream_heartbeat_creates_one_visit_per_browser_session() -> 
         assert visits[0].ended_at is None
 
         record_viewer_heartbeat(
-            heartbeat.model_copy(update={"viewing": False}),
+            heartbeat.model_copy(update={"playback_active": True}),
+            SimpleNamespace(id=user.id),
+            session,
+        )
+        assert session.scalar(select(LivestreamViewerVisit)).playback_active is True
+
+        record_viewer_heartbeat(
+            heartbeat.model_copy(update={"viewing": False, "playback_active": False}),
             SimpleNamespace(id=user.id),
             session,
         )
