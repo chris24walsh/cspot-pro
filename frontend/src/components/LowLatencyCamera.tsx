@@ -1,7 +1,7 @@
 import { RefreshCw, Volume2, VolumeX } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { go2RtcWebSocketUrl } from "../broadcastCamera";
+import { go2RtcVideoStreamUrl, go2RtcWebSocketUrl } from "../broadcastCamera";
 import { LIVE_AUDIO_MSE_MIME, liveAudioEdgeCorrection, liveEdgeCorrection } from "../liveAudioMse";
 import { HttpLiveAudioMse } from "./HttpLiveAudioMse";
 
@@ -292,6 +292,8 @@ export function LowLatencyCamera({ label, url }: { label: string; url: string })
   if (websocketUrl && failedMseUrl !== url && typeof MediaSource !== "undefined") {
     return <LowLatencyMseVideo label={label} onFallback={fallBack} url={url} />;
   }
+  const nativeStreamUrl = go2RtcVideoStreamUrl(url);
+  if (nativeStreamUrl) return <ResilientVideo label={label} url={nativeStreamUrl} />;
   if (kind === "mjpeg") return <img alt={label} className="service-broadcast-camera-media" src={url} />;
   if (kind === "video") return <ResilientVideo label={label} url={url} />;
   return <iframe allow="autoplay; fullscreen; picture-in-picture" className="service-broadcast-camera-media" src={url} title={label} />;

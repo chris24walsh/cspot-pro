@@ -437,6 +437,7 @@ button {
   display: grid;
   gap: 8px;
   grid-template-rows: auto auto minmax(0, 1fr);
+  max-height: min(430px, calc(100vh - 112px));
   max-height: min(430px, calc(100svh - 112px));
   min-width: min(680px, calc(100vw - 24px));
   overflow: hidden;
@@ -557,6 +558,7 @@ button {
 
 @media (max-width: 620px) {
   .worship-history-popover {
+    height: min(430px, calc(100vh - 112px));
     height: min(430px, calc(100svh - 112px));
     min-width: min(360px, calc(100vw - 16px));
   }
@@ -1531,6 +1533,7 @@ button {
 
 .service-picker-dialog {
   gap: 12px;
+  max-height: min(820px, calc(100vh - 24px));
   max-height: min(820px, calc(100svh - 24px));
   max-width: calc(100vw - 36px);
   overflow: auto;
@@ -1554,6 +1557,7 @@ button {
   display: grid;
   gap: 8px;
   grid-template-rows: auto minmax(0, 1fr);
+  max-height: calc(100vh - 128px);
   max-height: calc(100svh - 128px);
   min-height: 0;
   min-width: 0;
@@ -1568,6 +1572,7 @@ button {
 }
 
 .service-list-panel {
+  max-height: min(45vh, 420px);
   max-height: min(45svh, 420px);
 }
 
@@ -1676,6 +1681,7 @@ button {
 .calendar-timeline {
   display: grid;
   gap: 9px;
+  max-height: min(480px, calc(100vh - 155px));
   max-height: min(480px, calc(100dvh - 155px));
   min-height: 0;
   overflow-y: auto;
@@ -1922,6 +1928,7 @@ button {
   display: flex;
   flex-direction: column;
   gap: 12px;
+  max-height: calc(100vh - 140px);
   max-height: calc(100svh - 140px);
   overflow-y: auto;
 }
@@ -1972,6 +1979,7 @@ button {
 
 .leader-assignment-dialog {
   gap: 12px;
+  max-height: min(760px, calc(100vh - 24px));
   max-height: min(760px, calc(100svh - 24px));
   max-width: calc(100vw - 24px);
   overflow: auto;
@@ -2158,6 +2166,7 @@ button {
   }
 
   .calendar-timeline {
+    max-height: calc(100vh - 145px);
     max-height: calc(100dvh - 145px);
   }
 
@@ -3258,16 +3267,18 @@ h3 {
 
 .musician-live-view:fullscreen,
 .musician-live-view.is-fullscreen {
+  height: 100vh;
   height: 100dvh;
-  inset: 0;
+  top: 0; right: 0; bottom: 0; left: 0; inset: 0;
   position: fixed;
   width: 100dvw;
   z-index: 1000;
 }
 
 .musician-live-view:-webkit-full-screen {
+  height: 100vh;
   height: 100dvh;
-  inset: 0;
+  top: 0; right: 0; bottom: 0; left: 0; inset: 0;
   position: fixed;
   width: 100dvw;
   z-index: 1000;
@@ -3988,7 +3999,7 @@ button.musician-page {
 .musician-live-view.is-song-end .musician-live-stage::after {
   background: linear-gradient(90deg, rgba(255, 253, 247, 0), rgba(222, 143, 73, 0.2));
   content: "";
-  inset: 0;
+  top: 0; right: 0; bottom: 0; left: 0; inset: 0;
   pointer-events: none;
   position: absolute;
 }
@@ -4120,6 +4131,7 @@ button.musician-page {
 }
 
 #song-dialog-lyrics {
+  min-height: clamp(320px, 54vh, 620px);
   min-height: clamp(320px, 54svh, 620px);
   overflow: auto;
 }
@@ -5043,7 +5055,7 @@ button.musician-page {
   align-items: center;
   background: rgba(17, 24, 22, 0.42);
   display: flex;
-  inset: 0;
+  top: 0; right: 0; bottom: 0; left: 0; inset: 0;
   justify-content: center;
   padding: 20px;
   position: fixed;
@@ -5129,6 +5141,7 @@ button.musician-page {
 
 .song-editor-dialog {
   grid-template-rows: auto minmax(0, 1fr);
+  max-height: min(860px, calc(100vh - 40px));
   max-height: min(860px, calc(100svh - 40px));
   overflow: hidden;
 }
@@ -5205,6 +5218,7 @@ button.musician-page {
 }
 
 .worship-new-song-dialog {
+  max-height: min(820px, calc(100vh - 32px));
   max-height: min(820px, calc(100dvh - 32px));
   overflow: auto;
 }
@@ -5838,7 +5852,8 @@ button.musician-page {
 
 .recording-icon-button.is-danger { color: #a13c35; }
 
-.recording-share-dialog { box-sizing: border-box; max-height: calc(100dvh - 24px); overflow: auto; width: min(calc(100vw - 24px), 520px); }
+.recording-share-dialog { box-sizing: border-box;
+ max-height: calc(100dvh - 24px); overflow: auto; width: min(calc(100vw - 24px), 520px); }
 .recording-share-dialog > header { align-items: flex-start; display: flex; justify-content: space-between; }
 .recording-share-dialog h2 { margin: 3px 0 0; }
 .recording-share-options { display: grid; gap: 8px; margin-top: 14px; }
@@ -5860,6 +5875,7 @@ button.musician-page {
   background: #111915;
   box-sizing: border-box;
   color: #f8fbf9;
+  min-height: 100vh;
   min-height: 100dvh;
   padding: clamp(12px, 3vw, 36px);
 }
@@ -5951,6 +5967,7 @@ button.musician-page {
   display: grid;
   gap: 10px;
   grid-template-rows: auto minmax(0, 1fr) auto auto;
+  height: min(86vh, 820px);
   height: min(86dvh, 820px);
   max-width: 1120px;
   overflow: hidden;
@@ -6402,7 +6419,7 @@ button.musician-page {
 }
 
 .service-broadcast-camera-layer {
-  inset: 0;
+  top: 0; right: 0; bottom: 0; left: 0; inset: 0;
   opacity: 0;
   pointer-events: none;
   position: absolute;
@@ -6614,7 +6631,7 @@ button.musician-page {
   background: transparent;
   border: 0;
   display: block;
-  inset: 0;
+  top: 0; right: 0; bottom: 0; left: 0; inset: 0;
   padding: 0;
   position: absolute;
   z-index: 5;
@@ -6771,6 +6788,7 @@ button.musician-page {
   }
 
   .sermon-recording-player {
+    height: min(88vh, 760px);
     height: min(88dvh, 760px);
     padding: 7px;
     width: calc(100vw - 12px);
@@ -8166,8 +8184,8 @@ button.musician-page {
 .sorter-item-summary small { color: #65716a; font-size: 9px; font-weight: 750; }
 .sorter-item-leaf { padding: 0 5px 4px 0; position: relative; }
 .sorter-item-leaf::before,
-.sorter-item-leaf::after { background: #f2f5ef; border: 1px solid #d6dccf; border-radius: 3px; content: ""; inset: 4px 0 0 5px; position: absolute; transform: rotate(1deg); }
-.sorter-item-leaf::after { inset: 2px 3px 2px 3px; transform: rotate(.4deg); }
+.sorter-item-leaf::after { background: #f2f5ef; border: 1px solid #d6dccf; border-radius: 3px; content: ""; top: 4px; right: 0; bottom: 0; left: 5px; inset: 4px 0 0 5px; position: absolute; transform: rotate(1deg); }
+.sorter-item-leaf::after { top: 2px; right: 3px; bottom: 2px; left: 3px; inset: 2px 3px 2px 3px; transform: rotate(.4deg); }
 .sorter-item-leaf .mini-slide-surface,
 .sorter-item-leaf .mini-slide-empty { border: 1px solid #cbd4c8; border-radius: 3px; min-height: 38px; position: relative; z-index: 1; }
 
@@ -8251,14 +8269,14 @@ button.musician-page {
   border: 1px solid #c9ddce;
   border-radius: 4px;
   content: "";
-  inset: 5px 1px 0 7px;
+  top: 5px; right: 1px; bottom: 0; left: 7px; inset: 5px 1px 0 7px;
   position: absolute;
   transform: rotate(1.2deg);
 }
 
 .song-slide-leaf::after {
   background: #f7faf6;
-  inset: 3px 4px 2px 4px;
+  top: 3px; right: 4px; bottom: 2px; left: 4px; inset: 3px 4px 2px 4px;
   transform: rotate(.55deg);
 }
 
@@ -8860,7 +8878,7 @@ button.musician-page {
 
 .slideshow-stage-image > .stage-video-frame {
   height: auto;
-  inset: 0;
+  top: 0; right: 0; bottom: 0; left: 0; inset: 0;
   position: absolute;
   width: auto;
 }
@@ -9063,7 +9081,7 @@ button.musician-page {
 .pre-service-photo-layer {
   display: block;
   height: 100%;
-  inset: 0;
+  top: 0; right: 0; bottom: 0; left: 0; inset: 0;
   object-fit: contain;
   object-position: center;
   position: absolute;
@@ -9076,7 +9094,7 @@ button.musician-page {
 
 .pre-service-photo-matte {
   background: #17252b;
-  inset: 0;
+  top: 0; right: 0; bottom: 0; left: 0; inset: 0;
   opacity: 1;
   position: absolute;
   transition: opacity 2000ms ease-in-out;
@@ -9140,7 +9158,7 @@ button.musician-page {
 
 .pre-service-shade {
   background: linear-gradient(180deg, rgba(5, 12, 16, 0.04) 42%, rgba(5, 12, 16, 0.68));
-  inset: 0;
+  top: 0; right: 0; bottom: 0; left: 0; inset: 0;
   opacity: 0;
   position: absolute;
   transition: opacity 1500ms ease-in-out;
@@ -9156,7 +9174,7 @@ button.musician-page {
   color: #fff;
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  inset: 50% 0 auto 0;
+  top: 50%; right: 0; bottom: auto; left: 0; inset: 50% 0 auto 0;
   justify-items: center;
   min-width: 0;
   opacity: 0;
@@ -9598,6 +9616,7 @@ button.musician-page {
   .shell {
     grid-template-columns: 1fr;
     grid-template-rows: auto minmax(0, 1fr);
+    height: 100vh;
     height: 100dvh;
     min-height: 0;
     overflow: hidden;
@@ -9769,6 +9788,7 @@ button.musician-page {
 
   .worship-history-popover {
     left: 50%;
+    max-height: min(420px, calc(100vh - 96px));
     max-height: min(420px, calc(100dvh - 96px));
     max-width: calc(100vw - 24px);
     min-width: 0;
@@ -9808,6 +9828,7 @@ button.musician-page {
   }
 
   .worship-history-popover {
+    max-height: min(360px, calc(100vh - 118px));
     max-height: min(360px, calc(100dvh - 118px));
   }
 
@@ -9945,6 +9966,7 @@ button.musician-page {
 
   .stage-shell-live .service-history-popover {
     left: 8px;
+    max-height: calc(100vh - 132px);
     max-height: calc(100dvh - 132px);
     max-width: calc(100vw - 16px);
     position: fixed;
@@ -10029,6 +10051,7 @@ button.musician-page {
   .service-picker-dialog,
   .search-dialog {
     align-content: start;
+    max-height: calc(100vh - 12px);
     max-height: calc(100dvh - 12px);
     overflow: auto;
     padding: 10px;
@@ -10206,6 +10229,7 @@ button.musician-page {
   }
 
   .song-editor-panel {
+    max-height: calc(100vh - 144px);
     max-height: calc(100svh - 144px);
   }
 }
@@ -10223,6 +10247,7 @@ button.musician-page {
 @media (max-width: 540px) {
   .pre-service-media-dialog {
     align-self: flex-start;
+    max-height: calc(100vh - 72px);
     max-height: calc(100svh - 72px);
     min-width: 0;
     overflow-x: hidden;
@@ -10595,6 +10620,7 @@ button.musician-page {
   }
 
   .song-editor-panel {
+    max-height: calc(100vh - 132px);
     max-height: calc(100svh - 132px);
   }
 
@@ -10613,6 +10639,7 @@ button.musician-page {
   }
 
   .song-editor-dialog {
+    max-height: calc(100vh - 12px);
     max-height: calc(100svh - 12px);
     padding: 10px;
   }
@@ -11013,6 +11040,7 @@ button.musician-page {
    the single-column mobile layout wins the cascade. */
 @media (max-width: 900px) {
   .service-broadcast-view {
+    height: calc(100vh - 96px);
     height: calc(100dvh - 96px);
     min-height: calc(100vh - 96px);
     overflow-y: auto;
@@ -11564,6 +11592,7 @@ button.musician-page {
   .sunday-school-schedule-pane,
   .sunday-school-lesson-pane {
     display: none;
+    min-height: calc(100vh - 160px);
     min-height: calc(100svh - 160px);
   }
 
@@ -12061,6 +12090,7 @@ button.musician-page {
   }
 
   .sunday-school-board {
+    min-height: calc(100vh - 300px);
     min-height: calc(100svh - 300px);
     padding: 8px;
   }
@@ -12177,6 +12207,7 @@ button.musician-page {
 .shell.is-mobile-device .service-history-popover {
   display: grid;
   left: 50%;
+  max-height: min(360px, calc(100vh - 118px));
   max-height: min(360px, calc(100dvh - 118px));
   max-width: calc(100vw - 24px);
   min-width: 0;
@@ -12252,6 +12283,7 @@ button.musician-page {
 
 .shell.is-mobile-device .recording-share-dialog {
   margin: 12px;
+  max-height: calc(100vh - 24px);
   max-height: calc(100dvh - 24px);
   padding: 14px;
   width: calc(100vw - 24px);
@@ -13016,6 +13048,7 @@ button.musician-page {
 .confirmation-dialog {
   align-self: auto;
   gap: 12px;
+  max-height: min(420px, calc(100vh - 24px));
   max-height: min(420px, calc(100svh - 24px));
   max-width: 360px;
   padding: 14px;
@@ -13069,7 +13102,7 @@ button.musician-page {
   transform: translateX(-50%);
   z-index: 5;
 }
-.slide-custom-overlay-dim { inset: 0; pointer-events: none; position: absolute; z-index: 4; }
+.slide-custom-overlay-dim { top: 0; right: 0; bottom: 0; left: 0; inset: 0; pointer-events: none; position: absolute; z-index: 4; }
 .slide-custom-overlay.position-top { top: 6%; }
 .slide-custom-overlay.position-centre { top: 50%; transform: translate(-50%, -50%); }
 .slide-custom-overlay.position-bottom { bottom: 6%; }
@@ -13197,6 +13230,7 @@ button.musician-page {
 .song-youtube-results {
   display: grid;
   gap: 6px;
+  max-height: min(560px, 65vh);
   max-height: min(560px, 65svh);
   overflow-y: auto;
 }
@@ -13211,6 +13245,7 @@ button.musician-page {
 .pre-service-media-dialog, .compact-template-dialog, .create-service-dialog {
   gap: 10px;
   padding: 12px;
+  max-height: calc(100vh - 24px);
   max-height: calc(100dvh - 24px);
 }
 .pre-service-media-dialog > div > p, .create-service-dialog p { margin: 4px 0; font-size: 12px; }
@@ -13228,7 +13263,8 @@ button.musician-page {
 .pre-service-media-dialog .app-dialog-actions { position: sticky; bottom: -12px; background: #fffefa; padding: 8px 0; margin-bottom: -8px; }
 @media (max-width: 540px) {
   .app-dialog-backdrop:has(.pre-service-media-dialog, .compact-template-dialog) { padding: 8px; align-items: center; }
-  .pre-service-media-dialog, .compact-template-dialog, .create-service-dialog { align-self: center; max-height: calc(100dvh - 16px); padding: 10px; }
+  .pre-service-media-dialog, .compact-template-dialog, .create-service-dialog { align-self: center;
+ max-height: calc(100dvh - 16px); padding: 10px; }
   .pre-service-media-dialog .app-dialog-actions { flex-wrap: nowrap; }
   .pre-service-media-dialog .app-dialog-actions > button { width: auto; flex: 1; min-height: 38px; }
   .pre-service-media-dialog .form-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -13248,7 +13284,8 @@ button.musician-page {
 .recording-export-actions .action-row { flex-wrap: wrap; }
 .recording-export-message { font-size: 12px; margin: 4px 0 0; max-width: 380px; }
 
-.recording-transport { min-height: 0; max-height: 42dvh; overflow-y: auto; }
+.recording-transport { min-height: 0;
+ max-height: 42dvh; overflow-y: auto; }
 .recording-transport .action-row { flex-wrap: wrap; gap: 8px; }
 .recording-seek-row { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; font-variant-numeric: tabular-nums; }
 .recording-seek-row input { flex: 1; min-width: 0; cursor: pointer; }
@@ -13291,4 +13328,24 @@ button.musician-page {
   align-items: center;
   justify-content: space-between;
   min-height: var(--control-height);
+}
+
+/* Safari 12 has no aspect-ratio; an in-flow spacer gives camera layers height. */
+@supports not (aspect-ratio: 16 / 9) {
+  .service-broadcast-camera-visual { display: block; }
+  .service-broadcast-camera-switcher::before { content: ""; display: block; padding-top: 56.25%; }
+  .service-broadcast-camera-placeholder { min-height: 180px; }
+}
+
+/* Grid items must be allowed to shrink around the tablet date controls. */
+.shell.is-mobile-device .topbar-context-slot > .worship-topbar-tools { flex: 1 1 0%; }
+.shell.is-mobile-device .date-navigator-date { min-width: 0; }
+.shell.is-mobile-device .date-navigator-date svg { flex-shrink: 0; }
+
+@supports not (aspect-ratio: 16 / 9) {
+  .shell.is-mobile-device .topbar { display: flex; flex: 0 0 auto; height: 38px; }
+  .shell.is-tablet-device .topbar { height: 50px; }
+  .shell.is-mobile-device .topbar-context-slot { flex: 1 1 0%; align-self: center; }
+  .shell.is-mobile-device .mobile-immersive-button { flex: 0 0 auto; margin-left: 6px; }
+  .shell.is-mobile-device .worship-topbar-tools { align-self: center; }
 }

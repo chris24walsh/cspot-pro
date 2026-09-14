@@ -88,6 +88,16 @@ export function go2RtcWebSocketUrl(url: string): string | null {
   return parsed.toString();
 }
 
+export function go2RtcVideoStreamUrl(url: string): string | null {
+  const source = go2RtcSourceName(url);
+  if (!source) return null;
+  const parsed = parsedCameraUrl(url);
+  parsed.pathname = parsed.pathname.replace(/\/stream\.html$/, "/api/stream.m3u8");
+  parsed.searchParams.delete("mode");
+  parsed.searchParams.set("video", "h264");
+  return parsed.toString();
+}
+
 export function go2RtcAudioStreamUrl(streamName: string): string | null {
   const source = streamName.trim();
   if (!source) return null;

@@ -4,7 +4,7 @@ import { act, useRef } from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { LiveStreamAudio } from "./LowLatencyCamera";
+import { LiveStreamAudio, LowLatencyCamera } from "./LowLatencyCamera";
 import { PreServiceMusic, type PreServiceMusicHandle } from "./PreServiceMusic";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -373,5 +373,24 @@ describe("LiveStreamAudio", () => {
 
     expect(onSoundEnabledChange.mock.calls).toEqual([[true]]);
     expect(container.querySelector('button[aria-label="Mute sound"]')).not.toBeNull();
+  });
+});
+
+// iOS 12 has native HLS playback but no MediaSource.
+describe("LowLatencyCamera on older Safari", () => {
+  it("plays a go2rtc camera as native HLS without loading the embedded player", async () => {
+    vi.stubGlobal("MediaSource", undefined);
+    vi.spyOn(HTMLMediaElement.prototype, "canPlayType").mockReturnValue("probably");
+    vi.spyOn(HTMLMediaElement.prototype, "play").mockResolvedValue(undefined);
+    vi.spyOn(HTMLMediaElement.prototype, "load").mockImplementation(() => undefined);
+    const container = document.createElement("div");
+    const root = createRoot(container);
+    await act(async () => root.render(<LowLatencyCamera label="Lectern" url="https://example.com/app/camera/stream.html?src=lectern&mode=mse" />));
+    const video = container.querySelector("video")!;
+    expect(video.src).toBe("https://example.com/app/camera/api/stream.m3u8?src=lectern&video=h264");
+    expect(video.muted).toBe(true);
+    expect(video.playsInline).toBe(true);
+    expect(container.querySelector("iframe")).toBeNull();
+    act(() => root.unmount());
   });
 });
