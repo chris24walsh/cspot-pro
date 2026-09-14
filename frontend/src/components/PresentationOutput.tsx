@@ -593,9 +593,9 @@ export function PresentationOutput({ mediaOutput = false, networkDisplay = false
 
   useEffect(() => {
     if (networkDisplay) return undefined;
-    const channel = new BroadcastChannel(PRESENTATION_CHANNEL);
+    const channel = typeof BroadcastChannel === "undefined" ? null : new BroadcastChannel(PRESENTATION_CHANNEL);
 
-    channel.onmessage = (event: MessageEvent<PresentationLiveState>) => {
+    if (channel) channel.onmessage = (event: MessageEvent<PresentationLiveState>) => {
       applyLiveState(event.data);
     };
 
@@ -610,7 +610,7 @@ export function PresentationOutput({ mediaOutput = false, networkDisplay = false
 
     window.addEventListener("storage", onStorage);
     return () => {
-      channel.close();
+      channel?.close();
       window.removeEventListener("storage", onStorage);
     };
   }, [networkDisplay]);

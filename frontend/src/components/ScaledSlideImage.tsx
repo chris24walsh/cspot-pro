@@ -53,6 +53,10 @@ export function ScaledSlideImage({ alt, className = "", fitMode = "contain", src
     }
 
     updateSize();
+    if (typeof ResizeObserver === "undefined") {
+      window.addEventListener("resize", updateSize);
+      return () => window.removeEventListener("resize", updateSize);
+    }
     const observer = new ResizeObserver(updateSize);
     observer.observe(frame);
     return () => observer.disconnect();

@@ -361,3 +361,10 @@ Sermon recording follows the live service session, including scheduled services
 without a separate output window. Short automatic captures remain recoverable
 in Archived recordings; automatic grace trimming first preserves the full audio
 and slide metadata under `storage/recordings/recovery/`.
+
+Production browser compatibility includes an iOS 12 / Safari 12 JavaScript fallback
+via `@vitejs/plugin-legacy`, with usage-based runtime polyfills. Verify older devices
+against a production build; the Vite development server requires a modern browser.
+Presentation views tolerate missing BroadcastChannel and ResizeObserver; local
+output retains storage-event synchronization. Device testing is still needed for
+older Safari media playback and layout capabilities.

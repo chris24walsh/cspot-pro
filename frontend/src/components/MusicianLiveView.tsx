@@ -587,6 +587,10 @@ export function MusicianLiveView({ canControlAudio = false, controlPlanId, onEdi
     const portraitQuery = window.matchMedia("(orientation: portrait)");
     const applyOrientationMode = () => setReaderMode(portraitQuery.matches ? "scroll" : "pages");
     applyOrientationMode();
+    if (!portraitQuery.addEventListener) {
+      portraitQuery.addListener(applyOrientationMode);
+      return () => portraitQuery.removeListener(applyOrientationMode);
+    }
     portraitQuery.addEventListener("change", applyOrientationMode);
     return () => portraitQuery.removeEventListener("change", applyOrientationMode);
   }, []);

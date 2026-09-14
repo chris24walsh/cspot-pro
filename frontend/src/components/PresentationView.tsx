@@ -3849,6 +3849,7 @@ export function PresentationView({
   }, [message]);
 
   useEffect(() => {
+    if (typeof BroadcastChannel === "undefined") return;
     channelRef.current = new BroadcastChannel(PRESENTATION_CHANNEL);
     return () => channelRef.current?.close();
   }, []);

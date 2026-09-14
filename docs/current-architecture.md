@@ -974,3 +974,10 @@ filters, a matching-song count, and Clear all. Options come from saved library
 metadata, including missing-value choices. Themes use comma-separated categories;
 sources group book references without song numbers. Key uses the saved sounding
 key (or derives it from the capo key and position), and is shown in library rows.
+
+Production browser compatibility includes an iOS 12 / Safari 12 JavaScript fallback
+via `@vitejs/plugin-legacy`, with usage-based runtime polyfills. Verify older devices
+against a production build; the Vite development server requires a modern browser.
+Presentation views tolerate missing BroadcastChannel and ResizeObserver; local
+output retains storage-event synchronization. Device testing is still needed for
+older Safari media playback and layout capabilities.
