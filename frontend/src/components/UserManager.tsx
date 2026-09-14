@@ -300,6 +300,10 @@ export function UserManager({ adminSection, onAdminSectionChange, onAttentionCha
 
   async function toggleRole(roleName: string) {
     const hasRole = form.role_names.includes(roleName);
+    if (hasRole && form.role_names.length === 1) {
+      setMessage("Choose another access role before removing this user's only direct role.");
+      return;
+    }
     const nextRoles = hasRole
       ? form.role_names.filter((name) => name !== roleName)
       : [...form.role_names, roleName];

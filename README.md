@@ -376,3 +376,5 @@ viewer access hides Broadcast and My Profile, leaving the Worship workspace and
 sign-out available. Worship Live includes older-WebKit scrolling and compact tablet
 page-mode sizing fallbacks. Touch devices do not focus the hidden hardware-keyboard
 capture input, and use a lower-cost live-state polling cadence.
+Admin requires another direct access role to be selected before the final direct
+role can be removed; approved serving assignments are displayed separately.

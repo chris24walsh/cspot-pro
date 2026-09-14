@@ -329,3 +329,5 @@ older Safari media playback and layout capabilities.
 For dedicated older worship devices, assign musician and remove viewer. This hides
 Broadcast and My Profile while retaining worship-set and Worship Live access. Worship
 Live avoids software-keyboard focus and reduces background work on touch devices.
+In Admin, select another direct role before removing the final one; approved serving
+assignments can grant effective access but appear separately from direct role toggles.
