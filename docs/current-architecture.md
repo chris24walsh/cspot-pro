@@ -988,4 +988,5 @@ Roles are independently assignable. A musician without the viewer role gets a
 worship-only shell: Broadcast and My Profile are omitted. Worship Live uses explicit
 shrinkable overflow geometry for scroll mode and a compact tablet page layout. Touch
 devices avoid the keyboard-capture input, skip Page-mode fitting while in Scroll mode,
-and only rerender when the live-state timestamp advances.
+and only rerender when the live-state timestamp advances. Scroll mode leaves vertical
+touch gestures with the lyrics pane instead of capturing them for page navigation.

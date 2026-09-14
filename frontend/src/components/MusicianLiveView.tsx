@@ -1294,6 +1294,12 @@ export function MusicianLiveView({ canControlAudio = false, controlPlanId, onEdi
         ref={stageRef}
         className={`musician-live-stage musician-reader-${readerMode}`}
         onPointerDown={(event) => {
+          // Scroll mode is a native vertical scroller. Capturing its pointer at
+          // the stage level prevents touch scrolling on some Android browsers.
+          if (readerMode === "scroll") {
+            swipeStartRef.current = null;
+            return;
+          }
           if (isInteractivePointerTarget(event.target)) {
             swipeStartRef.current = null;
             return;
@@ -1305,6 +1311,10 @@ export function MusicianLiveView({ canControlAudio = false, controlPlanId, onEdi
           swipeStartRef.current = null;
         }}
         onPointerUp={(event) => {
+          if (readerMode === "scroll") {
+            swipeStartRef.current = null;
+            return;
+          }
           const start = swipeStartRef.current;
           swipeStartRef.current = null;
           if (!start) return;

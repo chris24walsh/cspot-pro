@@ -3877,8 +3877,10 @@ button.musician-page {
   min-height: 0;
   overflow-x: hidden;
   overflow-y: auto;
+  overscroll-behavior-y: contain;
   -webkit-overflow-scrolling: touch;
   padding: clamp(10px, 2vw, 28px);
+  touch-action: pan-y;
   width: min(var(--musician-content-width, 88%), 1180px);
 }
 
