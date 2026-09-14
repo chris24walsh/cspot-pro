@@ -30,7 +30,12 @@ from app.modules.broadcast.live_audio import (
     unregister_live_audio_control,
     update_live_audio_controls,
 )
-from app.modules.broadcast.models import BroadcastRecording, BroadcastViewerSettings
+from app.modules.broadcast.models import (
+    BroadcastRecording,
+    BroadcastViewerSettings,
+    LivestreamEvent,
+    LivestreamViewerVisit,
+)
 from app.modules.broadcast.recording import (
     pause_recording,
     reconfigure_active_recording,
@@ -55,6 +60,9 @@ from app.modules.broadcast.schemas import (
     BroadcastRecordingTrim,
     BroadcastViewerSettingsRead,
     BroadcastViewerSettingsUpdate,
+    LivestreamEventRead,
+    LivestreamHeartbeat,
+    LivestreamViewerRead,
     ManualLivestreamUpdate,
     PublicRecordingRead,
 )
@@ -693,6 +701,203 @@ def live_output_exists(session: Session) -> bool:
     return False
 
 
+VIEWER_ACTIVE_SECONDS = 35
+VIEWER_HEARTBEAT_MAX_SECONDS = 30
+
+
+def _utc(value: datetime) -> datetime:
+    return value if value.tzinfo is not None else value.replace(tzinfo=UTC)
+
+
+def _live_presentation_session(
+    session: Session, plan_id: str | None = None
+) -> PresentationSession | None:
+    statement = (
+        select(PresentationSession)
+        .where(PresentationSession.status == "live", PresentationSession.ended_at.is_(None))
+        .order_by(PresentationSession.started_at.desc(), PresentationSession.updated_at.desc())
+    )
+    if plan_id:
+        statement = statement.where(PresentationSession.plan_id == plan_id)
+    for candidate in session.scalars(statement).all():
+        if live_output_exists_for_session(session, candidate.id):
+            return candidate
+    return None
+
+
+def live_output_exists_for_session(session: Session, session_id: str) -> bool:
+    """The event tracker needs the same output-presence rules, scoped to one service."""
+    now = int(datetime.now(UTC).timestamp() * 1000)
+    position = session.scalar(
+        select(PresentationPosition).where(PresentationPosition.session_id == session_id)
+    )
+    if position is None:
+        return False
+    try:
+        payload = json.loads(position.payload_json or "{}")
+    except json.JSONDecodeError:
+        return False
+    heartbeat = payload.get("output_heartbeat_at") if isinstance(payload, dict) else None
+    active = payload.get("output_active") is True or bool(
+        "output_active" not in payload and isinstance(heartbeat, int) and now - heartbeat < 7000
+    )
+    if active and isinstance(payload.get("output_owner_id"), str):
+        return True
+    if payload.get("auto_started") is True or payload.get("schedule_id"):
+        presentation = session.get(PresentationSession, session_id)
+        plan = session.get(Plan, presentation.plan_id) if presentation else None
+        if plan:
+            from app.modules.presentation.routes import scheduled_service_window_active
+
+            return scheduled_service_window_active(plan, payload=payload)
+    return False
+
+
+def _current_livestream_event(
+    session: Session, settings: BroadcastViewerSettings, plan_id: str | None
+) -> LivestreamEvent | None:
+    now = datetime.now(UTC)
+    presentation = _live_presentation_session(session, plan_id)
+    if presentation:
+        event = session.scalar(
+            select(LivestreamEvent).where(
+                LivestreamEvent.presentation_session_id == presentation.id
+            )
+        )
+        if event is None:
+            plan = session.get(Plan, presentation.plan_id)
+            event = LivestreamEvent(
+                presentation_session_id=presentation.id,
+                plan_id=presentation.plan_id,
+                title=plan.title if plan else settings.stream_title,
+                audience="public",
+                started_at=presentation.started_at or now,
+            )
+            session.add(event)
+            session.flush()
+        return event
+    if settings.manual_live_audience != "off":
+        event = session.scalar(
+            select(LivestreamEvent)
+            .where(
+                LivestreamEvent.presentation_session_id.is_(None),
+                LivestreamEvent.ended_at.is_(None),
+            )
+            .order_by(LivestreamEvent.started_at.desc())
+        )
+        if event is None:
+            event = LivestreamEvent(
+                title=settings.stream_title,
+                audience=settings.manual_live_audience,
+                started_at=now,
+            )
+            session.add(event)
+            session.flush()
+        return event
+    return None
+
+
+@router.post("/viewer-heartbeat", status_code=status.HTTP_204_NO_CONTENT)
+def record_viewer_heartbeat(
+    payload: LivestreamHeartbeat,
+    current_user: CurrentUser,
+    session: Session = Depends(get_session),
+) -> Response:
+    now = datetime.now(UTC)
+    event = _current_livestream_event(session, viewer_settings(session), payload.plan_id)
+    if event is None:
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
+    visit = session.scalar(
+        select(LivestreamViewerVisit).where(
+            LivestreamViewerVisit.livestream_event_id == event.id,
+            LivestreamViewerVisit.user_id == current_user.id,
+            LivestreamViewerVisit.client_session_id == payload.client_session_id,
+        )
+    )
+    if visit is None:
+        visit = LivestreamViewerVisit(
+            livestream_event_id=event.id,
+            user_id=current_user.id,
+            client_session_id=payload.client_session_id,
+            started_at=now,
+            last_seen_at=now,
+            ended_at=None if payload.viewing else now,
+            duration_seconds=0,
+        )
+        session.add(visit)
+    else:
+        elapsed = (
+            0
+            if visit.ended_at is not None
+            else max(0, int((now - _utc(visit.last_seen_at)).total_seconds()))
+        )
+        visit.duration_seconds += min(elapsed, VIEWER_HEARTBEAT_MAX_SECONDS)
+        visit.last_seen_at = now
+        visit.ended_at = None if payload.viewing else now
+    session.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.get("/viewership", response_model=list[LivestreamEventRead])
+def livestream_viewership(
+    _current_user: User = Depends(require_permission("users:manage")),
+    session: Session = Depends(get_session),
+) -> list[LivestreamEventRead]:
+    now = datetime.now(UTC)
+    active_cutoff = now - timedelta(seconds=VIEWER_ACTIVE_SECONDS)
+    settings = viewer_settings(session)
+    _current_livestream_event(session, settings, None)
+    events = session.scalars(
+        select(LivestreamEvent).order_by(LivestreamEvent.started_at.desc()).limit(50)
+    ).all()
+    result: list[LivestreamEventRead] = []
+    for event in events:
+        if event.ended_at is None and event.presentation_session_id:
+            presentation = session.get(PresentationSession, event.presentation_session_id)
+            if presentation is None or presentation.ended_at or presentation.status != "live":
+                event.ended_at = presentation.ended_at if presentation else now
+        visits = session.scalars(
+            select(LivestreamViewerVisit).where(
+                LivestreamViewerVisit.livestream_event_id == event.id
+            )
+        ).all()
+        viewers: dict[str, LivestreamViewerRead] = {}
+        for visit in visits:
+            user = session.get(User, visit.user_id)
+            if user is None:
+                continue
+            is_watching = (
+                event.ended_at is None
+                and visit.ended_at is None
+                and _utc(visit.last_seen_at) >= active_cutoff
+            )
+            existing = viewers.get(user.id)
+            if existing is None:
+                viewers[user.id] = LivestreamViewerRead(
+                    user_id=user.id, name=user.name, email=user.email,
+                    started_at=visit.started_at, last_seen_at=visit.last_seen_at,
+                    duration_seconds=visit.duration_seconds, watching_now=is_watching,
+                )
+            else:
+                existing.started_at = min(existing.started_at, visit.started_at)
+                existing.last_seen_at = max(existing.last_seen_at, visit.last_seen_at)
+                existing.duration_seconds += visit.duration_seconds
+                existing.watching_now = existing.watching_now or is_watching
+        ordered = sorted(
+            viewers.values(), key=lambda item: (not item.watching_now, item.name.lower())
+        )
+        result.append(LivestreamEventRead(
+            id=event.id, title=event.title, audience=event.audience, plan_id=event.plan_id,
+            started_at=event.started_at, ended_at=event.ended_at,
+            watching_now=sum(item.watching_now for item in ordered),
+            unique_viewers=len(ordered),
+            total_watch_seconds=sum(item.duration_seconds for item in ordered),
+            viewers=ordered,
+        ))
+    session.commit()
+    return result
+
+
 @router.get("/viewer-settings", response_model=BroadcastViewerSettingsRead)
 def get_viewer_settings(
     current_user: CurrentUser,
@@ -781,7 +986,18 @@ def update_manual_livestream(
     session: Session = Depends(get_session),
 ) -> BroadcastViewerSettingsRead:
     settings = viewer_settings(session)
+    previous_audience = settings.manual_live_audience or "off"
     settings.manual_live_audience = payload.audience
+    now = datetime.now(UTC)
+    if payload.audience == "off" and previous_audience != "off":
+        open_manual_events = session.scalars(
+            select(LivestreamEvent).where(
+                LivestreamEvent.presentation_session_id.is_(None),
+                LivestreamEvent.ended_at.is_(None),
+            )
+        ).all()
+        for event in open_manual_events:
+            event.ended_at = now
     session.commit()
     session.refresh(settings)
     return settings_read(settings)

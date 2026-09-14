@@ -81,3 +81,40 @@ class BroadcastViewerSettings(IdMixin, TimestampMixin, Base):
     offline_message: Mapped[str] = mapped_column(
         String(240), default="No service is streaming right now"
     )
+
+
+class LivestreamEvent(IdMixin, TimestampMixin, Base):
+    __tablename__ = "livestream_events"
+
+    presentation_session_id: Mapped[str | None] = mapped_column(
+        ForeignKey("presentation_sessions.id", ondelete="SET NULL"), unique=True, index=True
+    )
+    plan_id: Mapped[str | None] = mapped_column(
+        ForeignKey("plans.id", ondelete="SET NULL"), index=True
+    )
+    title: Mapped[str] = mapped_column(String(220))
+    audience: Mapped[str] = mapped_column(String(20), default="public")
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    ended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)
+
+
+class LivestreamViewerVisit(IdMixin, TimestampMixin, Base):
+    __tablename__ = "livestream_viewer_visits"
+    __table_args__ = (
+        UniqueConstraint(
+            "livestream_event_id", "user_id", "client_session_id",
+            name="uq_livestream_viewer_visit_client",
+        ),
+    )
+
+    livestream_event_id: Mapped[str] = mapped_column(
+        ForeignKey("livestream_events.id", ondelete="CASCADE"), index=True
+    )
+    user_id: Mapped[str] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), index=True
+    )
+    client_session_id: Mapped[str] = mapped_column(String(80))
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    last_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    ended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    duration_seconds: Mapped[int] = mapped_column(Integer, default=0)

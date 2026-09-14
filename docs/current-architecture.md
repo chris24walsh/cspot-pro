@@ -993,3 +993,9 @@ touch gestures with the lyrics pane instead of capturing them for page navigatio
 Admin prevents removal of a user's final direct role and explains that approved
 serving assignments are separate from direct access roles.
 The shell hides Website, Broadcast, and My Profile when the viewer role is absent.
+The Livestream tab also exposes authenticated viewership. A visible viewer sends
+a small heartbeat every 15 seconds; the API groups visits under the active
+presentation session (or manual livestream), retains per-user accumulated watch
+time, and considers a viewer live for 35 seconds after the last heartbeat.
+Administrators can expand current and previous events to see names, email
+addresses, live status, and watch duration. Hidden tabs stop accruing time.

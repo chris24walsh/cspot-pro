@@ -10,6 +10,7 @@ import {
   getPlans,
   getPresentationLiveState,
   getSongs,
+  sendLivestreamHeartbeat,
   updateBroadcastViewerSettings,
   type BroadcastViewerSettings,
   type PlanDetail,
@@ -125,6 +126,7 @@ export function ServiceBroadcastView({ canControl = false, onOpenSettings }: { c
   const [controlBusy, setControlBusy] = useState(false);
   const [viewerSoundEnabled, setViewerSoundEnabled] = useState(false);
   const lastCameraCycleSecondsRef = useRef(30);
+  const viewerSessionIdRef = useRef<string | null>(null);
 
   const slides = useMemo(
     () => buildPresentationSlides(mergeWorshipSetIntoService(plan?.items ?? [], worshipSetPlan?.items ?? []), songs, renderedSlidesByFileId),
@@ -180,6 +182,38 @@ export function ServiceBroadcastView({ canControl = false, onOpenSettings }: { c
     liveAudioStreamName: settings.live_audio_stream_name,
   });
   const textFontCap = suggestedSlideFontCap(liveSlide);
+
+  useEffect(() => {
+    if (!hasLiveBroadcast) return undefined;
+    if (!viewerSessionIdRef.current) {
+      const storageKey = "cspot-livestream-viewer-session";
+      viewerSessionIdRef.current = window.sessionStorage.getItem(storageKey)
+        ?? (typeof crypto.randomUUID === "function" ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`);
+      window.sessionStorage.setItem(storageKey, viewerSessionIdRef.current);
+    }
+    const payload = () => ({
+      client_session_id: viewerSessionIdRef.current as string,
+      plan_id: selectedLiveService?.plan_id ?? null,
+      viewing: true,
+    });
+    const heartbeat = () => {
+      if (document.visibilityState === "visible") void sendLivestreamHeartbeat(payload()).catch(() => undefined);
+    };
+    const visibilityChanged = () => {
+      void sendLivestreamHeartbeat({
+        ...payload(),
+        viewing: document.visibilityState === "visible",
+      }).catch(() => undefined);
+    };
+    heartbeat();
+    const timer = window.setInterval(heartbeat, 15000);
+    document.addEventListener("visibilitychange", visibilityChanged);
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", visibilityChanged);
+      void sendLivestreamHeartbeat({ ...payload(), viewing: false }).catch(() => undefined);
+    };
+  }, [hasLiveBroadcast, selectedLiveService?.plan_id]);
 
   useEffect(() => {
     if (settings.camera_cycle_seconds > 0) lastCameraCycleSecondsRef.current = settings.camera_cycle_seconds;

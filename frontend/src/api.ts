@@ -735,6 +735,29 @@ export interface BroadcastRecording {
   }>;
 }
 
+export interface LivestreamViewer {
+  user_id: string;
+  name: string;
+  email: string;
+  started_at: string;
+  last_seen_at: string;
+  duration_seconds: number;
+  watching_now: boolean;
+}
+
+export interface LivestreamEvent {
+  id: string;
+  title: string;
+  audience: string;
+  plan_id: string | null;
+  started_at: string;
+  ended_at: string | null;
+  watching_now: number;
+  unique_viewers: number;
+  total_watch_seconds: number;
+  viewers: LivestreamViewer[];
+}
+
 export interface GoogleDriveStatus {
   configured: boolean;
   connected: boolean;
@@ -1325,6 +1348,25 @@ export async function updateManualLivestream(
   audience: "off" | "public" | "admins",
 ): Promise<BroadcastViewerSettings> {
   return sendJson<BroadcastViewerSettings>("/api/v1/broadcast/manual-live", "PATCH", { audience });
+}
+
+export async function sendLivestreamHeartbeat(payload: {
+  client_session_id: string;
+  plan_id: string | null;
+  viewing: boolean;
+}): Promise<void> {
+  const response = await fetch(buildApiUrl("/api/v1/broadcast/viewer-heartbeat"), {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+    keepalive: !payload.viewing,
+  });
+  if (!response.ok) await parseError(response, true);
+}
+
+export async function getLivestreamViewership(): Promise<LivestreamEvent[]> {
+  return getJson<LivestreamEvent[]>("/api/v1/broadcast/viewership");
 }
 
 export async function getBroadcastRecordings(includeArchived = false): Promise<BroadcastRecording[]> {

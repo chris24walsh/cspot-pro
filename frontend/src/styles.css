@@ -13315,6 +13315,24 @@ button.musician-page {
 .recording-export-actions .action-row { flex-wrap: wrap; }
 .recording-export-message { font-size: 12px; margin: 4px 0 0; max-width: 380px; }
 
+.livestream-viewership { border-top: 1px solid #d8d3c8; margin-top: 12px; padding-top: 12px; }
+.livestream-viewership-heading { align-items: center; display: flex; gap: 12px; justify-content: space-between; }
+.livestream-viewership-heading h3 { margin: 0; }
+.livestream-viewership-heading small { display: block; margin-top: 3px; }
+.livestream-watching-count { background: #dff3e8; border-radius: 999px; color: #17613f; padding: 5px 9px; white-space: nowrap; }
+.livestream-event-list { display: grid; gap: 7px; margin-top: 10px; }
+.livestream-event { background: #fffefa; border: 1px solid #d8d3c8; border-radius: 6px; }
+.livestream-event > summary { align-items: center; cursor: pointer; display: flex; gap: 12px; justify-content: space-between; padding: 9px 11px; }
+.livestream-event > summary > span:first-child { display: grid; gap: 2px; }
+.livestream-event time, .livestream-event summary > span:last-child { color: #657069; font-size: 12px; }
+.livestream-viewer-table { border-top: 1px solid #e4ded0; }
+.livestream-viewer-row { align-items: center; display: grid; gap: 8px; grid-template-columns: minmax(0, 1fr) 100px 60px; padding: 7px 11px; }
+.livestream-viewer-row + .livestream-viewer-row { border-top: 1px solid #eee9de; }
+.livestream-viewer-row > span:first-child { display: grid; min-width: 0; }
+.livestream-viewer-row small { color: #657069; overflow: hidden; text-overflow: ellipsis; }
+.livestream-viewer-row > span:last-child { font-variant-numeric: tabular-nums; text-align: right; }
+.livestream-viewer-row .is-watching { color: #17613f; font-weight: 700; }
+
 .recording-transport { min-height: 0;
  max-height: 42dvh; overflow-y: auto; }
 .recording-transport .action-row { flex-wrap: wrap; gap: 8px; }

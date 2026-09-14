@@ -181,6 +181,10 @@ These preferences have been made explicit and should guide future changes.
 - Broadcast audio can use one independent source or a limited multi-source mix.
   Per-source digital trim and mute state are shared by livestream and sermon
   recording, with compact live controls available beside the admin camera view.
+- Authenticated livestream viewing is recorded by event and user. Broadcast
+  administrators can see who is currently watching and review unique viewers
+  and accumulated watch time for previous livestreams; only visible viewer tabs
+  continue sending presence heartbeats.
   Runtime mix changes update the active server-side audio filter graph and do
   not replace the viewer's browser stream.
   Saved Pastor, Congregation, Worship, Media, and Pre-service scenes can be

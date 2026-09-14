@@ -1,6 +1,11 @@
 """Import all ORM models so metadata/migrations see the full domain."""
 
-from app.modules.broadcast.models import BroadcastRecording, BroadcastViewerSettings
+from app.modules.broadcast.models import (
+    BroadcastRecording,
+    BroadcastViewerSettings,
+    LivestreamEvent,
+    LivestreamViewerVisit,
+)
 from app.modules.communication.models import Message, MessageParticipant, MessageThread
 from app.modules.identity.models import Role, SocialLogin, User, UserRole
 from app.modules.imports.models import ImportProvider, ImportRun
@@ -37,6 +42,8 @@ __all__ = [
     "BibleVersion",
     "BroadcastRecording",
     "BroadcastViewerSettings",
+    "LivestreamEvent",
+    "LivestreamViewerVisit",
     "DefaultItem",
     "FileCategory",
     "HistoryEntry",

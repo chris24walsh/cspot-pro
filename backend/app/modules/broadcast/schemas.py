@@ -140,6 +140,35 @@ class ManualLivestreamUpdate(BaseModel):
     audience: Literal["off", "public", "admins"]
 
 
+class LivestreamHeartbeat(BaseModel):
+    client_session_id: str = Field(min_length=8, max_length=80)
+    plan_id: str | None = None
+    viewing: bool = True
+
+
+class LivestreamViewerRead(BaseModel):
+    user_id: str
+    name: str
+    email: str
+    started_at: datetime
+    last_seen_at: datetime
+    duration_seconds: int
+    watching_now: bool
+
+
+class LivestreamEventRead(BaseModel):
+    id: str
+    title: str
+    audience: str
+    plan_id: str | None = None
+    started_at: datetime
+    ended_at: datetime | None = None
+    watching_now: int
+    unique_viewers: int
+    total_watch_seconds: int
+    viewers: list[LivestreamViewerRead] = Field(default_factory=list)
+
+
 class BroadcastRecordingStart(BaseModel):
     plan_id: str
     plan_item_id: str | None = None

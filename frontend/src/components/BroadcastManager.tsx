@@ -7,6 +7,7 @@ import {
   archiveBroadcastRecording,
   getBroadcastRecordings,
   getLivePresentationServices,
+  getLivestreamViewership,
   restoreBroadcastRecording,
   startBroadcastRecording,
   stopBroadcastRecording,
@@ -15,6 +16,7 @@ import {
   type BroadcastViewerSettings,
   type BroadcastRecording,
   type PresentationLiveService,
+  type LivestreamEvent,
 } from "../api";
 import { go2RtcAudioStreamUrl } from "../broadcastCamera";
 import {
@@ -73,6 +75,13 @@ function recordingCountdown(deadline: string | null, now = Date.now()) {
   return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
 }
 
+function watchDuration(seconds: number) {
+  if (seconds < 60) return `${seconds}s`;
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  return hours ? `${hours}h ${minutes}m` : `${minutes}m`;
+}
+
 export function BroadcastManager({
   activeTab,
   canManage,
@@ -99,6 +108,7 @@ export function BroadcastManager({
   const [clock, setClock] = useState(Date.now());
   const [testingCameraId, setTestingCameraId] = useState<string | null>(null);
   const [testingAudioId, setTestingAudioId] = useState<string | null>(null);
+  const [viewership, setViewership] = useState<LivestreamEvent[]>([]);
 
   useEffect(() => {
     const timer = window.setInterval(() => setClock(Date.now()), 1000);
@@ -145,6 +155,17 @@ export function BroadcastManager({
     const timer = window.setInterval(() => void refresh(), 5000);
     return () => window.clearInterval(timer);
   }, [canManage, recordingFilter]);
+
+  useEffect(() => {
+    if (!canManage || activeTab !== "livestream") return undefined;
+    let cancelled = false;
+    const refresh = () => void getLivestreamViewership()
+      .then((events) => { if (!cancelled) setViewership(events); })
+      .catch(() => undefined);
+    refresh();
+    const timer = window.setInterval(refresh, 10000);
+    return () => { cancelled = true; window.clearInterval(timer); };
+  }, [activeTab, canManage]);
 
   async function startRecording() {
     if (!liveService) return;
@@ -669,6 +690,41 @@ export function BroadcastManager({
       <p className="muted-copy broadcast-settings-note">
         A presenter slideshow also starts the public stream automatically. The controls above can run camera and audio independently; admin test mode stays hidden from other viewers.
       </p>
+      <section className="livestream-viewership wide-field" aria-label="Livestream viewership">
+        <div className="livestream-viewership-heading">
+          <div>
+            <h3>Viewership</h3>
+            <small>Signed-in viewers are counted while this page is visible. Watch time updates about every 15 seconds.</small>
+          </div>
+          <strong className="livestream-watching-count">
+            {viewership.reduce((total, event) => total + event.watching_now, 0)} watching now
+          </strong>
+        </div>
+        <div className="livestream-event-list">
+          {viewership.length ? viewership.map((event) => (
+            <details className="livestream-event" key={event.id} open={!event.ended_at}>
+              <summary>
+                <span>
+                  <strong>{event.title}</strong>
+                  <time>{new Date(event.started_at).toLocaleString()}</time>
+                </span>
+                <span>{event.watching_now ? `${event.watching_now} live · ` : ""}{event.unique_viewers} viewer{event.unique_viewers === 1 ? "" : "s"} · {watchDuration(event.total_watch_seconds)}</span>
+              </summary>
+              {event.viewers.length ? (
+                <div className="livestream-viewer-table" role="table" aria-label={`Viewers for ${event.title}`}>
+                  {event.viewers.map((viewer) => (
+                    <div className="livestream-viewer-row" role="row" key={viewer.user_id}>
+                      <span role="cell"><strong>{viewer.name}</strong><small>{viewer.email}</small></span>
+                      <span role="cell" className={viewer.watching_now ? "is-watching" : ""}>{viewer.watching_now ? "Watching now" : "Finished"}</span>
+                      <span role="cell">{watchDuration(viewer.duration_seconds)}</span>
+                    </div>
+                  ))}
+                </div>
+              ) : <p className="muted-copy">No signed-in viewers recorded.</p>}
+            </details>
+          )) : <p className="muted-copy">No livestream viewing history yet.</p>}
+        </div>
+      </section>
       </> : null}
 
       {activeTab === "recordings" ? <section className="broadcast-recordings broadcast-tab-panel" aria-label="Sermon recordings" role="tabpanel">
