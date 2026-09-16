@@ -465,7 +465,10 @@ when its final timed cue finishes. Both editors use the compact nested disclosur
 profile Serving settings. Template items render beneath their owning section
 and expose left-edge drag handles that reorder only among valid siblings. Welcome,
 Open time, Sermon and Announcements support styled static/countdown overlays;
-their overlay font scale is stored per item as a percentage (25–200%). Timed
+their overlay font scale is stored per item as a percentage (25–200%). Countdown
+overlays can use a duration or a clock time on the service date. The live
+presentation position retains each duration countdown's first start time, so
+revisiting its slide continues the same countdown across outputs. Timed
 Welcome cues apply that scale to the built-in message and clock and suppress
 the separate overlay so the text is rendered once.
 Announcements also add structured date, location, contact, URL and layout

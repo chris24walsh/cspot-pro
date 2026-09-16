@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import type { ServiceScheduleRule } from "../api";
 import { overlayFontScale } from "./SlideOverlay";
+import { countdownRemaining } from "../countdown";
 
 function serviceDayTimestamp(serviceDate: string, hour: number, minute: number) {
   const date = new Date(serviceDate);
@@ -41,8 +42,10 @@ export function preServiceRemainingSeconds(
   forcedPhase?: "waiting" | "montage" | "countdown" | "complete" | null,
   phaseStartedAt?: number,
   schedule?: ServiceScheduleRule,
+  countdownUntil?: string,
 ) {
   if (forcedPhase === "complete") return 0;
+  if (forcedPhase === "countdown" && countdownUntil) return countdownRemaining(300, phaseStartedAt, countdownUntil, serviceDate, now);
   if (forcedPhase && phaseStartedAt) {
     const durationSeconds = forcedPhase === "countdown" ? 300 : 1800;
     return Math.max(0, Math.ceil(durationSeconds - (now - phaseStartedAt) / 1000));
@@ -80,6 +83,7 @@ export function PreServiceSlide({
   random = false,
   dwellSeconds,
   fontScale,
+  countdownUntil,
 }: {
   backgroundImageUrl: string;
   imageUrls: string[];
@@ -91,6 +95,7 @@ export function PreServiceSlide({
   random?: boolean;
   dwellSeconds?: number;
   fontScale?: number;
+  countdownUntil?: string;
 }) {
   const [now, setNow] = useState(Date.now());
   const selectedAt = useRef(Date.now());
@@ -110,7 +115,7 @@ export function PreServiceSlide({
   // the global pre-service clock/countdown phase.
   const phase = timed ? (forcedPhase ?? preServicePhaseAt(serviceDate, now, schedule)) : "montage";
   const montageImageIndex = Math.floor((now - (phaseStartedAt ?? selectedAt.current)) / (Math.max(dwellSeconds ?? 12, 1) * 1000)) % Math.max(images.length, 1);
-  const remaining = preServiceRemainingSeconds(serviceDate, now, forcedPhase, phaseStartedAt, schedule);
+  const remaining = preServiceRemainingSeconds(serviceDate, now, forcedPhase, phaseStartedAt, schedule, countdownUntil);
   const displayPhase = phase === "countdown" && remaining === 0 ? "complete" : phase;
   const displayedCountdownLabel = useRef(countdownLabel(remaining));
   displayedCountdownLabel.current = countdownLabelForTransition(displayedCountdownLabel.current, phase, remaining);

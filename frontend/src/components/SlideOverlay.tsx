@@ -1,26 +1,27 @@
 import { useEffect, useState, type CSSProperties } from "react";
 import type { PresentationSlide } from "../presentation";
+import { countdownRemaining } from "../countdown";
 
 export function overlayFontScale(value?: number) {
   return Number.isFinite(value) ? Math.min(200, Math.max(25, value!)) / 100 : 1;
 }
 
-export function SlideOverlay({ running = true, slide, startAt }: { running?: boolean; slide: PresentationSlide; startAt?: number }) {
+export function SlideOverlay({ running = true, slide, startAt, serviceDate = "" }: { running?: boolean; slide: PresentationSlide; startAt?: number; serviceDate?: string }) {
   const [now, setNow] = useState(Date.now());
   const countdown = slide.overlayMode === "countdown";
 
   useEffect(() => {
-    if (!countdown || !running) return undefined;
+    if (!countdown || (!running && !slide.overlayCountdownUntil)) return undefined;
     setNow(Date.now());
     const timer = window.setInterval(() => setNow(Date.now()), 250);
     return () => window.clearInterval(timer);
-  }, [countdown, running, slide.id, startAt]);
+  }, [countdown, running, slide.id, slide.overlayCountdownUntil, startAt]);
 
   // Timed Welcome slides render their own clock and message. A stored overlay
   // from the service template would draw a second copy over that message.
   if (!slide.overlayMode || slide.overlayMode === "none" || (running && slide.preServiceTimed && slide.montageImageUrls)) return null;
-  const remaining = running
-    ? Math.max(0, (slide.overlayCountdownSeconds ?? 300) - Math.floor((now - (startAt ?? now)) / 1000))
+  const remaining = running || slide.overlayCountdownUntil
+    ? countdownRemaining(slide.overlayCountdownSeconds ?? 300, startAt, slide.overlayCountdownUntil, serviceDate, now)
     : slide.overlayCountdownSeconds ?? 300;
   const clock = `${Math.floor(remaining / 60)}:${String(remaining % 60).padStart(2, "0")}`;
   const panelOpacity = Math.min(100, Math.max(0, slide.overlayPanelOpacity ?? 68)) / 100;

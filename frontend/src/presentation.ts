@@ -12,6 +12,7 @@ export interface PresentationLiveState {
   planId: string;
   index: number;
   updatedAt: number;
+  countdownStartedAt?: Record<string, number>;
   planItemId?: string | null;
   slideOffset?: number;
   theme?: PresentationTheme;
@@ -57,6 +58,7 @@ export interface PresentationSlide {
   overlayText?: string;
   overlayMode?: "none" | "static" | "countdown";
   overlayCountdownSeconds?: number;
+  overlayCountdownUntil?: string;
   overlayPosition?: "top-left" | "top" | "top-right" | "left" | "centre" | "right" | "bottom-left" | "bottom" | "bottom-right";
   overlaySize?: "small" | "medium" | "large";
   overlayFontScale?: number;
@@ -424,6 +426,7 @@ function buildIndividualPresentationSections(
       overlayText: options.overlay_text,
       overlayMode: options.overlay_mode,
       overlayCountdownSeconds: options.overlay_countdown_seconds,
+      overlayCountdownUntil: options.overlay_countdown_until,
       overlayPosition: options.overlay_position,
       overlaySize: options.overlay_size,
       overlayFontScale: options.overlay_font_scale,

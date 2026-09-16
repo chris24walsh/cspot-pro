@@ -87,6 +87,7 @@ function liveStateFromApi(state: Awaited<ReturnType<typeof getPresentationLiveSt
     slideOffset: state.slide_offset,
     theme: state.theme,
     updatedAt: state.updated_at,
+    countdownStartedAt: state.countdown_started_at,
     videoAction: state.video_action,
     videoActionAt: state.video_action_at ?? undefined,
     serviceStage: state.service_stage ?? "ready",
@@ -502,9 +503,9 @@ export function ServiceBroadcastView({ canControl = false, onOpenSettings }: { c
             ) : !liveSlide ? (
               <HoldingPane message="The livestream is live" startingSoon />
             ) : liveSlide.montageImageUrls && plan ? (
-              <PreServiceSlide backgroundImageUrl={LCF_BACKGROUND_URL} dwellSeconds={liveSlide.dwellSeconds} fontScale={liveSlide.overlayFontScale} imageUrls={liveSlide.montageImageUrls} random={liveSlide.montageRandom} serviceDate={plan.service_date} timed={Boolean(liveSlide.preServiceTimed)} phase={liveSlide.preServiceStage ?? liveState?.preServicePhase} phaseStartedAt={liveState?.updatedAt} schedule={serviceScheduleForPlan(settings.service_schedules, plan.service_date, plan.plan_type)} />
+              <PreServiceSlide backgroundImageUrl={LCF_BACKGROUND_URL} countdownUntil={liveSlide.overlayCountdownUntil} dwellSeconds={liveSlide.dwellSeconds} fontScale={liveSlide.overlayFontScale} imageUrls={liveSlide.montageImageUrls} random={liveSlide.montageRandom} serviceDate={plan.service_date} timed={Boolean(liveSlide.preServiceTimed)} phase={liveSlide.preServiceStage ?? liveState?.preServicePhase} phaseStartedAt={liveState?.countdownStartedAt?.[liveSlide.planItemId] ?? liveState?.updatedAt} schedule={serviceScheduleForPlan(settings.service_schedules, plan.service_date, plan.plan_type)} />
             ) : liveSlide.countdownSeconds ? (
-              <CountdownSlide durationSeconds={liveSlide.countdownSeconds} running={hasVisibleSlideshow} startAt={liveState?.updatedAt} />
+              <CountdownSlide durationSeconds={liveSlide.countdownSeconds} running={hasVisibleSlideshow} startAt={liveState?.countdownStartedAt?.[liveSlide.planItemId] ?? liveState?.updatedAt} />
             ) : liveSlide.backgroundImageUrl ? (
               <div
                 className="lcf-background-slide"
@@ -533,7 +534,7 @@ export function ServiceBroadcastView({ canControl = false, onOpenSettings }: { c
                 />
               </div>
             )}
-            {hasVisibleSlideshow && !liveState?.blanked && liveSlide ? <SlideOverlay running={hasVisibleSlideshow} slide={liveSlide} startAt={liveState?.updatedAt} /> : null}
+            {hasVisibleSlideshow && !liveState?.blanked && liveSlide ? <SlideOverlay running={hasVisibleSlideshow} slide={liveSlide} serviceDate={plan?.service_date} startAt={liveState?.countdownStartedAt?.[liveSlide.planItemId] ?? liveState?.updatedAt} /> : null}
             </div>
           </div>
         </section>

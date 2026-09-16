@@ -58,6 +58,7 @@ export function networkDisplayState(service: PresentationLiveService): Presentat
     planId: service.plan_id,
     index: service.index,
     updatedAt: service.updated_at,
+    countdownStartedAt: service.countdown_started_at,
     planItemId: service.plan_item_id,
     slideOffset: service.slide_offset,
     theme: "light",
@@ -539,6 +540,7 @@ export function PresentationOutput({ mediaOutput = false, networkDisplay = false
             planId: remoteState.plan_id,
             index: remoteState.index,
             updatedAt: remoteState.updated_at,
+            countdownStartedAt: remoteState.countdown_started_at,
             planItemId: remoteState.plan_item_id,
             slideOffset: remoteState.slide_offset,
             theme: remoteState.theme,
@@ -766,9 +768,9 @@ export function PresentationOutput({ mediaOutput = false, networkDisplay = false
         ) : liveSlide?.displayTargets && !liveSlide.displayTargets.includes("church") ? (
           <div className="blank-stage lcf-background-surface" aria-label="Slide not routed to church displays" style={{ backgroundImage: `url(${LCF_BACKGROUND_URL})` }} />
         ) : liveSlide?.montageImageUrls && plan ? (
-          <PreServiceSlide backgroundImageUrl={LCF_BACKGROUND_URL} dwellSeconds={liveSlide.dwellSeconds} fontScale={liveSlide.overlayFontScale} imageUrls={liveSlide.montageImageUrls} random={liveSlide.montageRandom} serviceDate={plan.service_date} timed={Boolean(liveSlide.preServiceTimed)} phase={liveSlide.preServiceStage ?? liveState?.preServicePhase} phaseStartedAt={liveState?.updatedAt} schedule={serviceScheduleForPlan(serviceSchedules, plan.service_date, plan.plan_type)} />
+          <PreServiceSlide backgroundImageUrl={LCF_BACKGROUND_URL} countdownUntil={liveSlide.overlayCountdownUntil} dwellSeconds={liveSlide.dwellSeconds} fontScale={liveSlide.overlayFontScale} imageUrls={liveSlide.montageImageUrls} random={liveSlide.montageRandom} serviceDate={plan.service_date} timed={Boolean(liveSlide.preServiceTimed)} phase={liveSlide.preServiceStage ?? liveState?.preServicePhase} phaseStartedAt={liveState?.countdownStartedAt?.[liveSlide.planItemId] ?? liveState?.updatedAt} schedule={serviceScheduleForPlan(serviceSchedules, plan.service_date, plan.plan_type)} />
         ) : liveSlide?.countdownSeconds ? (
-          <CountdownSlide durationSeconds={liveSlide.countdownSeconds} startAt={liveState?.updatedAt} />
+          <CountdownSlide durationSeconds={liveSlide.countdownSeconds} startAt={liveState?.countdownStartedAt?.[liveSlide.planItemId] ?? liveState?.updatedAt} />
         ) : liveSlide?.backgroundImageUrl ? (
           <div
             className="lcf-background-slide"
@@ -829,7 +831,7 @@ export function PresentationOutput({ mediaOutput = false, networkDisplay = false
             />
           </>
         )}
-        {!blanked && liveSlide ? <SlideOverlay slide={liveSlide} startAt={liveState?.updatedAt} /> : null}
+        {!blanked && liveSlide ? <SlideOverlay slide={liveSlide} serviceDate={plan?.service_date} startAt={liveState?.countdownStartedAt?.[liveSlide.planItemId] ?? liveState?.updatedAt} /> : null}
         </div>
       </section>
       {preServiceAudioUrl && plan ? (

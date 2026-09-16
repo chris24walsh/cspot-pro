@@ -117,6 +117,7 @@ export interface PresentationOptions {
   overlay_text?: string;
   overlay_mode?: "none" | "static" | "countdown";
   overlay_countdown_seconds?: number;
+  overlay_countdown_until?: string;
   overlay_position?: "top-left" | "top" | "top-right" | "left" | "centre" | "right" | "bottom-left" | "bottom" | "bottom-right";
   overlay_size?: "small" | "medium" | "large";
   overlay_font_scale?: number;
@@ -330,6 +331,7 @@ export interface PresentationLiveSyncState {
   plan_item_id: string | null;
   slide_offset: number;
   updated_at: number;
+  countdown_started_at?: Record<string, number>;
   theme: "dark" | "light";
   blanked: boolean;
   fullscreen: boolean;
@@ -354,6 +356,7 @@ export interface PresentationLiveService {
   plan_item_id: string | null;
   slide_offset: number;
   updated_at: number;
+  countdown_started_at?: Record<string, number>;
   output_owner_id: string;
   output_heartbeat_at: number;
   output_active?: boolean;

@@ -135,7 +135,7 @@ const EMPTY_ITEM_EDIT_DRAFT: { title: string; comment: string; planned_start: st
   title: "", comment: "", planned_start: "", auto_collapse_items: false,
   template_id: "", scheduled_start: "", backing_audio_id: "", stop_backing_audio: false,
   dwell_seconds: 8, auto_advance_seconds: 8, transition: "fade", fit_mode: "contain", overlay_text: "",
-  overlay_mode: "none", overlay_countdown_seconds: 300, overlay_position: "bottom",
+  overlay_mode: "none", overlay_countdown_seconds: 300, overlay_countdown_until: "", overlay_position: "bottom",
   overlay_size: "medium", overlay_font: "sans", overlay_panel_opacity: 68,
   overlay_font_scale: 100,
   overlay_background_dim: 0, auto_advance: false, repeat: false, announcement_date: "",
@@ -1295,6 +1295,9 @@ export function PresentationView({
       planId,
       index: nextIndex,
       updatedAt: overrides.updatedAt ?? Date.now(),
+      countdownStartedAt: slide && (slide.overlayMode === "countdown" || slide.countdownSeconds) && !slide.overlayCountdownUntil
+        ? { ...currentState?.countdownStartedAt, [slide.planItemId]: currentState?.countdownStartedAt?.[slide.planItemId] ?? Date.now() }
+        : currentState?.countdownStartedAt,
       planItemId: overrides.planItemId ?? slide?.planItemId ?? null,
       slideOffset: overrides.slideOffset ?? Math.max(slideOffset, 0),
       theme: overrides.theme ?? slideTheme,
@@ -1389,6 +1392,7 @@ export function PresentationView({
             planId: liveState.plan_id,
             index: liveState.index,
             updatedAt: liveState.updated_at,
+            countdownStartedAt: liveState.countdown_started_at,
             planItemId: liveState.plan_item_id,
             slideOffset: liveState.slide_offset,
             theme: liveState.theme,
@@ -2380,6 +2384,7 @@ export function PresentationView({
           overlay_text: itemEditDraft.overlay_text.trim(),
           overlay_mode: itemEditDraft.overlay_mode,
           overlay_countdown_seconds: Number(itemEditDraft.overlay_countdown_seconds) || 300,
+          overlay_countdown_until: itemEditDraft.overlay_countdown_until,
           overlay_position: itemEditDraft.overlay_position,
           overlay_size: itemEditDraft.overlay_size,
           overlay_font_scale: Math.min(200, Math.max(25, Number(itemEditDraft.overlay_font_scale) || 100)),
@@ -3893,6 +3898,7 @@ export function PresentationView({
             planId: remoteState.plan_id,
             index: remoteState.index,
             updatedAt: remoteState.updated_at,
+            countdownStartedAt: remoteState.countdown_started_at,
             planItemId: remoteState.plan_item_id,
             slideOffset: remoteState.slide_offset,
             theme: remoteState.theme,
@@ -4675,12 +4681,12 @@ export function PresentationView({
                   style={{ backgroundImage: `url(${LCF_BACKGROUND_URL})` }}
                 />
               ) : liveSlide?.montageImageUrls && plan ? (
-                <PreServiceSlide backgroundImageUrl={LCF_BACKGROUND_URL} dwellSeconds={liveSlide.dwellSeconds} fontScale={liveSlide.overlayFontScale} imageUrls={liveSlide.montageImageUrls} random={liveSlide.montageRandom} serviceDate={plan.service_date} timed={Boolean(liveSlide.preServiceTimed) && presentationSessionActive} phase={liveSlide.preServiceStage ?? currentLiveStateRef.current?.preServicePhase} phaseStartedAt={currentLiveStateRef.current?.updatedAt} schedule={serviceScheduleForPlan(serviceSchedules, plan.service_date, plan.plan_type)} />
+                <PreServiceSlide backgroundImageUrl={LCF_BACKGROUND_URL} countdownUntil={liveSlide.overlayCountdownUntil} dwellSeconds={liveSlide.dwellSeconds} fontScale={liveSlide.overlayFontScale} imageUrls={liveSlide.montageImageUrls} random={liveSlide.montageRandom} serviceDate={plan.service_date} timed={Boolean(liveSlide.preServiceTimed) && presentationSessionActive} phase={liveSlide.preServiceStage ?? currentLiveStateRef.current?.preServicePhase} phaseStartedAt={currentLiveStateRef.current?.countdownStartedAt?.[liveSlide.planItemId] ?? currentLiveStateRef.current?.updatedAt} schedule={serviceScheduleForPlan(serviceSchedules, plan.service_date, plan.plan_type)} />
               ) : liveSlide?.countdownSeconds ? (
                 <CountdownSlide
                   durationSeconds={liveSlide.countdownSeconds}
                   running={presentationSessionActive}
-                  startAt={currentLiveStateRef.current?.updatedAt}
+                  startAt={currentLiveStateRef.current?.countdownStartedAt?.[liveSlide.planItemId] ?? currentLiveStateRef.current?.updatedAt}
                 />
               ) : liveSlide?.backgroundImageUrl ? (
                 <div
@@ -4710,7 +4716,7 @@ export function PresentationView({
                   text={liveSlide?.text ?? "No live slide selected"}
                 />
               )}
-              {!liveBlanked && liveSlide ? <SlideOverlay running={presentationSessionActive} slide={liveSlide} startAt={currentLiveStateRef.current?.updatedAt} /> : null}
+              {!liveBlanked && liveSlide ? <SlideOverlay running={presentationSessionActive} slide={liveSlide} serviceDate={plan?.service_date} startAt={currentLiveStateRef.current?.countdownStartedAt?.[liveSlide.planItemId] ?? currentLiveStateRef.current?.updatedAt} /> : null}
               </div>
             </div>
           </div>
@@ -5991,7 +5997,10 @@ export function PresentationView({
                 <label><span>Font</span><select disabled={fillerMediaBusy} onChange={(event) => setItemEditDraft((current) => ({ ...current, overlay_font: event.target.value as typeof current.overlay_font }))} value={itemEditDraft.overlay_font}><option value="sans">Clean sans</option><option value="display">Welcome display</option><option value="serif">Serif</option><option value="mono">Monospace</option></select></label>
                 <label><span>Text box transparency ({100 - itemEditDraft.overlay_panel_opacity}%)</span><input disabled={fillerMediaBusy} max="100" min="0" onChange={(event) => setItemEditDraft((current) => ({ ...current, overlay_panel_opacity: Number(event.target.value) }))} type="range" value={itemEditDraft.overlay_panel_opacity} /></label>
                 <label><span>Background dimming ({itemEditDraft.overlay_background_dim}%)</span><input disabled={fillerMediaBusy} max="80" min="0" onChange={(event) => setItemEditDraft((current) => ({ ...current, overlay_background_dim: Number(event.target.value) }))} type="range" value={itemEditDraft.overlay_background_dim} /></label>
-                {itemEditDraft.overlay_mode === "countdown" ? <label><span>Countdown seconds</span><input min="1" onChange={(event) => setItemEditDraft((current) => ({ ...current, overlay_countdown_seconds: Number(event.target.value) }))} type="number" value={itemEditDraft.overlay_countdown_seconds} /></label> : null}
+                {itemEditDraft.overlay_mode === "countdown" ? <>
+                  <label><span>Countdown</span><select onChange={(event) => setItemEditDraft((current) => ({ ...current, overlay_countdown_until: event.target.value === "until" ? current.overlay_countdown_until || "11:00" : "" }))} value={itemEditDraft.overlay_countdown_until ? "until" : "time"}><option value="time">Time (duration)</option><option value="until">Until (clock time)</option></select></label>
+                  {itemEditDraft.overlay_countdown_until ? <label><span>Until</span><input onChange={(event) => setItemEditDraft((current) => ({ ...current, overlay_countdown_until: event.target.value }))} type="time" value={itemEditDraft.overlay_countdown_until} /></label> : <label><span>Time (seconds)</span><input min="1" onChange={(event) => setItemEditDraft((current) => ({ ...current, overlay_countdown_seconds: Number(event.target.value) }))} type="number" value={itemEditDraft.overlay_countdown_seconds} /></label>}
+                </> : null}
               </div>
             </details> : null}
             {fillerMediaPlanItem.item_type === "announcements" ? <details className="item-editor-fieldset item-editor-disclosure" open={itemEditorSection === "announcement"}>

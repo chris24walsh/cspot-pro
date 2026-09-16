@@ -24,6 +24,18 @@ from app.modules.presentation.models import PresentationPosition, PresentationSe
 router = APIRouter()
 
 
+def _remember_countdown_start(payload: dict, item: PlanItem | None, now_ms: int) -> None:
+    if item is None:
+        return
+    options = item.presentation_options or {}
+    if options.get("overlay_countdown_until"):
+        return
+    if options.get("overlay_mode") == "countdown" or item.item_type in {"countdown", "seating"}:
+        starts = dict(payload.get("countdown_started_at") or {})
+        starts.setdefault(item.id, now_ms)
+        payload["countdown_started_at"] = starts
+
+
 class PresentationLiveStateRead(BaseModel):
     plan_id: str
     session_id: str | None = None
@@ -33,6 +45,7 @@ class PresentationLiveStateRead(BaseModel):
     plan_item_id: str | None = None
     slide_offset: int = 0
     updated_at: int = 0
+    countdown_started_at: dict[str, int] = {}
     theme: str = "light"
     blanked: bool = False
     fullscreen: bool = False
@@ -87,6 +100,7 @@ class PresentationLiveServiceRead(BaseModel):
     plan_item_id: str | None = None
     slide_offset: int = 0
     updated_at: int = 0
+    countdown_started_at: dict[str, int] = {}
     output_owner_id: str
     output_heartbeat_at: int
     output_active: bool = False
@@ -472,6 +486,7 @@ def ensure_scheduled_pre_service(session: Session) -> None:
                 payload["plan_item_id"] = desired_item.id
                 payload["slide_offset"] = 0
                 position_changed = True
+            _remember_countdown_start(payload, desired_item, int(datetime.now(UTC).timestamp() * 1000))
             if desired_phase is not None and payload.get("pre_service_phase") != desired_phase:
                 payload["pre_service_phase"] = desired_phase
                 position_changed = True
@@ -518,6 +533,8 @@ def ensure_scheduled_pre_service(session: Session) -> None:
     session.add(presentation_session)
     session.flush()
     now_ms = int(datetime.now(UTC).timestamp() * 1000)
+    initial_payload = {"countdown_started_at": {}}
+    _remember_countdown_start(initial_payload, first_item, now_ms)
     session.add(
         PresentationPosition(
             session_id=presentation_session.id,
@@ -529,6 +546,7 @@ def ensure_scheduled_pre_service(session: Session) -> None:
                     "plan_item_id": first_item.id,
                     "slide_offset": 0,
                     "updated_at": now_ms,
+                    **initial_payload,
                     "theme": "light",
                     "blanked": False,
                     "fullscreen": False,
@@ -580,6 +598,7 @@ def _serialize_live_state(
         plan_item_id=payload.get("plan_item_id", position.plan_item_id if position else None),
         slide_offset=int(payload.get("slide_offset", 0)),
         updated_at=int(payload.get("updated_at", 0)),
+        countdown_started_at=payload.get("countdown_started_at", {}),
         theme=str(payload.get("theme", "light")),
         blanked=bool(payload.get("blanked", False)),
         fullscreen=bool(payload.get("fullscreen", False)),
@@ -735,6 +754,7 @@ def advance_expired_auto_slide(
         "updated_at": now_ms,
     })
     next_options = next_item.presentation_options or {}
+    _remember_countdown_start(payload, next_item, now_ms)
     if next_options.get("auto_advance"):
         payload["auto_advance_started_at"] = now_ms
     else:
@@ -859,6 +879,7 @@ def list_live_presentation_services(
                 ),
                 slide_offset=int(payload.get("slide_offset", 0)),
                 updated_at=int(payload.get("updated_at", 0)),
+                countdown_started_at=payload.get("countdown_started_at", {}),
                 output_owner_id=output_status.owner_id or "scheduled",
                 output_heartbeat_at=output_status.heartbeat_at or now,
                 output_active=output_status.active,
@@ -931,6 +952,13 @@ def update_presentation_live_state(
     now = int(datetime.now(UTC).timestamp() * 1000)
     output_active = _serialize_output_status(plan_id, position, now).active
     next_payload = {**existing_payload, **payload.model_dump(exclude={"worship_coupled"})}
+    if payload.plan_item_id:
+        try:
+            selected_item = session.get(PlanItem, payload.plan_item_id)
+        except SQLAlchemyError:
+            selected_item = None
+        if selected_item and selected_item.plan_id == plan_id:
+            _remember_countdown_start(next_payload, selected_item, now)
     if payload.worship_coupled is not None:
         next_payload["worship_coupled"] = payload.worship_coupled
     selection_changed = (
