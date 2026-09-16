@@ -137,6 +137,7 @@ const EMPTY_ITEM_EDIT_DRAFT: { title: string; comment: string; planned_start: st
   dwell_seconds: 8, auto_advance_seconds: 8, transition: "fade", fit_mode: "contain", overlay_text: "",
   overlay_mode: "none", overlay_countdown_seconds: 300, overlay_position: "bottom",
   overlay_size: "medium", overlay_font: "sans", overlay_panel_opacity: 68,
+  overlay_font_scale: 100,
   overlay_background_dim: 0, auto_advance: false, repeat: false, announcement_date: "",
   announcement_location: "", announcement_contact: "", announcement_url: "",
   announcement_layout: "split",
@@ -2381,6 +2382,7 @@ export function PresentationView({
           overlay_countdown_seconds: Number(itemEditDraft.overlay_countdown_seconds) || 300,
           overlay_position: itemEditDraft.overlay_position,
           overlay_size: itemEditDraft.overlay_size,
+          overlay_font_scale: Math.min(200, Math.max(25, Number(itemEditDraft.overlay_font_scale) || 100)),
           overlay_font: itemEditDraft.overlay_font,
           overlay_panel_opacity: Number(itemEditDraft.overlay_panel_opacity),
           overlay_background_dim: Number(itemEditDraft.overlay_background_dim),
@@ -4673,7 +4675,7 @@ export function PresentationView({
                   style={{ backgroundImage: `url(${LCF_BACKGROUND_URL})` }}
                 />
               ) : liveSlide?.montageImageUrls && plan ? (
-                <PreServiceSlide backgroundImageUrl={LCF_BACKGROUND_URL} dwellSeconds={liveSlide.dwellSeconds} imageUrls={liveSlide.montageImageUrls} random={liveSlide.montageRandom} serviceDate={plan.service_date} timed={Boolean(liveSlide.preServiceTimed) && presentationSessionActive} phase={liveSlide.preServiceStage ?? currentLiveStateRef.current?.preServicePhase} phaseStartedAt={currentLiveStateRef.current?.updatedAt} schedule={serviceScheduleForPlan(serviceSchedules, plan.service_date, plan.plan_type)} />
+                <PreServiceSlide backgroundImageUrl={LCF_BACKGROUND_URL} dwellSeconds={liveSlide.dwellSeconds} fontScale={liveSlide.overlayFontScale} imageUrls={liveSlide.montageImageUrls} random={liveSlide.montageRandom} serviceDate={plan.service_date} timed={Boolean(liveSlide.preServiceTimed) && presentationSessionActive} phase={liveSlide.preServiceStage ?? currentLiveStateRef.current?.preServicePhase} phaseStartedAt={currentLiveStateRef.current?.updatedAt} schedule={serviceScheduleForPlan(serviceSchedules, plan.service_date, plan.plan_type)} />
               ) : liveSlide?.countdownSeconds ? (
                 <CountdownSlide
                   durationSeconds={liveSlide.countdownSeconds}
@@ -5984,7 +5986,8 @@ export function PresentationView({
                 <label><span>Overlay type</span><select disabled={fillerMediaBusy} onChange={(event) => setItemEditDraft((current) => ({ ...current, overlay_mode: event.target.value as "none" | "static" | "countdown" }))} value={itemEditDraft.overlay_mode}><option value="none">None</option><option value="static">Static text</option><option value="countdown">Text and countdown</option></select></label>
                 <label><span>Position</span><select disabled={fillerMediaBusy} onChange={(event) => setItemEditDraft((current) => ({ ...current, overlay_position: event.target.value as typeof current.overlay_position }))} value={itemEditDraft.overlay_position}><option value="top-left">Top left</option><option value="top">Top centre</option><option value="top-right">Top right</option><option value="left">Centre left</option><option value="centre">Centre</option><option value="right">Centre right</option><option value="bottom-left">Bottom left</option><option value="bottom">Bottom centre</option><option value="bottom-right">Bottom right</option></select></label>
                 <label className="wide-field"><span>Overlay text</span><input disabled={fillerMediaBusy || itemEditDraft.overlay_mode === "none"} onChange={(event) => setItemEditDraft((current) => ({ ...current, overlay_text: event.target.value }))} value={itemEditDraft.overlay_text} /></label>
-                <label><span>Text size</span><select disabled={fillerMediaBusy} onChange={(event) => setItemEditDraft((current) => ({ ...current, overlay_size: event.target.value as "small" | "medium" | "large" }))} value={itemEditDraft.overlay_size}><option value="small">Small</option><option value="medium">Medium</option><option value="large">Large</option></select></label>
+                <label><span>Size preset</span><select disabled={fillerMediaBusy} onChange={(event) => setItemEditDraft((current) => ({ ...current, overlay_size: event.target.value as "small" | "medium" | "large" }))} value={itemEditDraft.overlay_size}><option value="small">Small</option><option value="medium">Medium</option><option value="large">Large</option></select></label>
+                <label><span>Font size ({itemEditDraft.overlay_font_scale}%)</span><input disabled={fillerMediaBusy} max="200" min="25" onChange={(event) => setItemEditDraft((current) => ({ ...current, overlay_font_scale: Number(event.target.value) }))} step="1" type="number" value={itemEditDraft.overlay_font_scale} /></label>
                 <label><span>Font</span><select disabled={fillerMediaBusy} onChange={(event) => setItemEditDraft((current) => ({ ...current, overlay_font: event.target.value as typeof current.overlay_font }))} value={itemEditDraft.overlay_font}><option value="sans">Clean sans</option><option value="display">Welcome display</option><option value="serif">Serif</option><option value="mono">Monospace</option></select></label>
                 <label><span>Text box transparency ({100 - itemEditDraft.overlay_panel_opacity}%)</span><input disabled={fillerMediaBusy} max="100" min="0" onChange={(event) => setItemEditDraft((current) => ({ ...current, overlay_panel_opacity: Number(event.target.value) }))} type="range" value={itemEditDraft.overlay_panel_opacity} /></label>
                 <label><span>Background dimming ({itemEditDraft.overlay_background_dim}%)</span><input disabled={fillerMediaBusy} max="80" min="0" onChange={(event) => setItemEditDraft((current) => ({ ...current, overlay_background_dim: Number(event.target.value) }))} type="range" value={itemEditDraft.overlay_background_dim} /></label>

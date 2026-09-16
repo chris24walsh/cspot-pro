@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import type { ServiceScheduleRule } from "../api";
+import { overlayFontScale } from "./SlideOverlay";
 
 function serviceDayTimestamp(serviceDate: string, hour: number, minute: number) {
   const date = new Date(serviceDate);
@@ -78,6 +79,7 @@ export function PreServiceSlide({
   schedule,
   random = false,
   dwellSeconds,
+  fontScale,
 }: {
   backgroundImageUrl: string;
   imageUrls: string[];
@@ -88,6 +90,7 @@ export function PreServiceSlide({
   schedule?: ServiceScheduleRule;
   random?: boolean;
   dwellSeconds?: number;
+  fontScale?: number;
 }) {
   const [now, setNow] = useState(Date.now());
   const selectedAt = useRef(Date.now());
@@ -120,6 +123,7 @@ export function PreServiceSlide({
   return (
     <div
       className={`pre-service-slide is-${displayPhase}`}
+      style={{ "--pre-service-font-scale": overlayFontScale(fontScale) } as CSSProperties}
     >
       {backgroundImageUrl ? (
         <img alt="" aria-hidden="true" className="pre-service-background-layer" src={backgroundImageUrl} />

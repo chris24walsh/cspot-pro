@@ -73,7 +73,7 @@ PRESENTATION_DEFAULT_GROUP_FIELDS = {
     "visual": {"fit_mode", "transition", "dwell_seconds"},
     "playback": {"auto_advance", "auto_advance_seconds", "repeat"},
     "overlay_style": {
-        "overlay_mode", "overlay_countdown_seconds", "overlay_position", "overlay_size",
+        "overlay_mode", "overlay_countdown_seconds", "overlay_position", "overlay_size", "overlay_font_scale",
         "overlay_font", "overlay_panel_opacity", "overlay_background_dim",
     },
     "routing": {"audio_scene_id", "display_targets"},

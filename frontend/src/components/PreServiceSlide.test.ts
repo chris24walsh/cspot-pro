@@ -51,6 +51,17 @@ describe("pre-service timing", () => {
     vi.restoreAllMocks();
   });
 
+  it("applies the chosen font scale to the built-in Welcome message", () => {
+    const markup = renderToStaticMarkup(createElement(PreServiceSlide, {
+      backgroundImageUrl: "background.jpg",
+      fontScale: 65,
+      imageUrls: ["welcome.jpg"],
+      phase: "complete",
+      serviceDate,
+    }));
+    expect(markup).toContain("--pre-service-font-scale:0.65");
+  });
+
   it("does not restart the timer while changing to the seated message", () => {
     const now = new Date(2026, 7, 30, 11, 0).getTime();
 

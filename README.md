@@ -12,7 +12,9 @@ any service type. New sections are kept in the current template by default.
 
 Section and item settings use compact expandable groups for visuals, timing,
 audio, overlays and media. Existing edits default to this service only; select
-“Save configuration to template” to evolve that service's template. The outline
+“Save configuration to template” to evolve that service's template. The overlay
+editor has a 25–200% font-size control in 1% steps. Timed Welcome cues use the
+same control for their built-in message and clock, with one text layer. The outline
 picker can also save the current structure and order. Songs, uploads and dated
 announcement details are not copied by that action. Backing audio uses inline
 YouTube search, continues through section items, and can fade at a marked item.

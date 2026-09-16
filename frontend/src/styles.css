@@ -9141,7 +9141,7 @@ button.musician-page {
   border-radius: 5px;
   color: rgba(255, 255, 255, 0.9);
   display: flex;
-  font-size: clamp(8px, 1.2cqw, 16px);
+  font-size: calc(clamp(8px, 1.2cqw, 16px) * var(--pre-service-font-scale, 1));
   gap: 0.38em;
   padding: 0.35em 0.55em;
   opacity: 0;
@@ -9225,12 +9225,12 @@ button.musician-page {
 }
 
 .pre-service-countdown-copy span {
-  font-size: clamp(12px, 3cqw, 50px);
+  font-size: calc(clamp(12px, 3cqw, 50px) * var(--pre-service-font-scale, 1));
   text-transform: uppercase;
 }
 
 .pre-service-countdown-copy strong {
-  font-size: clamp(48px, 21cqw, 330px);
+  font-size: calc(clamp(48px, 21cqw, 330px) * var(--pre-service-font-scale, 1));
 }
 
 .pre-service-message-box {
@@ -9273,7 +9273,7 @@ button.musician-page {
 }
 
 .pre-service-countdown .pre-service-seated-message {
-  font-size: clamp(24px, 8cqw, 112px);
+  font-size: calc(clamp(24px, 8cqw, 112px) * var(--pre-service-font-scale, 1));
   letter-spacing: normal;
   line-height: 1.08;
   max-width: 90cqw;
@@ -13143,9 +13143,9 @@ button.musician-page {
 .slide-custom-overlay.position-right { left: auto; right: 6%; top: 50%; transform: translateY(-50%); }
 .slide-custom-overlay.position-bottom-left { bottom: 6%; left: 6%; transform: none; }
 .slide-custom-overlay.position-bottom-right { bottom: 6%; left: auto; right: 6%; transform: none; }
-.slide-custom-overlay.size-small { font-size: clamp(1rem, 2.5vw, 2rem); }
-.slide-custom-overlay.size-medium { font-size: clamp(1.4rem, 4vw, 3.5rem); }
-.slide-custom-overlay.size-large { font-size: clamp(2rem, 6vw, 5rem); }
+.slide-custom-overlay.size-small { font-size: calc(clamp(1rem, 2.5vw, 2rem) * var(--overlay-font-scale, 1)); }
+.slide-custom-overlay.size-medium { font-size: calc(clamp(1.4rem, 4vw, 3.5rem) * var(--overlay-font-scale, 1)); }
+.slide-custom-overlay.size-large { font-size: calc(clamp(2rem, 6vw, 5rem) * var(--overlay-font-scale, 1)); }
 .slide-custom-overlay.font-sans { font-family: Inter, ui-sans-serif, system-ui, sans-serif; }
 .slide-custom-overlay.font-display { font-family: Inter, ui-sans-serif, system-ui, sans-serif; font-weight: 700; text-transform: uppercase; }
 .slide-custom-overlay.font-serif { font-family: Georgia, "Times New Roman", serif; }

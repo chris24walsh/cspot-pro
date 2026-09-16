@@ -1,5 +1,9 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type CSSProperties } from "react";
 import type { PresentationSlide } from "../presentation";
+
+export function overlayFontScale(value?: number) {
+  return Number.isFinite(value) ? Math.min(200, Math.max(25, value!)) / 100 : 1;
+}
 
 export function SlideOverlay({ running = true, slide, startAt }: { running?: boolean; slide: PresentationSlide; startAt?: number }) {
   const [now, setNow] = useState(Date.now());
@@ -12,7 +16,9 @@ export function SlideOverlay({ running = true, slide, startAt }: { running?: boo
     return () => window.clearInterval(timer);
   }, [countdown, running, slide.id, startAt]);
 
-  if (!slide.overlayMode || slide.overlayMode === "none") return null;
+  // Timed Welcome slides render their own clock and message. A stored overlay
+  // from the service template would draw a second copy over that message.
+  if (!slide.overlayMode || slide.overlayMode === "none" || (running && slide.preServiceTimed && slide.montageImageUrls)) return null;
   const remaining = running
     ? Math.max(0, (slide.overlayCountdownSeconds ?? 300) - Math.floor((now - (startAt ?? now)) / 1000))
     : slide.overlayCountdownSeconds ?? 300;
@@ -21,7 +27,7 @@ export function SlideOverlay({ running = true, slide, startAt }: { running?: boo
   const backgroundDim = Math.min(80, Math.max(0, slide.overlayBackgroundDim ?? 0)) / 100;
   return <>
     {backgroundDim ? <div className="slide-custom-overlay-dim" style={{ backgroundColor: `rgb(0 0 0 / ${backgroundDim})` }} /> : null}
-    <div className={`slide-custom-overlay position-${slide.overlayPosition ?? "bottom"} size-${slide.overlaySize ?? "medium"} font-${slide.overlayFont ?? "sans"}`} style={{ backgroundColor: `rgb(0 0 0 / ${panelOpacity})` }}>
+    <div className={`slide-custom-overlay position-${slide.overlayPosition ?? "bottom"} size-${slide.overlaySize ?? "medium"} font-${slide.overlayFont ?? "sans"}`} style={{ backgroundColor: `rgb(0 0 0 / ${panelOpacity})`, "--overlay-font-scale": overlayFontScale(slide.overlayFontScale) } as CSSProperties}>
       {slide.overlayText ? <span>{slide.overlayText}</span> : null}
       {countdown ? <strong>{clock}</strong> : null}
     </div>

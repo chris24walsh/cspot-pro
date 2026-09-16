@@ -59,6 +59,7 @@ export interface PresentationSlide {
   overlayCountdownSeconds?: number;
   overlayPosition?: "top-left" | "top" | "top-right" | "left" | "centre" | "right" | "bottom-left" | "bottom" | "bottom-right";
   overlaySize?: "small" | "medium" | "large";
+  overlayFontScale?: number;
   overlayFont?: "sans" | "serif" | "display" | "mono";
   overlayPanelOpacity?: number;
   overlayBackgroundDim?: number;
@@ -425,6 +426,7 @@ function buildIndividualPresentationSections(
       overlayCountdownSeconds: options.overlay_countdown_seconds,
       overlayPosition: options.overlay_position,
       overlaySize: options.overlay_size,
+      overlayFontScale: options.overlay_font_scale,
       overlayFont: options.overlay_font,
       overlayPanelOpacity: options.overlay_panel_opacity,
       overlayBackgroundDim: options.overlay_background_dim,
