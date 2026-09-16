@@ -479,6 +479,9 @@ Welcome cues apply that scale to the built-in message and clock and suppress
 the separate overlay so the text is rendered once.
 The service template stores the actual service start time and derives its
 automated pre-service start from the timed Welcome montage and final countdown.
+The Sunday template has a distinct Pre-service section containing those timed
+cues, followed by a Welcome section where the service begins. Older Sunday
+templates with a combined Welcome root are split while retaining their cues.
 The Start menu stores a service-specific start time and shows the calculated
 pre-service start. Changing Welcome cue durations recalculates that pre-service
 start while preserving the chosen service time. The section immediately after

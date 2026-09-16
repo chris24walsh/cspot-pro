@@ -31,11 +31,14 @@ class ServiceSectionTemplate:
 
 SUNDAY_SERVICE_SCAFFOLD = (
     ServiceSectionTemplate(
-        Decimal("10"),
+        Decimal("9"),
         "pre_service",
-        "Welcome",
+        "Pre-service",
         None,
-        frozenset({"pre_service", "welcome", "opening", "seating", "countdown"}),
+        frozenset({"pre_service"}),
+    ),
+    ServiceSectionTemplate(
+        Decimal("10"), "custom", "Welcome", None, frozenset(),
     ),
     ServiceSectionTemplate(
         Decimal("20"), "worship_set", "Worship", None, frozenset({"worship_set", "song"})
@@ -160,16 +163,24 @@ def restore_template_files(session: Session, item: PlanItem) -> None:
 
 
 def ensure_pre_service_order(session: Session, plan: Plan) -> bool:
-    """Separate imported Pre-service and Welcome roots that share a position."""
+    """Name Pre-service and separate imported roots that share a position."""
     roots = list(session.scalars(select(PlanItem).where(
         PlanItem.plan_id == plan.id,
         PlanItem.parent_item_id.is_(None),
         PlanItem.deleted_at.is_(None),
     )).all())
     pre_service = next((item for item in roots if item.item_type == "pre_service"), None)
-    if not pre_service or not any(item.id != pre_service.id and item.sequence == pre_service.sequence for item in roots):
+    if not pre_service:
         return False
-    pre_service.sequence = min(item.sequence for item in roots) - Decimal("1")
+    changed = False
+    if pre_service.title.strip().lower() == "welcome":
+        pre_service.title = "Pre-service"
+        changed = True
+    if any(item.id != pre_service.id and item.sequence == pre_service.sequence for item in roots):
+        pre_service.sequence = min(item.sequence for item in roots) - Decimal("1")
+        changed = True
+    if not changed:
+        return False
     session.commit()
     return True
 
@@ -204,9 +215,10 @@ def ensure_service_scaffold(session: Session, plan: Plan) -> list[PlanItem]:
     )
     existing_types = {item.item_type.lower() for item in existing if not item.parent_item_id}
     existing_titles = {item.title.strip().lower() for item in existing if not item.parent_item_id}
+    existing_custom_titles = {item.title.strip().lower() for item in existing if not item.parent_item_id and item.item_type == "custom"}
     created: list[PlanItem] = []
     for section in templates:
-        title_match = section.title.lower() in existing_titles
+        title_match = section.title.lower() in (existing_custom_titles if section.item_type == "custom" else existing_titles)
         type_match = bool(section.aliases & existing_types)
         definition = next((entry for entry in defaults if entry.parent_item_id is None and entry.sequence == section.sequence), None)
         linked = definition and any((item.presentation_options or {}).get("template_id") == definition.id for item in existing)

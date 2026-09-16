@@ -18,6 +18,7 @@ same control for their built-in message and clock, with one text layer. Present
 marks the section after Pre-service as the service start; Welcome countdowns can
 target that start or a clock time, with a maximum duration. Template sections can
 be reordered in Present, and imported sections sharing a position are separated.
+The Sunday template keeps Pre-service and Welcome as separate sections.
 The outline picker can also save the current structure and order. Songs, uploads and dated
 announcement details are not copied by that action. Backing audio uses inline
 YouTube search, continues through section items, and can fade at a marked item.

@@ -61,16 +61,16 @@ def test_empty_sunday_service_gets_complete_timed_scaffold() -> None:
     session, plan = scaffold_session()
     try:
         created = ensure_service_scaffold(session, plan)
-        assert len(created) == 8
-        assert [(item.item_type, item.planned_start) for item in created[:5]] == [
+        assert len(created) == 9
+        assert [(item.item_type, item.planned_start) for item in created[:6]] == [
             (section.item_type, section.planned_start) for section in SUNDAY_SERVICE_SCAFFOLD
         ]
-        assert [item.item_type for item in created[5:]] == [
+        assert [item.item_type for item in created[6:]] == [
             "welcome_montage",
             "welcome_countdown",
             "welcome_seated",
         ]
-        assert all(item.parent_item_id == created[0].id for item in created[5:])
+        assert all(item.parent_item_id == created[0].id for item in created[6:])
         assert ensure_service_scaffold(session, plan) == []
     finally:
         session.close()
@@ -269,20 +269,8 @@ def test_existing_welcome_photos_move_to_montage_stage() -> None:
 
 
 def test_reading_an_existing_service_repairs_legacy_welcome() -> None:
-    engine = create_engine("sqlite://")
-    Base.metadata.create_all(engine)
-    with Session(engine) as session:
-        plan_type = PlanType(name="Sunday Service", starts_at="10:30", active=True)
-        session.add(plan_type)
-        session.flush()
-        plan = Plan(
-            plan_type_id=plan_type.id,
-            service_date=datetime(2026, 9, 6, 10, 30, tzinfo=UTC),
-            title="Existing Sunday Service",
-            status="draft",
-        )
-        session.add(plan)
-        session.flush()
+    session, plan = scaffold_session()
+    try:
         session.add(
             PlanItem(plan_id=plan.id, sequence=10, item_type="pre_service", title="Welcome")
         )
@@ -295,6 +283,11 @@ def test_reading_an_existing_service_repairs_legacy_welcome() -> None:
             for item in detail.items
             if item.item_type.startswith("welcome_")
         ] == ["welcome_montage", "welcome_countdown", "welcome_seated"]
+        assert [(item.item_type, item.title) for item in detail.items if item.parent_item_id is None][:2] == [
+            ("pre_service", "Pre-service"), ("custom", "Welcome"),
+        ]
+    finally:
+        session.close()
 
 
 def test_custom_plan_type_uses_its_default_outline() -> None:
@@ -516,10 +509,10 @@ def test_applying_outline_to_empty_service_returns_items_without_duplicates() ->
     try:
         with patch("app.modules.planning.routes.require_plan_editable"):
             detail = add_missing_service_sections(plan.id, None, session)
-            assert len(detail.items) == 8
+            assert len(detail.items) == 9
             repeated = add_missing_service_sections(plan.id, None, session)
         assert [item.id for item in repeated.items] == [item.id for item in detail.items]
         session.expire_all()
-        assert len(get_plan(plan.id, None, session).items) == 8
+        assert len(get_plan(plan.id, None, session).items) == 9
     finally:
         session.close()

@@ -6,7 +6,7 @@ import { shiftClock, templateServiceStart, welcomeLeadSeconds } from "../service
 
 const SECTION_TYPES = [
   ["custom", "Custom section"],
-  ["pre_service", "Welcome / pre-service"],
+  ["pre_service", "Pre-service"],
   ["worship_set", "Worship set"],
   ["open_time", "Open time"],
   ["sermon", "Sermon"],
