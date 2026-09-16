@@ -49,13 +49,13 @@ def countdown_deadline(item: PlanItem, payload: dict, items: list[PlanItem], ser
     duration = int(options.get("overlay_countdown_seconds") or (1800 if item.item_type == "welcome_montage" else 300))
     deadline = start + duration * 1000
     until = options.get("overlay_countdown_until")
-    if until and not (service_start and item.item_type in {"welcome_montage", "welcome_countdown"}):
+    if until:
         try:
             hour, minute = map(int, until.split(":"))
             day = service_date.replace(tzinfo=ZoneInfo("UTC")) if service_date.tzinfo is None else service_date
             target = day.astimezone(ZoneInfo("Europe/Dublin")).replace(hour=hour, minute=minute, second=0, microsecond=0)
             clock_deadline = int(target.timestamp() * 1000)
-            deadline = min(deadline, clock_deadline) if item.item_type == "welcome_countdown" else clock_deadline
+            deadline = min(deadline, clock_deadline)
         except (ValueError, TypeError):
             pass
     if service_start and item.item_type in {"welcome_montage", "welcome_countdown"}:

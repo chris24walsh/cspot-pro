@@ -101,6 +101,42 @@ def test_template_children_keep_their_cue_settings_when_scaffolded() -> None:
         session.close()
 
 
+def test_pre_service_precedes_welcome_when_imported_with_same_position() -> None:
+    session, plan = scaffold_session()
+    try:
+        session.add_all([
+            PlanItem(plan_id=plan.id, sequence=10, item_type="custom", title="Welcome"),
+            PlanItem(plan_id=plan.id, sequence=10, item_type="pre_service", title="Pre-service"),
+        ])
+        session.commit()
+        ensure_service_scaffold(session, plan)
+        roots = list(session.scalars(select(PlanItem).where(
+            PlanItem.plan_id == plan.id, PlanItem.parent_item_id.is_(None)
+        ).order_by(PlanItem.sequence, PlanItem.created_at)).all())
+        assert [(item.item_type, item.title) for item in roots[:2]] == [
+            ("pre_service", "Pre-service"), ("custom", "Welcome"),
+        ]
+        assert roots[0].sequence < roots[1].sequence
+    finally:
+        session.close()
+
+
+def test_existing_template_plan_repairs_equal_pre_service_position_on_read() -> None:
+    session, plan = scaffold_session()
+    try:
+        session.add(DefaultItem(plan_type_id=plan.plan_type_id, sequence=10, item_type="custom", title="Welcome"))
+        session.add_all([
+            PlanItem(plan_id=plan.id, sequence=10, item_type="custom", title="Welcome"),
+            PlanItem(plan_id=plan.id, sequence=10, item_type="pre_service", title="Pre-service"),
+        ])
+        session.commit()
+        detail = get_plan(plan.id, _current_user=SimpleNamespace(id="reader"), session=session)
+        roots = [item for item in detail.items if item.parent_item_id is None]
+        assert [item.item_type for item in roots[:2]] == ["pre_service", "custom"]
+    finally:
+        session.close()
+
+
 def test_existing_song_message_notices_and_end_are_not_duplicated() -> None:
     session, plan = scaffold_session()
     try:
@@ -158,6 +194,7 @@ def test_unchanged_title_does_not_block_presentation_option_update() -> None:
         },
     )
     assert changes_protected_outline_fields(item, {"title": "Renamed montage"})
+    assert not changes_protected_outline_fields(item, {"sequence": 15})
 
 
 def test_plan_item_read_includes_saved_presentation_options() -> None:

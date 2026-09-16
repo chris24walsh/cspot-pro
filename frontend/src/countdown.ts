@@ -31,8 +31,10 @@ export function withCountdownTiming(slide: PresentationSlide | null, slides: Pre
   const duration = slide.overlayCountdownSeconds ?? (slide.itemType === "welcome_montage" ? 1800 : 300);
   const start = starts[slide.planItemId] ?? state?.updatedAt ?? Date.now();
   let deadline = start + duration * 1000;
-  const until = (serviceStart || slide.overlayCountdownUntil) ? countdownDeadline(serviceDate, serviceStart || slide.overlayCountdownUntil!) : null;
-  if (until !== null) deadline = Math.min(deadline, until);
+  for (const target of [slide.overlayCountdownUntil, serviceStart]) {
+    const until = target ? countdownDeadline(serviceDate, target) : null;
+    if (until !== null) deadline = Math.min(deadline, until);
+  }
   if (slide.itemType === "welcome_countdown") {
     const montage = slides.find((candidate) => candidate.itemType === "welcome_montage" && (
       candidate.sectionId === slide.sectionId || (candidate.sectionId === candidate.planItemId && slide.sectionId === slide.planItemId)

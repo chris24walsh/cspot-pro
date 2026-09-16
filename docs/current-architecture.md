@@ -481,8 +481,13 @@ The service template stores the actual service start time and derives its
 automated pre-service start from the timed Welcome montage and final countdown.
 The Start menu stores a service-specific start time and shows the calculated
 pre-service start. Changing Welcome cue durations recalculates that pre-service
-start while preserving the chosen service time. A Welcome countdown ends at its duration or that service
-start time, whichever comes first. Existing queued pre-service times continue
+start while preserving the chosen service time. The section immediately after
+Pre-service is marked as the service start in the presenter rail and its timing
+editor. Welcome countdown cues can target the service start or a specific clock
+time; their configured duration remains a maximum, and the actual service start
+also caps them. Imported Pre-service and Welcome sections with the same position
+are separated with Pre-service first, and template sections can be reordered by
+presenters. Existing queued pre-service times continue
 to derive the displayed service start from the Welcome duration.
 Announcements also add structured date, location, contact, URL and layout
 metadata; sermon/deck controls remain presentation-only so imported pixels are

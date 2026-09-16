@@ -60,6 +60,14 @@ describe("countdown timing", () => {
     expect(timed?.autoAdvanceDeadline).toBe(Date.parse("2026-09-20T09:55:00Z"));
   });
 
+  it("uses an earlier custom clock target even when a service start is set", () => {
+    const serviceDate = "2026-09-20T10:00:00Z";
+    const now = Date.parse("2026-09-20T09:40:00Z");
+    const state: PresentationLiveState = { planId: "service", index: 0, planItemId: "montage", updatedAt: now, countdownStartedAt: { montage: now } };
+    const timed = withCountdownTiming({ ...montage, overlayCountdownUntil: "10:50" }, slides, state, serviceDate, "11:00");
+    expect(timed?.overlayCountdownDeadline).toBe(Date.parse("2026-09-20T09:50:00Z"));
+  });
+
   it("keeps the five minute handoff when Welcome duration changes", () => {
     const changed = { ...montage, autoAdvanceSeconds: 1200 };
     const start = Date.parse("2026-09-20T09:35:00Z");

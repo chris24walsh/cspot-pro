@@ -33,3 +33,9 @@ def test_explicit_service_start_survives_a_welcome_duration_change():
     start = int(datetime(2026, 9, 20, 9, 35, tzinfo=UTC).timestamp() * 1000)
     payload = {"countdown_started_at": {items[0].id: start}}
     assert welcome_advance_deadline(items[0], payload, items, datetime(2026, 9, 20, 10, tzinfo=UTC), start, "11:00") == int(datetime(2026, 9, 20, 9, 55, tzinfo=UTC).timestamp() * 1000)
+
+
+def test_custom_welcome_target_can_end_before_service_start():
+    item = PlanItem(id="montage", item_type="welcome_montage", presentation_options={"overlay_countdown_seconds": 1800, "overlay_countdown_until": "10:50"})
+    start = int(datetime(2026, 9, 20, 9, 40, tzinfo=UTC).timestamp() * 1000)
+    assert countdown_deadline(item, {"countdown_started_at": {"montage": start}}, [item], datetime(2026, 9, 20, 10, tzinfo=UTC), start, "11:00") == int(datetime(2026, 9, 20, 9, 50, tzinfo=UTC).timestamp() * 1000)

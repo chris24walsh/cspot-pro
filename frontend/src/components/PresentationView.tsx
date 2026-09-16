@@ -888,6 +888,11 @@ export function PresentationView({
     },
     [plan?.items, worshipSetPlan?.items],
   );
+  const serviceStartSectionId = (() => {
+    const roots = effectivePlanItems.filter((item) => !item.parent_item_id);
+    const preServiceIndex = roots.findIndex((item) => item.item_type === "pre_service");
+    return roots[preServiceIndex + 1]?.id ?? null;
+  })();
   const serviceItemsById = useMemo(
     () => new Map((plan?.items ?? []).map((item) => [item.id, item] as const)),
     [plan?.items],
@@ -2415,9 +2420,11 @@ export function PresentationView({
         },
       };
       if (fillerMediaSectionItem?.id === fillerMediaPlanItem.id) {
-        if (plan) await updatePlan(plan.id, { queued_start: itemEditDraft.planned_start ? shiftClock(itemEditDraft.planned_start, -welcomeLead) : null, service_start: itemEditDraft.planned_start || null });
-        if (canAccessAdminTools && currentPlanType && fillerMediaPlanItem.id === effectivePlanItems.find((item) => !item.parent_item_id)?.id) {
-          await updatePlanType(currentPlanType.id, { automation_start: itemEditDraft.planned_start ? shiftClock(itemEditDraft.planned_start, -welcomeLead) : null, starts_at: itemEditDraft.planned_start || null });
+        if (fillerMediaPlanItem.id === serviceStartSectionId) {
+          if (plan) await updatePlan(plan.id, { queued_start: itemEditDraft.planned_start ? shiftClock(itemEditDraft.planned_start, -welcomeLead) : null, service_start: itemEditDraft.planned_start || null });
+          if (canAccessAdminTools && currentPlanType) {
+            await updatePlanType(currentPlanType.id, { automation_start: itemEditDraft.planned_start ? shiftClock(itemEditDraft.planned_start, -welcomeLead) : null, starts_at: itemEditDraft.planned_start || null });
+          }
         }
         await updatePlanItem(fillerMediaPlanItem.id, { ...details, auto_collapse_items: itemEditDraft.auto_collapse_items });
       } else {
@@ -5311,6 +5318,7 @@ export function PresentationView({
                     >
                       <span>{(sectionIndex + 1).toString().padStart(2, "0")}</span>
                       <strong>{section.title}</strong>
+                      {section.id === serviceStartSectionId ? <small>Service starts{plan?.service_start ? ` at ${plan.service_start}` : ""}</small> : null}
                     </button>
                     {groupItems.length ? (
                       <button
@@ -5429,7 +5437,7 @@ export function PresentationView({
                                 <Trash2 size={14} aria-hidden="true" />
                               </button>
                             ) : null}
-                            {!fixedOutlineSection || canAccessAdminTools ? <>
+                            <>
                               <button
                                 aria-label={`Move ${section.title} up`}
                                 className="section-icon-button"
@@ -5448,7 +5456,7 @@ export function PresentationView({
                               >
                                 <ChevronDown size={14} aria-hidden="true" />
                               </button>
-                            </> : null}
+                            </>
                           </>
                         ) : null}
                         {canEditPlan && sectionItem && (!fixedOutlineSection || canAccessAdminTools) ? (
@@ -5960,11 +5968,11 @@ export function PresentationView({
             <details className="item-editor-fieldset item-editor-disclosure" open={itemEditorSection === "playback"}>
               <summary onClick={(event) => { event.preventDefault(); setItemEditorSection((current) => current === "playback" ? null : "playback"); }}>Timing</summary>
               <div className="form-grid item-details-grid">
-                {fillerMediaSectionItem?.id === fillerMediaPlanItem.id && fillerMediaPlanItem.id === effectivePlanItems.find((item) => !item.parent_item_id)?.id ? <><label className="inline-checkbox wide-field"><input type="checkbox" checked={Boolean(itemEditDraft.planned_start)} disabled={fillerMediaBusy} onChange={(event) => setItemEditDraft((current) => ({ ...current, planned_start: event.target.checked ? (plan?.service_start ?? (currentPlanType ? templateServiceStart(currentPlanType) : "11:00")) : "" }))} /><span>Queue this service to start automatically</span></label>
+                {fillerMediaSectionItem?.id === fillerMediaPlanItem.id && fillerMediaPlanItem.id === serviceStartSectionId ? <><label className="inline-checkbox wide-field"><input type="checkbox" checked={Boolean(itemEditDraft.planned_start)} disabled={fillerMediaBusy} onChange={(event) => setItemEditDraft((current) => ({ ...current, planned_start: event.target.checked ? (plan?.service_start ?? (currentPlanType ? templateServiceStart(currentPlanType) : "11:00")) : "" }))} /><span>Queue this service to start automatically</span></label>
                 {itemEditDraft.planned_start ? <><label>Service starts at<input type="time" required disabled={fillerMediaBusy} value={itemEditDraft.planned_start} onChange={(event) => setItemEditDraft((current) => ({ ...current, planned_start: event.target.value }))} /></label><small>Pre-service starts at {shiftClock(itemEditDraft.planned_start, -welcomeLead)}.</small></> : null}</> : null}
                 {fillerMediaSectionItem?.id === fillerMediaPlanItem.id && fillerMediaPlanItem.id === effectivePlanItems.filter((item) => !item.parent_item_id).slice(-1)[0]?.id ? <label className="inline-checkbox wide-field"><input checked={itemEditDraft.end_after_section} disabled={fillerMediaBusy} onChange={(event) => setItemEditDraft((current) => ({ ...current, end_after_section: event.target.checked }))} type="checkbox" /><span>End the service when this section's final auto-advancing slide finishes</span></label> : null}
                 {itemEditDraft.overlay_mode === "countdown" ? <>
-                  {FIXED_WELCOME_STAGE_TYPES.has(fillerMediaPlanItem.item_type) ? <><label><span>Maximum countdown (seconds)</span><input min="1" onChange={(event) => setItemEditDraft((current) => ({ ...current, overlay_countdown_seconds: Number(event.target.value), overlay_countdown_until: "" }))} type="number" value={itemEditDraft.overlay_countdown_seconds} /></label><small>Also ends at the service start time, if sooner.</small></> : <><label><span>Countdown</span><select onChange={(event) => setItemEditDraft((current) => ({ ...current, overlay_countdown_until: event.target.value === "until" ? current.overlay_countdown_until || "11:00" : "" }))} value={itemEditDraft.overlay_countdown_until ? "until" : "time"}><option value="time">Time (duration)</option><option value="until">Until (clock time)</option></select></label>{itemEditDraft.overlay_countdown_until ? <label><span>Until</span><input onChange={(event) => setItemEditDraft((current) => ({ ...current, overlay_countdown_until: event.target.value }))} type="time" value={itemEditDraft.overlay_countdown_until} /></label> : <label><span>Time (seconds)</span><input min="1" onChange={(event) => setItemEditDraft((current) => ({ ...current, overlay_countdown_seconds: Number(event.target.value) }))} type="number" value={itemEditDraft.overlay_countdown_seconds} /></label>}</>}
+                  {FIXED_WELCOME_STAGE_TYPES.has(fillerMediaPlanItem.item_type) ? <><label><span>Countdown target</span><select onChange={(event) => setItemEditDraft((current) => ({ ...current, overlay_countdown_until: event.target.value === "until" ? current.overlay_countdown_until || plan?.service_start || "11:00" : "" }))} value={itemEditDraft.overlay_countdown_until ? "until" : "service"}><option value="service">Service start</option><option value="until">Clock time</option></select></label>{itemEditDraft.overlay_countdown_until ? <label><span>Until</span><input onChange={(event) => setItemEditDraft((current) => ({ ...current, overlay_countdown_until: event.target.value }))} type="time" value={itemEditDraft.overlay_countdown_until} /></label> : null}<label><span>Maximum countdown (seconds)</span><input min="1" onChange={(event) => setItemEditDraft((current) => ({ ...current, overlay_countdown_seconds: Number(event.target.value) }))} type="number" value={itemEditDraft.overlay_countdown_seconds} /></label></> : <><label><span>Countdown</span><select onChange={(event) => setItemEditDraft((current) => ({ ...current, overlay_countdown_until: event.target.value === "until" ? current.overlay_countdown_until || "11:00" : "" }))} value={itemEditDraft.overlay_countdown_until ? "until" : "time"}><option value="time">Time (duration)</option><option value="until">Until (clock time)</option></select></label>{itemEditDraft.overlay_countdown_until ? <label><span>Until</span><input onChange={(event) => setItemEditDraft((current) => ({ ...current, overlay_countdown_until: event.target.value }))} type="time" value={itemEditDraft.overlay_countdown_until} /></label> : <label><span>Time (seconds)</span><input min="1" onChange={(event) => setItemEditDraft((current) => ({ ...current, overlay_countdown_seconds: Number(event.target.value) }))} type="number" value={itemEditDraft.overlay_countdown_seconds} /></label>}</>}
                 </> : null}
                 <label className="inline-checkbox"><input checked={itemEditDraft.auto_advance} disabled={fillerMediaBusy} onChange={(event) => setItemEditDraft((current) => ({ ...current, auto_advance: event.target.checked }))} type="checkbox" /><span>Advance automatically</span></label>
                 {itemEditDraft.auto_advance && fillerMediaPlanItem.item_type !== "welcome_countdown" ? <label><span>Advance after (seconds)</span><input disabled={fillerMediaBusy} min="1" onChange={(event) => setItemEditDraft((current) => ({ ...current, auto_advance_seconds: Number(event.target.value) }))} type="number" value={itemEditDraft.auto_advance_seconds} /></label> : null}

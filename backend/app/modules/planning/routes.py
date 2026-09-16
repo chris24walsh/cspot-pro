@@ -50,6 +50,7 @@ from app.modules.planning.schemas import (
 from app.modules.presentation.timing import pre_service_start_for_plan, service_start_for_plan
 from app.modules.planning.service_scaffold import (
     ensure_service_scaffold,
+    ensure_pre_service_order,
     is_sunday_service,
     restore_template_files,
     section_auto_collapse_preference,
@@ -122,7 +123,7 @@ def changes_protected_outline_fields(item: PlanItem, payload_data: dict[str, obj
     """Return true only when a request actually changes the fixed outline."""
     return any(
         field in payload_data and payload_data[field] != getattr(item, field)
-        for field in {"item_type", "sequence", "title"}
+        for field in {"item_type", "title"}
     )
 
 
@@ -653,6 +654,12 @@ def get_plan(
             .where(PlanItem.plan_id == plan.id, PlanItem.deleted_at.is_(None))
             .order_by(PlanItem.sequence, PlanItem.created_at)
         ).all())
+    elif items and ensure_pre_service_order(session, plan):
+        items = list(session.scalars(
+            select(PlanItem)
+            .where(PlanItem.plan_id == plan.id, PlanItem.deleted_at.is_(None))
+            .order_by(PlanItem.sequence, PlanItem.created_at)
+        ).all())
     return plan_to_detail(session, plan, items)
 
 
@@ -990,7 +997,7 @@ def update_plan_item(
     ) and changes_protected_outline_fields(item, payload_data):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Presenters cannot move or change Sunday service outline slides",
+            detail="Presenters cannot change Sunday service outline slide types or titles",
         )
 
     if save_template:

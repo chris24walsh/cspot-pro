@@ -159,6 +159,21 @@ def restore_template_files(session: Session, item: PlanItem) -> None:
             ))
 
 
+def ensure_pre_service_order(session: Session, plan: Plan) -> bool:
+    """Separate imported Pre-service and Welcome roots that share a position."""
+    roots = list(session.scalars(select(PlanItem).where(
+        PlanItem.plan_id == plan.id,
+        PlanItem.parent_item_id.is_(None),
+        PlanItem.deleted_at.is_(None),
+    )).all())
+    pre_service = next((item for item in roots if item.item_type == "pre_service"), None)
+    if not pre_service or not any(item.id != pre_service.id and item.sequence == pre_service.sequence for item in roots):
+        return False
+    pre_service.sequence = min(item.sequence for item in roots) - Decimal("1")
+    session.commit()
+    return True
+
+
 def ensure_service_scaffold(session: Session, plan: Plan) -> list[PlanItem]:
     defaults = list(
         session.scalars(
@@ -259,4 +274,5 @@ def ensure_service_scaffold(session: Session, plan: Plan) -> list[PlanItem]:
         session.commit()
     else:
         created.extend(ensure_welcome_stage_items(session, plan))
+    ensure_pre_service_order(session, plan)
     return created

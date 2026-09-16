@@ -14,8 +14,11 @@ Section and item settings use compact expandable groups for visuals, timing,
 audio, overlays and media. Existing edits default to this service only; select
 “Save configuration to template” to evolve that service's template. The overlay
 editor has a 25–200% font-size control in 1% steps. Timed Welcome cues use the
-same control for their built-in message and clock, with one text layer. The outline
-picker can also save the current structure and order. Songs, uploads and dated
+same control for their built-in message and clock, with one text layer. Present
+marks the section after Pre-service as the service start; Welcome countdowns can
+target that start or a clock time, with a maximum duration. Template sections can
+be reordered in Present, and imported sections sharing a position are separated.
+The outline picker can also save the current structure and order. Songs, uploads and dated
 announcement details are not copied by that action. Backing audio uses inline
 YouTube search, continues through section items, and can fade at a marked item.
 Automated section starts use the service date and the configured church timezone;
