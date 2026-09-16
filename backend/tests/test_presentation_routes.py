@@ -837,7 +837,7 @@ def test_new_output_on_sermon_schedules_one_recording_start(monkeypatch) -> None
             patch.object(
                 session,
                 "get",
-                return_value=SimpleNamespace(item_type="sermon"),
+                return_value=SimpleNamespace(item_type="sermon", presentation_options={}),
             ),
             patch("app.modules.presentation.routes.activate_audio_scene") as activate_scene,
         ):
@@ -908,7 +908,7 @@ def test_new_output_derives_scene_from_current_presentation_state(
             patch.object(
                 session,
                 "get",
-                return_value=(SimpleNamespace(item_type=item_type) if item_type else None),
+                return_value=(SimpleNamespace(item_type=item_type, presentation_options={}) if item_type else None),
             ),
             patch("app.modules.presentation.routes.schedule_sermon_recording"),
             patch("app.modules.presentation.routes.activate_audio_scene") as activate_scene,

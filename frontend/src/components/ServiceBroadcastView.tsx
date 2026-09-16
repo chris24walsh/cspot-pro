@@ -1,3 +1,4 @@
+import { withCountdownTiming } from "../countdown";
 import { Maximize2, Radio, Settings2 } from "lucide-react";
 import type { CSSProperties } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -137,7 +138,7 @@ export function ServiceBroadcastView({ canControl = false, onOpenSettings }: { c
   );
   // Blanking is a visual overlay, not the end of the underlying live slide.
   // Keeping the slide selected also keeps its camera/audio routing alive.
-  const liveSlide = !liveState ? null : slides[resolveLiveIndex(slides, liveState)] ?? null;
+  const liveSlide = withCountdownTiming(!liveState ? null : slides[resolveLiveIndex(slides, liveState)] ?? null, slides, liveState, plan?.service_date ?? "");
   const ambientMusicStage = liveState?.serviceStage === "pre_service" || liveState?.serviceStage === "post_service";
   const selectedLiveService = liveServices.find((service) => service.plan_id === selectedPlanId) ?? liveServices[0] ?? null;
   const adminRehearsal = Boolean(canControl && selectedLiveService?.rehearsal);
@@ -503,7 +504,7 @@ export function ServiceBroadcastView({ canControl = false, onOpenSettings }: { c
             ) : !liveSlide ? (
               <HoldingPane message="The livestream is live" startingSoon />
             ) : liveSlide.montageImageUrls && plan ? (
-              <PreServiceSlide backgroundImageUrl={LCF_BACKGROUND_URL} countdownUntil={liveSlide.overlayCountdownUntil} dwellSeconds={liveSlide.dwellSeconds} fontScale={liveSlide.overlayFontScale} imageUrls={liveSlide.montageImageUrls} random={liveSlide.montageRandom} serviceDate={plan.service_date} timed={Boolean(liveSlide.preServiceTimed)} phase={liveSlide.preServiceStage ?? liveState?.preServicePhase} phaseStartedAt={liveState?.countdownStartedAt?.[liveSlide.planItemId] ?? liveState?.updatedAt} schedule={serviceScheduleForPlan(settings.service_schedules, plan.service_date, plan.plan_type)} />
+              <PreServiceSlide backgroundImageUrl={LCF_BACKGROUND_URL} countdownEndsAt={liveSlide.overlayCountdownDeadline} countdownUntil={liveSlide.overlayCountdownUntil} dwellSeconds={liveSlide.dwellSeconds} fontScale={liveSlide.overlayFontScale} imageUrls={liveSlide.montageImageUrls} random={liveSlide.montageRandom} serviceDate={plan.service_date} timed={Boolean(liveSlide.preServiceTimed)} phase={liveSlide.preServiceStage ?? liveState?.preServicePhase} phaseStartedAt={liveState?.countdownStartedAt?.[liveSlide.planItemId] ?? liveState?.updatedAt} schedule={serviceScheduleForPlan(settings.service_schedules, plan.service_date, plan.plan_type)} />
             ) : liveSlide.countdownSeconds ? (
               <CountdownSlide durationSeconds={liveSlide.countdownSeconds} running={hasVisibleSlideshow} startAt={liveState?.countdownStartedAt?.[liveSlide.planItemId] ?? liveState?.updatedAt} />
             ) : liveSlide.backgroundImageUrl ? (

@@ -84,6 +84,7 @@ export function PreServiceSlide({
   dwellSeconds,
   fontScale,
   countdownUntil,
+  countdownEndsAt,
 }: {
   backgroundImageUrl: string;
   imageUrls: string[];
@@ -96,6 +97,7 @@ export function PreServiceSlide({
   dwellSeconds?: number;
   fontScale?: number;
   countdownUntil?: string;
+  countdownEndsAt?: number;
 }) {
   const [now, setNow] = useState(Date.now());
   const selectedAt = useRef(Date.now());
@@ -115,7 +117,9 @@ export function PreServiceSlide({
   // the global pre-service clock/countdown phase.
   const phase = timed ? (forcedPhase ?? preServicePhaseAt(serviceDate, now, schedule)) : "montage";
   const montageImageIndex = Math.floor((now - (phaseStartedAt ?? selectedAt.current)) / (Math.max(dwellSeconds ?? 12, 1) * 1000)) % Math.max(images.length, 1);
-  const remaining = preServiceRemainingSeconds(serviceDate, now, forcedPhase, phaseStartedAt, schedule, countdownUntil);
+  const remaining = countdownEndsAt !== undefined && forcedPhase !== "complete"
+    ? Math.max(0, Math.ceil((countdownEndsAt - now) / 1000))
+    : preServiceRemainingSeconds(serviceDate, now, forcedPhase, phaseStartedAt, schedule, countdownUntil);
   const displayPhase = phase === "countdown" && remaining === 0 ? "complete" : phase;
   const displayedCountdownLabel = useRef(countdownLabel(remaining));
   displayedCountdownLabel.current = countdownLabelForTransition(displayedCountdownLabel.current, phase, remaining);

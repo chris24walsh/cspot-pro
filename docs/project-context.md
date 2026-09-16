@@ -86,7 +86,11 @@ Announcements, and Post-service. Welcome contains individually selectable
 Montage, Countdown, and Please be seated items. Automation starts the template
 once; each item owns its duration, automatic advance, output destinations, and
 audio scene. The seeded flow shows a 25-minute montage followed by a five-minute
-countdown, then selects Please be seated. Operators configure the selected
+countdown, then selects Please be seated. Welcome navigation preserves the
+montage's original countdown; each entry to the final countdown starts a fresh
+five minutes, capped by that original deadline.
+At zero the final countdown advances to Please be seated. Countdown and
+auto-advance settings are grouped under Timing. Operators configure the selected
 service's automated start from the Start menu. Welcome photos
 can be scoped to one service or retained for future services. Montage photos start their transition clock when selected, preserve configured order by default, and can be randomized per item. They crossfade gently, including the final transition back
 to the holding background. Scene changes independently determine livestream

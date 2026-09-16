@@ -57,6 +57,7 @@ function syncStateFromApi(state: PresentationLiveSyncState): PresentationLiveSta
     planId: state.plan_id,
     index: state.index,
     updatedAt: state.updated_at,
+    countdownStartedAt: state.countdown_started_at,
     planItemId: state.plan_item_id,
     slideOffset: state.slide_offset,
     theme: state.theme,

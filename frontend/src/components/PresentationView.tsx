@@ -1,3 +1,4 @@
+import { countdownStartsForSelection, withCountdownTiming } from "../countdown";
 import { Archive, CircleStop, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Clock, EyeOff, Layers3, Mic, MonitorUp, Moon, Pause, Pencil, Play, Plus, RotateCcw, Search, Trash2, Volume2, WandSparkles, X } from "lucide-react";
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -784,6 +785,7 @@ export function PresentationView({
   const [localAudioUrl, setLocalAudioUrl] = useState<string | null>(null);
   const [slideshowOpen, setSlideshowOpen] = useState(false);
   const [presentationSessionActive, setPresentationSessionActive] = useState(false);
+  const [, refreshCountdownTiming] = useState(0);
   const [presentationAutoStarted, setPresentationAutoStarted] = useState(false);
   const [openSlideshowWindowOnStart, setOpenSlideshowWindowOnStart] = useState(false);
   const [slideshowStartMenuOpen, setSlideshowStartMenuOpen] = useState(false);
@@ -962,7 +964,7 @@ export function PresentationView({
     () => buildPresentationSlides(effectivePlanItems, songs, renderedSlidesByFileId),
     [effectivePlanItems, songs, renderedSlidesByFileId],
   );
-  const liveSlide = slides[liveIndex] ?? null;
+  const liveSlide = withCountdownTiming(slides[liveIndex] ?? null, slides, currentLiveStateRef.current, plan?.service_date ?? "");
   const preServicePlanItem = effectivePlanItems.find((item) => item.item_type === "welcome_montage")
     ?? effectivePlanItems.find((item) => item.item_type === "pre_service")
     ?? null;
@@ -1295,9 +1297,7 @@ export function PresentationView({
       planId,
       index: nextIndex,
       updatedAt: overrides.updatedAt ?? Date.now(),
-      countdownStartedAt: slide && (slide.overlayMode === "countdown" || slide.countdownSeconds) && !slide.overlayCountdownUntil
-        ? { ...currentState?.countdownStartedAt, [slide.planItemId]: currentState?.countdownStartedAt?.[slide.planItemId] ?? Date.now() }
-        : currentState?.countdownStartedAt,
+      countdownStartedAt: countdownStartsForSelection(currentState?.planId === planId ? currentState : null, slide, overrides.updatedAt ?? Date.now()),
       planItemId: overrides.planItemId ?? slide?.planItemId ?? null,
       slideOffset: overrides.slideOffset ?? Math.max(slideOffset, 0),
       theme: overrides.theme ?? slideTheme,
@@ -1322,6 +1322,7 @@ export function PresentationView({
 
   function applyRemoteLiveState(state: PresentationLiveState) {
     currentLiveStateRef.current = state;
+    refreshCountdownTiming((revision) => revision + 1);
     suppressPublishRef.current = true;
     lastLiveStateRef.current = state.updatedAt;
     setSlideTheme(state.theme ?? "light");
@@ -1554,9 +1555,9 @@ export function PresentationView({
       } else {
         moveLive(1);
       }
-    }, Math.max(liveSlide.autoAdvanceSeconds, 1) * 1000);
+    }, liveSlide.autoAdvanceDeadline !== undefined ? Math.max(0, liveSlide.autoAdvanceDeadline - Date.now()) : Math.max(liveSlide.autoAdvanceSeconds, 1) * 1000);
     return () => window.clearTimeout(timer);
-  }, [autoAdvanceArmedSlideId, liveBlanked, liveIndex, liveSlide?.autoAdvanceSeconds, liveSlide?.endAfterSection, liveSlide?.id, liveSlide?.sectionId, liveSlide?.sectionTitle, presentationSessionActive, slideshowOpen, slides]);
+  }, [autoAdvanceArmedSlideId, liveBlanked, liveIndex, liveSlide?.autoAdvanceDeadline, liveSlide?.autoAdvanceSeconds, liveSlide?.endAfterSection, liveSlide?.id, liveSlide?.sectionId, liveSlide?.sectionTitle, presentationSessionActive, slideshowOpen, slides]);
 
   function sorterTargetForSlide(slide: PresentationSlide | null | undefined) {
     if (!slide) return null;
@@ -1727,7 +1728,14 @@ export function PresentationView({
         // Worship Live owns coupling. Omitting this field preserves its current
         // value while the presenter publishes ordinary slide and display state.
       });
-      lastLiveStateRef.current = synced.updated_at;
+      if (synced.updated_at === state.updatedAt && currentLiveStateRef.current?.updatedAt === state.updatedAt && currentLiveStateRef.current?.planId === state.planId) {
+        const confirmed = { ...state, countdownStartedAt: synced.countdown_started_at };
+        currentLiveStateRef.current = confirmed;
+        lastLiveStateRef.current = synced.updated_at;
+        localStorage.setItem(PRESENTATION_STORAGE_KEY, JSON.stringify(confirmed));
+        channelRef.current?.postMessage(confirmed);
+        refreshCountdownTiming((revision) => revision + 1);
+      }
       setPresentationSessionActive(synced.status === "live");
       setPresentationAutoStarted(Boolean(synced.auto_started));
     } catch (error) {
@@ -4681,7 +4689,7 @@ export function PresentationView({
                   style={{ backgroundImage: `url(${LCF_BACKGROUND_URL})` }}
                 />
               ) : liveSlide?.montageImageUrls && plan ? (
-                <PreServiceSlide backgroundImageUrl={LCF_BACKGROUND_URL} countdownUntil={liveSlide.overlayCountdownUntil} dwellSeconds={liveSlide.dwellSeconds} fontScale={liveSlide.overlayFontScale} imageUrls={liveSlide.montageImageUrls} random={liveSlide.montageRandom} serviceDate={plan.service_date} timed={Boolean(liveSlide.preServiceTimed) && presentationSessionActive} phase={liveSlide.preServiceStage ?? currentLiveStateRef.current?.preServicePhase} phaseStartedAt={currentLiveStateRef.current?.countdownStartedAt?.[liveSlide.planItemId] ?? currentLiveStateRef.current?.updatedAt} schedule={serviceScheduleForPlan(serviceSchedules, plan.service_date, plan.plan_type)} />
+                <PreServiceSlide backgroundImageUrl={LCF_BACKGROUND_URL} countdownEndsAt={liveSlide.overlayCountdownDeadline} countdownUntil={liveSlide.overlayCountdownUntil} dwellSeconds={liveSlide.dwellSeconds} fontScale={liveSlide.overlayFontScale} imageUrls={liveSlide.montageImageUrls} random={liveSlide.montageRandom} serviceDate={plan.service_date} timed={Boolean(liveSlide.preServiceTimed) && presentationSessionActive} phase={liveSlide.preServiceStage ?? currentLiveStateRef.current?.preServicePhase} phaseStartedAt={currentLiveStateRef.current?.countdownStartedAt?.[liveSlide.planItemId] ?? currentLiveStateRef.current?.updatedAt} schedule={serviceScheduleForPlan(serviceSchedules, plan.service_date, plan.plan_type)} />
               ) : liveSlide?.countdownSeconds ? (
                 <CountdownSlide
                   durationSeconds={liveSlide.countdownSeconds}
@@ -5951,8 +5959,14 @@ export function PresentationView({
                 {fillerMediaSectionItem?.id === fillerMediaPlanItem.id && fillerMediaPlanItem.id === effectivePlanItems.find((item) => !item.parent_item_id)?.id ? <><label className="inline-checkbox wide-field"><input type="checkbox" checked={Boolean(itemEditDraft.planned_start)} disabled={fillerMediaBusy} onChange={(event) => setItemEditDraft((current) => ({ ...current, planned_start: event.target.checked ? (currentPlanType?.automation_start ?? currentPlanType?.starts_at ?? "10:30") : "" }))} /><span>Queue this service to start automatically</span></label>
                 {itemEditDraft.planned_start ? <label>Queued start<input type="time" required disabled={fillerMediaBusy} value={itemEditDraft.planned_start} onChange={(event) => setItemEditDraft((current) => ({ ...current, planned_start: event.target.value }))} /></label> : null}</> : null}
                 {fillerMediaSectionItem?.id === fillerMediaPlanItem.id && fillerMediaPlanItem.id === effectivePlanItems.filter((item) => !item.parent_item_id).slice(-1)[0]?.id ? <label className="inline-checkbox wide-field"><input checked={itemEditDraft.end_after_section} disabled={fillerMediaBusy} onChange={(event) => setItemEditDraft((current) => ({ ...current, end_after_section: event.target.checked }))} type="checkbox" /><span>End the service when this section's final auto-advancing slide finishes</span></label> : null}
+                {itemEditDraft.overlay_mode === "countdown" ? <>
+                  <label><span>Countdown</span><select onChange={(event) => setItemEditDraft((current) => ({ ...current, overlay_countdown_until: event.target.value === "until" ? current.overlay_countdown_until || "11:00" : "" }))} value={itemEditDraft.overlay_countdown_until ? "until" : "time"}><option value="time">Time (duration)</option><option value="until">Until (clock time)</option></select></label>
+                  {itemEditDraft.overlay_countdown_until ? <label><span>Until</span><input onChange={(event) => setItemEditDraft((current) => ({ ...current, overlay_countdown_until: event.target.value }))} type="time" value={itemEditDraft.overlay_countdown_until} /></label> : <label><span>Time (seconds)</span><input min="1" onChange={(event) => setItemEditDraft((current) => ({ ...current, overlay_countdown_seconds: Number(event.target.value) }))} type="number" value={itemEditDraft.overlay_countdown_seconds} /></label>}
+                </> : null}
                 <label className="inline-checkbox"><input checked={itemEditDraft.auto_advance} disabled={fillerMediaBusy} onChange={(event) => setItemEditDraft((current) => ({ ...current, auto_advance: event.target.checked }))} type="checkbox" /><span>Advance automatically</span></label>
-                {itemEditDraft.auto_advance ? <label><span>Advance after (seconds)</span><input disabled={fillerMediaBusy} min="1" onChange={(event) => setItemEditDraft((current) => ({ ...current, auto_advance_seconds: Number(event.target.value) }))} type="number" value={itemEditDraft.auto_advance_seconds} /></label> : null}
+                {itemEditDraft.auto_advance && fillerMediaPlanItem.item_type !== "welcome_countdown" ? <label><span>Advance after (seconds)</span><input disabled={fillerMediaBusy} min="1" onChange={(event) => setItemEditDraft((current) => ({ ...current, auto_advance_seconds: Number(event.target.value) }))} type="number" value={itemEditDraft.auto_advance_seconds} /></label> : null}
+                {fillerMediaPlanItem.item_type === "welcome_countdown" ? <p className="wide-field">Starts fresh each time you enter this slide, capped by the original Welcome countdown. Auto-advance moves to Please be seated at zero.</p> : null}
+                {fillerMediaPlanItem.item_type === "welcome_montage" ? <p className="wide-field">Returning to this slide resumes the original countdown and advance time.</p> : null}
                 {fillerMediaPlanItem.item_type === "open_time" ? <label className="inline-checkbox"><input checked={itemEditDraft.repeat} disabled={fillerMediaBusy} onChange={(event) => setItemEditDraft((current) => ({ ...current, repeat: event.target.checked }))} type="checkbox" /><span>Repeat montage</span></label> : null}
               </div>
             </details>
@@ -5997,10 +6011,6 @@ export function PresentationView({
                 <label><span>Font</span><select disabled={fillerMediaBusy} onChange={(event) => setItemEditDraft((current) => ({ ...current, overlay_font: event.target.value as typeof current.overlay_font }))} value={itemEditDraft.overlay_font}><option value="sans">Clean sans</option><option value="display">Welcome display</option><option value="serif">Serif</option><option value="mono">Monospace</option></select></label>
                 <label><span>Text box transparency ({100 - itemEditDraft.overlay_panel_opacity}%)</span><input disabled={fillerMediaBusy} max="100" min="0" onChange={(event) => setItemEditDraft((current) => ({ ...current, overlay_panel_opacity: Number(event.target.value) }))} type="range" value={itemEditDraft.overlay_panel_opacity} /></label>
                 <label><span>Background dimming ({itemEditDraft.overlay_background_dim}%)</span><input disabled={fillerMediaBusy} max="80" min="0" onChange={(event) => setItemEditDraft((current) => ({ ...current, overlay_background_dim: Number(event.target.value) }))} type="range" value={itemEditDraft.overlay_background_dim} /></label>
-                {itemEditDraft.overlay_mode === "countdown" ? <>
-                  <label><span>Countdown</span><select onChange={(event) => setItemEditDraft((current) => ({ ...current, overlay_countdown_until: event.target.value === "until" ? current.overlay_countdown_until || "11:00" : "" }))} value={itemEditDraft.overlay_countdown_until ? "until" : "time"}><option value="time">Time (duration)</option><option value="until">Until (clock time)</option></select></label>
-                  {itemEditDraft.overlay_countdown_until ? <label><span>Until</span><input onChange={(event) => setItemEditDraft((current) => ({ ...current, overlay_countdown_until: event.target.value }))} type="time" value={itemEditDraft.overlay_countdown_until} /></label> : <label><span>Time (seconds)</span><input min="1" onChange={(event) => setItemEditDraft((current) => ({ ...current, overlay_countdown_seconds: Number(event.target.value) }))} type="number" value={itemEditDraft.overlay_countdown_seconds} /></label>}
-                </> : null}
               </div>
             </details> : null}
             {fillerMediaPlanItem.item_type === "announcements" ? <details className="item-editor-fieldset item-editor-disclosure" open={itemEditorSection === "announcement"}>

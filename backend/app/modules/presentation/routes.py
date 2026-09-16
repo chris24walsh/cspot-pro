@@ -20,19 +20,23 @@ from app.modules.identity.models import User
 from app.modules.planning.models import Plan, PlanItem, PlanType
 from app.modules.planning.service_scaffold import ensure_welcome_stage_items
 from app.modules.presentation.models import PresentationPosition, PresentationSession
+from app.modules.presentation.timing import welcome_advance_deadline
 
 router = APIRouter()
 
 
-def _remember_countdown_start(payload: dict, item: PlanItem | None, now_ms: int) -> None:
+def _remember_countdown_start(payload: dict, item: PlanItem | None, now_ms: int, *, entered: bool = False) -> None:
     if item is None:
         return
     options = item.presentation_options or {}
-    if options.get("overlay_countdown_until"):
+    if options.get("overlay_countdown_until") and item.item_type != "welcome_countdown":
         return
-    if options.get("overlay_mode") == "countdown" or item.item_type in {"countdown", "seating"}:
+    if options.get("overlay_mode") == "countdown" or item.item_type in {"countdown", "seating", "welcome_montage", "welcome_countdown"}:
         starts = dict(payload.get("countdown_started_at") or {})
-        starts.setdefault(item.id, now_ms)
+        if item.item_type == "welcome_countdown" and entered:
+            starts[item.id] = now_ms
+        else:
+            starts.setdefault(item.id, now_ms)
         payload["countdown_started_at"] = starts
 
 
@@ -336,14 +340,21 @@ def template_cue_at(
     if not ordered:
         return None, "service"
     item_by_id = {item.id: item for item in items}
+    timing_payload: dict = {}
+    cue_start_ms = int(started_at.timestamp() * 1000)
     for index, item in enumerate(ordered):
         options = item.presentation_options or {}
         if not options.get("auto_advance"):
             return item, "service" if index else "pre_service"
         duration = max(1, int(options.get("auto_advance_seconds") or options.get("dwell_seconds") or 1))
+        _remember_countdown_start(timing_payload, item, cue_start_ms, entered=True)
+        deadline = welcome_advance_deadline(item, timing_payload, ordered, plan.service_date, cue_start_ms)
+        if deadline is not None:
+            duration = max(0, (deadline - cue_start_ms) / 1000)
         if elapsed < duration:
             return item, "pre_service"
         elapsed -= duration
+        cue_start_ms += int(duration * 1000)
         section = item_by_id.get(item.parent_item_id) if item.parent_item_id else item
         next_item = ordered[index + 1] if index + 1 < len(ordered) else None
         next_in_section = bool(
@@ -486,7 +497,7 @@ def ensure_scheduled_pre_service(session: Session) -> None:
                 payload["plan_item_id"] = desired_item.id
                 payload["slide_offset"] = 0
                 position_changed = True
-            _remember_countdown_start(payload, desired_item, int(datetime.now(UTC).timestamp() * 1000))
+            _remember_countdown_start(payload, desired_item, int(datetime.now(UTC).timestamp() * 1000), entered=position_changed)
             if desired_phase is not None and payload.get("pre_service_phase") != desired_phase:
                 payload["pre_service_phase"] = desired_phase
                 position_changed = True
@@ -695,9 +706,14 @@ def advance_expired_auto_slide(
     if not options.get("auto_advance"):
         return position
     duration_seconds = max(1, int(options.get("auto_advance_seconds") or options.get("dwell_seconds") or 1))
-    if now_ms < int(started_at) + duration_seconds * 1000:
-        return position
     ordered = _ordered_auto_advance_items(session, plan_id)
+    deadline = int(started_at) + duration_seconds * 1000
+    if item and item.item_type in {"welcome_montage", "welcome_countdown"}:
+        plan = session.get(Plan, plan_id)
+        if plan:
+            deadline = welcome_advance_deadline(item, payload, ordered, plan.service_date, int(started_at)) or deadline
+    if now_ms < deadline:
+        return position
     current_index = next((index for index, candidate in enumerate(ordered) if candidate.id == item_id), -1)
     if current_index < 0:
         payload.pop("auto_advance_started_at", None)
@@ -754,7 +770,7 @@ def advance_expired_auto_slide(
         "updated_at": now_ms,
     })
     next_options = next_item.presentation_options or {}
-    _remember_countdown_start(payload, next_item, now_ms)
+    _remember_countdown_start(payload, next_item, now_ms, entered=True)
     if next_options.get("auto_advance"):
         payload["auto_advance_started_at"] = now_ms
     else:
@@ -957,8 +973,8 @@ def update_presentation_live_state(
             selected_item = session.get(PlanItem, payload.plan_item_id)
         except SQLAlchemyError:
             selected_item = None
-        if selected_item and selected_item.plan_id == plan_id:
-            _remember_countdown_start(next_payload, selected_item, now)
+        if selected_item and selected_item.plan_id == plan_id and presentation_session.status == "live":
+            _remember_countdown_start(next_payload, selected_item, payload.updated_at, entered=existing_payload.get("plan_item_id") != payload.plan_item_id)
     if payload.worship_coupled is not None:
         next_payload["worship_coupled"] = payload.worship_coupled
     selection_changed = (
@@ -1111,6 +1127,7 @@ def update_presentation_output_status(
     elif current_owner and current_owner != payload.owner_id:
         return existing
     else:
+        starting_run = presentation_session.status != "live"
         presentation_session.presenter_id = current_user.id
         presentation_session.status = "live"
         presentation_session.ended_at = None
@@ -1123,6 +1140,17 @@ def update_presentation_output_status(
         next_payload.pop("pre_service_phase", None)
         if new_output:
             next_payload["output_recording_item_id"] = next_payload.get("plan_item_id")
+            if starting_run:
+                next_payload.pop("countdown_started_at", None)
+            current_item_id = next_payload.get("plan_item_id")
+            try:
+                current_item = session.get(PlanItem, current_item_id) if current_item_id else None
+            except SQLAlchemyError:
+                current_item = None
+            _remember_countdown_start(next_payload, current_item, payload.heartbeat_at)
+            if current_item and (current_item.presentation_options or {}).get("auto_advance"):
+                next_payload.setdefault("auto_advance_started_at", payload.heartbeat_at)
+            next_payload["updated_at"] = payload.heartbeat_at
 
     position.payload_json = json.dumps(next_payload)
     session.commit()

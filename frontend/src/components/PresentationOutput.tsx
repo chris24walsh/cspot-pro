@@ -1,3 +1,4 @@
+import { countdownStartsForSelection, withCountdownTiming } from "../countdown";
 import { Maximize2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
@@ -149,7 +150,7 @@ export function PresentationOutput({ mediaOutput = false, networkDisplay = false
   const liveTargetMissing = Boolean(
     liveState?.planItemId && slides.length && !slides.some((slide) => slide.planItemId === liveState.planItemId),
   );
-  const liveSlide = liveTargetMissing ? null : slides[resolvedIndex] ?? null;
+  const liveSlide = withCountdownTiming(liveTargetMissing ? null : slides[resolvedIndex] ?? null, slides, liveState, plan?.service_date ?? "");
   const liveMediaUrl = networkOutputMediaUrl(
     liveSlide?.videoUrl ?? liveSlide?.youtubeAudioUrl,
     networkDisplay,
@@ -214,6 +215,7 @@ export function PresentationOutput({ mediaOutput = false, networkDisplay = false
         videoActionAt: overrides.videoActionAt ?? liveState.videoActionAt,
       };
 
+      nextState.countdownStartedAt = countdownStartsForSelection(liveState, slides.find((slide) => slide.planItemId === nextState.planItemId) ?? null, nextState.updatedAt);
       applyLiveState(nextState);
 
       try {
@@ -229,7 +231,9 @@ export function PresentationOutput({ mediaOutput = false, networkDisplay = false
           video_action: nextState.videoAction ?? null,
           video_action_at: nextState.videoActionAt ?? null,
         });
-        lastLiveStateRef.current = remoteState.updated_at;
+        if (remoteState.updated_at === nextState.updatedAt && lastLiveStateRef.current === nextState.updatedAt) {
+          applyLiveState({ ...nextState, countdownStartedAt: remoteState.countdown_started_at });
+        }
       } catch {
         // Keep local control responsive even if sync fails briefly.
       }
@@ -768,7 +772,7 @@ export function PresentationOutput({ mediaOutput = false, networkDisplay = false
         ) : liveSlide?.displayTargets && !liveSlide.displayTargets.includes("church") ? (
           <div className="blank-stage lcf-background-surface" aria-label="Slide not routed to church displays" style={{ backgroundImage: `url(${LCF_BACKGROUND_URL})` }} />
         ) : liveSlide?.montageImageUrls && plan ? (
-          <PreServiceSlide backgroundImageUrl={LCF_BACKGROUND_URL} countdownUntil={liveSlide.overlayCountdownUntil} dwellSeconds={liveSlide.dwellSeconds} fontScale={liveSlide.overlayFontScale} imageUrls={liveSlide.montageImageUrls} random={liveSlide.montageRandom} serviceDate={plan.service_date} timed={Boolean(liveSlide.preServiceTimed)} phase={liveSlide.preServiceStage ?? liveState?.preServicePhase} phaseStartedAt={liveState?.countdownStartedAt?.[liveSlide.planItemId] ?? liveState?.updatedAt} schedule={serviceScheduleForPlan(serviceSchedules, plan.service_date, plan.plan_type)} />
+          <PreServiceSlide backgroundImageUrl={LCF_BACKGROUND_URL} countdownEndsAt={liveSlide.overlayCountdownDeadline} countdownUntil={liveSlide.overlayCountdownUntil} dwellSeconds={liveSlide.dwellSeconds} fontScale={liveSlide.overlayFontScale} imageUrls={liveSlide.montageImageUrls} random={liveSlide.montageRandom} serviceDate={plan.service_date} timed={Boolean(liveSlide.preServiceTimed)} phase={liveSlide.preServiceStage ?? liveState?.preServicePhase} phaseStartedAt={liveState?.countdownStartedAt?.[liveSlide.planItemId] ?? liveState?.updatedAt} schedule={serviceScheduleForPlan(serviceSchedules, plan.service_date, plan.plan_type)} />
         ) : liveSlide?.countdownSeconds ? (
           <CountdownSlide durationSeconds={liveSlide.countdownSeconds} startAt={liveState?.countdownStartedAt?.[liveSlide.planItemId] ?? liveState?.updatedAt} />
         ) : liveSlide?.backgroundImageUrl ? (

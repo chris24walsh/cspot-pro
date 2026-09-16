@@ -21,7 +21,9 @@ export function SlideOverlay({ running = true, slide, startAt, serviceDate = "" 
   // from the service template would draw a second copy over that message.
   if (!slide.overlayMode || slide.overlayMode === "none" || (running && slide.preServiceTimed && slide.montageImageUrls)) return null;
   const remaining = running || slide.overlayCountdownUntil
-    ? countdownRemaining(slide.overlayCountdownSeconds ?? 300, startAt, slide.overlayCountdownUntil, serviceDate, now)
+    ? slide.overlayCountdownDeadline !== undefined
+      ? Math.max(0, Math.ceil((slide.overlayCountdownDeadline - now) / 1000))
+      : countdownRemaining(slide.overlayCountdownSeconds ?? 300, startAt, slide.overlayCountdownUntil, serviceDate, now)
     : slide.overlayCountdownSeconds ?? 300;
   const clock = `${Math.floor(remaining / 60)}:${String(remaining % 60).padStart(2, "0")}`;
   const panelOpacity = Math.min(100, Math.max(0, slide.overlayPanelOpacity ?? 68)) / 100;

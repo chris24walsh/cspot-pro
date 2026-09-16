@@ -467,8 +467,14 @@ and expose left-edge drag handles that reorder only among valid siblings. Welcom
 Open time, Sermon and Announcements support styled static/countdown overlays;
 their overlay font scale is stored per item as a percentage (25–200%). Countdown
 overlays can use a duration or a clock time on the service date. The live
-presentation position retains each duration countdown's first start time, so
-revisiting its slide continues the same countdown across outputs. Timed
+presentation position retains duration countdown start times across outputs.
+Welcome montage keeps its original start and advance deadline when revisited.
+Entering the final Welcome countdown starts its duration again, capped by the
+montage's original countdown deadline; updating the same slide's display state
+does not restart it. Its auto-advance uses that same deadline and selects Please
+be seated at zero. Countdown and advance settings are grouped under Timing.
+Clock targets use Europe/Dublin on every output. Selecting slides before starting
+the output does not consume countdown time. Timed
 Welcome cues apply that scale to the built-in message and clock and suppress
 the separate overlay so the text is rendered once.
 Announcements also add structured date, location, contact, URL and layout

@@ -59,6 +59,8 @@ export interface PresentationSlide {
   overlayMode?: "none" | "static" | "countdown";
   overlayCountdownSeconds?: number;
   overlayCountdownUntil?: string;
+  overlayCountdownDeadline?: number;
+  autoAdvanceDeadline?: number;
   overlayPosition?: "top-left" | "top" | "top-right" | "left" | "centre" | "right" | "bottom-left" | "bottom" | "bottom-right";
   overlaySize?: "small" | "medium" | "large";
   overlayFontScale?: number;
