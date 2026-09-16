@@ -17,10 +17,10 @@ from app.modules.broadcast.schemas import ServiceScheduleRule
 from app.modules.broadcast.settings import service_schedules
 from app.modules.identity.auth import list_role_names, require_any_permission, require_permission
 from app.modules.identity.models import User
-from app.modules.planning.models import Plan, PlanItem, PlanType
+from app.modules.planning.models import DefaultItem, Plan, PlanItem, PlanType
 from app.modules.planning.service_scaffold import ensure_welcome_stage_items
 from app.modules.presentation.models import PresentationPosition, PresentationSession
-from app.modules.presentation.timing import welcome_advance_deadline
+from app.modules.presentation.timing import pre_service_start_for_plan, service_start_for_plan, welcome_advance_deadline
 
 router = APIRouter()
 
@@ -348,7 +348,7 @@ def template_cue_at(
             return item, "service" if index else "pre_service"
         duration = max(1, int(options.get("auto_advance_seconds") or options.get("dwell_seconds") or 1))
         _remember_countdown_start(timing_payload, item, cue_start_ms, entered=True)
-        deadline = welcome_advance_deadline(item, timing_payload, ordered, plan.service_date, cue_start_ms)
+        deadline = welcome_advance_deadline(item, timing_payload, ordered, plan.service_date, cue_start_ms, service_start_for_plan(plan, session.get(PlanType, plan.plan_type_id), items))
         if deadline is not None:
             duration = max(0, (deadline - cue_start_ms) / 1000)
         if elapsed < duration:
@@ -413,7 +413,13 @@ def ensure_scheduled_pre_service(session: Session) -> None:
         # Every dated service owns exactly one queue time. Template and legacy
         # schedule values are defaults only; item cue times must never create a
         # second presentation session or move the service window earlier.
-        automation_start = plan.queued_start
+        if plan.service_start:
+            timing_items = list(session.scalars(select(PlanItem).where(PlanItem.plan_id == plan.id, PlanItem.deleted_at.is_(None))).all())
+            if not any(item.item_type == "welcome_montage" for item in timing_items):
+                timing_items = list(session.scalars(select(DefaultItem).where(DefaultItem.plan_type_id == plan.plan_type_id)).all())
+            automation_start = pre_service_start_for_plan(plan, timing_items)
+        else:
+            automation_start = plan.queued_start
         if not automation_start:
             continue
         rule = legacy_rule or template_schedule_rule(plan_type, now_local, automation_start)
@@ -711,7 +717,7 @@ def advance_expired_auto_slide(
     if item and item.item_type in {"welcome_montage", "welcome_countdown"}:
         plan = session.get(Plan, plan_id)
         if plan:
-            deadline = welcome_advance_deadline(item, payload, ordered, plan.service_date, int(started_at)) or deadline
+            deadline = welcome_advance_deadline(item, payload, ordered, plan.service_date, int(started_at), service_start_for_plan(plan, session.get(PlanType, plan.plan_type_id), ordered)) or deadline
     if now_ms < deadline:
         return position
     current_index = next((index for index, candidate in enumerate(ordered) if candidate.id == item_id), -1)

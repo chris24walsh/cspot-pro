@@ -38,11 +38,13 @@ def plan_edit_cutoff(session: Session, plan: Plan) -> datetime:
             .order_by(Plan.service_date)
         )
         if linked is not None:
+            plan = linked
             plan_type = session.get(PlanType, linked.plan_type_id)
 
-    if plan_type is not None and plan_type.starts_at:
+    start_time = plan.service_start or (plan_type.starts_at if plan_type else None)
+    if start_time:
         try:
-            start = time.fromisoformat(plan_type.starts_at)
+            start = time.fromisoformat(start_time)
             return datetime.combine(service_day, start, tzinfo=zone)
         except ValueError:
             pass

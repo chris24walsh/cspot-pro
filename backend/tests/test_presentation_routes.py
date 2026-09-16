@@ -1,6 +1,7 @@
 import json
 from datetime import UTC, datetime
 from types import SimpleNamespace
+from zoneinfo import ZoneInfo
 from unittest.mock import patch
 
 import pytest
@@ -129,13 +130,13 @@ def test_template_cues_advance_from_one_template_start() -> None:
         ])
         session.commit()
 
-        item, stage = template_cue_at(session, plan, datetime(2026, 9, 6, 10, 30, tzinfo=UTC), "10:30")
+        item, stage = template_cue_at(session, plan, datetime(2026, 9, 6, 10, 30, tzinfo=ZoneInfo("Europe/Dublin")), "10:30")
         assert item.item_type == "welcome_montage"
         assert stage == "pre_service"
-        item, stage = template_cue_at(session, plan, datetime(2026, 9, 6, 10, 56, tzinfo=UTC), "10:30")
+        item, stage = template_cue_at(session, plan, datetime(2026, 9, 6, 10, 56, tzinfo=ZoneInfo("Europe/Dublin")), "10:30")
         assert item.item_type == "welcome_countdown"
         assert stage == "pre_service"
-        item, stage = template_cue_at(session, plan, datetime(2026, 9, 6, 11, 0, tzinfo=UTC), "10:30")
+        item, stage = template_cue_at(session, plan, datetime(2026, 9, 6, 11, 0, tzinfo=ZoneInfo("Europe/Dublin")), "10:30")
         assert item.item_type == "welcome_seated"
         assert stage == "service"
 

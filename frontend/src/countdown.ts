@@ -25,25 +25,30 @@ export function countdownStartsForSelection(state: PresentationLiveState | null 
   return starts;
 }
 
-export function withCountdownTiming(slide: PresentationSlide | null, slides: PresentationSlide[], state: PresentationLiveState | null | undefined, serviceDate: string): PresentationSlide | null {
+export function withCountdownTiming(slide: PresentationSlide | null, slides: PresentationSlide[], state: PresentationLiveState | null | undefined, serviceDate: string, serviceStart?: string | null): PresentationSlide | null {
   if (!slide || !["welcome_montage", "welcome_countdown"].includes(slide.itemType)) return slide;
   const starts = state?.countdownStartedAt ?? {};
   const duration = slide.overlayCountdownSeconds ?? (slide.itemType === "welcome_montage" ? 1800 : 300);
   const start = starts[slide.planItemId] ?? state?.updatedAt ?? Date.now();
   let deadline = start + duration * 1000;
-  const until = slide.overlayCountdownUntil ? countdownDeadline(serviceDate, slide.overlayCountdownUntil) : null;
-  if (until !== null) deadline = slide.itemType === "welcome_countdown" ? Math.min(deadline, until) : until;
+  const until = (serviceStart || slide.overlayCountdownUntil) ? countdownDeadline(serviceDate, serviceStart || slide.overlayCountdownUntil!) : null;
+  if (until !== null) deadline = Math.min(deadline, until);
   if (slide.itemType === "welcome_countdown") {
     const montage = slides.find((candidate) => candidate.itemType === "welcome_montage" && (
       candidate.sectionId === slide.sectionId || (candidate.sectionId === candidate.planItemId && slide.sectionId === slide.planItemId)
     ));
     if (montage && (starts[montage.planItemId] !== undefined || montage.overlayCountdownUntil)) {
-      const originalDeadline = withCountdownTiming(montage, slides, state, serviceDate)?.overlayCountdownDeadline;
+      const originalDeadline = withCountdownTiming(montage, slides, state, serviceDate, serviceStart)?.overlayCountdownDeadline;
       if (originalDeadline !== undefined) deadline = Math.min(deadline, originalDeadline);
     }
   }
-  const offset = slide.itemType === "welcome_montage" ? Math.max(0, duration - (slide.autoAdvanceSeconds ?? 1500)) * 1000 : 0;
-  return { ...slide, overlayCountdownDeadline: deadline, autoAdvanceDeadline: deadline - offset };
+  const finalSlide = slide.itemType === "welcome_montage" ? slides.find((candidate) => candidate.itemType === "welcome_countdown" && (
+    candidate.sectionId === slide.sectionId || (candidate.sectionId === candidate.planItemId && slide.sectionId === slide.planItemId)
+  )) : null;
+  const advanceDeadline = finalSlide
+    ? Math.min(start + (slide.autoAdvanceSeconds ?? 1500) * 1000, deadline - (finalSlide.overlayCountdownSeconds ?? 300) * 1000)
+    : deadline;
+  return { ...slide, overlayCountdownDeadline: deadline, autoAdvanceDeadline: advanceDeadline };
 }
 
 export function countdownRemaining(durationSeconds: number, startAt: number | undefined, until: string | undefined, serviceDate: string, now: number) {

@@ -150,7 +150,7 @@ export function PresentationOutput({ mediaOutput = false, networkDisplay = false
   const liveTargetMissing = Boolean(
     liveState?.planItemId && slides.length && !slides.some((slide) => slide.planItemId === liveState.planItemId),
   );
-  const liveSlide = withCountdownTiming(liveTargetMissing ? null : slides[resolvedIndex] ?? null, slides, liveState, plan?.service_date ?? "");
+  const liveSlide = withCountdownTiming(liveTargetMissing ? null : slides[resolvedIndex] ?? null, slides, liveState, plan?.service_date ?? "", plan?.service_start);
   const liveMediaUrl = networkOutputMediaUrl(
     liveSlide?.videoUrl ?? liveSlide?.youtubeAudioUrl,
     networkDisplay,

@@ -31,6 +31,7 @@ class Plan(IdMixin, TimestampMixin, Base):
     status: Mapped[str] = mapped_column(String(40), default="draft")
     info: Mapped[str | None] = mapped_column(Text)
     queued_start: Mapped[str | None] = mapped_column(String(5))
+    service_start: Mapped[str | None] = mapped_column(String(5))
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 

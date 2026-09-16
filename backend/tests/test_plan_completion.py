@@ -20,6 +20,7 @@ def test_worship_set_inherits_matching_service_edit_cutoff() -> None:
         service = Plan(
             plan_type_id=service_type.id,
             service_date=datetime(2026, 9, 6, 10, 30, tzinfo=UTC),
+            service_start="11:30",
             title="Sunday Service",
             status="draft",
         )
@@ -34,7 +35,7 @@ def test_worship_set_inherits_matching_service_edit_cutoff() -> None:
 
         cutoff = plan_edit_cutoff(session, worship_set)
         assert cutoff.date().isoformat() == "2026-09-06"
-        assert cutoff.hour == 11
+        assert cutoff.hour == 11 and cutoff.minute == 30
         assert cutoff.tzinfo is not None
     finally:
         session.close()

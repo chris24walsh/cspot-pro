@@ -185,6 +185,7 @@ export interface PlanDetail {
   status: string;
   info: string | null;
   queued_start: string | null;
+  service_start: string | null;
   items: PlanItem[];
 }
 
@@ -560,6 +561,7 @@ export interface PlanPayload {
   status: string;
   info: string | null;
   queued_start?: string | null;
+  service_start?: string | null;
 }
 
 export interface PlanItemPayload {

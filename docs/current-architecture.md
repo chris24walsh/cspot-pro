@@ -477,6 +477,13 @@ Clock targets use Europe/Dublin on every output. Selecting slides before startin
 the output does not consume countdown time. Timed
 Welcome cues apply that scale to the built-in message and clock and suppress
 the separate overlay so the text is rendered once.
+The service template stores the actual service start time and derives its
+automated pre-service start from the timed Welcome montage and final countdown.
+The Start menu stores a service-specific start time and shows the calculated
+pre-service start. Changing Welcome cue durations recalculates that pre-service
+start while preserving the chosen service time. A Welcome countdown ends at its duration or that service
+start time, whichever comes first. Existing queued pre-service times continue
+to derive the displayed service start from the Welcome duration.
 Announcements also add structured date, location, contact, URL and layout
 metadata; sermon/deck controls remain presentation-only so imported pixels are
 not rewritten. Preview and live output consume the same options.

@@ -50,4 +50,21 @@ describe("countdown timing", () => {
     expect(withCountdownTiming(standaloneFinal, [{ ...until, sectionId: until.planItemId }, standaloneFinal], state, serviceDate)?.overlayCountdownDeadline).toBe(Date.parse("2026-09-20T10:00:00Z"));
     expect(countdownDeadline("2026-12-20T11:00:00Z", "11:00")).toBe(Date.parse("2026-12-20T11:00:00Z"));
   });
+
+  it("uses the service start as the latest Welcome deadline when started late", () => {
+    const serviceDate = "2026-09-20T10:00:00Z";
+    const now = Date.parse("2026-09-20T09:40:00Z");
+    const state: PresentationLiveState = { planId: "service", index: 0, planItemId: "montage", updatedAt: now, countdownStartedAt: { montage: now } };
+    const timed = withCountdownTiming(montage, slides, state, serviceDate, "11:00");
+    expect(timed?.overlayCountdownDeadline).toBe(Date.parse("2026-09-20T10:00:00Z"));
+    expect(timed?.autoAdvanceDeadline).toBe(Date.parse("2026-09-20T09:55:00Z"));
+  });
+
+  it("keeps the five minute handoff when Welcome duration changes", () => {
+    const changed = { ...montage, autoAdvanceSeconds: 1200 };
+    const start = Date.parse("2026-09-20T09:35:00Z");
+    const state: PresentationLiveState = { planId: "service", index: 0, planItemId: "montage", updatedAt: start, countdownStartedAt: { montage: start } };
+    const timed = withCountdownTiming(changed, [changed, final], state, "2026-09-20T10:00:00Z", "11:00");
+    expect(timed?.autoAdvanceDeadline).toBe(Date.parse("2026-09-20T09:55:00Z"));
+  });
 });

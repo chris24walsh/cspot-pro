@@ -1,4 +1,5 @@
 import { countdownStartsForSelection, withCountdownTiming } from "../countdown";
+import { shiftClock, templateServiceStart, welcomeLeadSeconds } from "../serviceTiming";
 import { Archive, CircleStop, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Clock, EyeOff, Layers3, Mic, MonitorUp, Moon, Pause, Pencil, Play, Plus, RotateCcw, Search, Trash2, Volume2, WandSparkles, X } from "lucide-react";
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -847,6 +848,7 @@ export function PresentationView({
     () => planTypes.find((type) => type.id === plan?.plan_type_id) ?? null,
     [plan?.plan_type_id, planTypes],
   );
+  const welcomeLead = welcomeLeadSeconds((plan?.items?.length ? plan.items : currentPlanType?.default_outline) ?? []);
   const pendingServiceType = planTypes.find((type) => type.id === pendingServiceTypeId && type.active) ?? null;
   const effectivePlanItems = useMemo(
     () => {
@@ -964,7 +966,7 @@ export function PresentationView({
     () => buildPresentationSlides(effectivePlanItems, songs, renderedSlidesByFileId),
     [effectivePlanItems, songs, renderedSlidesByFileId],
   );
-  const liveSlide = withCountdownTiming(slides[liveIndex] ?? null, slides, currentLiveStateRef.current, plan?.service_date ?? "");
+  const liveSlide = withCountdownTiming(slides[liveIndex] ?? null, slides, currentLiveStateRef.current, plan?.service_date ?? "", plan?.service_start);
   const preServicePlanItem = effectivePlanItems.find((item) => item.item_type === "welcome_montage")
     ?? effectivePlanItems.find((item) => item.item_type === "pre_service")
     ?? null;
@@ -1095,7 +1097,7 @@ export function PresentationView({
         ...freshItem.presentation_options,
         title: freshItem.title,
         comment: freshItem.comment ?? "",
-        planned_start: freshItem.parent_item_id ? (freshItem.planned_start ?? "") : (freshPlan.queued_start ?? ""),
+        planned_start: freshItem.parent_item_id ? (freshItem.planned_start ?? "") : (freshPlan.queued_start ? shiftClock(freshPlan.queued_start, welcomeLeadSeconds((freshPlan.items.length ? freshPlan.items : currentPlanType?.default_outline) ?? [])) : ""),
         auto_collapse_items: Boolean(freshSection?.auto_collapse_items),
       });
       setFillerMediaPlanItemId(freshItem.id);
@@ -1767,11 +1769,12 @@ export function PresentationView({
     if (!plan || !canEditPlan) return;
     setAutomatedStartSaving(true);
     try {
-      const updated = await updatePlan(plan.id, { queued_start: automatedStartDraft || null });
+      const queuedStart = automatedStartDraft ? shiftClock(automatedStartDraft, -welcomeLead) : null;
+      const updated = await updatePlan(plan.id, { queued_start: queuedStart, service_start: automatedStartDraft || null });
       setPlan(updated);
       setSlideshowStartMenuOpen(false);
       setMessage(automatedStartDraft
-        ? `Automated start set for ${automatedStartDraft}.`
+        ? `Service starts at ${automatedStartDraft}; pre-service starts at ${queuedStart}.`
         : "Automated start cleared for this service.");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Could not update the automated start.");
@@ -2412,9 +2415,9 @@ export function PresentationView({
         },
       };
       if (fillerMediaSectionItem?.id === fillerMediaPlanItem.id) {
-        if (plan) await updatePlan(plan.id, { queued_start: itemEditDraft.planned_start || null });
+        if (plan) await updatePlan(plan.id, { queued_start: itemEditDraft.planned_start ? shiftClock(itemEditDraft.planned_start, -welcomeLead) : null, service_start: itemEditDraft.planned_start || null });
         if (canAccessAdminTools && currentPlanType && fillerMediaPlanItem.id === effectivePlanItems.find((item) => !item.parent_item_id)?.id) {
-          await updatePlanType(currentPlanType.id, { automation_start: itemEditDraft.planned_start || null, starts_at: itemEditDraft.planned_start || null });
+          await updatePlanType(currentPlanType.id, { automation_start: itemEditDraft.planned_start ? shiftClock(itemEditDraft.planned_start, -welcomeLead) : null, starts_at: itemEditDraft.planned_start || null });
         }
         await updatePlanItem(fillerMediaPlanItem.id, { ...details, auto_collapse_items: itemEditDraft.auto_collapse_items });
       } else {
@@ -4765,7 +4768,7 @@ export function PresentationView({
                   className={`slideshow-start-menu-button ${slideshowOpen || presentationSessionActive ? "primary-button" : "text-button"}`}
                   disabled={loading || !plan}
                   onClick={() => setSlideshowStartMenuOpen((open) => {
-                    if (!open) setAutomatedStartDraft(plan?.queued_start ?? "");
+                    if (!open) setAutomatedStartDraft(plan?.queued_start ? (plan.service_start ?? shiftClock(plan.queued_start, welcomeLead)) : "");
                     return !open;
                   })}
                   title="Choose how the slideshow starts"
@@ -4810,16 +4813,17 @@ export function PresentationView({
                             checked={Boolean(automatedStartDraft)}
                             disabled={automatedStartSaving}
                             onChange={(event) => setAutomatedStartDraft(event.target.checked
-                              ? (plan?.queued_start ?? currentPlanType?.automation_start ?? currentPlanType?.starts_at ?? "10:30")
+                              ? (plan?.service_start ?? (currentPlanType ? templateServiceStart(currentPlanType) : "11:00"))
                               : "")}
                             type="checkbox"
                           />
                           Enable for this service
                         </label>
                         {automatedStartDraft ? <label>
-                          Start time
+                          Service starts at
                           <input disabled={automatedStartSaving} onChange={(event) => setAutomatedStartDraft(event.target.value)} required type="time" value={automatedStartDraft} />
                         </label> : null}
+                        {automatedStartDraft && welcomeLead ? <small>Pre-service starts at {shiftClock(automatedStartDraft, -welcomeLead)} ({Math.round(welcomeLead / 60)} minutes earlier).</small> : null}
                         <button disabled={automatedStartSaving} onClick={() => void saveAutomatedStart()} type="button">
                           <span aria-hidden="true">✓</span>
                           {automatedStartSaving ? "Saving…" : "Save automated start"}
@@ -5956,12 +5960,11 @@ export function PresentationView({
             <details className="item-editor-fieldset item-editor-disclosure" open={itemEditorSection === "playback"}>
               <summary onClick={(event) => { event.preventDefault(); setItemEditorSection((current) => current === "playback" ? null : "playback"); }}>Timing</summary>
               <div className="form-grid item-details-grid">
-                {fillerMediaSectionItem?.id === fillerMediaPlanItem.id && fillerMediaPlanItem.id === effectivePlanItems.find((item) => !item.parent_item_id)?.id ? <><label className="inline-checkbox wide-field"><input type="checkbox" checked={Boolean(itemEditDraft.planned_start)} disabled={fillerMediaBusy} onChange={(event) => setItemEditDraft((current) => ({ ...current, planned_start: event.target.checked ? (currentPlanType?.automation_start ?? currentPlanType?.starts_at ?? "10:30") : "" }))} /><span>Queue this service to start automatically</span></label>
-                {itemEditDraft.planned_start ? <label>Queued start<input type="time" required disabled={fillerMediaBusy} value={itemEditDraft.planned_start} onChange={(event) => setItemEditDraft((current) => ({ ...current, planned_start: event.target.value }))} /></label> : null}</> : null}
+                {fillerMediaSectionItem?.id === fillerMediaPlanItem.id && fillerMediaPlanItem.id === effectivePlanItems.find((item) => !item.parent_item_id)?.id ? <><label className="inline-checkbox wide-field"><input type="checkbox" checked={Boolean(itemEditDraft.planned_start)} disabled={fillerMediaBusy} onChange={(event) => setItemEditDraft((current) => ({ ...current, planned_start: event.target.checked ? (plan?.service_start ?? (currentPlanType ? templateServiceStart(currentPlanType) : "11:00")) : "" }))} /><span>Queue this service to start automatically</span></label>
+                {itemEditDraft.planned_start ? <><label>Service starts at<input type="time" required disabled={fillerMediaBusy} value={itemEditDraft.planned_start} onChange={(event) => setItemEditDraft((current) => ({ ...current, planned_start: event.target.value }))} /></label><small>Pre-service starts at {shiftClock(itemEditDraft.planned_start, -welcomeLead)}.</small></> : null}</> : null}
                 {fillerMediaSectionItem?.id === fillerMediaPlanItem.id && fillerMediaPlanItem.id === effectivePlanItems.filter((item) => !item.parent_item_id).slice(-1)[0]?.id ? <label className="inline-checkbox wide-field"><input checked={itemEditDraft.end_after_section} disabled={fillerMediaBusy} onChange={(event) => setItemEditDraft((current) => ({ ...current, end_after_section: event.target.checked }))} type="checkbox" /><span>End the service when this section's final auto-advancing slide finishes</span></label> : null}
                 {itemEditDraft.overlay_mode === "countdown" ? <>
-                  <label><span>Countdown</span><select onChange={(event) => setItemEditDraft((current) => ({ ...current, overlay_countdown_until: event.target.value === "until" ? current.overlay_countdown_until || "11:00" : "" }))} value={itemEditDraft.overlay_countdown_until ? "until" : "time"}><option value="time">Time (duration)</option><option value="until">Until (clock time)</option></select></label>
-                  {itemEditDraft.overlay_countdown_until ? <label><span>Until</span><input onChange={(event) => setItemEditDraft((current) => ({ ...current, overlay_countdown_until: event.target.value }))} type="time" value={itemEditDraft.overlay_countdown_until} /></label> : <label><span>Time (seconds)</span><input min="1" onChange={(event) => setItemEditDraft((current) => ({ ...current, overlay_countdown_seconds: Number(event.target.value) }))} type="number" value={itemEditDraft.overlay_countdown_seconds} /></label>}
+                  {FIXED_WELCOME_STAGE_TYPES.has(fillerMediaPlanItem.item_type) ? <><label><span>Maximum countdown (seconds)</span><input min="1" onChange={(event) => setItemEditDraft((current) => ({ ...current, overlay_countdown_seconds: Number(event.target.value), overlay_countdown_until: "" }))} type="number" value={itemEditDraft.overlay_countdown_seconds} /></label><small>Also ends at the service start time, if sooner.</small></> : <><label><span>Countdown</span><select onChange={(event) => setItemEditDraft((current) => ({ ...current, overlay_countdown_until: event.target.value === "until" ? current.overlay_countdown_until || "11:00" : "" }))} value={itemEditDraft.overlay_countdown_until ? "until" : "time"}><option value="time">Time (duration)</option><option value="until">Until (clock time)</option></select></label>{itemEditDraft.overlay_countdown_until ? <label><span>Until</span><input onChange={(event) => setItemEditDraft((current) => ({ ...current, overlay_countdown_until: event.target.value }))} type="time" value={itemEditDraft.overlay_countdown_until} /></label> : <label><span>Time (seconds)</span><input min="1" onChange={(event) => setItemEditDraft((current) => ({ ...current, overlay_countdown_seconds: Number(event.target.value) }))} type="number" value={itemEditDraft.overlay_countdown_seconds} /></label>}</>}
                 </> : null}
                 <label className="inline-checkbox"><input checked={itemEditDraft.auto_advance} disabled={fillerMediaBusy} onChange={(event) => setItemEditDraft((current) => ({ ...current, auto_advance: event.target.checked }))} type="checkbox" /><span>Advance automatically</span></label>
                 {itemEditDraft.auto_advance && fillerMediaPlanItem.item_type !== "welcome_countdown" ? <label><span>Advance after (seconds)</span><input disabled={fillerMediaBusy} min="1" onChange={(event) => setItemEditDraft((current) => ({ ...current, auto_advance_seconds: Number(event.target.value) }))} type="number" value={itemEditDraft.auto_advance_seconds} /></label> : null}

@@ -5,6 +5,7 @@ from zoneinfo import ZoneInfo
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import SQLAlchemyError
 
 from app.core.database import get_session
 from app.modules.broadcast.models import BroadcastViewerSettings
@@ -46,6 +47,7 @@ from app.modules.planning.schemas import (
     WorshipLeaderAssignmentRead,
     WorshipLeaderAssignmentUpdate,
 )
+from app.modules.presentation.timing import pre_service_start_for_plan, service_start_for_plan
 from app.modules.planning.service_scaffold import (
     ensure_service_scaffold,
     is_sunday_service,
@@ -265,6 +267,12 @@ def plan_item_to_read(session: Session, item: PlanItem) -> PlanItemRead:
 
 def plan_to_detail(session: Session, plan: Plan, items: list[PlanItem]) -> PlanDetail:
     plan_type = session.get(PlanType, plan.plan_type_id)
+    timing_items = items
+    if not any(item.item_type == "welcome_montage" for item in timing_items):
+        try:
+            timing_items = list(session.scalars(select(DefaultItem).where(DefaultItem.plan_type_id == plan.plan_type_id)).all())
+        except SQLAlchemyError:
+            timing_items = items
     return PlanDetail(
         id=plan.id,
         plan_type=plan_type.name if plan_type else "Unknown",
@@ -276,7 +284,8 @@ def plan_to_detail(session: Session, plan: Plan, items: list[PlanItem]) -> PlanD
         teacher_id=plan.teacher_id,
         status=plan.status,
         info=plan.info,
-        queued_start=plan.queued_start,
+        queued_start=pre_service_start_for_plan(plan, timing_items),
+        service_start=service_start_for_plan(plan, plan_type, timing_items),
         items=[plan_item_to_read(session, item) for item in items],
     )
 

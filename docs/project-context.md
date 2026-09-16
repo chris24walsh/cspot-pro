@@ -91,7 +91,8 @@ montage's original countdown; each entry to the final countdown starts a fresh
 five minutes, capped by that original deadline.
 At zero the final countdown advances to Please be seated. Countdown and
 auto-advance settings are grouped under Timing. Operators configure the selected
-service's automated start from the Start menu. Welcome photos
+service's actual start time from the Start menu; the pre-service start is
+calculated from the timed Welcome cues. Welcome photos
 can be scoped to one service or retained for future services. Montage photos start their transition clock when selected, preserve configured order by default, and can be randomized per item. They crossfade gently, including the final transition back
 to the holding background. Scene changes independently determine livestream
 mixing and whether media plays through the room. Starting the service shows the

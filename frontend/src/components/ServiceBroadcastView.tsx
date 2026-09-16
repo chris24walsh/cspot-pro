@@ -138,7 +138,7 @@ export function ServiceBroadcastView({ canControl = false, onOpenSettings }: { c
   );
   // Blanking is a visual overlay, not the end of the underlying live slide.
   // Keeping the slide selected also keeps its camera/audio routing alive.
-  const liveSlide = withCountdownTiming(!liveState ? null : slides[resolveLiveIndex(slides, liveState)] ?? null, slides, liveState, plan?.service_date ?? "");
+  const liveSlide = withCountdownTiming(!liveState ? null : slides[resolveLiveIndex(slides, liveState)] ?? null, slides, liveState, plan?.service_date ?? "", plan?.service_start);
   const ambientMusicStage = liveState?.serviceStage === "pre_service" || liveState?.serviceStage === "post_service";
   const selectedLiveService = liveServices.find((service) => service.plan_id === selectedPlanId) ?? liveServices[0] ?? null;
   const adminRehearsal = Boolean(canControl && selectedLiveService?.rehearsal);

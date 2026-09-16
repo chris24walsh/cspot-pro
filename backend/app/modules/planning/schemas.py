@@ -146,6 +146,7 @@ class PlanBase(BaseModel):
     status: str = "draft"
     info: str | None = None
     queued_start: str | None = Field(default=None, pattern=r"^([01]\d|2[0-3]):[0-5]\d$")
+    service_start: str | None = Field(default=None, pattern=r"^([01]\d|2[0-3]):[0-5]\d$")
 
 
 class PlanCreate(PlanBase):
@@ -162,6 +163,7 @@ class PlanUpdate(BaseModel):
     status: str | None = None
     info: str | None = None
     queued_start: str | None = Field(default=None, pattern=r"^([01]\d|2[0-3]):[0-5]\d$")
+    service_start: str | None = Field(default=None, pattern=r"^([01]\d|2[0-3]):[0-5]\d$")
 
 
 class PlanSummary(BaseModel):

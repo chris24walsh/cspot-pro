@@ -2,6 +2,7 @@ import { ChevronDown, GripVertical, Plus, Save, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { createPlanType, getBroadcastViewerSettings, getPlanTypes, updatePlanType, type BroadcastAudioScene, type PlanType } from "../api";
+import { shiftClock, templateServiceStart, welcomeLeadSeconds } from "../serviceTiming";
 
 const SECTION_TYPES = [
   ["custom", "Custom section"],
@@ -45,7 +46,7 @@ export function PlanTypeManager({ onChanged, onMessage }: { onChanged?: () => vo
     const selected = next.find((type) => type.id === (preferredId ?? selectedId)) ?? next[0];
     if (selected) {
       setSelectedId(selected.id);
-      setDraft(structuredClone({ ...selected, automation_start: selected.automation_start ?? selected.starts_at }));
+      setDraft(structuredClone({ ...selected, starts_at: templateServiceStart(selected), automation_start: selected.automation_start ?? selected.starts_at }));
     }
   }
 
@@ -54,7 +55,7 @@ export function PlanTypeManager({ onChanged, onMessage }: { onChanged?: () => vo
   function selectType(id: string) {
     setSelectedId(id);
     const selected = types.find((type) => type.id === id);
-    setDraft(selected ? structuredClone({ ...selected, automation_start: selected.automation_start ?? selected.starts_at }) : blankType());
+    setDraft(selected ? structuredClone({ ...selected, starts_at: templateServiceStart(selected), automation_start: selected.automation_start ?? selected.starts_at }) : blankType());
   }
 
   async function save() {
@@ -64,7 +65,7 @@ export function PlanTypeManager({ onChanged, onMessage }: { onChanged?: () => vo
     }
     setSaving(true);
     try {
-      const { id: _id, ...payload } = { ...draft, name: draft.name.trim(), starts_at: draft.automation_start };
+      const { id: _id, ...payload } = { ...draft, name: draft.name.trim(), automation_start: draft.starts_at ? shiftClock(draft.starts_at, -welcomeLeadSeconds(draft.default_outline)) : null };
       const saved = draft.id
         ? await updatePlanType(draft.id, payload)
         : await createPlanType(payload);
@@ -145,11 +146,12 @@ export function PlanTypeManager({ onChanged, onMessage }: { onChanged?: () => vo
           <button className="primary-button" disabled={saving} onClick={() => void save()} type="button"><Save size={15} /> {saving ? "Saving…" : "Save"}</button>
         </div>
       </div>
-      <p className="muted-copy">The template starts once at the scheduled automation time. Each slide then owns its duration, next-slide action, scene and display destinations.</p>
+      <p className="muted-copy">Set when the service begins. The timed Welcome cues determine when pre-service starts automatically.</p>
       <label>Service type<select onChange={(event) => selectType(event.target.value)} value={selectedId}><option value="">New service type</option>{types.map((type) => <option key={type.id} value={type.id}>{type.name}</option>)}</select></label>
       <div className="broadcast-settings-grid">
         <label>Name<input maxLength={120} onChange={(event) => setDraft({ ...draft, name: event.target.value })} value={draft.name} /></label>
-        <label>Automated start<input onChange={(event) => setDraft({ ...draft, automation_start: event.target.value || null, starts_at: event.target.value || null })} type="time" value={draft.automation_start ?? draft.starts_at ?? ""} /></label>
+        <label>Service starts at<input onChange={(event) => { const start = event.target.value || null; setDraft({ ...draft, starts_at: start, automation_start: start ? shiftClock(start, -welcomeLeadSeconds(draft.default_outline)) : null }); }} type="time" value={draft.starts_at ?? ""} /></label>
+        {draft.starts_at && welcomeLeadSeconds(draft.default_outline) ? <p>Pre-service starts at {shiftClock(draft.starts_at, -welcomeLeadSeconds(draft.default_outline))} ({Math.round(welcomeLeadSeconds(draft.default_outline) / 60)} minutes earlier).</p> : null}
         <label>Default duration (minutes)<input min={1} onChange={(event) => setDraft({ ...draft, default_duration_minutes: Number(event.target.value) || null })} type="number" value={draft.default_duration_minutes ?? ""} /></label>
         <label className="toggle-row"><input checked={draft.active} onChange={(event) => setDraft({ ...draft, active: event.target.checked })} type="checkbox" /> Available when creating services</label>
       </div>
@@ -171,8 +173,7 @@ export function PlanTypeManager({ onChanged, onMessage }: { onChanged?: () => vo
               <span className="template-controls-label">Timing and playback</span>
               <label>Image dwell <span className="field-unit">seconds</span><input min={1} onChange={(event) => updateOutline(index, { presentation_options: { ...item.presentation_options, dwell_seconds: Number(event.target.value) } })} type="number" value={item.presentation_options?.dwell_seconds ?? 12} /></label>
               {item.presentation_options?.overlay_mode === "countdown" ? <>
-                <label>Countdown<select onChange={(event) => updateOutline(index, { presentation_options: { ...item.presentation_options, overlay_countdown_until: event.target.value === "until" ? item.presentation_options?.overlay_countdown_until || "11:00" : "" } })} value={item.presentation_options?.overlay_countdown_until ? "until" : "time"}><option value="time">Time (duration)</option><option value="until">Until (clock time)</option></select></label>
-                {item.presentation_options?.overlay_countdown_until ? <label>Until<input onChange={(event) => updateOutline(index, { presentation_options: { ...item.presentation_options, overlay_countdown_until: event.target.value } })} type="time" value={item.presentation_options.overlay_countdown_until} /></label> : <label>Time <span className="field-unit">seconds</span><input min={1} onChange={(event) => updateOutline(index, { presentation_options: { ...item.presentation_options, overlay_countdown_seconds: Number(event.target.value) } })} type="number" value={item.presentation_options?.overlay_countdown_seconds ?? 300} /></label>}
+                {["welcome_montage", "welcome_countdown"].includes(item.item_type) ? <label>Maximum countdown <span className="field-unit">seconds</span><input min={1} onChange={(event) => updateOutline(index, { presentation_options: { ...item.presentation_options, overlay_countdown_seconds: Number(event.target.value), overlay_countdown_until: "" } })} type="number" value={item.presentation_options?.overlay_countdown_seconds ?? (item.item_type === "welcome_montage" ? 1800 : 300)} /></label> : <><label>Countdown<select onChange={(event) => updateOutline(index, { presentation_options: { ...item.presentation_options, overlay_countdown_until: event.target.value === "until" ? item.presentation_options?.overlay_countdown_until || "11:00" : "" } })} value={item.presentation_options?.overlay_countdown_until ? "until" : "time"}><option value="time">Time (duration)</option><option value="until">Until (clock time)</option></select></label>{item.presentation_options?.overlay_countdown_until ? <label>Until<input onChange={(event) => updateOutline(index, { presentation_options: { ...item.presentation_options, overlay_countdown_until: event.target.value } })} type="time" value={item.presentation_options.overlay_countdown_until} /></label> : <label>Time <span className="field-unit">seconds</span><input min={1} onChange={(event) => updateOutline(index, { presentation_options: { ...item.presentation_options, overlay_countdown_seconds: Number(event.target.value) } })} type="number" value={item.presentation_options?.overlay_countdown_seconds ?? 300} /></label>}</>}
               </> : null}
               <label className="toggle-row"><input checked={Boolean(item.presentation_options?.auto_advance)} onChange={(event) => updateOutline(index, { presentation_options: { ...item.presentation_options, auto_advance: event.target.checked } })} type="checkbox" /> Auto-advance</label>
               <label>Automated start<input onChange={(event) => updateOutline(index, { presentation_options: { ...item.presentation_options, scheduled_start: event.target.value } })} type="time" value={item.presentation_options?.scheduled_start ?? ""} /></label>
