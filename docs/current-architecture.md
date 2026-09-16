@@ -882,6 +882,12 @@ Search modes:
   source probes enter a cooldown instead of retrying on every heartbeat. Automatic
   recording can be disabled persistently from Broadcast settings, preventing
   stream probes and recorder startup while leaving manual recording available.
+  Expired grace countdowns are also reconciled when recording status is polled,
+  so a failed watcher cannot leave an uncloseable 0:00 banner. On API startup,
+  interrupted recording rows are finalized; recoverable segment audio is
+  remuxed without deleting the original source files.
+  Presenters can use the visible Start, Pause, Resume, and End recording controls;
+  broader broadcast configuration remains administrator-only.
   Audio timestamps are generated from emitted samples rather than the live
   source clock, so pausing FFmpeg cannot create an empty multi-hour seek range.
   Finalization probes the media duration and automatically rewrites discontinuous

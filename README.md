@@ -361,6 +361,8 @@ Sermon recording follows the live service session, including scheduled services
 without a separate output window. Short automatic captures remain recoverable
 in Archived recordings; automatic grace trimming first preserves the full audio
 and slide metadata under `storage/recordings/recovery/`.
+Interrupted recordings are reconciled after an API restart; available capture
+segments are recovered while their original files are retained.
 
 Production browser compatibility includes an iOS 12 / Safari 12 JavaScript fallback
 via `@vitejs/plugin-legacy`, with usage-based runtime polyfills in both modern and legacy bundles (Safari 12

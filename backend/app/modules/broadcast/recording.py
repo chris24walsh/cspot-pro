@@ -776,7 +776,8 @@ def stop_recording(
     global _active
     with _lock:
         if not _active or (plan_id is not None and _active.plan_id != plan_id):
-            return None
+            recovered = recover_orphaned_recordings(session, plan_id=plan_id)
+            return recovered[0] if recovered else None
         active = _active
         _active = None
         recording = session.get(BroadcastRecording, active.recording_id)
@@ -848,6 +849,105 @@ def stop_recording(
             session.commit()
             session.refresh(recording)
         return recording
+
+
+def recover_orphaned_recordings(
+    session: Session, *, plan_id: str | None = None
+) -> list[BroadcastRecording]:
+    """Finalize rows left active after an API restart, preserving their source segments."""
+    with _lock:
+        statement = select(BroadcastRecording).where(
+            BroadcastRecording.status.in_(("recording", "paused"))
+        ).order_by(BroadcastRecording.started_at.desc())
+        if plan_id is not None:
+            statement = statement.where(BroadcastRecording.plan_id == plan_id)
+        recordings = session.scalars(statement).all()
+        recovered: list[BroadcastRecording] = []
+        for recording in recordings:
+            if _active and _active.recording_id == recording.id:
+                continue
+            path = Path(recording.audio_file_path or recording.file_path)
+            # The uncleanly terminated FFmpeg process normally leaves a .part
+            # file without duration metadata. Remux into a different path to
+            # recover playable audio; never overwrite or delete source parts.
+            parts = sorted(path.parent.glob(f"{path.stem}.part-*{path.suffix}"))
+            sources = parts if parts else ([path] if path.is_file() else [])
+            repaired_path = path.with_name(f"{path.stem}.recovered{path.suffix}")
+            recovered_audio = False
+            if sources:
+                command = ["ffmpeg", "-hide_banner", "-loglevel", "error", "-y"]
+                for source in sources:
+                    command.extend(["-i", str(source)])
+                if len(sources) > 1:
+                    inputs = "".join(f"[{index}:a:0]" for index in range(len(sources)))
+                    command.extend([
+                        "-filter_complex", f"{inputs}concat=n={len(sources)}:v=0:a=1[a]",
+                        "-map", "[a]", "-c:a", "libopus",
+                    ])
+                else:
+                    command.extend(["-map", "0:a:0", "-c", "copy"])
+                command.extend([str(repaired_path)])
+                try:
+                    result = subprocess.run(
+                        command, capture_output=True, check=False,
+                        timeout=RECORDING_REPAIR_TIMEOUT_SECONDS,
+                    )
+                    recovered_audio = (
+                        result.returncode == 0
+                        and repaired_path.is_file()
+                        and repaired_path.stat().st_size > 0
+                    )
+                except (OSError, subprocess.TimeoutExpired):
+                    logger.exception("Could not recover interrupted recording %s", recording.id)
+            recording.ended_at = recording.pending_stop_at or datetime.now(UTC)
+            recording.pending_stop_at = None
+            recording.pending_stop_reason = None
+            recording.end_reason = (
+                "Interrupted by server restart; audio recovered"
+                if recovered_audio else "Interrupted by server restart; source audio retained"
+            )
+            if recovered_audio:
+                duration = _media_duration(repaired_path)
+                trim_at = (
+                    recording.pending_stop_offset_ms / 1000
+                    if recording.pending_stop_offset_ms is not None else None
+                )
+                if duration is not None and trim_at is not None and duration > trim_at + 5:
+                    if _trim_recording_file(repaired_path, trim_at):
+                        duration = _media_duration(repaired_path)
+                recording.file_path = str(repaired_path)
+                recording.audio_file_path = str(repaired_path)
+                recording.file_name = repaired_path.name
+                recording.size_bytes = repaired_path.stat().st_size
+                recording.duration_seconds = round(duration) if duration is not None else None
+                recording.status = "ready"
+            else:
+                recording.status = "failed"
+            recording.pending_stop_offset_ms = None
+            recovered.append(recording)
+        if recovered:
+            session.commit()
+        return recovered
+
+
+def finish_expired_recordings(session: Session) -> None:
+    """Ensure an expired grace countdown is not dependent on its watcher thread."""
+    now = datetime.now(UTC)
+    expired = session.scalars(
+        select(BroadcastRecording).where(
+            BroadcastRecording.status.in_(("recording", "paused")),
+            BroadcastRecording.pending_stop_at.is_not(None),
+            BroadcastRecording.pending_stop_at <= now,
+        )
+    ).all()
+    for recording in expired:
+        if _active and _active.recording_id == recording.id:
+            stop_recording(
+                session, recording.plan_id,
+                f"{recording.pending_stop_reason or 'Left sermon'}; grace period elapsed",
+            )
+        else:
+            recover_orphaned_recordings(session, plan_id=recording.plan_id)
 
 
 def pause_recording(session: Session) -> BroadcastRecording | None:
