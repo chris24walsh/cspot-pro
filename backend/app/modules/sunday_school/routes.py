@@ -1,10 +1,11 @@
 import json
-from datetime import date
+from datetime import UTC, date, datetime, timedelta
 from io import BytesIO
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import FileResponse, StreamingResponse
+from pydantic import BaseModel, Field
 from pypdf import PdfReader, PdfWriter
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -27,6 +28,79 @@ from app.modules.sunday_school.schemas import (
 router = APIRouter()
 LESSON_HISTORY_ENTITY_TYPE = "sunday_school_lesson"
 LESSON_HISTORY_ACTION = "lesson_snapshot"
+
+
+class SchoolDisplayState(BaseModel):
+    kind: str = "blank"
+    title: str = ""
+    detail: str = ""
+    reference: str = ""
+    mode: str = "learn"
+    stage: int = Field(default=0, ge=0, le=6)
+
+
+class SchoolDisplayRead(BaseModel):
+    state: SchoolDisplayState = Field(default_factory=SchoolDisplayState)
+    connected: bool = False
+
+
+def display_read(lesson: SundaySchoolLesson | None) -> SchoolDisplayRead:
+    if lesson is None:
+        return SchoolDisplayRead()
+    seen = lesson.display_seen_at
+    connected = bool(
+        seen and datetime.now(UTC) - seen.replace(tzinfo=UTC) < timedelta(seconds=12)
+    )
+    return SchoolDisplayRead(
+        state=SchoolDisplayState.model_validate(lesson.display_state or {}), connected=connected
+    )
+
+
+@router.get("/display/{lesson_date}", response_model=SchoolDisplayRead)
+def get_school_display(
+    lesson_date: date,
+    _current_user: User = Depends(require_permission("plans:read")),
+    session: Session = Depends(get_session),
+) -> SchoolDisplayRead:
+    lesson = session.scalar(
+        select(SundaySchoolLesson).where(SundaySchoolLesson.lesson_date == lesson_date)
+    )
+    return display_read(lesson)
+
+
+@router.patch("/display/{lesson_date}", response_model=SchoolDisplayRead)
+def update_school_display(
+    lesson_date: date,
+    payload: SchoolDisplayState,
+    _current_user: User = Depends(require_any_permission("plans:create", "plans:edit")),
+    session: Session = Depends(get_session),
+) -> SchoolDisplayRead:
+    lesson = session.scalar(
+        select(SundaySchoolLesson).where(SundaySchoolLesson.lesson_date == lesson_date)
+    )
+    if lesson is None:
+        lesson = SundaySchoolLesson(lesson_date=lesson_date)
+        session.add(lesson)
+    lesson.display_state = payload.model_dump()
+    session.commit()
+    return display_read(lesson)
+
+
+@router.post("/display/{lesson_date}/heartbeat", response_model=SchoolDisplayRead)
+def heartbeat_school_display(
+    lesson_date: date,
+    _current_user: User = Depends(require_permission("plans:read")),
+    session: Session = Depends(get_session),
+) -> SchoolDisplayRead:
+    lesson = session.scalar(
+        select(SundaySchoolLesson).where(SundaySchoolLesson.lesson_date == lesson_date)
+    )
+    if lesson is None:
+        lesson = SundaySchoolLesson(lesson_date=lesson_date)
+        session.add(lesson)
+    lesson.display_seen_at = datetime.now(UTC)
+    session.commit()
+    return display_read(lesson)
 
 
 def lesson_to_read(lesson: SundaySchoolLesson) -> SundaySchoolLessonRead:
@@ -73,11 +147,14 @@ def list_lesson_history(
 ) -> list[SundaySchoolHistoryRead]:
     get_lesson_or_404(session, lesson_id)
     entries = session.scalars(
-        select(HistoryEntry).where(
+        select(HistoryEntry)
+        .where(
             HistoryEntry.entity_type == LESSON_HISTORY_ENTITY_TYPE,
             HistoryEntry.entity_id == lesson_id,
             HistoryEntry.action == LESSON_HISTORY_ACTION,
-        ).order_by(HistoryEntry.created_at.desc()).limit(100)
+        )
+        .order_by(HistoryEntry.created_at.desc())
+        .limit(100)
     ).all()
     result: list[SundaySchoolHistoryRead] = []
     for entry in entries:
@@ -86,14 +163,16 @@ def list_lesson_history(
         except json.JSONDecodeError:
             continue
         actor = session.get(User, entry.actor_id) if entry.actor_id else None
-        result.append(SundaySchoolHistoryRead(
-            id=entry.id,
-            actor_name=actor.name if actor else None,
-            created_at=entry.created_at,
-            label=details.get("label", "Lesson edited"),
-            before=details.get("before", {}),
-            after=details.get("after", {}),
-        ))
+        result.append(
+            SundaySchoolHistoryRead(
+                id=entry.id,
+                actor_name=actor.name if actor else None,
+                created_at=entry.created_at,
+                label=details.get("label", "Lesson edited"),
+                before=details.get("before", {}),
+                after=details.get("after", {}),
+            )
+        )
     return list(reversed(result))
 
 
@@ -275,9 +354,7 @@ def update_lesson(
 
     after = lesson_history_snapshot(lesson)
     changed_fields = [
-        field.replace("_", " ")
-        for field in changes
-        if before.get(field) != after.get(field)
+        field.replace("_", " ") for field in changes if before.get(field) != after.get(field)
     ]
     if changed_fields:
         label = (

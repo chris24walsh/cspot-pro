@@ -255,7 +255,7 @@ The first scaffold covers the major legacy c-SPOT domains:
 - `presentation`: presenter sessions and sync position
 - `communication`: message threads, participants, reminders/notifications
 - `imports`: review-first content and lyrics import workflows
-- `sunday_school`: date-based lesson preparation for Sunday School cover
+- `sunday_school`: date-based lesson runner with ordered suggestions, a clear teacher board, and a separate room TV for action songs and memory verse games
 
 See [docs/legacy-feature-map.md](docs/legacy-feature-map.md) for the rebuild
 coverage map. For durable product and architecture context, also see:

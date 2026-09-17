@@ -1,6 +1,6 @@
-from datetime import date
+from datetime import date, datetime
 
-from sqlalchemy import JSON, Date, Integer, String, Text, UniqueConstraint
+from sqlalchemy import JSON, Date, DateTime, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.database import Base
@@ -22,6 +22,8 @@ class SundaySchoolLesson(IdMixin, TimestampMixin, Base):
     source_notes: Mapped[str] = mapped_column(Text, default="")
     teacher_notes: Mapped[str] = mapped_column(Text, default="")
     board_items: Mapped[list[dict[str, object]]] = mapped_column(JSON, default=list)
+    display_state: Mapped[dict[str, object]] = mapped_column(JSON, default=dict)
+    display_seen_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
 class SundaySchoolResource(IdMixin, TimestampMixin, Base):

@@ -45,6 +45,7 @@ import { PresentationView } from "./components/PresentationView";
 import { PublicRecordingView } from "./components/PublicRecordingView";
 import { ServiceBroadcastView } from "./components/ServiceBroadcastView";
 import { SundaySchoolView } from "./components/SundaySchoolView";
+import { SundaySchoolDisplay } from "./components/SundaySchoolDisplay";
 import { UserManager } from "./components/UserManager";
 import { MyProfile } from "./components/MyProfile";
 import { WorshipBuilderView } from "./components/WorshipBuilderView";
@@ -90,6 +91,7 @@ function App() {
   const isNetworkDisplay = isNetworkDisplayLocation(window.location);
   const isMediaOutput = isMediaOutputLocation(window.location);
   const isPersistentOutput = isNetworkDisplay || isMediaOutput;
+  const isSundaySchoolDisplay = window.location.pathname.replace(/\/+$/, "").endsWith("/media/sunday-school");
   const publicWebsiteUrl = import.meta.env.VITE_PUBLIC_WEBSITE_URL || "/";
   const [activeModuleId, setActiveModuleId] = useState<ModuleId>("presentation");
   const [mountedModuleIds, setMountedModuleIds] = useState<Set<ModuleId>>(() => new Set(["presentation"]));
@@ -363,10 +365,12 @@ function App() {
       <AuthScreen
         bootstrapAvailable={bootstrapAvailable}
         onAuthenticated={setSessionUser}
-        rememberByDefault={isPersistentOutput}
+        rememberByDefault={isPersistentOutput || isSundaySchoolDisplay}
       />
     );
   }
+
+  if (isSundaySchoolDisplay) return <SundaySchoolDisplay />;
 
   if (isPresentationOutput || isPersistentOutput) {
     return <PresentationOutput mediaOutput={isMediaOutput} networkDisplay={isPersistentOutput} />;

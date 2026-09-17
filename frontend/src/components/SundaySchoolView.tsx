@@ -5,9 +5,11 @@ import {
   ChevronUp,
   ExternalLink,
   FileText,
+  Music2,
+  MessageCircle,
+  BookOpen,
   Gamepad2,
   GripVertical,
-  Library,
   Plus,
   Printer,
   RefreshCw,
@@ -40,6 +42,9 @@ import {
   type SundaySchoolLessonPayload,
   type SundaySchoolResource,
   type SundaySchoolBoardItem,
+  getSundaySchoolDisplay,
+  updateSundaySchoolDisplay,
+  type SundaySchoolDisplayState,
 } from "../api";
 import { storedFileDownloadUrl } from "../presentation";
 import { useDurableChange } from "../changePolling";
@@ -53,21 +58,47 @@ import { LeaderAssignmentDialog } from "./LeaderAssignmentDialog";
 import { useConfirmationDialog } from "./ConfirmationDialog";
 
 type SundaySchoolPane = "library" | "set";
-type LessonElementKey = "passage" | "craft" | "activity" | "game";
+type LessonElementKey = "songs" | "challenge" | "story" | "questions" | "verse" | "craft" | "game";
 
 type LessonElement = {
   key: LessonElementKey;
   label: string;
   icon: typeof FileText;
   resourceTypes: string[];
+  duration: string;
 };
 
 const LESSON_ELEMENTS: LessonElement[] = [
-  { key: "passage", label: "Passage / Story", icon: FileText, resourceTypes: ["bible_story"] },
-  { key: "craft", label: "Craft", icon: Scissors, resourceTypes: ["craft"] },
-  { key: "activity", label: "Printout / Activity", icon: Library, resourceTypes: ["coloring", "worksheet", "puzzle", "media"] },
-  { key: "game", label: "Game", icon: Gamepad2, resourceTypes: ["game"] },
+  { key: "songs", label: "Action Songs", icon: Music2, resourceTypes: [], duration: "5 MIN · TV" },
+  { key: "challenge", label: "Remember Last Week's Verse", icon: BookOpen, resourceTypes: [], duration: "TV" },
+  { key: "story", label: "Bible Story", icon: FileText, resourceTypes: ["bible_story"], duration: "7 MIN" },
+  { key: "questions", label: "Three Questions", icon: MessageCircle, resourceTypes: [], duration: "3 MIN" },
+  { key: "verse", label: "Learn Today's Verse", icon: BookOpen, resourceTypes: [], duration: "5 MIN · TV" },
+  { key: "craft", label: "Printout / Craft", icon: Scissors, resourceTypes: ["craft", "coloring", "worksheet", "puzzle"], duration: "10 MIN · PRINT" },
+  { key: "game", label: "Game / Free Play", icon: Gamepad2, resourceTypes: ["game"], duration: "ACTIVE" },
 ];
+
+const ELEMENT_IDEAS: Partial<Record<LessonElementKey, { title: string; detail: string; badge: string }[]>> = {
+  songs: ["My God Is So Big", "Father Abraham", "I've Got the Joy, Joy, Joy, Joy", "The Wise Man and Foolish Man", "I'm in the Lord's Army", "Zacchaeus Was a Wee Little Man", "Oh Be Careful Little Eyes"].map((title) => ({ title, detail: "Sing together and lead the actions.", badge: "TV" })),
+  questions: [{ title: "Three Questions", detail: "1. What happened?\n2. What does this show us about God/Jesus?\n3. What could we do because of that?", badge: "3 MIN" }],
+  craft: [
+    { title: "Draw 3 things you thank God for", detail: "Give each child paper and crayons. Ask them to draw three things and share one.", badge: "NO PREP" },
+    { title: "God Made Me Special", detail: "Draw yourself. Talk about one thing God made special about you.", badge: "NO PREP" },
+    { title: "Draw 3 ways you can be kind", detail: "Draw three kind actions you could do this week.", badge: "NO PREP" },
+    { title: "Simple colouring activity", detail: "Offer a colouring sheet or blank paper. Talk about today's story while children colour.", badge: "PRINT" },
+    { title: "Trace or draw", detail: "Trace a word from today's story, then draw what it means.", badge: "NO PREP" },
+  ],
+  game: [
+    { title: "Find Something God Made", detail: "Name a colour or shape. Children point to something God made that matches.", badge: "ACTIVE" },
+    { title: "Praise Freeze", detail: "Move and dance together. Call “freeze”; everyone stops and says thank you to God.", badge: "ACTIVE" },
+    { title: "Copy the Leader", detail: "Take turns leading simple movements for everyone else to copy.", badge: "ACTIVE" },
+    { title: "Thank-You Circle", detail: "Go around the circle. Each child names one thing they thank God for.", badge: "NO PREP" },
+    { title: "Good Choice / Silly Choice", detail: "Describe a simple action. Children say whether it is kind or silly and why.", badge: "NO PREP" },
+    { title: "Kindness Charades", detail: "Act out a kind action. Let the children guess, then take turns.", badge: "ACTIVE" },
+    { title: "I Spy Thankfulness", detail: "Say “I spy something to thank God for.” Give a clue and let children guess.", badge: "NO PREP" },
+    { title: "Animal Parade", detail: "Call out an animal. Children move like it around the room, then freeze.", badge: "ACTIVE" },
+  ],
+};
 
 const RESOURCE_LABELS: Record<string, string> = {
   lesson_packet: "Packet",
@@ -229,7 +260,7 @@ export function SundaySchoolView({ active = true, canEdit }: { active?: boolean;
   const [history, setHistory] = useState<SundaySchoolHistoryEntry[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyApplying, setHistoryApplying] = useState(false);
-  const [selectedElementKey, setSelectedElementKey] = useState<LessonElementKey>("passage");
+  const [selectedElementKey, setSelectedElementKey] = useState<LessonElementKey>("songs");
   const [expandedElementKey, setExpandedElementKey] = useState<LessonElementKey | null>(null);
   const [teacherPickerDate, setTeacherPickerDate] = useState<string | null>(null);
   const [teacherSaving, setTeacherSaving] = useState(false);
@@ -242,6 +273,8 @@ export function SundaySchoolView({ active = true, canEdit }: { active?: boolean;
   const [draggingOverBoard, setDraggingOverBoard] = useState(false);
   const [draggedBoardItemId, setDraggedBoardItemId] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [displayState, setDisplayState] = useState<SundaySchoolDisplayState | null>(null);
+  const [displayConnected, setDisplayConnected] = useState(false);
   const lessonRefs = useRef<Record<string, HTMLButtonElement | null>>({});
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const autosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -428,6 +461,17 @@ export function SundaySchoolView({ active = true, canEdit }: { active?: boolean;
   }, []);
 
   useEffect(() => {
+    if (!active) return;
+    let mounted = true;
+    const poll = () => void getSundaySchoolDisplay(selectedDate).then((result) => {
+      if (mounted) { setDisplayState(result.state); setDisplayConnected(result.connected); }
+    }).catch(() => undefined);
+    poll();
+    const timer = window.setInterval(poll, 5000);
+    return () => { mounted = false; window.clearInterval(timer); };
+  }, [active, selectedDate]);
+
+  useEffect(() => {
     const lesson = lessonsByDate.get(selectedDate);
     const nextDraft = lesson ? draftFromLesson(lesson) : blankLesson(selectedDate);
     if (locallySavedDraftsRef.current.get(selectedDate) === JSON.stringify(nextDraft)) return;
@@ -496,7 +540,19 @@ export function SundaySchoolView({ active = true, canEdit }: { active?: boolean;
     }
     const existingLesson = lessonsByDate.get(date) ?? null;
     const payload = { ...nextDraft, lesson_date: date };
-    const saved = existingLesson ? await updateSundaySchoolLesson(existingLesson.id, payload) : await createSundaySchoolLesson(payload);
+    let saved: SundaySchoolLesson;
+    if (existingLesson) {
+      saved = await updateSundaySchoolLesson(existingLesson.id, payload);
+    } else {
+      try {
+        saved = await createSundaySchoolLesson(payload);
+      } catch (error) {
+        if (!(error instanceof ApiError) || error.status !== 409) throw error;
+        const current = (await getSundaySchoolLessons({ from_date: date, to_date: date }))[0];
+        if (!current) throw error;
+        saved = await updateSundaySchoolLesson(current.id, payload);
+      }
+    }
     setLessons((current) => {
       const withoutSaved = current.filter((lesson) => lesson.id !== saved.id);
       return [...withoutSaved, saved].sort((left, right) => left.lesson_date.localeCompare(right.lesson_date));
@@ -552,18 +608,13 @@ export function SundaySchoolView({ active = true, canEdit }: { active?: boolean;
   }
 
   function elementSummary(element: LessonElement) {
-    if (element.key === "passage") {
+    if (element.key === "story") {
       return draft.bible_reference || firstLine(draft.bible_story) || "Choose passage";
     }
     if (element.key === "craft") {
       return firstLine(draft.crafts) || "Choose craft";
     }
-    if (element.key === "activity") {
-      const printableCount = selectedResources.filter(
-        (resource) => element.resourceTypes.includes(resource.resource_type) && isPrintableResource(resource),
-      ).length;
-      return firstLine(draft.source_notes) || (printableCount ? `${printableCount} printables` : "Choose activity");
-    }
+    if (element.key === "songs") return firstLine(draft.songs) || "Teacher-led action songs";
     if (element.key === "game") {
       return firstLine(draft.games) || "Choose game";
     }
@@ -571,9 +622,9 @@ export function SundaySchoolView({ active = true, canEdit }: { active?: boolean;
   }
 
   function elementDraftField(element: LessonElement): keyof SundaySchoolLessonPayload | null {
-    if (element.key === "passage") return "bible_story";
+    if (element.key === "story") return "bible_story";
     if (element.key === "craft") return "crafts";
-    if (element.key === "activity") return "source_notes";
+    if (element.key === "songs") return "songs";
     if (element.key === "game") return "games";
     return null;
   }
@@ -603,14 +654,41 @@ export function SundaySchoolView({ active = true, canEdit }: { active?: boolean;
   }
 
   function addQuickSuggestion(element: LessonElement) {
-    const subject = draft.theme.trim() || draft.bible_reference.trim() || "this week's lesson";
+    const previousVerse = [...lessons]
+      .filter((lesson) => dateInputFromIso(lesson.lesson_date) < selectedDate)
+      .sort((a, b) => b.lesson_date.localeCompare(a.lesson_date))
+      .flatMap((lesson) => lesson.board_items.filter((item) => item.element_type === "verse"))[0];
     const suggestions: Record<LessonElementKey, { title: string; detail: string }> = {
-      passage: { title: draft.bible_reference.trim() || "Passage / Story", detail: `Read and retell ${draft.bible_reference.trim() || subject} in age-appropriate language.` },
-      craft: { title: `${subject} craft`, detail: `A simple craft that helps children remember ${subject}.` },
-      activity: { title: `${subject} activity`, detail: `A quick printable, drawing, or discussion activity for ${subject}.` },
-      game: { title: `${subject} game`, detail: `A short group game that reinforces ${subject}.` },
+      songs: { title: "Action Songs", detail: "Choose a familiar action song and lead the children together." },
+      challenge: { title: "Remember Last Week's Verse", detail: previousVerse?.detail || "" },
+      story: { title: draft.bible_reference.trim() || "Bible Story", detail: draft.bible_story.trim() || "Read and retell the Bible passage together." },
+      questions: { title: "Three Questions", detail: ELEMENT_IDEAS.questions![0].detail },
+      verse: { title: "Learn Today's Verse", detail: "" },
+      craft: { title: "Printout / Craft", detail: "Give children paper and crayons to draw something from today's story." },
+      game: { title: "Game / Free Play", detail: "Choose a simple game, or let children play freely." },
     };
-    addBoardItem({ kind: "content", ...suggestions[element.key] });
+    addBoardItem({ kind: "content", element_type: element.key, reference: element.key === "challenge" ? previousVerse?.reference : element.key === "verse" ? draft.bible_reference : undefined, ...suggestions[element.key] });
+  }
+
+  function updateBoardItem(id: string, patch: Partial<SundaySchoolBoardItem>) {
+    setDraft((current) => ({ ...current, board_items: current.board_items.map((item) => item.id === id ? { ...item, ...patch } : item) }));
+  }
+
+  async function showOnDisplay(item: SundaySchoolBoardItem, stage?: number) {
+    const verse = item.element_type === "verse" || item.element_type === "challenge";
+    const next: SundaySchoolDisplayState = {
+      kind: verse ? "verse" : item.element_type === "songs" ? "song" : "text",
+      title: item.title,
+      detail: item.detail || "",
+      reference: item.reference || draft.bible_reference || "",
+      mode: item.element_type === "challenge" ? "challenge" : "learn",
+      stage: stage ?? (item.element_type === "challenge" ? 0 : 0),
+    };
+    try {
+      const result = await updateSundaySchoolDisplay(selectedDate, next);
+      setDisplayState(result.state);
+      setDisplayConnected(result.connected);
+    } catch (error) { setMessage(error instanceof Error ? error.message : "Could not update Sunday School TV."); }
   }
 
   function removeBoardItem(id: string) {
@@ -941,15 +1019,18 @@ export function SundaySchoolView({ active = true, canEdit }: { active?: boolean;
                   type="button"
                 >
                   <span><Icon size={14} aria-hidden="true" />{element.label}</span>
-                  <strong>{draft.theme || draft.bible_reference ? `Suggestions for ${draft.theme || draft.bible_reference}` : "Quick ideas and resources"}</strong>
+                  <strong>{element.duration}</strong>
                   {isExpanded ? <ChevronUp size={15} aria-hidden="true" /> : <ChevronDown size={15} aria-hidden="true" />}
                 </button>
                 {isExpanded ? (
                   <div className="sunday-school-element-panel">
                     <button className="sunday-school-suggestion" disabled={!canEdit} onClick={() => addQuickSuggestion(element)} type="button">
-                      <div><strong>Quick {element.label}</strong><span>Based on {draft.theme || draft.bible_reference || "this Sunday"}</span></div>
+                      <div><strong>Add {element.label}</strong><span>{element.key === "story" ? draft.bible_reference || "Read and retell the passage" : "Add to today's board"}</span></div>
                       <Plus size={15} aria-hidden="true" />
                     </button>
+                    {ELEMENT_IDEAS[element.key]?.map((idea) => <button className="sunday-school-suggestion" disabled={!canEdit} key={idea.title} onClick={() => addBoardItem({ kind: "content", element_type: element.key, title: idea.title, detail: idea.detail })} type="button">
+                      <div><strong>{idea.title}</strong><span>{idea.badge} · {idea.detail}</span></div><Plus size={15} aria-hidden="true" />
+                    </button>)}
                     <div className="sunday-school-element-links">
                       {matches.slice(0, 5).map((resource) => (
                         <div className="sunday-school-element-resource" key={resource.id}>
@@ -960,10 +1041,10 @@ export function SundaySchoolView({ active = true, canEdit }: { active?: boolean;
                         </div>
                       ))}
                     </div>
-                    {!matches.length ? <p className="empty-state compact-empty">No matching library resources yet.</p> : null}
-                    <button className="text-button" disabled={!canEdit} onClick={() => { setSelectedElementKey(element.key); setResourcePickerOpen(true); }} type="button">
+                    {!matches.length && element.resourceTypes.length && !ELEMENT_IDEAS[element.key] ? <p className="empty-state compact-empty">No matching library resources yet.</p> : null}
+                    {element.resourceTypes.length ? <button className="text-button" disabled={!canEdit} onClick={() => { setSelectedElementKey(element.key); setResourcePickerOpen(true); }} type="button">
                       <Search size={14} aria-hidden="true" /> Browse library
-                    </button>
+                    </button> : null}
                   </div>
                 ) : null}
               </article>
@@ -979,6 +1060,8 @@ export function SundaySchoolView({ active = true, canEdit }: { active?: boolean;
             <h2>{longDate(selectedDate)}</h2>
           </div>
           <div className="worship-set-toolbar-actions sunday-school-toolbar-actions">
+            <span className="sunday-school-autosave-status">TV {displayConnected ? "connected" : "waiting"}</span>
+            <a className="text-button" href={`${import.meta.env.BASE_URL}media/sunday-school?date=${selectedDate}`} target="_blank" rel="noreferrer">Open TV <ExternalLink size={13} /></a>
             <span className="sunday-school-autosave-status" role="status">{saving ? "Saving…" : "Autosaved"}</span>
           </div>
         </div>
@@ -1023,6 +1106,20 @@ export function SundaySchoolView({ active = true, canEdit }: { active?: boolean;
                   <span><GripVertical size={14} aria-hidden="true" /></span>
                   <div className="worship-set-item-body">
                     <strong>{item.title}</strong><small>{item.detail || (item.kind === "file" ? "Uploaded file" : "Lesson item")}</small>
+                    {item.element_type === "verse" || item.element_type === "challenge" ? <div className="school-verse-editor">
+                      <textarea aria-label={`${item.title} text`} disabled={!canEdit} onChange={(event) => updateBoardItem(item.id, { detail: event.target.value })} placeholder="Type the verse text" value={item.detail || ""} />
+                      <input aria-label={`${item.title} reference`} disabled={!canEdit} onChange={(event) => updateBoardItem(item.id, { reference: event.target.value })} placeholder="Bible reference" value={item.reference || ""} />
+                    </div> : null}
+                    {item.element_type === "questions" ? <textarea className="school-questions-editor" aria-label="Three lesson questions" disabled={!canEdit} onChange={(event) => updateBoardItem(item.id, { detail: event.target.value })} value={item.detail || ""} /> : null}
+                    {item.element_type === "songs" || item.element_type === "verse" || item.element_type === "challenge" ? <div className="school-display-controls">
+                      <button className="text-button compact-button" onClick={() => void showOnDisplay(item)} type="button">Show on TV</button>
+                      {(item.element_type === "verse" || item.element_type === "challenge") && displayState?.kind === "verse" && displayState.title === item.title && displayState.mode === (item.element_type === "challenge" ? "challenge" : "learn") ? <>
+                        <button className="text-button compact-button" onClick={() => void showOnDisplay(item, Math.min(6, displayState.stage + 1))} type="button">{item.element_type === "challenge" ? "Hint" : "Hide more words"}</button>
+                        <button className="text-button compact-button" onClick={() => void showOnDisplay(item, Math.max(0, displayState.stage - 1))} type="button">{item.element_type === "challenge" ? "Fewer hints" : "Easier"}</button>
+                        <button className="text-button compact-button" onClick={() => void showOnDisplay(item, item.element_type === "challenge" ? 6 : 0)} type="button">Show verse</button>
+                        <button className="text-button compact-button" onClick={() => void showOnDisplay(item, 0)} type="button">Restart</button>
+                      </> : null}
+                    </div> : null}
                   </div>
                   <div className="worship-set-item-tools">
                     {item.resource_id ? <a className="section-icon-button" href={sundaySchoolResourceFileUrl(item.resource_id)} target="_blank" rel="noreferrer" aria-label={`Open ${item.title}`}><ExternalLink size={14} /></a> : null}

@@ -1,5 +1,11 @@
 # Church TV browser display
 
+The Sunday School room has a separate display at `/app/media/sunday-school`.
+Open it through the **Open TV** link on the chosen Sunday's board so the date
+is included. Sign in with a viewer account that can read plans. The teacher
+controls songs and memory verses from the Sunday School board; this display
+does not follow the main service presentation.
+
 CSpot can send the live slideshow directly to a television's native browser.
 The TV fetches slide state and content from the server, so it does not need to
 be connected to the presenter computer as an external monitor.

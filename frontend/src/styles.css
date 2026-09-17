@@ -13398,3 +13398,18 @@ button.musician-page {
   .shell.is-mobile-device .mobile-immersive-button { flex: 0 0 auto; margin-left: 6px; }
   .shell.is-mobile-device .worship-topbar-tools { align-self: center; }
 }
+.school-display { min-height: 100vh; display: grid; place-items: center; padding: 5vw; color: #fff; background: #152b39; text-align: center; }
+.school-display-content { width: min(100%, 1400px); }
+.school-display-kicker { font-size: clamp(1rem, 2vw, 2rem); text-transform: uppercase; letter-spacing: .12em; opacity: .75; }
+.school-display h1 { font-size: clamp(3rem, 7vw, 7rem); line-height: 1.1; }
+.school-display-detail { font-size: clamp(1.4rem, 3vw, 3rem); white-space: pre-wrap; }
+.school-display-waiting { font-size: clamp(3rem, 7vw, 7rem); }
+.school-verse-text { font-size: clamp(2rem, 5vw, 5rem); line-height: 1.35; white-space: pre-wrap; }
+.school-verse-reference { font-size: clamp(1.5rem, 3vw, 3rem); }
+.school-verse-word, .school-verse-reference { transition: opacity .25s ease; }
+.school-verse-word.is-hidden, .school-verse-reference.is-hidden { opacity: 0; }
+.school-verse-editor { display: grid; gap: .35rem; margin-top: .5rem; }
+.school-verse-editor textarea, .school-verse-editor input { width: 100%; font: inherit; }
+.school-verse-editor textarea { min-height: 4rem; }
+.school-questions-editor { width: 100%; min-height: 6rem; margin-top: .4rem; font: inherit; }
+.school-display-controls { display: flex; flex-wrap: wrap; gap: .3rem; margin-top: .4rem; }

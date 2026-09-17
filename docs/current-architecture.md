@@ -34,6 +34,17 @@ Private remote access uses Tailscale Serve and never production data.
 
 # Current Architecture
 
+## Sunday School lesson runner
+
+The Sunday School view keeps its Elements library and clear, autosaved board. A
+lesson's `board_items` hold selected songs, story, questions, verses, craft and
+games, including a reserved `story_id` for a future interactive story. Generic
+suggestions live in the frontend; dated lesson content remains in the existing
+lesson record. The `/media/sunday-school?date=YYYY-MM-DD` display uses the same
+authenticated browser and polling pattern as the main TV, with separate display
+state and heartbeat on the Sunday School lesson. Verse learning and last week's
+challenge share one staged verse display.
+
 ## Website editor identity bridge
 
 CSpot can authorize the website's Strapi admin through a short-lived,

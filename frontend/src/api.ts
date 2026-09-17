@@ -858,6 +858,35 @@ export interface SundaySchoolBoardItem {
   resource_id?: string;
   file_id?: string;
   file_name?: string;
+  element_type?: string;
+  reference?: string;
+  story_id?: string;
+}
+
+export interface SundaySchoolDisplayState {
+  kind: "blank" | "song" | "verse" | "text";
+  title: string;
+  detail: string;
+  reference: string;
+  mode: "learn" | "challenge";
+  stage: number;
+}
+
+export interface SundaySchoolDisplayRead {
+  state: SundaySchoolDisplayState;
+  connected: boolean;
+}
+
+export function getSundaySchoolDisplay(date: string): Promise<SundaySchoolDisplayRead> {
+  return getJson(`/api/v1/sunday-school/display/${date}`);
+}
+
+export function updateSundaySchoolDisplay(date: string, state: SundaySchoolDisplayState): Promise<SundaySchoolDisplayRead> {
+  return sendJson(`/api/v1/sunday-school/display/${date}`, "PATCH", state);
+}
+
+export function heartbeatSundaySchoolDisplay(date: string): Promise<SundaySchoolDisplayRead> {
+  return sendJson(`/api/v1/sunday-school/display/${date}/heartbeat`, "POST", {});
 }
 
 export interface SundaySchoolHistoryEntry {
