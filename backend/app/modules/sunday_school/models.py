@@ -1,10 +1,35 @@
 from datetime import date, datetime
 
-from sqlalchemy import JSON, Date, DateTime, Integer, String, Text, UniqueConstraint
+from sqlalchemy import (
+    JSON,
+    Boolean,
+    CheckConstraint,
+    Date,
+    DateTime,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+)
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.database import Base
 from app.core.model_mixins import IdMixin, TimestampMixin
+
+
+class SundaySchoolRoom(Base):
+    """One durable output owner; independent of sanctuary plan sessions."""
+
+    __tablename__ = "sunday_school_room"
+    __table_args__ = (CheckConstraint("id = 1", name="single_sunday_school_room"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, default=1)
+    lesson_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    lesson_title: Mapped[str] = mapped_column(String(220), default="")
+    state: Mapped[dict[str, object]] = mapped_column(JSON, default=dict)
+    revision: Mapped[int] = mapped_column(Integer, default=0)
+    seen_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    sound_ready: Mapped[bool] = mapped_column(Boolean, default=False)
 
 
 class SundaySchoolLesson(IdMixin, TimestampMixin, Base):

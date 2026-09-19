@@ -91,7 +91,7 @@ function App() {
   const isNetworkDisplay = isNetworkDisplayLocation(window.location);
   const isMediaOutput = isMediaOutputLocation(window.location);
   const isPersistentOutput = isNetworkDisplay || isMediaOutput;
-  const isSundaySchoolDisplay = window.location.pathname.replace(/\/+$/, "").endsWith("/media/sunday-school");
+  const isSundaySchoolDisplay = /\/media\/(sundayschool|sunday-school)$/.test(window.location.pathname.replace(/\/+$/, ""));
   const publicWebsiteUrl = import.meta.env.VITE_PUBLIC_WEBSITE_URL || "/";
   const [activeModuleId, setActiveModuleId] = useState<ModuleId>("presentation");
   const [mountedModuleIds, setMountedModuleIds] = useState<Set<ModuleId>>(() => new Set(["presentation"]));
@@ -567,7 +567,7 @@ function App() {
           />
         </div> : null}
         {mountedModuleIds.has("sunday_school") ? <div className="workspace-panel" hidden={activeModule.id !== "sunday_school"}>
-          <SundaySchoolView active={activeModule.id === "sunday_school"} canEdit={canEditPlans || canCreatePlans} />
+          <SundaySchoolView active={activeModule.id === "sunday_school"} canEdit={canEditPlans || canCreatePlans} canPresent={permissions.has("sunday_school:present") || canEditPlans} />
         </div> : null}
         {mountedModuleIds.has("presentation") ? <div className="workspace-panel" hidden={activeModule.id !== "presentation"}>
           <PresentationView

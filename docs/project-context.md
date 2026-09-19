@@ -342,3 +342,13 @@ Live avoids software-keyboard focus and reduces background work on touch devices
 In Admin, select another direct role before removing the final one; approved serving
 assignments can grant effective access but appear separately from direct role toggles.
 Worship-only accounts without viewer access do not show the Website navigation link.
+
+## Sunday School presentation (September 2026)
+
+The classroom has a permanent `/media/sundayschool` receiver, one live lesson at
+a time, and Service-style shared controls. The lesson sequence is Action Songs,
+one combined Memory Verse Game (recall then learn), Bible Story, Questions,
+Printout/Craft, and Game/Free Play. The teacher's board remains empty until they
+choose activities. Jonah is the first data-driven interactive story; teacher
+narration stays off the TV. Local short sounds require one initial TV gesture.
+Story authoring, full action-song backing media and PDF generation remain out of scope.

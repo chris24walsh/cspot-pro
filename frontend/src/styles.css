@@ -13398,18 +13398,140 @@ button.musician-page {
   .shell.is-mobile-device .mobile-immersive-button { flex: 0 0 auto; margin-left: 6px; }
   .shell.is-mobile-device .worship-topbar-tools { align-self: center; }
 }
-.school-display { min-height: 100vh; display: grid; place-items: center; padding: 5vw; color: #fff; background: #152b39; text-align: center; }
-.school-display-content { width: min(100%, 1400px); }
-.school-display-kicker { font-size: clamp(1rem, 2vw, 2rem); text-transform: uppercase; letter-spacing: .12em; opacity: .75; }
-.school-display h1 { font-size: clamp(3rem, 7vw, 7rem); line-height: 1.1; }
-.school-display-detail { font-size: clamp(1.4rem, 3vw, 3rem); white-space: pre-wrap; }
-.school-display-waiting { font-size: clamp(3rem, 7vw, 7rem); }
-.school-verse-text { font-size: clamp(2rem, 5vw, 5rem); line-height: 1.35; white-space: pre-wrap; }
-.school-verse-reference { font-size: clamp(1.5rem, 3vw, 3rem); }
-.school-verse-word, .school-verse-reference { transition: opacity .25s ease; }
-.school-verse-word.is-hidden, .school-verse-reference.is-hidden { opacity: 0; }
-.school-verse-editor { display: grid; gap: .35rem; margin-top: .5rem; }
-.school-verse-editor textarea, .school-verse-editor input { width: 100%; font: inherit; }
-.school-verse-editor textarea { min-height: 4rem; }
-.school-questions-editor { width: 100%; min-height: 6rem; margin-top: .4rem; font: inherit; }
-.school-display-controls { display: flex; flex-wrap: wrap; gap: .3rem; margin-top: .4rem; }
+
+/* Sunday School shares the existing workspace and button language. */
+.school-presenter { border: 1px solid #d9d6c8; border-radius: 10px; background: #fffdf7; padding: 12px; display: grid; gap: 10px; min-width: 0; }
+.school-presenter.is-live { border-color: #70a890; box-shadow: inset 3px 0 #397b5d; }
+.school-presenter-heading { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.school-presenter-heading > div { display: grid; gap: 3px; margin-right: auto; }
+.school-tv-status { font-size: 11px; color: #68736c; }
+.school-tv-status.is-connected { color: #26704e; }
+.school-live-notice, .school-presenter-empty { margin: 0; font-size: 13px; color: #65716a; }
+.school-live-stage { display: grid; grid-template-columns: minmax(220px, 1fr) minmax(210px, 1fr); gap: 16px; }
+.school-presenter-preview { position: relative; aspect-ratio: 16 / 9; min-height: 140px; overflow: hidden; border-radius: 8px; background: #173c34; color: #fffdf5; }
+.school-presenter-prompt { min-width: 0; font-size: 13px; }
+.school-presenter-prompt h3 { font-size: 18px; margin: 6px 0; }
+.school-presenter-prompt p { line-height: 1.5; margin: 8px 0; white-space: pre-wrap; }
+.school-teacher-verse { padding-left: 10px; border-left: 2px solid #b7c8bc; }
+.school-live-badge { background: #26704e; color: white; border-radius: 4px; font-size: 10px; font-weight: 800; padding: 3px 5px; letter-spacing: .04em; }
+.school-presenter-controls { gap: 6px; flex-wrap: wrap; }
+.school-presenter-controls button { min-height: 40px; }
+.school-next-button { min-width: 190px; justify-content: center; }
+.school-secondary-controls { margin-left: auto; font-size: 12px; }
+.school-secondary-controls summary { cursor: pointer; padding: 8px; }
+.school-selected-element { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding-top: 9px; border-top: 1px solid #e4e0d4; }
+.school-selected-element > div { display: grid; gap: 3px; }
+.school-selected-element small { color: #8c4a29; }
+.school-selected-element strong { font-size: 14px; }
+.school-lesson-details > summary, .school-element-details > summary { cursor: pointer; color: #52675c; font-size: 12px; padding: 7px 0; }
+.school-board-select { display: flex; align-items: center; gap: 8px; width: 100%; padding: 0; background: none; border: 0; font-weight: 800; text-align: left; cursor: pointer; }
+.school-board-select:focus-visible { outline: 2px solid #34785b; outline-offset: 4px; }
+.sunday-school-board-item.is-selected { outline: 2px solid #9b8656; outline-offset: -2px; background: #faf5e7; }
+.sunday-school-board-item.is-live { border-left: 4px solid #26704e; }
+.school-verse-editor { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.school-verse-editor fieldset { min-width: 0; border: 1px solid #ded8c7; border-radius: 6px; padding: 8px; }
+.school-verse-editor legend, .school-verse-editor label { font-size: 12px; }
+.school-verse-editor textarea, .school-verse-editor input, .school-questions-editor { width: 100%; font: inherit; border: 1px solid #d2cbbd; border-radius: 5px; padding: 7px; background: #fffefa; }
+.school-verse-editor textarea { min-height: 85px; resize: vertical; margin-bottom: 5px; }
+.school-questions-editor { min-height: 90px; }
+.school-display { height: 100vh; height: 100dvh; width: 100%; overflow: hidden; background: #173c34; color: #fffdf5; text-align: center; }
+.school-display-surface { width: 100%; height: 100%; }
+.school-display.is-blanked { background: #000; }
+.school-display.is-blanked .school-display-surface { visibility: hidden; }
+.school-presenter-preview.is-blanked > :first-child { visibility: hidden; }
+.school-presenter-preview.is-blanked { background: #080b09; }
+.school-blank-label { position: absolute; inset: 0; display: grid; place-content: center; color: #ddd; font-size: 12px; }
+.school-display-idle { height: 100%; display: flex; align-items: center; justify-content: center; flex-direction: column; }
+.school-display-idle > span { color: #f2cc6f; font-size: 10vh; }
+.school-display-idle h1 { font-size: clamp(36px, 7vw, 100px); margin: .25em 0; }
+.school-display-idle p { font-size: clamp(20px, 3vw, 36px); opacity: .8; }
+.school-sound-gate { position: absolute; inset: 0; background: #173c34; display: grid; place-items: center; padding: 25px; z-index: 10; }
+.school-sound-gate > div { display: grid; justify-items: center; gap: 12px; }
+.school-sound-gate h1 { margin: 0; font-size: clamp(32px, 5vw, 80px); }
+.school-sound-gate span { font-size: 5rem; color: #f2cc6f; }
+.school-sound-gate p { font-size: clamp(18px, 2vw, 28px); }
+.school-sound-gate .primary-button { background: #f2cc6f; color: #173c34; border-color: #f2cc6f; font-size: 20px; padding: 16px 24px; }
+.school-verse-game { height: 100%; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; gap: 2%; padding: 3%; }
+.school-display-kicker { font-size: clamp(16px, 2.4vw, 32px); letter-spacing: .07em; font-weight: 700; margin: 0; padding: 0 0 1%; }
+.school-verse-paper { min-height: 0; background: #fff9e9; color: #183b34; border-radius: 12px; padding: 3%; display: grid; grid-template-rows: minmax(0, 1fr) auto; box-shadow: 0 5px 0 #102d25; }
+.school-verse-paper .fit-slide-box { height: 100%; min-height: 0; }
+.school-verse-paper .school-verse-text { white-space: pre-wrap; line-height: 1.6; font-family: inherit; font-weight: 700; text-shadow: none; }
+.school-verse-word { position: relative; transition: color .18s ease; }
+.school-verse-word::after { content: ''; position: absolute; inset: 8% -1px 1%; background: repeating-linear-gradient(-3deg, #32755f 0 4px, #28614d 4px 7px); border-radius: 4px 8px 5px 3px; transform: scaleX(0); opacity: 0; transition: transform .2s ease, opacity .2s ease; transform-origin: left; }
+.school-verse-word.is-covered { color: transparent; }
+.school-verse-word.is-covered::after { transform: scaleX(1); opacity: 1; }
+.school-verse-reference { font-size: clamp(18px, 2.5vw, 34px); font-weight: 700; margin: 2% 0 0; }
+.school-verse-reference.is-covered > span { visibility: hidden; }
+.school-game-reward { display: flex; align-items: center; justify-content: center; gap: 20px; min-height: 35px; }
+.school-game-reward strong { font-size: clamp(16px, 2.2vw, 28px); }
+.school-game-stars { display: inline-flex; gap: 5px; font-size: clamp(18px, 3vw, 40px); color: #709385; }
+.school-game-stars .earned { color: #f5d372; animation: school-star-pop .3s ease-out; }
+.school-verse-game.is-complete .school-game-reward strong { color: #ffe99f; animation: school-star-pop .45s ease-out; }
+.school-simple-content { height: 100%; display: flex; flex-direction: column; align-items: center; padding: 5%; }
+.school-simple-content h1 { font-size: clamp(24px, 5vw, 70px); }
+.school-simple-content .fit-slide-box { flex: 1; width: 100%; min-height: 0; }
+.school-presenter-preview .school-display-kicker { font-size: 10px; }
+.school-presenter-preview .school-verse-paper { border-radius: 5px; box-shadow: 0 2px 0 #102d25; }
+.school-presenter-preview .school-verse-reference { font-size: 11px; }
+.school-presenter-preview .school-game-reward { min-height: 15px; gap: 8px; }
+.school-presenter-preview .school-game-stars { font-size: 11px; gap: 2px; }
+.school-presenter-preview .school-game-reward strong { font-size: 10px; }
+.school-presenter-preview .school-simple-content h1 { font-size: 22px; }
+@keyframes school-star-pop { from { transform: scale(.8); } 65% { transform: scale(1.12); } to { transform: scale(1); } }
+@media (max-width: 760px) {
+  .school-live-stage { grid-template-columns: minmax(0, 1fr); gap: 8px; }
+  .school-presenter-preview { max-height: 200px; width: 100%; }
+  .school-presenter { padding: 9px; }
+  .school-presenter-heading { gap: 6px; }
+  .school-presenter-heading > div { flex-basis: 100%; }
+  .school-presenter-heading .primary-button { flex: 1; }
+  .school-presenter-controls { display: grid; grid-template-columns: auto minmax(0, 1fr); }
+  .school-next-button { min-width: 0; }
+  .school-secondary-controls { margin: 0; grid-column: 1 / -1; }
+  .school-verse-editor { grid-template-columns: minmax(0, 1fr); }
+  .sunday-school-as-worship .sunday-school-board { min-height: 180px; overflow: visible; }
+  .school-presenter-prompt h3 { font-size: 16px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .school-verse-word, .school-verse-word::after { transition: none; }
+  .school-game-stars .earned, .school-verse-game.is-complete .school-game-reward strong { animation: none; }
+}
+.sunday-school-as-worship .worship-set-builder { display: flex; flex-direction: column; overflow: auto; }
+.sunday-school-as-worship .worship-set-builder > * { flex-shrink: 0; }
+.sunday-school-as-worship .sunday-school-board { flex: 1 0 auto; min-height: 180px; }
+.school-story-scene { position: relative; width: 100%; height: 100%; overflow: hidden; background: #a7d5dd; isolation: isolate; animation: school-scene-in .35s ease-out; }
+.school-story-scene.background-sea { background: #8dc1d1; }
+.school-story-scene.background-storm { background: #bccdd1; }
+.school-story-ground { position: absolute; top: 67%; bottom: 0; width: 100%; background: #82a884; border-radius: 35% 60% 0 0; }
+.background-harbour .school-story-ground { background: linear-gradient(90deg, #c9b487 0 28%, #6bb7c4 28%); border-radius: 0; top: 58%; }
+.background-sea .school-story-ground, .background-storm .school-story-ground { background: #62aab7; top: 66%; border-radius: 0; }
+.school-story-sun { position: absolute; width: 9%; aspect-ratio: 1; top: 8%; left: 8%; border-radius: 50%; background: #f6d88a; box-shadow: 0 0 0 14px #f6d88a33; }
+.background-storm .school-story-sun { display: none; }
+.school-story-layer { position: absolute; transition: left .7s ease-in-out, top .7s ease-in-out, transform .7s ease-in-out, opacity .4s ease; }
+.school-story-layer img { width: 100%; height: 100%; object-fit: contain; }
+.school-story-caption { position: absolute; left: 3%; top: 3%; padding: .4em .7em; background: #fff9e9e8; color: #28473f; border-radius: 7px; font-size: clamp(20px, 2.8vw, 38px); font-weight: 800; }
+.school-presenter-preview .school-story-caption { font-size: 12px; }
+.school-story-layer .motion-bounce { animation: school-story-bob 2s ease-in-out infinite alternate; }
+.school-story-layer .motion-shake { animation: school-story-shake .55s ease-in-out 2; }
+.school-story-narration { font-size: 16px; line-height: 1.6; }
+@keyframes school-story-bob { from { transform: translateY(0) rotate(-1deg); } to { transform: translateY(7%) rotate(1deg); } }
+@keyframes school-story-shake { 25% { transform: rotate(-5deg); } 75% { transform: rotate(5deg); } }
+@keyframes school-scene-in { from { opacity: .6; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) {
+  .school-story-scene, .school-story-layer .motion-bounce, .school-story-layer .motion-shake { animation: none; }
+  .school-story-layer { transition: none; }
+}
+.school-presenter-controls { justify-content: flex-start; }
+@media (max-width: 900px) {
+  .sunday-school-as-worship { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); }
+  .sunday-school-as-worship .worship-mobile-pane-tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; border-bottom: 1px solid #ded8c7; }
+  .sunday-school-as-worship .worship-mobile-pane-tabs button { background: transparent; border: 0; border-bottom: 2px solid transparent; padding: 9px; font-weight: 700; }
+  .sunday-school-as-worship .worship-mobile-pane-tabs button.active { border-bottom-color: #245d4d; }
+  .sunday-school-as-worship .worship-mobile-pane-tabs button span { color: #718076; font-size: 12px; }
+  .sunday-school-as-worship .worship-song-browser:not(.is-mobile-active),
+  .sunday-school-as-worship .worship-set-builder:not(.is-mobile-active) { display: none; }
+  .sunday-school-as-worship .worship-song-browser.is-mobile-active { display: grid; }
+  .sunday-school-as-worship .worship-set-builder.is-mobile-active { display: flex; }
+  .sunday-school-as-worship .worship-set-toolbar > div:first-child { min-width: 0; flex: 1; }
+}
+.sunday-school-as-worship .worship-set-toolbar-actions { width: auto; flex: none; }

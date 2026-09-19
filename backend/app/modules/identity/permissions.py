@@ -51,6 +51,8 @@ COMMUNICATION_EDIT_PERMISSIONS: set[PermissionName] = {
     "messages:delete",
 }
 
+SCHOOL_PRESENTATION_PERMISSIONS: set[PermissionName] = {"sunday_school:present"}
+
 PRESENTATION_CONTROL_PERMISSIONS: set[PermissionName] = {
     "presentation:use",
 }
@@ -83,6 +85,7 @@ ALL_PERMISSIONS: set[PermissionName] = (
     | TEAM_EDIT_PERMISSIONS
     | COMMUNICATION_EDIT_PERMISSIONS
     | PRESENTATION_CONTROL_PERMISSIONS
+    | SCHOOL_PRESENTATION_PERMISSIONS
     | BROADCAST_CONTROL_PERMISSIONS
     | WEBSITE_PUBLISH_PERMISSIONS
     | ADMIN_PERMISSIONS
@@ -110,12 +113,12 @@ ROLE_DEFINITIONS: dict[str, RoleDefinition] = {
         | PRESENTATION_CONTROL_PERMISSIONS,
     },
     "sunday_school_teacher": {
-        "description": "Read Sunday school lessons and resources without changing them.",
-        "permissions": READ_PERMISSIONS | TEAM_READ_PERMISSIONS,
+        "description": "Read Sunday school lessons and control the Sunday School room display.",
+        "permissions": READ_PERMISSIONS | TEAM_READ_PERMISSIONS | SCHOOL_PRESENTATION_PERMISSIONS,
     },
     "sunday_school_leader": {
         "description": "Manage Sunday school lessons and imported classroom resources.",
-        "permissions": READ_PERMISSIONS | TEAM_READ_PERMISSIONS | SERVICE_PLANNING_PERMISSIONS,
+        "permissions": READ_PERMISSIONS | TEAM_READ_PERMISSIONS | SERVICE_PLANNING_PERMISSIONS | SCHOOL_PRESENTATION_PERMISSIONS,
     },
     "teacher": {
         "description": "Prepare upcoming services, sermon decks, and service content without managing songs or users.",

@@ -36,14 +36,32 @@ Private remote access uses Tailscale Serve and never production data.
 
 ## Sunday School lesson runner
 
-The Sunday School view keeps its Elements library and clear, autosaved board. A
-lesson's `board_items` hold selected songs, story, questions, verses, craft and
-games, including a reserved `story_id` for a future interactive story. Generic
-suggestions live in the frontend; dated lesson content remains in the existing
-lesson record. The `/media/sunday-school?date=YYYY-MM-DD` display uses the same
-authenticated browser and polling pattern as the main TV, with separate display
-state and heartbeat on the Sunday School lesson. Verse learning and last week's
-challenge share one staged verse display.
+Sunday School keeps its Elements library, clear autosaved board, and date/leader
+navigation. A single Memory Verse Game stores `last_week` and `this_week` text
+and reference, with optional translation. Existing separate verse board items
+are combined on read without losing their content.
+
+`/media/sundayschool` is a permanent room receiver (under the configured app base
+path). Like Service, it uses authenticated HTTP polling, a heartbeat, and an
+explicit Start / Present / Back / Next / Blank / End lifecycle. Service sessions
+require service-plan foreign keys and invoke sanctuary recording/audio automation;
+Sunday School instead uses one seeded room row with an atomic revision check.
+Only one date can own that row. Stale commands and competing starts receive 409;
+heartbeats neither claim the room nor create lessons. The older date-based display
+columns are retained for migration compatibility but no longer control output.
+
+The teacher and TV use the same content renderer and existing `AutoFitSlideText`.
+Only the TV initializes a persistent Web Audio context, following a one-time
+sound-enable gesture. Short original effects are generated locally. Blanking
+preserves state, stops sound, and does not replay cues on resume. The scoped
+`sunday_school:present` permission lets classroom teachers control this room
+without granting sanctuary control or lesson editing.
+
+Stories are local scene/layer/cue data. A pure frame reducer restores Back and
+reconnect positions; the renderer implements only show/hide, movement, bounce,
+shake and short sound cues. Jonah supplies four scenes and local SVG assets.
+Narration is rendered only by the teacher presenter. Reduced-motion preferences
+suppress transitions and animations.
 
 ## Website editor identity bridge
 

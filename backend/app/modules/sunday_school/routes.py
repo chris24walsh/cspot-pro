@@ -1,11 +1,10 @@
 import json
-from datetime import UTC, date, datetime, timedelta
+from datetime import date
 from io import BytesIO
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import FileResponse, StreamingResponse
-from pydantic import BaseModel, Field
 from pypdf import PdfReader, PdfWriter
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -14,6 +13,7 @@ from app.core.database import get_session
 from app.modules.identity.auth import require_any_permission, require_permission
 from app.modules.identity.models import User
 from app.modules.planning.models import HistoryEntry
+from app.modules.sunday_school.display import router as display_router
 from app.modules.sunday_school.importer import import_resources_from_default_roots
 from app.modules.sunday_school.models import SundaySchoolLesson, SundaySchoolResource
 from app.modules.sunday_school.schemas import (
@@ -26,81 +26,9 @@ from app.modules.sunday_school.schemas import (
 )
 
 router = APIRouter()
+router.include_router(display_router)
 LESSON_HISTORY_ENTITY_TYPE = "sunday_school_lesson"
 LESSON_HISTORY_ACTION = "lesson_snapshot"
-
-
-class SchoolDisplayState(BaseModel):
-    kind: str = "blank"
-    title: str = ""
-    detail: str = ""
-    reference: str = ""
-    mode: str = "learn"
-    stage: int = Field(default=0, ge=0, le=6)
-
-
-class SchoolDisplayRead(BaseModel):
-    state: SchoolDisplayState = Field(default_factory=SchoolDisplayState)
-    connected: bool = False
-
-
-def display_read(lesson: SundaySchoolLesson | None) -> SchoolDisplayRead:
-    if lesson is None:
-        return SchoolDisplayRead()
-    seen = lesson.display_seen_at
-    connected = bool(
-        seen and datetime.now(UTC) - seen.replace(tzinfo=UTC) < timedelta(seconds=12)
-    )
-    return SchoolDisplayRead(
-        state=SchoolDisplayState.model_validate(lesson.display_state or {}), connected=connected
-    )
-
-
-@router.get("/display/{lesson_date}", response_model=SchoolDisplayRead)
-def get_school_display(
-    lesson_date: date,
-    _current_user: User = Depends(require_permission("plans:read")),
-    session: Session = Depends(get_session),
-) -> SchoolDisplayRead:
-    lesson = session.scalar(
-        select(SundaySchoolLesson).where(SundaySchoolLesson.lesson_date == lesson_date)
-    )
-    return display_read(lesson)
-
-
-@router.patch("/display/{lesson_date}", response_model=SchoolDisplayRead)
-def update_school_display(
-    lesson_date: date,
-    payload: SchoolDisplayState,
-    _current_user: User = Depends(require_any_permission("plans:create", "plans:edit")),
-    session: Session = Depends(get_session),
-) -> SchoolDisplayRead:
-    lesson = session.scalar(
-        select(SundaySchoolLesson).where(SundaySchoolLesson.lesson_date == lesson_date)
-    )
-    if lesson is None:
-        lesson = SundaySchoolLesson(lesson_date=lesson_date)
-        session.add(lesson)
-    lesson.display_state = payload.model_dump()
-    session.commit()
-    return display_read(lesson)
-
-
-@router.post("/display/{lesson_date}/heartbeat", response_model=SchoolDisplayRead)
-def heartbeat_school_display(
-    lesson_date: date,
-    _current_user: User = Depends(require_permission("plans:read")),
-    session: Session = Depends(get_session),
-) -> SchoolDisplayRead:
-    lesson = session.scalar(
-        select(SundaySchoolLesson).where(SundaySchoolLesson.lesson_date == lesson_date)
-    )
-    if lesson is None:
-        lesson = SundaySchoolLesson(lesson_date=lesson_date)
-        session.add(lesson)
-    lesson.display_seen_at = datetime.now(UTC)
-    session.commit()
-    return display_read(lesson)
 
 
 def lesson_to_read(lesson: SundaySchoolLesson) -> SundaySchoolLessonRead:

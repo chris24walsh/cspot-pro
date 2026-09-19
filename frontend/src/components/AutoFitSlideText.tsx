@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useState } from "react";
+import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
 
 type AutoFitSlideTextProps = {
   text: string;
@@ -6,6 +6,7 @@ type AutoFitSlideTextProps = {
   className?: string;
   fixedSize?: boolean;
   maxFontSize?: number;
+  children?: ReactNode;
 };
 
 export function AutoFitSlideText({
@@ -14,6 +15,7 @@ export function AutoFitSlideText({
   className = "",
   fixedSize = false,
   maxFontSize,
+  children,
 }: AutoFitSlideTextProps) {
   const frameRef = useRef<HTMLDivElement>(null);
   const textRef = useRef<HTMLPreElement>(null);
@@ -124,7 +126,7 @@ export function AutoFitSlideText({
         ref={textRef}
         style={{ fontSize: `${fontSize}px` }}
       >
-        {text}
+        {children ?? text}
       </pre>
     </div>
   );

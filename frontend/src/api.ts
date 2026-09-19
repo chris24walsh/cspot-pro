@@ -861,32 +861,59 @@ export interface SundaySchoolBoardItem {
   element_type?: string;
   reference?: string;
   story_id?: string;
+  verse_game?: SundaySchoolVerseGame;
 }
 
-export interface SundaySchoolDisplayState {
-  kind: "blank" | "song" | "verse" | "text";
+export interface SundaySchoolVerse {
+  text: string;
+  reference: string;
+}
+
+export interface SundaySchoolVerseGame {
+  last_week: SundaySchoolVerse;
+  this_week: SundaySchoolVerse;
+  translation?: string;
+}
+
+export interface SundaySchoolDisplayState extends SundaySchoolVerseGame {
+  kind: "idle" | "song" | "verse" | "story" | "text";
+  element_id: string;
   title: string;
   detail: string;
-  reference: string;
-  mode: "learn" | "challenge";
-  stage: number;
+  story_id: string;
+  step: number;
+  blanked: boolean;
 }
 
 export interface SundaySchoolDisplayRead {
+  lesson_date: string | null;
+  lesson_title: string;
   state: SundaySchoolDisplayState;
+  revision: number;
   connected: boolean;
+  sound_ready: boolean;
 }
 
-export function getSundaySchoolDisplay(date: string): Promise<SundaySchoolDisplayRead> {
-  return getJson(`/api/v1/sunday-school/display/${date}`);
+export interface SundaySchoolCommand {
+  action: "start" | "present" | "update" | "end_element" | "end";
+  lesson_date: string;
+  revision: number;
+  lesson_title?: string;
+  state?: SundaySchoolDisplayState;
+  step?: number;
+  blanked?: boolean;
 }
 
-export function updateSundaySchoolDisplay(date: string, state: SundaySchoolDisplayState): Promise<SundaySchoolDisplayRead> {
-  return sendJson(`/api/v1/sunday-school/display/${date}`, "PATCH", state);
+export function getSundaySchoolDisplay(): Promise<SundaySchoolDisplayRead> {
+  return getJson("/api/v1/sunday-school/display");
 }
 
-export function heartbeatSundaySchoolDisplay(date: string): Promise<SundaySchoolDisplayRead> {
-  return sendJson(`/api/v1/sunday-school/display/${date}/heartbeat`, "POST", {});
+export function controlSundaySchoolDisplay(payload: SundaySchoolCommand): Promise<SundaySchoolDisplayRead> {
+  return sendJson("/api/v1/sunday-school/display/control", "POST", payload);
+}
+
+export function heartbeatSundaySchoolDisplay(soundReady: boolean): Promise<SundaySchoolDisplayRead> {
+  return sendJson("/api/v1/sunday-school/display/heartbeat", "POST", { sound_ready: soundReady });
 }
 
 export interface SundaySchoolHistoryEntry {

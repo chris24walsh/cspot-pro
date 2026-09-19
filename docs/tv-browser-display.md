@@ -1,10 +1,19 @@
 # Church TV browser display
 
-The Sunday School room has a separate display at `/app/media/sunday-school`.
-Open it through the **Open TV** link on the chosen Sunday's board so the date
-is included. Sign in with a viewer account that can read plans. The teacher
-controls songs and memory verses from the Sunday School board; this display
-does not follow the main service presentation.
+The Sunday School room uses the permanent `/app/media/sundayschool` bookmark
+(`/media/sundayschool` on installations without an `/app` base path). Old
+`/app/media/sunday-school?date=...` bookmarks open the same room and normalize to
+the permanent address. Sign in with a viewer account, then tap **Enable Sound &
+Start Display** once. The TV is passive after that; a reload or a browser that
+suspends audio may require another tap.
+
+In Sunday School, select the lesson and choose **Start Sunday School**, select a
+board element and choose **Present**. **Back / Next** pace its verse phases or
+story cues. **Blank / Unblank** preserve the exact position; **End element**
+returns to the classroom waiting screen; **End Sunday School** releases the room.
+Another date cannot take over while a lesson is live. This room never follows or
+controls the main service. Use the teacher's **Open TV** link for the correct
+installation URL.
 
 CSpot can send the live slideshow directly to a television's native browser.
 The TV fetches slide state and content from the server, so it does not need to

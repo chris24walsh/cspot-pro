@@ -42,9 +42,6 @@ import {
   type SundaySchoolLessonPayload,
   type SundaySchoolResource,
   type SundaySchoolBoardItem,
-  getSundaySchoolDisplay,
-  updateSundaySchoolDisplay,
-  type SundaySchoolDisplayState,
 } from "../api";
 import { storedFileDownloadUrl } from "../presentation";
 import { useDurableChange } from "../changePolling";
@@ -56,9 +53,11 @@ import { CalendarPopup } from "./CalendarPopup";
 import { DateNavigator, formatNavigatorDate } from "./DateNavigator";
 import { LeaderAssignmentDialog } from "./LeaderAssignmentDialog";
 import { useConfirmationDialog } from "./ConfirmationDialog";
+import { SundaySchoolPresenter } from "./SundaySchoolPresenter";
+import { combineVerseItems, EXAMPLE_VERSES } from "../sundaySchoolPresentation";
 
 type SundaySchoolPane = "library" | "set";
-type LessonElementKey = "songs" | "challenge" | "story" | "questions" | "verse" | "craft" | "game";
+type LessonElementKey = "songs" | "memory_verse" | "story" | "questions" | "craft" | "game";
 
 type LessonElement = {
   key: LessonElementKey;
@@ -70,10 +69,9 @@ type LessonElement = {
 
 const LESSON_ELEMENTS: LessonElement[] = [
   { key: "songs", label: "Action Songs", icon: Music2, resourceTypes: [], duration: "5 MIN · TV" },
-  { key: "challenge", label: "Remember Last Week's Verse", icon: BookOpen, resourceTypes: [], duration: "TV" },
+  { key: "memory_verse", label: "Memory Verse Game", icon: BookOpen, resourceTypes: [], duration: "5–8 MIN · TV" },
   { key: "story", label: "Bible Story", icon: FileText, resourceTypes: ["bible_story"], duration: "7 MIN" },
   { key: "questions", label: "Three Questions", icon: MessageCircle, resourceTypes: [], duration: "3 MIN" },
-  { key: "verse", label: "Learn Today's Verse", icon: BookOpen, resourceTypes: [], duration: "5 MIN · TV" },
   { key: "craft", label: "Printout / Craft", icon: Scissors, resourceTypes: ["craft", "coloring", "worksheet", "puzzle"], duration: "10 MIN · PRINT" },
   { key: "game", label: "Game / Free Play", icon: Gamepad2, resourceTypes: ["game"], duration: "ACTIVE" },
 ];
@@ -181,7 +179,7 @@ function draftFromLesson(lesson: SundaySchoolLesson): SundaySchoolLessonPayload 
     games: lesson.games,
     source_notes: lesson.source_notes,
     teacher_notes: lesson.teacher_notes,
-    board_items: lesson.board_items?.length ? lesson.board_items : legacyBoardItems,
+    board_items: combineVerseItems(lesson.board_items?.length ? lesson.board_items : legacyBoardItems),
   };
 }
 
@@ -246,7 +244,7 @@ function firstLine(value: string) {
     .find(Boolean);
 }
 
-export function SundaySchoolView({ active = true, canEdit }: { active?: boolean; canEdit: boolean }) {
+export function SundaySchoolView({ active = true, canEdit, canPresent = canEdit }: { active?: boolean; canEdit: boolean; canPresent?: boolean }) {
   const { confirm, confirmationDialog } = useConfirmationDialog();
   const [lessons, setLessons] = useState<SundaySchoolLesson[]>([]);
   const [resources, setResources] = useState<SundaySchoolResource[]>([]);
@@ -273,8 +271,8 @@ export function SundaySchoolView({ active = true, canEdit }: { active?: boolean;
   const [draggingOverBoard, setDraggingOverBoard] = useState(false);
   const [draggedBoardItemId, setDraggedBoardItemId] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
-  const [displayState, setDisplayState] = useState<SundaySchoolDisplayState | null>(null);
-  const [displayConnected, setDisplayConnected] = useState(false);
+  const [selectedBoardId, setSelectedBoardId] = useState<string | null>(null);
+  const [liveBoardId, setLiveBoardId] = useState<string | null>(null);
   const lessonRefs = useRef<Record<string, HTMLButtonElement | null>>({});
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const autosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -461,17 +459,6 @@ export function SundaySchoolView({ active = true, canEdit }: { active?: boolean;
   }, []);
 
   useEffect(() => {
-    if (!active) return;
-    let mounted = true;
-    const poll = () => void getSundaySchoolDisplay(selectedDate).then((result) => {
-      if (mounted) { setDisplayState(result.state); setDisplayConnected(result.connected); }
-    }).catch(() => undefined);
-    poll();
-    const timer = window.setInterval(poll, 5000);
-    return () => { mounted = false; window.clearInterval(timer); };
-  }, [active, selectedDate]);
-
-  useEffect(() => {
     const lesson = lessonsByDate.get(selectedDate);
     const nextDraft = lesson ? draftFromLesson(lesson) : blankLesson(selectedDate);
     if (locallySavedDraftsRef.current.get(selectedDate) === JSON.stringify(nextDraft)) return;
@@ -493,7 +480,7 @@ export function SundaySchoolView({ active = true, canEdit }: { active?: boolean;
         const saved = await saveLessonDraft(draft, selectedDate);
         if (saved) {
           locallySavedDraftsRef.current.set(selectedDate, JSON.stringify(draftFromLesson(saved)));
-          if (version === autosaveVersionRef.current) setMessage("Saved automatically.");
+          if (version === autosaveVersionRef.current) setMessage(null);
         }
       } catch (error) {
         if (version === autosaveVersionRef.current) {
@@ -518,6 +505,7 @@ export function SundaySchoolView({ active = true, canEdit }: { active?: boolean;
 
   function chooseDate(date: string) {
     setSelectedDate(date);
+    setSelectedBoardId(null);
     setCalendarOpen(false);
     setMobilePane("set");
   }
@@ -649,7 +637,9 @@ export function SundaySchoolView({ active = true, canEdit }: { active?: boolean;
 
   function addBoardItem(item: Omit<SundaySchoolBoardItem, "id">) {
     if (!canEdit) return;
-    setDraft((current) => ({ ...current, board_items: [...current.board_items, { ...item, id: boardItemId() }] }));
+    const id = boardItemId();
+    setDraft((current) => ({ ...current, board_items: [...current.board_items, { ...item, id }] }));
+    setSelectedBoardId(id);
     setMobilePane("set");
   }
 
@@ -657,41 +647,24 @@ export function SundaySchoolView({ active = true, canEdit }: { active?: boolean;
     const previousVerse = [...lessons]
       .filter((lesson) => dateInputFromIso(lesson.lesson_date) < selectedDate)
       .sort((a, b) => b.lesson_date.localeCompare(a.lesson_date))
-      .flatMap((lesson) => lesson.board_items.filter((item) => item.element_type === "verse"))[0];
+      .flatMap((lesson) => combineVerseItems(lesson.board_items).filter((item) => item.element_type === "memory_verse"))[0]?.verse_game?.this_week;
     const suggestions: Record<LessonElementKey, { title: string; detail: string }> = {
       songs: { title: "Action Songs", detail: "Choose a familiar action song and lead the children together." },
-      challenge: { title: "Remember Last Week's Verse", detail: previousVerse?.detail || "" },
+      memory_verse: { title: "Memory Verse Game", detail: "Recall last week, then learn this week." },
       story: { title: draft.bible_reference.trim() || "Bible Story", detail: draft.bible_story.trim() || "Read and retell the Bible passage together." },
       questions: { title: "Three Questions", detail: ELEMENT_IDEAS.questions![0].detail },
-      verse: { title: "Learn Today's Verse", detail: "" },
       craft: { title: "Printout / Craft", detail: "Give children paper and crayons to draw something from today's story." },
       game: { title: "Game / Free Play", detail: "Choose a simple game, or let children play freely." },
     };
-    addBoardItem({ kind: "content", element_type: element.key, reference: element.key === "challenge" ? previousVerse?.reference : element.key === "verse" ? draft.bible_reference : undefined, ...suggestions[element.key] });
+    addBoardItem({ kind: "content", element_type: element.key, verse_game: element.key === "memory_verse" ? { ...EXAMPLE_VERSES, last_week: previousVerse || EXAMPLE_VERSES.last_week, translation: previousVerse ? "" : EXAMPLE_VERSES.translation } : undefined, ...suggestions[element.key] });
   }
 
   function updateBoardItem(id: string, patch: Partial<SundaySchoolBoardItem>) {
     setDraft((current) => ({ ...current, board_items: current.board_items.map((item) => item.id === id ? { ...item, ...patch } : item) }));
   }
 
-  async function showOnDisplay(item: SundaySchoolBoardItem, stage?: number) {
-    const verse = item.element_type === "verse" || item.element_type === "challenge";
-    const next: SundaySchoolDisplayState = {
-      kind: verse ? "verse" : item.element_type === "songs" ? "song" : "text",
-      title: item.title,
-      detail: item.detail || "",
-      reference: item.reference || draft.bible_reference || "",
-      mode: item.element_type === "challenge" ? "challenge" : "learn",
-      stage: stage ?? (item.element_type === "challenge" ? 0 : 0),
-    };
-    try {
-      const result = await updateSundaySchoolDisplay(selectedDate, next);
-      setDisplayState(result.state);
-      setDisplayConnected(result.connected);
-    } catch (error) { setMessage(error instanceof Error ? error.message : "Could not update Sunday School TV."); }
-  }
-
   function removeBoardItem(id: string) {
+    if (selectedBoardId === id) setSelectedBoardId(null);
     setDraft((current) => ({ ...current, board_items: current.board_items.filter((item) => item.id !== id) }));
   }
 
@@ -1004,7 +977,7 @@ export function SundaySchoolView({ active = true, canEdit }: { active?: boolean;
           </button>
         </div>
         <div className="worship-song-list sunday-school-elements-browser">
-          {LESSON_ELEMENTS.map((element) => {
+          {LESSON_ELEMENTS.map((element, elementIndex) => {
             const Icon = element.icon;
             const isExpanded = expandedElementKey === element.key;
             const matches = selectedElementKey === element.key ? elementResources : resources.filter((resource) => element.resourceTypes.includes(resource.resource_type));
@@ -1018,16 +991,17 @@ export function SundaySchoolView({ active = true, canEdit }: { active?: boolean;
                   }}
                   type="button"
                 >
-                  <span><Icon size={14} aria-hidden="true" />{element.label}</span>
+                  <span><Icon size={14} aria-hidden="true" />{elementIndex + 1}. {element.label}</span>
                   <strong>{element.duration}</strong>
                   {isExpanded ? <ChevronUp size={15} aria-hidden="true" /> : <ChevronDown size={15} aria-hidden="true" />}
                 </button>
                 {isExpanded ? (
                   <div className="sunday-school-element-panel">
-                    <button className="sunday-school-suggestion" disabled={!canEdit} onClick={() => addQuickSuggestion(element)} type="button">
+                    {!ELEMENT_IDEAS[element.key] ? <button className="sunday-school-suggestion" disabled={!canEdit} onClick={() => addQuickSuggestion(element)} type="button">
                       <div><strong>Add {element.label}</strong><span>{element.key === "story" ? draft.bible_reference || "Read and retell the passage" : "Add to today's board"}</span></div>
                       <Plus size={15} aria-hidden="true" />
-                    </button>
+                    </button> : null}
+                    {element.key === "story" ? <button className="sunday-school-suggestion" disabled={!canEdit} onClick={() => addBoardItem({ kind: "content", element_type: "story", story_id: "jonah", title: "Jonah and the Great Fish", detail: "Jonah 1 · Tell the story, one moment at a time." })} type="button"><div><strong>Jonah and the Great Fish</strong><span>INTERACTIVE · TV</span></div><Plus size={15} /></button> : null}
                     {ELEMENT_IDEAS[element.key]?.map((idea) => <button className="sunday-school-suggestion" disabled={!canEdit} key={idea.title} onClick={() => addBoardItem({ kind: "content", element_type: element.key, title: idea.title, detail: idea.detail })} type="button">
                       <div><strong>{idea.title}</strong><span>{idea.badge} · {idea.detail}</span></div><Plus size={15} aria-hidden="true" />
                     </button>)}
@@ -1041,7 +1015,6 @@ export function SundaySchoolView({ active = true, canEdit }: { active?: boolean;
                         </div>
                       ))}
                     </div>
-                    {!matches.length && element.resourceTypes.length && !ELEMENT_IDEAS[element.key] ? <p className="empty-state compact-empty">No matching library resources yet.</p> : null}
                     {element.resourceTypes.length ? <button className="text-button" disabled={!canEdit} onClick={() => { setSelectedElementKey(element.key); setResourcePickerOpen(true); }} type="button">
                       <Search size={14} aria-hidden="true" /> Browse library
                     </button> : null}
@@ -1060,14 +1033,12 @@ export function SundaySchoolView({ active = true, canEdit }: { active?: boolean;
             <h2>{longDate(selectedDate)}</h2>
           </div>
           <div className="worship-set-toolbar-actions sunday-school-toolbar-actions">
-            <span className="sunday-school-autosave-status">TV {displayConnected ? "connected" : "waiting"}</span>
-            <a className="text-button" href={`${import.meta.env.BASE_URL}media/sunday-school?date=${selectedDate}`} target="_blank" rel="noreferrer">Open TV <ExternalLink size={13} /></a>
-            <span className="sunday-school-autosave-status" role="status">{saving ? "Saving…" : "Autosaved"}</span>
+            <span className="sunday-school-autosave-status" role="status">{saving ? "Saving…" : ""}</span>
           </div>
         </div>
         {message ? <p className="status-message">{message}</p> : null}
         {loading ? <p className="empty-state">Loading lessons...</p> : null}
-        <div className="sunday-school-core-fields">
+        <details className="school-lesson-details"><summary>{draft.theme || "Lesson details"}{draft.bible_reference ? ` · ${draft.bible_reference}` : ""}</summary><div className="sunday-school-core-fields">
           <label>
             <span>Theme</span>
             <input disabled={!canEdit} onChange={(event) => updateDraft("theme", event.target.value)} placeholder="Theme from plan" value={draft.theme} />
@@ -1076,7 +1047,8 @@ export function SundaySchoolView({ active = true, canEdit }: { active?: boolean;
             <span>Bible Reference</span>
             <input disabled={!canEdit} onChange={(event) => updateDraft("bible_reference", event.target.value)} placeholder="e.g. John 6:56-69" value={draft.bible_reference} />
           </label>
-        </div>
+        </div></details>
+        <SundaySchoolPresenter date={selectedDate} theme={draft.theme} selected={draft.board_items.find((item) => item.id === selectedBoardId) ?? draft.board_items[0]} active={active} canControl={canPresent} onLiveItem={setLiveBoardId} onOpenLesson={chooseDate} />
         <section
           className={`sunday-school-board ${draggingOverBoard ? "is-dragging-over" : ""}`}
           onDragEnter={(event) => { event.preventDefault(); setDraggingOverBoard(true); }}
@@ -1090,7 +1062,7 @@ export function SundaySchoolView({ active = true, canEdit }: { active?: boolean;
             <div className="worship-section-list sunday-school-board-list">
               {draft.board_items.map((item, index) => (
                 <article
-                  className="worship-set-item sunday-school-board-item"
+                  className={`worship-set-item sunday-school-board-item ${item.id === (selectedBoardId ?? draft.board_items[0]?.id) ? "is-selected" : ""} ${item.id === liveBoardId ? "is-live" : ""}`}
                   draggable={canEdit}
                   key={item.id}
                   onDragStart={() => setDraggedBoardItemId(item.id)}
@@ -1105,21 +1077,16 @@ export function SundaySchoolView({ active = true, canEdit }: { active?: boolean;
                 >
                   <span><GripVertical size={14} aria-hidden="true" /></span>
                   <div className="worship-set-item-body">
-                    <strong>{item.title}</strong><small>{item.detail || (item.kind === "file" ? "Uploaded file" : "Lesson item")}</small>
-                    {item.element_type === "verse" || item.element_type === "challenge" ? <div className="school-verse-editor">
-                      <textarea aria-label={`${item.title} text`} disabled={!canEdit} onChange={(event) => updateBoardItem(item.id, { detail: event.target.value })} placeholder="Type the verse text" value={item.detail || ""} />
-                      <input aria-label={`${item.title} reference`} disabled={!canEdit} onChange={(event) => updateBoardItem(item.id, { reference: event.target.value })} placeholder="Bible reference" value={item.reference || ""} />
-                    </div> : null}
-                    {item.element_type === "questions" ? <textarea className="school-questions-editor" aria-label="Three lesson questions" disabled={!canEdit} onChange={(event) => updateBoardItem(item.id, { detail: event.target.value })} value={item.detail || ""} /> : null}
-                    {item.element_type === "songs" || item.element_type === "verse" || item.element_type === "challenge" ? <div className="school-display-controls">
-                      <button className="text-button compact-button" onClick={() => void showOnDisplay(item)} type="button">Show on TV</button>
-                      {(item.element_type === "verse" || item.element_type === "challenge") && displayState?.kind === "verse" && displayState.title === item.title && displayState.mode === (item.element_type === "challenge" ? "challenge" : "learn") ? <>
-                        <button className="text-button compact-button" onClick={() => void showOnDisplay(item, Math.min(6, displayState.stage + 1))} type="button">{item.element_type === "challenge" ? "Hint" : "Hide more words"}</button>
-                        <button className="text-button compact-button" onClick={() => void showOnDisplay(item, Math.max(0, displayState.stage - 1))} type="button">{item.element_type === "challenge" ? "Fewer hints" : "Easier"}</button>
-                        <button className="text-button compact-button" onClick={() => void showOnDisplay(item, item.element_type === "challenge" ? 6 : 0)} type="button">Show verse</button>
-                        <button className="text-button compact-button" onClick={() => void showOnDisplay(item, 0)} type="button">Restart</button>
-                      </> : null}
-                    </div> : null}
+                    <button className="school-board-select" aria-pressed={item.id === (selectedBoardId ?? draft.board_items[0]?.id)} onClick={() => setSelectedBoardId(item.id)} type="button"><span>{index + 1}. {item.title}</span>{item.id === liveBoardId ? <span className="school-live-badge">LIVE</span> : null}</button>
+                    <small>{item.element_type === "memory_verse" ? "Recall last week → learn this week" : item.detail || (item.kind === "file" ? "Uploaded file" : "Lesson item")}</small>
+                    {item.verse_game ? <details className="school-element-details"><summary>Verse texts</summary><div className="school-verse-editor">
+                      {(["last_week", "this_week"] as const).map((phase) => <fieldset key={phase}><legend>{phase === "last_week" ? "Last week's verse" : "This week's verse"}</legend>
+                        <textarea aria-label={`${phase} verse text`} disabled={!canEdit} onChange={(event) => updateBoardItem(item.id, { verse_game: { ...item.verse_game!, [phase]: { ...item.verse_game![phase], text: event.target.value } } })} value={item.verse_game![phase].text} />
+                        <input aria-label={`${phase} reference`} disabled={!canEdit} onChange={(event) => updateBoardItem(item.id, { verse_game: { ...item.verse_game!, [phase]: { ...item.verse_game![phase], reference: event.target.value } } })} value={item.verse_game![phase].reference} />
+                      </fieldset>)}
+                      <label>Translation (optional)<input value={item.verse_game.translation || ""} disabled={!canEdit} onChange={(event) => updateBoardItem(item.id, { verse_game: { ...item.verse_game!, translation: event.target.value } })} /></label>
+                    </div></details> : null}
+                    {item.element_type === "questions" ? <details className="school-element-details"><summary>Edit questions</summary><textarea className="school-questions-editor" aria-label="Three lesson questions" disabled={!canEdit} onChange={(event) => updateBoardItem(item.id, { detail: event.target.value })} value={item.detail || ""} /></details> : null}
                   </div>
                   <div className="worship-set-item-tools">
                     {item.resource_id ? <a className="section-icon-button" href={sundaySchoolResourceFileUrl(item.resource_id)} target="_blank" rel="noreferrer" aria-label={`Open ${item.title}`}><ExternalLink size={14} /></a> : null}
@@ -1135,7 +1102,7 @@ export function SundaySchoolView({ active = true, canEdit }: { active?: boolean;
           ) : (
             <div className="sunday-school-board-empty">
               <Upload size={28} aria-hidden="true" />
-              <strong>Drop files or content here</strong>
+              <strong>Choose today's activities from Elements</strong><span>Add only what you plan to use. You can also drop files here.</span>
               <button className="text-button" disabled={!canEdit || uploading} onClick={() => fileInputRef.current?.click()} type="button"><Plus size={14} />{uploading ? "Uploading..." : "Add"}</button>
             </div>
           )}

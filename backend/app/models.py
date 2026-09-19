@@ -34,7 +34,7 @@ from app.modules.planning.models import (
     WorshipLeaderAssignment,
 )
 from app.modules.presentation.models import PresentationPosition, PresentationSession
-from app.modules.sunday_school.models import SundaySchoolLesson, SundaySchoolResource
+from app.modules.sunday_school.models import SundaySchoolLesson, SundaySchoolResource, SundaySchoolRoom
 
 __all__ = [
     "BibleBook",
