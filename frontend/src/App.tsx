@@ -106,6 +106,7 @@ function App() {
   });
   const [broadcastWorkspace, setBroadcastWorkspace] = useState<"viewer" | "recordings" | "livestream" | "mixer">("viewer");
   const [mobileImmersive, setMobileImmersive] = useState(false);
+  const [websiteMenuOpen, setWebsiteMenuOpen] = useState(false);
   const [adminAttentionCount, setAdminAttentionCount] = useState(0);
   const [profileAttentionCount, setProfileAttentionCount] = useState(0);
   const [adminSection, setAdminSection] = useState<"users" | "templates" | "settings">("users");
@@ -428,7 +429,11 @@ function App() {
   return (
     <main className={`shell ${mobileOrTabletDevice ? "is-mobile-device" : ""} ${tabletDevice ? "is-tablet-device" : ""} ${mobileImmersive ? "is-mobile-immersive" : ""}`}>
       <ToastViewport />
-      <aside className="sidebar" aria-label="Primary">
+      <aside
+        className="sidebar"
+        aria-label="Primary"
+        onMouseLeave={() => setWebsiteMenuOpen(false)}
+      >
         <div className="brand">
           <img alt="" src={appAssetUrl("images/cspot.png")} />
           <span>cspot-pro</span>
@@ -436,7 +441,11 @@ function App() {
 
         <nav className="nav-list">
           {isViewer ? canEditWebsite ? (
-            <details className="website-nav-menu">
+            <details
+              className="website-nav-menu"
+              onToggle={(event) => setWebsiteMenuOpen(event.currentTarget.open)}
+              open={websiteMenuOpen}
+            >
               <summary className="nav-item" title="Website options">
                 <Globe2 size={18} aria-hidden="true" />
                 <span>Website</span>
