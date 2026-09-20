@@ -374,6 +374,44 @@ describe("LiveStreamAudio", () => {
     expect(onSoundEnabledChange.mock.calls).toEqual([[true]]);
     expect(container.querySelector('button[aria-label="Mute sound"]')).not.toBeNull();
   });
+
+  it("reconnects an ended native live-audio stream without another tap", async () => {
+    vi.useFakeTimers();
+    vi.stubGlobal("MediaSource", undefined);
+    const play = vi.spyOn(HTMLMediaElement.prototype, "play").mockResolvedValue(undefined);
+    vi.spyOn(HTMLMediaElement.prototype, "load").mockImplementation(() => undefined);
+    const onSoundEnabledChange = vi.fn();
+    const container = document.createElement("div");
+    document.body.append(container);
+    const root = createRoot(container);
+    cleanups.push(() => {
+      vi.useRealTimers();
+      act(() => root.unmount());
+      container.remove();
+    });
+    await act(async () => root.render(
+      <LiveStreamAudio
+        label="Live mix"
+        onSoundEnabledChange={onSoundEnabledChange}
+        url="/api/v1/broadcast/live-audio"
+      />,
+    ));
+    await act(async () => {
+      container.querySelector<HTMLButtonElement>('button[aria-label="Turn on sound"]')!.click();
+      await Promise.resolve();
+    });
+
+    play.mockClear();
+    act(() => container.querySelector("audio")!.dispatchEvent(new Event("ended")));
+    await act(async () => {
+      vi.advanceTimersByTime(1000);
+      await Promise.resolve();
+    });
+
+    expect(play).toHaveBeenCalled();
+    expect(onSoundEnabledChange.mock.calls).toEqual([[true]]);
+    expect(container.querySelector('button[aria-label="Mute sound"]')).not.toBeNull();
+  });
 });
 
 // iOS 12 has native HLS playback but no MediaSource.

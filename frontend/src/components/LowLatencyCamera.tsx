@@ -519,6 +519,7 @@ function FallbackLiveStreamAudio({ label, onSoundEnabledChange, preserveSoundOnP
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const preserveSoundOnPlaybackFailureRef = useRef(preserveSoundOnPlaybackFailure);
   const soundEnabledRef = useRef(soundEnabled);
+  const playbackStartedRef = useRef(false);
   const [playbackFailed, setPlaybackFailed] = useState(false);
   const [retryToken, setRetryToken] = useState(0);
   const isHls = url.toLowerCase().includes(".m3u8");
@@ -588,12 +589,26 @@ function FallbackLiveStreamAudio({ label, onSoundEnabledChange, preserveSoundOnP
     if (!audio) return undefined;
     let cancelled = false;
     let hls: InstanceType<typeof import("hls.js").default> | null = null;
+    let reconnectTimer = 0;
+    const retryLiveStream = () => {
+      if (cancelled || reconnectTimer || !soundEnabledRef.current) return;
+      setPlaybackFailed(true);
+      reconnectTimer = window.setTimeout(() => {
+        reconnectTimer = 0;
+        if (!cancelled && soundEnabledRef.current) {
+          setRetryToken((current) => current + 1);
+        }
+      }, 1000);
+    };
     const resumeEnabledSound = () => {
       if (!soundEnabledRef.current || cancelled) return;
       audio.muted = false;
       audio.volume = 1;
       void audio.play()
-        .then(() => setPlaybackFailed(false))
+        .then(() => {
+          playbackStartedRef.current = true;
+          setPlaybackFailed(false);
+        })
         .catch(() => {
           audio.muted = true;
           setPlaybackFailed(true);
@@ -604,6 +619,10 @@ function FallbackLiveStreamAudio({ label, onSoundEnabledChange, preserveSoundOnP
         });
     };
     const handlePlaybackError = () => {
+      if (playbackStartedRef.current && soundEnabledRef.current) {
+        retryLiveStream();
+        return;
+      }
       audio.muted = true;
       setPlaybackFailed(true);
       if (!preserveSoundOnPlaybackFailureRef.current) {
@@ -614,6 +633,7 @@ function FallbackLiveStreamAudio({ label, onSoundEnabledChange, preserveSoundOnP
     audio.muted = !soundEnabledRef.current;
     audio.defaultMuted = !soundEnabledRef.current;
     audio.addEventListener("error", handlePlaybackError);
+    audio.addEventListener("ended", retryLiveStream);
     audio.addEventListener("canplay", resumeEnabledSound);
     audio.addEventListener("loadeddata", resumeEnabledSound);
     if (!isHls || audio.canPlayType("application/vnd.apple.mpegurl")) {
@@ -635,8 +655,10 @@ function FallbackLiveStreamAudio({ label, onSoundEnabledChange, preserveSoundOnP
     }
     return () => {
       cancelled = true;
+      window.clearTimeout(reconnectTimer);
       hls?.destroy();
       audio.removeEventListener("error", handlePlaybackError);
+      audio.removeEventListener("ended", retryLiveStream);
       audio.removeEventListener("canplay", resumeEnabledSound);
       audio.removeEventListener("loadeddata", resumeEnabledSound);
       audio.removeAttribute("src");
