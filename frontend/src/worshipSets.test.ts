@@ -83,6 +83,25 @@ describe("worship set merge", () => {
     expect(isPlanEditingLocked(plan, types, [today, service], new Date(2026, 6, 5, 11, 1))).toBe(true);
   });
 
+  it("uses a service's configured start rather than the template start", () => {
+    const service = summary("service", "2026-07-05T10:30:00.000Z", "Sunday Service");
+    const plan = {
+      ...service,
+      plan_type_id: "sunday",
+      service_start: "18:00",
+      items: [],
+      teacher_id: null,
+      info: null,
+      queued_start: null,
+    } as PlanDetail;
+    const types = [
+      { id: "sunday", name: "Sunday Service", starts_at: "11:00" },
+    ] as never;
+
+    expect(isPlanEditingLocked(plan, types, [service], new Date(2026, 6, 5, 12))).toBe(false);
+    expect(isPlanEditingLocked(plan, types, [service], new Date(2026, 6, 5, 18, 1))).toBe(true);
+  });
+
   it("uses local date keys when matching service and worship set days", () => {
     const service = { service_date: "2026-02-01T10:30:00.000Z" } as PlanDetail;
     const matching = summary("set-1", "2026-02-01T09:00:00.000Z", "Worship Set");

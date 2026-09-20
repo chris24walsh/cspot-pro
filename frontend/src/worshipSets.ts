@@ -74,7 +74,7 @@ export function preferredServicePlanId(services: PlanSummary[], worshipSets: Pla
 }
 
 export function isPlanEditingLocked(
-  plan: Pick<PlanDetail, "id" | "plan_type" | "plan_type_id" | "service_date"> | null,
+  plan: Pick<PlanDetail, "id" | "plan_type" | "plan_type_id" | "service_date" | "service_start"> | null,
   planTypes: PlanType[],
   plans: PlanSummary[],
   now = new Date(),
@@ -86,8 +86,9 @@ export function isPlanEditingLocked(
     const service = plans.find((candidate) => !isWorshipSetPlan(candidate) && dateKey(candidate.service_date) === serviceDay);
     effectiveType = planTypes.find((candidate) => candidate.name === service?.plan_type) ?? effectiveType;
   }
-  if (!effectiveType?.starts_at) return dateKey(now.toISOString()) > serviceDay;
-  const cutoff = new Date(`${serviceDay}T${effectiveType.starts_at}`);
+  const serviceStart = plan.service_start ?? effectiveType?.starts_at;
+  if (!serviceStart) return dateKey(now.toISOString()) > serviceDay;
+  const cutoff = new Date(`${serviceDay}T${serviceStart}`);
   return !Number.isNaN(cutoff.getTime()) && now.getTime() > cutoff.getTime();
 }
 
