@@ -1,3 +1,4 @@
+import logging
 import re
 from datetime import UTC, datetime, timedelta
 from io import BytesIO
@@ -83,6 +84,7 @@ from app.modules.identity.security import (
 from app.modules.site.models import SiteContentBlock
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 CALENDAR_COLORS = ("teacher-a", "teacher-b", "teacher-c", "teacher-d", "teacher-e", "teacher-f")
 USERNAME_PATTERN = re.compile(r"^[a-z0-9][a-z0-9._-]{1,79}$")
 
@@ -421,6 +423,39 @@ def send_auth_email(*, user: User, purpose: str, action_url: str) -> bool:
     return send_email(to_email=user.email, subject=subject, text_body=body)
 
 
+def send_registration_review_emails(session: Session, *, user: User) -> None:
+    review_url = f"{build_public_app_url()}/?admin_user={user.id}"
+    admin_emails = session.scalars(
+        select(User.email)
+        .join(UserRole, UserRole.user_id == User.id)
+        .join(Role, Role.id == UserRole.role_id)
+        .where(User.active.is_(True), Role.name == "administrator")
+        .distinct()
+    ).all()
+    subject = f"New {settings.app_name} registration needs review"
+    body = (
+        "Hello,\n\n"
+        f"{user.name} <{user.email}> has verified their email address and is waiting "
+        "for account approval.\n\n"
+        f"Review this registration to approve or reject it:\n{review_url}"
+    )
+    for admin_email in admin_emails:
+        send_email(to_email=admin_email, subject=subject, text_body=body)
+
+
+def send_registration_approved_email(*, user: User) -> bool:
+    sign_in_url = build_public_app_url()
+    return send_email(
+        to_email=user.email,
+        subject=f"Your {settings.app_name} account has been approved",
+        text_body=(
+            f"Hello {user.name},\n\n"
+            "An administrator has approved your account. You can now sign in.\n\n"
+            f"Sign in here:\n{sign_in_url}"
+        ),
+    )
+
+
 def send_smtp_test_email(*, recipient: str, requested_by: User) -> bool:
     subject = f"{settings.app_name} email test"
     body = (
@@ -525,8 +560,11 @@ def self_register(
         ) from exc
     return SelfRegistrationResultRead(
         detail=(
-            "Registration received. An administrator must approve your account "
-            "before you can sign in."
+            "Registration received. Check your email and verify your address. "
+            "After verification, an administrator must approve your account before you can sign in."
+            if email_sent
+            else "Registration received, but email delivery is not configured. "
+            "Ask an administrator to verify and approve your account."
         ),
         email_sent=email_sent,
     )
@@ -546,8 +584,16 @@ def complete_email_verification(
     user.email_confirmed = True
     auth_token.used_at = datetime.now(UTC)
     session.commit()
+    if smtp_enabled() and settings.public_app_url:
+        try:
+            send_registration_review_emails(session, user=user)
+        except Exception:
+            logger.exception("Could not send registration review email for user %s", user.id)
     return SelfRegistrationResultRead(
-        detail="Email verified. Your account is waiting for administrator approval."
+        detail=(
+            "Email verified. Your account is waiting for administrator approval. "
+            "We will email you when you can sign in."
+        )
     )
 
 
@@ -641,9 +687,16 @@ def login(
             detail="Invalid email/username or password.",
         )
     if user.registration_pending and not user.active:
+        detail = (
+            "Your account is waiting for administrator approval. "
+            "We will email you when you can sign in."
+            if user.email_confirmed
+            else "Verify your email address first, then wait for administrator approval. "
+            "We will email you when you can sign in."
+        )
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Your account is awaiting administrator approval.",
+            detail=detail,
         )
     if not user.active:
         raise HTTPException(
@@ -1443,7 +1496,10 @@ def send_test_email(
     if not smtp_enabled():
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="SMTP is not configured yet. Set SMTP_HOST, SMTP_PORT, SMTP_USERNAME, SMTP_PASSWORD, and SMTP_FROM_EMAIL.",
+            detail=(
+                "SMTP is not configured yet. Set SMTP_HOST, SMTP_PORT, SMTP_USERNAME, "
+                "SMTP_PASSWORD, and SMTP_FROM_EMAIL."
+            ),
         )
 
     try:
@@ -1658,13 +1714,22 @@ def approve_registration(
         raise HTTPException(
             status_code=409, detail="This account is not awaiting registration approval."
         )
+    if not user.email_confirmed and smtp_enabled():
+        raise HTTPException(
+            status_code=409, detail="The user must verify their email before approval."
+        )
     user.registration_pending = False
     user.active = True
-    # Admin approval acts as an identity override if SMTP verification was not available.
+    # Preserve the manual identity override for installations without email delivery.
     user.email_confirmed = True
     set_user_roles(session, user, ["viewer"])
     session.commit()
     session.refresh(user)
+    if smtp_enabled() and settings.public_app_url:
+        try:
+            send_registration_approved_email(user=user)
+        except Exception:
+            logger.exception("Could not send registration approval email for user %s", user.id)
     return user_to_read(session, user)
 
 

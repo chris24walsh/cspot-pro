@@ -87,6 +87,7 @@ function App() {
   const initialParams = new URLSearchParams(window.location.search);
   const publicRecordingToken = initialParams.get("recording");
   const websiteEditorRequested = initialParams.get("websiteEditor") === "1";
+  const adminUserRequested = initialParams.get("admin_user");
   const isPresentationOutput = initialParams.get("presentation") === "output";
   const isNetworkDisplay = isNetworkDisplayLocation(window.location);
   const isMediaOutput = isMediaOutputLocation(window.location);
@@ -334,10 +335,11 @@ function App() {
     }
 
     const params = new URLSearchParams(window.location.search);
-    if (params.has("googleDrive")) {
+    if (params.has("googleDrive") || adminUserRequested) {
       setActiveModuleId("admin");
+      setAdminSection("users");
     }
-  }, [canManageUsers, modules, sessionUser]);
+  }, [adminUserRequested, canManageUsers, modules, sessionUser]);
 
   useEffect(() => {
     function updateFullscreenState() {
@@ -610,7 +612,7 @@ function App() {
           )
         ) : null}
         {mountedModuleIds.has("admin") ? <div className="workspace-panel" hidden={activeModule.id !== "admin"}>
-          <UserManager adminSection={adminSection} onAdminSectionChange={setAdminSection} onAttentionChanged={loadAdminAttention} />
+          <UserManager adminSection={adminSection} initialUserId={adminUserRequested} onAdminSectionChange={setAdminSection} onAttentionChanged={loadAdminAttention} />
         </div> : null}
         {mountedModuleIds.has("profile") ? <div className="workspace-panel" hidden={activeModule.id !== "profile"}>
           <MyProfile onProfileChanged={() => { void loadAuth(); void loadProfileAttention(); }} onServingChanged={() => { void loadProfileAttention(); }} />

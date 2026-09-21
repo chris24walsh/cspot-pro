@@ -119,7 +119,7 @@ function formatUserStatus(user: User) {
   return "active";
 }
 
-export function UserManager({ adminSection, onAdminSectionChange, onAttentionChanged }: { adminSection: "users" | "templates" | "settings"; onAdminSectionChange: (section: "users" | "templates" | "settings") => void; onAttentionChanged?: () => void | Promise<void> }) {
+export function UserManager({ adminSection, initialUserId, onAdminSectionChange, onAttentionChanged }: { adminSection: "users" | "templates" | "settings"; initialUserId?: string | null; onAdminSectionChange: (section: "users" | "templates" | "settings") => void; onAttentionChanged?: () => void | Promise<void> }) {
   const { confirm, confirmationDialog } = useConfirmationDialog();
   const [users, setUsers] = useState<User[]>([]);
   const [roles, setRoles] = useState<Role[]>([]);
@@ -195,12 +195,12 @@ export function UserManager({ adminSection, onAdminSectionChange, onAttentionCha
         : undefined;
       const registrationUser = !selectedId && !initialAttentionRouted.current ? nextUsers.find((user) => user.registration_pending) : undefined;
       const attentionUserId = registrationUser?.id ?? attentionRow?.user_id;
-      const target = nextUsers.find((user) => user.id === (selectedId ?? attentionUserId)) ?? nextUsers[0] ?? null;
+      const target = nextUsers.find((user) => user.id === (selectedId ?? initialUserId ?? attentionUserId)) ?? nextUsers[0] ?? null;
       if (!initialAttentionRouted.current) {
         initialAttentionRouted.current = true;
-        if (attentionUserId) {
+        if (initialUserId || attentionUserId) {
           setMobileUserPane("detail");
-          setUserSettingsSection(registrationUser ? "profile" : "serving");
+          setUserSettingsSection(initialUserId || registrationUser ? "profile" : "serving");
           setOpenRoleGroup(attentionRow?.preference.area.category ?? null);
         }
       }

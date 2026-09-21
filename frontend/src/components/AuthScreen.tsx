@@ -151,7 +151,7 @@ export function AuthScreen({ bootstrapAvailable, onAuthenticated, rememberByDefa
       if (mode === "signup") {
         if (password !== confirmPassword) throw new Error("Passwords do not match.");
         const result = await selfRegister({ name, email, username: username || null, password });
-        setMessage(`${result.detail}${result.email_sent ? " Check your email for a verification link." : ""}`);
+        setMessage(result.detail);
         setPassword(""); setConfirmPassword("");
         return;
       }

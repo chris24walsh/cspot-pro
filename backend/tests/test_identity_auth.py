@@ -144,7 +144,33 @@ def test_pending_self_registration_gets_approval_message_after_valid_password() 
             )
 
         assert exc_info.value.status_code == 403
-        assert exc_info.value.detail == "Your account is awaiting administrator approval."
+        assert exc_info.value.detail == (
+            "Your account is waiting for administrator approval. "
+            "We will email you when you can sign in."
+        )
+
+
+def test_unverified_self_registration_gets_verification_message() -> None:
+    with _identity_session() as session:
+        user = session.scalar(select(User).where(User.email == "screen@example.com"))
+        assert user is not None
+        user.active = False
+        user.registration_pending = True
+        user.email_confirmed = False
+        session.commit()
+
+        with pytest.raises(HTTPException) as exc_info:
+            login(
+                LoginRequest(identifier="screen@example.com", password="test-password"),
+                Response(),
+                session,
+            )
+
+        assert exc_info.value.status_code == 403
+        assert exc_info.value.detail == (
+            "Verify your email address first, then wait for administrator approval. "
+            "We will email you when you can sign in."
+        )
 
 
 def test_pending_registration_does_not_disclose_status_for_wrong_password() -> None:
