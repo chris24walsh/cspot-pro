@@ -1520,6 +1520,11 @@ button {
   box-shadow: 0 0 0 2px rgba(68, 168, 130, 0.2);
 }
 
+.shell:not(.is-mobile-device) .worship-live-launch-button {
+  min-width: 126px;
+  padding-inline: 12px;
+}
+
 .compact-video-controls {
   align-items: center;
   display: flex;
@@ -12296,21 +12301,29 @@ button.musician-page {
   min-height: 30px;
 }
 
-.shell.is-mobile-device .date-navigator-history-label {
-  display: none;
-}
-
 .shell.is-mobile-device .date-navigator > .date-navigator-history {
-  padding: 0;
-  width: 30px;
+  padding-inline: 8px;
 }
 
 .shell.is-mobile-device .recording-share-dialog {
-  margin: 12px;
-  max-height: calc(100vh - 24px);
-  max-height: calc(100dvh - 24px);
+  margin: 0;
+  max-height: calc(100vh - 16px);
+  max-height: calc(100dvh - 16px);
+  max-width: 100%;
   padding: 14px;
-  width: calc(100vw - 24px);
+  width: 100%;
+}
+
+.shell.is-mobile-device .recording-share-backdrop {
+  padding: 8px;
+}
+
+.shell.is-mobile-device .recording-share-dialog > header > div {
+  min-width: 0;
+}
+
+.shell.is-mobile-device .recording-share-dialog h2 {
+  overflow-wrap: anywhere;
 }
 
 .shell.is-mobile-device .recording-rename > div {
@@ -12324,6 +12337,17 @@ button.musician-page {
   }
 
   .date-navigator > .date-navigator-history {
+    padding: 0;
+    width: 30px;
+  }
+}
+
+@media (orientation: portrait) {
+  .shell.is-mobile-device .date-navigator-history-label {
+    display: none;
+  }
+
+  .shell.is-mobile-device .date-navigator > .date-navigator-history {
     padding: 0;
     width: 30px;
   }
@@ -13568,3 +13592,21 @@ button.musician-page {
   .sunday-school-as-worship .worship-set-toolbar > div:first-child { min-width: 0; flex: 1; }
 }
 .sunday-school-as-worship .worship-set-toolbar-actions { width: auto; flex: none; }
+
+@media (orientation: landscape) {
+  .shell.is-mobile-device .date-navigator {
+    grid-template-columns: 30px minmax(0, 1fr) 30px auto;
+  }
+
+  .shell.is-mobile-device .date-navigator.has-assignment {
+    grid-template-columns: 30px minmax(0, 1fr) 30px auto 30px;
+  }
+
+  .shell.is-mobile-device .date-navigator.has-service-type {
+    grid-template-columns: 30px minmax(0, 1fr) 30px minmax(64px, 100px) auto;
+  }
+
+  .shell.is-mobile-device .date-navigator.has-service-type.has-assignment {
+    grid-template-columns: 30px minmax(0, 1fr) 30px minmax(64px, 100px) auto 30px;
+  }
+}

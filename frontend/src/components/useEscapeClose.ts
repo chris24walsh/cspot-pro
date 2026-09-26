@@ -1,8 +1,13 @@
 import { useEffect, useRef } from "react";
 
-const escapeHandlers: symbol[] = [];
+interface EscapeHandler {
+  id: symbol;
+  priority: number;
+}
 
-export function useEscapeClose(active: boolean, onClose: () => void) {
+const escapeHandlers: EscapeHandler[] = [];
+
+export function useEscapeClose(active: boolean, onClose: () => void, priority = 0) {
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
 
@@ -10,10 +15,13 @@ export function useEscapeClose(active: boolean, onClose: () => void) {
     if (!active) return undefined;
 
     const id = Symbol("escape-close");
-    escapeHandlers.push(id);
+    escapeHandlers.push({ id, priority });
 
     function handleKeyDown(event: KeyboardEvent) {
-      if (event.key !== "Escape" || escapeHandlers[escapeHandlers.length - 1] !== id) return;
+      const topHandler = escapeHandlers.reduce<EscapeHandler | undefined>((top, candidate) => (
+        !top || candidate.priority >= top.priority ? candidate : top
+      ), undefined);
+      if (event.key !== "Escape" || topHandler?.id !== id) return;
       event.preventDefault();
       event.stopImmediatePropagation();
       onCloseRef.current();
@@ -21,9 +29,9 @@ export function useEscapeClose(active: boolean, onClose: () => void) {
 
     window.addEventListener("keydown", handleKeyDown, { capture: true });
     return () => {
-      const index = escapeHandlers.indexOf(id);
+      const index = escapeHandlers.findIndex((candidate) => candidate.id === id);
       if (index >= 0) escapeHandlers.splice(index, 1);
       window.removeEventListener("keydown", handleKeyDown, { capture: true });
     };
-  }, [active]);
+  }, [active, priority]);
 }

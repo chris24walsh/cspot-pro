@@ -44,7 +44,9 @@ export function RecordingActions({ recording, canManage = false, onRecordingChan
   const [title, setTitle] = useState(recording.title);
 
   useEffect(() => setTitle(recording.title), [recording.title]);
-  useEscapeClose(open, () => setOpen(false));
+  // This menu can be nested inside the recording player, which has its own
+  // Escape handler. The child dialog must close before its parent overlay.
+  useEscapeClose(open, () => setOpen(false), 1);
 
   useEffect(() => {
     if (!open) return;
@@ -131,7 +133,7 @@ export function RecordingActions({ recording, canManage = false, onRecordingChan
   if (recording.status !== "ready") return null;
   return <>
     <button aria-label="Share or download recording" className="recording-icon-button" onClick={() => setOpen(true)} title="Share or download" type="button"><Share2 size={17} aria-hidden="true" /></button>
-    {open ? <div className="app-dialog-backdrop" onMouseDown={() => setOpen(false)} role="presentation">
+    {open ? <div className="app-dialog-backdrop recording-share-backdrop" onMouseDown={() => setOpen(false)} role="presentation">
       <section aria-label={`Share or download ${recording.title}`} aria-modal="true" className="app-dialog recording-share-dialog" onMouseDown={(event) => event.stopPropagation()} role="dialog">
         <header><div><p className="eyebrow">Share or download</p><h2>{recording.title}</h2></div><button aria-label="Close" className="section-icon-button" onClick={() => setOpen(false)} type="button"><X size={18} /></button></header>
         <div className="recording-share-options">
