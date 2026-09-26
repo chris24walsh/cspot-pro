@@ -13018,8 +13018,19 @@ button.musician-page {
 .admin-manager .user-settings-tabs { margin: 0; }
 
 @media (max-width: 860px) {
-  .shell.is-mobile-device .topbar-admin { padding-bottom: 0; }
-  .manager-grid.admin-manager { padding: 0; }
+  .shell.is-mobile-device .topbar-admin { min-width: 0; padding: 0; }
+  .topbar-admin .topbar-context-slot, .topbar-admin .admin-topbar-tabs { min-width: 0; width: 100%; }
+  .topbar-admin .admin-topbar-tabs { gap: 0; margin-bottom: -1px; }
+  .topbar-admin .admin-topbar-tabs > button { flex: 1 1 0; font-size: 12px; justify-content: center; min-width: 0; padding-inline: 3px; text-align: center; }
+  .manager-grid.admin-manager { min-width: 0; padding: 0; }
+  .admin-manager .admin-mobile-user-tabs, .admin-manager .user-settings-tabs { gap: 0; min-width: 0; }
+  .admin-manager .admin-mobile-user-tabs > button, .admin-manager .user-settings-tabs > button { flex: 1 1 0; justify-content: center; min-width: 0; text-align: center; }
+  .admin-manager .editor-panel > .section-heading { align-items: stretch; flex-direction: column; }
+  .admin-manager .editor-panel > .section-heading > .action-row { justify-content: flex-start; width: 100%; }
+  .admin-manager .editor-panel > .section-heading > .action-row > button { flex: 1 1 auto; }
+  .admin-manager .field-action-row, .role-category-admin-row, .serving-role-manager .admin-role-row { align-items: stretch; flex-direction: column; }
+  .admin-manager .field-action-row > *, .role-category-admin-row > *, .serving-role-manager .admin-role-row > * { min-width: 0; width: 100%; }
+  .admin-manager .field-action-row > button, .role-category-admin-row .action-row, .serving-role-manager .admin-role-row > .danger-button { align-self: flex-start; width: auto; }
 }
 
 /* Profile sections use the same compact, joined navigation language as admin. */
@@ -13305,6 +13316,20 @@ button.musician-page {
   .template-row-main { grid-template-columns: 26px minmax(0, 1fr) auto; }
   .template-row-main > input, .template-row-main > select { grid-column: 2; }
   .template-row-actions { grid-column: 3; }
+
+  .admin-template-workspace { min-width: 0; overflow-x: hidden; padding: 8px; }
+  .plan-type-settings, .plan-type-outline, .plan-type-outline-row { max-width: 100%; min-width: 0; }
+  .plan-type-settings > .section-heading { align-items: stretch; flex-direction: column; }
+  .plan-type-settings > .section-heading .action-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); width: 100%; }
+  .plan-type-settings > .section-heading .action-row > button { justify-content: center; width: 100%; }
+  .plan-type-outline-row.is-child { margin-left: 6px; }
+  .template-row-main > input, .template-row-main > select { min-width: 0; }
+  .template-section-options { align-items: flex-start; flex-wrap: wrap; gap: 7px 12px; margin-left: 34px; }
+  .template-section-settings-toggle { margin-left: 0; }
+  .template-cue-controls { grid-template-columns: minmax(0, 1fr); }
+  .template-controls-label, .template-advanced-controls { grid-column: 1; grid-row: auto; }
+  .template-cue-controls .toggle-row { white-space: normal; }
+  .template-advanced-grid, .scene-source-control { grid-template-columns: minmax(0, 1fr); }
 }
 .pre-service-media-dialog .item-editor-disclosure > summary { display: flex; align-items: center; justify-content: space-between; list-style: none; }
 .pre-service-media-dialog .item-editor-disclosure > summary::-webkit-details-marker { display: none; }
