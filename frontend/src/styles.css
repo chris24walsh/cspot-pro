@@ -5681,18 +5681,77 @@ button.musician-page {
 
 .broadcast-camera-source {
   align-items: center;
+  background: #fffefa;
+  border: 1px solid #e2dccd;
+  border-radius: 7px;
   display: grid;
-  gap: 5px;
-  grid-template-columns: minmax(100px, 0.35fr) minmax(180px, 1fr) auto auto 34px;
+  gap: 7px;
+  grid-template-columns: minmax(110px, 0.32fr) minmax(180px, 1fr) 108px auto auto 34px;
+  padding: 7px;
 }
 
 .broadcast-camera-source.is-on-air {
   box-shadow: inset 3px 0 0 #245d4d;
-  padding-left: 6px;
 }
 
 .broadcast-camera-source input {
   min-height: 34px;
+}
+
+.broadcast-camera-dwell {
+  gap: 2px;
+}
+
+.broadcast-camera-dwell > span:first-child {
+  color: #65716a;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.broadcast-camera-dwell .input-with-suffix input {
+  min-width: 0;
+  width: 100%;
+}
+
+.broadcast-config-section {
+  background: #f8f5ec;
+  border: 1px solid #ded8c7;
+  border-radius: 8px;
+  display: grid;
+  gap: 10px;
+  padding: 10px;
+}
+
+.broadcast-config-section-heading {
+  display: grid;
+  gap: 2px;
+}
+
+.broadcast-config-section-heading strong {
+  font-size: 13px;
+}
+
+.broadcast-config-section-heading small,
+.broadcast-config-note {
+  color: #65716a;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.broadcast-config-fields {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.broadcast-config-fields-two {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.broadcast-config-fields > .wide-field {
+  grid-column: 1 / -1;
 }
 
 .broadcast-source-test {
@@ -11167,11 +11226,15 @@ button.musician-page {
   }
 
   .broadcast-camera-source {
-    grid-template-columns: minmax(0, 1fr) auto auto 34px;
+    grid-template-columns: minmax(0, 1fr) minmax(96px, 0.35fr) auto auto 34px;
   }
 
-  .broadcast-camera-source input {
+  .broadcast-camera-source > input {
     grid-column: 1 / -1;
+  }
+
+  .broadcast-config-fields {
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 .auth-shell {

@@ -9,6 +9,7 @@ class BroadcastCameraSource(BaseModel):
     id: str = Field(min_length=1, max_length=80, pattern=r"^[a-zA-Z0-9_-]+$")
     label: str = Field(min_length=1, max_length=120)
     url: str = Field(min_length=1, max_length=2000)
+    dwell_seconds: int | None = Field(default=None, ge=1, le=3600)
 
 
 class BroadcastAudioSource(BaseModel):

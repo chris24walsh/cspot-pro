@@ -197,6 +197,7 @@ def test_multi_camera_settings_are_normalized_and_returned() -> None:
                         "id": "lectern",
                         "label": "Lectern",
                         "url": "/app/camera/api/stream.m3u8?src=lectern",
+                        "dwell_seconds": 75,
                     },
                     {"id": "ptz", "label": "Room", "url": "/app/camera/api/stream.m3u8?src=ptz"},
                 ],
@@ -215,6 +216,8 @@ def test_multi_camera_settings_are_normalized_and_returned() -> None:
         )
 
         assert [source.id for source in result.camera_sources] == ["lectern", "ptz"]
+        assert result.camera_sources[0].dwell_seconds == 75
+        assert result.camera_sources[1].dwell_seconds is None
         assert result.active_camera_id == "ptz"
         assert result.live_audio_source == "lectern"
         assert result.mixer_name == "Behringer X32"

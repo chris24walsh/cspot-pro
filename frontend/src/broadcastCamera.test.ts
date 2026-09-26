@@ -70,6 +70,20 @@ describe("broadcast camera helpers", () => {
     expect(sermonLecternSamples).toBeGreaterThan(worshipLecternSamples);
   });
 
+  it("uses a camera-specific dwell time when one is configured", () => {
+    const sources = [
+      { id: "wide", label: "Wide", url: "one", dwell_seconds: 60 },
+      { id: "side", label: "Side", url: "two", dwell_seconds: 10 },
+    ];
+    const start = "2026-08-05T10:00:00Z";
+    const startedAt = Date.parse(start);
+    const samples = Array.from({ length: 3600 }, (_, second) =>
+      activeCameraIdAt(sources, "wide", 30, start, startedAt + second * 1000),
+    );
+
+    expect(samples.filter((cameraId) => cameraId === "wide").length).toBeGreaterThan(2800);
+  });
+
   it("maps live plan items to camera pacing profiles", () => {
     expect(cameraServicePhase("song", "Cornerstone")).toBe("worship");
     expect(cameraServicePhase("custom", "Prayers of intercession")).toBe("prayer");

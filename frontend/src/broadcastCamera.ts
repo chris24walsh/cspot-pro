@@ -144,7 +144,7 @@ export function activeCameraIdAt(
       source,
       durationMs: cameraDwellMs(
         source,
-        cycleSeconds,
+        source.dwell_seconds ?? cycleSeconds,
         phase,
         `${cycleStartedAt}:${phase}:${step}:${source.id}`,
       ),

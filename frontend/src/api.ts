@@ -641,6 +641,7 @@ export interface BroadcastCameraSource {
   id: string;
   label: string;
   url: string;
+  dwell_seconds?: number | null;
 }
 
 export interface BroadcastAudioSource {

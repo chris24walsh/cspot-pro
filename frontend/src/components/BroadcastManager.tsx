@@ -295,6 +295,15 @@ export function BroadcastManager({
     }));
   }
 
+  function updateCameraDwell(id: string, value: number) {
+    setForm((current) => ({
+      ...current,
+      camera_sources: current.camera_sources.map((source) => source.id === id
+        ? { ...source, dwell_seconds: Math.max(1, Math.min(3600, value || 1)) }
+        : source),
+    }));
+  }
+
   function removeCamera(id: string) {
     setForm((current) => {
       const camera_sources = current.camera_sources.filter((source) => source.id !== id);
@@ -476,6 +485,12 @@ export function BroadcastManager({
             </button>
           </div>
         </section>
+        <section className="wide-field broadcast-config-section" aria-labelledby="broadcast-details-heading">
+          <div className="broadcast-config-section-heading">
+            <strong id="broadcast-details-heading">Stream details</strong>
+            <small>Set the public title, description, and pre-service window.</small>
+          </div>
+          <div className="broadcast-config-fields broadcast-config-fields-two">
         <label>
           Stream title
           <input disabled={loading} onChange={(event) => setForm({ ...form, stream_title: event.target.value })} value={form.stream_title} />
@@ -498,6 +513,8 @@ export function BroadcastManager({
           Stream description
           <textarea disabled={loading} onChange={(event) => setForm({ ...form, stream_description: event.target.value || null })} value={form.stream_description || ""} />
         </label>
+          </div>
+        </section>
         <section className="wide-field broadcast-camera-settings" aria-label="Camera sources">
           <div className="broadcast-camera-settings-heading">
             <div>
@@ -527,6 +544,21 @@ export function BroadcastManager({
                   type="text"
                   value={source.url}
                 />
+                <label className="broadcast-camera-dwell">
+                  <span>Dwell</span>
+                  <span className="input-with-suffix">
+                    <input
+                      aria-label={`${source.label} dwell time`}
+                      disabled={loading}
+                      max={3600}
+                      min={1}
+                      onChange={(event) => updateCameraDwell(source.id, Number(event.target.value))}
+                      type="number"
+                      value={(source.dwell_seconds ?? form.camera_cycle_seconds) || 1}
+                    />
+                    <span>sec</span>
+                  </span>
+                </label>
                 <button
                   aria-pressed={testingCameraId === source.id}
                   className="text-button icon-text-button"
@@ -630,13 +662,19 @@ export function BroadcastManager({
             {!form.audio_sources.length ? <p className="muted-copy">No independent audio sources configured.</p> : null}
           </div>
         </section>
+        <section className="wide-field broadcast-config-section" aria-labelledby="broadcast-timing-heading">
+          <div className="broadcast-config-section-heading">
+            <strong id="broadcast-timing-heading">Switching &amp; sync</strong>
+            <small>Fine-tune automatic camera changes and align slides with the video feed.</small>
+          </div>
+          <div className="broadcast-config-fields">
         <label>
-          Base camera dwell
+          Default camera dwell
           <span className="input-with-suffix">
             <input disabled={loading} min={0} max={3600} onChange={(event) => setForm({ ...form, camera_cycle_seconds: Number(event.target.value) })} type="number" value={form.camera_cycle_seconds} />
             <span>seconds</span>
           </span>
-          <small>Use 0 for manual controls. Sources named Lectern or Pulpit get more airtime, especially during prayer, sermons, and announcements; seeded variation keeps the pace natural.</small>
+          <small>Use 0 for manual controls. This is the fallback for cameras without their own dwell time.</small>
         </label>
         <label>
           Camera fade
@@ -653,6 +691,15 @@ export function BroadcastManager({
           </span>
           <small>Delay slide changes to align them with the camera.</small>
         </label>
+          </div>
+          <small className="broadcast-config-note">Automatic timing still varies gently by service phase. Lectern and Pulpit cameras receive more airtime during prayer, sermons, and announcements.</small>
+        </section>
+        <section className="wide-field broadcast-config-section" aria-labelledby="broadcast-viewer-heading">
+          <div className="broadcast-config-section-heading">
+            <strong id="broadcast-viewer-heading">Audio &amp; viewer experience</strong>
+            <small>Choose the live sound, pre-service playback, and messages shown to viewers.</small>
+          </div>
+          <div className="broadcast-config-fields broadcast-config-fields-two">
         <label>
           Live audio source
           <select disabled={loading || saving} onChange={(event) => void useAudioSource(event.target.value)} value={form.live_audio_source}>
@@ -686,6 +733,8 @@ export function BroadcastManager({
           Offline message
           <input disabled={loading} onChange={(event) => setForm({ ...form, offline_message: event.target.value })} value={form.offline_message} />
         </label>
+          </div>
+        </section>
       </div>
       <p className="muted-copy broadcast-settings-note">
         A presenter slideshow also starts the public stream automatically. The controls above can run camera and audio independently; admin test mode stays hidden from other viewers.

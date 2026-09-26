@@ -38,7 +38,12 @@ const EDITABLE_SCALAR_KEYS: EditableScalarKey[] = [
 ];
 
 function cameraConfiguration(source: BroadcastCameraSource) {
-  return { id: source.id, label: source.label, url: source.url };
+  return {
+    id: source.id,
+    label: source.label,
+    url: source.url,
+    ...(source.dwell_seconds == null ? {} : { dwell_seconds: source.dwell_seconds }),
+  };
 }
 
 function audioConfiguration(source: BroadcastAudioSource) {
