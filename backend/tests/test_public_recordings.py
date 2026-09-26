@@ -4,6 +4,7 @@ from unittest.mock import Mock
 
 from app.modules.broadcast.models import BroadcastRecording
 from app.modules.broadcast.routes import (
+    _apply_legacy_deck_candidates,
     archive_recording,
     clean_recording_title,
     get_public_recording,
@@ -60,11 +61,16 @@ def test_custom_title_overrides_deck_name_and_can_be_cleared():
     session = Mock()
     session.get.return_value = row
     renamed = rename_recording(
-        row.id, BroadcastRecordingRename(title="  A Better Name  "), SimpleNamespace(id="admin"), session
+        row.id,
+        BroadcastRecordingRename(title="  A Better Name  "),
+        SimpleNamespace(id="admin"),
+        session,
     )
     assert renamed.title == "A Better Name"
     assert renamed.custom_title == "A Better Name"
-    assert clean_recording_title(row, [{"files": [{"display_name": "Deck.pptx"}]}]) == "A Better Name"
+    assert (
+        clean_recording_title(row, [{"files": [{"display_name": "Deck.pptx"}]}]) == "A Better Name"
+    )
     restored = rename_recording(
         row.id, BroadcastRecordingRename(title=" "), SimpleNamespace(id="admin"), session
     )
@@ -115,3 +121,73 @@ def test_public_metadata_contains_only_public_player_assets(monkeypatch):
     assert result.audio_url.endswith("/secret/audio")
     assert [slide["at"] for slide in result.slides] == [0, 31.5]
     assert all("secret" in slide["image_url"] for slide in result.slides)
+
+
+def test_legacy_timeline_uses_matching_readded_deck():
+    timeline = [
+        {"at": 85, "plan_item_id": "orphan", "slide_offset": 12},
+        {"at": 130, "plan_item_id": "orphan", "slide_offset": 13},
+    ]
+    candidate = {
+        "plan_item_id": "readded",
+        "item_title": "Rev 1 August 9",
+        "files": [
+            {
+                "file_id": "deck",
+                "content_type": "application/presentation",
+            }
+        ],
+    }
+
+    _apply_legacy_deck_candidates(timeline, [candidate])
+
+    assert {event["plan_item_id"] for event in timeline} == {"readded"}
+    assert all(event["files"][0]["file_id"] == "deck" for event in timeline)
+
+
+def test_legacy_timeline_switches_deck_when_second_speaker_restarts_at_zero():
+    timeline = [
+        {"at": 0, "plan_item_id": "orphan", "slide_offset": 0},
+        {"at": 144, "plan_item_id": "orphan", "slide_offset": 2},
+        {"at": 849, "plan_item_id": "orphan", "slide_offset": 3},
+        {"at": 1312, "plan_item_id": "orphan", "slide_offset": 0},
+        {"at": 1318, "plan_item_id": "orphan", "slide_offset": 2},
+    ]
+    candidates = [
+        {
+            "plan_item_id": "speaker-one",
+            "files": [{"file_id": "deck-one", "content_type": "application/vnd.ms-powerpoint"}],
+        },
+        {
+            "plan_item_id": "speaker-two",
+            "files": [
+                {
+                    "file_id": "deck-two",
+                    "content_type": "application/presentation",
+                }
+            ],
+        },
+    ]
+
+    _apply_legacy_deck_candidates(timeline, candidates)
+
+    assert [event["plan_item_id"] for event in timeline] == [
+        "speaker-one",
+        "speaker-one",
+        "speaker-one",
+        "speaker-two",
+        "speaker-two",
+    ]
+
+
+def test_embedded_deck_snapshot_is_not_replaced():
+    timeline = [
+        {
+            "at": 0,
+            "plan_item_id": "original",
+            "slide_offset": 0,
+            "files": [{"file_id": "snapshot", "display_name": "Original.pptx"}],
+        }
+    ]
+    _apply_legacy_deck_candidates(timeline, [{"plan_item_id": "replacement", "files": []}])
+    assert timeline[0]["plan_item_id"] == "original"

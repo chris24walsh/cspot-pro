@@ -128,6 +128,43 @@ def clean_recording_title(recording: BroadcastRecording, timeline: list[dict]) -
     return title or "Sermon recording"
 
 
+def _is_slide_deck_file(file: dict[str, object]) -> bool:
+    content_type = str(file.get("content_type") or "").lower()
+    display_name = str(file.get("display_name") or "")
+    return "presentation" in content_type or bool(
+        re.search(r"\.(pptx?|pdf|odp|key)$", display_name, re.IGNORECASE)
+    )
+
+
+def _apply_legacy_deck_candidates(
+    timeline: list[dict[str, object]],
+    candidates: list[dict[str, object]],
+) -> None:
+    """Recover deck links for timelines recorded before file snapshots existed."""
+    if not candidates:
+        return
+    candidate_index = 0
+    highest_offset = -1
+    for event in timeline:
+        files = event.get("files")
+        if isinstance(files, list) and any(
+            _is_slide_deck_file(file) for file in files if isinstance(file, dict)
+        ):
+            continue
+        offset = event.get("slide_offset")
+        if (
+            isinstance(offset, int)
+            and offset == 0
+            and highest_offset >= 2
+            and candidate_index < len(candidates) - 1
+        ):
+            candidate_index += 1
+            highest_offset = -1
+        event.update(candidates[candidate_index])
+        if isinstance(offset, int):
+            highest_offset = max(highest_offset, offset)
+
+
 def recording_read(session: Session, recording: BroadcastRecording) -> BroadcastRecordingRead:
     try:
         timeline = json.loads(recording.timeline_json or "[]")
@@ -137,8 +174,14 @@ def recording_read(session: Session, recording: BroadcastRecording) -> Broadcast
         # Older recordings predate embedded slide-source snapshots. Plan items are
         # soft-deleted, so enrich those events on read and make them usable again.
         snapshots: dict[str, dict[str, object]] = {}
+        unresolved_item_ids: set[str] = set()
         for event in timeline:
-            if not isinstance(event, dict) or event.get("files"):
+            if not isinstance(event, dict):
+                continue
+            embedded_files = event.get("files")
+            if isinstance(embedded_files, list) and any(
+                _is_slide_deck_file(file) for file in embedded_files if isinstance(file, dict)
+            ):
                 continue
             item_id = event.get("plan_item_id")
             if not isinstance(item_id, str):
@@ -169,6 +212,69 @@ def recording_read(session: Session, recording: BroadcastRecording) -> Broadcast
                     "files": files,
                 }
             event.update(snapshots[item_id])
+            item_files = snapshots[item_id]["files"]
+            item = session.get(PlanItem, item_id)
+            if not any(
+                _is_slide_deck_file(file) for file in item_files if isinstance(file, dict)
+            ) and (item is None or item.deleted_at is not None or not item_files):
+                unresolved_item_ids.add(item_id)
+
+        if unresolved_item_ids and recording.plan_id:
+            candidate_items = session.scalars(
+                select(PlanItem)
+                .where(
+                    PlanItem.plan_id == recording.plan_id,
+                    PlanItem.deleted_at.is_(None),
+                    PlanItem.item_type == "sermon",
+                )
+                .order_by(PlanItem.sequence, PlanItem.created_at)
+            ).all()
+            candidates: list[dict[str, object]] = []
+            for item in candidate_items:
+                links = session.scalars(
+                    select(ItemFile)
+                    .where(ItemFile.plan_item_id == item.id)
+                    .order_by(ItemFile.sort_order, ItemFile.created_at)
+                ).all()
+                files = []
+                for link in links:
+                    stored = session.get(StoredFile, link.file_id)
+                    if stored is not None:
+                        files.append(
+                            {
+                                "file_id": stored.id,
+                                "display_name": stored.display_name,
+                                "content_type": stored.content_type,
+                                "sort_order": link.sort_order,
+                            }
+                        )
+                deck_files = [file for file in files if _is_slide_deck_file(file)]
+                if deck_files:
+                    candidates.append(
+                        {
+                            "plan_item_id": item.id,
+                            "item_title": item.title,
+                            "item_comment": item.comment,
+                            "item_type": item.item_type,
+                            "files": deck_files,
+                        }
+                    )
+            unresolved_events = [
+                event
+                for event in timeline
+                if isinstance(event, dict) and event.get("plan_item_id") in unresolved_item_ids
+            ]
+            event_titles = {
+                str(event.get("item_title") or "").strip().casefold()
+                for event in unresolved_events
+                if str(event.get("item_title") or "").strip().casefold() not in {"", "sermon"}
+            }
+            title_matches = [
+                candidate
+                for candidate in candidates
+                if str(candidate.get("item_title") or "").strip().casefold() in event_titles
+            ]
+            _apply_legacy_deck_candidates(unresolved_events, title_matches or candidates)
     return BroadcastRecordingRead(
         id=recording.id,
         file_name=recording.file_name,
@@ -880,9 +986,13 @@ def livestream_viewership(
             existing = viewers.get(user.id)
             if existing is None:
                 viewers[user.id] = LivestreamViewerRead(
-                    user_id=user.id, name=user.name, email=user.email,
-                    started_at=visit.started_at, last_seen_at=visit.last_seen_at,
-                    duration_seconds=visit.duration_seconds, watching_now=is_watching,
+                    user_id=user.id,
+                    name=user.name,
+                    email=user.email,
+                    started_at=visit.started_at,
+                    last_seen_at=visit.last_seen_at,
+                    duration_seconds=visit.duration_seconds,
+                    watching_now=is_watching,
                 )
             else:
                 existing.started_at = min(existing.started_at, visit.started_at)
@@ -892,14 +1002,20 @@ def livestream_viewership(
         ordered = sorted(
             viewers.values(), key=lambda item: (not item.watching_now, item.name.lower())
         )
-        result.append(LivestreamEventRead(
-            id=event.id, title=event.title, audience=event.audience, plan_id=event.plan_id,
-            started_at=event.started_at, ended_at=event.ended_at,
-            watching_now=sum(item.watching_now for item in ordered),
-            unique_viewers=len(ordered),
-            total_watch_seconds=sum(item.duration_seconds for item in ordered),
-            viewers=ordered,
-        ))
+        result.append(
+            LivestreamEventRead(
+                id=event.id,
+                title=event.title,
+                audience=event.audience,
+                plan_id=event.plan_id,
+                started_at=event.started_at,
+                ended_at=event.ended_at,
+                watching_now=sum(item.watching_now for item in ordered),
+                unique_viewers=len(ordered),
+                total_watch_seconds=sum(item.duration_seconds for item in ordered),
+                viewers=ordered,
+            )
+        )
     session.commit()
     return result
 
