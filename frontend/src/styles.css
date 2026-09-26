@@ -6654,7 +6654,15 @@ button.musician-page {
 }
 
 .service-broadcast-audio-element {
-  display: none;
+  /* Keep the native player in the render tree. Mobile browsers can suspend a
+     display:none media element when the screen locks, which cuts off an
+     otherwise background-capable livestream. */
+  height: 1px;
+  opacity: 0;
+  overflow: hidden;
+  pointer-events: none;
+  position: absolute;
+  width: 1px;
 }
 
 .service-broadcast-sound-button {
