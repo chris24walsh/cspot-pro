@@ -18,6 +18,7 @@ from app.modules.identity.auth import (
 )
 from app.modules.identity.models import User
 from app.modules.library.models import FileCategory, ItemFile, StoredFile
+from app.modules.music.models import Song
 from app.modules.planning.completion import require_plan_editable
 from app.modules.planning.models import (
     DefaultItem,
@@ -171,6 +172,11 @@ def set_worship_leader_assignment(
 
 
 def plan_item_to_read(session: Session, item: PlanItem) -> PlanItemRead:
+    # A plan item keeps the title that was current when the song was added so
+    # history snapshots remain meaningful. The live plan view, however,
+    # should always expose the song library's current metadata. Otherwise a
+    # renamed song continues to appear under its old name after a full reload.
+    song = session.get(Song, item.song_id) if item.song_id else None
     item_files = session.scalars(
         select(ItemFile).where(ItemFile.plan_item_id == item.id).order_by(ItemFile.sort_order)
     ).all()
@@ -254,7 +260,7 @@ def plan_item_to_read(session: Session, item: PlanItem) -> PlanItemRead:
         song_id=item.song_id,
         item_type=item.item_type,
         sequence=item.sequence,
-        title=item.title,
+        title=song.title if song is not None and song.deleted_at is None else item.title,
         planned_start=item.planned_start,
         comment=item.comment,
         key_signature=item.key_signature,

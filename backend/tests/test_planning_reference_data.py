@@ -67,6 +67,41 @@ def test_get_plan_returns_the_loaded_plan_detail() -> None:
     assert detail.title == "Sunday service"
 
 
+def test_get_plan_uses_current_song_title_for_linked_items() -> None:
+    engine = create_engine("sqlite://")
+    Base.metadata.create_all(engine)
+
+    with Session(engine) as session:
+        plan_type = PlanType(name="Service", active=True)
+        song = Song(title="Original title")
+        session.add_all([plan_type, song])
+        session.flush()
+        plan = Plan(
+            plan_type_id=plan_type.id,
+            service_date=datetime(2026, 8, 16, tzinfo=UTC),
+            title="Sunday service",
+            status="draft",
+        )
+        session.add(plan)
+        session.flush()
+        session.add(
+            PlanItem(
+                plan_id=plan.id,
+                song_id=song.id,
+                item_type="song",
+                sequence=10,
+                title="Original title",
+            )
+        )
+        session.commit()
+
+        song.title = "Renamed song"
+        session.commit()
+        detail = get_plan(plan.id, None, session)  # type: ignore[arg-type]
+
+    assert [item.title for item in detail.items] == ["Renamed song"]
+
+
 def test_stashed_worship_sets_returns_only_archived_worship_sets_with_items() -> None:
     engine = create_engine("sqlite://")
     Base.metadata.create_all(engine)
