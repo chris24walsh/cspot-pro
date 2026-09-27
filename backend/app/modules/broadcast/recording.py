@@ -637,7 +637,7 @@ def _watch_recording(recording_id: str, plan_id: str) -> None:
                 and presentation_session.status == "live"
                 and presentation_session.ended_at is None
             )
-            on_sermon = bool(item and item.item_type == "sermon" and item.deleted_at is None)
+            on_sermon = _sermon_section(session, item) is not None
             if output_live and on_sermon:
                 cancel_pending_recording_stop(session, plan_id)
             else:
@@ -675,6 +675,19 @@ def _recording_departure_reason(item: PlanItem | None, output_live: bool) -> str
         return "End slide reached"
     label = (getattr(item, "title", None) or item.item_type or "Non-sermon slide").strip()
     return f"{label} selected"
+
+
+def _sermon_section(session: Session, item: PlanItem | None) -> PlanItem | None:
+    """Return the sermon root for a sermon item or one of its live child slides."""
+    if item is None or item.deleted_at is not None:
+        return None
+    if item.item_type == "sermon":
+        return item
+    parent_item_id = getattr(item, "parent_item_id", None)
+    parent = session.get(PlanItem, parent_item_id) if parent_item_id else None
+    if parent and parent.item_type == "sermon" and parent.deleted_at is None:
+        return parent
+    return None
 
 
 def request_recording_stop(
@@ -994,21 +1007,25 @@ def sync_sermon_recording(
     created_by_user_id: str | None,
 ) -> None:
     item = session.get(PlanItem, plan_item_id) if plan_item_id else None
-    if item and item.plan_id == plan_id and item.item_type == "sermon" and item.deleted_at is None:
+    sermon_section = _sermon_section(session, item)
+    if item and item.plan_id == plan_id and sermon_section and sermon_section.plan_id == plan_id:
         if _active and _active.plan_id == plan_id:
             cancel_pending_recording_stop(session, plan_id)
             record_slide_transition(session, plan_id, item.id, slide_offset)
-        elif previous_plan_item_id != item.id and not _start_is_in_cooldown(plan_id, item.id):
+        elif (
+            previous_plan_item_id != item.id
+            and not _start_is_in_cooldown(plan_id, sermon_section.id)
+        ):
             if not _auto_recording_enabled(session):
                 return
             try:
-                start_recording(session, plan_id, item.id, created_by_user_id)
+                start_recording(session, plan_id, sermon_section.id, created_by_user_id)
                 record_slide_transition(session, plan_id, item.id, slide_offset)
             except RuntimeError as error:
-                _record_start_failure(plan_id, item.id)
+                _record_start_failure(plan_id, sermon_section.id)
                 logger.warning("Could not start automatic sermon recording: %s", error)
                 return
-            _clear_start_failure(plan_id, item.id)
+            _clear_start_failure(plan_id, sermon_section.id)
     elif _active and _active.plan_id == plan_id:
         if item and item.plan_id == plan_id and item.deleted_at is None:
             record_slide_transition(session, plan_id, item.id, slide_offset)

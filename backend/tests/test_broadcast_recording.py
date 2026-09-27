@@ -789,6 +789,45 @@ def test_active_recording_uses_grace_when_leaving_and_cancels_on_return(monkeypa
     assert cancellations == ["plan-1"]
 
 
+def test_active_recording_keeps_nested_bible_slide_in_sermon_timeline(monkeypatch) -> None:
+    items = {
+        "sermon": SimpleNamespace(
+            id="sermon", plan_id="plan-1", parent_item_id=None,
+            item_type="sermon", title="Sermon", deleted_at=None,
+        ),
+        "reading": SimpleNamespace(
+            id="reading", plan_id="plan-1", parent_item_id="sermon",
+            item_type="reading", title="John 3:16", deleted_at=None,
+        ),
+    }
+    session = SimpleNamespace(get=lambda _model, item_id: items.get(item_id))
+    transitions: list[str] = []
+    pending: list[str] = []
+    cancellations: list[str] = []
+    monkeypatch.setattr(
+        "app.modules.broadcast.recording._active",
+        SimpleNamespace(plan_id="plan-1"),
+    )
+    monkeypatch.setattr(
+        "app.modules.broadcast.recording.record_slide_transition",
+        lambda _session, _plan_id, item_id, _offset: transitions.append(item_id),
+    )
+    monkeypatch.setattr(
+        "app.modules.broadcast.recording.request_recording_stop",
+        lambda _session, _plan_id, reason: pending.append(reason),
+    )
+    monkeypatch.setattr(
+        "app.modules.broadcast.recording.cancel_pending_recording_stop",
+        lambda _session, plan_id: cancellations.append(plan_id),
+    )
+
+    sync_sermon_recording(session, "plan-1", "sermon", "reading", 0, "user-1")
+
+    assert transitions == ["reading"]
+    assert cancellations == ["plan-1"]
+    assert pending == []
+
+
 def test_recording_stop_grace_is_persisted_and_can_be_cancelled(monkeypatch) -> None:
     engine = create_engine("sqlite://")
     Base.metadata.create_all(

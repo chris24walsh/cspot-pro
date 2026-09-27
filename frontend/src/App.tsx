@@ -147,7 +147,7 @@ function App() {
   const canUseServiceOperator = canUsePresentation && (isAdmin || isTeacher || isPresenter);
   const canUseWorshipTools = canReadSongs && (isAdmin || isMusician || isWorshipLeader);
   const canUseSundaySchool = isAdmin || isSundaySchoolTeacher || isSundaySchoolLeader;
-  const canEditSlideNotes = isAdmin || isTeacher || isPresenter;
+  const canEditSlideNotes = isTeacher;
   const canAccessProfile = isViewer || isAdmin;
 
   const loadAuth = useCallback(async (silent = false) => {
@@ -588,6 +588,7 @@ function App() {
             canCreatePlan={canCreatePlans}
             canDeletePlan={canDeletePlans}
             canEditPlan={canEditPlans}
+            canAddItemsToRunningPlan={isPresenter}
             canManagePreServiceMedia={canUsePresentation || canManageUsers}
             canCreateSong={canCreateSongs}
             canEditSong={canEditSongs}

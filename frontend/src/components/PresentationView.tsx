@@ -653,6 +653,7 @@ export function PresentationView({
   canCreatePlan,
   canDeletePlan,
   canEditPlan: hasPlanEditPermission,
+  canAddItemsToRunningPlan,
   canManagePreServiceMedia,
   canEditSlideNotes,
   canCreateSong,
@@ -664,6 +665,7 @@ export function PresentationView({
   canCreatePlan: boolean;
   canDeletePlan: boolean;
   canEditPlan: boolean;
+  canAddItemsToRunningPlan: boolean;
   canManagePreServiceMedia: boolean;
   canEditSlideNotes: boolean;
   canCreateSong: boolean;
@@ -844,6 +846,8 @@ export function PresentationView({
   const worshipSetPlans = useMemo(() => plans.filter(isWorshipSetPlan), [plans]);
   const completedPlanLocked = !canAccessAdminTools && isPlanEditingLocked(plan, planTypes, plans);
   const canEditPlan = hasPlanEditPermission && !completedPlanLocked;
+  const canAddPlanItem = hasPlanEditPermission
+    && (!completedPlanLocked || (canAddItemsToRunningPlan && presentationSessionActive));
   const currentPlanType = useMemo(
     () => planTypes.find((type) => type.id === plan?.plan_type_id) ?? null,
     [plan?.plan_type_id, planTypes],
@@ -2785,6 +2789,26 @@ export function PresentationView({
     return sections.findIndex((section) => section.id === liveSlide.sectionId);
   }
 
+  function activeSermonSearchTarget() {
+    const sermonSection = currentPlanItem?.item_type === "sermon"
+      ? currentPlanItem
+      : currentParentPlanItem?.item_type === "sermon"
+        ? currentParentPlanItem
+        : null;
+    if (!sermonSection) return null;
+
+    const siblings = (plan?.items ?? [])
+      .filter((item) => item.parent_item_id === sermonSection.id)
+      .sort((left, right) => Number(left.sequence) - Number(right.sequence));
+    const currentSiblingIndex = currentPlanItem?.parent_item_id === sermonSection.id
+      ? siblings.findIndex((item) => item.id === currentPlanItem.id)
+      : siblings.length - 1;
+    return {
+      parentItemId: sermonSection.id,
+      parentInsertIndex: currentSiblingIndex,
+    };
+  }
+
   function captureOperatorScrollPositions() {
     return {
       rail: captureScrollPosition(sectionRailListRef.current),
@@ -2847,8 +2871,8 @@ export function PresentationView({
     mode: SearchOverlayMode = "bible",
     options?: { deckTargetPlanItemId?: string; parentInsertIndex?: number; parentItemId?: string; selectInserted?: boolean },
   ) {
-    if (!canEditPlan) {
-      setMessage("You can present this plan, but only worship team members, worship leaders, and service leaders can change the running order.");
+    if (!canAddPlanItem) {
+      setMessage("You can present this plan, but your role cannot add items to the running order.");
       return;
     }
     setSearchInsertIndex(afterIndex);
@@ -2967,7 +2991,7 @@ export function PresentationView({
       setMessage("Select a plan before adding a song.");
       return;
     }
-    if (!canEditPlan) {
+    if (!canAddPlanItem) {
       setMessage("Only worship team members, worship leaders, and service leaders can add songs to the running order.");
       return;
     }
@@ -3052,7 +3076,7 @@ export function PresentationView({
       setMessage("Select a plan before importing a song.");
       return;
     }
-    if (!canEditPlan) {
+    if (!canAddPlanItem) {
       setMessage("Only worship team members, worship leaders, and service leaders can add songs to the running order.");
       return;
     }
@@ -3112,7 +3136,7 @@ export function PresentationView({
       setMessage("Select a plan before adding Scripture.");
       return;
     }
-    if (!canEditPlan) {
+    if (!canAddPlanItem) {
       setMessage("Only worship team members, worship leaders, and service leaders can add Scripture to the running order.");
       return;
     }
@@ -3167,7 +3191,7 @@ export function PresentationView({
       setMessage("Select a plan before adding a video.");
       return;
     }
-    if (!canEditPlan) {
+    if (!canAddPlanItem) {
       setMessage("Only worship team members, worship leaders, and service leaders can add videos to the running order.");
       return;
     }
@@ -4162,7 +4186,10 @@ export function PresentationView({
       }
       if ((event.key === "s" || event.key === "S") && !editing) {
         event.preventDefault();
-        openSearchOverlay(activeSectionInsertIndex(), "bible", { selectInserted: true });
+        openSearchOverlay(activeSectionInsertIndex(), "bible", {
+          ...activeSermonSearchTarget(),
+          selectInserted: true,
+        });
         return;
       }
       if (editing || searchOverlayOpen || servicePickerOpen) {
@@ -5698,7 +5725,7 @@ export function PresentationView({
                 <button
                   className="primary-button"
                   disabled={
-                    !canEditPlan ||
+                    !canAddPlanItem ||
                     (!extractYouTubeId(searchQuery) &&
                       !videoFile &&
                       youtubeResults.length === 0 &&
@@ -5797,7 +5824,7 @@ export function PresentationView({
                         </div>
                         <button
                           className="primary-button"
-                          disabled={!customProviderSelection.output_text || !canEditPlan || (!findDuplicateSong(customProviderSelection.title?.trim() || selectedCustomProviderMatch?.title || "") && !canCreateSong)}
+                          disabled={!customProviderSelection.output_text || !canAddPlanItem || (!findDuplicateSong(customProviderSelection.title?.trim() || selectedCustomProviderMatch?.title || "") && !canCreateSong)}
                           onClick={() => void importSelectedCustomProviderSong()}
                           type="button"
                         >
@@ -5822,7 +5849,7 @@ export function PresentationView({
                 ? bibleSearchResults.map((result) => (
                     <button
                       className="search-result-card"
-                      disabled={!canEditPlan}
+                      disabled={!canAddPlanItem}
                       key={`${result.version}:${result.reference}:${result.verse_from}`}
                       onClick={() => {
                         void addBibleSearchResult(result);

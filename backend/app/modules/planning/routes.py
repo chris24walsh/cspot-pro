@@ -4,8 +4,8 @@ from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy import func, or_, select
-from sqlalchemy.orm import Session
 from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.orm import Session
 
 from app.core.database import get_session
 from app.modules.broadcast.models import BroadcastViewerSettings
@@ -48,6 +48,7 @@ from app.modules.planning.schemas import (
     WorshipLeaderAssignmentRead,
     WorshipLeaderAssignmentUpdate,
 )
+from app.modules.presentation.models import PresentationSession
 from app.modules.presentation.timing import pre_service_start_for_plan, service_start_for_plan
 from app.modules.planning.service_scaffold import (
     ensure_service_scaffold,
@@ -828,7 +829,18 @@ def create_plan_item(
     session: Session = Depends(get_session),
 ) -> PlanItemRead:
     plan = get_plan_or_404(session, plan_id)
-    require_plan_editable(session, plan, current_user)
+    presenter_adding_to_live_service = (
+        "presenter" in set(list_role_names(session, current_user.id))
+        and session.scalar(
+            select(PresentationSession.id).where(
+                PresentationSession.plan_id == plan_id,
+                PresentationSession.status == "live",
+                PresentationSession.ended_at.is_(None),
+            ).limit(1)
+        ) is not None
+    )
+    if not presenter_adding_to_live_service:
+        require_plan_editable(session, plan, current_user)
     if payload.parent_item_id:
         parent = session.get(PlanItem, payload.parent_item_id)
         if parent is None or parent.plan_id != plan_id or parent.deleted_at is not None or parent.parent_item_id:
