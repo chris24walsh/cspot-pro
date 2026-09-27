@@ -150,7 +150,11 @@ export function PresentationOutput({ mediaOutput = false, networkDisplay = false
   const liveTargetMissing = Boolean(
     liveState?.planItemId && slides.length && !slides.some((slide) => slide.planItemId === liveState.planItemId),
   );
-  const liveSlide = withCountdownTiming(liveTargetMissing ? null : slides[resolvedIndex] ?? null, slides, liveState, plan?.service_date ?? "", plan?.service_start);
+  // A scheduled Welcome can briefly reference its non-rendered parent while the
+  // TV is refreshing the plan's child cues. Keep the indexed slide visible
+  // during that refresh instead of replacing the whole output with an empty
+  // stage.
+  const liveSlide = withCountdownTiming(slides[resolvedIndex] ?? null, slides, liveState, plan?.service_date ?? "", plan?.service_start);
   const liveMediaUrl = networkOutputMediaUrl(
     liveSlide?.videoUrl ?? liveSlide?.youtubeAudioUrl,
     networkDisplay,
@@ -764,13 +768,14 @@ export function PresentationOutput({ mediaOutput = false, networkDisplay = false
         ) : null}
         <div className={`slide-visual-transition transition-${liveSlide?.transition ?? "fade"}`} key={blanked ? "blank" : liveSlide?.id ?? "ready"}>
         {blanked ? (
-          <div
+          <img
+            alt=""
             className="blank-stage lcf-background-surface"
             aria-label="LCF background live output"
-            style={{ backgroundImage: `url(${LCF_BACKGROUND_URL})` }}
+            src={LCF_BACKGROUND_URL}
           />
         ) : liveSlide?.displayTargets && !liveSlide.displayTargets.includes("church") ? (
-          <div className="blank-stage lcf-background-surface" aria-label="Slide not routed to church displays" style={{ backgroundImage: `url(${LCF_BACKGROUND_URL})` }} />
+          <img alt="" className="blank-stage lcf-background-surface" aria-label="Slide not routed to church displays" src={LCF_BACKGROUND_URL} />
         ) : liveSlide?.montageImageUrls && plan ? (
           <PreServiceSlide backgroundImageUrl={LCF_BACKGROUND_URL} countdownEndsAt={liveSlide.overlayCountdownDeadline} countdownUntil={liveSlide.overlayCountdownUntil} dwellSeconds={liveSlide.dwellSeconds} fontScale={liveSlide.overlayFontScale} imageUrls={liveSlide.montageImageUrls} random={liveSlide.montageRandom} serviceDate={plan.service_date} timed={Boolean(liveSlide.preServiceTimed)} phase={liveSlide.preServiceStage ?? liveState?.preServicePhase} phaseStartedAt={liveState?.countdownStartedAt?.[liveSlide.planItemId] ?? liveState?.updatedAt} schedule={serviceScheduleForPlan(serviceSchedules, plan.service_date, plan.plan_type)} />
         ) : liveSlide?.countdownSeconds ? (
