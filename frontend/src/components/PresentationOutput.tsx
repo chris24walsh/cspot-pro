@@ -847,7 +847,7 @@ export function PresentationOutput({ mediaOutput = false, networkDisplay = false
           phase={liveSlide?.preServiceStage ?? liveState?.preServicePhase}
           phaseStartedAt={liveState?.updatedAt}
           serviceDate={plan.service_date}
-          showSoundControl={!networkDisplay}
+          showSoundControl={mediaOutput}
           soundEnabled={outputAudioEnabled}
           url={preServiceAudioUrl}
         />
