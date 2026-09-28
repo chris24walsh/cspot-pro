@@ -788,6 +788,7 @@ export function PresentationView({
   const [localAudioUrl, setLocalAudioUrl] = useState<string | null>(null);
   const [slideshowOpen, setSlideshowOpen] = useState(false);
   const [presentationSessionActive, setPresentationSessionActive] = useState(false);
+  const [presentationSessionEnded, setPresentationSessionEnded] = useState(false);
   const [, refreshCountdownTiming] = useState(0);
   const [presentationAutoStarted, setPresentationAutoStarted] = useState(false);
   const [openSlideshowWindowOnStart, setOpenSlideshowWindowOnStart] = useState(false);
@@ -844,7 +845,7 @@ export function PresentationView({
 
   const servicePlans = useMemo(() => plans.filter((candidate) => !isWorshipSetPlan(candidate)), [plans]);
   const worshipSetPlans = useMemo(() => plans.filter(isWorshipSetPlan), [plans]);
-  const completedPlanLocked = !canAccessAdminTools && isPlanEditingLocked(plan, planTypes, plans);
+  const completedPlanLocked = !canAccessAdminTools && isPlanEditingLocked(plan, planTypes, plans, new Date(), presentationSessionEnded);
   const canEditPlan = hasPlanEditPermission && !completedPlanLocked;
   const canAddPlanItem = hasPlanEditPermission
     && (!completedPlanLocked || (canAddItemsToRunningPlan && presentationSessionActive));
@@ -1443,6 +1444,7 @@ export function PresentationView({
         localStorage.setItem(PRESENTATION_STORAGE_KEY, JSON.stringify(preservedState));
       }
       setPresentationSessionActive(liveState?.status === "live");
+      setPresentationSessionEnded(liveState?.status === "ended");
       setPresentationAutoStarted(Boolean(liveState?.auto_started));
       const nextLiveIndex = preservedIndex >= 0 ? preservedIndex : 0;
       if (options?.preserveLocation && preservedIndex >= 0 && options.publishPreservedLocation !== false) {
@@ -1748,6 +1750,7 @@ export function PresentationView({
         refreshCountdownTiming((revision) => revision + 1);
       }
       setPresentationSessionActive(synced.status === "live");
+      setPresentationSessionEnded(synced.status === "ended");
       setPresentationAutoStarted(Boolean(synced.auto_started));
     } catch (error) {
       if (!isTransientApiError(error)) {
@@ -1845,6 +1848,7 @@ export function PresentationView({
       outputOwnerIdRef.current = null;
       setSlideshowOpen(false);
       setPresentationSessionActive(false);
+      setPresentationSessionEnded(true);
       setPresentationAutoStarted(false);
       setMessage(null);
     } catch (error) {
@@ -1890,6 +1894,7 @@ export function PresentationView({
       outputOwnerIdRef.current = currentOutputStatus.owner_id;
       setSlideshowOpen(true);
       setPresentationSessionActive(true);
+      setPresentationSessionEnded(false);
       setPresentationAutoStarted(false);
       return true;
     }
@@ -1908,6 +1913,7 @@ export function PresentationView({
     outputOwnerIdRef.current = ownerId;
     setSlideshowOpen(true);
     setPresentationSessionActive(true);
+    setPresentationSessionEnded(false);
     setLiveBlanked(false);
     await publishLiveState(liveIndex, { blanked: false, serviceStage: "service", preServicePhase: null });
 
@@ -3954,6 +3960,7 @@ export function PresentationView({
             worshipCoupled: Boolean(remoteState.worship_coupled),
           });
           setPresentationSessionActive(remoteState.status === "live");
+          setPresentationSessionEnded(remoteState.status === "ended");
           setPresentationAutoStarted(Boolean(remoteState.auto_started));
           if (remoteState.plan_item_id && remoteState.plan_item_id === previousPlanItemId) {
             if (selectedPlanIdRef.current !== selectedPlanId) return;

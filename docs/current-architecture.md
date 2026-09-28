@@ -796,9 +796,9 @@ Pi, but its physical faders cannot be controlled digitally.
 ## Presenter Information Architecture
 
 Completed services and their linked worship sets are retained as historical
-records. Non-administrators can no longer mutate a plan once its service type's
-configured start time has passed; types without a start time remain editable
-through the service day and lock the following day. Default selection is
+records. Non-administrators can no longer mutate a plan once its presentation session has
+actually ended; passing the configured service start alone does not lock the plan.
+Unfinished plans lock when their service day becomes historical. Default selection is
 date-based across Service, Worship, and Sunday School. It chooses the earlier
 of the next Sunday and the next non-empty plan date; empty records materialized
 by calendar browsing do not become defaults. Each mounted view retains its last

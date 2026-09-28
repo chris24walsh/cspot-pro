@@ -70,7 +70,7 @@ describe("worship set merge", () => {
     expect(preferredWorshipSetPlanId([emptyToday, sunday], new Date(2026, 8, 4, 9))).toBe("worship-sunday");
   });
 
-  it("locks a worship set after the matching service start while retaining same-day selection", () => {
+  it("keeps a worship set editable after the matching service start until the service ends", () => {
     const today = { ...summary("today", "2026-07-05T10:30:00.000Z", "Worship Set"), item_count: 3 };
     const service = summary("service", "2026-07-05T10:30:00.000Z", "Sunday Service");
     const plan = { ...today, plan_type_id: "worship", items: [], teacher_id: null, info: null, queued_start: null, service_start: null } as PlanDetail;
@@ -80,10 +80,11 @@ describe("worship set merge", () => {
     ] as never;
 
     expect(preferredWorshipSetPlanId([today], new Date(2026, 6, 5, 18))).toBe("today");
-    expect(isPlanEditingLocked(plan, types, [today, service], new Date(2026, 6, 5, 11, 1))).toBe(true);
+    expect(isPlanEditingLocked(plan, types, [today, service], new Date(2026, 6, 5, 11, 1))).toBe(false);
+    expect(isPlanEditingLocked(plan, types, [today, service], new Date(2026, 6, 5, 11, 1), true)).toBe(true);
   });
 
-  it("uses a service's configured start rather than the template start", () => {
+  it("does not lock a service merely because either configured start has passed", () => {
     const service = summary("service", "2026-07-05T10:30:00.000Z", "Sunday Service");
     const plan = {
       ...service,
@@ -99,7 +100,7 @@ describe("worship set merge", () => {
     ] as never;
 
     expect(isPlanEditingLocked(plan, types, [service], new Date(2026, 6, 5, 12))).toBe(false);
-    expect(isPlanEditingLocked(plan, types, [service], new Date(2026, 6, 5, 18, 1))).toBe(true);
+    expect(isPlanEditingLocked(plan, types, [service], new Date(2026, 6, 5, 18, 1))).toBe(false);
   });
 
   it("uses local date keys when matching service and worship set days", () => {

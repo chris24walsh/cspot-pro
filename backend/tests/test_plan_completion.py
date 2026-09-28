@@ -4,13 +4,18 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
 from app.core.database import Base
-from app.modules.planning.completion import plan_edit_cutoff
+from app.modules.identity.models import User
+from app.modules.planning.completion import plan_has_finished
 from app.modules.planning.models import Plan, PlanType
+from app.modules.presentation.models import PresentationSession
 
 
-def test_worship_set_inherits_matching_service_edit_cutoff() -> None:
+def test_worship_set_inherits_matching_service_finished_state() -> None:
     engine = create_engine("sqlite://")
-    Base.metadata.create_all(engine, tables=[PlanType.__table__, Plan.__table__])
+    Base.metadata.create_all(
+        engine,
+        tables=[PlanType.__table__, User.__table__, Plan.__table__, PresentationSession.__table__],
+    )
     session = Session(engine)
     try:
         service_type = PlanType(name="Sunday Service", starts_at="11:00", active=True)
@@ -33,20 +38,30 @@ def test_worship_set_inherits_matching_service_edit_cutoff() -> None:
         session.add_all([service, worship_set])
         session.commit()
 
-        cutoff = plan_edit_cutoff(session, worship_set)
-        assert cutoff.date().isoformat() == "2026-09-06"
-        assert cutoff.hour == 11 and cutoff.minute == 30
-        assert cutoff.tzinfo is not None
+        assert plan_has_finished(
+            session, worship_set, now=datetime(2026, 9, 6, 12, 0, tzinfo=UTC)
+        ) is False
+        ended = PresentationSession(
+            plan_id=service.id, status="ended", ended_at=datetime(2026, 9, 6, 12, 30, tzinfo=UTC)
+        )
+        session.add(ended)
+        session.commit()
+        assert plan_has_finished(
+            session, worship_set, now=datetime(2026, 9, 6, 12, 31, tzinfo=UTC)
+        ) is True
     finally:
         session.close()
 
 
-def test_plan_without_start_time_stays_editable_for_whole_service_day() -> None:
+def test_plan_stays_editable_for_whole_service_day_even_after_start_time() -> None:
     engine = create_engine("sqlite://")
-    Base.metadata.create_all(engine, tables=[PlanType.__table__, Plan.__table__])
+    Base.metadata.create_all(
+        engine,
+        tables=[PlanType.__table__, User.__table__, Plan.__table__, PresentationSession.__table__],
+    )
     session = Session(engine)
     try:
-        plan_type = PlanType(name="Midweek Meeting", starts_at=None, active=True)
+        plan_type = PlanType(name="Midweek Meeting", starts_at="11:00", active=True)
         session.add(plan_type)
         session.flush()
         plan = Plan(
@@ -58,8 +73,11 @@ def test_plan_without_start_time_stays_editable_for_whole_service_day() -> None:
         session.add(plan)
         session.commit()
 
-        cutoff = plan_edit_cutoff(session, plan)
-        assert cutoff.date().isoformat() == "2026-09-02"
-        assert cutoff.hour == 23 and cutoff.minute == 59
+        assert plan_has_finished(
+            session, plan, now=datetime(2026, 9, 2, 18, 0, tzinfo=UTC)
+        ) is False
+        assert plan_has_finished(
+            session, plan, now=datetime(2026, 9, 3, 0, 1, tzinfo=UTC)
+        ) is True
     finally:
         session.close()

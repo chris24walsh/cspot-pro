@@ -1,4 +1,4 @@
-from datetime import datetime, time
+from datetime import datetime
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from fastapi import HTTPException, status
@@ -9,6 +9,7 @@ from app.core.config import settings
 from app.modules.identity.auth import list_role_names
 from app.modules.identity.models import User
 from app.modules.planning.models import Plan, PlanType
+from app.modules.presentation.models import PresentationSession
 
 
 def _local_timezone() -> ZoneInfo:
@@ -18,8 +19,8 @@ def _local_timezone() -> ZoneInfo:
         return ZoneInfo("UTC")
 
 
-def plan_edit_cutoff(session: Session, plan: Plan) -> datetime:
-    """Return the instant after which ordinary users may no longer edit a plan."""
+def plan_has_finished(session: Session, plan: Plan, *, now: datetime | None = None) -> bool:
+    """Return whether a plan is historical or its latest service run has ended."""
     zone = _local_timezone()
     service_day = plan.service_date.astimezone(zone).date()
     plan_type = session.get(PlanType, plan.plan_type_id)
@@ -39,16 +40,16 @@ def plan_edit_cutoff(session: Session, plan: Plan) -> datetime:
         )
         if linked is not None:
             plan = linked
-            plan_type = session.get(PlanType, linked.plan_type_id)
-
-    start_time = plan.service_start or (plan_type.starts_at if plan_type else None)
-    if start_time:
-        try:
-            start = time.fromisoformat(start_time)
-            return datetime.combine(service_day, start, tzinfo=zone)
-        except ValueError:
-            pass
-    return datetime.combine(service_day, time.max, tzinfo=zone)
+    current = now.astimezone(zone) if now else datetime.now(zone)
+    if service_day < current.date():
+        return True
+    latest = session.scalar(
+        select(PresentationSession)
+        .where(PresentationSession.plan_id == plan.id)
+        .order_by(PresentationSession.created_at.desc())
+        .limit(1)
+    )
+    return bool(latest and latest.status == "ended" and latest.ended_at is not None)
 
 
 def require_plan_editable(
@@ -56,8 +57,7 @@ def require_plan_editable(
 ) -> None:
     if "administrator" in set(list_role_names(session, user.id)):
         return
-    current = now.astimezone(_local_timezone()) if now else datetime.now(_local_timezone())
-    if current > plan_edit_cutoff(session, plan):
+    if plan_has_finished(session, plan, now=now):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="This service has finished and can only be edited by an administrator",
