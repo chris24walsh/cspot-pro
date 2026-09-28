@@ -6,36 +6,6 @@ interface BroadcastAudioRouteState {
   sources: BroadcastAudioSource[];
 }
 
-function liveRouteHasRole({
-  liveAudioSource,
-  sources,
-}: BroadcastAudioRouteState, roles: ReadonlySet<BroadcastAudioSource["role"]>) {
-  const selectedSource = sources.find((source) => source.id === liveAudioSource);
-  if (selectedSource) return roles.has(selectedSource.role);
-  return liveAudioSource === "mix" && sources.some((source) => source.mix_enabled && roles.has(source.role));
-}
-
-export function programAudioUsesLiveRoute(route: BroadcastAudioRouteState) {
-  return liveRouteHasRole(route, new Set(["desk", "media"]));
-}
-
-export function mediaCaptureUsesLiveRoute(route: BroadcastAudioRouteState) {
-  return liveRouteHasRole(route, new Set(["media"]));
-}
-
-export function viewerAmbientMusicUsesLocalPlayback({
-  presentationOutputActive,
-  preServiceRoomAudioEnabled,
-  ...route
-}: BroadcastAudioRouteState & {
-  presentationOutputActive: boolean;
-  preServiceRoomAudioEnabled: boolean;
-}) {
-  return !presentationOutputActive
-    || !preServiceRoomAudioEnabled
-    || !mediaCaptureUsesLiveRoute(route);
-}
-
 export function rehearsalDeskIsIsolated({
   liveAudioSource,
   sources,

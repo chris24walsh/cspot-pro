@@ -10,10 +10,10 @@ import {
 } from "./PresentationOutput";
 
 describe("network TV display", () => {
-  it("keeps TV followers muted while allowing the dedicated media receiver", () => {
+  it("keeps every display muted except the dedicated media receiver", () => {
     expect(presentationOutputAudioEnabled(true, false)).toBe(false);
     expect(presentationOutputAudioEnabled(true, true)).toBe(true);
-    expect(presentationOutputAudioEnabled(false, false)).toBe(true);
+    expect(presentationOutputAudioEnabled(false, false)).toBe(false);
   });
 
   it("loads network YouTube players muted before JavaScript control is ready", () => {

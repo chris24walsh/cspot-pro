@@ -21,7 +21,7 @@ import {
   type RenderedSlide,
   type Song,
 } from "../api";
-import { programAudioUsesLiveRoute, rehearsalDeskIsIsolated, resolveBroadcastLiveAudioUrl, viewerAmbientMusicUsesLocalPlayback } from "../broadcastAudioRouting";
+import { rehearsalDeskIsIsolated, resolveBroadcastLiveAudioUrl } from "../broadcastAudioRouting";
 import { activeCameraIdAt, cameraServicePhase } from "../broadcastCamera";
 import {
   buildPresentationSlides,
@@ -38,7 +38,6 @@ import { AutoFitSlideText } from "./AutoFitSlideText";
 import { AudioMixerPanel } from "./AudioMixerPanel";
 import { CountdownSlide } from "./CountdownSlide";
 import { PreServiceSlide, serviceScheduleForPlan } from "./PreServiceSlide";
-import { PreServiceMusic, type PreServiceMusicHandle } from "./PreServiceMusic";
 import { LiveStreamAudio, LowLatencyCamera } from "./LowLatencyCamera";
 import { LivestreamMedia } from "./LivestreamMedia";
 import { ScaledSlideImage } from "./ScaledSlideImage";
@@ -111,8 +110,6 @@ function HoldingPane({ message, startingSoon }: { message: string; startingSoon:
 
 export function ServiceBroadcastView({ canControl = false, onOpenSettings }: { canControl?: boolean; onOpenSettings?: () => void }) {
   const shellRef = useRef<HTMLElement | null>(null);
-  const backingAudioFrameRef = useRef<HTMLIFrameElement | null>(null);
-  const preServiceMusicRef = useRef<PreServiceMusicHandle | null>(null);
   const pollInFlightRef = useRef(false);
   const [settings, setSettings] = useState(DEFAULT_SETTINGS);
   const [liveServices, setLiveServices] = useState<PresentationLiveService[]>([]);
@@ -162,23 +159,6 @@ export function ServiceBroadcastView({ canControl = false, onOpenSettings }: { c
     liveAudioSource: settings.live_audio_source,
     sources: settings.audio_sources,
   });
-  const backingAudioInLiveRoute = programAudioUsesLiveRoute({
-    liveAudioSource: settings.live_audio_source,
-    sources: settings.audio_sources,
-  });
-  const activeAudioScene = settings.audio_scenes.find((scene) => scene.id === settings.active_audio_scene);
-  const roomMediaEnabled = activeAudioScene ? Boolean(activeAudioScene.room_media_enabled) : settings.pre_service_room_audio_enabled;
-  const useViewerBackingAudio = Boolean(liveSlide?.youtubeAudioUrl) && !backingAudioInLiveRoute;
-  const useViewerAmbientMusic = viewerAmbientMusicUsesLocalPlayback({
-    liveAudioSource: settings.live_audio_source,
-    presentationOutputActive: selectedLiveService?.output_active === true,
-    preServiceRoomAudioEnabled: roomMediaEnabled,
-    sources: settings.audio_sources,
-  });
-  const preserveViewerLocalSound = Boolean(
-    (ambientMusicStage && useViewerAmbientMusic && settings.pre_service_audio_url && plan)
-    || (useViewerBackingAudio && liveState?.videoAction === "play")
-  );
   const resolvedLiveAudioUrl = resolveBroadcastLiveAudioUrl({
     audioSources: settings.audio_sources,
     cameraSources: settings.camera_sources,
@@ -233,54 +213,9 @@ export function ServiceBroadcastView({ canControl = false, onOpenSettings }: { c
     if (settings.camera_cycle_seconds > 0) lastCameraCycleSecondsRef.current = settings.camera_cycle_seconds;
   }, [settings.camera_cycle_seconds]);
 
-  useEffect(() => {
-    if (!liveSlide?.stopBackingAudio || !useViewerBackingAudio) return;
-    let step = 0;
-    const timer = window.setInterval(() => {
-      step += 1;
-      backingAudioFrameRef.current?.contentWindow?.postMessage(JSON.stringify({ event: "command", func: "setVolume", args: [Math.max(0, 100 - step * 10)] }), "*");
-      if (step >= 10) {
-        window.clearInterval(timer);
-        controlBackingAudio("pauseVideo");
-      }
-    }, 100);
-    return () => window.clearInterval(timer);
-  }, [liveSlide?.id, liveSlide?.stopBackingAudio, useViewerBackingAudio]);
-
-  function controlBackingAudio(command: "playVideo" | "pauseVideo" | "stopVideo" | "unMute" | "mute") {
-    backingAudioFrameRef.current?.contentWindow?.postMessage(
-      JSON.stringify({ event: "command", func: command, args: [] }),
-      "*",
-    );
-  }
-
-  function fadeBackingAudio() {
-    let step = 0;
-    const timer = window.setInterval(() => {
-      step += 1;
-      backingAudioFrameRef.current?.contentWindow?.postMessage(
-        JSON.stringify({ event: "command", func: "setVolume", args: [Math.max(0, 100 - step * 10)] }),
-        "*",
-      );
-      if (step >= 10) {
-        window.clearInterval(timer);
-        controlBackingAudio("pauseVideo");
-      }
-    }, 100);
-  }
-
   function setLivestreamSound(enabled: boolean) {
-    preServiceMusicRef.current?.setSoundEnabled(enabled);
     setViewerSoundEnabled(enabled);
-    controlBackingAudio(enabled ? "unMute" : "mute");
-    if (enabled && liveState?.videoAction === "play") controlBackingAudio("playVideo");
   }
-
-  useEffect(() => {
-    if (!useViewerBackingAudio) return;
-    if (!liveSlide?.stopBackingAudio && liveState?.videoAction === "play") controlBackingAudio("playVideo");
-    else if (liveState?.videoAction === "pause" || liveState?.videoAction === "stop" || liveState?.videoAction === "fade-stop") fadeBackingAudio();
-  }, [liveSlide?.youtubeAudioUrl, liveState?.videoAction, liveState?.videoActionAt, useViewerBackingAudio]);
 
   async function updateLiveControls(patch: Partial<BroadcastViewerSettings>) {
     setControlBusy(true);
@@ -564,7 +499,7 @@ export function ServiceBroadcastView({ canControl = false, onOpenSettings }: { c
               <HoldingPane message={holdingMessage} startingSoon={startingSoon} />
             )}
             {hasLiveBroadcast && liveAudioUrl ? (
-              <LiveStreamAudio label={selectedAudioCamera ? `${selectedAudioCamera.label} audio` : selectedIndependentAudio?.label ?? "Live service audio"} onSoundEnabledChange={setLivestreamSound} preserveSoundOnPlaybackFailure={preserveViewerLocalSound} soundEnabled={viewerSoundEnabled} url={liveAudioUrl} />
+              <LiveStreamAudio label={selectedAudioCamera ? `${selectedAudioCamera.label} audio` : selectedIndependentAudio?.label ?? "Live service audio"} onSoundEnabledChange={setLivestreamSound} preserveSoundOnPlaybackFailure={false} soundEnabled={viewerSoundEnabled} url={liveAudioUrl} />
             ) : null}
           </div>
           {canControl && settings.audio_sources.length ? (
@@ -585,42 +520,8 @@ export function ServiceBroadcastView({ canControl = false, onOpenSettings }: { c
         </section>
       </div>
 
-      {/* Keep this player mounted even while the presentation PC supplies the
-          audible media feed. Muting it lets the track continue in step, so
-          switching room playback off can reveal the local copy without
-          restarting the music from the beginning. */}
-      {hasLiveBroadcast && settings.pre_service_audio_url && plan ? (
-        <PreServiceMusic
-          active={ambientMusicStage}
-          continuous={liveState?.serviceStage === "post_service"}
-          label={liveState?.serviceStage === "post_service" ? "Post-service music" : "Pre-service music"}
-          phase={liveState?.preServicePhase}
-          phaseStartedAt={liveState?.updatedAt}
-          ref={preServiceMusicRef}
-          serviceDate={plan.service_date}
-          showSoundControl={false}
-          soundEnabled={viewerSoundEnabled && useViewerAmbientMusic}
-          url={settings.pre_service_audio_url}
-        />
-      ) : null}
-
-      {hasLiveBroadcast && (canControl || useViewerBackingAudio) ? (
+      {hasLiveBroadcast && canControl ? (
         <div className={`service-broadcast-viewer-controls ${canControl ? "has-admin-controls" : ""}`}>
-          {useViewerBackingAudio && liveSlide?.youtubeAudioUrl ? (
-            <iframe
-              allow="autoplay; encrypted-media"
-              aria-hidden="true"
-              className="youtube-audio-frame"
-              onLoad={() => {
-                controlBackingAudio(viewerSoundEnabled ? "unMute" : "mute");
-                if (!liveSlide?.stopBackingAudio && (liveState?.videoAction === "play" || liveSlide?.autoPlayBackingAudio)) controlBackingAudio("playVideo");
-              }}
-              ref={backingAudioFrameRef}
-              src={liveSlide.youtubeAudioUrl}
-              tabIndex={-1}
-              title={`${liveSlide.title} livestream backing audio`}
-            />
-          ) : null}
           {canControl ? (
             <div className="service-broadcast-admin-live-controls" aria-label="Quick livestream controls">
               <label className="service-broadcast-live-select">
@@ -678,10 +579,10 @@ export function ServiceBroadcastView({ canControl = false, onOpenSettings }: { c
                   className={!settings.pre_service_room_audio_enabled ? "primary-button" : "text-button"}
                   disabled={controlBusy}
                   onClick={() => void updateLiveControls({ pre_service_room_audio_enabled: !settings.pre_service_room_audio_enabled })}
-                  title="Control whether pre- and post-service music is also played through the church PC; livestream audio is unaffected"
+                  title="Control whether the dedicated program-media receiver renders pre- and post-service music"
                   type="button"
                 >
-                  Pre-service room audio {settings.pre_service_room_audio_enabled ? "on" : "muted"}
+                  Program-media receiver audio {settings.pre_service_room_audio_enabled ? "on" : "muted"}
                 </button>
               ) : null}
               <span className="service-broadcast-timing-summary">

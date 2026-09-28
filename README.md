@@ -57,10 +57,7 @@ route so the livestream keeps the live musicians and vocals and receives the
 PC track once through the desk return; standalone video uses the direct Media
 route.
 
-Configured pre-service music remains a transitional remote-viewer player rather
-than a server-mix input, particularly for YouTube sources. In remote-only mode,
-the presentation-output copy stays muted so musicians can rehearse through the
-desk without hearing the online pre-service track. The original
+Configured pre- and post-service music is rendered only by the dedicated /app/media receiver and captured into the selected remote program-audio route. Livestream viewers and slideshow displays never render their own local copy, so every listener hears the same source and timeline. The original
 [single-input Pi/Icecast setup](docs/raspberry-pi-live-audio.md) remains
 supported. Independent HTTP/MP3 inputs are normalized to AAC by go2rtc for the
 same fragmented-MP4 MSE/HLS browser transport used by camera audio. Real

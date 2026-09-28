@@ -158,10 +158,7 @@ channels ever need to be combined with the direct PC leg instead, the desk must
 provide an aux/matrix mix-minus output that excludes its PC input; software
 cannot reliably remove that component from the stereo record-out.
 
-Configured pre-service music is currently a transitional remote-viewer player,
-not a bridge input. During a musicians' rehearsal, its presentation-output copy
-must remain muted so it does not enter the PC line-out, desk, or room speakers;
-remote viewers continue rendering the track directly. The Pre-service scene
+Configured pre- and post-service music is rendered by the dedicated CSpot media receiver, then captured by the bridge and delivered through the selected remote live-audio route. Livestream viewers and slideshow displays do not create local copies. The Pre-service scene
 also excludes desk and room sources, so rehearsal audio is not added to the
 online program. For another desktop application that must be streamed while the
 physical line-out remains silent, send that application to a virtual cable and

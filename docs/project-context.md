@@ -206,9 +206,7 @@ These preferences have been made explicit and should guide future changes.
   reconstructed reliably from the stereo record-out in software.
 - A direct PC-media bridge source is only a capture endpoint. A designated
   Windows player must feed its loopback or virtual cable; running the capture
-  bridge headlessly does not create that playback. Configured pre-service music
-  remains a transitional remote-viewer player and stays muted on the church
-  presentation output when it is intended for online listeners only.
+  bridge headlessly does not create that playback. Configured pre- and post-service music is rendered once by the dedicated media receiver and distributed through the selected remote live-audio route; viewers and slideshow displays do not render local copies.
 
 ### Song handling
 

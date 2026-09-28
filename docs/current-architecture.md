@@ -559,16 +559,7 @@ That scheduled window also authorizes its configured camera and audio transports
 for ordinary viewers before PresentationOutput is claimed; admin-only manual
 tests remain restricted to administrators.
 
-The configured pre-service track is still a transitional browser-rendered source,
-not an input owned by the server-side source mixer. Each remote viewer renders
-that track directly; browser policy may require one sound-enabling click for a
-YouTube source, while a direct audio URL can normally autoplay. The active
-scene's `room_media_enabled` flag decides whether the presentation-output copy
-is sent through the PC line-out to the sound desk. The Pre-service scene keeps
-that route off while the Post-service scene enables it. The Pre-service scene also
-excludes desk and room inputs, preventing musicians' rehearsal audio from being
-published with the online track. A future server-side program-audio source can
-replace this transitional split without changing the scene boundary.
+The configured pre- and post-service track is rendered only by the dedicated `/app/media` program-media receiver. Its output is captured as the media source and distributed to every livestream viewer through the selected remote live-audio route. Ordinary slideshow windows, network displays, and livestream viewer browsers never render a local copy. The active scene's `room_media_enabled` flag controls whether the dedicated receiver renders the track. The Pre-service scene excludes desk and room inputs, preventing musicians' rehearsal audio from being published with the online track.
 
 Empty Sermon and Announcements sections open Google Drive deck search when
 clicked. A general deck import targets the canonical Sermon placeholder; an
@@ -639,9 +630,7 @@ until an administrator stops it; admin-test state and live audio remain unavaila
 to non-admin accounts. Without presentation output, the slide pane shows a live
 holding card rather than inventing a slideshow state.
 
-When neither presentation output nor a permitted manual stream is active, both panels remain disabled. During the configured
-window before the next planned service, the page shows a starting-soon state and
-can offer configured worship audio. Outside that window it clearly shows that no
+When neither presentation output nor a permitted manual stream is active, both panels remain disabled. During the configured window before the next planned service, the page shows a starting-soon state; configured worship audio is available only when the remote program-audio route is live. Outside that window it clearly shows that no
 service is streaming.
 
 Viewer settings are stored in the database and edited from Broadcast Settings.
@@ -731,16 +720,9 @@ state persists across slide changes within the playing section; pausing,
 stopping, finishing, or leaving standalone media restores the scene appropriate
 to the current service item. Claiming the main slideshow derives the safe scene
 for its current item; releasing it selects Pre-service so speech microphones are
-removed during post-service. The server mix drives normal viewer audio and
-sermon recording. The transitional browser-local pre-service player described
-above is the explicit exception.
+removed during post-service. The server mix drives all normal viewer audio and sermon recording, including pre- and post-service music.
 
-Song backing audio has a compatibility fallback as well. When the selected live
-route contains either the desk program or an enabled source explicitly assigned
-the `media` role, the remote viewer suppresses its own YouTube backing iframe so
-the captured PC media is heard exactly once. If neither program path is routed,
-the legacy viewer-local iframe remains available instead of assuming that an
-unclassified or silent source contains the track. The Worship route deliberately
+Song backing audio has no viewer-local fallback. The dedicated media receiver renders the track and the selected desk or media capture route carries it to every viewer exactly once. If that source is not selected or available, the viewer reports or experiences the remote-source failure instead of starting an unsynchronized local copy. The Worship route deliberately
 uses the full desk return for a backing track, retaining live vocals and
 instruments. Combining those live desk channels with a simultaneous direct PC
 leg would require a hardware desk aux/matrix mix-minus that excludes the PC

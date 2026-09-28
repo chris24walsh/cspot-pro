@@ -78,7 +78,7 @@ export function presentationOutputAudioPlayerKey(
 }
 
 export function presentationOutputAudioEnabled(networkDisplay: boolean, mediaOutput: boolean) {
-  return !networkDisplay || mediaOutput;
+  return mediaOutput;
 }
 
 export function presentationOutputAmbientMusicActive(
@@ -843,7 +843,7 @@ export function PresentationOutput({ mediaOutput = false, networkDisplay = false
         {!blanked && liveSlide ? <SlideOverlay slide={liveSlide} serviceDate={plan?.service_date} startAt={liveState?.countdownStartedAt?.[liveSlide.planItemId] ?? liveState?.updatedAt} /> : null}
         </div>
       </section>
-      {preServiceAudioUrl && plan ? (
+      {outputAudioEnabled && preServiceAudioUrl && plan ? (
         <PreServiceMusic
           active={ambientMusicStage}
           continuous={liveState?.serviceStage === "post_service"}

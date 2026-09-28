@@ -39,11 +39,7 @@ the desk USB feed from being mixed with the same direct playback a second time.
   alignment with the measured camera pipeline latency.
 - The slideshow and camera appear only while CSpot has an active presentation heartbeat.
 - Desktop uses two equal side-by-side media panels; mobile stacks the same panels vertically.
-- Before the next planned service, a configurable starting-soon window can offer
-  light worship audio or an external audio stream. This pre-service track is
-  still rendered directly by each remote viewer rather than by the server mix.
-  Its presentation-output copy remains muted during remote-only playback, and
-  the Pre-service scene excludes desk/room rehearsal audio.
+- Before the next planned service, a configurable starting-soon window can offer light worship audio. The dedicated media receiver renders it once and the selected remote live-audio route distributes it to every viewer; viewer and display browsers do not render local copies. The Pre-service scene excludes desk/room rehearsal audio.
 - At other times, both panels clearly show that no service is currently streaming.
 - Moving from a non-sermon section into a sermon while the service session
   is live automatically records mono Opus audio and timestamps
@@ -82,10 +78,7 @@ finished, or leaves the section. A song backing track remains in Worship so its
 desk return still contains the live musicians and vocals and carries the PC
 track only once.
 
-When the selected live route already contains either the desk program or an
-explicit media-role source, the viewer suppresses its local YouTube backing
-iframe to prevent an echo with captured PC playback. The local iframe remains
-as a compatibility fallback when neither program path is routed.
+Livestream viewers never render a local backing-audio iframe. Song and standalone media audio is rendered by the dedicated media receiver and reaches every viewer through the selected remote live-audio route.
 
 A Windows audio bridge may run interactively or, where the installed DirectShow
 drivers have been verified, in a limited S4U boot task. The bridge only captures
@@ -111,10 +104,7 @@ The former OBS WebSocket controls and virtual-camera controls remain retired.
 
 - Optional public/no-login viewer link with explicit access controls.
 - Multiple service schedules or special-event starting-soon windows.
-- A server-owned program-audio source that replaces the transitional
-  browser-local pre-service player and can feed both the source mix and an
-  independently controlled room output. A curated uploaded playlist should
-  include licensing metadata.
+- A server-owned playlist source that can replace the dedicated browser media receiver while preserving the same single remote program-audio route. A curated uploaded playlist should include licensing metadata.
 - Graceful server-mix continuation when a configured HTTP source disappears,
   rather than merely becoming silent while its endpoint remains reachable.
 - Attendance telemetry that avoids collecting unnecessary personal data.

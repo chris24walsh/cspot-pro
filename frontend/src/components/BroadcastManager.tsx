@@ -394,7 +394,7 @@ export function BroadcastManager({
         pre_service_room_audio_enabled: enabled,
       });
       applyServerState(settings);
-      setMessage(`Pre-service room audio ${enabled ? "enabled" : "muted"}.`);
+      setMessage(`Program-media receiver audio ${enabled ? "enabled" : "muted"}.`);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Could not change pre-service room audio.");
     } finally {
@@ -718,12 +718,12 @@ export function BroadcastManager({
           <input disabled={loading} onChange={(event) => setForm({ ...form, pre_service_audio_url: event.target.value || null })} placeholder="YouTube link or https://…/music.mp3" type="url" value={form.pre_service_audio_url || ""} />
         </label>
         <label>
-          Pre-service room audio
+          Program-media receiver audio
           <select disabled={loading || saving} onChange={(event) => void setPreServiceRoomAudio(event.target.value === "on")} value={form.pre_service_room_audio_enabled ? "on" : "muted"}>
-            <option value="on">Play through desk / speakers</option>
-            <option value="muted">Livestream only</option>
+            <option value="on">Play through media receiver</option>
+            <option value="muted">Mute media receiver</option>
           </select>
-          <small>This controls only the pre/post-service music player on the presentation PC. It does not mute other media; online pre-service audio continues playing.</small>
+          <small>This controls the dedicated program-media receiver. Livestream viewers always hear the selected remote live-audio source and never create a separate local music player.</small>
         </label>
         <label>
           Starting-soon message
