@@ -1,6 +1,10 @@
 type PresentationDeviceNavigator = Pick<Navigator, "maxTouchPoints" | "userAgent">;
 type PresentationDeviceScreen = Pick<Screen, "height" | "width">;
 
+export function isFirefoxDevice(device: Pick<Navigator, "userAgent"> = window.navigator): boolean {
+  return /Firefox\//i.test(device.userAgent);
+}
+
 export function isMobileOrTabletDevice(device: PresentationDeviceNavigator = window.navigator): boolean {
   const userAgent = device.userAgent;
   return (

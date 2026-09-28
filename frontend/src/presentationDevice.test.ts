@@ -1,8 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import { isMobileOrTabletDevice, isTabletDevice } from "./presentationDevice";
+import { isFirefoxDevice, isMobileOrTabletDevice, isTabletDevice } from "./presentationDevice";
 
 describe("presentation device behavior", () => {
+  it("recognizes Firefox for broadcast audio compatibility", () => {
+    expect(isFirefoxDevice({ userAgent: "Mozilla/5.0 Firefox/143.0" })).toBe(true);
+    expect(isFirefoxDevice({ userAgent: "Mozilla/5.0 Chrome/140.0" })).toBe(false);
+  });
   it("opens an output window on a desktop", () => {
     expect(isMobileOrTabletDevice({ userAgent: "Mozilla/5.0 (X11; Linux x86_64)", maxTouchPoints: 0 })).toBe(false);
   });

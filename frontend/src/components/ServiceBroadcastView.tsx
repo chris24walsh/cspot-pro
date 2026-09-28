@@ -32,7 +32,7 @@ import {
   type PresentationLiveState,
 } from "../presentation";
 import { isBroadcastStartingSoon } from "../broadcastTiming";
-import { isMobileOrTabletDevice } from "../presentationDevice";
+import { isFirefoxDevice, isMobileOrTabletDevice } from "../presentationDevice";
 import { isWorshipSetPlan, matchingWorshipSetForService, mergeWorshipSetIntoService } from "../worshipSets";
 import { AutoFitSlideText } from "./AutoFitSlideText";
 import { AudioMixerPanel } from "./AudioMixerPanel";
@@ -165,7 +165,7 @@ export function ServiceBroadcastView({ canControl = false, onOpenSettings }: { c
     liveAudioStreamName: settings.live_audio_stream_name,
   });
   const liveAudioUrl = (
-    isMobileOrTabletDevice()
+    (isMobileOrTabletDevice() || isFirefoxDevice())
     && (settings.live_audio_source === "mix" || Boolean(selectedIndependentAudio))
   ) ? broadcastLiveAudioUrl() : resolvedLiveAudioUrl;
   const textFontCap = suggestedSlideFontCap(liveSlide);
