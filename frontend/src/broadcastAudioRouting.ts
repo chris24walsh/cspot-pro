@@ -30,12 +30,8 @@ export function resolveBroadcastLiveAudioUrl({
   liveAudioSource: string;
   liveAudioStreamName: string | null;
 }) {
-  if (liveAudioSource === "mix") {
-    return (liveAudioStreamName ? go2RtcAudioStreamUrl(liveAudioStreamName) : null) ?? broadcastLiveAudioMseUrl();
-  }
-
-  if (audioSources.some((source) => source.id === liveAudioSource)) {
-    return (liveAudioStreamName ? go2RtcAudioStreamUrl(liveAudioStreamName) : null) ?? broadcastLiveAudioMseUrl();
+  if (liveAudioSource === "mix" || audioSources.some((source) => source.id === liveAudioSource)) {
+    return broadcastLiveAudioMseUrl();
   }
 
   const camera = cameraSources.find((source) => source.id === liveAudioSource);

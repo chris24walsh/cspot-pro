@@ -646,12 +646,7 @@ level would create a doubled or delayed echo. Media routing is therefore an
 explicit mix-minus: speaking/worship scenes exclude the direct media capture,
 while media scenes exclude both the desk return and room microphone.
 
-CSpot reconciles each configured input into go2rtc as an FFmpeg-backed AAC
-stream, so viewers receive independent and camera audio through the same
-fragmented-MP4 MSE path and HLS compatibility path. The source URL and any
-listener token stay server-side. The authenticated raw API relay at
-`/api/v1/broadcast/live-audio` owns the server-side mix used for independent
-audio playback and remains the compatibility fallback. Browsers normally use
+CSpot keeps source URLs and listener tokens server-side. Camera audio uses the go2rtc transport, while independent and mixed sources use CSpot's authenticated server relay so a gateway on another subnet does not need direct access to a private source. The raw API relay at `/api/v1/broadcast/live-audio` remains available for compatibility and recording. Browsers use
 the authenticated `/api/v1/broadcast/live-audio.mp4` variant: FFmpeg emits
 roughly 200 ms AAC fragments, the client retains only complete recent
 fragments, trims its decoded buffer, and targets about 250 ms behind the live

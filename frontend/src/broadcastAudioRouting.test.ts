@@ -42,13 +42,13 @@ describe("broadcast audio routing", () => {
     })).toBe(false);
   });
 
-  it("prefers the normalized go2rtc stream for a singleton source mix", () => {
+  it("uses the authenticated CSpot relay for a source mix", () => {
     expect(resolveBroadcastLiveAudioUrl({
       audioSources: [source("pc-media", "media", true)],
       cameraSources: [],
       liveAudioSource: "mix",
       liveAudioStreamName: "opaque-media-stream",
-    })).toBe("/camera/api/stream.m3u8?audio=aac&src=opaque-media-stream");
+    })).toBe("/api/v1/broadcast/live-audio.mp4");
   });
 
   it("keeps relay fallback and direct camera audio routing", () => {
@@ -63,7 +63,7 @@ describe("broadcast audio routing", () => {
       cameraSources: [],
       liveAudioSource: "desk",
       liveAudioStreamName: "opaque-desk-stream",
-    })).toBe("/camera/api/stream.m3u8?audio=aac&src=opaque-desk-stream");
+    })).toBe("/api/v1/broadcast/live-audio.mp4");
     expect(resolveBroadcastLiveAudioUrl({
       audioSources: [],
       cameraSources: [{ id: "lectern", label: "Lectern", url: "/camera/stream.html?src=lectern&mode=mse" }],
