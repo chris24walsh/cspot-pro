@@ -136,7 +136,6 @@ export function ServiceBroadcastView({ canControl = false, onOpenSettings }: { c
   // Blanking is a visual overlay, not the end of the underlying live slide.
   // Keeping the slide selected also keeps its camera/audio routing alive.
   const liveSlide = withCountdownTiming(!liveState ? null : slides[resolveLiveIndex(slides, liveState)] ?? null, slides, liveState, plan?.service_date ?? "", plan?.service_start);
-  const ambientMusicStage = liveState?.serviceStage === "pre_service" || liveState?.serviceStage === "post_service";
   const selectedLiveService = liveServices.find((service) => service.plan_id === selectedPlanId) ?? liveServices[0] ?? null;
   const adminRehearsal = Boolean(canControl && selectedLiveService?.rehearsal);
   const hasLiveBroadcast = Boolean((plan && remoteLiveState && !selectedLiveService?.rehearsal) || settings.manual_live_audience !== "off");
@@ -572,18 +571,6 @@ export function ServiceBroadcastView({ canControl = false, onOpenSettings }: { c
                 <span className="service-broadcast-audio-isolation" role="status">
                   Desk isolated · rehearsal stays in-room
                 </span>
-              ) : null}
-              {ambientMusicStage ? (
-                <button
-                  aria-pressed={!settings.pre_service_room_audio_enabled}
-                  className={!settings.pre_service_room_audio_enabled ? "primary-button" : "text-button"}
-                  disabled={controlBusy}
-                  onClick={() => void updateLiveControls({ pre_service_room_audio_enabled: !settings.pre_service_room_audio_enabled })}
-                  title="Control whether the dedicated program-media receiver renders pre- and post-service music"
-                  type="button"
-                >
-                  Program-media receiver audio {settings.pre_service_room_audio_enabled ? "on" : "muted"}
-                </button>
               ) : null}
               <span className="service-broadcast-timing-summary">
                 Fade {(settings.camera_fade_ms / 1000).toFixed(1)}s · slides +{(settings.slide_delay_ms / 1000).toFixed(1)}s

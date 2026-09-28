@@ -467,11 +467,7 @@ They can manage both kinds from the Welcome section. Image montages begin with
 their first configured image whenever the slide is selected; an item-level
 option can instead apply a deterministic random order shared by every output.
 Each item can also select a named audio scene and route its visual to church
-displays, livestream, or both. Audio scenes are administrator-defined mixes of
-the configured inputs and include a separate `room_media_enabled` decision.
-The seeded Pre-service scene sends PC music to livestream/recording while
-keeping it out of the room; the seeded Post-service scene also enables room
-playback. Scene activation follows item selection, including automatic cues.
+displays, livestream, or both. Audio scenes are administrator-defined mixes of the configured inputs. The dedicated media receiver always renders program audio so its Windows bridge capture can feed livestream and recording. Whether that Windows endpoint also feeds the church desk and room speakers is determined by the Windows audio and desk routing, not by viewer browsers or an audio-scene mute. Scene activation follows item selection, including automatic cues.
 Backing-audio playback is owned by each song item and uses the shared live
 presentation media command, so Service Live and Worship Live show and control
 the same playback state. Administrators can persistently couple Worship Live
@@ -559,7 +555,7 @@ That scheduled window also authorizes its configured camera and audio transports
 for ordinary viewers before PresentationOutput is claimed; admin-only manual
 tests remain restricted to administrators.
 
-The configured pre- and post-service track is rendered only by the dedicated `/app/media` program-media receiver. Its output is captured as the media source and distributed to every livestream viewer through the selected remote live-audio route. Ordinary slideshow windows, network displays, and livestream viewer browsers never render a local copy. The active scene's `room_media_enabled` flag controls whether the dedicated receiver renders the track. The Pre-service scene excludes desk and room inputs, preventing musicians' rehearsal audio from being published with the online track.
+The configured pre- and post-service track is rendered only by the dedicated `/app/media` program-media receiver. Its output is captured as the media source and distributed to every livestream viewer through the selected remote live-audio route. Ordinary slideshow windows, network displays, and livestream viewer browsers never render a local copy. The legacy `room_media_enabled` field no longer mutes the dedicated receiver, because doing so would silence the sole upstream broadcast source. The Pre-service scene excludes desk and room inputs, preventing musicians' rehearsal audio from being published with the online track.
 
 Empty Sermon and Announcements sections open Google Drive deck search when
 clicked. A general deck import targets the canonical Sermon placeholder; an

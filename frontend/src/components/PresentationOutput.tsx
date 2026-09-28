@@ -131,7 +131,6 @@ export function PresentationOutput({ mediaOutput = false, networkDisplay = false
   const [renderedSlidesByFileId, setRenderedSlidesByFileId] = useState<Record<string, RenderedSlide[]>>({});
   const [blanked, setBlanked] = useState(false);
   const [preServiceAudioUrl, setPreServiceAudioUrl] = useState<string | null>(null);
-  const [preServiceRoomAudioEnabled, setPreServiceRoomAudioEnabled] = useState(true);
   const [serviceSchedules, setServiceSchedules] = useState<import("../api").ServiceScheduleRule[]>([]);
   const lastLiveStateRef = useRef(0);
   const networkPlanIdRef = useRef<string | null>(null);
@@ -263,8 +262,6 @@ export function PresentationOutput({ mediaOutput = false, networkDisplay = false
       setWorshipSetPlan(nextWorshipSetPlan);
       setSongs(nextSongs);
       setPreServiceAudioUrl(broadcastSettings?.pre_service_audio_url ?? null);
-      const activeScene = broadcastSettings?.audio_scenes.find((scene) => scene.id === broadcastSettings.active_audio_scene);
-      setPreServiceRoomAudioEnabled(activeScene ? Boolean(activeScene.room_media_enabled) : broadcastSettings?.pre_service_room_audio_enabled !== false);
       setMessage(null);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Could not load slideshow output.");
@@ -313,8 +310,6 @@ export function PresentationOutput({ mediaOutput = false, networkDisplay = false
       try {
         const settings = await getBroadcastViewerSettings();
         if (!cancelled) {
-          const activeScene = settings.audio_scenes.find((scene) => scene.id === settings.active_audio_scene);
-          setPreServiceRoomAudioEnabled(activeScene ? Boolean(activeScene.room_media_enabled) : settings.pre_service_room_audio_enabled !== false);
           setServiceSchedules(settings.service_schedules);
         }
       } catch { /* Keep the last known setting. */ }
@@ -848,7 +843,7 @@ export function PresentationOutput({ mediaOutput = false, networkDisplay = false
           active={ambientMusicStage}
           continuous={liveState?.serviceStage === "post_service"}
           label={liveState?.serviceStage === "post_service" ? "Post-service music" : "Pre-service music"}
-          outputMuted={!outputAudioEnabled || !preServiceRoomAudioEnabled}
+          outputMuted={!outputAudioEnabled}
           phase={liveSlide?.preServiceStage ?? liveState?.preServicePhase}
           phaseStartedAt={liveState?.updatedAt}
           serviceDate={plan.service_date}

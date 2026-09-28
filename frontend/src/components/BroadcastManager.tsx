@@ -386,22 +386,6 @@ export function BroadcastManager({
     }
   }
 
-  async function setPreServiceRoomAudio(enabled: boolean) {
-    setSaving(true);
-    setMessage(null);
-    try {
-      const settings = await updateBroadcastViewerSettings({
-        pre_service_room_audio_enabled: enabled,
-      });
-      applyServerState(settings);
-      setMessage(`Program-media receiver audio ${enabled ? "enabled" : "muted"}.`);
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Could not change pre-service room audio.");
-    } finally {
-      setSaving(false);
-    }
-  }
-
   async function commitAudioMix(
     audioSources: BroadcastViewerSettings["audio_sources"],
     liveAudioSource: string,
@@ -716,14 +700,6 @@ export function BroadcastManager({
         <label className="wide-field">
           Pre-service worship audio or YouTube URL
           <input disabled={loading} onChange={(event) => setForm({ ...form, pre_service_audio_url: event.target.value || null })} placeholder="YouTube link or https://…/music.mp3" type="url" value={form.pre_service_audio_url || ""} />
-        </label>
-        <label>
-          Program-media receiver audio
-          <select disabled={loading || saving} onChange={(event) => void setPreServiceRoomAudio(event.target.value === "on")} value={form.pre_service_room_audio_enabled ? "on" : "muted"}>
-            <option value="on">Play through media receiver</option>
-            <option value="muted">Mute media receiver</option>
-          </select>
-          <small>This controls the dedicated program-media receiver. Livestream viewers always hear the selected remote live-audio source and never create a separate local music player.</small>
         </label>
         <label>
           Starting-soon message
