@@ -84,12 +84,16 @@ export function presentationOutputAudioEnabled(networkDisplay: boolean, mediaOut
 export function presentationOutputAmbientMusicActive(
   serviceStage: PresentationLiveState["serviceStage"] | undefined,
   preServiceStage: PresentationSlide["preServiceStage"] | undefined,
+  itemType?: string,
 ) {
   return (
     serviceStage === "pre_service" ||
     serviceStage === "post_service" ||
     preServiceStage === "montage" ||
-    preServiceStage === "countdown"
+    preServiceStage === "countdown" ||
+    itemType === "pre_service" ||
+    itemType === "welcome_montage" ||
+    itemType === "welcome_countdown"
   );
 }
 
@@ -163,6 +167,7 @@ export function PresentationOutput({ mediaOutput = false, networkDisplay = false
   const ambientMusicStage = presentationOutputAmbientMusicActive(
     liveState?.serviceStage,
     liveSlide?.preServiceStage,
+    liveSlide?.itemType,
   );
   const outputAudioEnabled = presentationOutputAudioEnabled(networkDisplay, mediaOutput);
 

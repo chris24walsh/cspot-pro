@@ -43,6 +43,8 @@ describe("network TV display", () => {
   it("plays ambient audio when a Welcome audio stage is selected", () => {
     expect(presentationOutputAmbientMusicActive("ready", "montage")).toBe(true);
     expect(presentationOutputAmbientMusicActive("service", "countdown")).toBe(true);
+    expect(presentationOutputAmbientMusicActive("service", undefined, "welcome_montage")).toBe(true);
+    expect(presentationOutputAmbientMusicActive("service", undefined, "welcome_countdown")).toBe(true);
     expect(presentationOutputAmbientMusicActive("ready", "complete")).toBe(false);
   });
 
