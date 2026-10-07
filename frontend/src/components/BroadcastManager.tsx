@@ -551,7 +551,7 @@ export function BroadcastManager({
                 {([ ["zoom", "Zoom", 1, 4, 0.1], ["crop_x", "Horizontal centre (%)", 0, 100, 1], ["crop_y", "Vertical centre (%)", 0, 100, 1] ] as const).map(([field, label, min, max, step]) => (
                   <label key={field}>{label}<input aria-label={`${source.label} ${label}`} type="number" disabled={loading} min={min} max={max} step={step} value={source[field] ?? (field === "zoom" ? 1 : 50)} onChange={(event) => updateCamera(source.id, field, Math.max(min, Math.min(max, Number(event.target.value))))} /></label>
                 ))}
-                <button disabled={loading || !source.url || form.camera_sources.length >= 8} type="button" className="text-button" onClick={() => setForm((current) => ({ ...current, camera_sources: [...current.camera_sources, { ...source, id: `camera-${Date.now()}`, label: `${source.label} close-up`, zoom: 2, b_roll: true, dwell_seconds: 2 }] }))}>Add close-up</button>
+                <button disabled={loading || !source.url || form.camera_sources.length >= 8} type="button" className="text-button" onClick={() => setForm((current) => ({ ...current, camera_sources: [...current.camera_sources, { ...source, id: `camera-${Date.now()}`, label: `${source.label} close-up`, zoom: 2, b_roll: true, dwell_seconds: 8 }] }))}>Add close-up</button>
                 <button
                   aria-pressed={testingCameraId === source.id}
                   className="text-button icon-text-button"
@@ -581,7 +581,7 @@ export function BroadcastManager({
               </article>
             ))}
             {!form.camera_sources.length ? <p className="muted-copy">No camera sources configured.</p> : null}
-            <p className="muted-copy">B-roll returns to the selected main camera after each insert. Set insert dwell to 1–2 seconds; cycle time controls the main-view interval. Zoom and centre create a digital crop of the same feed.</p>
+            <p className="muted-copy">B-roll returns to the selected main camera after each insert. Start with an 8-second insert dwell and a 2.5-second fade; cycle time controls the main-view interval. Zoom and centre create a digital crop of the same feed.</p>
           </div>
         </section>
         <section className="wide-field broadcast-camera-settings" aria-label="PTZ cruise">

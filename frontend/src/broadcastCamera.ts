@@ -139,7 +139,7 @@ export function activeCameraIdAt(
   if (inserts.length) {
     const timeline = inserts.flatMap((source) => [
       { source: sources[configuredIndex], durationMs: cameraDwellMs(sources[configuredIndex], cycleSeconds, phase, `${cycleStartedAt}:${phase}:${source.id}`) },
-      { source, durationMs: (source.dwell_seconds ?? 2) * 1000 },
+      { source, durationMs: (source.dwell_seconds ?? 8) * 1000 },
     ]);
     let positionMs = (nowMs - startedAtMs) % timeline.reduce((sum, entry) => sum + entry.durationMs, 0);
     for (const entry of timeline) {
