@@ -5,7 +5,7 @@ import subprocess
 from collections.abc import AsyncIterator
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Literal
 from urllib.parse import parse_qs, urlsplit
 
 import anyio
@@ -1563,4 +1563,32 @@ def control_ptz_cruise(
             detail = (str(exc) if isinstance(exc, ValueError)
                       else "Could not communicate with ONVIF camera")
             raise HTTPException(status_code=422, detail=detail) from exc
+    return cruise.status()
+
+
+class PTZSampleRequest(BaseModel):
+    direction: Literal["left", "right"]
+
+
+@router.post("/ptz/sample")
+def sample_ptz_angle(
+    payload: PTZSampleRequest,
+    _user: User = Depends(require_permission("broadcast:use")),
+    session: Session = Depends(get_session),
+):
+    import time
+    from app.modules.broadcast.ptz import cruise
+
+    settings = viewer_settings(session)
+    if settings.manual_live_audience != "off" or live_output_exists(session):
+        raise HTTPException(status_code=409, detail="Stop broadcasting before sampling a new angle")
+    with cruise.lock:
+        try:
+            try:
+                cruise.start(-0.13 if payload.direction == "left" else 0.13, 30)
+                time.sleep(0.75)
+            finally:
+                cruise.stop()
+        except Exception as exc:
+            raise HTTPException(status_code=422, detail="Could not sample ONVIF camera angle") from exc
     return cruise.status()

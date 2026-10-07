@@ -47,3 +47,27 @@ def test_worker_stops_after_communication_failure(monkeypatch):
     controller.run(0.03, 30, "urn:velocity")
     assert commands == ["ContinuousMove", "Stop"]
     assert "communication error" in controller.error
+
+
+def test_sample_is_blocked_during_broadcast(monkeypatch):
+    from fastapi import HTTPException
+    from app.modules.broadcast import routes
+    monkeypatch.setattr(routes, "viewer_settings", lambda session: SimpleNamespace(manual_live_audience="public"))
+    with pytest.raises(HTTPException) as error:
+        routes.sample_ptz_angle(routes.PTZSampleRequest(direction="left"), None, None)
+    assert error.value.status_code == 409
+
+
+def test_sample_stops_even_when_start_fails(monkeypatch):
+    from fastapi import HTTPException
+    from app.modules.broadcast import routes
+    monkeypatch.setattr(routes, "viewer_settings", lambda session: SimpleNamespace(manual_live_audience="off"))
+    monkeypatch.setattr(routes, "live_output_exists", lambda session: False)
+    stopped = []
+    def fail(*args):
+        raise RuntimeError("camera error")
+    monkeypatch.setattr(ptz.cruise, "start", fail)
+    monkeypatch.setattr(ptz.cruise, "stop", lambda: stopped.append(True))
+    with pytest.raises(HTTPException):
+        routes.sample_ptz_angle(routes.PTZSampleRequest(direction="right"), None, None)
+    assert stopped == [True]

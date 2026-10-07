@@ -42,6 +42,7 @@ function cameraConfiguration(source: BroadcastCameraSource) {
     id: source.id,
     label: source.label,
     url: source.url,
+    ...(source.digital_pan == null ? {} : { digital_pan: source.digital_pan }),
     ...(source.b_roll == null ? {} : { b_roll: source.b_roll }),
     ...(source.zoom == null ? {} : { zoom: source.zoom }),
     ...(source.crop_x == null ? {} : { crop_x: source.crop_x }),

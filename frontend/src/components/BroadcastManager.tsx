@@ -1,4 +1,5 @@
-import { controlPtzCruise, getPtzCruiseStatus } from "../api";
+import { CameraFraming } from "./CameraFraming";
+import { controlPtzCruise, getPtzCruiseStatus, samplePtzAngle } from "../api";
 import { Archive, CircleStop, ExternalLink, Headphones, Mic, MicOff, MonitorPlay, Play, Plus, Radio, RotateCcw, Save, X } from "lucide-react";
 import { type FormEvent, useEffect, useRef, useState } from "react";
 
@@ -305,7 +306,7 @@ export function BroadcastManager({
     }));
   }
 
-  function updateCamera(id: string, field: "label" | "url" | "b_roll" | "zoom" | "crop_x" | "crop_y", value: string | number | boolean) {
+  function updateCamera(id: string, field: "label" | "url" | "b_roll" | "digital_pan" | "zoom" | "crop_x" | "crop_y", value: string | number | boolean) {
     setForm((current) => ({
       ...current,
       camera_sources: current.camera_sources.map((source) => source.id === id ? { ...source, [field]: value } : source),
@@ -561,6 +562,7 @@ export function BroadcastManager({
                   </span>
                 </label>
                 <label><input type="checkbox" checked={source.b_roll ?? false} disabled={loading} onChange={(event) => updateCamera(source.id, "b_roll", event.target.checked)} /> B-roll insert</label>
+                <label><input type="checkbox" checked={source.digital_pan ?? false} disabled={loading} onChange={(event) => updateCamera(source.id, "digital_pan", event.target.checked)} /> Smooth digital pan</label>
                 {([ ["zoom", "Zoom", 1, 4, 0.1], ["crop_x", "Horizontal centre (%)", 0, 100, 1], ["crop_y", "Vertical centre (%)", 0, 100, 1] ] as const).map(([field, label, min, max, step]) => (
                   <label key={field}>{label}<input aria-label={`${source.label} ${label}`} type="number" disabled={loading} min={min} max={max} step={step} value={source[field] ?? (field === "zoom" ? 1 : 50)} onChange={(event) => updateCamera(source.id, field, Math.max(min, Math.min(max, Number(event.target.value))))} /></label>
                 ))}
@@ -588,7 +590,7 @@ export function BroadcastManager({
                 </button>
                 {testingCameraId === source.id ? (
                   <div className="broadcast-source-test broadcast-camera-test">
-                    <div className="broadcast-camera-crop" style={{ transform: `scale(${source.zoom ?? 1})`, transformOrigin: `${source.crop_x ?? 50}% ${source.crop_y ?? 50}%` }}><LowLatencyCamera label={`${source.label} test preview`} url={source.url} /></div>
+                    <CameraFraming source={source}><LowLatencyCamera label={`${source.label} test preview`} url={source.url} /></CameraFraming>
                   </div>
                 ) : null}
               </article>
@@ -599,6 +601,13 @@ export function BroadcastManager({
         </section>
         <section className="wide-field broadcast-camera-settings" aria-label="PTZ cruise">
           <strong>Physical ONVIF cruise</strong>
+          <p className="muted-copy">Use Sample left/right before going live to choose a fresh room angle, then leave the motor stopped and enable Smooth digital pan on that camera. Sampling is disabled while broadcasting.</p>
+          {(["left", "right"] as const).map((direction) => <button key={direction} type="button" disabled={loading || cruiseBusy} onClick={async () => {
+            setCruiseBusy(true);
+            try { setCruiseStatus(await samplePtzAngle(direction)); setMessage("New angle sampled; camera stopped. Check the preview."); }
+            catch (error) { setMessage(error instanceof Error ? error.message : "Could not sample camera angle."); }
+            finally { setCruiseBusy(false); }
+          }}>Sample {direction}</button>)}
           <p role="status">{cruiseStatus?.error ?? (cruiseStatus?.running ? "Cruise controller running — check the preview for physical movement." : cruiseStatus ? "Cruise stopped." : "Reading cruise status…")}</p>
           <p className="muted-copy">Physical pan with timed reversals. This Imou ignores speeds below about 0.125; its lowest working speed may still be too fast for gentle B-roll. Start while watching the preview. Cruise runs independently of B-roll switching and stops on API restart.</p>
           <label>Pan speed<input aria-label="Cruise speed" type="number" min={0.005} max={0.2} step={0.005} value={cruiseSpeed} onChange={(event) => setCruiseSpeed(Number(event.target.value))} /></label>

@@ -643,6 +643,7 @@ export interface BroadcastCameraSource {
   url: string;
   dwell_seconds?: number | null;
   b_roll?: boolean;
+  digital_pan?: boolean;
   zoom?: number;
   crop_x?: number;
   crop_y?: number;
@@ -1930,4 +1931,8 @@ export function controlPtzCruise(enabled: boolean, speed: number, sweep_seconds:
 
 export function getPtzCruiseStatus() {
   return getJson<{ running: boolean; error: string | null }>("/api/v1/broadcast/ptz/cruise");
+}
+
+export function samplePtzAngle(direction: "left" | "right") {
+  return sendJson<{ running: boolean; error: string | null }>("/api/v1/broadcast/ptz/sample", "POST", { direction });
 }

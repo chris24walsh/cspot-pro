@@ -1,3 +1,4 @@
+import { CameraFraming } from "./CameraFraming";
 import { withCountdownTiming } from "../countdown";
 import { Maximize2, Radio, Settings2 } from "lucide-react";
 import type { CSSProperties } from "react";
@@ -487,9 +488,9 @@ export function ServiceBroadcastView({ canControl = false, onOpenSettings }: { c
                     className={`service-broadcast-camera-layer ${source.id === activeCameraId ? "is-active" : ""}`}
                     key={source.id}
                   >
-                    <div className="broadcast-camera-crop" style={{ transform: `scale(${source.zoom ?? 1})`, transformOrigin: `${source.crop_x ?? 50}% ${source.crop_y ?? 50}%` }}>
+                    <CameraFraming source={source} startedAt={settings.camera_cycle_started_at}>
                       <LowLatencyCamera label={`${source.label} camera`} url={source.url} />
-                    </div>
+                    </CameraFraming>
                     <span className="service-broadcast-camera-label">{source.label}</span>
                   </div>
                 ))}
