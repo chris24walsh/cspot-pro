@@ -186,3 +186,21 @@ tailscale serve off
 - This is safer than exposing the app directly on the public internet.
 - If you later want public hosting, harden the auth/session story further and
   then consider a public reverse proxy, cloud host, or Tailscale Funnel.
+
+## Production ONVIF access to the church
+
+`apps-host` accepts Tailscale subnet routes (`sudo tailscale set --accept-routes=true`).
+The church PC `DESKTOP-F8JCJEV` advertises `192.168.4.0/24`; it must remain online
+for the API to reach the Imou at `192.168.4.14:80`. ONVIF authentication and
+continuous-pan discovery were verified from the production API container.
+
+The home LAN is also advertised by another Tailscale peer. To keep local camera
+relay traffic direct, `/etc/systemd/system/cspot-local-lan-routing.service` installs
+priority-5200 rules looking up the main routing table for the local IPv4 subnet
+and IPv6 prefix, ahead of Tailscale's priority-5270 rule. The service is enabled
+at boot; its source is `deploy/network/cspot-local-lan-routing.service`.
+
+Verify with `ip route get 192.168.4.14` (Tailscale) and
+`ip route get 192.168.2.208` (eth0). To undo, first run
+`sudo tailscale set --accept-routes=false`, then
+`sudo systemctl disable --now cspot-local-lan-routing.service`.

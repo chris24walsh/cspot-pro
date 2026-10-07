@@ -1,0 +1,16 @@
+[Unit]
+Description=Keep apps-host home LAN direct when accepting Tailscale subnet routes
+After=network-online.target
+Wants=network-online.target
+Before=tailscaled.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/bin/ip -4 rule add priority 5200 to 192.168.2.0/24 lookup main
+ExecStart=/usr/bin/ip -6 rule add priority 5200 to fd0a:447d:c9a4:7930::/64 lookup main
+ExecStop=/usr/bin/ip -4 rule del priority 5200 to 192.168.2.0/24 lookup main
+ExecStop=/usr/bin/ip -6 rule del priority 5200 to fd0a:447d:c9a4:7930::/64 lookup main
+
+[Install]
+WantedBy=multi-user.target
