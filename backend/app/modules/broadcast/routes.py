@@ -12,6 +12,7 @@ import anyio
 import requests
 from fastapi import APIRouter, Depends, Header, HTTPException, Response, status
 from fastapi.responses import FileResponse, StreamingResponse
+from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -1532,3 +1533,34 @@ def update_viewer_settings(
     result = settings_read(settings)
     reconcile_audio_sources(independent_sources)
     return result
+
+
+class PTZCruiseRequest(BaseModel):
+    enabled: bool
+    speed: float = Field(default=0.03, ge=0.005, le=0.2)
+    sweep_seconds: int = Field(default=30, ge=5, le=120)
+
+
+@router.get("/ptz/cruise")
+def ptz_cruise_status(_user: User = Depends(require_permission("broadcast:use"))):
+    from app.modules.broadcast.ptz import cruise
+    return cruise.status()
+
+
+@router.post("/ptz/cruise")
+def control_ptz_cruise(
+    payload: PTZCruiseRequest,
+    _user: User = Depends(require_permission("broadcast:use")),
+):
+    from app.modules.broadcast.ptz import cruise
+    with cruise.lock:
+        try:
+            if payload.enabled:
+                cruise.start(payload.speed, payload.sweep_seconds)
+            else:
+                cruise.stop()
+        except Exception as exc:
+            detail = (str(exc) if isinstance(exc, ValueError)
+                      else "Could not communicate with ONVIF camera")
+            raise HTTPException(status_code=422, detail=detail) from exc
+    return cruise.status()

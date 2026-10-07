@@ -642,6 +642,10 @@ export interface BroadcastCameraSource {
   label: string;
   url: string;
   dwell_seconds?: number | null;
+  b_roll?: boolean;
+  zoom?: number;
+  crop_x?: number;
+  crop_y?: number;
 }
 
 export interface BroadcastAudioSource {
@@ -1918,4 +1922,8 @@ export function getPublicRecording(token: string) {
 export function publicRecordingAssetUrl(path: string) {
   const suffix = path.startsWith("/api/") ? path.slice(4) : path;
   return buildApiUrl(suffix.startsWith("/") ? suffix : `/${suffix}`);
+}
+
+export function controlPtzCruise(enabled: boolean, speed: number, sweep_seconds: number) {
+  return sendJson<{ running: boolean; error: string | null }>("/api/v1/broadcast/ptz/cruise", "POST", { enabled, speed, sweep_seconds });
 }

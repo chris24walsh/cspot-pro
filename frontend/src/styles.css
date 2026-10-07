@@ -13676,3 +13676,8 @@ button.musician-page {
     grid-template-columns: 30px minmax(0, 1fr) 30px minmax(64px, 100px) auto 30px;
   }
 }
+
+.broadcast-camera-crop { width: 100%; height: 100%; }
+.broadcast-camera-crop > .service-broadcast-camera-player,
+.broadcast-camera-crop > .service-broadcast-camera-media { height: 100%; }
+.service-broadcast-camera-layer, .broadcast-camera-test { overflow: hidden; }

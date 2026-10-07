@@ -487,7 +487,9 @@ export function ServiceBroadcastView({ canControl = false, onOpenSettings }: { c
                     className={`service-broadcast-camera-layer ${source.id === activeCameraId ? "is-active" : ""}`}
                     key={source.id}
                   >
-                    <LowLatencyCamera label={`${source.label} camera`} url={source.url} />
+                    <div className="broadcast-camera-crop" style={{ transform: `scale(${source.zoom ?? 1})`, transformOrigin: `${source.crop_x ?? 50}% ${source.crop_y ?? 50}%` }}>
+                      <LowLatencyCamera label={`${source.label} camera`} url={source.url} />
+                    </div>
                     <span className="service-broadcast-camera-label">{source.label}</span>
                   </div>
                 ))}

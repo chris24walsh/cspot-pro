@@ -10,6 +10,10 @@ class BroadcastCameraSource(BaseModel):
     label: str = Field(min_length=1, max_length=120)
     url: str = Field(min_length=1, max_length=2000)
     dwell_seconds: int | None = Field(default=None, ge=1, le=3600)
+    b_roll: bool = False
+    zoom: float = Field(default=1, ge=1, le=4)
+    crop_x: float = Field(default=50, ge=0, le=100)
+    crop_y: float = Field(default=50, ge=0, le=100)
 
 
 class BroadcastAudioSource(BaseModel):

@@ -1,3 +1,4 @@
+import { controlPtzCruise } from "../api";
 import { Archive, CircleStop, ExternalLink, Headphones, Mic, MicOff, MonitorPlay, Play, Plus, Radio, RotateCcw, Save, X } from "lucide-react";
 import { type FormEvent, useEffect, useRef, useState } from "react";
 
@@ -93,6 +94,9 @@ export function BroadcastManager({
 }) {
   const { confirm, confirmationDialog } = useConfirmationDialog();
   const [form, setForm] = useState<BroadcastViewerSettings>(EMPTY_SETTINGS);
+  const [cruiseSpeed, setCruiseSpeed] = useState(0.03);
+  const [cruiseSweep, setCruiseSweep] = useState(30);
+  const [cruiseBusy, setCruiseBusy] = useState(false);
   const baselineRef = useRef<BroadcastViewerSettings>(EMPTY_SETTINGS);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -288,7 +292,7 @@ export function BroadcastManager({
     }));
   }
 
-  function updateCamera(id: string, field: "label" | "url", value: string) {
+  function updateCamera(id: string, field: "label" | "url" | "b_roll" | "zoom" | "crop_x" | "crop_y", value: string | number | boolean) {
     setForm((current) => ({
       ...current,
       camera_sources: current.camera_sources.map((source) => source.id === id ? { ...source, [field]: value } : source),
@@ -543,6 +547,11 @@ export function BroadcastManager({
                     <span>sec</span>
                   </span>
                 </label>
+                <label><input type="checkbox" checked={source.b_roll ?? false} disabled={loading} onChange={(event) => updateCamera(source.id, "b_roll", event.target.checked)} /> B-roll insert</label>
+                {([ ["zoom", "Zoom", 1, 4, 0.1], ["crop_x", "Horizontal centre (%)", 0, 100, 1], ["crop_y", "Vertical centre (%)", 0, 100, 1] ] as const).map(([field, label, min, max, step]) => (
+                  <label key={field}>{label}<input aria-label={`${source.label} ${label}`} type="number" disabled={loading} min={min} max={max} step={step} value={source[field] ?? (field === "zoom" ? 1 : 50)} onChange={(event) => updateCamera(source.id, field, Math.max(min, Math.min(max, Number(event.target.value))))} /></label>
+                ))}
+                <button disabled={loading || !source.url || form.camera_sources.length >= 8} type="button" className="text-button" onClick={() => setForm((current) => ({ ...current, camera_sources: [...current.camera_sources, { ...source, id: `camera-${Date.now()}`, label: `${source.label} close-up`, zoom: 2, b_roll: true, dwell_seconds: 2 }] }))}>Add close-up</button>
                 <button
                   aria-pressed={testingCameraId === source.id}
                   className="text-button icon-text-button"
@@ -566,13 +575,26 @@ export function BroadcastManager({
                 </button>
                 {testingCameraId === source.id ? (
                   <div className="broadcast-source-test broadcast-camera-test">
-                    <LowLatencyCamera label={`${source.label} test preview`} url={source.url} />
+                    <div className="broadcast-camera-crop" style={{ transform: `scale(${source.zoom ?? 1})`, transformOrigin: `${source.crop_x ?? 50}% ${source.crop_y ?? 50}%` }}><LowLatencyCamera label={`${source.label} test preview`} url={source.url} /></div>
                   </div>
                 ) : null}
               </article>
             ))}
             {!form.camera_sources.length ? <p className="muted-copy">No camera sources configured.</p> : null}
+            <p className="muted-copy">B-roll returns to the selected main camera after each insert. Set insert dwell to 1–2 seconds; cycle time controls the main-view interval. Zoom and centre create a digital crop of the same feed.</p>
           </div>
+        </section>
+        <section className="wide-field broadcast-camera-settings" aria-label="PTZ cruise">
+          <strong>Slow ONVIF cruise</strong>
+          <p className="muted-copy">Continuous pan with eased reversals. Start while watching the camera preview and tune the speed for your camera. Cruise runs independently of B-roll switching and stops on API restart.</p>
+          <label>Pan speed<input aria-label="Cruise speed" type="number" min={0.005} max={0.2} step={0.005} value={cruiseSpeed} onChange={(event) => setCruiseSpeed(Number(event.target.value))} /></label>
+          <label>Seconds per sweep<input aria-label="Cruise sweep seconds" type="number" min={5} max={120} value={cruiseSweep} onChange={(event) => setCruiseSweep(Number(event.target.value))} /></label>
+          {[true, false].map((enabled) => <button key={String(enabled)} type="button" disabled={loading || cruiseBusy} onClick={async () => {
+            setCruiseBusy(true);
+            try { await controlPtzCruise(enabled, cruiseSpeed, cruiseSweep); setMessage(enabled ? "Slow cruise started." : "Cruise stopped."); }
+            catch (error) { setMessage(error instanceof Error ? error.message : "Could not control cruise."); }
+            finally { setCruiseBusy(false); }
+          }}>{enabled ? "Start slow cruise" : "Stop cruise"}</button>)}
         </section>
         <section className="wide-field broadcast-camera-settings broadcast-audio-settings" aria-label="Audio sources">
           <div className="broadcast-camera-settings-heading">

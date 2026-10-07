@@ -10,6 +10,30 @@ import {
 } from "./broadcastCamera";
 
 describe("broadcast camera helpers", () => {
+  it("returns to the main view between exact two-second B-roll inserts", () => {
+    const sources = [
+      { id: "front", label: "Front", url: "one" },
+      { id: "ptz", label: "Room", url: "two", b_roll: true, dwell_seconds: 2 },
+      { id: "close", label: "Close-up", url: "one", b_roll: true, dwell_seconds: 2 },
+    ];
+    const start = "2026-10-07T10:00:00Z";
+    const samples = Array.from({ length: 1200 }, (_, tick) => activeCameraIdAt(sources, "front", 30, start, Date.parse(start) + tick * 100));
+    const runs = samples.reduce<{ id: string | null; count: number }[]>((result, id) => {
+      const last = result[result.length - 1];
+      if (last?.id === id) last.count += 1;
+      else result.push({ id, count: 1 });
+      return result;
+    }, []);
+    expect(runs.filter((run) => run.id !== "front").length).toBeGreaterThan(1);
+    runs.slice(0, -1).forEach((run, index) => {
+      if (run.id !== "front") {
+        expect(run.count).toBe(20);
+        expect(runs[index - 1].id).toBe("front");
+        expect(runs[index + 1].id).toBe("front");
+      }
+    });
+    expect(activeCameraIdAt(sources, "front", 0, start, Date.parse(start) + 60000)).toBe("front");
+  });
   it("converts a proxied HLS camera into its low-latency websocket", () => {
     const url = "https://cspot.example/app/camera/api/stream.m3u8?src=lectern&video=h264&audio=aac";
     expect(go2RtcSourceName(url)).toBe("lectern");

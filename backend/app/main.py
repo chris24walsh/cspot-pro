@@ -27,7 +27,12 @@ async def lifespan(_app: FastAPI):
         viewer_settings = session.scalar(select(BroadcastViewerSettings).limit(1))
         configured_audio_sources = audio_sources(viewer_settings) if viewer_settings else []
     reconcile_audio_sources(configured_audio_sources)
-    yield
+    try:
+        yield
+    finally:
+        from app.modules.broadcast.ptz import cruise
+        with cruise.lock:
+            cruise.stop()
 
 
 def create_app() -> FastAPI:

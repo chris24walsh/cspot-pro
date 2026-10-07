@@ -350,3 +350,5 @@ Printout/Craft, and Game/Free Play. The teacher's board remains empty until they
 choose activities. Jonah is the first data-driven interactive story; teacher
 narration stays off the TV. Local short sounds require one initial TV gesture.
 Story authoring, full action-song backing media and PDF generation remain out of scope.
+
+Livestream camera sources support digital close-ups (zoom and horizontal/vertical centre) and optional B-roll inserts. With automation enabled, the selected main camera anchors each insert and returns after its exact configured dwell (typically 1–2 seconds), using the existing camera crossfade. Close-ups are viewer-side crops, not separately encoded or recorded streams. ONVIF slow cruise uses server-side PTZ_HOST, PTZ_PORT (default 80), PTZ_USERNAME and PTZ_PASSWORD. The controller discovers the media/PTZ profile, checks continuous movement support, refreshes a two-second motion lease, and eases pan reversals. It starts only on operator request and stops on shutdown; hardware speed fidelity must be checked on the camera.

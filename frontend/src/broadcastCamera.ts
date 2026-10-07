@@ -135,6 +135,20 @@ export function activeCameraIdAt(
   const startedAtMs = new Date(cycleStartedAt).getTime();
   if (!Number.isFinite(startedAtMs) || nowMs <= startedAtMs) return sources[configuredIndex].id;
 
+  const inserts = sources.filter((source) => source.b_roll && source.id !== sources[configuredIndex].id);
+  if (inserts.length) {
+    const timeline = inserts.flatMap((source) => [
+      { source: sources[configuredIndex], durationMs: cameraDwellMs(sources[configuredIndex], cycleSeconds, phase, `${cycleStartedAt}:${phase}:${source.id}`) },
+      { source, durationMs: (source.dwell_seconds ?? 2) * 1000 },
+    ]);
+    let positionMs = (nowMs - startedAtMs) % timeline.reduce((sum, entry) => sum + entry.durationMs, 0);
+    for (const entry of timeline) {
+      if (positionMs < entry.durationMs) return entry.source.id;
+      positionMs -= entry.durationMs;
+    }
+    return sources[configuredIndex].id;
+  }
+
   // Generate a short deterministic pattern and repeat it. This avoids walking
   // every historical camera change when automation has been enabled for days,
   // while keeping independently connected viewers on the same source.

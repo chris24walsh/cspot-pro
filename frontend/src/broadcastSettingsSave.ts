@@ -42,6 +42,10 @@ function cameraConfiguration(source: BroadcastCameraSource) {
     id: source.id,
     label: source.label,
     url: source.url,
+    ...(source.b_roll == null ? {} : { b_roll: source.b_roll }),
+    ...(source.zoom == null ? {} : { zoom: source.zoom }),
+    ...(source.crop_x == null ? {} : { crop_x: source.crop_x }),
+    ...(source.crop_y == null ? {} : { crop_y: source.crop_y }),
     ...(source.dwell_seconds == null ? {} : { dwell_seconds: source.dwell_seconds }),
   };
 }

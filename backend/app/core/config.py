@@ -27,6 +27,10 @@ class Settings(BaseSettings):
     website_editor_client_id: str | None = None
     website_editor_client_secret: str | None = None
     website_editor_handoff_seconds: int = 60
+    ptz_host: str | None = None
+    ptz_port: int = Field(default=80, ge=1, le=65535)
+    ptz_username: str = "admin"
+    ptz_password: str = ""
     camera_proxy_upstream: str | None = None
     smtp_host: str | None = None
     smtp_port: int = 587
