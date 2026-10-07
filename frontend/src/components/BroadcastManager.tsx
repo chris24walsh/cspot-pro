@@ -1,4 +1,4 @@
-import { controlPtzCruise } from "../api";
+import { controlPtzCruise, getPtzCruiseStatus } from "../api";
 import { Archive, CircleStop, ExternalLink, Headphones, Mic, MicOff, MonitorPlay, Play, Plus, Radio, RotateCcw, Save, X } from "lucide-react";
 import { type FormEvent, useEffect, useRef, useState } from "react";
 
@@ -94,9 +94,22 @@ export function BroadcastManager({
 }) {
   const { confirm, confirmationDialog } = useConfirmationDialog();
   const [form, setForm] = useState<BroadcastViewerSettings>(EMPTY_SETTINGS);
-  const [cruiseSpeed, setCruiseSpeed] = useState(0.03);
-  const [cruiseSweep, setCruiseSweep] = useState(30);
+  const [cruiseSpeed, setCruiseSpeed] = useState(0.13);
+  const [cruiseSweep, setCruiseSweep] = useState(5);
   const [cruiseBusy, setCruiseBusy] = useState(false);
+  const [cruiseStatus, setCruiseStatus] = useState<{ running: boolean; error: string | null } | null>(null);
+  useEffect(() => {
+    if (!canManage || activeTab !== "livestream") return;
+    let cancelled = false;
+    const refresh = () => void getPtzCruiseStatus().then((status) => {
+      if (!cancelled) setCruiseStatus(status);
+    }).catch(() => {
+      if (!cancelled) setCruiseStatus({ running: false, error: "Could not read cruise status" });
+    });
+    refresh();
+    const timer = window.setInterval(refresh, 2000);
+    return () => { cancelled = true; window.clearInterval(timer); };
+  }, [canManage, activeTab]);
   const baselineRef = useRef<BroadcastViewerSettings>(EMPTY_SETTINGS);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -585,16 +598,17 @@ export function BroadcastManager({
           </div>
         </section>
         <section className="wide-field broadcast-camera-settings" aria-label="PTZ cruise">
-          <strong>Slow ONVIF cruise</strong>
-          <p className="muted-copy">Continuous pan with eased reversals. Start while watching the camera preview and tune the speed for your camera. Cruise runs independently of B-roll switching and stops on API restart.</p>
+          <strong>Physical ONVIF cruise</strong>
+          <p role="status">{cruiseStatus?.error ?? (cruiseStatus?.running ? "Cruise controller running — check the preview for physical movement." : cruiseStatus ? "Cruise stopped." : "Reading cruise status…")}</p>
+          <p className="muted-copy">Physical pan with timed reversals. This Imou ignores speeds below about 0.125; its lowest working speed may still be too fast for gentle B-roll. Start while watching the preview. Cruise runs independently of B-roll switching and stops on API restart.</p>
           <label>Pan speed<input aria-label="Cruise speed" type="number" min={0.005} max={0.2} step={0.005} value={cruiseSpeed} onChange={(event) => setCruiseSpeed(Number(event.target.value))} /></label>
           <label>Seconds per sweep<input aria-label="Cruise sweep seconds" type="number" min={5} max={120} value={cruiseSweep} onChange={(event) => setCruiseSweep(Number(event.target.value))} /></label>
           {[true, false].map((enabled) => <button key={String(enabled)} type="button" disabled={loading || cruiseBusy} onClick={async () => {
             setCruiseBusy(true);
-            try { await controlPtzCruise(enabled, cruiseSpeed, cruiseSweep); setMessage(enabled ? "Slow cruise started." : "Cruise stopped."); }
+            try { setCruiseStatus(await controlPtzCruise(enabled, cruiseSpeed, cruiseSweep)); setMessage(enabled ? "Physical cruise started; check the camera preview." : "Cruise stopped."); }
             catch (error) { setMessage(error instanceof Error ? error.message : "Could not control cruise."); }
             finally { setCruiseBusy(false); }
-          }}>{enabled ? "Start slow cruise" : "Stop cruise"}</button>)}
+          }}>{enabled ? "Start physical cruise" : "Stop cruise"}</button>)}
         </section>
         <section className="wide-field broadcast-camera-settings broadcast-audio-settings" aria-label="Audio sources">
           <div className="broadcast-camera-settings-heading">

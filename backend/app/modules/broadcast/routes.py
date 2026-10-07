@@ -1537,8 +1537,8 @@ def update_viewer_settings(
 
 class PTZCruiseRequest(BaseModel):
     enabled: bool
-    speed: float = Field(default=0.03, ge=0.005, le=0.2)
-    sweep_seconds: int = Field(default=30, ge=5, le=120)
+    speed: float = Field(default=0.13, ge=0.005, le=0.2)
+    sweep_seconds: int = Field(default=5, ge=5, le=120)
 
 
 @router.get("/ptz/cruise")

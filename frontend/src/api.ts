@@ -1927,3 +1927,7 @@ export function publicRecordingAssetUrl(path: string) {
 export function controlPtzCruise(enabled: boolean, speed: number, sweep_seconds: number) {
   return sendJson<{ running: boolean; error: string | null }>("/api/v1/broadcast/ptz/cruise", "POST", { enabled, speed, sweep_seconds });
 }
+
+export function getPtzCruiseStatus() {
+  return getJson<{ running: boolean; error: string | null }>("/api/v1/broadcast/ptz/cruise");
+}
