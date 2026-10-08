@@ -13682,7 +13682,7 @@ button.musician-page {
 .broadcast-camera-crop > .service-broadcast-camera-media { height: 100%; }
 .service-broadcast-camera-layer, .broadcast-camera-test { overflow: hidden; }
 
-.broadcast-camera-crop.has-digital-pan { animation: broadcast-digital-pan 60s ease-in-out infinite alternate; }
+.broadcast-camera-crop.has-digital-pan { animation: broadcast-digital-pan 30s ease-in-out infinite alternate; }
 @keyframes broadcast-digital-pan {
   from { transform-origin: var(--pan-from); }
   to { transform-origin: var(--pan-to); }

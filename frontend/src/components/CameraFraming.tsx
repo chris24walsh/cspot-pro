@@ -15,7 +15,7 @@ export function CameraFraming({ source, children, startedAt }: {
     transformOrigin: `${x}% ${y}%`,
     "--pan-from": `${Math.max(0, x - 25)}% ${y}%`,
     "--pan-to": `${Math.min(100, x + 25)}% ${y}%`,
-    animationDelay: `-${((mountedAt - (Number.isFinite(anchor) ? anchor : 0)) / 1000) % 120}s`,
+    animationDelay: `-${((mountedAt - (Number.isFinite(anchor) ? anchor : 0)) / 1000) % 60}s`,
   } as CSSProperties;
   return <div className={`broadcast-camera-crop ${source.digital_pan ? "has-digital-pan" : ""}`} style={style}>{children}</div>;
 }
