@@ -1925,14 +1925,14 @@ export function publicRecordingAssetUrl(path: string) {
   return buildApiUrl(suffix.startsWith("/") ? suffix : `/${suffix}`);
 }
 
-export function controlPtzCruise(enabled: boolean, speed: number, sweep_seconds: number) {
-  return sendJson<{ running: boolean; error: string | null }>("/api/v1/broadcast/ptz/cruise", "POST", { enabled, speed, sweep_seconds });
+export function controlPtzCruise(enabled: boolean, speed: number, sweep_seconds: number, camera_id = "default") {
+  return sendJson<{ running: boolean; error: string | null }>("/api/v1/broadcast/ptz/cruise", "POST", { enabled, speed, sweep_seconds, camera_id });
 }
 
-export function getPtzCruiseStatus() {
-  return getJson<{ running: boolean; error: string | null }>("/api/v1/broadcast/ptz/cruise");
+export function getPtzCruiseStatus(cameraId = "default") {
+  return getJson<{ running: boolean; error: string | null; devices: { id: string; label: string }[] }>(`/api/v1/broadcast/ptz/cruise?camera_id=${encodeURIComponent(cameraId)}`);
 }
 
-export function samplePtzAngle(direction: "left" | "right") {
-  return sendJson<{ running: boolean; error: string | null }>("/api/v1/broadcast/ptz/sample", "POST", { direction });
+export function samplePtzAngle(direction: "left" | "right", camera_id = "default") {
+  return sendJson<{ running: boolean; error: string | null }>("/api/v1/broadcast/ptz/sample", "POST", { direction, camera_id });
 }

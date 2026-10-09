@@ -30,9 +30,8 @@ async def lifespan(_app: FastAPI):
     try:
         yield
     finally:
-        from app.modules.broadcast.ptz import cruise
-        with cruise.lock:
-            cruise.stop()
+        from app.modules.broadcast.ptz import stop_cruises
+        stop_cruises()
 
 
 def create_app() -> FastAPI:

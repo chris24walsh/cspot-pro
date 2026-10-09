@@ -1,6 +1,8 @@
 """Server-owned ONVIF cruise; short command leases stop motion on process failure."""
 import base64
 import hashlib
+import json
+import logging
 import math
 import secrets
 import threading
@@ -15,7 +17,8 @@ from app.core.config import settings
 
 
 class Cruise:
-    def __init__(self):
+    def __init__(self, camera_id="default"):
+        self.camera_id = camera_id
         self.lock = threading.Lock()
         self.cancel = threading.Event()
         self.worker = None
@@ -23,18 +26,25 @@ class Cruise:
         self.endpoint = None
         self.profile = None
 
+    def connection(self):
+        if self.camera_id == "default":
+            return {"host": settings.ptz_host, "port": settings.ptz_port,
+                    "username": settings.ptz_username, "password": settings.ptz_password}
+        return camera_connections()[self.camera_id]
+
     def soap(self, endpoint, namespace, operation, content=""):
+        connection = self.connection()
         nonce = secrets.token_bytes(16)
         created = datetime.now(UTC).isoformat(timespec="seconds").replace("+00:00", "Z")
         digest = base64.b64encode(hashlib.sha1(
-            nonce + created.encode() + settings.ptz_password.encode()
+            nonce + created.encode() + connection["password"].encode()
         ).digest()).decode()
         wsse = "http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd"
         wsu = "http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-utility-1.0.xsd"
         body = f'''<s:Envelope xmlns:s="http://www.w3.org/2003/05/soap-envelope"
           xmlns:t="{namespace}" xmlns:tt="http://www.onvif.org/ver10/schema">
           <s:Header><ws:Security xmlns:ws="{wsse}" xmlns:u="{wsu}">
-          <ws:UsernameToken><ws:Username>{escape(settings.ptz_username)}</ws:Username>
+          <ws:UsernameToken><ws:Username>{escape(connection.get("username", "admin"))}</ws:Username>
           <ws:Password Type="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-username-token-profile-1.0#PasswordDigest">{digest}</ws:Password>
           <ws:Nonce EncodingType="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-soap-message-security-1.0#Base64Binary">{base64.b64encode(nonce).decode()}</ws:Nonce>
           <u:Created>{created}</u:Created></ws:UsernameToken></ws:Security></s:Header>
@@ -49,9 +59,12 @@ class Cruise:
         return root
 
     def discover(self):
-        if not settings.ptz_host or not settings.ptz_password:
+        connection = self.connection()
+        if not connection.get("host") or not connection.get("password"):
             raise ValueError("Configure PTZ_HOST, PTZ_USERNAME and PTZ_PASSWORD on the API server")
-        root = self.soap(f"http://{settings.ptz_host}:{settings.ptz_port}/onvif/device_service",
+        device_url = (f"http://{connection['host']}:{connection.get('port', 80)}"
+                      "/onvif/device_service")
+        root = self.soap(device_url,
                          "http://www.onvif.org/ver10/device/wsdl", "GetCapabilities",
                          "<t:Category>All</t:Category>")
         ns = "{http://www.onvif.org/ver10/schema}"
@@ -134,3 +147,54 @@ class Cruise:
 
 
 cruise = Cruise()
+
+
+_registry_lock = threading.Lock()
+_controllers = {"default": cruise}
+
+
+def camera_connections():
+    try:
+        devices = json.loads(getattr(settings, "ptz_cameras_json", "{}"))
+    except (ValueError, TypeError) as exc:
+        raise ValueError("PTZ_CAMERAS_JSON is invalid") from exc
+    if not isinstance(devices, dict):
+        raise ValueError("PTZ_CAMERAS_JSON must be an object keyed by camera ID")
+    for camera_id, config in devices.items():
+        if camera_id == "default" or not isinstance(config, dict):
+            raise ValueError("Additional PTZ cameras require unique IDs and connection objects")
+        if not all(isinstance(config.get(key), str) and config[key]
+                   for key in ("host", "password")):
+            raise ValueError("Additional PTZ cameras require a host and password")
+        if not isinstance(config.get("username", "admin"), str):
+            raise ValueError("PTZ camera username must be a string")
+        if not isinstance(config.get("port", 80), int) or not 1 <= config.get("port", 80) <= 65535:
+            raise ValueError("PTZ camera port must be between 1 and 65535")
+    return devices
+
+
+def ptz_devices():
+    return [{"id": "default", "label": "Original room PTZ"}] + [
+        {"id": camera_id, "label": config.get("label", camera_id)}
+        for camera_id, config in camera_connections().items() if camera_id != "default"
+    ]
+
+
+def get_cruise(camera_id="default"):
+    if camera_id != "default" and camera_id not in camera_connections():
+        raise ValueError("ONVIF camera is not configured")
+    with _registry_lock:
+        if camera_id not in _controllers:
+            _controllers[camera_id] = Cruise(camera_id)
+        return _controllers[camera_id]
+
+
+def stop_cruises():
+    with _registry_lock:
+        controllers = list(_controllers.values())
+    for controller in controllers:
+        with controller.lock:
+            try:
+                controller.stop()
+            except Exception:
+                logging.getLogger(__name__).warning("Could not confirm camera stop during shutdown")

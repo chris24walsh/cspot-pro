@@ -95,6 +95,8 @@ export function BroadcastManager({
 }) {
   const { confirm, confirmationDialog } = useConfirmationDialog();
   const [form, setForm] = useState<BroadcastViewerSettings>(EMPTY_SETTINGS);
+  const [ptzCameraId, setPtzCameraId] = useState("default");
+  const [ptzDevices, setPtzDevices] = useState<{ id: string; label: string }[]>([{ id: "default", label: "Original room PTZ" }]);
   const [cruiseSpeed, setCruiseSpeed] = useState(0.13);
   const [cruiseSweep, setCruiseSweep] = useState(5);
   const [cruiseBusy, setCruiseBusy] = useState(false);
@@ -102,15 +104,15 @@ export function BroadcastManager({
   useEffect(() => {
     if (!canManage || activeTab !== "livestream") return;
     let cancelled = false;
-    const refresh = () => void getPtzCruiseStatus().then((status) => {
-      if (!cancelled) setCruiseStatus(status);
+    const refresh = () => void getPtzCruiseStatus(ptzCameraId).then((status) => {
+      if (!cancelled) { setCruiseStatus(status); setPtzDevices(status.devices); }
     }).catch(() => {
       if (!cancelled) setCruiseStatus({ running: false, error: "Could not read cruise status" });
     });
     refresh();
     const timer = window.setInterval(refresh, 2000);
     return () => { cancelled = true; window.clearInterval(timer); };
-  }, [canManage, activeTab]);
+  }, [canManage, activeTab, ptzCameraId]);
   const baselineRef = useRef<BroadcastViewerSettings>(EMPTY_SETTINGS);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -601,10 +603,13 @@ export function BroadcastManager({
         </section>
         <section className="wide-field broadcast-camera-settings" aria-label="PTZ cruise">
           <strong>Physical ONVIF cruise</strong>
+          <label>PTZ device<select aria-label="PTZ device" value={ptzCameraId} disabled={cruiseBusy} onChange={(event) => { setPtzCameraId(event.target.value); setCruiseStatus(null); }}>
+            {ptzDevices.map((device) => <option key={device.id} value={device.id}>{device.label}</option>)}
+          </select></label>
           <p className="muted-copy">Use Sample left/right before going live to choose a fresh room angle, then leave the motor stopped and enable Smooth digital pan on that camera. Sampling is disabled while broadcasting.</p>
           {(["left", "right"] as const).map((direction) => <button key={direction} type="button" disabled={loading || cruiseBusy} onClick={async () => {
             setCruiseBusy(true);
-            try { setCruiseStatus(await samplePtzAngle(direction)); setMessage("New angle sampled; camera stopped. Check the preview."); }
+            try { setCruiseStatus(await samplePtzAngle(direction, ptzCameraId)); setMessage("New angle sampled; camera stopped. Check the preview."); }
             catch (error) { setMessage(error instanceof Error ? error.message : "Could not sample camera angle."); }
             finally { setCruiseBusy(false); }
           }}>Sample {direction}</button>)}
@@ -614,7 +619,7 @@ export function BroadcastManager({
           <label>Seconds per sweep<input aria-label="Cruise sweep seconds" type="number" min={5} max={120} value={cruiseSweep} onChange={(event) => setCruiseSweep(Number(event.target.value))} /></label>
           {[true, false].map((enabled) => <button key={String(enabled)} type="button" disabled={loading || cruiseBusy} onClick={async () => {
             setCruiseBusy(true);
-            try { setCruiseStatus(await controlPtzCruise(enabled, cruiseSpeed, cruiseSweep)); setMessage(enabled ? "Physical cruise started; check the camera preview." : "Cruise stopped."); }
+            try { setCruiseStatus(await controlPtzCruise(enabled, cruiseSpeed, cruiseSweep, ptzCameraId)); setMessage(enabled ? "Physical cruise started; check the camera preview." : "Cruise stopped."); }
             catch (error) { setMessage(error instanceof Error ? error.message : "Could not control cruise."); }
             finally { setCruiseBusy(false); }
           }}>{enabled ? "Start physical cruise" : "Stop cruise"}</button>)}

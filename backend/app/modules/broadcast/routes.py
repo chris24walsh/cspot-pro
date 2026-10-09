@@ -1536,15 +1536,27 @@ def update_viewer_settings(
 
 
 class PTZCruiseRequest(BaseModel):
+    camera_id: str = Field(default="default", min_length=1, max_length=80)
     enabled: bool
     speed: float = Field(default=0.13, ge=0.005, le=0.2)
     sweep_seconds: int = Field(default=5, ge=5, le=120)
 
 
 @router.get("/ptz/cruise")
-def ptz_cruise_status(_user: User = Depends(require_permission("broadcast:use"))):
-    from app.modules.broadcast.ptz import cruise
-    return cruise.status()
+def ptz_cruise_status(
+    camera_id: str = "default",
+    _user: User = Depends(require_permission("broadcast:use")),
+):
+    from app.modules.broadcast.ptz import ptz_devices
+    return {**resolve_ptz_cruise(camera_id).status(), "devices": ptz_devices()}
+
+
+def resolve_ptz_cruise(camera_id):
+    from app.modules.broadcast.ptz import get_cruise
+    try:
+        return get_cruise(camera_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
 
 
 @router.post("/ptz/cruise")
@@ -1552,7 +1564,7 @@ def control_ptz_cruise(
     payload: PTZCruiseRequest,
     _user: User = Depends(require_permission("broadcast:use")),
 ):
-    from app.modules.broadcast.ptz import cruise
+    cruise = resolve_ptz_cruise(payload.camera_id)
     with cruise.lock:
         try:
             if payload.enabled:
@@ -1567,6 +1579,7 @@ def control_ptz_cruise(
 
 
 class PTZSampleRequest(BaseModel):
+    camera_id: str = Field(default="default", min_length=1, max_length=80)
     direction: Literal["left", "right"]
 
 
@@ -1577,7 +1590,7 @@ def sample_ptz_angle(
     session: Session = Depends(get_session),
 ):
     import time
-    from app.modules.broadcast.ptz import cruise
+    cruise = resolve_ptz_cruise(payload.camera_id)
 
     settings = viewer_settings(session)
     if settings.manual_live_audience != "off" or live_output_exists(session):

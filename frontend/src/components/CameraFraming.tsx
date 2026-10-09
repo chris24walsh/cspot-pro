@@ -1,6 +1,8 @@
 import { useState, type CSSProperties, type ReactNode } from "react";
 import type { BroadcastCameraSource } from "../api";
 
+const PAN_LEG_SECONDS = 30 / 1.8;
+
 export function CameraFraming({ source, children, startedAt }: {
   source: BroadcastCameraSource;
   children: ReactNode;
@@ -15,7 +17,8 @@ export function CameraFraming({ source, children, startedAt }: {
     transformOrigin: `${x}% ${y}%`,
     "--pan-from": `${Math.max(0, x - 25)}% ${y}%`,
     "--pan-to": `${Math.min(100, x + 25)}% ${y}%`,
-    animationDelay: `-${((mountedAt - (Number.isFinite(anchor) ? anchor : 0)) / 1000) % 60}s`,
+    "--pan-leg-duration": `${PAN_LEG_SECONDS}s`,
+    animationDelay: `-${((mountedAt - (Number.isFinite(anchor) ? anchor : 0)) / 1000) % (PAN_LEG_SECONDS * 2)}s`,
   } as CSSProperties;
   return <div className={`broadcast-camera-crop ${source.digital_pan ? "has-digital-pan" : ""}`} style={style}>{children}</div>;
 }

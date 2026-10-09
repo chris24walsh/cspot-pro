@@ -71,3 +71,29 @@ def test_sample_stops_even_when_start_fails(monkeypatch):
     with pytest.raises(HTTPException):
         routes.sample_ptz_angle(routes.PTZSampleRequest(direction="right"), None, None)
     assert stopped == [True]
+
+
+def test_multiple_ptz_devices_are_isolated(monkeypatch):
+    import json
+    monkeypatch.setattr(ptz, "settings", SimpleNamespace(
+        ptz_cameras_json=json.dumps({"side": {"host": "new-camera", "password": "private", "label": "Side PTZ"}})))
+    monkeypatch.setattr(ptz, "_controllers", {"default": ptz.cruise})
+    side = ptz.get_cruise("side")
+    assert side is not ptz.cruise
+    assert ptz.get_cruise("side") is side
+    assert side.connection()["host"] == "new-camera"
+    assert ptz.ptz_devices() == [
+        {"id": "default", "label": "Original room PTZ"},
+        {"id": "side", "label": "Side PTZ"},
+    ]
+    with pytest.raises(ValueError, match="not configured"):
+        ptz.get_cruise("unknown")
+
+
+def test_invalid_device_configuration_does_not_expose_secrets(monkeypatch):
+    import json
+    monkeypatch.setattr(ptz, "settings", SimpleNamespace(
+        ptz_cameras_json=json.dumps({"side": {"password": "private-camera-password"}})))
+    with pytest.raises(ValueError) as error:
+        ptz.camera_connections()
+    assert "private-camera-password" not in str(error.value)
