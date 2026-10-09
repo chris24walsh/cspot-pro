@@ -760,7 +760,7 @@ export function SongEditorDialog({
                       </button>
                     </div>
                   </div>
-                  <label className="checkbox-pill">
+                  <label className="musician-transpose-option">
                     <input checked={transposeChordsOnKeyChange} disabled={!canEdit} onChange={(event) => setTransposeChordsOnKeyChange(event.target.checked)} type="checkbox" />
                     <span>Transpose chords when changing key</span>
                   </label>

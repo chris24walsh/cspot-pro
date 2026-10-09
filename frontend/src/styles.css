@@ -4473,6 +4473,21 @@ button.musician-page {
   min-width: 0;
 }
 
+.musician-transpose-option {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.musician-transpose-option input[type="checkbox"] {
+  accent-color: #245d4d;
+  flex: 0 0 18px;
+  width: 18px;
+  height: 18px;
+  margin: 0;
+}
+
 .musician-control-row {
   align-items: center;
   display: flex;
