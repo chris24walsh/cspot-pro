@@ -943,7 +943,9 @@ Search modes:
 - General suggestions exclude Advent, Christmas, Lent, and Easter categories.
   The empty-set category selector can request themed or musical subsets, while
   recent swap rejections apply a decaying penalty to future suggestions.
-- Changing a song's set key permanently transposes stored chord annotations;
+- Changing a song's set key defaults to permanently transposing stored chord
+  annotations. Unticking “Transpose chords when changing key” corrects key
+  metadata while preserving chord annotations and legacy chord text;
   capo (0–5) changes display metadata only. Song saves stay in the editor with
   explicit Saved/Unsaved state, and song archiving requires confirmation.
 - coherent modular monolith shape

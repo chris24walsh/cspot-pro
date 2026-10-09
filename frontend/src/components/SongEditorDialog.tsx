@@ -286,6 +286,7 @@ export function SongEditorDialog({
   useEscapeClose(true, onClose);
   const [youtubeSearchOpen, setYoutubeSearchOpen] = useState(false);
   const [tab, setTab] = useState<SongEditorTab>("lyrics");
+  const [transposeChordsOnKeyChange, setTransposeChordsOnKeyChange] = useState(true);
   const [form, setForm] = useState<SongForm>(() => formFromSong(song));
   const [chordChart, setChordChart] = useState<ChordChartDocument>(() => parseChordChart(song.chords, song.lyrics).document);
   const [legacyChords, setLegacyChords] = useState<string | null>(() => parseChordChart(song.chords, song.lyrics).legacyText);
@@ -331,6 +332,7 @@ export function SongEditorDialog({
     setChordChart(parsed.document);
     setLegacyChords(parsed.legacyText);
     setTab("lyrics");
+    setTransposeChordsOnKeyChange(true);
     setMessage(null);
     setPersistedSongId(mode === "edit" ? song.id : null);
     setLastSavedSong(song);
@@ -365,8 +367,8 @@ export function SongEditorDialog({
   }
 
   function updateAbsoluteKey(nextValue: string) {
-    setChordChart((current) => setChordChartAbsoluteKey(current, nextValue));
-    setLegacyChords(null);
+    setChordChart((current) => setChordChartAbsoluteKey(current, nextValue, { transposeChords: transposeChordsOnKeyChange }));
+    if (transposeChordsOnKeyChange) setLegacyChords(null);
   }
 
   function updateCapo(nextCapoValue: number) {
@@ -758,6 +760,11 @@ export function SongEditorDialog({
                       </button>
                     </div>
                   </div>
+                  <label className="checkbox-pill">
+                    <input checked={transposeChordsOnKeyChange} disabled={!canEdit} onChange={(event) => setTransposeChordsOnKeyChange(event.target.checked)} type="checkbox" />
+                    <span>Transpose chords when changing key</span>
+                  </label>
+                  <small className="field-help">Untick to correct the key without changing existing chords.</small>
                 </div>
               </div>
 

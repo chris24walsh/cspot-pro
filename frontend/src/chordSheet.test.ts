@@ -21,6 +21,29 @@ describe("normalizeKeySignature", () => {
 });
 
 describe("setChordChartAbsoluteKey", () => {
+  it("corrects the key without changing chord symbols or positions and persists the correction", () => {
+    const chart = {
+      ...createEmptyChordChart(),
+      absoluteKey: "C",
+      capo: 2,
+      annotations: [
+        { id: "one", section: "V1", lineIndex: 0, anchorIndex: 3, chord: "Dmaj7/F#" },
+        { id: "two", section: "C", lineIndex: 1, anchorIndex: 8, chord: "G" },
+      ],
+    };
+    const changed = setChordChartAbsoluteKey(chart, "D", { transposeChords: false });
+    expect(changed.annotations).toBe(chart.annotations);
+    expect(changed.absoluteKey).toBe("D");
+    expect(changed.capo).toBe(2);
+    expect(changed.capoKey).toBe("C");
+    expect(changed.keyAnchor).toBe("absolute");
+    const reloaded = parseChordChart(serializeChordChart(changed)).document;
+    expect(reloaded).toMatchObject({ absoluteKey: "D", capo: 2, capoKey: "C", keyAnchor: "absolute" });
+    expect(reloaded.annotations).toHaveLength(chart.annotations.length);
+    expect(reloaded.annotations).toEqual(expect.arrayContaining(chart.annotations));
+    expect(setChordChartAbsoluteKey(changed, "E").annotations.map((annotation) => annotation.chord)).toEqual(["Emaj7/G#", "A"]);
+  });
+
   it("permanently transposes stored chords without changing capo", () => {
     const chart = {
       ...createEmptyChordChart(),

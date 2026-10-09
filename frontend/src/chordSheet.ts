@@ -350,10 +350,14 @@ export function deriveAbsoluteKey(capoKey: string, capo: number) {
   return transposeNote(capoKey, capo, capoKey.includes("b"));
 }
 
-export function setChordChartAbsoluteKey(document: ChordChartDocument, value: string): ChordChartDocument {
+export function setChordChartAbsoluteKey(
+  document: ChordChartDocument,
+  value: string,
+  options: { transposeChords?: boolean } = {},
+): ChordChartDocument {
   const absoluteKey = normalizeKeySignature(value);
   const next: ChordChartDocument = { ...document, absoluteKey, keyAnchor: "absolute" };
-  if (absoluteKey && document.absoluteKey && absoluteKey !== document.absoluteKey) {
+  if (options.transposeChords !== false && absoluteKey && document.absoluteKey && absoluteKey !== document.absoluteKey) {
     next.annotations = transposeChordAnnotations(
       document.annotations,
       semitoneDistance(document.absoluteKey, absoluteKey),
