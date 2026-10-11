@@ -13702,3 +13702,8 @@ button.musician-page {
   from { transform-origin: var(--pan-from); }
   to { transform-origin: var(--pan-to); }
 }
+
+.live-pointer-layer { position: absolute; inset: 0; z-index: 30; pointer-events: none; }
+.live-pointer-layer.is-enabled { pointer-events: auto; cursor: crosshair; touch-action: none; }
+.live-pointer-dot { position: absolute; width: clamp(14px, 1.5vw, 26px); aspect-ratio: 1; border-radius: 50%; background: #ff3030; border: 2px solid white; box-shadow: 0 0 0 2px #a60000, 0 0 12px #ff3030; transform: translate(-50%, -50%); pointer-events: none; }
+.live-pointer-error { position: absolute; bottom: 4px; left: 4px; padding: 3px 6px; color: white; background: #8b2020; font-size: 12px; }

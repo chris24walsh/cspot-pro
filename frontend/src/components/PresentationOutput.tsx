@@ -1,3 +1,4 @@
+import { LivePointer } from "./LivePointer";
 import { countdownStartsForSelection, withCountdownTiming } from "../countdown";
 import { Maximize2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -727,6 +728,7 @@ export function PresentationOutput({ mediaOutput = false, networkDisplay = false
           liveState?.theme ?? "light"
         } ${liveSlide ? presentationTypeClass(liveSlide.itemType) : "type-generic"} ${blanked ? "stage-blanked" : ""}`}
       >
+        <LivePointer planId={liveState?.planId} slideId={liveSlide?.id} output blanked={blanked} />
         {blanked ? null : !liveSlide?.montageImageUrls && !liveSlide?.backgroundImageUrl && !liveSlide?.imageUrl && !liveSlide?.videoUrl && liveSlide?.itemType !== "song" ? (
           <div className="stage-title">
             <span>{liveSlide?.title ?? (mediaOutput ? "Church PC media receiver ready" : networkDisplay ? "TV display ready" : "Ready")}</span>

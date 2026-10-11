@@ -1936,3 +1936,19 @@ export function getPtzCruiseStatus(cameraId = "default") {
 export function samplePtzAngle(direction: "left" | "right", camera_id = "default") {
   return sendJson<{ running: boolean; error: string | null }>("/api/v1/broadcast/ptz/sample", "POST", { direction, camera_id });
 }
+
+export interface PresentationPointerState {
+  slide_id: string;
+  x: number;
+  y: number;
+  visible: boolean;
+  updated_at: number;
+}
+
+export function getPresentationPointer(planId: string) {
+  return getJson<PresentationPointerState | null>(`/api/v1/presentation/pointer/${planId}`);
+}
+
+export function updatePresentationPointer(planId: string, pointer: PresentationPointerState) {
+  return sendJson<PresentationPointerState>(`/api/v1/presentation/pointer/${planId}`, "PATCH", pointer);
+}

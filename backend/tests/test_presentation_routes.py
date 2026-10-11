@@ -1114,3 +1114,38 @@ def test_scheduler_never_starts_a_worship_set_plan() -> None:
         assert session.scalar(
             select(PresentationSession).where(PresentationSession.plan_id == plan.id)
         ) is None
+
+
+def test_pointer_updates_preserve_slide_state_and_expire() -> None:
+    from app.modules.presentation.routes import (
+        PresentationPointer, get_presentation_pointer, update_presentation_pointer,
+    )
+    from pydantic import ValidationError
+
+    engine = create_engine("sqlite://")
+    Base.metadata.create_all(engine)
+    with Session(engine) as session:
+        plan_type = PlanType(name="Pointer test", active=True)
+        session.add(plan_type)
+        session.flush()
+        plan = Plan(plan_type_id=plan_type.id, service_date=datetime.now(UTC), title="Test", status="draft")
+        session.add(plan)
+        session.flush()
+        live = PresentationSession(plan_id=plan.id, status="live")
+        session.add(live)
+        session.flush()
+        position = PresentationPosition(session_id=live.id, slide_index=3, payload_json=json.dumps({"index": 3, "blanked": False, "updated_at": 123}))
+        session.add(position)
+        session.commit()
+        pointer = PresentationPointer(slide_id="slide-3", x=0.25, y=0.75, visible=True)
+        update_presentation_pointer(plan.id, pointer, None, session)
+        assert get_presentation_pointer(plan.id, None, session).x == 0.25
+        data = json.loads(position.payload_json)
+        assert data["index"] == 3
+        assert data["updated_at"] == 123
+        data["pointer"]["updated_at"] = 1
+        position.payload_json = json.dumps(data)
+        session.commit()
+        assert get_presentation_pointer(plan.id, None, session) is None
+    with pytest.raises(ValidationError):
+        PresentationPointer(slide_id="slide-3", x=1.5, y=0.5)

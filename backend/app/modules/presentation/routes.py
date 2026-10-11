@@ -4,8 +4,8 @@ from threading import Lock, Timer
 from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel
-from sqlalchemy import case, func, select
+from pydantic import BaseModel, Field
+from sqlalchemy import case, func, select, update
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
@@ -75,6 +75,54 @@ class PresentationLiveStateWrite(BaseModel):
     service_stage: str = "ready"
     pre_service_phase: str | None = None
     worship_coupled: bool | None = None
+
+
+class PresentationPointer(BaseModel):
+    slide_id: str = Field(max_length=200)
+    x: float = Field(ge=0, le=1)
+    y: float = Field(ge=0, le=1)
+    visible: bool = False
+    updated_at: int = 0
+
+
+@router.get("/pointer/{plan_id}", response_model=PresentationPointer | None)
+def get_presentation_pointer(
+    plan_id: str,
+    _current_user: User = Depends(require_any_permission("plans:read", "presentation:use")),
+    session: Session = Depends(get_session),
+) -> PresentationPointer | None:
+    presentation_session = _latest_session(session, plan_id)
+    position = _latest_position(session, presentation_session.id) if presentation_session else None
+    pointer = _position_payload(position).get("pointer")
+    if not pointer or datetime.now(UTC).timestamp() * 1000 - pointer["updated_at"] > 2000:
+        return None
+    return PresentationPointer(**pointer)
+
+
+@router.patch("/pointer/{plan_id}", response_model=PresentationPointer)
+def update_presentation_pointer(
+    plan_id: str,
+    payload: PresentationPointer,
+    _current_user: User = Depends(require_permission("presentation:use")),
+    session: Session = Depends(get_session),
+) -> PresentationPointer:
+    presentation_session = _latest_session(session, plan_id)
+    position = _latest_position(session, presentation_session.id) if presentation_session else None
+    if position is None:
+        raise HTTPException(status_code=409, detail="Select a live slide before using the pointer")
+    data = _position_payload(position)
+    payload.updated_at = int(datetime.now(UTC).timestamp() * 1000)
+    data["pointer"] = payload.model_dump()
+    result = session.execute(
+        update(PresentationPosition)
+        .where(PresentationPosition.id == position.id, PresentationPosition.payload_json == position.payload_json)
+        .values(payload_json=json.dumps(data))
+    )
+    if result.rowcount != 1:
+        session.rollback()
+        raise HTTPException(status_code=409, detail="Live slide changed; retry pointer update")
+    session.commit()
+    return payload
 
 
 class PresentationOutputStatusRead(BaseModel):

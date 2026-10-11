@@ -1,3 +1,4 @@
+import { LivePointer } from "./LivePointer";
 import { countdownStartsForSelection, withCountdownTiming } from "../countdown";
 import { shiftClock, templateServiceStart, welcomeLeadSeconds } from "../serviceTiming";
 import { Archive, CircleStop, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Clock, EyeOff, Layers3, Mic, MonitorUp, Moon, Pause, Pencil, Play, Plus, RotateCcw, Search, Trash2, Volume2, WandSparkles, X } from "lucide-react";
@@ -823,6 +824,7 @@ export function PresentationView({
   const thumbnailRefs = useRef<Record<string, HTMLButtonElement | null>>({});
   const sorterSectionRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const sectionRailRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const [pointerEnabled, setPointerEnabled] = useState(false);
   const currentLiveStateRef = useRef<PresentationLiveState | null>(null);
   const lastLiveStateRef = useRef<number>(0);
   const livePollInFlightRef = useRef(false);
@@ -4716,10 +4718,12 @@ export function PresentationView({
                   />
                   <span aria-hidden="true">B</span>
                 </label>
+                <label className="stage-toggle-switch" title="Point on the live slide by moving over this preview"><span className="stage-toggle-label">Pointer</span><input aria-label="Enable live pointer" checked={pointerEnabled} onChange={(event) => setPointerEnabled(event.target.checked)} type="checkbox" /><span className="stage-theme-slider" aria-hidden="true" /></label>
                 <span className="stage-slide-counter">{stageSlideCounter}</span>
               </div>
             </div>
             <div className={`presentation-stage ${liveSlide?.montageImageUrls || liveSlide?.backgroundImageUrl || liveSlide?.imageUrl || liveSlide?.videoUrl ? "presentation-stage-image" : ""} ${liveBlanked ? "stage-preview-blanked" : ""}`}>
+              <LivePointer planId={plan?.id} slideId={liveSlide?.id} enabled={pointerEnabled} blanked={liveBlanked} />
               {liveBlanked ? null : liveSlide?.montageImageUrls || liveSlide?.backgroundImageUrl || liveSlide?.imageUrl || liveSlide?.videoUrl || liveSlide?.itemType === "song" || liveSlide?.itemType === "reading" ? null : (
                 <div className="stage-title">
                   <span>{liveSlide?.title ?? "Ready"}</span>
