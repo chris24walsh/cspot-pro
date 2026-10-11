@@ -13735,3 +13735,5 @@ button.musician-page {
 /* Compact presenter controls must remain above the touch drawing surface. */
 .stage-shell-live .stage-meta { z-index: 40; }
 .live-pointer-clear { top: auto; right: auto; bottom: 8px; left: 50%; transform: translateX(-50%); }
+/* The lens samples the selected slide, not a frozen halfway transition. */
+.live-pointer-magnifier .slide-visual-transition { opacity: 1 !important; transform: none !important; }
