@@ -77,7 +77,13 @@ class PresentationLiveStateWrite(BaseModel):
     worship_coupled: bool | None = None
 
 
+class PresentationPointerPoint(BaseModel):
+    x: float = Field(ge=0, le=1)
+    y: float = Field(ge=0, le=1)
+
+
 class PresentationPointer(BaseModel):
+    strokes: list[list[PresentationPointerPoint]] = Field(default_factory=list, max_length=50)
     slide_id: str = Field(max_length=200)
     x: float = Field(ge=0, le=1)
     y: float = Field(ge=0, le=1)
@@ -108,6 +114,8 @@ def update_presentation_pointer(
 ) -> PresentationPointer:
     presentation_session = _latest_session(session, plan_id)
     position = _latest_position(session, presentation_session.id) if presentation_session else None
+    if sum(len(stroke) for stroke in payload.strokes) > 5000:
+        raise HTTPException(status_code=422, detail="Too many highlighter points")
     if position is None:
         raise HTTPException(status_code=409, detail="Select a live slide before using the pointer")
     data = _position_payload(position)

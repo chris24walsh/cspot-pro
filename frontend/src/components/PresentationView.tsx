@@ -4688,16 +4688,6 @@ export function PresentationView({
                   />
                   <span className="stage-theme-slider" aria-hidden="true" />
                 </label>
-                <label className="stage-theme-switch stage-toggle-switch" title="Toggle slide theme">
-                  <span className="stage-toggle-label" data-short="D"><Moon size={13} aria-hidden="true" />Dark</span>
-                  <input
-                    aria-label="Use dark slide theme"
-                    checked={slideTheme === "dark"}
-                    onChange={(event) => setSlideTheme(event.target.checked ? "dark" : "light")}
-                    type="checkbox"
-                  />
-                  <span className="stage-theme-slider" aria-hidden="true" />
-                </label>
                 <label className="stage-recording-switch stage-toggle-switch" title="Show sermon recording controls">
                   <span className="stage-toggle-label" data-short="R"><Mic size={13} aria-hidden="true" />Recording</span>
                   <input
@@ -4718,7 +4708,7 @@ export function PresentationView({
                   />
                   <span aria-hidden="true">B</span>
                 </label>
-                <label className="stage-toggle-switch" title="Point on the live slide by moving over this preview"><span className="stage-toggle-label">Pointer</span><input aria-label="Enable live pointer" checked={pointerEnabled} onChange={(event) => setPointerEnabled(event.target.checked)} type="checkbox" /><span className="stage-theme-slider" aria-hidden="true" /></label>
+                <label className="stage-toggle-switch" title="Move to point; click and drag to highlight the live slide"><span className="stage-toggle-label">Pointer</span><input aria-label="Enable live pointer" checked={pointerEnabled} onChange={(event) => setPointerEnabled(event.target.checked)} type="checkbox" /><span className="stage-theme-slider" aria-hidden="true" /></label>
                 <span className="stage-slide-counter">{stageSlideCounter}</span>
               </div>
             </div>

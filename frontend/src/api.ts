@@ -1938,6 +1938,7 @@ export function samplePtzAngle(direction: "left" | "right", camera_id = "default
 }
 
 export interface PresentationPointerState {
+  strokes?: Array<Array<{ x: number; y: number }>>;
   slide_id: string;
   x: number;
   y: number;
