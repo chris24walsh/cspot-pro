@@ -1,7 +1,7 @@
 import { LivePointer } from "./LivePointer";
 import { countdownStartsForSelection, withCountdownTiming } from "../countdown";
 import { shiftClock, templateServiceStart, welcomeLeadSeconds } from "../serviceTiming";
-import { Archive, CircleStop, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Clock, EyeOff, Layers3, Mic, MonitorUp, Moon, Pause, Pencil, Play, Plus, RotateCcw, Search, Trash2, Volume2, WandSparkles, X } from "lucide-react";
+import { Archive, CircleStop, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Clock, EyeOff, Layers3, Mic, MonitorUp, MousePointer2, Pause, Pencil, Play, Plus, RotateCcw, Search, Trash2, Volume2, WandSparkles, X } from "lucide-react";
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
@@ -4708,7 +4708,7 @@ export function PresentationView({
                   />
                   <span aria-hidden="true">B</span>
                 </label>
-                <label className="stage-toggle-switch" title="Move to point; click and drag to highlight the live slide"><span className="stage-toggle-label">Pointer</span><input aria-label="Enable live pointer" checked={pointerEnabled} onChange={(event) => setPointerEnabled(event.target.checked)} type="checkbox" /><span className="stage-theme-slider" aria-hidden="true" /></label>
+                <label className="stage-pointer-switch stage-toggle-switch" title="Move or tap to point; drag to highlight the live slide"><span className="stage-toggle-label"><MousePointer2 size={13} aria-hidden="true" />Pointer</span><input aria-label="Enable live pointer" checked={pointerEnabled} onChange={(event) => setPointerEnabled(event.target.checked)} type="checkbox" /><span className="stage-theme-slider" aria-hidden="true" /></label>
                 <span className="stage-slide-counter">{stageSlideCounter}</span>
               </div>
             </div>

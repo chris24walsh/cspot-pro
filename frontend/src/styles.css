@@ -13711,3 +13711,12 @@ button.musician-page {
 .live-pointer-dot { width: clamp(28px, 3vw, 54px); background: rgba(255, 220, 0, .15); border: 3px solid #ffe000; box-shadow: 0 0 0 2px #222, 0 0 10px rgba(255, 220, 0, .65); }
 .live-highlighter { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
 .live-highlighter polyline { fill: none; stroke: #ffe000; stroke-width: 16; stroke-linecap: round; stroke-linejoin: round; opacity: .5; }
+
+.live-pointer-layer.is-enabled { user-select: none; -webkit-user-select: none; }
+.live-pointer-clear { position: absolute; top: 6px; right: 6px; min-height: 44px; padding: 6px 12px; color: white; background: rgba(24, 24, 24, .85); border: 1px solid #aaa; border-radius: 5px; cursor: pointer; pointer-events: auto; }
+.live-pointer-clear:disabled { opacity: .5; cursor: default; }
+
+.stage-pointer-switch:focus-within { outline: 2px solid #ffe000; outline-offset: 2px; }
+@media (pointer: coarse) {
+  .stage-shell-live .stage-pointer-switch { min-width: 44px; min-height: 44px; }
+}
