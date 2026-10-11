@@ -5,8 +5,6 @@ from urllib.parse import urljoin, urlsplit
 from app.core.config import settings as app_settings
 from app.modules.broadcast.models import BroadcastViewerSettings
 from app.modules.broadcast.settings import (
-    audio_sources,
-    effective_audio_source,
     selected_camera_url,
     selected_independent_audio_sources,
 )
@@ -39,27 +37,8 @@ def audio_mix_inputs(settings: BroadcastViewerSettings) -> list[AudioMixInput]:
 
 
 def live_audio_mix_inputs(settings: BroadcastViewerSettings) -> list[AudioMixInput]:
-    """Keep every configured input open so its level can change at runtime."""
-    independent = [
-        source
-        for source in audio_sources(settings)
-        if source.url.strip().startswith(("http://", "https://"))
-    ]
-    if not independent:
-        return audio_mix_inputs(settings)
-    selected = effective_audio_source(settings, [], independent)
-    return [
-        AudioMixInput(
-            source_id=source.id,
-            url=source.url.strip(),
-            gain_db=(
-                source.gain_db
-                if (selected == "mix" and source.mix_enabled) or selected == source.id
-                else -120
-            ),
-        )
-        for source in independent
-    ]
+    """Open only on-air feeds: an offline muted input must not block playback."""
+    return audio_mix_inputs(settings)
 
 
 def audio_mix_signature(inputs: list[AudioMixInput]) -> tuple[tuple[str, str, float], ...]:

@@ -296,7 +296,7 @@ def test_enabled_independent_sources_are_combined_with_saved_gain() -> None:
     assert "alimiter=limit=0.95" in filter_graph
 
 
-def test_live_audio_keeps_muted_inputs_connected_for_runtime_control() -> None:
+def test_live_audio_excludes_off_air_inputs_and_keeps_runtime_gain_control() -> None:
     settings_row = BroadcastViewerSettings(
         stream_title="Service",
         audio_sources_json=json.dumps(
@@ -312,10 +312,22 @@ def test_live_audio_keeps_muted_inputs_connected_for_runtime_control() -> None:
     command = ffmpeg_live_mix_command(inputs, control_port=23456)
     filter_graph = command[command.index("-filter_complex") + 1]
 
-    assert [(item.source_id, item.gain_db) for item in inputs] == [("room", -120), ("desk", 3)]
-    assert "volume@input0=-120dB" in filter_graph
-    assert "volume@input1=3dB" in filter_graph
+    assert [(item.source_id, item.gain_db) for item in inputs] == [("desk", 3)]
+    assert "http://audio/room" not in command
+    assert "volume@input0=3dB" in filter_graph
     assert "azmq=b=tcp\\\\://127.0.0.1\\\\:23456" in filter_graph
+
+
+def test_live_audio_mix_excludes_disabled_feeds() -> None:
+    settings_row = BroadcastViewerSettings(
+        stream_title="Service",
+        audio_sources_json=json.dumps([
+            {"id": "desk", "label": "Desk", "url": "http://audio/desk", "mix_enabled": True},
+            {"id": "offline", "label": "Offline", "url": "http://offline/feed", "mix_enabled": False},
+        ]),
+        live_audio_source="mix",
+    )
+    assert [item.source_id for item in live_audio_mix_inputs(settings_row)] == ["desk"]
 
 
 def test_live_audio_declares_low_latency_mp3_inputs() -> None:

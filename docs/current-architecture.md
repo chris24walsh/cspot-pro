@@ -654,9 +654,9 @@ edge. Known MP3 bridge inputs use explicit demuxing and minimal input probing;
 without that, FFmpeg opens and analyzes live inputs sequentially and can add
 several seconds of latency for every source in a mix. Camera MSE playback uses
 the same live-edge correction policy. Both
-routes' FFmpeg filter graphs accept runtime gain and mute commands, so
-compatible mixer changes reach an existing browser stream without reconnecting
-it. Cancelling the fragmented stream aborts the request and reaps its FFmpeg
+routes open only the selected on-air inputs so an unavailable off-air feed cannot
+block a healthy desk feed. Viewer audio reconnects when the selected input IDs
+change; gain changes use runtime commands without reconnecting the stream. Cancelling the fragmented stream aborts the request and reaps its FFmpeg
 process, and the database connection is released before streaming begins. The
 same raw upstream remains available to the sermon-recording pipeline. The
 administrator's per-source Listen preview uses the normalized transport as well

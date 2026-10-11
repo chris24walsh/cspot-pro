@@ -12,7 +12,6 @@ import {
   getPlans,
   getPresentationLiveState,
   getSongs,
-  broadcastLiveAudioUrl,
   sendLivestreamHeartbeat,
   updateBroadcastViewerSettings,
   type BroadcastViewerSettings,
@@ -168,7 +167,7 @@ export function ServiceBroadcastView({ canControl = false, onOpenSettings }: { c
   const liveAudioUrl = (
     (isMobileOrTabletDevice() || isFirefoxDevice())
     && (settings.live_audio_source === "mix" || Boolean(selectedIndependentAudio))
-  ) ? broadcastLiveAudioUrl() : resolvedLiveAudioUrl;
+  ) ? resolvedLiveAudioUrl?.replace("/live-audio.mp4", "/live-audio") ?? null : resolvedLiveAudioUrl;
   const textFontCap = suggestedSlideFontCap(liveSlide);
 
   useEffect(() => {

@@ -31,7 +31,11 @@ export function resolveBroadcastLiveAudioUrl({
   liveAudioStreamName: string | null;
 }) {
   if (liveAudioSource === "mix" || audioSources.some((source) => source.id === liveAudioSource)) {
-    return broadcastLiveAudioMseUrl();
+    const selectedIds = audioSources
+      .filter((source) => liveAudioSource === "mix" ? source.mix_enabled : source.id === liveAudioSource)
+      .map((source) => source.id);
+    // Reconnect when upstream feeds change. Gains remain live controls.
+    return `${broadcastLiveAudioMseUrl()}?sources=${encodeURIComponent(JSON.stringify(selectedIds))}`;
   }
 
   const camera = cameraSources.find((source) => source.id === liveAudioSource);

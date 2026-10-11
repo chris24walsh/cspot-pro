@@ -48,7 +48,19 @@ describe("broadcast audio routing", () => {
       cameraSources: [],
       liveAudioSource: "mix",
       liveAudioStreamName: "opaque-media-stream",
-    })).toBe("/api/v1/broadcast/live-audio.mp4");
+    })).toBe(`/api/v1/broadcast/live-audio.mp4?sources=${encodeURIComponent('["pc-media"]')}`);
+  });
+
+  it("reconnects when on-air feeds change but preserves the stream for gain changes", () => {
+    const desk = source("desk", "desk", true);
+    const room = source("room", "room", false);
+    const resolve = (sources: BroadcastAudioSource[], selected = "mix") => resolveBroadcastLiveAudioUrl({
+      audioSources: sources, cameraSources: [], liveAudioSource: selected, liveAudioStreamName: null,
+    });
+    const initial = resolve([desk, room]);
+    expect(resolve([{ ...desk, gain_db: -12 }, room])).toBe(initial);
+    expect(resolve([desk, { ...room, mix_enabled: true }])).not.toBe(initial);
+    expect(resolve([desk, room], "room")).not.toBe(initial);
   });
 
   it("keeps relay fallback and direct camera audio routing", () => {
@@ -57,13 +69,13 @@ describe("broadcast audio routing", () => {
       cameraSources: [],
       liveAudioSource: "mix",
       liveAudioStreamName: null,
-    })).toBe("/api/v1/broadcast/live-audio.mp4");
+    })).toBe(`/api/v1/broadcast/live-audio.mp4?sources=${encodeURIComponent('["desk","room"]')}`);
     expect(resolveBroadcastLiveAudioUrl({
       audioSources: [source("desk", "desk", false)],
       cameraSources: [],
       liveAudioSource: "desk",
       liveAudioStreamName: "opaque-desk-stream",
-    })).toBe("/api/v1/broadcast/live-audio.mp4");
+    })).toBe(`/api/v1/broadcast/live-audio.mp4?sources=${encodeURIComponent('["desk"]')}`);
     expect(resolveBroadcastLiveAudioUrl({
       audioSources: [],
       cameraSources: [{ id: "lectern", label: "Lectern", url: "/camera/stream.html?src=lectern&mode=mse" }],
