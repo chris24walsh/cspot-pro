@@ -1,3 +1,4 @@
+import { SlideMagnifier } from "./SlideMagnifier";
 import { useEffect, useRef, useState } from "react";
 import { getPresentationPointer, updatePresentationPointer, type PresentationPointerState } from "../api";
 
@@ -165,7 +166,7 @@ export function LivePointer({ planId, slideId, enabled = false, output = false, 
   const visible = active && pointer?.visible;
   return <div ref={layer} className={`live-pointer-layer ${enabled && !blanked && !output ? "is-enabled" : ""}`}>
     {active && pointer?.strokes?.length ? <svg className="live-highlighter" viewBox="0 0 1000 1000" preserveAspectRatio="none" aria-hidden="true">{pointer.strokes.map((stroke, index) => <polyline key={index} points={stroke.map((point) => `${point.x * 1000},${point.y * 1000}`).join(" ")} />)}</svg> : null}
-    {visible ? <span className="live-pointer-dot" style={{ left: `${pointer.x * 100}%`, top: `${pointer.y * 100}%` }} /> : null}
+    {visible ? <SlideMagnifier x={pointer.x} y={pointer.y} /> : null}
     {enabled && !output && !blanked ? <button className="live-pointer-clear" type="button" disabled={!active || !pointer?.strokes?.length} onClick={() => clearHighlights.current()} title="Clear highlights on this slide">Clear highlights</button> : null}
     {error && enabled ? <span className="live-pointer-error" role="status">Pointer could not reach live output</span> : null}
   </div>;

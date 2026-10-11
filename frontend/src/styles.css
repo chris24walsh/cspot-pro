@@ -13705,18 +13705,33 @@ button.musician-page {
 
 .live-pointer-layer { position: absolute; inset: 0; z-index: 30; pointer-events: none; }
 .live-pointer-layer.is-enabled { pointer-events: auto; cursor: crosshair; touch-action: none; }
-.live-pointer-dot { position: absolute; width: clamp(14px, 1.5vw, 26px); aspect-ratio: 1; border-radius: 50%; background: #ff3030; border: 2px solid white; box-shadow: 0 0 0 2px #a60000, 0 0 12px #ff3030; transform: translate(-50%, -50%); pointer-events: none; }
+.live-pointer-dot { position: absolute; aspect-ratio: 1; border-radius: 50%; transform: translate(-50%, -50%); pointer-events: none; }
 .live-pointer-error { position: absolute; bottom: 4px; left: 4px; padding: 3px 6px; color: white; background: #8b2020; font-size: 12px; }
 
-.live-pointer-dot { width: clamp(28px, 3vw, 54px); background: rgba(255, 220, 0, .15); border: 3px solid #ffe000; box-shadow: 0 0 0 2px #222, 0 0 10px rgba(255, 220, 0, .65); }
+
 .live-highlighter { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
-.live-highlighter polyline { fill: none; stroke: #ffe000; stroke-width: 16; stroke-linecap: round; stroke-linejoin: round; opacity: .5; }
+.live-highlighter polyline { fill: none; stroke: #ffe000; stroke-width: 36; stroke-linecap: round; stroke-linejoin: round; opacity: .5; }
 
 .live-pointer-layer.is-enabled { user-select: none; -webkit-user-select: none; }
 .live-pointer-clear { position: absolute; top: 6px; right: 6px; min-height: 44px; padding: 6px 12px; color: white; background: rgba(24, 24, 24, .85); border: 1px solid #aaa; border-radius: 5px; cursor: pointer; pointer-events: auto; }
 .live-pointer-clear:disabled { opacity: .5; cursor: default; }
 
-.stage-pointer-switch:focus-within { outline: 2px solid #ffe000; outline-offset: 2px; }
-@media (pointer: coarse) {
-  .stage-shell-live .stage-pointer-switch { min-width: 44px; min-height: 44px; }
+
+/* Pointer state stays visible in both the desktop toolbar and compact controls. */
+.stage-pointer-button { display: inline-flex; align-items: center; justify-content: center; gap: 5px; min-height: 32px; padding: 4px 8px; border: 1px solid #a3aca8; border-radius: 6px; background: #f2f4f3; color: #20302a; cursor: pointer; font-size: 11px; }
+.stage-pointer-button strong { padding: 2px 4px; border-radius: 4px; background: #d5dad7; color: #20302a; }
+.stage-pointer-button.is-active { border-color: #ffe000; background: #20302a; color: #fff; }
+.stage-pointer-button.is-active strong { background: #ffe000; color: #20302a; }
+.stage-pointer-button:focus-visible { outline: 2px solid #ffe000; outline-offset: 2px; }
+.live-pointer-magnifier { display: block; width: 24%; min-width: 90px; max-width: 280px; background: #202322; overflow: hidden; box-sizing: content-box; border: 3px solid #ffe000; box-shadow: 0 2px 16px #0009; }
+@media (max-width: 1100px) {
+  .stage-shell-live .stage-pointer-button { flex-direction: column; gap: 2px; padding: 5px; }
+  .stage-shell-live .stage-pointer-button > span { display: none; }
 }
+@media (pointer: coarse) { .stage-pointer-button { min-width: 44px; min-height: 44px; } }
+
+.live-pointer-magnifier.is-video { width: 12%; min-width: 64px; max-width: 140px; background: rgba(255, 220, 0, .1); }
+.live-pointer-magnifier.is-video > * { display: none; }
+/* Compact presenter controls must remain above the touch drawing surface. */
+.stage-shell-live .stage-meta { z-index: 40; }
+.live-pointer-clear { top: auto; right: auto; bottom: 8px; left: 50%; transform: translateX(-50%); }

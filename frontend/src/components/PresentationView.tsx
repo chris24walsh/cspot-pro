@@ -4708,7 +4708,7 @@ export function PresentationView({
                   />
                   <span aria-hidden="true">B</span>
                 </label>
-                <label className="stage-pointer-switch stage-toggle-switch" title="Move or tap to point; drag to highlight the live slide"><span className="stage-toggle-label"><MousePointer2 size={13} aria-hidden="true" />Pointer</span><input aria-label="Enable live pointer" checked={pointerEnabled} onChange={(event) => setPointerEnabled(event.target.checked)} type="checkbox" /><span className="stage-theme-slider" aria-hidden="true" /></label>
+                <button className={`stage-pointer-button ${pointerEnabled ? "is-active" : ""}`} aria-label="Live pointer" aria-pressed={pointerEnabled} onClick={() => setPointerEnabled((current) => !current)} title="Move or tap to magnify; drag to highlight the live slide" type="button"><MousePointer2 size={15} aria-hidden="true" /><span>Pointer</span><strong>{pointerEnabled ? "On" : "Off"}</strong></button>
                 <span className="stage-slide-counter">{stageSlideCounter}</span>
               </div>
             </div>
