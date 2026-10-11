@@ -71,6 +71,11 @@ change where practical:
   to the `apps-host` production host.
 - Production source checkout: `/srv/apps/cspot`.
 - Production Compose project: `/srv/apps/infra/cspot-pro`.
+- `apps-host` is reachable over Tailscale at `100.108.106.116`. Use
+  `tailscale status` to identify hosts and their current addresses. If the
+  `apps-host` SSH alias resolves to an unreachable LAN address, connect with
+  `ssh -o Hostname=100.108.106.116 -o HostKeyAlias=192.168.2.63 apps-host`
+  to retain the configured user, identity, and existing trusted LAN host key.
 - Deploy `main` with:
   `ssh apps-host 'cd /srv/apps/cspot && git pull --ff-only origin main && cd /srv/apps/infra/cspot-pro && docker compose up -d --build api web db && docker compose ps api web db'`.
 - Confirm the push succeeds before deploying, and report any failed push, build,
