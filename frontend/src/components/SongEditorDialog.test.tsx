@@ -23,6 +23,8 @@ it("lets the user toggle off transposition and save a corrected key with the sam
     act(() => Array.from(container.querySelectorAll("button")).find((button) => button.textContent === "Chords")!.click());
     const toggle = container.querySelector<HTMLButtonElement>('[aria-label="Transpose chords when changing key"]')!;
     expect(toggle.closest(".musician-key-row")).not.toBeNull();
+    expect(toggle.closest(".song-editor-tab-toolbar")?.querySelector(".tab-row")).not.toBeNull();
+    expect(toggle.closest(".musician-tools")).toBeNull();
     expect(toggle.getAttribute("aria-pressed")).toBe("true");
     act(() => toggle.click());
     expect(toggle.getAttribute("aria-pressed")).toBe("false");

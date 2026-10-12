@@ -369,6 +369,7 @@ key (or derives it from the capo key and position), and is shown in library rows
 In the song editor Chords tab, switch off the transpose icon beside Key and Capo
 to correct the saved key while preserving chord symbols and positions.
 The capo stays unchanged and its derived key follows the corrected song key.
+Chord controls sit beside the editor tabs on desktop and directly below on mobile.
 
 Sermon recording follows the live service session, including scheduled services
 without a separate output window. Short automatic captures remain recoverable

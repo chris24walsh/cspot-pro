@@ -13781,3 +13781,92 @@ button.musician-page {
 .pointer-zoom-option { display: flex; align-items: center; justify-content: space-between; min-height: 36px; cursor: pointer; }
 .pointer-zoom-option input { width: 20px; height: 20px; accent-color: #20302a; }
 .live-pointer-ring { display: block; width: clamp(28px, 3vw, 54px); background: rgba(255, 220, 0, .12); border: 3px solid #ffe000; box-shadow: 0 0 0 2px #222; }
+
+/* Keep chord controls beside the tabs and reserve panel height for editing. */
+.song-editor-tab-toolbar {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+  justify-content: space-between;
+  margin-top: 8px;
+}
+
+.song-editor-tab-toolbar .tab-row {
+  flex: 0 0 auto;
+  margin: 0;
+}
+
+.song-editor-tab-toolbar .musician-key-row {
+  background: none;
+  border: 0;
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 6px;
+  padding: 0;
+}
+
+.song-editor-tab-toolbar .compact-field {
+  align-items: center;
+  display: flex;
+  gap: 5px;
+}
+
+.song-editor-tab-toolbar .musician-key-field select {
+  width: 72px;
+}
+
+.song-editor-tab-toolbar .musician-capo-field select {
+  width: 52px;
+}
+
+.song-editor-dialog .musician-tools {
+  grid-template-columns: minmax(0, 1fr) 120px;
+  grid-template-rows: minmax(0, 1fr) auto;
+}
+
+.song-editor-dialog .musician-chord-summary {
+  align-self: start;
+}
+
+.song-editor-dialog .musician-tools > .field-help {
+  grid-column: 1 / -1;
+  margin: 0;
+}
+
+@media (max-width: 900px) {
+  .song-editor-tab-toolbar {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .song-editor-tab-toolbar .tab-row {
+    align-self: flex-start;
+  }
+
+  .song-editor-tab-toolbar .musician-key-row {
+    justify-content: flex-start;
+  }
+
+  .song-editor-tab-toolbar .musician-chord-actions {
+    margin-left: auto;
+  }
+
+  .song-editor-dialog .musician-tools {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .song-editor-dialog .musician-chord-summary {
+    display: none;
+  }
+}
+
+@media (max-width: 699px) {
+  .song-editor-tab-toolbar .musician-key-field select {
+    width: 60px;
+  }
+
+  .song-editor-tab-toolbar .musician-capo-field select {
+    width: 40px;
+  }
+}

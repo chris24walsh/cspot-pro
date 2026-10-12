@@ -660,12 +660,47 @@ export function SongEditorDialog({
             </div>
           </div>
           {message ? <p className="form-message">{message}</p> : null}
-          <div className="tab-row" role="tablist" aria-label="Song editor sections">
-            {(["lyrics", "details", "chords"] as const).map((nextTab) => (
-              <button className={`tab-button ${tab === nextTab ? "active" : ""}`} key={nextTab} onClick={() => setTab(nextTab)} type="button">
-                {nextTab[0].toUpperCase() + nextTab.slice(1)}
-              </button>
-            ))}
+          <div className="song-editor-tab-toolbar">
+            <div className="tab-row" role="tablist" aria-label="Song editor sections">
+              {(["lyrics", "details", "chords"] as const).map((nextTab) => (
+                <button className={`tab-button ${tab === nextTab ? "active" : ""}`} key={nextTab} onClick={() => setTab(nextTab)} type="button">
+                  {nextTab[0].toUpperCase() + nextTab.slice(1)}
+                </button>
+              ))}
+            </div>
+            {tab === "chords" ? (
+              <div className="musician-control-row musician-key-row">
+                <label className="compact-field musician-key-field">
+                  Key
+                  <select disabled={!canEdit} onChange={(event) => updateAbsoluteKey(event.target.value)} value={chordChart.absoluteKey ?? ""}>
+                    <option value="">Unset</option>
+                    {MUSICAL_KEYS.map((keyOption) => <option key={keyOption} value={keyOption}>{keyOption}</option>)}
+                  </select>
+                </label>
+                <label className="compact-field musician-capo-field">Capo<select disabled={!canEdit} onChange={(event) => updateCapo(Number(event.target.value))} value={chordChart.capo}>{[0, 1, 2, 3, 4, 5].map((capo) => <option key={capo} value={capo}>{capo}</option>)}</select></label>
+                <button
+                  aria-label="Transpose chords when changing key"
+                  aria-pressed={transposeChordsOnKeyChange}
+                  className={`section-icon-button musician-transpose-toggle ${transposeChordsOnKeyChange ? "is-active" : ""}`}
+                  disabled={!canEdit}
+                  onClick={() => setTransposeChordsOnKeyChange((enabled) => !enabled)}
+                  title={transposeChordsOnKeyChange ? "Transpose chords when changing key: on. Click to preserve existing chords." : "Transpose chords when changing key: off. Click to transpose existing chords."}
+                  type="button"
+                >
+                  <ArrowRightLeft size={15} aria-hidden="true" />
+                </button>
+                <div className="musician-chord-actions">
+                  <button aria-label="Copy verse chords" className="text-button musician-copy-verse-button" disabled={!canEdit || lineAnnotations.length === 0} onClick={copyVerseChords} title="Copy verse chords" type="button">
+                    <Copy size={14} aria-hidden="true" />
+                    <span>Copy verse chords</span>
+                  </button>
+                  <button aria-label="Clear all chords" className="danger-button musician-clear-chords-button" disabled={!canEdit || (!lineAnnotations.length && !legacyChords)} onClick={() => void clearAllChords()} title="Clear all chords" type="button">
+                    <Trash2 size={14} aria-hidden="true" />
+                    <span>Clear all chords</span>
+                  </button>
+                </div>
+              </div>
+            ) : null}
           </div>
         </div>
 
@@ -735,45 +770,6 @@ export function SongEditorDialog({
 
           {tab === "chords" ? (
             <section className="musician-tools" aria-label="Chord editor">
-              <div className="musician-chord-editor-bar">
-                <div className="musician-chord-summary">
-                  <GuitarChordDiagram chord={activeDisplayedChord} shapeMode="standard" />
-                </div>
-                <div className="musician-toolbar">
-                  <div className="musician-control-row musician-key-row">
-                    <label className="compact-field musician-key-field">
-                      Key
-                      <select disabled={!canEdit} onChange={(event) => updateAbsoluteKey(event.target.value)} value={chordChart.absoluteKey ?? ""}>
-                        <option value="">Unset</option>
-                        {MUSICAL_KEYS.map((keyOption) => <option key={keyOption} value={keyOption}>{keyOption}</option>)}
-                      </select>
-                    </label>
-                    <label className="compact-field musician-capo-field">Capo<select disabled={!canEdit} onChange={(event) => updateCapo(Number(event.target.value))} value={chordChart.capo}>{[0, 1, 2, 3, 4, 5].map((capo) => <option key={capo} value={capo}>{capo}</option>)}</select></label>
-                    <button
-                      aria-label="Transpose chords when changing key"
-                      aria-pressed={transposeChordsOnKeyChange}
-                      className={`section-icon-button musician-transpose-toggle ${transposeChordsOnKeyChange ? "is-active" : ""}`}
-                      disabled={!canEdit}
-                      onClick={() => setTransposeChordsOnKeyChange((enabled) => !enabled)}
-                      title={transposeChordsOnKeyChange ? "Transpose chords when changing key: on. Click to preserve existing chords." : "Transpose chords when changing key: off. Click to transpose existing chords."}
-                      type="button"
-                    >
-                      <ArrowRightLeft size={15} aria-hidden="true" />
-                    </button>
-                    <div className="musician-chord-actions">
-                      <button aria-label="Copy verse chords" className="text-button musician-copy-verse-button" disabled={!canEdit || lineAnnotations.length === 0} onClick={copyVerseChords} title="Copy verse chords" type="button">
-                        <Copy size={14} aria-hidden="true" />
-                        <span>Copy verse chords</span>
-                      </button>
-                      <button aria-label="Clear all chords" className="danger-button musician-clear-chords-button" disabled={!canEdit || (!lineAnnotations.length && !legacyChords)} onClick={() => void clearAllChords()} title="Clear all chords" type="button">
-                        <Trash2 size={14} aria-hidden="true" />
-                        <span>Clear all chords</span>
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
               <div className="musician-chart-panel" ref={chordChartPanelRef}>
                 {lines.length ? (
                   <div className="musician-preview">
@@ -885,6 +881,9 @@ export function SongEditorDialog({
                 ) : (
                   <p className="field-help">Add lyrics first, then place chord annotations over individual words without changing the lyric text.</p>
                 )}
+              </div>
+              <div className="musician-chord-summary">
+                <GuitarChordDiagram chord={activeDisplayedChord} shapeMode="standard" />
               </div>
               {legacyChords ? <p className="field-help">Legacy chord text will be preserved when this song is saved.</p> : null}
             </section>

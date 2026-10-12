@@ -947,7 +947,9 @@ Search modes:
 - Changing a song's set key defaults to permanently transposing stored chord
   annotations. Switching off the transpose icon beside Key and Capo corrects key
   metadata while preserving chord annotations and legacy chord text;
-  capo (0–5) changes display metadata only. Song saves stay in the editor with
+  capo (0–5) changes display metadata only. Chord controls share the tab row
+  on desktop and sit directly below it on mobile, leaving the panel height for
+  editing; the guitar diagram sits beside the panel on desktop. Song saves stay in the editor with
   explicit Saved/Unsaved state, and song archiving requires confirmation.
 - coherent modular monolith shape
 - container-first local development
