@@ -1,12 +1,51 @@
 from typing import Literal
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 class StrumPattern(BaseModel):
+    name: str = Field(default="", max_length=80)
     section: Literal["Default", "Verse", "Chorus", "Bridge"] = "Default"
     subdivision: Literal[1, 2] = 2
     strokes: list[Literal["D", "U", "-", "X"]] = Field(max_length=24)
+
+
+class SongBarChart(BaseModel):
+    section: str = Field(min_length=1, max_length=80)
+    chart: str = Field(max_length=8000)
+
+
+class RhythmPresetCreate(BaseModel):
+    kind: Literal["meter", "strum"]
+    name: str = Field(min_length=1, max_length=80)
+    numerator: int = Field(ge=1, le=12)
+    denominator: Literal[2, 4, 8, 16]
+    subdivision: Literal[1, 2] | None = None
+    strokes: list[Literal["D", "U", "-", "X"]] | None = Field(default=None, max_length=24)
+
+    @field_validator("name")
+    @classmethod
+    def trim_name(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("Give the preset a name")
+        return value.strip()
+
+    @model_validator(mode="after")
+    def validate_preset(self) -> "RhythmPresetCreate":
+        if self.kind == "strum":
+            if (
+                not self.subdivision
+                or not self.strokes
+                or len(self.strokes) != self.numerator * self.subdivision
+            ):
+                raise ValueError("A strum preset must fill exactly one bar")
+        elif self.strokes is not None or self.subdivision is not None:
+            raise ValueError("Meter presets contain only the time signature")
+        return self
+
+
+class RhythmPresetRead(RhythmPresetCreate):
+    id: str
 
 
 class SongRhythm(BaseModel):
@@ -14,6 +53,8 @@ class SongRhythm(BaseModel):
     denominator: Literal[2, 4, 8, 16]
     patterns: list[StrumPattern] = Field(default_factory=list, max_length=4)
     notes: str = Field(default="", max_length=500)
+    bpm: int = Field(default=90, ge=30, le=240)
+    arrangements: list[SongBarChart] = Field(default_factory=list, max_length=64)
 
     @model_validator(mode="after")
     def validate_patterns(self) -> "SongRhythm":
@@ -25,6 +66,11 @@ class SongRhythm(BaseModel):
                 raise ValueError(
                     "Strumming pattern must fill exactly one bar of the selected meter"
                 )
+        chart_sections = [entry.section.strip().casefold() for entry in self.arrangements]
+        if len(chart_sections) != len(set(chart_sections)) or any(
+            not name for name in chart_sections
+        ):
+            raise ValueError("Each song part may have only one bar chart")
         return self
 
 

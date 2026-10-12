@@ -17,6 +17,7 @@ import {
   resolveChordAnnotations,
   serializeChordChart,
   setChordChartAbsoluteKey,
+  semitoneDistance,
   TRAILING_CHORD_ANCHORS,
   transposeChordSymbol,
   upsertChordAnnotation,
@@ -27,6 +28,8 @@ import {
   type ChordDetailMode,
   type ChordDisplayMode,
 } from "../chordSheet";
+import { normalizeSongRhythm } from "../songRhythm";
+import { parseBarChart, transposeBarCharts } from "../musicPractice";
 import { canonicalizeWorshipLyrics, normalizeWorshipSequence } from "../worshipText";
 import { useConfirmationDialog } from "./ConfirmationDialog";
 import { SongRhythmEditor } from "./SongRhythmEditor";
@@ -120,7 +123,7 @@ function normalizeForm(form: SongForm, chords: string | null): SongForm {
     author: form.author || null,
     lyrics,
     chords,
-    rhythm: form.rhythm ?? null,
+    rhythm: normalizeSongRhythm(form.rhythm),
     ccli_number: form.ccli_number || null,
     book_reference: form.book_reference || null,
     license: form.license || null,
@@ -371,7 +374,10 @@ export function SongEditorDialog({
 
   function updateAbsoluteKey(nextValue: string) {
     setChordChart((current) => setChordChartAbsoluteKey(current, nextValue, { transposeChords: transposeChordsOnKeyChange }));
-    if (transposeChordsOnKeyChange) setLegacyChords(null);
+    if (transposeChordsOnKeyChange) {
+      if (chordChart.absoluteKey && nextValue) setForm((current) => ({ ...current, rhythm: transposeBarCharts(current.rhythm, semitoneDistance(chordChart.absoluteKey!, nextValue)) }));
+      setLegacyChords(null);
+    }
   }
 
   function updateCapo(nextCapoValue: number) {
@@ -541,6 +547,7 @@ export function SongEditorDialog({
     setSaving(true);
     setMessage(null);
     try {
+      for (const chart of form.rhythm?.arrangements ?? []) parseBarChart(chart.chart, form.rhythm!.numerator, chart.section);
       const payload = normalizeForm(form, serializeChordChart(chordChart, legacyChords));
       const saved = persistedSongId ? await updateSong(persistedSongId, payload) : await createSong(payload);
       setPersistedSongId(saved.id);
@@ -672,7 +679,7 @@ export function SongEditorDialog({
                   </button>
                 ))}
               </div>
-              {tab === "chords" ? <SongRhythmEditor value={form.rhythm ?? null} canEdit={canEdit} onChange={(rhythm) => setForm((current) => ({ ...current, rhythm }))} /> : null}
+              {tab === "chords" ? <SongRhythmEditor value={form.rhythm ?? null} canEdit={canEdit} lyrics={chordLyrics} sequence={form.sequence} previewChord={activeDisplayedChord ?? chordChart.absoluteKey ?? "C"} songChords={lineAnnotations.map((entry) => ({ section: entry.section, chord: entry.chord }))} onSave={saveSong} saving={saving} isDirty={isDirty} onChange={(rhythm) => setForm((current) => ({ ...current, rhythm }))} /> : null}
             </div>
             {tab === "chords" ? (
               <div className="musician-control-row musician-key-row">

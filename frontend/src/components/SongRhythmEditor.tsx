@@ -1,20 +1,40 @@
-import { Music2, X } from "lucide-react";
-import { useRef, useState } from "react";
+import { Music2, Save, X } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import {
   resizeStrumPattern, STRUM_PRESETS, STRUM_SECTIONS, STROKE_CYCLE, STROKE_NAMES, STROKE_SYMBOLS,
-  strumCounts, type SongRhythm, type StrumPattern, type StrumSection,
+  strumCounts, type RhythmPreset, type SongRhythm, type StrumPattern, type StrumSection,
 } from "../songRhythm";
+import { createRhythmPreset, getRhythmPresets } from "../api";
+import { parseBarChart, songPracticeParts } from "../musicPractice";
+import { RhythmPracticeControls } from "./RhythmPracticeControls";
 import { useEscapeClose } from "./useEscapeClose";
 
 const METERS = ["4/4", "3/4", "6/8", "2/4", "12/8"];
 const emptyRhythm = (): SongRhythm => ({ numerator: 4, denominator: 4, patterns: [], notes: "" });
 
-export function SongRhythmEditor({ value, canEdit, onChange }: {
+export function SongRhythmEditor({ value, canEdit, onChange, lyrics, sequence, previewChord, songChords = [], onSave, saving, isDirty }: {
   value: SongRhythm | null; canEdit: boolean; onChange: (value: SongRhythm | null) => void;
+  lyrics?: string | null; sequence?: string | null; previewChord?: string;
+  songChords?: Array<{ section: string | null; chord: string }>;
+  onSave?: () => Promise<void>; saving?: boolean; isDirty?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [section, setSection] = useState<StrumSection>("Default");
   const [customMeter, setCustomMeter] = useState(false);
+  const [library, setLibrary] = useState<RhythmPreset[]>([]);
+  const [libraryBusy, setLibraryBusy] = useState(false);
+  const [libraryMessage, setLibraryMessage] = useState<string | null>(null);
+  const [meterName, setMeterName] = useState("");
+  const [barPart, setBarPart] = useState("Default");
+  useEffect(() => {
+    if (!open) return;
+    let active = true;
+    setLibraryBusy(true);
+    void getRhythmPresets().then((presets) => { if (active) setLibrary(presets); }).catch((error) => {
+      if (active) setLibraryMessage(error instanceof Error ? error.message : "Could not load shared presets.");
+    }).finally(() => { if (active) setLibraryBusy(false); });
+    return () => { active = false; };
+  }, [open]);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const close = () => { setOpen(false); triggerRef.current?.focus(); };
   useEscapeClose(open, close, 1);
@@ -25,6 +45,16 @@ export function SongRhythmEditor({ value, canEdit, onChange }: {
   const editablePattern = resizeStrumPattern(pattern, rhythm.numerator);
   const counts = strumCounts(rhythm, editablePattern);
   const presets = STRUM_PRESETS.filter((preset) => preset.numerator === rhythm.numerator && preset.denominator === rhythm.denominator);
+  const savedMeters = library.filter((entry) => entry.kind === "meter");
+  const savedStrums = library.filter((entry) => entry.kind === "strum");
+  const selectedSaved = savedStrums.find((entry) => entry.numerator === rhythm.numerator && entry.denominator === rhythm.denominator && entry.name === pattern.name && entry.subdivision === pattern.subdivision && entry.strokes?.join() === pattern.strokes.join());
+  const savedMeter = savedMeters.find((entry) => entry.numerator === rhythm.numerator && entry.denominator === rhythm.denominator);
+  const partNames = Array.from(new Set(["Default", ...songPracticeParts(lyrics, sequence), ...(rhythm.arrangements ?? []).map((entry) => entry.section)]));
+  const chart = rhythm.arrangements?.find((entry) => entry.section === barPart)?.chart ?? "";
+  let chartError: string | null = null;
+  let barLabels: string[] = [];
+  try { barLabels = parseBarChart(chart, rhythm.numerator, barPart).map((bar) => bar.chords.map((chord) => `${chord.chord}@${Number(chord.beat.toFixed(2))}`).join(" ")); }
+  catch (error) { chartError = error instanceof Error ? error.message : "Check the bar chart."; }
   const selectedPreset = presets.find((preset) => preset.subdivision === pattern.subdivision && preset.strokes.join() === pattern.strokes.join());
 
   function updatePattern(next: StrumPattern) {
@@ -35,6 +65,25 @@ export function SongRhythmEditor({ value, canEdit, onChange }: {
 
   function updateMeter(numerator: number, denominator: SongRhythm["denominator"]) {
     onChange({ ...rhythm, numerator, denominator, patterns: rhythm.patterns.map((entry) => resizeStrumPattern(entry, numerator)) });
+  }
+
+  function updateChart(next: string) {
+    const arrangements = (rhythm.arrangements ?? []).filter((entry) => entry.section !== barPart);
+    if (next.trim()) arrangements.push({ section: barPart, chart: next });
+    onChange({ ...rhythm, arrangements });
+  }
+
+  async function saveLibrary(kind: "meter" | "strum") {
+    setLibraryBusy(true); setLibraryMessage(null);
+    try {
+      const saved = await createRhythmPreset({ kind, name: kind === "meter" ? meterName.trim() : (pattern.name ?? "").trim(),
+        numerator: rhythm.numerator, denominator: rhythm.denominator,
+        subdivision: kind === "strum" ? pattern.subdivision : null, strokes: kind === "strum" ? [...pattern.strokes] : null });
+      setLibrary((current) => [...current, saved]);
+      setLibraryMessage(`“${saved.name}” saved for all players.`);
+      if (kind === "meter") setCustomMeter(false);
+    } catch (error) { setLibraryMessage(error instanceof Error ? error.message : "Could not save the shared preset."); }
+    finally { setLibraryBusy(false); }
   }
 
   return (
@@ -51,16 +100,21 @@ export function SongRhythmEditor({ value, canEdit, onChange }: {
           </div>
           <div className="song-rhythm-fields">
             <label className="compact-field">Meter
-              <select aria-label="Song meter" disabled={!canEdit} value={!value && !customMeter ? "" : customMeter || !METERS.includes(meter) ? "custom" : meter}
+              <select aria-label="Song meter" disabled={!canEdit} value={!value && !customMeter ? "" : customMeter ? "custom" : savedMeter ? `meter:${savedMeter.id}` : !METERS.includes(meter) ? "custom" : meter}
                 onChange={(event) => {
                   if (!event.target.value) { onChange(null); setCustomMeter(false); return; }
                   if (event.target.value === "custom") { setCustomMeter(true); onChange(rhythm); return; }
                   setCustomMeter(false);
+                  if (event.target.value.startsWith("meter:")) {
+                    const saved = savedMeters.find((entry) => `meter:${entry.id}` === event.target.value)!;
+                    updateMeter(saved.numerator, saved.denominator); return;
+                  }
                   const [numerator, denominator] = event.target.value.split("/").map(Number);
                   updateMeter(numerator, denominator as SongRhythm["denominator"]);
                 }}>
                 <option value="">Unset</option>
                 {METERS.map((entry) => <option key={entry} value={entry}>{entry}</option>)}
+                {savedMeters.length ? <optgroup label="Shared custom meters">{savedMeters.map((entry) => <option key={entry.id} value={`meter:${entry.id}`}>{entry.name} · {entry.numerator}/{entry.denominator}</option>)}</optgroup> : null}
                 <option value="custom">Custom</option>
               </select>
             </label>
@@ -74,13 +128,25 @@ export function SongRhythmEditor({ value, canEdit, onChange }: {
               </select>
             </label>
           </div>
-          <label className="song-rhythm-preset">Common pattern
-            <select aria-label="Common strumming pattern" disabled={!canEdit} value={selectedPreset?.id ?? ""} onChange={(event) => {
+          <div className="rhythm-save-preset-row">
+            <label className="compact-field">Meter name<input aria-label="Shared meter name" disabled={!canEdit} maxLength={80} onChange={(event) => setMeterName(event.target.value)} placeholder="e.g. Seven in two groups" value={meterName} /></label>
+            <button className="text-button" disabled={!canEdit || libraryBusy || !meterName.trim()} onClick={() => void saveLibrary("meter")} type="button"><Save size={14} aria-hidden="true" />Save meter to library</button>
+          </div>
+          <label className="song-rhythm-preset">Common / saved pattern
+            <select aria-label="Common strumming pattern" disabled={!canEdit} value={selectedSaved ? `strum:${selectedSaved.id}` : selectedPreset?.id ?? ""} onChange={(event) => {
+              if (event.target.value.startsWith("strum:")) {
+                const saved = savedStrums.find((entry) => `strum:${entry.id}` === event.target.value)!;
+                setCustomMeter(false);
+                onChange({ ...rhythm, numerator: saved.numerator, denominator: saved.denominator,
+                  patterns: rhythm.patterns.filter((entry) => entry.section !== section).map((entry) => resizeStrumPattern(entry, saved.numerator)).concat({ section, name: saved.name, subdivision: saved.subdivision!, strokes: [...saved.strokes!] }),
+                }); return;
+              }
               const preset = presets.find((entry) => entry.id === event.target.value);
-              if (preset) updatePattern({ section, subdivision: preset.subdivision, strokes: [...preset.strokes] });
+              if (preset) updatePattern({ section, name: preset.name, subdivision: preset.subdivision, strokes: [...preset.strokes] });
             }}>
               <option value="">{pattern.strokes.length ? "Custom pattern" : "Choose a pattern or edit below"}</option>
               {presets.map((preset) => <option key={preset.id} value={preset.id}>{preset.name} · {preset.strokes.map((stroke) => STROKE_SYMBOLS[stroke]).join(" ")}</option>)}
+              {savedStrums.length ? <optgroup label="Shared strums">{savedStrums.map((entry) => <option key={entry.id} value={`strum:${entry.id}`}>{entry.name} · {entry.numerator}/{entry.denominator}</option>)}</optgroup> : null}
             </select>
           </label>
           <div className="song-rhythm-fields">
@@ -102,12 +168,31 @@ export function SongRhythmEditor({ value, canEdit, onChange }: {
               </div>
             ))}
           </div>
+          <RhythmPracticeControls rhythm={rhythm} section={barPart} strumSection={section} lyrics={lyrics} sequence={sequence} previewChord={previewChord} onTempoChange={canEdit ? (bpm) => onChange({ ...rhythm, bpm }) : undefined} />
+          <div className="rhythm-save-preset-row">
+            <label className="compact-field">Strum name<input aria-label="Shared strum name" disabled={!canEdit} maxLength={80} onChange={(event) => updatePattern({ ...editablePattern, name: event.target.value })} placeholder="Name this pattern" value={pattern.name ?? ""} /></label>
+            <button className="text-button" disabled={!canEdit || libraryBusy || !pattern.name?.trim() || !pattern.strokes.some((stroke) => stroke !== "-")} onClick={() => void saveLibrary("strum")} type="button"><Save size={14} aria-hidden="true" />Save strum to library</button>
+          </div>
+          {libraryMessage ? <p className="form-message" role="status">{libraryMessage}</p> : null}
+          <small className="field-help">Library presets are shared with other players. Selecting a saved strum also selects its meter.</small>
           <small className="field-help">↓ Down · ↑ Up · – Rest · × Muted. Click a stroke to change it. Keep your hand moving through rests.</small>
           {section !== "Default" ? <small className="field-help">This pattern overrides the whole-song pattern for {section.toLowerCase()} sections.</small> : null}
           <label className="song-rhythm-notes">Feel / notes
             <textarea aria-label="Rhythm notes" disabled={!canEdit} maxLength={500} onChange={(event) => onChange({ ...rhythm, notes: event.target.value })} placeholder="Gentle swing; accent beats 2 and 4; pick the verses…" rows={2} value={rhythm.notes} />
           </label>
-          <small className="field-help">Changes are included when you save the song.</small>
+          <details className="rhythm-bar-editor">
+            <summary>Bars &amp; chords · {barLabels.length} bars in selected chart</summary>
+            <label className="compact-field">Part<select aria-label="Bar chart part" onChange={(event) => setBarPart(event.target.value)} value={barPart}>{partNames.map((part) => <option key={part} value={part}>{part === "Default" ? "Whole song" : part}</option>)}</select></label>
+            <textarea aria-label="Chord bar chart" disabled={!canEdit} maxLength={8000} onChange={(event) => updateChart(event.target.value)} placeholder="C | Am | F G | C *2" rows={3} value={chart} />
+            <small className="field-help">Separate bars with | or new lines. C G splits a bar evenly. C@1 G@3 sets exact counts. C *4 repeats a bar four times. Counts follow the meter's written unit (eighth notes in 6/8).</small>
+            <button className="text-button" disabled={!canEdit || Boolean(chart.trim()) || !songChords.length} onClick={() => updateChart(songChords.filter((entry) => barPart === "Default" || entry.section === barPart).map((entry) => entry.chord).join(" | "))} type="button">Start from song chords</button>
+            <small className="field-help">Starting from song chords places one chord per bar; adjust the timing to match the song.</small>
+            {chartError ? <p className="form-message" role="alert">{chartError}</p> : <div className="rhythm-bar-preview">{barLabels.map((label, index) => <span key={index}><small>{index + 1}</small>{label}</span>)}</div>}
+          </details>
+          <div className="song-rhythm-fields">
+            <small className="field-help">{isDirty ? "Song changes are unsaved." : "Song changes are saved."}</small>
+            {onSave ? <button aria-label="Save song rhythm" className="text-button" disabled={!canEdit || saving || !isDirty || Boolean(chartError)} onClick={() => void onSave()} type="button"><Save size={14} aria-hidden="true" />{saving ? "Saving…" : "Save song"}</button> : null}
+          </div>
         </section>
       ) : null}
     </>

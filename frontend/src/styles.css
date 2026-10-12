@@ -14061,3 +14061,115 @@ button.musician-page {
   font-weight: 800;
   letter-spacing: 1px;
 }
+
+.rhythm-save-preset-row,
+.rhythm-practice-actions,
+.rhythm-practice-options {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.rhythm-save-preset-row input {
+  min-width: 0;
+  width: 160px;
+}
+
+.rhythm-save-preset-row button,
+.rhythm-practice-actions button,
+.rhythm-practice-controls button {
+  align-items: center;
+  display: inline-flex;
+  font-size: 12px;
+  gap: 4px;
+  justify-content: center;
+  min-height: 32px;
+}
+
+.rhythm-practice-controls,
+.rhythm-bar-editor[open] {
+  border-top: 1px solid #ded8c7;
+  display: grid;
+  gap: 8px;
+  padding-top: 8px;
+}
+
+.rhythm-practice-controls .compact-field {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  font-size: 12px;
+  gap: 4px;
+}
+
+.rhythm-practice-controls input[type="number"],
+.rhythm-practice-controls input[type="text"],
+.rhythm-practice-controls input:not([type]) {
+  min-height: 30px;
+  padding: 3px 5px;
+  width: 64px;
+}
+
+.rhythm-practice-options label {
+  align-items: center;
+  display: inline-flex;
+  font-size: 12px;
+  gap: 4px;
+}
+
+.rhythm-practice-options input[type="checkbox"] {
+  height: 14px;
+  margin: 0;
+  width: 14px;
+}
+
+.rhythm-practice-controls .field-help,
+.rhythm-bar-editor .field-help {
+  font-size: 11px;
+  margin: 0;
+}
+
+.rhythm-bar-editor summary {
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.rhythm-bar-editor textarea {
+  font-family: monospace;
+  width: 100%;
+}
+
+.rhythm-bar-preview {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  max-height: 140px;
+  overflow: auto;
+}
+
+.rhythm-bar-preview > span {
+  background: #f4efe2;
+  border: 1px solid #ded8c7;
+  border-radius: 4px;
+  display: flex;
+  font-size: 12px;
+  gap: 5px;
+  padding: 4px;
+}
+
+.rhythm-bar-preview small {
+  color: #65716a;
+}
+
+.rhythm-playback-options summary {
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.rhythm-playback-options[open] {
+  display: grid;
+  gap: 8px;
+}

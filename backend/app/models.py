@@ -20,7 +20,7 @@ from app.modules.library.models import (
     Resource,
     StoredFile,
 )
-from app.modules.music.models import LyricsImport, OnSongSection, Song, SongPart
+from app.modules.music.models import LyricsImport, OnSongSection, RhythmPreset, Song, SongPart
 from app.modules.people.models import Instrument, TeamAssignment, UserInstrument
 from app.modules.planning.models import (
     DefaultItem,
@@ -69,6 +69,7 @@ __all__ = [
     "PresentationSession",
     "Resource",
     "Role",
+    "RhythmPreset",
     "SocialLogin",
     "Song",
     "SongPart",

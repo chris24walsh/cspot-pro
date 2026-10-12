@@ -1,6 +1,7 @@
 export type StrumStroke = "D" | "U" | "-" | "X";
 export type StrumSection = "Default" | "Verse" | "Chorus" | "Bridge";
 export interface StrumPattern {
+  name?: string;
   section: StrumSection;
   subdivision: 1 | 2;
   strokes: StrumStroke[];
@@ -10,6 +11,8 @@ export interface SongRhythm {
   denominator: 2 | 4 | 8 | 16;
   patterns: StrumPattern[];
   notes: string;
+  bpm?: number;
+  arrangements?: Array<{ section: string; chart: string }>;
 }
 
 export const STRUM_SECTIONS: StrumSection[] = ["Default", "Verse", "Chorus", "Bridge"];
@@ -59,4 +62,24 @@ export function strumPatternForSection(rhythm: SongRhythm, section?: string | nu
     : /^(B\d*\b|Bridge\b)/i.test(normalized) ? "Bridge" : undefined;
   return rhythm.patterns.find((pattern) => pattern.section === kind)
     ?? rhythm.patterns.find((pattern) => pattern.section === "Default");
+}
+
+
+export interface RhythmPreset {
+  id: string;
+  kind: "meter" | "strum";
+  name: string;
+  numerator: number;
+  denominator: SongRhythm["denominator"];
+  subdivision: 1 | 2 | null;
+  strokes: StrumStroke[] | null;
+}
+
+export function normalizeSongRhythm(rhythm: SongRhythm | null | undefined): SongRhythm | null {
+  return rhythm ? {
+    numerator: rhythm.numerator, denominator: rhythm.denominator,
+    patterns: rhythm.patterns.map((pattern) => ({ name: pattern.name ?? "", section: pattern.section, subdivision: pattern.subdivision, strokes: [...pattern.strokes] })),
+    notes: rhythm.notes ?? "", bpm: rhythm.bpm ?? 90,
+    arrangements: (rhythm.arrangements ?? []).map((entry) => ({ section: entry.section, chart: entry.chart })),
+  } : null;
 }

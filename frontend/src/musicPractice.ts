@@ -1,0 +1,244 @@
+import { transposeChordSymbol, validateChordSymbol } from "./chordSheet";
+import { strumPatternForSection, type SongRhythm, type StrumPattern } from "./songRhythm";
+import { worshipSequenceBlocks } from "./worshipText";
+
+export const MIDI_PPQ = 480;
+export interface BarChord { beat: number; chord: string }
+export interface PracticeBar { section: string; chords: BarChord[] }
+export interface PracticeNote { tick: number; duration: number; pitch: number; velocity: number; channel: number }
+export interface PracticePerformance { notes: PracticeNote[]; bars: PracticeBar[]; barTicks: number; countInTicks: number; totalTicks: number; quarterBpm: number; numerator: number; denominator: number }
+export type PracticeMode = "strum" | "part" | "song";
+
+export function parseBarChart(chart: string, numerator: number, section = "Default"): PracticeBar[] {
+  const bars: PracticeBar[] = [];
+  for (const raw of chart.split(/[|\n]/).map((entry) => entry.trim()).filter(Boolean)) {
+    const repeatMatch = raw.match(/\*([0-9]+)\s*$/);
+    const repeats = repeatMatch ? Number(repeatMatch[1]) : 1;
+    if (repeats < 1 || repeats > 16) throw new Error("Bar repeats must be between 1 and 16.");
+    const tokens = (repeatMatch ? raw.slice(0, repeatMatch.index).trim() : raw).split(/[\s,]+/);
+    if (tokens.length > 24) throw new Error("Use at most 24 chord changes per bar.");
+    const explicit = tokens.some((token) => token.includes("@"));
+    if (explicit && !tokens.every((token) => token.includes("@"))) throw new Error("Give every chord a count when using @, for example C@1 G@3.");
+    const chords = tokens.map((token, index) => {
+      const [symbol, count] = token.split("@");
+      const beat = explicit ? Number(count) : 1 + index * numerator / tokens.length;
+      if (!symbol || token.split("@").length > 2 || !Number.isFinite(beat) || beat < 1 || beat >= numerator + 1) throw new Error(`Chord counts must be within the ${numerator}-count bar.`);
+      const validation = validateChordSymbol(symbol);
+      if (validation.error) throw new Error(`“${symbol}”: ${validation.error}`);
+      return { beat, chord: validation.normalized };
+    });
+    if (chords[0].beat !== 1 || chords.some((chord, index) => index > 0 && chord.beat <= chords[index - 1].beat)) throw new Error("Start each bar on count 1, with chord changes in increasing order.");
+    for (let repeat = 0; repeat < repeats; repeat += 1) bars.push({ section, chords: chords.map((entry) => ({ ...entry })) });
+    if (bars.length > 256) throw new Error("A practice chart can contain up to 256 bars.");
+  }
+  if (chart.trim() && !bars.length) throw new Error("Enter a chord for each bar.");
+  return bars;
+}
+
+const PITCH_CLASSES: Record<string, number> = { C: 0, "C#": 1, Db: 1, D: 2, "D#": 3, Eb: 3, E: 4, Fb: 4, "E#": 5, F: 5, "F#": 6, Gb: 6, G: 7, "G#": 8, Ab: 8, A: 9, "A#": 10, Bb: 10, B: 11, Cb: 11, "B#": 0 };
+
+export function chordMidiNotes(symbol: string): number[] {
+  const validation = validateChordSymbol(symbol);
+  if (validation.error) throw new Error(`“${symbol}”: ${validation.error}`);
+  const match = validation.normalized.match(/^([A-G](?:#|b)?)([^/]*)(?:\/([A-G](?:#|b)?))?$/)!;
+  const [, root, rawQuality, bass] = match;
+  const quality = rawQuality.replace(/[()]/g, "").replace(/^ø7?/, "m7b5");
+  const minor = /^m(?!aj)/.test(quality);
+  const diminished = quality.startsWith("dim");
+  const augmented = /^(aug|\+)/.test(quality);
+  let intervals = quality === "5" ? [0, 7] : [0, minor || diminished ? 3 : 4, diminished ? 6 : augmented ? 8 : 7];
+  if (/sus2/.test(quality) || quality === "2") intervals[1] = 2;
+  else if (/sus/.test(quality) || quality === "4") intervals[1] = 5;
+  const extension = quality.replace(/^mmaj/, "maj").match(/^(?:maj|m|dim|aug|\+)?(6|7|9|11|13)/)?.[1];
+  if (extension === "6") intervals.push(9);
+  else if (extension) {
+    intervals.push(/maj/.test(quality) ? 11 : diminished && extension === "7" ? 9 : 10);
+    if (Number(extension) >= 9) intervals.push(14);
+    if (Number(extension) >= 11) intervals.push(17);
+    if (Number(extension) >= 13) intervals.push(21);
+  }
+  const add = quality.match(/add(2|4|9|11|13)/)?.[1];
+  if (add) intervals.push(({ "2": 2, "4": 5, "9": 14, "11": 17, "13": 21 } as Record<string, number>)[add]);
+  for (const alteration of quality.matchAll(/([b#])(5|9|11|13)/g)) {
+    const natural = ({ "5": 7, "9": 14, "11": 17, "13": 21 } as Record<string, number>)[alteration[2]];
+    intervals = intervals.filter((interval) => interval !== natural);
+    intervals.push(natural + (alteration[1] === "b" ? -1 : 1));
+  }
+  const rootPitch = 48 + PITCH_CLASSES[root];
+  const bassPitch = 36 + PITCH_CLASSES[bass ?? root];
+  return Array.from(new Set([bassPitch < 40 ? bassPitch + 12 : bassPitch, ...intervals.map((interval) => rootPitch + interval), rootPitch + 12])).sort((a, b) => a - b);
+}
+
+export function rhythmQuarterBpm(rhythm: SongRhythm): number {
+  const pulse = rhythm.denominator === 8 && rhythm.numerator % 3 === 0 ? 1.5 : 4 / rhythm.denominator;
+  return (rhythm.bpm ?? 90) * pulse;
+}
+
+export function songPracticeParts(lyrics?: string | null, sequence?: string | null): string[] {
+  return worshipSequenceBlocks(lyrics, sequence).map((block) => block.label);
+}
+
+export function buildPracticePerformance(rhythm: SongRhythm, options: {
+  mode: PracticeMode; section?: string; lyrics?: string | null; sequence?: string | null;
+  previewChord?: string; transpose?: number; countIn?: boolean; metronome?: boolean;
+}): PracticePerformance {
+  if (!Number.isInteger(rhythm.bpm ?? 90) || (rhythm.bpm ?? 90) < 30 || (rhythm.bpm ?? 90) > 240) throw new Error("Enter a tempo between 30 and 240 BPM.");
+  const section = options.section ?? "Default";
+  const charts = rhythm.arrangements ?? [];
+  const whole = charts.find((entry) => entry.section === "Default" && entry.chart.trim());
+  let bars: PracticeBar[];
+  if (options.mode === "strum") {
+    if (!strumPatternForSection(rhythm, section)?.strokes.some((stroke) => stroke !== "-")) throw new Error("Add a strumming pattern with at least one stroke to listen.");
+    bars = parseBarChart(`${options.previewChord || "C"} *2`, rhythm.numerator, section);
+  } else if (options.mode === "song" && whole) {
+    bars = parseBarChart(whole.chart, rhythm.numerator);
+  } else {
+    const parts = options.mode === "part" ? [section] : songPracticeParts(options.lyrics, options.sequence);
+    if (!parts.length) throw new Error("Add a whole-song bar chart, or lyric parts with their own bars.");
+    bars = parts.flatMap((part) => {
+      const chart = charts.find((entry) => entry.section.toUpperCase() === part.toUpperCase() && entry.chart.trim());
+      if (!chart) throw new Error(`Add bars for ${part === "Default" ? "the whole song" : part} before playing this arrangement.`);
+      return parseBarChart(chart.chart, rhythm.numerator, part);
+    });
+  }
+  if (!bars.length) throw new Error("Add chords to the bar chart before listening.");
+  if (bars.length > 256) throw new Error("A practice arrangement can contain up to 256 bars.");
+  const barTicks = rhythm.numerator * 4 / rhythm.denominator * MIDI_PPQ;
+  const countInTicks = options.countIn ? barTicks : 0;
+  const totalTicks = countInTicks + bars.length * barTicks;
+  const quarterBpm = rhythmQuarterBpm(rhythm);
+  if (totalTicks / MIDI_PPQ * 60 / quarterBpm > 1200) throw new Error("Keep a practice preview under 20 minutes.");
+  const notes: PracticeNote[] = [];
+  const pulseCount = rhythm.denominator === 8 && rhythm.numerator % 3 === 0 ? 3 : 1;
+  function clicks(start: number) {
+    for (let count = 0; count < rhythm.numerator; count += pulseCount) notes.push({ tick: start + count / rhythm.numerator * barTicks, duration: 36, pitch: count === 0 ? 76 : 77, velocity: 65, channel: 9 });
+  }
+  if (countInTicks) clicks(0);
+  bars.forEach((bar, barIndex) => {
+    const pattern: StrumPattern = strumPatternForSection(rhythm, bar.section) ?? {
+      section: "Default", subdivision: 1, strokes: Array.from({ length: rhythm.numerator }, (_, index) => index % pulseCount === 0 ? "D" : "-"),
+    };
+    const start = countInTicks + barIndex * barTicks;
+    if (options.metronome) clicks(start);
+    pattern.strokes.forEach((stroke, index) => {
+      if (stroke === "-") return;
+      const beat = 1 + index / pattern.subdivision;
+      const tick = start + index / pattern.strokes.length * barTicks;
+      const stepTicks = barTicks / pattern.strokes.length;
+      if (stroke === "X") { notes.push({ tick, duration: Math.min(60, stepTicks * 0.4), pitch: 37, velocity: 85, channel: 9 }); return; }
+      const chord = bar.chords.slice().reverse().find((entry) => entry.beat <= beat)!.chord;
+      const pitches = chordMidiNotes(transposeChordSymbol(chord, options.transpose ?? 0));
+      if (stroke === "U") pitches.reverse();
+      pitches.forEach((pitch, stringIndex) => notes.push({
+        tick: tick + stringIndex * Math.min(5, stepTicks / 16), duration: Math.max(12, stepTicks * 0.8 - stringIndex * 5),
+        pitch, velocity: index % (pulseCount * pattern.subdivision) === 0 ? 105 : stroke === "U" ? 75 : 90, channel: 0,
+      }));
+    });
+  });
+  notes.sort((a, b) => a.tick - b.tick);
+  return { notes, bars, barTicks, countInTicks, totalTicks, quarterBpm, numerator: rhythm.numerator, denominator: rhythm.denominator };
+}
+
+function variableLength(value: number): number[] {
+  const bytes = [value & 127];
+  for (let rest = value >>> 7; rest; rest >>>= 7) bytes.unshift((rest & 127) | 128);
+  return bytes;
+}
+
+export function practiceMidi(performance: PracticePerformance): Uint8Array {
+  const tempo = Math.round(60_000_000 / performance.quarterBpm);
+  const events: Array<{ tick: number; bytes: number[]; order: number }> = [
+    { tick: 0, bytes: [0xff, 0x51, 3, (tempo >>> 16) & 255, (tempo >>> 8) & 255, tempo & 255], order: 0 },
+    { tick: 0, bytes: [0xff, 0x58, 4, performance.numerator, Math.log2(performance.denominator), Math.round(24 * (performance.denominator === 8 && performance.numerator % 3 === 0 ? 1.5 : 4 / performance.denominator)), 8], order: 0 },
+    { tick: 0, bytes: [0xc0, 25], order: 0 }, // General MIDI steel-string acoustic guitar.
+  ];
+  for (const note of performance.notes) {
+    events.push({ tick: Math.round(note.tick), bytes: [0x90 | note.channel, note.pitch, note.velocity], order: 2 });
+    events.push({ tick: Math.round(note.tick + note.duration), bytes: [0x80 | note.channel, note.pitch, 0], order: 1 });
+  }
+  events.sort((a, b) => a.tick - b.tick || a.order - b.order);
+  const track: number[] = [];
+  let previous = 0;
+  for (const event of events) { track.push(...variableLength(event.tick - previous), ...event.bytes); previous = event.tick; }
+  track.push(...variableLength(Math.max(0, Math.round(performance.totalTicks) - previous)), 0xff, 0x2f, 0);
+  const size = track.length;
+  return new Uint8Array([0x4d, 0x54, 0x68, 0x64, 0, 0, 0, 6, 0, 0, 0, 1, MIDI_PPQ >>> 8, MIDI_PPQ & 255,
+    0x4d, 0x54, 0x72, 0x6b, (size >>> 24) & 255, (size >>> 16) & 255, (size >>> 8) & 255, size & 255, ...track]);
+}
+
+export function transposeBarCharts(rhythm: SongRhythm | null | undefined, semitones: number): SongRhythm | null {
+  if (!rhythm) return null;
+  return { ...rhythm, arrangements: (rhythm.arrangements ?? []).map((entry) => ({ ...entry,
+    chart: entry.chart.replace(/(^|[|\n\s,])([A-Ga-g][^\s|,@*]*)(?=@|[\s|,*]|$)/g, (match, prefix: string, chord: string) => {
+      const validation = validateChordSymbol(chord);
+      return validation.error ? match : `${prefix}${transposeChordSymbol(validation.normalized, semitones)}`;
+    }),
+  })) };
+}
+
+let activePracticePlayer: PracticeAudioPlayer | null = null;
+
+export class PracticeAudioPlayer {
+  private context: AudioContext | null = null;
+  private timer: ReturnType<typeof setInterval> | null = null;
+  private cancelled = false;
+  private onEnd: (() => void) | null = null;
+
+  async play(performance: PracticePerformance, loop: boolean, onProgress: (bar: number) => void, onEnd: () => void) {
+    const AudioConstructor = window.AudioContext ?? (window as Window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+    if (!AudioConstructor) throw new Error("Audio preview is unavailable in this browser. Download the MIDI file to listen in a music app.");
+    activePracticePlayer?.stop();
+    activePracticePlayer = this;
+    this.onEnd = onEnd;
+    this.context = new AudioConstructor();
+    const context = this.context;
+    await context.resume();
+    if (this.cancelled) return;
+    if (context.state !== "running") throw new Error("The browser could not start audio. Tap Listen again, or download the MIDI file.");
+    const secondsPerTick = 60 / performance.quarterBpm / MIDI_PPQ;
+    let started = context.currentTime + 0.08;
+    let nextNote = 0;
+    const duration = performance.totalTicks * secondsPerTick;
+    const master = context.createGain();
+    master.gain.value = 0.17;
+    master.connect(context.destination);
+    const schedule = () => {
+      let elapsed = context.currentTime - started;
+      if (elapsed >= duration) {
+        if (!loop) { this.stop(); return; }
+        started += Math.floor(elapsed / duration) * duration;
+        nextNote = 0;
+        elapsed = context.currentTime - started;
+      }
+      onProgress(Math.floor((elapsed / secondsPerTick - performance.countInTicks) / performance.barTicks));
+      while (nextNote < performance.notes.length && performance.notes[nextNote].tick * secondsPerTick < elapsed + 0.16) {
+        const note = performance.notes[nextNote++];
+        if (note.tick * secondsPerTick < elapsed - 0.08) continue;
+        const at = Math.max(context.currentTime, started + note.tick * secondsPerTick);
+        const length = Math.max(0.025, note.duration * secondsPerTick);
+        const oscillator = context.createOscillator();
+        const gain = context.createGain();
+        oscillator.type = "triangle";
+        oscillator.frequency.setValueAtTime(note.channel === 9 ? note.pitch === 76 ? 1600 : note.pitch === 77 ? 1100 : 250 : 440 * 2 ** ((note.pitch - 69) / 12), at);
+        gain.gain.setValueAtTime(0.0001, at);
+        gain.gain.exponentialRampToValueAtTime(note.velocity / 127 / (note.channel === 9 ? 2 : 6), at + 0.003);
+        gain.gain.exponentialRampToValueAtTime(0.0001, at + (note.channel === 9 ? 0.05 : length));
+        oscillator.connect(gain); gain.connect(master);
+        oscillator.start(at); oscillator.stop(at + length + 0.02);
+        oscillator.onended = () => { oscillator.disconnect(); gain.disconnect(); };
+      }
+    };
+    this.timer = setInterval(schedule, 25);
+    schedule();
+  }
+
+  stop() {
+    this.cancelled = true;
+    if (this.timer) clearInterval(this.timer);
+    this.timer = null;
+    if (this.context && this.context.state !== "closed") void this.context.close().catch(() => {});
+    this.context = null;
+    if (activePracticePlayer === this) activePracticePlayer = null;
+    const onEnd = this.onEnd; this.onEnd = null; onEnd?.();
+  }
+}

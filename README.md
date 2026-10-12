@@ -377,8 +377,28 @@ beat unit), choose a meter-matched preset, and click strokes to cycle through do
 up, rest and muted strokes. Whole-song patterns can have verse, chorus and bridge
 variations, with optional feel notes. Save the song to keep the guidance. Musician
 view shows the meter and current section's pattern beside the key; click it for
-beat counts, all patterns and notes. Rhythm is optional and independent of key,
-capo, lyrics and chord annotations. Audio playback is not included yet.
+beat counts, all patterns and notes. Rhythm guidance is optional. Meter and strum strokes stay unchanged when the key
+or capo changes.
+Custom meters and named strums can be saved to the shared library and selected
+in other songs. Saved strums select their associated meter and are copied into
+the song, so later edits do not change the shared preset. Library writes require
+song edit/create permission; all players with song read access can use them.
+
+Listen strum previews the selected pattern over a chosen chord. Bars & chords
+stores an optional chart for the whole song or a named lyric part such as V1 or C.
+Use `C | Am | F G | C *2`: bars are separated by pipes or new lines, multiple
+chords divide a bar evenly, and `*2` repeats a bar. `C@1 G@3` gives exact change
+counts; counts use the written meter unit (eighth notes in 6/8). Starting from
+existing song chords places one chord per bar for the user to refine.
+Listen chart/part combines those chords with the matching strum. Listen song
+uses the whole-song chart when present; otherwise it follows the lyric sequence
+and requires a chart for every part. Without a section strum, the default strum
+applies, or one downstroke per main beat if no default exists.
+Practice controls offer BPM, count-in, metronome, loop and a real `.mid` download.
+6/8 and 12/8 BPM uses the dotted-quarter pulse. Audio is synthesized practice
+sound rather than a recording. Playback stops on close, edits or navigation.
+Transposing a song key also transposes its bar-chart chord symbols; metadata-only
+key corrections preserve them. Musician previews follow the selected sounding key.
 
 
 Sermon recording follows the live service session, including scheduled services

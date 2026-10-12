@@ -74,3 +74,15 @@ class LyricsImport(IdMixin, TimestampMixin, Base):
     status: Mapped[str] = mapped_column(String(80), default="draft")
     confidence: Mapped[str | None] = mapped_column(String(40))
     imported_text: Mapped[str | None] = mapped_column(Text)
+
+
+class RhythmPreset(IdMixin, TimestampMixin, Base):
+    __tablename__ = "rhythm_presets"
+    __table_args__ = (UniqueConstraint("kind", "name", name="uq_rhythm_preset_kind_name"),)
+
+    kind: Mapped[str] = mapped_column(String(12))
+    name: Mapped[str] = mapped_column(String(80))
+    numerator: Mapped[int] = mapped_column(Integer)
+    denominator: Mapped[int] = mapped_column(Integer)
+    subdivision: Mapped[int | None] = mapped_column(Integer)
+    strokes: Mapped[list | None] = mapped_column(JSON)

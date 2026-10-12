@@ -21,9 +21,21 @@ def rhythm_value() -> dict:
         "numerator": 6,
         "denominator": 8,
         "notes": "Accent the two main beats",
+        "bpm": 90,
+        "arrangements": [],
         "patterns": [
-            {"section": "Default", "subdivision": 1, "strokes": ["D", "-", "U", "D", "-", "U"]},
-            {"section": "Chorus", "subdivision": 1, "strokes": ["D", "U", "U", "D", "U", "U"]},
+            {
+                "name": "",
+                "section": "Default",
+                "subdivision": 1,
+                "strokes": ["D", "-", "U", "D", "-", "U"],
+            },
+            {
+                "name": "",
+                "section": "Chorus",
+                "subdivision": 1,
+                "strokes": ["D", "U", "U", "D", "U", "U"],
+            },
         ],
     }
 
@@ -65,8 +77,8 @@ def test_song_rhythm_round_trips_and_can_be_cleared_without_changing_chords() ->
         {"numerator": 0},
         {"numerator": 13},
         {"denominator": 3},
-        {"patterns": [{"section": "Default", "subdivision": 1, "strokes": ["D"]}]},
-        {"patterns": [{"section": "Default", "subdivision": 1, "strokes": ["?"] * 6}]},
+        {"patterns": [{"name": "", "section": "Default", "subdivision": 1, "strokes": ["D"]}]},
+        {"patterns": [{"name": "", "section": "Default", "subdivision": 1, "strokes": ["?"] * 6}]},
         {"patterns": [rhythm_value()["patterns"][0]] * 2},
     ],
 )

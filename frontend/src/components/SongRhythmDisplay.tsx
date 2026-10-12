@@ -2,9 +2,13 @@ import { X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { STROKE_NAMES, STROKE_SYMBOLS, strumCounts, strumPatternForSection, type SongRhythm } from "../songRhythm";
+import { RhythmPracticeControls } from "./RhythmPracticeControls";
 import { useEscapeClose } from "./useEscapeClose";
 
-export function SongRhythmDisplay({ rhythm, section }: { rhythm?: SongRhythm | null; section?: string | null }) {
+export function SongRhythmDisplay({ rhythm, section, lyrics, sequence, previewChord, transpose, title }: {
+  rhythm?: SongRhythm | null; section?: string | null; lyrics?: string | null; sequence?: string | null;
+  previewChord?: string; transpose?: number; title?: string;
+}) {
   const [position, setPosition] = useState<{ left: number; top: number; width: number } | null>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
@@ -44,12 +48,13 @@ export function SongRhythmDisplay({ rhythm, section }: { rhythm?: SongRhythm | n
           {rhythm.patterns.map((pattern) => {
             const counts = strumCounts(rhythm, pattern);
             return <div className="song-rhythm-reference" key={pattern.section}>
-              <strong>{pattern.section === "Default" ? "Whole song" : pattern.section}</strong>
+              <strong>{pattern.section === "Default" ? "Whole song" : pattern.section}{pattern.name ? ` · ${pattern.name}` : ""}</strong>
               <div className="song-strum-grid" style={{ gridTemplateColumns: `repeat(${pattern.strokes.length}, minmax(22px, 1fr))` }}>
                 {pattern.strokes.map((stroke, index) => <div className="song-strum-cell" key={index}><span>{counts[index]}</span><span className="song-strum-symbol" aria-label={STROKE_NAMES[stroke]}>{STROKE_SYMBOLS[stroke]}</span></div>)}
               </div>
             </div>;
           })}
+          <RhythmPracticeControls rhythm={rhythm} section={section ?? "Default"} lyrics={lyrics} sequence={sequence} previewChord={previewChord} transpose={transpose} title={title} />
           {rhythm.notes ? <p>{rhythm.notes}</p> : null}
           {rhythm.patterns.length ? <small>↓ Down · ↑ Up · – Rest · × Muted</small> : null}
         </div>, document.fullscreenElement ?? (document as Document & { webkitFullscreenElement?: Element }).webkitFullscreenElement ?? document.body,

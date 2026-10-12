@@ -1,4 +1,4 @@
-import type { SongRhythm } from "./songRhythm";
+import type { RhythmPreset, SongRhythm } from "./songRhythm";
 import { appApiBasePath } from "./paths";
 
 function defaultApiBaseUrl() {
@@ -1313,6 +1313,14 @@ export async function updatePlanItem(
 
 export async function deletePlanItem(itemId: string): Promise<void> {
   return deleteRequest(`/api/v1/planning/items/${itemId}`);
+}
+
+export async function getRhythmPresets(): Promise<RhythmPreset[]> {
+  return getJson<RhythmPreset[]>("/api/v1/music/rhythm-presets");
+}
+
+export async function createRhythmPreset(payload: Omit<RhythmPreset, "id">): Promise<RhythmPreset> {
+  return sendJson<RhythmPreset>("/api/v1/music/rhythm-presets", "POST", payload);
 }
 
 export async function getSongs(): Promise<Song[]> {

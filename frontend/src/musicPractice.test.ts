@@ -1,0 +1,113 @@
+import { describe, expect, it } from "vitest";
+import { buildPracticePerformance, chordMidiNotes, MIDI_PPQ, parseBarChart, practiceMidi, rhythmQuarterBpm, transposeBarCharts } from "./musicPractice";
+import type { SongRhythm } from "./songRhythm";
+
+const rhythm: SongRhythm = { numerator: 4, denominator: 4, notes: "", bpm: 120,
+  patterns: [{ section: "Default", subdivision: 1, strokes: ["D", "-", "D", "-"] }],
+  arrangements: [{ section: "Default", chart: "C@1 G@3 | Am *2" }],
+};
+
+describe("practice arrangements", () => {
+  it("parses evenly divided chords, explicit fractional counts and repeated bars", () => {
+    const bars = parseBarChart("C G | Am@1 F@2.5 *2", 4, "V1");
+    expect(bars).toHaveLength(3);
+    expect(bars[0].chords).toEqual([{ chord: "C", beat: 1 }, { chord: "G", beat: 3 }]);
+    expect(bars[1].chords[1]).toEqual({ chord: "F", beat: 2.5 });
+    expect(bars[2]).toEqual(bars[1]);
+    expect(bars[0].section).toBe("V1");
+  });
+
+  it.each(["C@2", "C@1 G@5", "C@1 G@1", "C@1 G", "not-a-chord", "C *17"])("rejects an invalid chart: %s", (chart) => {
+    expect(() => parseBarChart(chart, 4)).toThrow();
+  });
+
+  it("combines chord changes with strum timing and a separate count-in", () => {
+    const music = buildPracticePerformance(rhythm, { mode: "song", countIn: true, metronome: false });
+    expect(music.bars).toHaveLength(3);
+    expect(music.countInTicks).toBe(4 * MIDI_PPQ);
+    expect(music.totalTicks).toBe(16 * MIDI_PPQ);
+    expect(music.notes.filter((note) => note.channel === 9)).toHaveLength(4);
+    expect(music.notes.filter((note) => note.channel === 0 && note.tick >= 1920 && note.tick < 2000).map((note) => note.pitch)).toEqual(chordMidiNotes("C"));
+    expect(music.notes.filter((note) => note.channel === 0 && note.tick >= 2880 && note.tick < 2960).map((note) => note.pitch)).toEqual(chordMidiNotes("G"));
+  });
+
+  it("follows repeated lyric parts and their section strums", () => {
+    const music = buildPracticePerformance({ ...rhythm, patterns: [...rhythm.patterns, { section: "Chorus", subdivision: 1, strokes: ["U", "-", "-", "-"] }], arrangements: [
+      { section: "V1", chart: "C" }, { section: "C", chart: "G *2" },
+    ] }, { mode: "song", lyrics: "[V1]\nVerse words\n[C]\nChorus words", sequence: "V1 C V1 C" });
+    expect(music.bars.map((bar) => bar.section)).toEqual(["V1", "C", "C", "V1", "C", "C"]);
+    expect(music.notes.filter((note) => note.channel === 0 && note.tick >= music.barTicks && note.tick < music.barTicks + 50).map((note) => note.pitch)).toEqual(chordMidiNotes("G").reverse());
+    expect(() => buildPracticePerformance({ ...rhythm, arrangements: [{ section: "V1", chart: "C" }] }, { mode: "song", lyrics: "[V1]\nVerse words\n[C]\nChorus words", sequence: "V1 C" })).toThrow("Add bars for C");
+  });
+
+  it("keeps the compound-meter pulse and written chord counts distinct", () => {
+    const six: SongRhythm = { numerator: 6, denominator: 8, bpm: 60, notes: "", patterns: [{ section: "Default", subdivision: 1, strokes: ["D", "-", "-", "D", "-", "-"] }], arrangements: [{ section: "Default", chart: "C G" }] };
+    expect(rhythmQuarterBpm(six)).toBe(90);
+    const music = buildPracticePerformance(six, { mode: "song" });
+    expect(music.barTicks).toBe(1440);
+    expect(music.bars[0].chords[1].beat).toBe(4);
+    expect(music.totalTicks / MIDI_PPQ * 60 / music.quarterBpm).toBe(2);
+    expect(readMidi(practiceMidi(music)).events.find((event) => event.status === 0x58)?.data).toEqual([6, 3, 36, 8]);
+  });
+
+  it("transposes bar chords and slash bass notes without changing counts or repeats", () => {
+    const shifted = transposeBarCharts({ ...rhythm, arrangements: [{ section: "V1", chart: "C/E@1 G@3 *2\nAm | F" }] }, 2)!;
+    expect(shifted.arrangements?.[0].chart).toBe("D/F#@1 A@3 *2\nBm | G");
+    expect(shifted.patterns).toEqual(rhythm.patterns);
+    const music = buildPracticePerformance(rhythm, { mode: "song", transpose: 2 });
+    expect(music.notes.filter((note) => note.tick < 50).map((note) => note.pitch)).toEqual(chordMidiNotes("D"));
+  });
+
+  it("voices minor, suspended, diminished, extended and slash chords distinctly", () => {
+    expect(chordMidiNotes("Am")).toContain(60); // minor third, C
+    expect(chordMidiNotes("A")).toContain(61); // major third, C#
+    expect(chordMidiNotes("C7")).toContain(58);
+    expect(chordMidiNotes("Cmaj7")).toContain(59);
+    expect(chordMidiNotes("Cdim7")).toContain(57);
+    expect(chordMidiNotes("Csus2")).toContain(50);
+    expect(chordMidiNotes("C/E")[0]).toBe(40);
+    expect(chordMidiNotes("Cm7b5")).toContain(54);
+    expect(chordMidiNotes("Cadd9")).toContain(62);
+  });
+
+  it("requires an audible strum and a valid tempo", () => {
+    expect(() => buildPracticePerformance({ ...rhythm, bpm: 0 }, { mode: "strum" })).toThrow("tempo");
+    expect(() => buildPracticePerformance({ ...rhythm, patterns: [] }, { mode: "strum" })).toThrow("strumming pattern");
+  });
+});
+
+function readMidi(bytes: Uint8Array) {
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  let offset = 22;
+  let tick = 0;
+  const events: Array<{ tick: number; status: number; data: number[] }> = [];
+  const variable = () => { let value = 0; let byte: number; do { byte = bytes[offset++]; value = value * 128 + (byte & 127); } while (byte & 128); return value; };
+  while (offset < bytes.length) {
+    tick += variable();
+    const status = bytes[offset++];
+    if (status === 0xff) {
+      const type = bytes[offset++]; const length = variable();
+      events.push({ tick, status: type, data: Array.from(bytes.slice(offset, offset + length)) }); offset += length;
+    } else {
+      const length = (status & 0xf0) === 0xc0 ? 1 : 2;
+      events.push({ tick, status, data: Array.from(bytes.slice(offset, offset + length)) }); offset += length;
+    }
+  }
+  return { format: view.getUint16(8), tracks: view.getUint16(10), ppq: view.getUint16(12), length: view.getUint32(18), events };
+}
+
+it("exports a complete standard MIDI file with meter, tempo, guitar and matching note-offs", () => {
+  const performance = buildPracticePerformance(rhythm, { mode: "song", countIn: true, metronome: true });
+  const bytes = practiceMidi(performance);
+  expect(Array.from(bytes.slice(0, 4))).toEqual([77, 84, 104, 100]);
+  const midi = readMidi(bytes);
+  expect(midi.format).toBe(0); expect(midi.tracks).toBe(1); expect(midi.ppq).toBe(480);
+  expect(midi.length).toBe(bytes.length - 22);
+  expect(midi.events.find((event) => event.status === 0x51)?.data).toEqual([7, 161, 32]); // 500,000 μs / quarter
+  expect(midi.events.find((event) => event.status === 0x58)?.data).toEqual([4, 2, 24, 8]);
+  expect(midi.events.find((event) => event.status === 0xc0)?.data).toEqual([25]);
+  const starts = midi.events.filter((event) => (event.status & 0xf0) === 0x90);
+  const ends = midi.events.filter((event) => (event.status & 0xf0) === 0x80);
+  expect(starts).toHaveLength(performance.notes.length); expect(ends).toHaveLength(starts.length);
+  expect(midi.events[midi.events.length - 1]).toEqual({ tick: performance.totalTicks, status: 0x2f, data: [] });
+});

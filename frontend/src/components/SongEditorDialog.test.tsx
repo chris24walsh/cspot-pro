@@ -1,13 +1,15 @@
 // @vitest-environment jsdom
 import { act } from "react";
 import { createRoot } from "react-dom/client";
-import { expect, it, vi } from "vitest";
-import { updateSong, type Song } from "../api";
+import { beforeEach, expect, it, vi } from "vitest";
+import { getRhythmPresets, updateSong, type Song } from "../api";
 import { createEmptyChordChart, parseChordChart, serializeChordChart } from "../chordSheet";
 import { SongEditorDialog } from "./SongEditorDialog";
 
-vi.mock("../api", () => ({ createSong: vi.fn(), updateSong: vi.fn() }));
+vi.mock("../api", () => ({ createSong: vi.fn(), updateSong: vi.fn(), getRhythmPresets: vi.fn(async () => []), createRhythmPreset: vi.fn() }));
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+
+beforeEach(() => vi.mocked(getRhythmPresets).mockResolvedValue([]));
 
 it("lets the user toggle off transposition and save a corrected key with the same chords", async () => {
   const chart = {
@@ -61,10 +63,11 @@ it("saves meter, a customized preset and a chorus variation, then reloads them",
     select("Strumming section", "Chorus");
     select("Common strumming pattern", "four-alternating");
     await act(async () => container.querySelector<HTMLButtonElement>('[aria-label="Save song"]')!.click());
+    expect(container.querySelector<HTMLButtonElement>('[aria-label="Save song"]')!.disabled).toBe(true);
     const payload = vi.mocked(updateSong).mock.calls[0][1];
-    expect(payload.rhythm).toEqual({ numerator: 4, denominator: 4, notes: "", patterns: [
-      { section: "Default", subdivision: 2, strokes: ["D", "D", "D", "U", "-", "U", "D", "U"] },
-      { section: "Chorus", subdivision: 2, strokes: ["D", "U", "D", "U", "D", "U", "D", "U"] },
+    expect(payload.rhythm).toEqual({ numerator: 4, denominator: 4, notes: "", bpm: 90, arrangements: [], patterns: [
+      { name: "Down, down-up, up-down-up", section: "Default", subdivision: 2, strokes: ["D", "D", "D", "U", "-", "U", "D", "U"] },
+      { name: "Straight down-up", section: "Chorus", subdivision: 2, strokes: ["D", "U", "D", "U", "D", "U", "D", "U"] },
     ] });
     const saved = { ...song, ...payload };
     await act(async () => root.render(<SongEditorDialog song={saved} canEdit onClose={() => {}} onSaved={() => {}} />));

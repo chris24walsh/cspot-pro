@@ -961,7 +961,26 @@ Search modes:
   with a viewport-bounded reference panel for all counts and feel notes.
   Existing songs need no rhythm metadata, and partial song updates preserve it.
   Rhythm changes participate in the existing save/dirty state and undo history;
-  key transposition and capo changes do not modify rhythm. No audio preview yet.
+  strum strokes and meter are independent of key and capo. Bar-chart chord symbols
+  follow permanent key transposition; metadata-only key corrections preserve them.
+- Migration `0070_rhythm_presets` adds shared, named meter/strum presets. Music
+  preset endpoints enforce song read access for listing and edit/create access
+  for creation. Names are checked for duplicates, patterns fill exactly one bar,
+  and applied presets are song-local copies, so edits cannot mutate other songs.
+- Optional `rhythm.arrangements` stores bar-chart text per whole song or named
+  lyric part, and `rhythm.bpm` stores practice tempo. `musicPractice.ts` parses
+  evenly spaced or explicit-count chord changes and repeated bars, combines
+  charts with section strums and the existing worship sequence, voices chords,
+  schedules Web Audio with bounded lookahead, and exports Standard MIDI files
+  with a GM guitar, percussion, tempo, meter and balanced note-on/off events.
+  Audio and MIDI share the same performance event list. Whole-song charts take
+  precedence; otherwise every sequenced part needs a chart. No timing is inferred
+  from lyric spacing. Practice charts are bounded to 256 bars / 20 minutes.
+  `RhythmPracticeControls` handles listen/stop, count-in, metronome, loop and MIDI
+  export in both editor and musician references. Only one preview runs at once;
+  unmounts, edits, key changes and hidden tabs stop it. Song normalization includes
+  stable property ordering and defaults so saved rhythm metadata is not dirty
+  merely because the API canonicalizes JSON fields.
 - coherent modular monolith shape
 - container-first local development
 - real end-to-end vertical slices already exist

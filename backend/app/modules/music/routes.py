@@ -4,19 +4,23 @@ import secrets
 from datetime import UTC, datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
-from sqlalchemy import select, text
+from sqlalchemy import func, select, text
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.database import get_session
 from app.modules.identity.auth import require_any_permission, require_permission
 from app.modules.identity.models import User
 from app.modules.music.models import (
+    RhythmPreset,
     Song,
     SongPart,
     SongWorshipRoleRemoval,
     WorshipSuggestionFeedback,
 )
 from app.modules.music.schemas import (
+    RhythmPresetCreate,
+    RhythmPresetRead,
     SongCreate,
     SongPartRead,
     SongRead,
@@ -683,3 +687,43 @@ def list_song_parts(
         )
         for song_part in song_parts
     ]
+
+
+@router.get("/rhythm-presets", response_model=list[RhythmPresetRead])
+def list_rhythm_presets(
+    _current_user: User = Depends(require_permission("songs:read")),
+    session: Session = Depends(get_session),
+) -> list[RhythmPresetRead]:
+    presets = session.scalars(
+        select(RhythmPreset).order_by(RhythmPreset.kind, RhythmPreset.name)
+    ).all()
+    return [RhythmPresetRead.model_validate(preset, from_attributes=True) for preset in presets]
+
+
+@router.post(
+    "/rhythm-presets", response_model=RhythmPresetRead, status_code=status.HTTP_201_CREATED
+)
+def create_rhythm_preset(
+    payload: RhythmPresetCreate,
+    _current_user: User = Depends(require_any_permission("songs:edit", "songs:create")),
+    session: Session = Depends(get_session),
+) -> RhythmPresetRead:
+    existing = session.scalar(
+        select(RhythmPreset).where(
+            RhythmPreset.kind == payload.kind,
+            func.lower(RhythmPreset.name) == payload.name.lower(),
+        )
+    )
+    if existing:
+        raise HTTPException(status_code=409, detail="A preset with that name already exists")
+    preset = RhythmPreset(**payload.model_dump())
+    session.add(preset)
+    try:
+        session.commit()
+    except IntegrityError as error:
+        session.rollback()
+        raise HTTPException(
+            status_code=409, detail="A preset with that name already exists"
+        ) from error
+    session.refresh(preset)
+    return RhythmPresetRead.model_validate(preset, from_attributes=True)
