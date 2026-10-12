@@ -596,11 +596,11 @@ The session remains active if controller tabs, local output windows, or TV
 browsers close or become suspended. Another presenter can reconnect and stop it
 explicitly, which causes open desktop output windows to close and TV browsers to
 return to waiting. Starting another service ends every other live session, so
-only one service can be live across the system. Any unclosed session whose
-service date is before the current Europe/Dublin date is ended during the next
-live-state cleanup pass unless a presenter output is actively heartbeating. This
-allows an operator to deliberately present a historical service while still
-retiring abandoned past-service sessions. This avoids external-monitor wiring
+only one service can be live across the system. Explicitly started output remains active for historical services too, even when
+no local output window sends heartbeats. Cleanup uses the same authoritative
+output status as Start/Stop; only legacy heartbeat-only or unclaimed past-service
+sessions expire. This allows an operator to replay a previous service without
+cleanup blanking or stopping it after the heartbeat timeout. This avoids external-monitor wiring
 and allows multiple passive displays without output-ownership conflicts. The TV uses a remembered,
 least-privilege viewer session; browser fullscreen and autoplay still require
 interaction on the television itself.

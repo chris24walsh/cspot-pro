@@ -262,16 +262,12 @@ def cleanup_live_sessions(
             past_service = service_date < current_local_date
             if past_service:
                 position = _latest_position(session, presentation_session.id)
-                output = _position_payload(position)
-                heartbeat_at = output.get("output_heartbeat_at")
-                if (
-                    isinstance(output.get("output_owner_id"), str)
-                    and isinstance(heartbeat_at, int | float)
-                    and current_time.timestamp() * 1000 - heartbeat_at < OUTPUT_STALE_MS
-                ):
-                    # Historical plans may be started deliberately for a replay
-                    # or special event. Keep them live while their presenter is
-                    # actively heartbeating, but still retire abandoned sessions.
+                if _serialize_output_status(
+                    presentation_session.plan_id, position, int(current_time.timestamp() * 1000)
+                ).active:
+                    # Explicit Start/Stop ownership survives stale heartbeats,
+                    # including historical replays without a local output window.
+                    # Legacy heartbeat-only sessions still expire normally.
                     continue
             expired_today = False
             if service_date == current_local_date:

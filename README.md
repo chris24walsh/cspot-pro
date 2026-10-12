@@ -73,8 +73,9 @@ over the server without an HDMI cable or extended desktop. Use the short
 `/app/tv` production route; public HTTP visits are upgraded to HTTPS. Once the
 presenter selects **Start**, the TV output remains active until a presenter
 stops it or starts another service. Only one service can be live system-wide,
-and abandoned past-service sessions are expired by the following day while an
-actively presented historical service remains available.
+including historical services started for a replay. Explicitly started services
+remain live without output heartbeats; legacy heartbeat-only and unclaimed
+past-service sessions still expire.
 
 Song editing includes inline YouTube search under Details. Preview a result in
 the popup, choose **Use this video**, then save the song to keep its YouTube link.

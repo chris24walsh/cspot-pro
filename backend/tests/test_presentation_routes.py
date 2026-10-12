@@ -364,7 +364,16 @@ def test_cleanup_live_sessions_ends_past_service_by_next_day() -> None:
         assert stale.status == "ended"
 
 
-def test_cleanup_live_sessions_keeps_started_past_service_with_fresh_output() -> None:
+@pytest.mark.parametrize(
+    "explicit_active, heartbeat_age_seconds, remains_live",
+    [
+        (True, 0, True), (True, 8, True), (True, 3600, True),
+        (False, 0, False), (None, 0, True), (None, 8, False),
+    ],
+)
+def test_cleanup_historical_service_respects_explicit_output_state(
+    explicit_active: bool | None, heartbeat_age_seconds: int, remains_live: bool,
+) -> None:
     engine = create_engine("sqlite://")
     Base.metadata.create_all(
         engine,
@@ -391,22 +400,31 @@ def test_cleanup_live_sessions_keeps_started_past_service_with_fresh_output() ->
         live = PresentationSession(plan_id=plan.id, status="live")
         session.add(live)
         session.flush()
-        session.add(
-            PresentationPosition(
-                session_id=live.id,
-                payload_json=json.dumps(
-                    {
-                        "output_owner_id": "historical-presenter",
-                        "output_heartbeat_at": int(now.timestamp() * 1000),
-                        "output_active": True,
-                    }
-                ),
-            )
+        payload = {
+            "output_owner_id": "historical-presenter",
+            "output_heartbeat_at": int(now.timestamp() * 1000) - heartbeat_age_seconds * 1000,
+            "index": 3,
+            "blanked": False,
+            "service_stage": "service",
+        }
+        if explicit_active is not None:
+            payload["output_active"] = explicit_active
+        position = PresentationPosition(
+            session_id=live.id,
+            payload_json=json.dumps(payload),
         )
+        session.add(position)
         session.commit()
 
-        assert cleanup_live_sessions(session, now=now) == 0
-        assert live.status == "live"
+        assert cleanup_live_sessions(session, now=now) == (0 if remains_live else 1)
+        assert live.status == ("live" if remains_live else "ended")
+        saved = json.loads(position.payload_json)
+        assert saved["index"] == 3
+        assert saved["blanked"] is (not remains_live)
+        if remains_live:
+            assert saved["service_stage"] == "service"
+            assert live.ended_at is None
+            assert cleanup_live_sessions(session, now=now) == 0
 
 
 def test_pre_service_rehearsal_is_visible_only_to_admins_before_output_starts() -> None:
