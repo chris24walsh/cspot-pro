@@ -14262,3 +14262,17 @@ button.musician-page {
     display: none;
   }
 }
+
+@media (max-width: 1100px) {
+  .song-editor-tab-group .musician-bars-toggle span,
+  .song-editor-tab-group .song-rhythm-trigger span {
+    display: none;
+  }
+}
+
+@media (max-width: 699px) {
+  .song-editor-tab-group .tab-button {
+    font-size: 12px;
+    padding: 4px 7px;
+  }
+}
