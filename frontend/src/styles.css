@@ -5895,6 +5895,19 @@ button.musician-page {
   font-size: 12px;
 }
 
+.broadcast-recording-row.is-unpublished {
+  background: #fff3d6;
+  border-color: #c78b2b;
+  box-shadow: inset 4px 0 0 #c78b2b;
+  padding-left: 14px;
+}
+
+.broadcast-recording-row .recording-review-reminder {
+  color: #794b0b;
+  font-weight: 700;
+  white-space: normal;
+}
+
 .broadcast-recording-row time {
   color: var(--text-muted);
   font-size: 12px;

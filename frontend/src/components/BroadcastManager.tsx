@@ -855,9 +855,12 @@ export function BroadcastManager({
         </label> : null}
         <div className="broadcast-recording-list">
           {recordings.length ? recordings.map((recording) => (
-            <article className="broadcast-recording-row" key={recording.id}>
+            <article className={`broadcast-recording-row${canManage && recording.status === "ready" && !recording.visible_at && !recording.archived_at ? " is-unpublished" : ""}`} key={recording.id}>
               <div className="broadcast-recording-summary">
                 <strong>{recordingTimestampTitle(recording)}</strong>
+                {canManage && recording.status === "ready" && !recording.visible_at && !recording.archived_at ? (
+                  <span className="recording-review-reminder">Needs review · trim and publish</span>
+                ) : null}
                 <time>{recordingTimestamp(recording)}</time>
                 <span>{recording.status === "recording" || recording.status === "paused"
                   ? recording.status === "paused"
