@@ -1,7 +1,8 @@
+import { PointerToggle, DEFAULT_MARKER_STYLE } from "./PointerToggle";
 import { LivePointer } from "./LivePointer";
 import { countdownStartsForSelection, withCountdownTiming } from "../countdown";
 import { shiftClock, templateServiceStart, welcomeLeadSeconds } from "../serviceTiming";
-import { Archive, CircleStop, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Clock, EyeOff, Layers3, Mic, MonitorUp, MousePointer2, Pause, Pencil, Play, Plus, RotateCcw, Search, Trash2, Volume2, WandSparkles, X } from "lucide-react";
+import { Archive, CircleStop, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Clock, EyeOff, Layers3, Mic, MonitorUp, Pause, Pencil, Play, Plus, RotateCcw, Search, Trash2, Volume2, WandSparkles, X } from "lucide-react";
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
@@ -825,6 +826,7 @@ export function PresentationView({
   const sorterSectionRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const sectionRailRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const [pointerEnabled, setPointerEnabled] = useState(false);
+  const [pointerMarkerStyle, setPointerMarkerStyle] = useState(DEFAULT_MARKER_STYLE);
   const currentLiveStateRef = useRef<PresentationLiveState | null>(null);
   const lastLiveStateRef = useRef<number>(0);
   const livePollInFlightRef = useRef(false);
@@ -4708,12 +4710,12 @@ export function PresentationView({
                   />
                   <span aria-hidden="true">B</span>
                 </label>
-                <button className={`stage-pointer-button ${pointerEnabled ? "is-active" : ""}`} aria-label="Live pointer" aria-pressed={pointerEnabled} onClick={() => setPointerEnabled((current) => !current)} title="Move or tap to magnify; drag to highlight the live slide" type="button"><MousePointer2 size={15} aria-hidden="true" /><span>Pointer</span><strong>{pointerEnabled ? "On" : "Off"}</strong></button>
+                <PointerToggle enabled={pointerEnabled} onChange={setPointerEnabled} markerStyle={pointerMarkerStyle} onStyleChange={setPointerMarkerStyle} />
                 <span className="stage-slide-counter">{stageSlideCounter}</span>
               </div>
             </div>
             <div className={`presentation-stage ${liveSlide?.montageImageUrls || liveSlide?.backgroundImageUrl || liveSlide?.imageUrl || liveSlide?.videoUrl ? "presentation-stage-image" : ""} ${liveBlanked ? "stage-preview-blanked" : ""}`}>
-              <LivePointer planId={plan?.id} slideId={liveSlide?.id} enabled={pointerEnabled} blanked={liveBlanked} />
+              <LivePointer planId={plan?.id} slideId={liveSlide?.id} enabled={pointerEnabled} blanked={liveBlanked} markerStyle={pointerMarkerStyle} />
               {liveBlanked ? null : liveSlide?.montageImageUrls || liveSlide?.backgroundImageUrl || liveSlide?.imageUrl || liveSlide?.videoUrl || liveSlide?.itemType === "song" || liveSlide?.itemType === "reading" ? null : (
                 <div className="stage-title">
                   <span>{liveSlide?.title ?? "Ready"}</span>

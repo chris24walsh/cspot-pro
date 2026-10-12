@@ -43,10 +43,21 @@ describe("slide magnifier", () => {
       await act(async () => root.render(<SlideMagnifier x={.25} y={.75} />));
       expect(layer.querySelector(".live-pointer-magnifier p")?.textContent).toBe("Magnified content");
       expect(layer.querySelector<HTMLElement>(".live-pointer-magnifier")?.style.left).toBe("25%");
-      vi.spyOn(layer.querySelector<HTMLElement>(".live-pointer-magnifier")!, "getBoundingClientRect").mockReturnValue({ width: 96 } as DOMRect);
+      const lens = layer.querySelector<HTMLElement>(".live-pointer-magnifier")!;
+      expect(lens.style.width).toBe("96px");
+      expect(lens.style.height).toBe("96px");
+      // Simulate distorted visual bounds: pointer moves must not sample these
+      // bounds and amplify the distortion into subsequent lens sizes.
+      const lensBounds = vi.spyOn(lens, "getBoundingClientRect").mockReturnValue({ width: 960, height: 1600 } as DOMRect);
       await act(async () => root.render(<SlideMagnifier x={.6} y={.4} />));
       expect(layer.querySelector<HTMLElement>(".live-pointer-magnifier")?.style.left).toBe("60%");
-      expect(layer.querySelector<HTMLElement>(".live-pointer-magnifier > div")?.style.transform).toBe("translate(-432px, -132px) scale(2)");
+      expect(layer.querySelector<HTMLElement>(".live-pointer-magnifier > div")?.style.transform).toBe("translate(-435px, -135px) scale(2)");
+      for (const [x, y] of [[.1, .2], [.8, .7], [.3, .4]]) {
+        await act(async () => root.render(<SlideMagnifier x={x} y={y} />));
+        expect(lens.style.width).toBe("96px");
+        expect(lens.style.height).toBe("96px");
+      }
+      expect(lensBounds).not.toHaveBeenCalled();
     } finally { act(() => root.unmount()); stage.remove(); }
   });
 });

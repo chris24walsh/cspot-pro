@@ -1938,7 +1938,10 @@ export function samplePtzAngle(direction: "left" | "right", camera_id = "default
   return sendJson<{ running: boolean; error: string | null }>("/api/v1/broadcast/ptz/sample", "POST", { direction, camera_id });
 }
 
+export interface PresentationMarkerStyle { color: string; thickness: number; }
+
 export interface PresentationPointerState {
+  stroke_styles?: PresentationMarkerStyle[];
   strokes?: Array<Array<{ x: number; y: number }>>;
   slide_id: string;
   x: number;

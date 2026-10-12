@@ -1,6 +1,7 @@
+import { DEFAULT_MARKER_STYLE } from "./PointerToggle";
 import { SlideMagnifier } from "./SlideMagnifier";
 import { useEffect, useRef, useState } from "react";
-import { getPresentationPointer, updatePresentationPointer, type PresentationPointerState } from "../api";
+import { getPresentationPointer, updatePresentationPointer, type PresentationPointerState, type PresentationMarkerStyle } from "../api";
 
 const CHANNEL = "cspot-pro-live-pointer";
 
@@ -11,13 +12,15 @@ export function pointerPosition(clientX: number, clientY: number, rect: Pick<DOM
   };
 }
 
-export function LivePointer({ planId, slideId, enabled = false, output = false, blanked = false }: {
-  planId?: string; slideId?: string; enabled?: boolean; output?: boolean; blanked?: boolean;
+export function LivePointer({ planId, slideId, enabled = false, output = false, blanked = false, markerStyle = DEFAULT_MARKER_STYLE }: {
+  planId?: string; slideId?: string; enabled?: boolean; output?: boolean; blanked?: boolean; markerStyle?: PresentationMarkerStyle;
 }) {
   const [pointer, setPointer] = useState<PresentationPointerState | null>(null);
   const [error, setError] = useState(false);
   const layer = useRef<HTMLDivElement>(null);
   const pending = useRef<PresentationPointerState | null>(null);
+  const settings = useRef(markerStyle);
+  settings.current = markerStyle;
   const clearHighlights = useRef<() => void>(() => {});
 
   useEffect(() => {
@@ -26,15 +29,27 @@ export function LivePointer({ planId, slideId, enabled = false, output = false, 
     let busy = false;
     let lastSent = 0;
     let drawing = false;
+    let localActive = false;
+    let hasPublished = false;
+    let needsSend = false;
     let activePointer: number | null = null;
     let touchTimer: number | undefined;
     let strokes: Array<Array<{ x: number; y: number }>> = [];
+    let strokeStyles: PresentationMarkerStyle[] = [];
     const channel = typeof BroadcastChannel === "undefined" ? null : new BroadcastChannel(CHANNEL);
     const accept = (state: PresentationPointerState | null) => {
       if (!stopped) setPointer(state);
     };
-    if (output) channel?.addEventListener("message", (event) => {
-      if (event.data.planId === planId) accept(event.data.pointer);
+    const receive = (state: PresentationPointerState | null) => {
+      if (localActive || needsSend || stopped) return;
+      if (state?.slide_id === slideId) {
+        strokes = state.strokes?.map((stroke) => [...stroke]) ?? [];
+        strokeStyles = strokes.map((_, index) => state.stroke_styles?.[index] ?? DEFAULT_MARKER_STYLE);
+      } else { strokes = []; strokeStyles = []; }
+      accept(state);
+    };
+    channel?.addEventListener("message", (event) => {
+      if (event.data.planId === planId) receive(event.data.pointer);
     });
     const send = async () => {
       if (busy || !pending.current) return;
@@ -43,6 +58,7 @@ export function LivePointer({ planId, slideId, enabled = false, output = false, 
       busy = true;
       try {
         await updatePresentationPointer(planId, state);
+        if (pending.current === state) needsSend = false;
         lastSent = Date.now();
         if (!stopped) setError(false);
       } catch {
@@ -54,6 +70,8 @@ export function LivePointer({ planId, slideId, enabled = false, output = false, 
       if (event.isPrimary === false || (activePointer !== null && (event.pointerId ?? 0) !== activePointer)) return;
       if (event.pointerType === "touch" && activePointer === null) return;
       clearTimeout(touchTimer);
+      localActive = true;
+      hasPublished = true;
       const rect = layer.current?.getBoundingClientRect();
       if (!rect) return;
       const point = pointerPosition(event.clientX, event.clientY, rect);
@@ -65,8 +83,9 @@ export function LivePointer({ planId, slideId, enabled = false, output = false, 
           strokes[strokes.length - 1].push(point);
         }
       }
-      const state = { slide_id: slideId, ...point, strokes: strokes.map((stroke) => [...stroke]), visible: true, updated_at: Date.now() };
+      const state = { slide_id: slideId, ...point, strokes: strokes.map((stroke) => [...stroke]), stroke_styles: [...strokeStyles], visible: !drawing, updated_at: Date.now() };
       pending.current = state;
+      needsSend = true;
       accept(state);
       channel?.postMessage({ planId, pointer: state });
     };
@@ -75,8 +94,9 @@ export function LivePointer({ planId, slideId, enabled = false, output = false, 
       activePointer = event.pointerId ?? 0;
       clearTimeout(touchTimer);
       event.preventDefault();
-      if (strokes.length >= 50) strokes.shift();
+      if (strokes.length >= 50) { strokes.shift(); strokeStyles.shift(); }
       strokes.push([]);
+      strokeStyles.push({ ...settings.current });
       drawing = true;
       layer.current?.setPointerCapture?.(event.pointerId);
       move(event);
@@ -86,10 +106,12 @@ export function LivePointer({ planId, slideId, enabled = false, output = false, 
       if (event.type === "pointerup") move(event);
       drawing = false;
       activePointer = null;
-      // A tap points; only a drag leaves an annotation.
-      if (strokes[strokes.length - 1]?.length < 2) strokes.pop();
+      // Keep the finished mark unobscured; taps still show the magnifier.
+      const dragged = (strokes[strokes.length - 1]?.length ?? 0) > 1;
+      if (!dragged) { strokes.pop(); strokeStyles.pop(); }
       if (pending.current) {
-        pending.current = { ...pending.current, strokes: strokes.map((stroke) => [...stroke]), updated_at: Date.now() };
+        pending.current = { ...pending.current, visible: !dragged && event.type === "pointerup", strokes: strokes.map((stroke) => [...stroke]), stroke_styles: [...strokeStyles], updated_at: Date.now() };
+        needsSend = true;
         accept(pending.current);
         channel?.postMessage({ planId, pointer: pending.current });
       }
@@ -101,19 +123,23 @@ export function LivePointer({ planId, slideId, enabled = false, output = false, 
       clearTimeout(touchTimer);
       drawing = false;
       activePointer = null;
-      const state = { slide_id: slideId, x: 0, y: 0, strokes: strokes.map((stroke) => [...stroke]), visible: false, updated_at: Date.now() };
+      const state = { slide_id: slideId, x: 0, y: 0, strokes: strokes.map((stroke) => [...stroke]), stroke_styles: [...strokeStyles], visible: false, updated_at: Date.now() };
       pending.current = state;
+      needsSend = true;
       accept(state);
       channel?.postMessage({ planId, pointer: state });
       lastSent = 0;
       void send();
+      localActive = false;
     };
     const leave = (event: PointerEvent) => {
       if (activePointer !== null || touchTimer !== undefined && (event.pointerType === "touch" || event.pointerType === "pen")) return;
       hide();
     };
     clearHighlights.current = () => {
+      hasPublished = true;
       strokes = [];
+      strokeStyles = [];
       hide();
     };
     const element = layer.current;
@@ -127,10 +153,11 @@ export function LivePointer({ planId, slideId, enabled = false, output = false, 
       window.addEventListener("blur", hide);
     }
     const tick = async () => {
-      if (output) {
+      if (needsSend && enabled && !blanked && !output) { await send(); return; }
+      if (output || !enabled || !localActive) {
         if (busy) return;
         busy = true;
-        try { accept(await getPresentationPointer(planId)); } catch { accept(null); }
+        try { receive(await getPresentationPointer(planId)); } catch { /* Preserve completed annotations during a temporary network gap. */ }
         finally { busy = false; }
       } else if (enabled && !blanked) {
         const state = pending.current;
@@ -142,12 +169,13 @@ export function LivePointer({ planId, slideId, enabled = false, output = false, 
       }
     };
     const timer = window.setInterval(() => void tick(), 100);
-    if (output) void tick();
+    void tick();
     return () => {
       clearTimeout(touchTimer);
       clearHighlights.current = () => {};
       strokes = [];
-      if (enabled && !output) hide();
+      strokeStyles = [];
+      if (enabled && !output && hasPublished) hide();
       stopped = true;
       clearInterval(timer);
       element?.removeEventListener("pointerdown", start);
@@ -162,10 +190,13 @@ export function LivePointer({ planId, slideId, enabled = false, output = false, 
     };
   }, [planId, slideId, enabled, output, blanked]);
 
-  const active = !blanked && (enabled || output) && pointer != null && pointer.slide_id === slideId && Date.now() - pointer.updated_at < 2000;
-  const visible = active && pointer?.visible;
+  const active = !blanked && pointer != null && pointer.slide_id === slideId;
+  const visible = active && (enabled || output) && pointer?.visible && Date.now() - pointer.updated_at < 2000;
   return <div ref={layer} className={`live-pointer-layer ${enabled && !blanked && !output ? "is-enabled" : ""}`}>
-    {active && pointer?.strokes?.length ? <svg className="live-highlighter" viewBox="0 0 1000 1000" preserveAspectRatio="none" aria-hidden="true">{pointer.strokes.map((stroke, index) => <polyline key={index} points={stroke.map((point) => `${point.x * 1000},${point.y * 1000}`).join(" ")} />)}</svg> : null}
+    {active && pointer?.strokes?.length ? <svg className="live-highlighter" viewBox="0 0 1000 1000" preserveAspectRatio="none" aria-hidden="true">{pointer.strokes.map((stroke, index) => {
+      const style = pointer.stroke_styles?.[index] ?? DEFAULT_MARKER_STYLE;
+      return stroke.length === 1 ? <circle key={index} cx={stroke[0].x * 1000} cy={stroke[0].y * 1000} r={style.thickness / 2} style={{ fill: style.color }} /> : <polyline key={index} points={stroke.map((point) => `${point.x * 1000},${point.y * 1000}`).join(" ")} style={{ stroke: style.color, strokeWidth: style.thickness }} />;
+    })}</svg> : null}
     {visible ? <SlideMagnifier x={pointer.x} y={pointer.y} /> : null}
     {enabled && !output && !blanked ? <button className="live-pointer-clear" type="button" disabled={!active || !pointer?.strokes?.length} onClick={() => clearHighlights.current()} title="Clear highlights on this slide">Clear highlights</button> : null}
     {error && enabled ? <span className="live-pointer-error" role="status">Pointer could not reach live output</span> : null}

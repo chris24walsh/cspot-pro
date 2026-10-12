@@ -1155,7 +1155,7 @@ def test_pointer_updates_preserve_slide_state_and_expire() -> None:
         position = PresentationPosition(session_id=live.id, slide_index=3, payload_json=json.dumps({"index": 3, "blanked": False, "updated_at": 123}))
         session.add(position)
         session.commit()
-        pointer = PresentationPointer(slide_id="slide-3", x=0.25, y=0.75, visible=True, strokes=[[{"x": 0.1, "y": 0.2}, {"x": 0.3, "y": 0.4}]])
+        pointer = PresentationPointer(slide_id="slide-3", x=0.25, y=0.75, visible=True, stroke_styles=[{"color": "#58b5ff", "thickness": 60}], strokes=[[{"x": 0.1, "y": 0.2}, {"x": 0.3, "y": 0.4}]])
         update_presentation_pointer(plan.id, pointer, None, session)
         assert get_presentation_pointer(plan.id, None, session).x == 0.25
         data = json.loads(position.payload_json)
@@ -1163,6 +1163,14 @@ def test_pointer_updates_preserve_slide_state_and_expire() -> None:
         assert data["index"] == 3
         assert data["updated_at"] == 123
         data["pointer"]["updated_at"] = 1
+        position.payload_json = json.dumps(data)
+        session.commit()
+        expired = get_presentation_pointer(plan.id, None, session)
+        assert expired.visible is False
+        assert expired.strokes[0][1].x == 0.3
+        assert expired.stroke_styles[0].color == "#58b5ff"
+        assert expired.stroke_styles[0].thickness == 60
+        data["pointer"]["strokes"] = []
         position.payload_json = json.dumps(data)
         session.commit()
         assert get_presentation_pointer(plan.id, None, session) is None

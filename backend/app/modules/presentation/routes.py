@@ -82,7 +82,13 @@ class PresentationPointerPoint(BaseModel):
     y: float = Field(ge=0, le=1)
 
 
+class PresentationMarkerStyle(BaseModel):
+    color: str = Field(default="#ffe000", pattern=r"^#[0-9a-fA-F]{6}$")
+    thickness: float = Field(default=36, ge=4, le=80)
+
+
 class PresentationPointer(BaseModel):
+    stroke_styles: list[PresentationMarkerStyle] = Field(default_factory=list, max_length=50)
     strokes: list[list[PresentationPointerPoint]] = Field(default_factory=list, max_length=50)
     slide_id: str = Field(max_length=200)
     x: float = Field(ge=0, le=1)
@@ -100,8 +106,12 @@ def get_presentation_pointer(
     presentation_session = _latest_session(session, plan_id)
     position = _latest_position(session, presentation_session.id) if presentation_session else None
     pointer = _position_payload(position).get("pointer")
-    if not pointer or datetime.now(UTC).timestamp() * 1000 - pointer["updated_at"] > 2000:
+    if not pointer:
         return None
+    if datetime.now(UTC).timestamp() * 1000 - pointer["updated_at"] > 2000:
+        if not pointer.get("strokes"):
+            return None
+        return PresentationPointer(**{**pointer, "visible": False})
     return PresentationPointer(**pointer)
 
 

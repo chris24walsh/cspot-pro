@@ -1,6 +1,11 @@
 import { useLayoutEffect, useRef } from "react";
 
 export const POINTER_ZOOM = 2;
+const LENS_BORDER = 3;
+
+export function magnifierDiameter(width: number, video = false) {
+  return Math.min(video ? 140 : 280, Math.max(video ? 64 : 90, width * (video ? .12 : .24)));
+}
 
 export function magnifierTranslation(x: number, y: number, width: number, height: number, diameter: number) {
   return { x: diameter / 2 - x * width * POINTER_ZOOM, y: diameter / 2 - y * height * POINTER_ZOOM };
@@ -41,6 +46,7 @@ export function copySlideVisual(stage: HTMLElement) {
 export function SlideMagnifier({ x, y }: { x: number; y: number }) {
   const lens = useRef<HTMLSpanElement>(null);
   const snapshot = useRef<HTMLElement | null>(null);
+  const geometry = useRef({ width: 0, height: 0, diameter: 90 });
   const point = useRef({ x, y });
   point.current = { x, y };
 
@@ -51,9 +57,8 @@ export function SlideMagnifier({ x, y }: { x: number; y: number }) {
     let frame = 0;
     const position = () => {
       if (!snapshot.current) return;
-      const box = stage.getBoundingClientRect();
-      const diameter = element.getBoundingClientRect().width;
-      const offset = magnifierTranslation(point.current.x, point.current.y, box.width, box.height, diameter);
+      const { width, height, diameter } = geometry.current;
+      const offset = magnifierTranslation(point.current.x, point.current.y, width, height, diameter - LENS_BORDER * 2);
       snapshot.current.style.transform = `translate(${offset.x}px, ${offset.y}px) scale(${POINTER_ZOOM})`;
     };
     const onLoad = (event: Event) => {
@@ -65,8 +70,16 @@ export function SlideMagnifier({ x, y }: { x: number; y: number }) {
       element.classList.toggle("is-video", Boolean(video));
       const copy = copySlideVisual(stage);
       const box = stage.getBoundingClientRect();
-      copy.style.width = `${box.width}px`;
-      copy.style.height = `${box.height}px`;
+      // Measure only the original stage. Lens content and transforms must never
+      // feed back into its sizing, including in mobile/zoomed browser layouts.
+      const width = stage.clientWidth || box.width;
+      const height = stage.clientHeight || box.height;
+      const diameter = magnifierDiameter(width, Boolean(video));
+      geometry.current = { width, height, diameter };
+      element.style.width = `${diameter}px`;
+      element.style.height = `${diameter}px`;
+      copy.style.width = `${width}px`;
+      copy.style.height = `${height}px`;
       element.replaceChildren(copy);
       snapshot.current = copy;
       position();
@@ -93,8 +106,8 @@ export function SlideMagnifier({ x, y }: { x: number; y: number }) {
     const element = lens.current;
     const stage = element?.closest(".presentation-stage, .slideshow-stage");
     if (!element || !stage || !snapshot.current) return;
-    const box = stage.getBoundingClientRect();
-    const offset = magnifierTranslation(x, y, box.width, box.height, element.getBoundingClientRect().width);
+    const { width, height, diameter } = geometry.current;
+    const offset = magnifierTranslation(x, y, width, height, diameter - LENS_BORDER * 2);
     snapshot.current.style.transform = `translate(${offset.x}px, ${offset.y}px) scale(${POINTER_ZOOM})`;
   }, [x, y]);
 

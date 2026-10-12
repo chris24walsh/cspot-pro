@@ -8774,7 +8774,8 @@ button.musician-page {
 }
 
 .stage-audio-switch input:checked + .stage-theme-slider,
-.stage-recording-switch input:checked + .stage-theme-slider {
+.stage-recording-switch input:checked + .stage-theme-slider,
+.stage-pointer-switch input:checked + .stage-theme-slider {
   background: rgba(128, 189, 159, 0.55);
   border-color: rgba(190, 230, 208, 0.85);
 }
@@ -8784,7 +8785,8 @@ button.musician-page {
 }
 
 .stage-audio-switch input:checked + .stage-theme-slider::after,
-.stage-recording-switch input:checked + .stage-theme-slider::after {
+.stage-recording-switch input:checked + .stage-theme-slider::after,
+.stage-pointer-switch input:checked + .stage-theme-slider::after {
   transform: translateX(16px);
 }
 
@@ -13730,20 +13732,10 @@ button.musician-page {
 .live-pointer-clear:disabled { opacity: .5; cursor: default; }
 
 
-/* Pointer state stays visible in both the desktop toolbar and compact controls. */
-.stage-pointer-button { display: inline-flex; align-items: center; justify-content: center; gap: 5px; min-height: 32px; padding: 4px 8px; border: 1px solid #a3aca8; border-radius: 6px; background: #f2f4f3; color: #20302a; cursor: pointer; font-size: 11px; }
-.stage-pointer-button strong { padding: 2px 4px; border-radius: 4px; background: #d5dad7; color: #20302a; }
-.stage-pointer-button.is-active { border-color: #ffe000; background: #20302a; color: #fff; }
-.stage-pointer-button.is-active strong { background: #ffe000; color: #20302a; }
-.stage-pointer-button:focus-visible { outline: 2px solid #ffe000; outline-offset: 2px; }
-.live-pointer-magnifier { display: block; width: 24%; min-width: 90px; max-width: 280px; background: #202322; overflow: hidden; box-sizing: content-box; border: 3px solid #ffe000; box-shadow: 0 2px 16px #0009; }
-@media (max-width: 1100px) {
-  .stage-shell-live .stage-pointer-button { flex-direction: column; gap: 2px; padding: 5px; }
-  .stage-shell-live .stage-pointer-button > span { display: none; }
-}
-@media (pointer: coarse) { .stage-pointer-button { min-width: 44px; min-height: 44px; } }
+.stage-pointer-switch:focus-within { outline: 2px solid #ffe000; outline-offset: 2px; }
+.live-pointer-magnifier { display: block; width: 90px; height: 90px; min-width: 0; max-width: none; aspect-ratio: auto; contain: strict; background: #202322; overflow: hidden; box-sizing: border-box; border: 3px solid #ffe000; box-shadow: 0 2px 16px #0009; }
 
-.live-pointer-magnifier.is-video { width: 12%; min-width: 64px; max-width: 140px; background: rgba(255, 220, 0, .1); }
+.live-pointer-magnifier.is-video { background: rgba(255, 220, 0, .1); }
 .live-pointer-magnifier.is-video > * { display: none; }
 /* Compact presenter controls must remain above the touch drawing surface. */
 .stage-shell-live .stage-meta { z-index: 40; }
@@ -13782,3 +13774,17 @@ button.musician-page {
   color: inherit;
   font-size: inherit;
 }
+
+.live-highlighter circle { fill: #ffe000; opacity: .5; }
+
+.stage-pointer-switch { -webkit-touch-callout: none; user-select: none; }
+.pointer-marker-menu { position: fixed; z-index: 1600; width: 248px; padding: 10px; box-sizing: border-box; color: #20302a; background: #fffdf5; border: 1px solid #9da9a2; border-radius: 8px; box-shadow: 0 4px 20px #0005; display: grid; gap: 8px; font-size: 12px; }
+.pointer-marker-heading { display: flex; align-items: center; justify-content: space-between; }
+.pointer-marker-menu button { min-height: 44px; border: 1px solid #a3aca8; border-radius: 5px; cursor: pointer; }
+.pointer-marker-heading button { width: 44px; display: grid; place-items: center; }
+.pointer-marker-thickness { display: flex; gap: 5px; }
+.pointer-marker-thickness button { flex: 1; background: #eef1ed; color: #20302a; }
+.pointer-marker-thickness button[aria-pressed="true"] { background: #20302a; color: white; }
+.pointer-marker-colors { display: grid; grid-template-columns: repeat(6, 1fr); gap: 4px; }
+.pointer-marker-colors button { min-height: 36px; }
+.pointer-marker-colors button[aria-pressed="true"] { outline: 2px solid #20302a; outline-offset: 1px; }

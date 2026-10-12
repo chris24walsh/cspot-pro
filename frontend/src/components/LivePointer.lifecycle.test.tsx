@@ -35,8 +35,11 @@ it("draws highlights while dragging and keeps them after leaving the preview", a
     act(() => {
       layer.dispatchEvent(new MouseEvent("pointerdown", { clientX: 10, clientY: 20, button: 0 }));
       layer.dispatchEvent(new MouseEvent("pointermove", { clientX: 50, clientY: 60 }));
-      layer.dispatchEvent(new MouseEvent("pointerup", { clientX: 50, clientY: 60 }));
     });
+    expect(container.querySelector(".live-pointer-magnifier")).toBeNull();
+    expect(container.querySelector("polyline")?.getAttribute("points")).toBe("100,200 500,600");
+    act(() => layer.dispatchEvent(new MouseEvent("pointerup", { clientX: 50, clientY: 60 })));
+    expect(container.querySelector(".live-pointer-magnifier")).toBeNull();
     expect(container.querySelector("polyline")?.getAttribute("points")).toBe("100,200 500,600");
     act(() => layer.dispatchEvent(new MouseEvent("pointerleave")));
     expect(container.querySelector(".live-pointer-dot")).toBeNull();
@@ -104,5 +107,53 @@ it.each(["pointercancel", "lostpointercapture"])("stops %s without leaving the c
     });
     expect(container.querySelector(".live-pointer-dot")).toBeNull();
     expect(container.querySelector("polyline")).toBeNull();
+  } finally { act(() => root.unmount()); }
+});
+
+
+it("shows a remote stroke while drawing without obscuring it with the magnifier", async () => {
+  vi.mocked(getPresentationPointer).mockResolvedValue({ slide_id: "one", x: .5, y: .6, visible: false, strokes: [[{ x: .1, y: .2 }, { x: .5, y: .6 }]], updated_at: Date.now() });
+  const container = document.createElement("div");
+  const root = createRoot(container);
+  try {
+    await act(async () => root.render(<LivePointer planId="plan" slideId="one" output />));
+    expect(container.querySelector("polyline")?.getAttribute("points")).toBe("100,200 500,600");
+    expect(container.querySelector(".live-pointer-magnifier")).toBeNull();
+  } finally { act(() => root.unmount()); }
+});
+
+it("shows completed highlights on a passive device preview after the cursor expires", async () => {
+  vi.mocked(updatePresentationPointer).mockClear();
+  vi.mocked(getPresentationPointer).mockResolvedValue({ slide_id: "one", x: .5, y: .6, visible: false, stroke_styles: [{ color: "#58b5ff", thickness: 60 }], strokes: [[{ x: .1, y: .2 }, { x: .5, y: .6 }]], updated_at: 1 });
+  const container = document.createElement("div"); const root = createRoot(container);
+  try {
+    await act(async () => root.render(<LivePointer planId="plan" slideId="one" />));
+    const mark = container.querySelector<SVGElement>("polyline")!;
+    expect(mark.style.stroke).toBe("#58b5ff");
+    expect(mark.style.strokeWidth).toBe("60");
+    expect(container.querySelector(".live-pointer-magnifier")).toBeNull();
+    expect(updatePresentationPointer).not.toHaveBeenCalled();
+  } finally { act(() => root.unmount()); }
+});
+
+it("keeps each completed stroke's colour and thickness when marker options change", async () => {
+  vi.mocked(getPresentationPointer).mockResolvedValue(null);
+  const container = document.createElement("div"); const root = createRoot(container);
+  try {
+    await act(async () => root.render(<LivePointer planId="plan" slideId="one" enabled />));
+    const layer = container.querySelector<HTMLElement>(".live-pointer-layer")!;
+    vi.spyOn(layer, "getBoundingClientRect").mockReturnValue({ left: 0, top: 0, width: 100, height: 100 } as DOMRect);
+    const draw = () => act(() => {
+      layer.dispatchEvent(new MouseEvent("pointerdown", { clientX: 10, clientY: 20, button: 0 }));
+      layer.dispatchEvent(new MouseEvent("pointermove", { clientX: 50, clientY: 60 }));
+      layer.dispatchEvent(new MouseEvent("pointerup", { clientX: 50, clientY: 60 }));
+    });
+    draw();
+    await act(async () => root.render(<LivePointer planId="plan" slideId="one" enabled markerStyle={{ color: "#58b5ff", thickness: 60 }} />));
+    draw();
+    const marks = container.querySelectorAll<SVGElement>("polyline");
+    expect(marks).toHaveLength(2);
+    expect(marks[0].style.stroke).toBe("#ffe000"); expect(marks[0].style.strokeWidth).toBe("36");
+    expect(marks[1].style.stroke).toBe("#58b5ff"); expect(marks[1].style.strokeWidth).toBe("60");
   } finally { act(() => root.unmount()); }
 });
