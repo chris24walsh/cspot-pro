@@ -1,4 +1,4 @@
-import { Download, Globe2, Link2, Pencil, Share2, Volume2, X } from "lucide-react";
+import { Download, Eye, EyeOff, Globe2, Link2, Pencil, Share2, Volume2, X } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import {
@@ -143,7 +143,7 @@ export function RecordingActions({ recording, canManage = false, onRecordingChan
   if (recording.status !== "ready") return null;
   return <>
     <button aria-label="Share or download recording" className="recording-icon-button" onClick={() => setOpen(true)} title="Share or download" type="button"><Share2 size={17} aria-hidden="true" /></button>
-    {canManage && !recording.archived_at ? <button className="text-button" disabled={busy} onClick={() => void toggleVisibility()} type="button">{recording.visible_at ? "Unpublish recording" : "Publish recording"}</button> : null}
+    {canManage && !recording.archived_at ? <button aria-label={recording.visible_at ? "Unpublish recording" : "Publish recording"} className="text-button icon-text-button recording-publish-button" disabled={busy} onClick={() => void toggleVisibility()} title={recording.visible_at ? "Unpublish recording" : "Publish recording"} type="button">{recording.visible_at ? <EyeOff size={17} aria-hidden="true" /> : <Eye size={17} aria-hidden="true" />}<span className="recording-publish-label">{recording.visible_at ? "Unpublish recording" : "Publish recording"}</span></button> : null}
     {message && !open ? <span role="status">{message}</span> : null}
     {open ? <div className="app-dialog-backdrop recording-share-backdrop" onMouseDown={() => setOpen(false)} role="presentation">
       <section aria-label={`Share or download ${recording.title}`} aria-modal="true" className="app-dialog recording-share-dialog" onMouseDown={(event) => event.stopPropagation()} role="dialog">

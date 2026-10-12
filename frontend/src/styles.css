@@ -13750,3 +13750,18 @@ button.musician-page {
 .live-pointer-clear { top: auto; right: auto; bottom: 8px; left: 50%; transform: translateX(-50%); }
 /* The lens samples the selected slide, not a frozen halfway transition. */
 .live-pointer-magnifier .slide-visual-transition { opacity: 1 !important; transform: none !important; }
+
+@media (max-width: 700px) {
+  .recording-publish-button .recording-publish-label {
+    display: none;
+  }
+
+  .recording-publish-button {
+    align-items: center;
+    justify-content: center;
+    width: 34px;
+    height: 34px;
+    padding: 0;
+    flex-shrink: 0;
+  }
+}
