@@ -81,3 +81,31 @@ it("saves meter, a customized preset and a chorus variation, then reloads them",
     vi.resetAllMocks();
   }
 });
+
+it("edits bars inline only when enabled and preserves normal chord editing", async () => {
+  const chart = { ...createEmptyChordChart(), absoluteKey: "C", annotations: [{ id: "one", section: "V1", lineIndex: 0, anchorIndex: 3, chord: "C" }] };
+  const song = { id: "bar-song", title: "Bar song", lyrics: "[V1]\nTest lyrics", sequence: "V1", chords: serializeChordChart(chart) } as Song;
+  vi.mocked(updateSong).mockImplementation(async (_id, payload) => ({ ...song, ...payload }));
+  const container = document.createElement("div"); const root = createRoot(container);
+  try {
+    await act(async () => root.render(<SongEditorDialog song={song} canEdit onClose={() => {}} onSaved={() => {}} />));
+    act(() => Array.from(container.querySelectorAll("button")).find((button) => button.textContent === "Chords")!.click());
+    const toggle = container.querySelector<HTMLButtonElement>('[aria-label="Edit bars in chord panel"]')!;
+    expect(toggle.getAttribute("aria-pressed")).toBe("false");
+    expect(container.querySelector(".chord-panel-bars")).toBeNull();
+    const slotCount = container.querySelectorAll(".musician-slot").length;
+    act(() => toggle.click());
+    const part = container.querySelector('[aria-label="V1 bars"]')!;
+    act(() => Array.from(part.querySelectorAll("button")).find((button) => button.textContent === "Add bar")!.click());
+    const input = part.querySelector<HTMLInputElement>('[aria-label="V1 bar 1 chords"]')!;
+    act(() => { Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, "C@1 G@3 *2"); input.dispatchEvent(new Event("input", { bubbles: true })); });
+    act(() => toggle.click());
+    expect(container.querySelector(".chord-panel-bars")).toBeNull();
+    expect(container.querySelectorAll(".musician-slot")).toHaveLength(slotCount);
+    act(() => container.querySelector<HTMLButtonElement>(".musician-slot.has-chord")!.click());
+    expect(container.querySelector<HTMLInputElement>(".musician-slot-editor input")!.value).toBe("C");
+    await act(async () => container.querySelector<HTMLButtonElement>('[aria-label="Save song"]')!.click());
+    expect(vi.mocked(updateSong).mock.calls[0][1].rhythm?.arrangements).toEqual([{ section: "V1", chart: "C@1 G@3 *2" }]);
+    expect(parseChordChart(vi.mocked(updateSong).mock.calls[0][1].chords ?? null).document.annotations).toEqual(chart.annotations);
+  } finally { act(() => root.unmount()); vi.resetAllMocks(); }
+});

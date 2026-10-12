@@ -66,7 +66,7 @@ export function chordMidiNotes(symbol: string): number[] {
   }
   const rootPitch = 48 + PITCH_CLASSES[root];
   const bassPitch = 36 + PITCH_CLASSES[bass ?? root];
-  return Array.from(new Set([bassPitch < 40 ? bassPitch + 12 : bassPitch, ...intervals.map((interval) => rootPitch + interval), rootPitch + 12])).sort((a, b) => a - b);
+  return Array.from(new Set([bassPitch < 40 ? bassPitch + 12 : bassPitch, ...intervals.map((interval) => rootPitch + interval), rootPitch + 12, rootPitch + intervals[1] + 12])).sort((a, b) => a - b);
 }
 
 export function rhythmQuarterBpm(rhythm: SongRhythm): number {
@@ -200,7 +200,9 @@ export class PracticeAudioPlayer {
     let nextNote = 0;
     const duration = performance.totalTicks * secondsPerTick;
     const master = context.createGain();
-    master.gain.value = 0.17;
+    master.gain.value = 0.25;
+    const wave = typeof context.createPeriodicWave === "function"
+      ? context.createPeriodicWave(new Float32Array(8), new Float32Array([0, 1, 0.48, 0.27, 0.16, 0.1, 0.06, 0.04])) : null;
     master.connect(context.destination);
     const schedule = () => {
       let elapsed = context.currentTime - started;
@@ -219,9 +221,12 @@ export class PracticeAudioPlayer {
         const oscillator = context.createOscillator();
         const gain = context.createGain();
         oscillator.type = "triangle";
+        if (note.channel !== 9 && wave) oscillator.setPeriodicWave(wave);
         oscillator.frequency.setValueAtTime(note.channel === 9 ? note.pitch === 76 ? 1600 : note.pitch === 77 ? 1100 : 250 : 440 * 2 ** ((note.pitch - 69) / 12), at);
         gain.gain.setValueAtTime(0.0001, at);
-        gain.gain.exponentialRampToValueAtTime(note.velocity / 127 / (note.channel === 9 ? 2 : 6), at + 0.003);
+        const peak = note.velocity / 127 * (note.channel === 9 ? 0.3 : 0.22);
+        gain.gain.exponentialRampToValueAtTime(peak, at + 0.003);
+        if (note.channel !== 9) gain.gain.exponentialRampToValueAtTime(peak * 0.5, at + length * 0.7);
         gain.gain.exponentialRampToValueAtTime(0.0001, at + (note.channel === 9 ? 0.05 : length));
         oscillator.connect(gain); gain.connect(master);
         oscillator.start(at); oscillator.stop(at + length + 0.02);

@@ -39,6 +39,7 @@ import { PROGRAM_AUDIO_FADE_DURATION_MS } from "../audioTransitions";
 import { worshipSequenceBlocks } from "../worshipText";
 import { mergeWorshipSetIntoService } from "../worshipSets";
 
+import { PracticeListenButton } from "./PracticeListenButton";
 import { SongRhythmDisplay } from "./SongRhythmDisplay";
 
 interface MusicianLiveViewProps {
@@ -1174,6 +1175,7 @@ export function MusicianLiveView({ canControlAudio = false, controlPlanId, onEdi
         <SongRhythmDisplay key={liveSong?.id} rhythm={liveSong?.rhythm} section={sequenceBlocks[currentSequenceBlockIndex]?.label} lyrics={liveSong?.lyrics} sequence={liveSong?.sequence} previewChord={baseAbsoluteKey} transpose={currentAbsoluteKey ? semitoneDistance(baseAbsoluteKey, currentAbsoluteKey) : 0} title={liveSong?.title} />
       </div>
       <div className="musician-live-controls" aria-label="Musician display controls">
+        <PracticeListenButton key={liveSong?.id} rhythm={liveSong?.rhythm} lyrics={liveSong?.lyrics} sequence={liveSong?.sequence} section={sequenceBlocks[currentSequenceBlockIndex]?.label} previewChord={baseAbsoluteKey} transpose={currentAbsoluteKey ? semitoneDistance(baseAbsoluteKey, currentAbsoluteKey) : 0} />
         {servicePlan ? <button aria-label={worshipSyncOverridden ? "Worship sync is enabled but the service view has moved outside worship" : worshipCoupled ? "Stop syncing Worship Live with service and move after worship" : "Sync Worship Live with service"} aria-pressed={worshipCoupled} className={`musician-service-couple-button ${worshipCoupled ? "is-active" : ""} ${worshipSyncOverridden ? "is-overridden" : ""}`} onClick={() => void toggleServiceCoupling()} title={worshipSyncOverridden ? "Service view moved outside worship. Change a worship slide to resync." : worshipCoupled ? "Stop syncing and go after worship" : "Sync with service"} type="button">{worshipCoupled ? <Unlink2 size={16} aria-hidden="true" /> : <Link2 size={16} aria-hidden="true" />}<span className="musician-control-text">Sync</span></button> : null}
         {canControlAudio ? <button aria-label={`${backingAudioPlaying ? "Fade out" : "Play"} backing audio for ${liveSong?.title ?? "song"}`} aria-pressed={backingAudioPlaying} className={`musician-audio-button ${backingAudioPlaying ? "is-active" : ""}`} disabled={!backingAudioAvailable || !worshipCoupled} onClick={() => void toggleBackingAudio()} title={!worshipCoupled ? "Sync with the service to control backing audio" : backingAudioAvailable ? `${backingAudioPlaying ? "Fade out" : "Play"} backing audio` : "No backing audio for this song"} type="button">{backingAudioPlaying ? <Pause size={16} aria-hidden="true" /> : <Play size={16} aria-hidden="true" />}<span className="musician-control-text">Audio</span></button> : null}
         <button

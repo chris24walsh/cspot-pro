@@ -1,4 +1,4 @@
-import { Archive, ArrowRightLeft, Copy, ListRestart, Search, Save, Trash2, WandSparkles, X } from "lucide-react";
+import { Archive, ArrowRightLeft, Columns3, Copy, ListRestart, Search, Save, Trash2, WandSparkles, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { createSong, updateSong, type Song } from "../api";
@@ -32,6 +32,7 @@ import { normalizeSongRhythm } from "../songRhythm";
 import { parseBarChart, transposeBarCharts } from "../musicPractice";
 import { canonicalizeWorshipLyrics, normalizeWorshipSequence } from "../worshipText";
 import { useConfirmationDialog } from "./ConfirmationDialog";
+import { ChordPanelBarsEditor } from "./ChordPanelBarsEditor";
 import { SongRhythmEditor } from "./SongRhythmEditor";
 import { SongYouTubeSearch } from "./SongYouTubeSearch";
 import { useEscapeClose } from "./useEscapeClose";
@@ -292,6 +293,7 @@ export function SongEditorDialog({
   useEscapeClose(true, onClose);
   const [youtubeSearchOpen, setYoutubeSearchOpen] = useState(false);
   const [tab, setTab] = useState<SongEditorTab>("lyrics");
+  const [barEditing, setBarEditing] = useState(false);
   const [transposeChordsOnKeyChange, setTransposeChordsOnKeyChange] = useState(true);
   const [form, setForm] = useState<SongForm>(() => formFromSong(song));
   const [chordChart, setChordChart] = useState<ChordChartDocument>(() => parseChordChart(song.chords, song.lyrics).document);
@@ -339,6 +341,7 @@ export function SongEditorDialog({
     setLegacyChords(parsed.legacyText);
     setTab("lyrics");
     setTransposeChordsOnKeyChange(true);
+    setBarEditing(false);
     setMessage(null);
     setPersistedSongId(mode === "edit" ? song.id : null);
     setLastSavedSong(song);
@@ -679,6 +682,7 @@ export function SongEditorDialog({
                   </button>
                 ))}
               </div>
+              {tab === "chords" ? <button aria-label="Edit bars in chord panel" aria-pressed={barEditing} className={`section-icon-button section-edit-button musician-bars-toggle ${barEditing ? "is-active" : ""}`} onClick={() => setBarEditing((enabled) => !enabled)} title="Show or hide inline bar editing" type="button"><Columns3 size={15} aria-hidden="true" /><span>Bars</span></button> : null}
               {tab === "chords" ? <SongRhythmEditor value={form.rhythm ?? null} canEdit={canEdit} lyrics={chordLyrics} sequence={form.sequence} previewChord={activeDisplayedChord ?? chordChart.absoluteKey ?? "C"} songChords={lineAnnotations.map((entry) => ({ section: entry.section, chord: entry.chord }))} onSave={saveSong} saving={saving} isDirty={isDirty} onChange={(rhythm) => setForm((current) => ({ ...current, rhythm }))} /> : null}
             </div>
             {tab === "chords" ? (
@@ -784,11 +788,19 @@ export function SongEditorDialog({
           {tab === "chords" ? (
             <section className="musician-tools" aria-label="Chord editor">
               <div className="musician-chart-panel" ref={chordChartPanelRef}>
+                {barEditing ? <>
+                  <small className="field-help">Edit bars below each part, or use a whole-song chart. Multiple chords divide a bar evenly; @ sets exact counts and * repeats a bar. Save the song to keep changes.</small>
+                  <ChordPanelBarsEditor section="Default" rhythm={form.rhythm ?? null} chords={[]} canEdit={canEdit} onChange={(rhythm) => setForm((current) => ({ ...current, rhythm }))} />
+                </> : null}
                 {lines.length ? (
                   <div className="musician-preview">
                     {lines.map((line, lineIndex) => {
                       if (/^\[[^\]]+\]$/.test(line.trim())) {
-                        return <div className="musician-section-marker" key={`${lineIndex}-${line}`}>{line}</div>;
+                        const section = line.trim().slice(1, -1);
+                        return <div key={`${lineIndex}-${line}`}>
+                          <div className="musician-section-marker">{line}</div>
+                          {barEditing ? <ChordPanelBarsEditor section={section} rhythm={form.rhythm ?? null} chords={lineAnnotations.filter((entry) => entry.section === section).map((entry) => entry.chord)} canEdit={canEdit} onChange={(rhythm) => setForm((current) => ({ ...current, rhythm }))} /> : null}
+                        </div>;
                       }
                       const annotations = lineAnnotations.filter((annotation) => annotation.absoluteLineIndex === lineIndex);
                       const totalSlots = line.length + LEADING_CHORD_ANCHORS + TRAILING_CHORD_ANCHORS;

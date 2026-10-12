@@ -14173,3 +14173,92 @@ button.musician-page {
   display: grid;
   gap: 8px;
 }
+
+.musician-bars-toggle.is-active {
+  background: #dcefe6;
+  border-color: #69a48d;
+}
+
+.chord-panel-bars {
+  background: #f7f3e8;
+  border: 1px solid #ded8c7;
+  border-radius: 6px;
+  display: grid;
+  gap: 5px;
+  margin: 4px 0 8px;
+  padding: 6px;
+}
+
+.chord-panel-bars-heading,
+.chord-panel-bar-cards {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.chord-panel-bars-heading strong {
+  font-size: 12px;
+  margin-right: auto;
+}
+
+.chord-panel-bars-heading button {
+  align-items: center;
+  display: inline-flex;
+  font-size: 11px;
+  gap: 3px;
+  min-height: 28px;
+  padding: 3px 6px;
+}
+
+.chord-panel-bar-card {
+  align-items: center;
+  display: flex;
+  gap: 4px;
+  min-width: 0;
+}
+
+.chord-panel-bar-card input {
+  font-family: monospace;
+  min-height: 30px;
+  padding: 3px 5px;
+  width: 140px;
+}
+
+.chord-panel-bar-card > span {
+  color: #65716a;
+  font-size: 11px;
+}
+
+.chord-panel-bar-card button {
+  min-height: 28px;
+  min-width: 28px;
+  padding: 3px;
+}
+
+.musician-practice-listen {
+  position: relative;
+}
+
+.musician-practice-error {
+  background: #fffefa;
+  border: 1px solid #cfc7b4;
+  border-radius: 6px;
+  box-shadow: 0 5px 20px #17201b26;
+  color: #9a521d;
+  font-size: 12px;
+  padding: 8px;
+  position: absolute;
+  right: 0;
+  top: calc(100% + 5px);
+  white-space: normal;
+  width: min(300px, calc(100vw - 24px));
+  z-index: 20;
+}
+
+@media (max-width: 699px) {
+  .song-editor-tab-group .musician-bars-toggle span,
+  .song-editor-tab-group .song-rhythm-trigger span {
+    display: none;
+  }
+}

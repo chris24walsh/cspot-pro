@@ -9,6 +9,9 @@ class FakeAudioContext {
   state = "running";
   destination = {};
   frequencies: number[] = [];
+  waveUses = 0;
+  waves: number[][] = [];
+  createPeriodicWave(_real: Float32Array, imaginary: Float32Array) { this.waves.push(Array.from(imaginary)); return {}; }
   constructor() { instances.push(this); }
   resume = vi.fn(async () => {});
   close = vi.fn(async () => { this.state = "closed"; });
@@ -16,7 +19,7 @@ class FakeAudioContext {
     return { gain: { value: 1, setValueAtTime: vi.fn(), exponentialRampToValueAtTime: vi.fn() }, connect: vi.fn(), disconnect: vi.fn() };
   }
   createOscillator() {
-    return { type: "", frequency: { setValueAtTime: (frequency: number) => this.frequencies.push(frequency) }, connect: vi.fn(), disconnect: vi.fn(), start: vi.fn(), stop: vi.fn(), onended: null };
+    return { type: "", setPeriodicWave: () => { this.waveUses += 1; }, frequency: { setValueAtTime: (frequency: number) => this.frequencies.push(frequency) }, connect: vi.fn(), disconnect: vi.fn(), start: vi.fn(), stop: vi.fn(), onended: null };
   }
 }
 const rhythm: SongRhythm = { numerator: 4, denominator: 4, bpm: 120, notes: "", patterns: [{ section: "Default", subdivision: 1, strokes: ["U", "D", "-", "X"] }], arrangements: [{ section: "Default", chart: "C" }] };
@@ -29,6 +32,8 @@ it("schedules upstrokes from high to low, then ends and closes the audio context
   const ended = vi.fn();
   await player.play(performance, false, vi.fn(), ended);
   expect(instances[0].frequencies).toEqual(chordMidiNotes("C").reverse().map((pitch) => 440 * 2 ** ((pitch - 69) / 12)));
+  expect(instances[0].waveUses).toBe(chordMidiNotes("C").length);
+  expect(instances[0].waves[0][2]).toBeCloseTo(0.48);
   instances[0].currentTime = 2.2;
   vi.advanceTimersByTime(25);
   expect(ended).toHaveBeenCalledOnce();

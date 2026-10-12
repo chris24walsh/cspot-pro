@@ -981,6 +981,14 @@ Search modes:
   unmounts, edits, key changes and hidden tabs stop it. Song normalization includes
   stable property ordering and defaults so saved rhythm metadata is not dirty
   merely because the API canonicalizes JSON fields.
+- `ChordPanelBarsEditor` exposes the existing rhythm arrangement text as inline
+  bar cards beneath lyric parts when the editor's opt-in Bars mode is enabled.
+  This uses the same saved data/parser as the rhythm overlay; normal chord slots,
+  drag/drop and lyric anchors keep their handlers in either mode. The toggle starts
+  off for each song. `PracticeListenButton` provides one-click local practice in
+  Worship Live and releases audio on song/key changes, hidden tabs or unmounts.
+  Browser synthesis uses a harmonic waveform, upper chord tones and a sustained
+  decay envelope so polyphonic chord quality is audible; MIDI shares the voicings.
 - coherent modular monolith shape
 - container-first local development
 - real end-to-end vertical slices already exist
