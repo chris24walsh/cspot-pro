@@ -32,7 +32,7 @@ import { normalizeSongRhythm } from "../songRhythm";
 import { parseBarChart, transposeBarCharts } from "../musicPractice";
 import { canonicalizeWorshipLyrics, normalizeWorshipSequence } from "../worshipText";
 import { useConfirmationDialog } from "./ConfirmationDialog";
-import { ChordPanelBarsEditor } from "./ChordPanelBarsEditor";
+import { placeBarMarker, removeBarMarker, rhythmWithBarMarkers } from "../barMarkers";
 import { SongRhythmEditor } from "./SongRhythmEditor";
 import { SongYouTubeSearch } from "./SongYouTubeSearch";
 import { useEscapeClose } from "./useEscapeClose";
@@ -124,7 +124,7 @@ function normalizeForm(form: SongForm, chords: string | null): SongForm {
     author: form.author || null,
     lyrics,
     chords,
-    rhythm: normalizeSongRhythm(form.rhythm),
+    rhythm: normalizeSongRhythm(rhythmWithBarMarkers(form.rhythm, parseChordChart(chords, lyrics).document.annotations)),
     ccli_number: form.ccli_number || null,
     book_reference: form.book_reference || null,
     license: form.license || null,
@@ -303,6 +303,7 @@ export function SongEditorDialog({
   const [editingAnnotationId, setEditingAnnotationId] = useState<string | null>(null);
   const [inlineChordEditorOpen, setInlineChordEditorOpen] = useState(false);
   const [chordInput, setChordInput] = useState("");
+  const [draggedBarId, setDraggedBarId] = useState<string | null>(null);
   const [draggedAnnotationId, setDraggedAnnotationId] = useState<string | null>(null);
   const [hoveredAnchor, setHoveredAnchor] = useState<{ lineIndex: number; slotIndex: number } | null>(null);
   const [hoveredChordId, setHoveredChordId] = useState<string | null>(null);
@@ -323,6 +324,8 @@ export function SongEditorDialog({
   const lineAnnotations = resolveChordAnnotations(chordChart.annotations, chordLyrics)
     .slice()
     .sort((left, right) => left.absoluteLineIndex - right.absoluteLineIndex || left.anchorIndex - right.anchorIndex);
+  const effectiveRhythm = useMemo(() => rhythmWithBarMarkers(form.rhythm, chordChart.annotations), [form.rhythm, chordChart.annotations]);
+  const lineBars = resolveChordAnnotations(form.rhythm?.markers ?? [], chordLyrics);
   const activeChordAnnotation =
     lineAnnotations.find((annotation) => annotation.id === editingAnnotationId) ??
     lineAnnotations.find((annotation) => annotation.id === hoveredChordId) ??
@@ -455,6 +458,19 @@ export function SongEditorDialog({
     } else {
       cancelInlineChordEdit();
     }
+  }
+
+  function editBarAt(lineIndex: number, anchorIndex: number, movingId?: string) {
+    if (!canEdit) return;
+    const position = chordPositionForLine(chordLyrics, lineIndex);
+    if (!position) return;
+    setForm((current) => {
+      const existing = current.rhythm?.markers?.find((marker) => marker.section === position.section && marker.lineIndex === position.lineIndex && marker.anchorIndex === anchorIndex);
+      const rhythm = !movingId && existing && current.rhythm
+        ? removeBarMarker(current.rhythm, chordChart.annotations, existing.id)
+        : placeBarMarker(current.rhythm, chordChart.annotations, { ...position, anchorIndex }, movingId);
+      return { ...current, rhythm };
+    });
   }
 
   function moveAnnotation(annotationId: string, lineIndex: number, anchorIndex: number) {
@@ -682,8 +698,8 @@ export function SongEditorDialog({
                   </button>
                 ))}
               </div>
-              {tab === "chords" ? <button aria-label="Edit bars in chord panel" aria-pressed={barEditing} className={`section-icon-button section-edit-button musician-bars-toggle ${barEditing ? "is-active" : ""}`} onClick={() => setBarEditing((enabled) => !enabled)} title="Show or hide inline bar editing" type="button"><Columns3 size={15} aria-hidden="true" /><span>Bars</span></button> : null}
-              {tab === "chords" ? <SongRhythmEditor value={form.rhythm ?? null} canEdit={canEdit} lyrics={chordLyrics} sequence={form.sequence} previewChord={activeDisplayedChord ?? chordChart.absoluteKey ?? "C"} songChords={lineAnnotations.map((entry) => ({ section: entry.section, chord: entry.chord }))} onSave={saveSong} saving={saving} isDirty={isDirty} onChange={(rhythm) => setForm((current) => ({ ...current, rhythm }))} /> : null}
+              {tab === "chords" ? <button aria-label="Switch between chord and bar editing" aria-pressed={barEditing} className={`section-icon-button section-edit-button musician-bars-toggle ${barEditing ? "is-active" : ""}`} onClick={() => { setBarEditing((enabled) => !enabled); setDraggedBarId(null); setDraggedAnnotationId(null); }} title={barEditing ? "Bar editing: click to return to chords" : "Chord editing: click to place and move bars"} type="button"><Columns3 size={15} aria-hidden="true" /><span>{barEditing ? "Bars" : "Chords"}</span></button> : null}
+              {tab === "chords" ? <SongRhythmEditor value={effectiveRhythm} canEdit={canEdit} lyrics={chordLyrics} sequence={form.sequence} previewChord={activeDisplayedChord ?? chordChart.absoluteKey ?? "C"} songChords={lineAnnotations.map((entry) => ({ section: entry.section, chord: entry.chord }))} onSave={saveSong} saving={saving} isDirty={isDirty} onChange={(rhythm) => setForm((current) => ({ ...current, rhythm }))} /> : null}
             </div>
             {tab === "chords" ? (
               <div className="musician-control-row musician-key-row">
@@ -788,26 +804,20 @@ export function SongEditorDialog({
           {tab === "chords" ? (
             <section className="musician-tools" aria-label="Chord editor">
               <div className="musician-chart-panel" ref={chordChartPanelRef}>
-                {barEditing ? <>
-                  <small className="field-help">Edit bars below each part, or use a whole-song chart. Multiple chords divide a bar evenly; @ sets exact counts and * repeats a bar. Save the song to keep changes.</small>
-                  <ChordPanelBarsEditor section="Default" rhythm={form.rhythm ?? null} chords={[]} canEdit={canEdit} onChange={(rhythm) => setForm((current) => ({ ...current, rhythm }))} />
-                </> : null}
+                {barEditing ? <small className="field-help">Click a lyric or chord position to add a bar boundary; drag a bar to move it, or click it again to remove it. Chords within each bar divide its time evenly.</small> : null}
                 {lines.length ? (
                   <div className="musician-preview">
                     {lines.map((line, lineIndex) => {
                       if (/^\[[^\]]+\]$/.test(line.trim())) {
-                        const section = line.trim().slice(1, -1);
-                        return <div key={`${lineIndex}-${line}`}>
-                          <div className="musician-section-marker">{line}</div>
-                          {barEditing ? <ChordPanelBarsEditor section={section} rhythm={form.rhythm ?? null} chords={lineAnnotations.filter((entry) => entry.section === section).map((entry) => entry.chord)} canEdit={canEdit} onChange={(rhythm) => setForm((current) => ({ ...current, rhythm }))} /> : null}
-                        </div>;
+                        return <div className="musician-section-marker" key={`${lineIndex}-${line}`}>{line}</div>;
                       }
                       const annotations = lineAnnotations.filter((annotation) => annotation.absoluteLineIndex === lineIndex);
                       const totalSlots = line.length + LEADING_CHORD_ANCHORS + TRAILING_CHORD_ANCHORS;
                       const renderSlot = (slotIndex: number, gridColumn: number) => {
                         const annotation = annotations.find((candidate) => candidate.anchorIndex === slotIndex);
+                        const bar = lineBars.find((marker) => marker.absoluteLineIndex === lineIndex && marker.anchorIndex === slotIndex);
                         const isEditing =
-                          inlineChordEditorOpen &&
+                          !barEditing && inlineChordEditorOpen &&
                           selectedLineIndex === lineIndex &&
                           selectedAnchorIndex === slotIndex &&
                           (editingAnnotationId === null ? !annotation : annotation != null && editingAnnotationId === annotation.id);
@@ -844,17 +854,20 @@ export function SongEditorDialog({
                         }
                         return (
                           <button
-                            className={`musician-slot ${annotation ? "has-chord" : ""}`}
+                            className={`musician-slot ${annotation ? "has-chord" : ""} ${bar ? "has-bar" : ""} ${barEditing ? "is-bar-editing" : ""}`}
+                            aria-label={barEditing ? `${bar ? "Remove" : "Add"} bar at line ${lineIndex + 1}, position ${slotIndex}` : undefined}
+                            title={barEditing ? bar ? "Drag to move bar; click to remove" : "Click to add bar" : undefined}
                             disabled={!canEdit}
-                            draggable={Boolean(annotation) && canEdit}
+                            draggable={Boolean(barEditing ? bar : annotation) && canEdit}
                             key={`slot-${lineIndex}-${slotIndex}`}
-                            onClick={() => startInlineChordEdit(lineIndex, slotIndex, annotation)}
-                            onDragEnd={() => setDraggedAnnotationId(null)}
-                            onDragOver={(event) => { if (draggedAnnotationId) event.preventDefault(); }}
-                            onDragStart={() => { if (annotation) setDraggedAnnotationId(annotation.id); }}
+                            onClick={() => barEditing ? editBarAt(lineIndex, slotIndex) : startInlineChordEdit(lineIndex, slotIndex, annotation)}
+                            onDragEnd={() => { setDraggedAnnotationId(null); setDraggedBarId(null); }}
+                            onDragOver={(event) => { if (barEditing ? draggedBarId : draggedAnnotationId) event.preventDefault(); }}
+                            onDragStart={(event) => { if (barEditing && bar) { setDraggedBarId(bar.id); event.dataTransfer.setData("text/plain", bar.id); } else if (annotation) setDraggedAnnotationId(annotation.id); }}
                             onDrop={(event) => {
                               event.preventDefault();
-                              if (draggedAnnotationId) {
+                              if (barEditing && draggedBarId) { editBarAt(lineIndex, slotIndex, draggedBarId); setDraggedBarId(null); }
+                              else if (!barEditing && draggedAnnotationId) {
                                 moveAnnotation(draggedAnnotationId, lineIndex, slotIndex);
                                 setDraggedAnnotationId(null);
                               }
@@ -865,7 +878,7 @@ export function SongEditorDialog({
                             style={{ gridColumn, gridRow: 1 }}
                             type="button"
                           >
-                            <span className="musician-slot-chord">{annotation ? displayChord(annotation.chord, { capo: chordChart.capo, detailMode, displayMode }) : "·"}</span>
+                            <span className="musician-slot-chord">{barEditing && bar ? "│ " : ""}{annotation ? displayChord(annotation.chord, { capo: chordChart.capo, detailMode, displayMode }) : barEditing && bar ? "" : "·"}</span>
                           </button>
                         );
                       };
@@ -886,8 +899,13 @@ export function SongEditorDialog({
                                   className={`musician-char ${line[charIndex] === " " ? "is-space" : ""} ${hoveredAnchor?.lineIndex === lineIndex && hoveredAnchor.slotIndex === LEADING_CHORD_ANCHORS + charIndex ? "is-anchor-hovered" : ""}`}
                                   disabled={!canEdit}
                                   key={`${lineIndex}-char-${charIndex}`}
+                                  onDragOver={(event) => { if (barEditing && draggedBarId) event.preventDefault(); }}
+                                  onDrop={(event) => {
+                                    if (barEditing && draggedBarId) { event.preventDefault(); editBarAt(lineIndex, LEADING_CHORD_ANCHORS + charIndex, draggedBarId); setDraggedBarId(null); }
+                                  }}
                                   onClick={() => {
                                     const slotIndex = LEADING_CHORD_ANCHORS + charIndex;
+                                    if (barEditing) { editBarAt(lineIndex, slotIndex); return; }
                                     const annotation = annotations.find((candidate) => candidate.anchorIndex === slotIndex);
                                     startInlineChordEdit(lineIndex, slotIndex, annotation);
                                   }}

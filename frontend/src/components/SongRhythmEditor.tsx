@@ -50,6 +50,7 @@ export function SongRhythmEditor({ value, canEdit, onChange, lyrics, sequence, p
   const selectedSaved = savedStrums.find((entry) => entry.numerator === rhythm.numerator && entry.denominator === rhythm.denominator && entry.name === pattern.name && entry.subdivision === pattern.subdivision && entry.strokes?.join() === pattern.strokes.join());
   const savedMeter = savedMeters.find((entry) => entry.numerator === rhythm.numerator && entry.denominator === rhythm.denominator);
   const partNames = Array.from(new Set(["Default", ...songPracticeParts(lyrics, sequence), ...(rhythm.arrangements ?? []).map((entry) => entry.section)]));
+  const linkedBars = rhythm.markers?.some((marker) => (marker.section ?? "Default") === barPart) ?? false;
   const chart = rhythm.arrangements?.find((entry) => entry.section === barPart)?.chart ?? "";
   let chartError: string | null = null;
   let barLabels: string[] = [];
@@ -183,7 +184,8 @@ export function SongRhythmEditor({ value, canEdit, onChange, lyrics, sequence, p
           <details className="rhythm-bar-editor">
             <summary>Bars &amp; chords · {barLabels.length} bars in selected chart</summary>
             <label className="compact-field">Part<select aria-label="Bar chart part" onChange={(event) => setBarPart(event.target.value)} value={barPart}>{partNames.map((part) => <option key={part} value={part}>{part === "Default" ? "Whole song" : part}</option>)}</select></label>
-            <textarea aria-label="Chord bar chart" disabled={!canEdit} maxLength={8000} onChange={(event) => updateChart(event.target.value)} placeholder="C | Am | F G | C *2" rows={3} value={chart} />
+            {linkedBars ? <small className="field-help">This chart follows the bar markers in the chord panel. Use Bars mode there to move boundaries; chord changes within a bar divide its time evenly.</small> : null}
+            <textarea aria-label="Chord bar chart" disabled={!canEdit || linkedBars} maxLength={8000} onChange={(event) => updateChart(event.target.value)} placeholder="C | Am | F G | C *2" rows={3} value={chart} />
             <small className="field-help">Separate bars with | or new lines. C G splits a bar evenly. C@1 G@3 sets exact counts. C *4 repeats a bar four times. Counts follow the meter's written unit (eighth notes in 6/8).</small>
             <button className="text-button" disabled={!canEdit || Boolean(chart.trim()) || !songChords.length} onClick={() => updateChart(songChords.filter((entry) => barPart === "Default" || entry.section === barPart).map((entry) => entry.chord).join(" | "))} type="button">Start from song chords</button>
             <small className="field-help">Starting from song chords places one chord per bar; adjust the timing to match the song.</small>

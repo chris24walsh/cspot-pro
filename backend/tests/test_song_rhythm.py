@@ -22,6 +22,7 @@ def rhythm_value() -> dict:
         "denominator": 8,
         "notes": "Accent the two main beats",
         "bpm": 90,
+        "markers": [{"id": "bar-one", "section": "V1", "lineIndex": 0, "anchorIndex": 8}],
         "arrangements": [],
         "patterns": [
             {

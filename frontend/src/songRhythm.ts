@@ -6,12 +6,19 @@ export interface StrumPattern {
   subdivision: 1 | 2;
   strokes: StrumStroke[];
 }
+export interface BarMarker {
+  id: string;
+  section: string | null;
+  lineIndex: number;
+  anchorIndex: number;
+}
 export interface SongRhythm {
   numerator: number;
   denominator: 2 | 4 | 8 | 16;
   patterns: StrumPattern[];
   notes: string;
   bpm?: number;
+  markers?: BarMarker[];
   arrangements?: Array<{ section: string; chart: string }>;
 }
 
@@ -80,6 +87,8 @@ export function normalizeSongRhythm(rhythm: SongRhythm | null | undefined): Song
     numerator: rhythm.numerator, denominator: rhythm.denominator,
     patterns: rhythm.patterns.map((pattern) => ({ name: pattern.name ?? "", section: pattern.section, subdivision: pattern.subdivision, strokes: [...pattern.strokes] })),
     notes: rhythm.notes ?? "", bpm: rhythm.bpm ?? 90,
+    markers: (rhythm.markers ?? []).map((marker) => ({ id: marker.id, section: marker.section, lineIndex: marker.lineIndex, anchorIndex: marker.anchorIndex }))
+      .sort((a, b) => (a.section ?? "").localeCompare(b.section ?? "") || a.lineIndex - b.lineIndex || a.anchorIndex - b.anchorIndex),
     arrangements: (rhythm.arrangements ?? []).map((entry) => ({ section: entry.section, chart: entry.chart })),
   } : null;
 }

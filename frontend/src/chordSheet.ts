@@ -293,9 +293,9 @@ export function chordPositionForLine(lyrics: string | null, absoluteLineIndex: n
   return null;
 }
 
-export function resolveChordAnnotations(annotations: ChordAnnotation[], lyrics: string | null) {
+export function resolveChordAnnotations<T extends { section: string | null; lineIndex: number }>(annotations: T[], lyrics: string | null) {
   const sections = chordLyricSections(lyrics);
-  return annotations.flatMap((annotation): ResolvedChordAnnotation[] => {
+  return annotations.flatMap((annotation): Array<T & { absoluteLineIndex: number }> => {
     const section = sections.find((candidate) => candidate.key === annotation.section);
     const absoluteLineIndex = section?.lineIndexes[annotation.lineIndex];
     if (absoluteLineIndex == null) return [];

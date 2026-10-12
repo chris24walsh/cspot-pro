@@ -65,7 +65,7 @@ it("saves meter, a customized preset and a chorus variation, then reloads them",
     await act(async () => container.querySelector<HTMLButtonElement>('[aria-label="Save song"]')!.click());
     expect(container.querySelector<HTMLButtonElement>('[aria-label="Save song"]')!.disabled).toBe(true);
     const payload = vi.mocked(updateSong).mock.calls[0][1];
-    expect(payload.rhythm).toEqual({ numerator: 4, denominator: 4, notes: "", bpm: 90, arrangements: [], patterns: [
+    expect(payload.rhythm).toEqual({ numerator: 4, denominator: 4, notes: "", bpm: 90, markers: [], arrangements: [], patterns: [
       { name: "Down, down-up, up-down-up", section: "Default", subdivision: 2, strokes: ["D", "D", "D", "U", "-", "U", "D", "U"] },
       { name: "Straight down-up", section: "Chorus", subdivision: 2, strokes: ["D", "U", "D", "U", "D", "U", "D", "U"] },
     ] });
@@ -82,7 +82,7 @@ it("saves meter, a customized preset and a chorus variation, then reloads them",
   }
 });
 
-it("edits bars inline only when enabled and preserves normal chord editing", async () => {
+it("places and drags bar boundaries in the lyric grid without opening a chord editor", async () => {
   const chart = { ...createEmptyChordChart(), absoluteKey: "C", annotations: [{ id: "one", section: "V1", lineIndex: 0, anchorIndex: 3, chord: "C" }] };
   const song = { id: "bar-song", title: "Bar song", lyrics: "[V1]\nTest lyrics", sequence: "V1", chords: serializeChordChart(chart) } as Song;
   vi.mocked(updateSong).mockImplementation(async (_id, payload) => ({ ...song, ...payload }));
@@ -90,22 +90,32 @@ it("edits bars inline only when enabled and preserves normal chord editing", asy
   try {
     await act(async () => root.render(<SongEditorDialog song={song} canEdit onClose={() => {}} onSaved={() => {}} />));
     act(() => Array.from(container.querySelectorAll("button")).find((button) => button.textContent === "Chords")!.click());
-    const toggle = container.querySelector<HTMLButtonElement>('[aria-label="Edit bars in chord panel"]')!;
+    const toggle = container.querySelector<HTMLButtonElement>('[aria-label="Switch between chord and bar editing"]')!;
     expect(toggle.getAttribute("aria-pressed")).toBe("false");
-    expect(container.querySelector(".chord-panel-bars")).toBeNull();
     const slotCount = container.querySelectorAll(".musician-slot").length;
     act(() => toggle.click());
-    const part = container.querySelector('[aria-label="V1 bars"]')!;
-    act(() => Array.from(part.querySelectorAll("button")).find((button) => button.textContent === "Add bar")!.click());
-    const input = part.querySelector<HTMLInputElement>('[aria-label="V1 bar 1 chords"]')!;
-    act(() => { Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, "C@1 G@3 *2"); input.dispatchEvent(new Event("input", { bubbles: true })); });
+    act(() => container.querySelector<HTMLButtonElement>('[aria-label="Add bar at line 2, position 3"]')!.click());
+    expect(container.querySelector(".musician-slot-editor")).toBeNull();
+    expect(container.querySelectorAll(".musician-slot.has-bar")).toHaveLength(1);
+    const start = new Event("dragstart", { bubbles: true });
+    Object.defineProperty(start, "dataTransfer", { value: { setData: vi.fn() } });
+    act(() => container.querySelector<HTMLButtonElement>(".musician-slot.has-bar")!.dispatchEvent(start));
+    act(() => container.querySelector<HTMLButtonElement>('[aria-label="Add bar at line 2, position 8"]')!.dispatchEvent(new Event("drop", { bubbles: true })));
+    expect(container.querySelector('[aria-label="Remove bar at line 2, position 8"]')).not.toBeNull();
+    expect(container.querySelectorAll(".musician-slot.has-bar")).toHaveLength(1);
     act(() => toggle.click());
-    expect(container.querySelector(".chord-panel-bars")).toBeNull();
     expect(container.querySelectorAll(".musician-slot")).toHaveLength(slotCount);
     act(() => container.querySelector<HTMLButtonElement>(".musician-slot.has-chord")!.click());
     expect(container.querySelector<HTMLInputElement>(".musician-slot-editor input")!.value).toBe("C");
     await act(async () => container.querySelector<HTMLButtonElement>('[aria-label="Save song"]')!.click());
-    expect(vi.mocked(updateSong).mock.calls[0][1].rhythm?.arrangements).toEqual([{ section: "V1", chart: "C@1 G@3 *2" }]);
+    expect(vi.mocked(updateSong).mock.calls[0][1].rhythm?.markers).toEqual([expect.objectContaining({ section: "V1", lineIndex: 0, anchorIndex: 8 })]);
+    expect(vi.mocked(updateSong).mock.calls[0][1].rhythm?.arrangements).toEqual([{ section: "V1", chart: "C | C" }]);
     expect(parseChordChart(vi.mocked(updateSong).mock.calls[0][1].chords ?? null).document.annotations).toEqual(chart.annotations);
+    const saved = { ...song, ...vi.mocked(updateSong).mock.calls[0][1] };
+    await act(async () => root.render(<SongEditorDialog song={saved} canEdit onClose={() => {}} onSaved={() => {}} />));
+    act(() => Array.from(container.querySelectorAll("button")).find((button) => button.textContent === "Chords")!.click());
+    expect(container.querySelectorAll(".musician-slot.has-bar")).toHaveLength(1);
+    expect(container.querySelector<HTMLButtonElement>('[aria-label="Save song"]')!.disabled).toBe(true);
+
   } finally { act(() => root.unmount()); vi.resetAllMocks(); }
 });

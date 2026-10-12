@@ -981,14 +981,18 @@ Search modes:
   unmounts, edits, key changes and hidden tabs stop it. Song normalization includes
   stable property ordering and defaults so saved rhythm metadata is not dirty
   merely because the API canonicalizes JSON fields.
-- `ChordPanelBarsEditor` exposes the existing rhythm arrangement text as inline
-  bar cards beneath lyric parts when the editor's opt-in Bars mode is enabled.
-  This uses the same saved data/parser as the rhythm overlay; normal chord slots,
-  drag/drop and lyric anchors keep their handlers in either mode. The toggle starts
-  off for each song. `PracticeListenButton` provides one-click local practice in
-  Worship Live and releases audio on song/key changes, hidden tabs or unmounts.
-  Browser synthesis uses a harmonic waveform, upper chord tones and a sustained
-  decay envelope so polyphonic chord quality is audible; MIDI shares the voicings.
+- The song editor has mutually exclusive chord/bar interaction modes in the same
+  lyric grid. Bar mode clicks add/remove boundaries immediately, and drag/drop
+  moves those boundaries without changing chord annotations or opening inputs.
+  `rhythm.markers` stores stable ids, section-relative line indexes and chord-grid
+  anchors, reusing the chord section resolver so wrapping does not change position.
+  `barMarkers.ts` derives marked-part playback charts from boundaries and chord
+  positions. Chords divide each bar evenly; empty later bars hold the prior chord.
+  Removing a part's last marker clears its derived chart. Unmarked manual charts
+  are retained, and whole-song charts keep their established playback precedence.
+  `PracticeListenButton` provides local practice in Worship Live. Browser synthesis
+  uses upper chord tones, a harmonic waveform and sustained decay; MIDI shares the
+  same full voicings. No database migration is needed for optional rhythm markers.
 - coherent modular monolith shape
 - container-first local development
 - real end-to-end vertical slices already exist

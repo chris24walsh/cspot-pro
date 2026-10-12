@@ -399,10 +399,14 @@ Practice controls offer BPM, count-in, metronome, loop and a real `.mid` downloa
 sound rather than a recording. Playback stops on close, edits or navigation.
 Transposing a song key also transposes its bar-chart chord symbols; metadata-only
 key corrections preserve them. Musician previews follow the selected sounding key.
-The Bars toggle beside the song-editor tabs enables inline bar cards beneath each
-lyric part and a whole-song chart at the top of the chord panel. It starts off;
-turning it off hides bar tools without changing chord selection, placement or
-saved chart data. Cards use the same counts/repeats syntax as the rhythm editor.
+The chord/bar mode switch beside the tabs changes what clicking and dragging in
+this same lyric grid does. Chords mode edits and moves chord symbols. Bars mode
+adds a boundary immediately on click, moves it by dragging, and removes it by
+clicking it again. Existing chords remain visible and their positions are kept.
+Markers are saved with rhythm metadata using section-relative lyric anchors.
+They generate the marked part's playback chart: chord changes within a bar divide
+its time evenly, and empty later bars hold the previous chord. Unmarked parts keep
+manual charts; a whole-song chart still takes precedence for song playback.
 Worship Live has a direct Listen/Stop button for local practice audio, using the
 whole arrangement when bars exist and the current strum otherwise. Fuller chord
 voicings, brighter harmonics and sustained envelopes make chord quality audible.

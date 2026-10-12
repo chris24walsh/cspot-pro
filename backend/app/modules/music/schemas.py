@@ -48,12 +48,20 @@ class RhythmPresetRead(RhythmPresetCreate):
     id: str
 
 
+class BarMarker(BaseModel):
+    id: str = Field(min_length=1, max_length=80)
+    section: str | None = Field(default=None, max_length=80)
+    lineIndex: int = Field(ge=0)
+    anchorIndex: int = Field(ge=0)
+
+
 class SongRhythm(BaseModel):
     numerator: int = Field(ge=1, le=12)
     denominator: Literal[2, 4, 8, 16]
     patterns: list[StrumPattern] = Field(default_factory=list, max_length=4)
     notes: str = Field(default="", max_length=500)
     bpm: int = Field(default=90, ge=30, le=240)
+    markers: list[BarMarker] = Field(default_factory=list, max_length=1000)
     arrangements: list[SongBarChart] = Field(default_factory=list, max_length=64)
 
     @model_validator(mode="after")
