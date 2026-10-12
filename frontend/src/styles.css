@@ -13728,8 +13728,6 @@ button.musician-page {
 .live-highlighter polyline { fill: none; stroke: #ffe000; stroke-width: 36; stroke-linecap: round; stroke-linejoin: round; opacity: .5; }
 
 .live-pointer-layer.is-enabled { user-select: none; -webkit-user-select: none; }
-.live-pointer-clear { position: absolute; top: 6px; right: 6px; min-height: 44px; padding: 6px 12px; color: white; background: rgba(24, 24, 24, .85); border: 1px solid #aaa; border-radius: 5px; cursor: pointer; pointer-events: auto; }
-.live-pointer-clear:disabled { opacity: .5; cursor: default; }
 
 
 .stage-pointer-switch:focus-within { outline: 2px solid #ffe000; outline-offset: 2px; }
@@ -13739,7 +13737,6 @@ button.musician-page {
 .live-pointer-magnifier.is-video > * { display: none; }
 /* Compact presenter controls must remain above the touch drawing surface. */
 .stage-shell-live .stage-meta { z-index: 40; }
-.live-pointer-clear { top: auto; right: auto; bottom: 8px; left: 50%; transform: translateX(-50%); }
 /* The lens samples the selected slide, not a frozen halfway transition. */
 .live-pointer-magnifier .slide-visual-transition { opacity: 1 !important; transform: none !important; }
 

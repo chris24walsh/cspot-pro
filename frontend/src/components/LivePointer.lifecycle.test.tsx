@@ -3,7 +3,7 @@ import { act } from "react";
 import { createRoot } from "react-dom/client";
 import { expect, it, vi } from "vitest";
 import { LivePointer } from "./LivePointer";
-import { getPresentationPointer, updatePresentationPointer } from "../api";
+import { getPresentationPointer, updatePresentationPointer, type PresentationPointerState } from "../api";
 vi.mock("../api", () => ({ getPresentationPointer: vi.fn(), updatePresentationPointer: vi.fn().mockResolvedValue({}) }));
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -87,9 +87,10 @@ it("supports touch taps, drag capture, ignores a second finger, and clears highl
     await act(async () => vi.advanceTimersByTime(1300));
     expect(container.querySelector(".live-pointer-dot")).toBeNull();
     expect(container.querySelector("polyline")).not.toBeNull();
-    const clear = container.querySelector<HTMLButtonElement>(".live-pointer-clear")!;
-    expect(clear.disabled).toBe(false);
-    act(() => clear.click());
+    await act(async () => root.render(<LivePointer planId="plan" slideId="one" enabled={false} />));
+    expect(container.querySelector("button")).toBeNull();
+    const writes = vi.mocked(updatePresentationPointer).mock.calls;
+    expect(writes[writes.length - 1]?.[1].strokes).toEqual([]);
     expect(container.querySelector("polyline")).toBeNull();
   } finally { act(() => root.unmount()); vi.useRealTimers(); }
 });
@@ -174,4 +175,30 @@ it("defaults to a pointer ring and allows zoom to change without disabling the p
     expect(container.querySelector(".live-pointer-ring")).not.toBeNull();
     expect(container.querySelector(".live-pointer-layer.is-enabled")).not.toBeNull();
   } finally { act(() => root.unmount()); }
+});
+
+
+it("clears on switch-off after an in-flight stroke update finishes", async () => {
+  vi.useFakeTimers();
+  vi.mocked(getPresentationPointer).mockResolvedValue(null);
+  vi.mocked(updatePresentationPointer).mockClear();
+  let finishWrite!: (state: PresentationPointerState) => void;
+  vi.mocked(updatePresentationPointer).mockImplementationOnce(() => new Promise((resolve) => { finishWrite = resolve; }));
+  const container = document.createElement("div"); const root = createRoot(container);
+  try {
+    await act(async () => root.render(<LivePointer planId="plan" slideId="one" enabled />));
+    const layer = container.querySelector<HTMLElement>(".live-pointer-layer")!;
+    act(() => {
+      layer.dispatchEvent(new MouseEvent("pointerdown", { clientX: 0, clientY: 0 }));
+      layer.dispatchEvent(new MouseEvent("pointermove", { clientX: 10, clientY: 10 }));
+    });
+    await act(async () => vi.advanceTimersByTime(100));
+    expect(updatePresentationPointer).toHaveBeenCalledTimes(1);
+    await act(async () => root.render(<LivePointer planId="plan" slideId="one" />));
+    expect(container.querySelector("polyline")).toBeNull();
+    expect(updatePresentationPointer).toHaveBeenCalledTimes(1);
+    await act(async () => finishWrite(vi.mocked(updatePresentationPointer).mock.calls[0][1]));
+    expect(updatePresentationPointer).toHaveBeenCalledTimes(2);
+    expect(vi.mocked(updatePresentationPointer).mock.calls[1][1].strokes).toEqual([]);
+  } finally { act(() => root.unmount()); vi.useRealTimers(); }
 });
