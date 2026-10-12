@@ -330,6 +330,16 @@ to correct the saved key while preserving chord symbols and positions.
 The capo stays unchanged and its derived key follows the corrected song key.
 Chord controls sit beside the editor tabs on desktop and directly below on mobile.
 
+The Rhythm button in the Chords tab opens meter and strumming guidance without
+using permanent chord-panel space. Select a common meter (or a custom count and
+beat unit), choose a meter-matched preset, and click strokes to cycle through down,
+up, rest and muted strokes. Whole-song patterns can have verse, chorus and bridge
+variations, with optional feel notes. Save the song to keep the guidance. Musician
+view shows the meter and current section's pattern beside the key; click it for
+beat counts, all patterns and notes. Rhythm is optional and independent of key,
+capo, lyrics and chord annotations. Audio playback is not included yet.
+
+
 Sermon recording must follow the service lifecycle, not output-window ownership.
 A scheduled service can remain live without a local slideshow window. Automatic
 stop/trim must retain recoverable source audio; short automatic captures belong

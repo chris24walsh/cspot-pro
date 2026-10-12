@@ -45,7 +45,7 @@ def _short_value(value: object) -> str | None:
 
 
 def _song_change_summary(field: str, before: object, after: object) -> str:
-    if field in {"lyrics", "chords"}:
+    if field in {"lyrics", "chords", "rhythm"}:
         return f"{field} changed"
     before_text = _short_value(before)
     after_text = _short_value(after)
@@ -96,6 +96,7 @@ def song_to_read(song: Song) -> SongRead:
         author=song.author,
         lyrics=song.lyrics,
         chords=song.chords,
+        rhythm=song.rhythm,
         ccli_number=song.ccli_number,
         book_reference=song.book_reference,
         license=song.license,

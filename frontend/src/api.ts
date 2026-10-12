@@ -1,3 +1,4 @@
+import type { SongRhythm } from "./songRhythm";
 import { appApiBasePath } from "./paths";
 
 function defaultApiBaseUrl() {
@@ -196,6 +197,7 @@ export interface Song {
   author: string | null;
   lyrics: string | null;
   chords: string | null;
+  rhythm?: SongRhythm | null;
   ccli_number: string | null;
   book_reference: string | null;
   license: string | null;

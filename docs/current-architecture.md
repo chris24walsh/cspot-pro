@@ -951,6 +951,17 @@ Search modes:
   on desktop and sit directly below it on mobile, leaving the panel height for
   editing; the guitar diagram sits beside the panel on desktop. Song saves stay in the editor with
   explicit Saved/Unsaved state, and song archiving requires confirmation.
+- Song meter and strumming guidance are stored in the nullable `songs.rhythm`
+  JSON column (migration `0069_song_rhythm`), exposed by song create/read/update
+  schemas. Validation bounds the meter, permits only down/up/rest/muted strokes,
+  requires each pattern to fill one bar, and rejects duplicate section overrides.
+  `songRhythm.ts` owns presets, count labels, resizing and section matching;
+  `SongRhythmEditor` edits metadata in a compact overlay from the Chords tab.
+  `SongRhythmDisplay` shows the active section pattern in the musician toolbar,
+  with a viewport-bounded reference panel for all counts and feel notes.
+  Existing songs need no rhythm metadata, and partial song updates preserve it.
+  Rhythm changes participate in the existing save/dirty state and undo history;
+  key transposition and capo changes do not modify rhythm. No audio preview yet.
 - coherent modular monolith shape
 - container-first local development
 - real end-to-end vertical slices already exist

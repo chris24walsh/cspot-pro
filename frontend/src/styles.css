@@ -13393,6 +13393,7 @@ button.musician-page {
   display: grid;
   gap: 6px;
   max-height: min(560px, 65vh);
+  max-height: min(560px, 65vh);
   max-height: min(560px, 65svh);
   overflow-y: auto;
 }
@@ -13869,4 +13870,194 @@ button.musician-page {
   .song-editor-tab-toolbar .musician-capo-field select {
     width: 40px;
   }
+}
+
+.song-editor-tab-toolbar {
+  position: relative;
+}
+
+.song-editor-tab-group {
+  align-items: center;
+  display: flex;
+  flex: 0 0 auto;
+  gap: 6px;
+}
+
+.song-rhythm-trigger.is-active {
+  background: #dcefe6;
+  border-color: #69a48d;
+}
+
+.song-rhythm-panel,
+.song-rhythm-display-panel {
+  background: #fffefa;
+  border: 1px solid #cfc7b4;
+  border-radius: 8px;
+  box-shadow: 0 8px 24px #17201b26;
+  color: #234a40;
+  display: grid;
+  gap: 10px;
+  max-height: min(560px, 65vh);
+  max-height: min(560px, 65svh);
+  overflow: auto;
+  padding: 12px;
+  position: absolute;
+  right: 0;
+  top: calc(100% + 4px);
+  width: min(480px, calc(100vw - 44px));
+  z-index: 20;
+}
+
+.song-rhythm-heading,
+.song-rhythm-fields {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: space-between;
+}
+
+.song-rhythm-panel .compact-field {
+  align-items: center;
+  display: flex;
+  font-size: 12px;
+  gap: 5px;
+}
+
+.song-rhythm-panel select {
+  min-height: 32px;
+  padding: 4px 6px;
+}
+
+.song-rhythm-preset,
+.song-rhythm-notes {
+  display: grid;
+  font-size: 12px;
+  font-weight: 800;
+  gap: 4px;
+  min-width: 0;
+}
+
+.song-rhythm-preset select,
+.song-rhythm-notes textarea {
+  width: 100%;
+}
+
+.song-rhythm-panel .field-help {
+  margin: 0;
+}
+
+.song-strum-grid {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+  overflow-x: auto;
+  padding-bottom: 3px;
+}
+
+.song-strum-cell {
+  display: grid;
+  gap: 3px;
+  justify-items: stretch;
+  text-align: center;
+}
+
+.song-strum-cell > span:first-child {
+  color: #58675f;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.song-strum-cell button,
+.song-strum-symbol {
+  font-family: sans-serif;
+  font-size: 22px;
+  line-height: 1.1;
+  min-height: 34px;
+  padding: 4px 0;
+}
+
+.song-rhythm-display {
+  flex: 0 1 auto;
+  min-width: 0;
+  position: relative;
+}
+
+.song-rhythm-summary {
+  align-items: center;
+  cursor: pointer;
+  display: flex;
+  gap: 5px;
+  min-height: 32px;
+}
+
+.song-rhythm-summary::after {
+  content: "▾";
+  font-size: 10px;
+}
+
+.song-rhythm-display .song-rhythm-inline-pattern {
+  font-family: sans-serif;
+  font-size: 15px;
+  letter-spacing: 1px;
+}
+
+.song-rhythm-display-panel {
+  left: 0;
+  right: auto;
+  width: min(360px, calc(100vw - 44px));
+}
+
+.song-rhythm-reference {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.song-rhythm-display-panel p {
+  font-size: 13px;
+  margin: 0;
+  white-space: pre-wrap;
+}
+
+.song-rhythm-display-panel strong {
+  font-size: 13px;
+}
+
+@media (max-width: 900px) {
+  .song-editor-tab-toolbar .song-editor-tab-group {
+    align-self: flex-start;
+  }
+
+  .song-rhythm-panel {
+    left: 0;
+    right: auto;
+  }
+}
+
+@media (max-width: 699px) {
+  .song-rhythm-display .song-rhythm-inline-pattern {
+    display: none;
+  }
+
+}
+
+.song-rhythm-summary {
+  background: transparent;
+  border: 0;
+  border-radius: 4px;
+  color: #234a40;
+  padding: 2px 4px;
+  white-space: nowrap;
+}
+
+.song-rhythm-display-panel {
+  z-index: 100;
+}
+
+.song-rhythm-inline-pattern {
+  font-family: sans-serif;
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: 1px;
 }

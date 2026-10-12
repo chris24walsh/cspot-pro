@@ -29,6 +29,7 @@ import {
 } from "../chordSheet";
 import { canonicalizeWorshipLyrics, normalizeWorshipSequence } from "../worshipText";
 import { useConfirmationDialog } from "./ConfirmationDialog";
+import { SongRhythmEditor } from "./SongRhythmEditor";
 import { SongYouTubeSearch } from "./SongYouTubeSearch";
 import { useEscapeClose } from "./useEscapeClose";
 
@@ -96,6 +97,7 @@ function formFromSong(song: Song): SongForm {
     author: song.author,
     lyrics: song.lyrics,
     chords: song.chords,
+    rhythm: song.rhythm ?? null,
     ccli_number: song.ccli_number,
     book_reference: song.book_reference,
     license: song.license,
@@ -118,6 +120,7 @@ function normalizeForm(form: SongForm, chords: string | null): SongForm {
     author: form.author || null,
     lyrics,
     chords,
+    rhythm: form.rhythm ?? null,
     ccli_number: form.ccli_number || null,
     book_reference: form.book_reference || null,
     license: form.license || null,
@@ -661,12 +664,15 @@ export function SongEditorDialog({
           </div>
           {message ? <p className="form-message">{message}</p> : null}
           <div className="song-editor-tab-toolbar">
-            <div className="tab-row" role="tablist" aria-label="Song editor sections">
-              {(["lyrics", "details", "chords"] as const).map((nextTab) => (
-                <button className={`tab-button ${tab === nextTab ? "active" : ""}`} key={nextTab} onClick={() => setTab(nextTab)} type="button">
-                  {nextTab[0].toUpperCase() + nextTab.slice(1)}
-                </button>
-              ))}
+            <div className="song-editor-tab-group">
+              <div className="tab-row" role="tablist" aria-label="Song editor sections">
+                {(["lyrics", "details", "chords"] as const).map((nextTab) => (
+                  <button className={`tab-button ${tab === nextTab ? "active" : ""}`} key={nextTab} onClick={() => setTab(nextTab)} type="button">
+                    {nextTab[0].toUpperCase() + nextTab.slice(1)}
+                  </button>
+                ))}
+              </div>
+              {tab === "chords" ? <SongRhythmEditor value={form.rhythm ?? null} canEdit={canEdit} onChange={(rhythm) => setForm((current) => ({ ...current, rhythm }))} /> : null}
             </div>
             {tab === "chords" ? (
               <div className="musician-control-row musician-key-row">

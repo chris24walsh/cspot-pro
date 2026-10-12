@@ -18,7 +18,7 @@ behavioural reference, while cspot-pro uses clearer module boundaries.
 | Running order items | `ItemController` | `planning` | Ordered item CRUD and soft delete |
 | Plan notes and item notes | `notes`, `item_notes` | `planning` | Notes with read markers |
 | Default plan items | `default_items` | `planning` | Templates per plan type |
-| Songs, lyrics, chords | `SongController`, `songs` | `music` | Song library CRUD and search |
+| Songs, lyrics, chords | `SongController`, `songs` | `music` | Song library CRUD and search; optional meter and editable strumming presets with section variations, shown in musician view (new capability) |
 | OnSong sections/files | `on_songs`, song upload routes | `music` | OnSong import/export and section editor |
 | Sheet music and attachments | `files`, `file_item` | `library` | Upload storage and linking |
 | Teams and instruments | `plan_team`, `instruments` | `people` | Working assignment CRUD, status, instrument selection |

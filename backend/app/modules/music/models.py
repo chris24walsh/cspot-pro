@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, Integer, String, Text, UniqueConstraint
+from sqlalchemy import JSON, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.database import Base
@@ -15,6 +15,7 @@ class Song(IdMixin, TimestampMixin, Base):
     author: Mapped[str | None] = mapped_column(String(220))
     lyrics: Mapped[str | None] = mapped_column(Text)
     chords: Mapped[str | None] = mapped_column(Text)
+    rhythm: Mapped[dict | None] = mapped_column(JSON)
     ccli_number: Mapped[str | None] = mapped_column(String(80), index=True)
     book_reference: Mapped[str | None] = mapped_column(String(220))
     license: Mapped[str | None] = mapped_column(String(80))

@@ -40,3 +40,41 @@ it("lets the user toggle off transposition and save a corrected key with the sam
     vi.resetAllMocks();
   }
 });
+
+it("saves meter, a customized preset and a chorus variation, then reloads them", async () => {
+  const song = { id: "rhythm-song", title: "Rhythm song", lyrics: "[V1]\nTest lyrics", sequence: "V1", chords: null } as Song;
+  vi.mocked(updateSong).mockImplementation(async (_id, payload) => ({ ...song, ...payload }));
+  const container = document.createElement("div");
+  const root = createRoot(container);
+  const select = (label: string, value: string) => act(() => {
+    const element = container.querySelector<HTMLSelectElement>(`[aria-label="${label}"]`)!;
+    element.value = value;
+    element.dispatchEvent(new Event("change", { bubbles: true }));
+  });
+  try {
+    await act(async () => root.render(<SongEditorDialog song={song} canEdit onClose={() => {}} onSaved={() => {}} />));
+    act(() => Array.from(container.querySelectorAll("button")).find((button) => button.textContent === "Chords")!.click());
+    act(() => container.querySelector<HTMLButtonElement>('[aria-label="Song rhythm"]')!.click());
+    select("Song meter", "4/4");
+    select("Common strumming pattern", "four-common");
+    act(() => container.querySelector<HTMLButtonElement>('[aria-label^="Strum 2,"]')!.click());
+    select("Strumming section", "Chorus");
+    select("Common strumming pattern", "four-alternating");
+    await act(async () => container.querySelector<HTMLButtonElement>('[aria-label="Save song"]')!.click());
+    const payload = vi.mocked(updateSong).mock.calls[0][1];
+    expect(payload.rhythm).toEqual({ numerator: 4, denominator: 4, notes: "", patterns: [
+      { section: "Default", subdivision: 2, strokes: ["D", "D", "D", "U", "-", "U", "D", "U"] },
+      { section: "Chorus", subdivision: 2, strokes: ["D", "U", "D", "U", "D", "U", "D", "U"] },
+    ] });
+    const saved = { ...song, ...payload };
+    await act(async () => root.render(<SongEditorDialog song={saved} canEdit onClose={() => {}} onSaved={() => {}} />));
+    act(() => Array.from(container.querySelectorAll("button")).find((button) => button.textContent === "Chords")!.click());
+    act(() => container.querySelector<HTMLButtonElement>('[aria-label="Song rhythm"]')!.click());
+    expect(container.querySelector<HTMLSelectElement>('[aria-label="Song meter"]')!.value).toBe("4/4");
+    select("Strumming section", "Chorus");
+    expect(container.querySelector<HTMLSelectElement>('[aria-label="Common strumming pattern"]')!.value).toBe("four-alternating");
+  } finally {
+    act(() => root.unmount());
+    vi.resetAllMocks();
+  }
+});
