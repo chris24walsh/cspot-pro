@@ -406,3 +406,10 @@ Additional physical PTZ devices are configured privately through PTZ_CAMERAS_JSO
 The presenter live preview includes a Pointer toggle. When enabled, moving over the preview shows a circular 2× magnifier of the rendered slide on connected live displays. Coordinates scale with the display; leaving the preview, changing slides, blanking, or losing the connection hides the pointer. Mouse/trackpad hover shows the magnifier; click and drag draws translucent yellow highlighter strokes. On touchscreens, tap to magnify briefly or drag to highlight; pointer capture keeps the gesture attached to the slide, secondary touches are ignored, and drawing prevents scrolling only inside the enabled preview. Use Clear highlights to erase annotations; strokes remain until the slide changes or Pointer is switched off. Pointer replaces the rarely used Dark toggle. Pointer updates use a separate authenticated presentation endpoint and local BroadcastChannel, with a two-second expiry, without changing slide selection or timing.
 
 Pointer has an explicit On/Off button, thicker highlighter strokes, and a larger magnifier that copies the rendered text/image visual without starting duplicate presentation components. The lens follows slide updates and display resizing. Video slides retain an emphasis ring because embedded video frames cannot be copied as slide content.
+
+### Responsive action buttons
+
+Use icons with short action labels on larger screens, and compact icon-only
+controls on smaller screens when space is tight. Preserve accessible names and
+tooltips when labels are hidden. This is an app-wide UI principle; recording
+controls use Play, Share / download, Publish / Unpublish, and Archive / Restore.

@@ -878,18 +878,18 @@ export function BroadcastManager({
                 </span>
                 <div className="broadcast-recording-actions">
                 {recording.status === "ready" ? <>
-                  <button aria-label="Play sermon" className="recording-icon-button is-primary" onClick={() => setPlayingRecording(recording)} title="Play sermon" type="button">
-                    <Play size={18} aria-hidden="true" />
+                  <button aria-label="Play sermon" className="recording-icon-button responsive-action-button is-primary" onClick={() => setPlayingRecording(recording)} title="Play sermon" type="button">
+                    <Play size={18} aria-hidden="true" /><span className="responsive-action-label">Play</span>
                   </button>
                   <RecordingActions canManage={canManage} recording={recording} onRecordingChange={(updated) => setRecordings((current) => current.map((item) => item.id === updated.id ? updated : item))} />
                 </> : <span className={`status-badge ${recording.status}`}>{recording.status}</span>}
                 {canManage && recording.status !== "recording" && recording.status !== "paused" ? recording.archived_at ? (
-                  <button aria-label="Restore recording" className="recording-icon-button" onClick={() => void restoreRecording(recording)} title="Restore recording" type="button">
-                    <RotateCcw size={15} aria-hidden="true" />
+                  <button aria-label="Restore recording" className="recording-icon-button responsive-action-button" onClick={() => void restoreRecording(recording)} title="Restore recording" type="button">
+                    <RotateCcw size={15} aria-hidden="true" /><span className="responsive-action-label">Restore</span>
                   </button>
                 ) : (
-                  <button aria-label="Archive recording" className="recording-icon-button" onClick={() => void archiveRecording(recording)} title="Archive recording" type="button">
-                    <Archive size={15} aria-hidden="true" />
+                  <button aria-label="Archive recording" className="recording-icon-button responsive-action-button" onClick={() => void archiveRecording(recording)} title="Archive recording" type="button">
+                    <Archive size={15} aria-hidden="true" /><span className="responsive-action-label">Archive</span>
                   </button>
                 ) : null}
                 </div>

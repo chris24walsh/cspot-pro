@@ -373,3 +373,10 @@ The presenter live preview includes a Pointer toggle. When enabled, moving over 
 Pointer has an explicit On/Off button, thicker highlighter strokes, and a larger magnifier that copies the rendered text/image visual without starting duplicate presentation components. The lens follows slide updates and display resizing. Video slides retain an emphasis ring because embedded video frames cannot be copied as slide content.
 
 Historical service replays use the same explicit Start/Stop ownership as current services. Cleanup must not blank or stop a manually started replay merely because its output heartbeat is stale or there is no local output window. Legacy heartbeat-only sessions still expire, and starting another service still closes the previous service.
+
+### Responsive action buttons
+
+Use icons with short action labels on larger screens, and compact icon-only
+controls on smaller screens when space is tight. Preserve accessible names and
+tooltips when labels are hidden. This is an app-wide UI principle; recording
+controls use Play, Share / download, Publish / Unpublish, and Archive / Restore.

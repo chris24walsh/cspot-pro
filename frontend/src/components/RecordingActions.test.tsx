@@ -48,7 +48,7 @@ describe("recording exports", () => {
     await expect(loadRecordingFile(recording)).rejects.toThrow("Could not load recording video");
   });
 
-  it("keeps one icon-only row action and opens the combined menu", async () => {
+  it("keeps one compact labeled row action and opens the combined menu", async () => {
     vi.mocked(getRecordingVideoStatus).mockResolvedValue({ status: "ready" });
     vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
     const host = document.createElement("div");
@@ -56,7 +56,7 @@ describe("recording exports", () => {
     try {
       await act(async () => root.render(<RecordingActions recording={recording} />));
       expect(host.querySelectorAll("button")).toHaveLength(1);
-      expect(host.querySelector("button")?.textContent).toBe("");
+      expect(host.querySelector("button")?.textContent).toBe("Share / download");
       await act(async () => host.querySelector("button")!.click());
       expect(host.textContent).toContain("Download video with slides");
     } finally {

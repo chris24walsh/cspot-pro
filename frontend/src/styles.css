@@ -13752,11 +13752,11 @@ button.musician-page {
 .live-pointer-magnifier .slide-visual-transition { opacity: 1 !important; transform: none !important; }
 
 @media (max-width: 700px) {
-  .recording-publish-button .recording-publish-label {
+  .responsive-action-button .responsive-action-label {
     display: none;
   }
 
-  .recording-publish-button {
+  .responsive-action-button {
     align-items: center;
     justify-content: center;
     width: 34px;
@@ -13764,4 +13764,21 @@ button.musician-page {
     padding: 0;
     flex-shrink: 0;
   }
+}
+
+@media (min-width: 701px) {
+  .recording-icon-button.responsive-action-button {
+    width: auto;
+    padding: 0 9px;
+    gap: 6px;
+  }
+}
+
+.broadcast-recording-actions {
+  flex-wrap: wrap;
+}
+
+.broadcast-recording-actions .responsive-action-label {
+  color: inherit;
+  font-size: inherit;
 }

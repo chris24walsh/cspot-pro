@@ -29,6 +29,9 @@ implementation.
 - Prefer explicit module boundaries over clever abstractions.
 - Keep the UI dense and work-focused rather than spacious and marketing-like.
 - Minimize wasted space, especially in the presenter workflow.
+- Use icons with short action labels on larger screens; collapse to icons on
+  smaller screens when space is tight. Keep accessible names and tooltips for
+  icon-only controls. Apply this consistently across the app.
 - Prefer native in-app dialogs and overlays over browser prompts.
 - Avoid destructive operational steps unless explicitly requested by the user.
 
