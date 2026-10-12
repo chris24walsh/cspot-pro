@@ -366,7 +366,7 @@ filters, a matching-song count, and Clear all. Options come from saved library
 metadata, including missing-value choices. Themes use comma-separated categories;
 sources group book references without song numbers. Key uses the saved sounding
 key (or derives it from the capo key and position), and is shown in library rows.
-In the song editor Chords tab, untick “Transpose chords when changing key”
+In the song editor Chords tab, switch off the transpose icon beside Key and Capo
 to correct the saved key while preserving chord symbols and positions.
 The capo stays unchanged and its derived key follows the corrected song key.
 

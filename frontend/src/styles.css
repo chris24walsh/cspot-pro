@@ -4473,21 +4473,6 @@ button.musician-page {
   min-width: 0;
 }
 
-.musician-transpose-option {
-  align-items: center;
-  display: flex;
-  gap: 8px;
-  cursor: pointer;
-}
-
-.musician-transpose-option input[type="checkbox"] {
-  accent-color: #245d4d;
-  flex: 0 0 18px;
-  width: 18px;
-  height: 18px;
-  margin: 0;
-}
-
 .musician-control-row {
   align-items: center;
   display: flex;
@@ -4508,7 +4493,7 @@ button.musician-page {
   border-radius: 8px;
   display: grid;
   gap: 8px;
-  grid-template-columns: minmax(92px, 128px) minmax(64px, 82px) auto;
+  grid-template-columns: minmax(92px, 128px) minmax(64px, 82px) 36px auto;
   padding: 8px;
 }
 
@@ -4806,7 +4791,7 @@ button.musician-page {
   }
 
   .musician-key-row {
-    grid-template-columns: minmax(0, 1fr) 72px minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1fr) 72px 36px minmax(0, 1fr);
   }
 }
 
@@ -8144,6 +8129,7 @@ button.musician-page {
   align-self: stretch;
 }
 
+.musician-transpose-toggle.is-active,
 .sorter-retained-expansion-button.is-active {
   background: #dcefe6;
   border-color: #69a48d;
@@ -10771,8 +10757,14 @@ button.musician-page {
 
   .song-editor-dialog .musician-key-row {
     gap: 5px;
-    grid-template-columns: minmax(74px, 96px) 58px minmax(0, 1fr);
+    grid-template-columns: minmax(74px, 96px) 58px 32px minmax(0, 1fr);
     padding: 6px;
+  }
+
+  .song-editor-dialog .musician-transpose-toggle {
+    min-width: 32px;
+    min-height: 32px;
+    padding: 3px;
   }
 
   .song-editor-dialog .musician-copy-verse-button {

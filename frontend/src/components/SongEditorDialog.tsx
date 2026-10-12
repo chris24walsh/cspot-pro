@@ -1,4 +1,4 @@
-import { Archive, Copy, ListRestart, Search, Save, Trash2, WandSparkles, X } from "lucide-react";
+import { Archive, ArrowRightLeft, Copy, ListRestart, Search, Save, Trash2, WandSparkles, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { createSong, updateSong, type Song } from "../api";
@@ -749,6 +749,17 @@ export function SongEditorDialog({
                       </select>
                     </label>
                     <label className="compact-field musician-capo-field">Capo<select disabled={!canEdit} onChange={(event) => updateCapo(Number(event.target.value))} value={chordChart.capo}>{[0, 1, 2, 3, 4, 5].map((capo) => <option key={capo} value={capo}>{capo}</option>)}</select></label>
+                    <button
+                      aria-label="Transpose chords when changing key"
+                      aria-pressed={transposeChordsOnKeyChange}
+                      className={`section-icon-button musician-transpose-toggle ${transposeChordsOnKeyChange ? "is-active" : ""}`}
+                      disabled={!canEdit}
+                      onClick={() => setTransposeChordsOnKeyChange((enabled) => !enabled)}
+                      title={transposeChordsOnKeyChange ? "Transpose chords when changing key: on. Click to preserve existing chords." : "Transpose chords when changing key: off. Click to transpose existing chords."}
+                      type="button"
+                    >
+                      <ArrowRightLeft size={15} aria-hidden="true" />
+                    </button>
                     <div className="musician-chord-actions">
                       <button aria-label="Copy verse chords" className="text-button musician-copy-verse-button" disabled={!canEdit || lineAnnotations.length === 0} onClick={copyVerseChords} title="Copy verse chords" type="button">
                         <Copy size={14} aria-hidden="true" />
@@ -760,11 +771,6 @@ export function SongEditorDialog({
                       </button>
                     </div>
                   </div>
-                  <label className="musician-transpose-option">
-                    <input checked={transposeChordsOnKeyChange} disabled={!canEdit} onChange={(event) => setTransposeChordsOnKeyChange(event.target.checked)} type="checkbox" />
-                    <span>Transpose chords when changing key</span>
-                  </label>
-                  <small className="field-help">Untick to correct the key without changing existing chords.</small>
                 </div>
               </div>
 

@@ -9,7 +9,7 @@ import { SongEditorDialog } from "./SongEditorDialog";
 vi.mock("../api", () => ({ createSong: vi.fn(), updateSong: vi.fn() }));
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
-it("lets the user untick transposition and save a corrected key with the same chords", async () => {
+it("lets the user toggle off transposition and save a corrected key with the same chords", async () => {
   const chart = {
     ...createEmptyChordChart(), absoluteKey: "C",
     annotations: [{ id: "one", section: "V1", lineIndex: 0, anchorIndex: 3, chord: "D" }],
@@ -21,10 +21,11 @@ it("lets the user untick transposition and save a corrected key with the same ch
   try {
     await act(async () => root.render(<SongEditorDialog song={song} canEdit onClose={() => {}} onSaved={() => {}} />));
     act(() => Array.from(container.querySelectorAll("button")).find((button) => button.textContent === "Chords")!.click());
-    const checkbox = container.querySelector<HTMLInputElement>('.musician-transpose-option input[type="checkbox"]')!;
-    expect(checkbox.checked).toBe(true);
-    act(() => checkbox.click());
-    expect(checkbox.checked).toBe(false);
+    const toggle = container.querySelector<HTMLButtonElement>('[aria-label="Transpose chords when changing key"]')!;
+    expect(toggle.closest(".musician-key-row")).not.toBeNull();
+    expect(toggle.getAttribute("aria-pressed")).toBe("true");
+    act(() => toggle.click());
+    expect(toggle.getAttribute("aria-pressed")).toBe("false");
     const key = container.querySelector<HTMLSelectElement>(".musician-key-field select")!;
     act(() => { key.value = "D"; key.dispatchEvent(new Event("change", { bubbles: true })); });
     await act(async () => container.querySelector<HTMLButtonElement>('[aria-label="Save song"]')!.click());
