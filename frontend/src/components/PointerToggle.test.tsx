@@ -8,13 +8,17 @@ import { PointerToggle, DEFAULT_MARKER_STYLE } from "./PointerToggle";
 it("opens marker options with right click and changes thickness and colour without toggling", async () => {
   const container = document.createElement("div"); document.body.append(container);
   const root = createRoot(container);
-  const toggle = vi.fn(), style = vi.fn();
+  const toggle = vi.fn(), style = vi.fn(), zoom = vi.fn();
   try {
-    await act(async () => root.render(<PointerToggle enabled={false} onChange={toggle} markerStyle={DEFAULT_MARKER_STYLE} onStyleChange={style} />));
+    await act(async () => root.render(<PointerToggle enabled={false} onChange={toggle} markerStyle={DEFAULT_MARKER_STYLE} onStyleChange={style} onZoomChange={zoom} />));
     const label = container.querySelector("label")!;
     act(() => label.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true })));
     const menu = document.querySelector('[aria-label="Marker options"]')!;
     expect(menu).not.toBeNull();
+    const zoomInput = menu.querySelector<HTMLInputElement>('[aria-label="Enable pointer zoom"]')!;
+    expect(zoomInput.checked).toBe(false);
+    act(() => zoomInput.click());
+    expect(zoom).toHaveBeenCalledWith(true);
     act(() => Array.from(menu.querySelectorAll("button")).find((button) => button.textContent === "Thick")!.click());
     expect(style).toHaveBeenCalledWith({ color: "#ffe000", thickness: 60 });
     act(() => menu.querySelector<HTMLButtonElement>('[aria-label="Blue"]')!.click());

@@ -88,6 +88,7 @@ class PresentationMarkerStyle(BaseModel):
 
 
 class PresentationPointer(BaseModel):
+    zoom: bool = False
     stroke_styles: list[PresentationMarkerStyle] = Field(default_factory=list, max_length=50)
     strokes: list[list[PresentationPointerPoint]] = Field(default_factory=list, max_length=50)
     slide_id: str = Field(max_length=200)

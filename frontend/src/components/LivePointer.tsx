@@ -12,13 +12,15 @@ export function pointerPosition(clientX: number, clientY: number, rect: Pick<DOM
   };
 }
 
-export function LivePointer({ planId, slideId, enabled = false, output = false, blanked = false, markerStyle = DEFAULT_MARKER_STYLE }: {
-  planId?: string; slideId?: string; enabled?: boolean; output?: boolean; blanked?: boolean; markerStyle?: PresentationMarkerStyle;
+export function LivePointer({ planId, slideId, enabled = false, output = false, blanked = false, markerStyle = DEFAULT_MARKER_STYLE, zoomEnabled = false }: {
+  planId?: string; slideId?: string; enabled?: boolean; output?: boolean; blanked?: boolean; markerStyle?: PresentationMarkerStyle; zoomEnabled?: boolean;
 }) {
   const [pointer, setPointer] = useState<PresentationPointerState | null>(null);
   const [error, setError] = useState(false);
   const layer = useRef<HTMLDivElement>(null);
   const pending = useRef<PresentationPointerState | null>(null);
+  const zoom = useRef(zoomEnabled);
+  zoom.current = zoomEnabled;
   const settings = useRef(markerStyle);
   settings.current = markerStyle;
   const clearHighlights = useRef<() => void>(() => {});
@@ -83,7 +85,7 @@ export function LivePointer({ planId, slideId, enabled = false, output = false, 
           strokes[strokes.length - 1].push(point);
         }
       }
-      const state = { slide_id: slideId, ...point, strokes: strokes.map((stroke) => [...stroke]), stroke_styles: [...strokeStyles], visible: !drawing, updated_at: Date.now() };
+      const state = { slide_id: slideId, zoom: zoom.current, ...point, strokes: strokes.map((stroke) => [...stroke]), stroke_styles: [...strokeStyles], visible: !drawing, updated_at: Date.now() };
       pending.current = state;
       needsSend = true;
       accept(state);
@@ -162,6 +164,7 @@ export function LivePointer({ planId, slideId, enabled = false, output = false, 
       } else if (enabled && !blanked) {
         const state = pending.current;
         if (state && (state.visible || state.strokes?.length)) {
+          state.zoom = zoom.current;
           state.updated_at = Date.now();
           channel?.postMessage({ planId, pointer: state });
         }
@@ -197,7 +200,7 @@ export function LivePointer({ planId, slideId, enabled = false, output = false, 
       const style = pointer.stroke_styles?.[index] ?? DEFAULT_MARKER_STYLE;
       return stroke.length === 1 ? <circle key={index} cx={stroke[0].x * 1000} cy={stroke[0].y * 1000} r={style.thickness / 2} style={{ fill: style.color }} /> : <polyline key={index} points={stroke.map((point) => `${point.x * 1000},${point.y * 1000}`).join(" ")} style={{ stroke: style.color, strokeWidth: style.thickness }} />;
     })}</svg> : null}
-    {visible ? <SlideMagnifier x={pointer.x} y={pointer.y} /> : null}
+    {visible ? (enabled && !output ? zoomEnabled : pointer.zoom) ? <SlideMagnifier x={pointer.x} y={pointer.y} /> : <span className="live-pointer-dot live-pointer-ring" aria-hidden="true" style={{ left: `${pointer.x * 100}%`, top: `${pointer.y * 100}%` }} /> : null}
     {enabled && !output && !blanked ? <button className="live-pointer-clear" type="button" disabled={!active || !pointer?.strokes?.length} onClick={() => clearHighlights.current()} title="Clear highlights on this slide">Clear highlights</button> : null}
     {error && enabled ? <span className="live-pointer-error" role="status">Pointer could not reach live output</span> : null}
   </div>;

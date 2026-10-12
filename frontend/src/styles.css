@@ -13788,3 +13788,7 @@ button.musician-page {
 .pointer-marker-colors { display: grid; grid-template-columns: repeat(6, 1fr); gap: 4px; }
 .pointer-marker-colors button { min-height: 36px; }
 .pointer-marker-colors button[aria-pressed="true"] { outline: 2px solid #20302a; outline-offset: 1px; }
+
+.pointer-zoom-option { display: flex; align-items: center; justify-content: space-between; min-height: 36px; cursor: pointer; }
+.pointer-zoom-option input { width: 20px; height: 20px; accent-color: #20302a; }
+.live-pointer-ring { display: block; width: clamp(28px, 3vw, 54px); background: rgba(255, 220, 0, .12); border: 3px solid #ffe000; box-shadow: 0 0 0 2px #222; }

@@ -1941,6 +1941,7 @@ export function samplePtzAngle(direction: "left" | "right", camera_id = "default
 export interface PresentationMarkerStyle { color: string; thickness: number; }
 
 export interface PresentationPointerState {
+  zoom?: boolean;
   stroke_styles?: PresentationMarkerStyle[];
   strokes?: Array<Array<{ x: number; y: number }>>;
   slide_id: string;

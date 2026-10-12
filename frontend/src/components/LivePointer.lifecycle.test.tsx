@@ -157,3 +157,21 @@ it("keeps each completed stroke's colour and thickness when marker options chang
     expect(marks[1].style.stroke).toBe("#58b5ff"); expect(marks[1].style.strokeWidth).toBe("60");
   } finally { act(() => root.unmount()); }
 });
+
+
+it("defaults to a pointer ring and allows zoom to change without disabling the pointer", async () => {
+  vi.mocked(getPresentationPointer).mockResolvedValue(null);
+  const container = document.createElement("div"); const root = createRoot(container);
+  try {
+    await act(async () => root.render(<LivePointer planId="plan" slideId="one" enabled />));
+    const layer = container.querySelector<HTMLElement>(".live-pointer-layer")!;
+    act(() => layer.dispatchEvent(new MouseEvent("pointermove", { clientX: 10, clientY: 20 })));
+    expect(container.querySelector(".live-pointer-ring")).not.toBeNull();
+    expect(container.querySelector(".live-pointer-magnifier")).toBeNull();
+    await act(async () => root.render(<LivePointer planId="plan" slideId="one" enabled zoomEnabled />));
+    expect(container.querySelector(".live-pointer-magnifier")).not.toBeNull();
+    await act(async () => root.render(<LivePointer planId="plan" slideId="one" enabled zoomEnabled={false} />));
+    expect(container.querySelector(".live-pointer-ring")).not.toBeNull();
+    expect(container.querySelector(".live-pointer-layer.is-enabled")).not.toBeNull();
+  } finally { act(() => root.unmount()); }
+});

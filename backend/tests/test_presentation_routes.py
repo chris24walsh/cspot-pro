@@ -1155,9 +1155,10 @@ def test_pointer_updates_preserve_slide_state_and_expire() -> None:
         position = PresentationPosition(session_id=live.id, slide_index=3, payload_json=json.dumps({"index": 3, "blanked": False, "updated_at": 123}))
         session.add(position)
         session.commit()
-        pointer = PresentationPointer(slide_id="slide-3", x=0.25, y=0.75, visible=True, stroke_styles=[{"color": "#58b5ff", "thickness": 60}], strokes=[[{"x": 0.1, "y": 0.2}, {"x": 0.3, "y": 0.4}]])
+        pointer = PresentationPointer(zoom=True, slide_id="slide-3", x=0.25, y=0.75, visible=True, stroke_styles=[{"color": "#58b5ff", "thickness": 60}], strokes=[[{"x": 0.1, "y": 0.2}, {"x": 0.3, "y": 0.4}]])
         update_presentation_pointer(plan.id, pointer, None, session)
         assert get_presentation_pointer(plan.id, None, session).x == 0.25
+        assert get_presentation_pointer(plan.id, None, session).zoom is True
         data = json.loads(position.payload_json)
         assert data["pointer"]["strokes"][0][1] == {"x": 0.3, "y": 0.4}
         assert data["index"] == 3

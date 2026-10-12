@@ -826,6 +826,7 @@ export function PresentationView({
   const sorterSectionRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const sectionRailRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const [pointerEnabled, setPointerEnabled] = useState(false);
+  const [pointerZoomEnabled, setPointerZoomEnabled] = useState(false);
   const [pointerMarkerStyle, setPointerMarkerStyle] = useState(DEFAULT_MARKER_STYLE);
   const currentLiveStateRef = useRef<PresentationLiveState | null>(null);
   const lastLiveStateRef = useRef<number>(0);
@@ -4710,12 +4711,12 @@ export function PresentationView({
                   />
                   <span aria-hidden="true">B</span>
                 </label>
-                <PointerToggle enabled={pointerEnabled} onChange={setPointerEnabled} markerStyle={pointerMarkerStyle} onStyleChange={setPointerMarkerStyle} />
+                <PointerToggle enabled={pointerEnabled} onChange={setPointerEnabled} markerStyle={pointerMarkerStyle} onStyleChange={setPointerMarkerStyle} zoomEnabled={pointerZoomEnabled} onZoomChange={setPointerZoomEnabled} />
                 <span className="stage-slide-counter">{stageSlideCounter}</span>
               </div>
             </div>
             <div className={`presentation-stage ${liveSlide?.montageImageUrls || liveSlide?.backgroundImageUrl || liveSlide?.imageUrl || liveSlide?.videoUrl ? "presentation-stage-image" : ""} ${liveBlanked ? "stage-preview-blanked" : ""}`}>
-              <LivePointer planId={plan?.id} slideId={liveSlide?.id} enabled={pointerEnabled} blanked={liveBlanked} markerStyle={pointerMarkerStyle} />
+              <LivePointer planId={plan?.id} slideId={liveSlide?.id} enabled={pointerEnabled} blanked={liveBlanked} markerStyle={pointerMarkerStyle} zoomEnabled={pointerZoomEnabled} />
               {liveBlanked ? null : liveSlide?.montageImageUrls || liveSlide?.backgroundImageUrl || liveSlide?.imageUrl || liveSlide?.videoUrl || liveSlide?.itemType === "song" || liveSlide?.itemType === "reading" ? null : (
                 <div className="stage-title">
                   <span>{liveSlide?.title ?? "Ready"}</span>

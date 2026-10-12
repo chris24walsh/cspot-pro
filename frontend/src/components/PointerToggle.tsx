@@ -6,7 +6,8 @@ import type { PresentationMarkerStyle } from "../api";
 export const DEFAULT_MARKER_STYLE: PresentationMarkerStyle = { color: "#ffe000", thickness: 36 };
 const COLORS = [["Yellow", "#ffe000"], ["Red", "#ff4545"], ["Green", "#54e37a"], ["Blue", "#58b5ff"], ["Purple", "#ce83ff"], ["White", "#ffffff"]];
 
-export function PointerToggle({ enabled, onChange, markerStyle, onStyleChange }: {
+export function PointerToggle({ enabled, onChange, markerStyle, onStyleChange, zoomEnabled = false, onZoomChange }: {
+  zoomEnabled?: boolean; onZoomChange?: (value: boolean) => void;
   enabled: boolean; onChange: (value: boolean) => void;
   markerStyle: PresentationMarkerStyle; onStyleChange: (value: PresentationMarkerStyle) => void;
 }) {
@@ -18,7 +19,7 @@ export function PointerToggle({ enabled, onChange, markerStyle, onStyleChange }:
   const [position, setPosition] = useState<{ left: number; top: number } | null>(null);
   const open = () => {
     const box = label.current?.getBoundingClientRect();
-    if (box) setPosition({ left: Math.max(8, Math.min(box.left, window.innerWidth - 264)), top: Math.max(8, Math.min(box.bottom + 6, window.innerHeight - 220)) });
+    if (box) setPosition({ left: Math.max(8, Math.min(box.left, window.innerWidth - 264)), top: Math.max(8, Math.min(box.bottom + 6, window.innerHeight - 270)) });
   };
   useEffect(() => () => clearTimeout(timer.current), []);
   useEffect(() => {
@@ -52,6 +53,7 @@ export function PointerToggle({ enabled, onChange, markerStyle, onStyleChange }:
     </label>
     {position ? createPortal(<div ref={menu} className="pointer-marker-menu" role="dialog" aria-label="Marker options" style={position}>
       <div className="pointer-marker-heading"><strong>Marker options</strong><button type="button" aria-label="Close marker options" onClick={() => setPosition(null)}><X size={16} /></button></div>
+      <label className="pointer-zoom-option"><span>Zoom</span><input aria-label="Enable pointer zoom" type="checkbox" checked={zoomEnabled} onChange={(event) => onZoomChange?.(event.target.checked)} /></label>
       <span>Thickness</span><div className="pointer-marker-thickness">{[["Thin", 16], ["Medium", 36], ["Thick", 60]].map(([name, thickness]) => <button key={name} type="button" aria-pressed={markerStyle.thickness === thickness} onClick={() => onStyleChange({ ...markerStyle, thickness: Number(thickness) })}>{name}</button>)}</div>
       <span>Colour</span><div className="pointer-marker-colors">{COLORS.map(([name, color]) => <button key={color} type="button" aria-label={name} aria-pressed={markerStyle.color === color} style={{ background: color }} onClick={() => onStyleChange({ ...markerStyle, color })} />)}</div>
     </div>, document.body) : null}

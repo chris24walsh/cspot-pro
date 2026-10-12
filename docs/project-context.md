@@ -384,3 +384,5 @@ controls use Play, Share / download, Publish / Unpublish, and Archive / Restore.
 While dragging, the magnifier is hidden on both the preview and live output so highlighter strokes remain visible as they are drawn. It stays hidden after a stroke until the next hover or tap. Lens width and height are fixed together from the original stage size, with isolated layout to prevent mobile stretching.
 
 Right-click or press and hold the Pointer switch for marker colour and thickness options. A long press opens the picker without toggling Pointer. Each stroke keeps its original style. Completed highlights are retained separately from the expiring cursor and are shown on other devices’ live previews, even with their Pointer switch off, until cleared or the slide changes.
+
+The Pointer dropdown includes Zoom, off by default. With Zoom off, pointing shows an emphasis ring; enable Zoom for the 2× magnifier. Highlight drawing and marker styles work in either mode, and the zoom choice follows the pointer to live displays.
