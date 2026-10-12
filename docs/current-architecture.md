@@ -600,7 +600,8 @@ only one service can be live across the system. Explicitly started output remain
 no local output window sends heartbeats. Cleanup uses the same authoritative
 output status as Start/Stop; only legacy heartbeat-only or unclaimed past-service
 sessions expire. This allows an operator to replay a previous service without
-cleanup blanking or stopping it after the heartbeat timeout. This avoids external-monitor wiring
+cleanup blanking or stopping it after the heartbeat timeout. A manually started
+replay remains discoverable to displays even if its original scheduled window has ended. This avoids external-monitor wiring
 and allows multiple passive displays without output-ownership conflicts. The TV uses a remembered,
 least-privilege viewer session; browser fullscreen and autoplay still require
 interaction on the television itself.

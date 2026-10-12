@@ -916,7 +916,11 @@ def list_live_presentation_services(
         admin_rehearsal = admin_rehearsal_visible(
             payload, is_admin=is_admin, output_active=output_status.active
         )
-        if (auto_started or payload.get("schedule_id")) and not scheduled_run_active:
+        if (
+            (auto_started or payload.get("schedule_id"))
+            and not scheduled_run_active
+            and not output_status.active
+        ):
             continue
         if (
             not auto_started

@@ -1168,3 +1168,33 @@ def test_pointer_updates_preserve_slide_state_and_expire() -> None:
         assert get_presentation_pointer(plan.id, None, session) is None
     with pytest.raises(ValidationError):
         PresentationPointer(slide_id="slide-3", x=1.5, y=0.5)
+
+
+@pytest.mark.parametrize("scheduled", [False, True])
+def test_historical_manual_replay_remains_discoverable_to_displays(scheduled: bool) -> None:
+    from datetime import timedelta
+    from app.modules.presentation.routes import list_live_presentation_services
+
+    engine = create_engine("sqlite://")
+    Base.metadata.create_all(engine)
+    with Session(engine) as session:
+        plan_type = PlanType(name="Replay test", active=True)
+        session.add(plan_type)
+        session.flush()
+        plan = Plan(plan_type_id=plan_type.id, service_date=datetime.now(UTC) - timedelta(days=1), title="Yesterday", status="draft")
+        session.add(plan)
+        session.flush()
+        live = PresentationSession(plan_id=plan.id, status="live")
+        session.add(live)
+        session.flush()
+        payload = {"output_owner_id": "manual-presenter", "output_active": True, "output_heartbeat_at": 1, "service_stage": "service", "manual_control": True}
+        if scheduled:
+            payload.update({"schedule_id": "yesterday-schedule", "scheduled_window_start": 1, "scheduled_window_end": 2})
+        session.add(PresentationPosition(session_id=live.id, payload_json=json.dumps(payload)))
+        session.commit()
+        with patch("app.modules.presentation.routes.ensure_scheduled_pre_service"), patch("app.modules.presentation.routes.list_role_names", return_value=[]):
+            result = list_live_presentation_services(SimpleNamespace(id="presenter"), session)
+        assert [service.plan_id for service in result] == [plan.id]
+        assert result[0].output_active is True
+        assert result[0].service_stage == "service"
+        assert live.status == "live"
