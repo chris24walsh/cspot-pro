@@ -712,6 +712,7 @@ export interface BroadcastViewerSettings {
 
 export interface BroadcastRecording {
   source?: string;
+  visible_at?: string | null;
   public_token: string | null;
   published_at: string | null;
   archived_at: string | null;
@@ -1952,4 +1953,8 @@ export function getPresentationPointer(planId: string) {
 
 export function updatePresentationPointer(planId: string, pointer: PresentationPointerState) {
   return sendJson<PresentationPointerState>(`/api/v1/presentation/pointer/${planId}`, "PATCH", pointer);
+}
+
+export function setRecordingVisibility(recordingId: string, visible: boolean) {
+  return sendJson<BroadcastRecording>(`/api/v1/broadcast/recordings/${recordingId}/visibility`, visible ? "POST" : "DELETE", {});
 }

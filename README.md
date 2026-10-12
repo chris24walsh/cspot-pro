@@ -335,6 +335,12 @@ Current legacy stack summary:
 - Support safe import workflows for song metadata and lyrics, with source
   provenance and licensing/status recorded alongside imported content.
 
+New recordings and trimmed copies are hidden from non-admins until a broadcast admin
+selects **Publish recording** after reviewing and trimming them. **Unpublish recording**
+hides them again and revokes public links. Existing completed recordings remain visible.
+Publishing for signed-in viewers does not create a public link; making a recording public
+also publishes it for signed-in viewers. Playback and download endpoints enforce visibility.
+
 Each recording has one share/download menu for a compatible MP3 audio export, synchronized MP4 export,
 and admin-controlled public access. Public recordings are opt-in and available
 only through a random individual link; removing public access revokes that link.

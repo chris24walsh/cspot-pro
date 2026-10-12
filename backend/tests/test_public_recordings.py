@@ -191,3 +191,70 @@ def test_embedded_deck_snapshot_is_not_replaced():
     ]
     _apply_legacy_deck_candidates(timeline, [{"plan_item_id": "replacement", "files": []}])
     assert timeline[0]["plan_item_id"] == "original"
+
+
+def test_new_recording_requires_review_and_can_be_hidden(monkeypatch):
+    import pytest
+    from fastapi import HTTPException
+
+    from app.modules.broadcast.routes import hide_recording, show_recording, viewable_recording
+
+    row = recording()
+    session = Mock()
+    session.get.return_value = row
+    user = SimpleNamespace(id="viewer")
+    monkeypatch.setattr("app.modules.broadcast.routes.list_permissions", lambda *_: [])
+    assert row.visible_at is None
+    with pytest.raises(HTTPException) as caught:
+        viewable_recording(session, row.id, user)
+    assert caught.value.status_code == 404
+    shown = show_recording(row.id, SimpleNamespace(id="admin"), session)
+    assert shown.visible_at is not None
+    assert row.public_token is None
+    assert viewable_recording(session, row.id, user) is row
+    publish_recording(row.id, SimpleNamespace(id="admin"), session)
+    assert row.public_token is not None
+    hide_recording(row.id, SimpleNamespace(id="admin"), session)
+    assert row.visible_at is None
+    assert row.public_token is None
+    with pytest.raises(HTTPException):
+        viewable_recording(session, row.id, user)
+    monkeypatch.setattr(
+        "app.modules.broadcast.routes.list_permissions", lambda *_: ["broadcast:use"]
+    )
+    assert viewable_recording(session, row.id, user) is row
+
+
+def test_archived_recording_is_hidden_even_if_previously_published(monkeypatch):
+    import pytest
+    from fastapi import HTTPException
+
+    from app.modules.broadcast.routes import viewable_recording
+
+    row = recording()
+    row.visible_at = datetime.now(UTC)
+    row.archived_at = datetime.now(UTC)
+    session = Mock()
+    session.get.return_value = row
+    monkeypatch.setattr("app.modules.broadcast.routes.list_permissions", lambda *_: [])
+    with pytest.raises(HTTPException) as caught:
+        viewable_recording(session, row.id, SimpleNamespace(id="viewer"))
+    assert caught.value.status_code == 404
+
+
+def test_unpublished_recording_blocks_all_authenticated_media_endpoints(monkeypatch):
+    import pytest
+    from fastapi import HTTPException
+
+    from app.modules.broadcast import routes
+
+    session = Mock()
+    session.get.return_value = recording()
+    monkeypatch.setattr(routes, "list_permissions", lambda *_: [])
+    for endpoint in (
+        routes.recording_audio, routes.recording_audio_download,
+        routes.recording_video, routes.recording_video_status, routes.prepare_recording_video,
+    ):
+        with pytest.raises(HTTPException) as caught:
+            endpoint("recording", SimpleNamespace(id="viewer"), session)
+        assert caught.value.status_code == 404

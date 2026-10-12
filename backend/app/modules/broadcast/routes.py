@@ -295,6 +295,7 @@ def recording_read(session: Session, recording: BroadcastRecording) -> Broadcast
         pending_stop_at=recording.pending_stop_at,
         pending_stop_reason=recording.pending_stop_reason,
         end_reason=recording.end_reason,
+        visible_at=recording.visible_at,
         public_token=recording.public_token,
         published_at=recording.published_at,
         archived_at=recording.archived_at,
@@ -352,9 +353,13 @@ def list_recordings(
         if include_archived
         else BroadcastRecording.archived_at.is_(None)
     )
+    query = select(BroadcastRecording).where(archive_filter)
+    if "broadcast:use" not in set(list_permissions(session, current_user.id)):
+        query = query.where(
+            BroadcastRecording.visible_at.is_not(None), BroadcastRecording.status == "ready"
+        )
     recordings = session.scalars(
-        select(BroadcastRecording)
-        .where(archive_filter)
+        query
         .order_by(BroadcastRecording.recorded_at.desc())
     ).all()
     return [recording_read(session, recording) for recording in recordings]
@@ -414,6 +419,7 @@ def archive_recording(
     recording.archived_at = datetime.now(UTC)
     recording.public_token = None
     recording.published_at = None
+    recording.visible_at = None
     session.commit()
     session.refresh(recording)
     return recording_read(session, recording)
@@ -488,6 +494,36 @@ def rename_recording(
     return recording_read(session, recording)
 
 
+@router.post("/recordings/{recording_id}/visibility", response_model=BroadcastRecordingRead)
+def show_recording(
+    recording_id: str,
+    current_user: User = Depends(require_permission("broadcast:use")),
+    session: Session = Depends(get_session),
+) -> BroadcastRecordingRead:
+    recording = ready_recording(session, recording_id)
+    if recording.archived_at is not None:
+        raise HTTPException(status_code=409, detail="Restore the recording before publishing it")
+    recording.visible_at = recording.visible_at or datetime.now(UTC)
+    session.commit()
+    session.refresh(recording)
+    return recording_read(session, recording)
+
+
+@router.delete("/recordings/{recording_id}/visibility", response_model=BroadcastRecordingRead)
+def hide_recording(
+    recording_id: str,
+    current_user: User = Depends(require_permission("broadcast:use")),
+    session: Session = Depends(get_session),
+) -> BroadcastRecordingRead:
+    recording = ready_recording(session, recording_id)
+    recording.visible_at = None
+    recording.public_token = None
+    recording.published_at = None
+    session.commit()
+    session.refresh(recording)
+    return recording_read(session, recording)
+
+
 @router.post("/recordings/{recording_id}/publish", response_model=BroadcastRecordingRead)
 def publish_recording(
     recording_id: str,
@@ -497,11 +533,12 @@ def publish_recording(
     recording = ready_recording(session, recording_id)
     if recording.archived_at is not None:
         raise HTTPException(status_code=409, detail="Restore the recording before sharing it")
+    recording.visible_at = recording.visible_at or datetime.now(UTC)
     if recording.public_token is None:
         recording.public_token = secrets.token_urlsafe(24)
         recording.published_at = datetime.now(UTC)
-        session.commit()
-        session.refresh(recording)
+    session.commit()
+    session.refresh(recording)
     return recording_read(session, recording)
 
 
@@ -591,13 +628,23 @@ def ready_recording(session: Session, recording_id: str) -> BroadcastRecording:
     return recording
 
 
+def viewable_recording(session: Session, recording_id: str, user: User) -> BroadcastRecording:
+    recording = session.get(BroadcastRecording, recording_id)
+    can_manage = "broadcast:use" in set(list_permissions(session, user.id))
+    if recording is None or (not can_manage and (
+        recording.visible_at is None or recording.archived_at is not None
+    )):
+        raise HTTPException(status_code=404, detail="Recording not found")
+    return ready_recording(session, recording_id)
+
+
 @router.get("/recordings/{recording_id}/video-export")
 def recording_video_status(
     recording_id: str,
     _current_user: User = Depends(require_permission("plans:read")),
     session: Session = Depends(get_session),
 ) -> dict[str, str]:
-    return video_status(ready_recording(session, recording_id))
+    return video_status(viewable_recording(session, recording_id, _current_user))
 
 
 @router.post("/recordings/{recording_id}/video-export")
@@ -606,7 +653,7 @@ def prepare_recording_video(
     _current_user: User = Depends(require_permission("plans:read")),
     session: Session = Depends(get_session),
 ) -> dict[str, str]:
-    return start_video(ready_recording(session, recording_id))
+    return start_video(viewable_recording(session, recording_id, _current_user))
 
 
 @router.get("/recordings/{recording_id}/video")
@@ -615,7 +662,7 @@ def recording_video(
     _current_user: User = Depends(require_permission("plans:read")),
     session: Session = Depends(get_session),
 ) -> FileResponse:
-    recording = ready_recording(session, recording_id)
+    recording = viewable_recording(session, recording_id, _current_user)
     path = video_path(recording)
     if not path.is_file():
         raise HTTPException(status_code=409, detail="Prepare the video before downloading")
@@ -630,7 +677,7 @@ def recording_audio(
     _current_user: User = Depends(require_permission("plans:read")),
     session: Session = Depends(get_session),
 ) -> FileResponse:
-    recording = session.get(BroadcastRecording, recording_id)
+    recording = viewable_recording(session, recording_id, _current_user)
     path = Path(recording.audio_file_path or recording.file_path) if recording else None
     if not recording or not path or not path.is_file() or recording.status != "ready":
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Recording not found")
@@ -646,7 +693,7 @@ def recording_audio_download(
     _current_user: User = Depends(require_permission("plans:read")),
     session: Session = Depends(get_session),
 ) -> FileResponse:
-    recording = ready_recording(session, recording_id)
+    recording = viewable_recording(session, recording_id, _current_user)
     source = Path(recording.audio_file_path or recording.file_path)
     if not source.is_file():
         raise HTTPException(status_code=404, detail="Recording audio not found")

@@ -210,6 +210,7 @@ class BroadcastRecordingRead(BaseModel):
     pending_stop_at: datetime | None = None
     pending_stop_reason: str | None = None
     end_reason: str | None = None
+    visible_at: datetime | None = None
     public_token: str | None = None
     published_at: datetime | None = None
     archived_at: datetime | None = None

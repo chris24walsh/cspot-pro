@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import {
   broadcastRecordingMp3Url, broadcastRecordingVideoUrl, getRecordingVideoStatus,
   prepareRecordingVideo, publishBroadcastRecording, renameBroadcastRecording,
-  unpublishBroadcastRecording,
+  unpublishBroadcastRecording, setRecordingVisibility,
   type BroadcastRecording, type RecordingVideoStatus,
 } from "../api";
 import { useEscapeClose } from "./useEscapeClose";
@@ -85,6 +85,16 @@ export function RecordingActions({ recording, canManage = false, onRecordingChan
     finally { setBusy(false); }
   }
 
+  async function toggleVisibility() {
+    setBusy(true); setMessage("");
+    try {
+      const updated = await setRecordingVisibility(recording.id, !recording.visible_at);
+      onRecordingChange?.(updated);
+      setMessage(updated.visible_at ? "Recording published for signed-in viewers." : "Recording hidden. Public links have also been disabled.");
+    } catch (error) { setMessage(error instanceof Error ? error.message : "Could not update visibility."); }
+    finally { setBusy(false); }
+  }
+
   async function publish() {
     setBusy(true); setMessage("");
     try {
@@ -133,6 +143,8 @@ export function RecordingActions({ recording, canManage = false, onRecordingChan
   if (recording.status !== "ready") return null;
   return <>
     <button aria-label="Share or download recording" className="recording-icon-button" onClick={() => setOpen(true)} title="Share or download" type="button"><Share2 size={17} aria-hidden="true" /></button>
+    {canManage && !recording.archived_at ? <button className="text-button" disabled={busy} onClick={() => void toggleVisibility()} type="button">{recording.visible_at ? "Unpublish recording" : "Publish recording"}</button> : null}
+    {message && !open ? <span role="status">{message}</span> : null}
     {open ? <div className="app-dialog-backdrop recording-share-backdrop" onMouseDown={() => setOpen(false)} role="presentation">
       <section aria-label={`Share or download ${recording.title}`} aria-modal="true" className="app-dialog recording-share-dialog" onMouseDown={(event) => event.stopPropagation()} role="dialog">
         <header><div><p className="eyebrow">Share or download</p><h2>{recording.title}</h2></div><button aria-label="Close" className="section-icon-button" onClick={() => setOpen(false)} type="button"><X size={18} /></button></header>

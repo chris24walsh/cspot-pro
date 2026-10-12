@@ -868,6 +868,7 @@ export function BroadcastManager({
                   : [
                       `${Math.round((recording.duration_seconds ?? 0) / 60)} min`,
                       formatRecordingSize(recording.size_bytes),
+                      canManage ? recording.visible_at ? "Published" : "Unpublished · admins only" : null,
                       `${recording.timeline.length} slide changes`,
                       recording.end_reason ? `Ended: ${recording.end_reason}` : null,
                     ].filter(Boolean).join(" · ")}
