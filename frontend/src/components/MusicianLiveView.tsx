@@ -30,13 +30,12 @@ import {
   PRESENTATION_STORAGE_KEY,
   buildPresentationSlides,
   resolveLiveIndex,
-  splitOversizedLyricSlide,
   type PresentationLiveState,
 } from "../presentation";
 import { isEditableKeyboardTarget, slideKeyboardDirection, type SlideKeyboardDirection } from "../keyboardNavigation";
 import { isMobileOrTabletDevice } from "../presentationDevice";
 import { PROGRAM_AUDIO_FADE_DURATION_MS } from "../audioTransitions";
-import { worshipSequenceBlocks } from "../worshipText";
+import { songLyricPageBlocks } from "../lyricPages";
 import { mergeWorshipSetIntoService } from "../worshipSets";
 
 import { lyricBarLayout, lyricColumnWidths, wrapTimedLine, lyricCursorAt, lyricPlaybackBars, musicalSectionKey, type LyricBar, type LyricCursor } from "../lyricTiming";
@@ -241,7 +240,7 @@ function wrappedLineCount(lines: string[], maxCharacters: number) {
   return lines.reduce((total, line) => total + wrapLyricLine(line, maxCharacters).length, 0);
 }
 
-function fitFontSizeForSlide(slideText: string, stageWidth: number, stageHeight: number, sourceLyrics?: string, bars: LyricBar[] = []) {
+function fitFontSizeForSlide(slideText: string, stageWidth: number, stageHeight: number, sourceLyrics?: string, bars: LyricBar[] = [], sourceOffset?: number) {
   const lines = lyricLines(slideText);
   if (!lines.length) {
     return 40;
@@ -255,7 +254,7 @@ function fitFontSizeForSlide(slideText: string, stageWidth: number, stageHeight:
   while (low <= high) {
     const candidate = Math.floor((low + high) / 2);
     const wrapCharacters = wrapCharacterLimit(candidate, stageWidth);
-    const offset = sourceLyrics ? findSlideLineOffset(sourceLyrics, slideText, 'content') : -1;
+    const offset = sourceOffset ?? (sourceLyrics ? findSlideLineOffset(sourceLyrics, slideText, 'content') : -1);
     const visualLineCount = bars.length && offset >= 0 ? lines.reduce((sum, line, index) => sum + wrapTimedLine(line, wrapCharacters, lyricColumnWidths(sourceLyrics, bars, offset + index, LEADING_CHORD_ANCHORS, line.length)).length, 0) : wrappedLineCount(lines, wrapCharacters);
     const groupGapCount = Math.max(lines.length - 1, 0);
     const estimatedHeight = visualLineCount * candidate * 2.35 + groupGapCount * candidate * 0.5;
@@ -391,14 +390,15 @@ function chordAnnotationsBySlideLine(
   slideText: string,
   slideKind: "title" | "content" | undefined,
   annotations: ChordAnnotation[],
+  sourceOffset?: number,
 ) {
   const grouped = new Map<number, ChordAnnotation[]>();
-  const lineOffset = findSlideLineOffset(sourceLyrics, slideText, slideKind);
+  const lineOffset = slideKind === "title" ? -1 : sourceOffset ?? findSlideLineOffset(sourceLyrics, slideText, slideKind);
   if (lineOffset < 0) return grouped;
 
   for (const annotation of resolveChordAnnotations(annotations, sourceLyrics)) {
     const slideLineIndex = annotation.absoluteLineIndex - lineOffset;
-    if (slideLineIndex < 0) continue;
+    if (slideLineIndex < 0 || slideLineIndex >= lyricLines(slideText).length) continue;
     const existing = grouped.get(slideLineIndex) ?? [];
     existing.push(annotation);
     grouped.set(slideLineIndex, existing);
@@ -517,9 +517,18 @@ export function MusicianLiveView({ canUseMusic = false, canControlAudio = false,
     () => parseChordChart(liveSong?.chords ?? null, liveSong?.lyrics ?? null).document,
     [liveSong?.chords, liveSong?.lyrics],
   );
+  const sequenceBlocks = useMemo(() => songLyricPageBlocks(liveSong?.lyrics, liveSong?.sequence), [liveSong?.lyrics, liveSong?.sequence]);
+  function pageContext(slide: (typeof slides)[number] | null) {
+    const contentIndex = slide?.slideKind === 'content' && slide.planItemId === liveItem?.id
+      ? slides.filter(candidate => candidate.planItemId === slide.planItemId && candidate.slideKind === 'content').findIndex(candidate => candidate.id === slide.id)
+      : -1;
+    const occurrence = sequenceBlocks.findIndex(block => contentIndex >= block.slideIndex && contentIndex < block.endSlideIndex);
+    return { occurrence, sourceOffset: occurrence < 0 ? -1 : sequenceBlocks[occurrence].partLineOffsets[contentIndex - sequenceBlocks[occurrence].slideIndex] };
+  }
+  const leadPageContext = pageContext(pageLeadSlide);
+  const nextPageContext = pageContext(pageNextSlide);
   const timingBars = useMemo(() => lyricBarLayout(liveSong?.lyrics, liveSong?.rhythm, chordChart.annotations), [liveSong?.lyrics, liveSong?.rhythm, chordChart.annotations]);
-  function wrapMusicLine(line: string, limit: number, text: string, lineIndex: number) {
-    const offset = findSlideLineOffset(liveSong?.lyrics ?? '', text, 'content');
+  function wrapMusicLine(line: string, limit: number, offset: number, lineIndex: number) {
     return timingBars.length && offset >= 0 ? wrapTimedLine(line, limit, lyricColumnWidths(liveSong?.lyrics, timingBars, offset + lineIndex, LEADING_CHORD_ANCHORS, line.length)) : wrapLyricLine(line, limit);
   }
   const pageColumnWidth = stageSize.width >= 700 ? stageSize.width / 2 : stageSize.width;
@@ -531,12 +540,12 @@ export function MusicianLiveView({ canUseMusic = false, canControlAudio = false,
       (slide) => slide.itemType === "song" && slide.slideKind === "content",
     );
     const baselineFit = Math.min(
-      ...contentSlides.map((slide) => fitFontSizeForSlide(slide.text, pageContentWidth, pageContentHeight, slide.planItemId === liveItem?.id ? liveSong?.lyrics ?? undefined : undefined, slide.planItemId === liveItem?.id ? timingBars : [])),
+      ...contentSlides.map((slide) => fitFontSizeForSlide(slide.text, pageContentWidth, pageContentHeight, slide.planItemId === liveItem?.id ? liveSong?.lyrics ?? undefined : undefined, slide.planItemId === liveItem?.id ? timingBars : [], pageContext(slide).sourceOffset)),
       56,
     );
     const groupedFits = new Map<string, number>();
     for (const slide of contentSlides) {
-      const slideFit = fitFontSizeForSlide(slide.text, pageContentWidth, pageContentHeight, slide.planItemId === liveItem?.id ? liveSong?.lyrics ?? undefined : undefined, slide.planItemId === liveItem?.id ? timingBars : []);
+      const slideFit = fitFontSizeForSlide(slide.text, pageContentWidth, pageContentHeight, slide.planItemId === liveItem?.id ? liveSong?.lyrics ?? undefined : undefined, slide.planItemId === liveItem?.id ? timingBars : [], pageContext(slide).sourceOffset);
       groupedFits.set(slide.planItemId, Math.min(groupedFits.get(slide.planItemId) ?? 56, slideFit));
     }
     for (const [planItemId, songFit] of groupedFits) {
@@ -544,7 +553,7 @@ export function MusicianLiveView({ canUseMusic = false, canControlAudio = false,
       groupedFits.set(planItemId, Math.min(songFit, baselineFit + discreetUplift));
     }
     return groupedFits;
-  }, [pageContentHeight, pageContentWidth, readerMode, slides, liveItem?.id, liveSong?.lyrics, timingBars]);
+  }, [pageContentHeight, pageContentWidth, readerMode, slides, liveItem?.id, liveSong?.lyrics, timingBars, sequenceBlocks]);
   const liveFontSize = readerMode === "pages"
     ? pageFontSizesByPlanItem.get(pageLeadSlide?.planItemId ?? "") ?? 40
     : fitFontSizeForSlide(
@@ -567,8 +576,9 @@ export function MusicianLiveView({ canUseMusic = false, canControlAudio = false,
       pageLeadSlide?.text ?? "",
       pageLeadSlide?.slideKind,
       chordChart.annotations,
+      leadPageContext.sourceOffset,
     ),
-    [chordChart.annotations, liveSong?.lyrics, pageLeadSlide?.slideKind, pageLeadSlide?.text],
+    [chordChart.annotations, liveSong?.lyrics, pageLeadSlide?.slideKind, pageLeadSlide?.text, leadPageContext.sourceOffset],
   );
   const pageNextSlideUsesCurrentSong = Boolean(
     pageNextSlide
@@ -589,15 +599,16 @@ export function MusicianLiveView({ canUseMusic = false, canControlAudio = false,
     ? keySetupLabel({ absoluteKey: pageNextAbsoluteKey, capo: pageNextChordChart.capo, shapeKey: pageNextShapeKey }, true)
     : null;
   const nextLyricLines = pageNextSlideUsesCurrentSong ? lyricLines(pageNextSlide?.text ?? "") : [];
-  const nextWrappedLyricLines = nextLyricLines.map((line, lineIndex) => wrapMusicLine(line, nextWrapCharacters, pageNextSlide?.text ?? "", lineIndex));
+  const nextWrappedLyricLines = nextLyricLines.map((line, lineIndex) => wrapMusicLine(line, nextWrapCharacters, nextPageContext.sourceOffset, lineIndex));
   const nextAnnotationsByLine = useMemo(
     () => chordAnnotationsBySlideLine(
       liveSong?.lyrics ?? "",
       pageNextSlide?.text ?? "",
       pageNextSlide?.slideKind,
       chordChart.annotations,
+      nextPageContext.sourceOffset,
     ),
-    [chordChart.annotations, liveSong?.lyrics, pageNextSlide?.slideKind, pageNextSlide?.text],
+    [chordChart.annotations, liveSong?.lyrics, pageNextSlide?.slideKind, pageNextSlide?.text, nextPageContext.sourceOffset],
   );
 
   useEffect(() => {
@@ -1031,8 +1042,8 @@ export function MusicianLiveView({ canUseMusic = false, canControlAudio = false,
 
   const lyricLinesForSlide = lyricLines(pageLeadSlide?.text ?? "");
   const wrappedLyricLinesForSlide = useMemo(
-    () => lyricLinesForSlide.map((line, lineIndex) => wrapMusicLine(line, liveWrapCharacters, pageLeadSlide?.text ?? "", lineIndex)),
-    [liveWrapCharacters, lyricLinesForSlide, timingBars, pageLeadSlide?.text, liveSong?.lyrics],
+    () => lyricLinesForSlide.map((line, lineIndex) => wrapMusicLine(line, liveWrapCharacters, leadPageContext.sourceOffset, lineIndex)),
+    [liveWrapCharacters, lyricLinesForSlide, timingBars, leadPageContext.sourceOffset, liveSong?.lyrics],
   );
   const currentGuitarKey = guitarKey ?? chordChart.absoluteKey ?? chordChart.capoKey ?? null;
   const currentAbsoluteKey = currentGuitarKey ? deriveAbsoluteKey(currentGuitarKey, capo) : null;
@@ -1087,21 +1098,6 @@ export function MusicianLiveView({ canUseMusic = false, canControlAudio = false,
     ? currentSongContentSlides.findIndex((slide) => slide.id === liveSlide.id)
     : -1;
   const isFirstLyricSlide = currentSongContentSlideIndex === 0;
-  const sequenceBlocks = liveSong
-    ? worshipSequenceBlocks(liveSong.lyrics, liveSong.sequence).map((block, blockIndex, blocks) => {
-        const precedingSlideCount = blocks
-          .slice(0, blockIndex)
-          .reduce((total, preceding) => total + splitOversizedLyricSlide(preceding.content).length, 0);
-        const parts = splitOversizedLyricSlide(block.content);
-        const slideCount = parts.length;
-        return {
-          ...block,
-          endSlideIndex: precedingSlideCount + slideCount,
-          parts,
-          slideIndex: precedingSlideCount,
-        };
-      })
-    : [];
   const currentSequenceBlockIndex = sequenceBlocks.findIndex(
     (block) => currentSongContentSlideIndex >= block.slideIndex && currentSongContentSlideIndex < block.endSlideIndex,
   );
@@ -1115,8 +1111,8 @@ export function MusicianLiveView({ canUseMusic = false, canControlAudio = false,
     if (!musicCursor || !musicMode) { lastMusicPageRef.current = null; return; }
     const block = sequenceBlocks[musicCursor.occurrence];
     if (!block) return;
-    const partIndex = block.parts.findIndex(part => {
-      const start = findSlideLineOffset(liveSong?.lyrics ?? '', part, 'content');
+    const partIndex = block.parts.findIndex((part, index) => {
+      const start = block.partLineOffsets[index];
       return start >= 0 && musicCursor.barStartLine >= start && musicCursor.barStartLine < start + lyricLines(part).length;
     });
     const first = slides.findIndex(slide => slide.planItemId === liveSlide?.planItemId && slide.slideKind === 'content');
@@ -1133,8 +1129,7 @@ export function MusicianLiveView({ canUseMusic = false, canControlAudio = false,
       }
     }
   }, [musicCursor?.occurrence, musicCursor?.barStartLine, musicMode, liveSong?.id, worshipCoupled, liveSyncPlanId]);
-  function timingFor(text: string, lineIndex: number, segmentStart: number, occurrence: number, lastSegment: boolean) {
-    const offset = findSlideLineOffset(liveSong?.lyrics ?? '', text, 'content');
+  function timingFor(offset: number, lineIndex: number, segmentStart: number, occurrence: number, lastSegment: boolean) {
     return { lyrics: liveSong?.lyrics ?? '', bars: timingBars, sourceLine: offset < 0 ? -1 : offset + lineIndex, segmentStart, lastSegment, showBars: canUseMusic && musicMode, cursor: musicCursor?.occurrence === occurrence ? musicCursor : null };
   }
 
@@ -1443,6 +1438,7 @@ export function MusicianLiveView({ canUseMusic = false, canControlAudio = false,
                     part,
                     "content",
                     chordChart.annotations,
+                    block.partLineOffsets[partIndex],
                   );
                   return (
                     <div
@@ -1463,12 +1459,12 @@ export function MusicianLiveView({ canUseMusic = false, canControlAudio = false,
                       {showChords || musicMode || timingBars.length > 0 ? (
                         <div className="musician-song-chord-sheet">
                           {partLines.map((line, lineIndex) => {
-                            const segments = wrapMusicLine(line, songModeWrapCharacters, part, lineIndex);
+                            const segments = wrapMusicLine(line, songModeWrapCharacters, block.partLineOffsets[partIndex], lineIndex);
                             return (
                               <div className="musician-lyric-line-group" key={`${lineIndex}-${line}`}>
                                 {segments.map((segment, segmentIndex) => (
                                   <MusicianChordLine
-                                    timing={timingFor(part, lineIndex, segment.start, blockIndex, segmentIndex === segments.length - 1)}
+                                    timing={timingFor(block.partLineOffsets[partIndex], lineIndex, segment.start, blockIndex, segmentIndex === segments.length - 1)}
                                     annotations={annotationsForSegment(partAnnotations.get(lineIndex) ?? [], segment.start, segment.line.length, segmentIndex === segments.length - 1)}
                                     baseAbsoluteKey={baseAbsoluteKey}
                                     capo={capo}
@@ -1536,7 +1532,7 @@ export function MusicianLiveView({ canUseMusic = false, canControlAudio = false,
                   <div className="musician-lyric-line-group" key={`${lineIndex}-${lyricLinesForSlide[lineIndex]}`}>
                     {segments.map((segment, segmentIndex) => (
                       <MusicianChordLine
-                        timing={timingFor(pageLeadSlide?.text ?? "", lineIndex, segment.start, currentSequenceBlockIndex, segmentIndex === segments.length - 1)}
+                        timing={timingFor(leadPageContext.sourceOffset, lineIndex, segment.start, leadPageContext.occurrence, segmentIndex === segments.length - 1)}
                         annotations={annotationsForSegment(annotationsByLine.get(lineIndex) ?? [], segment.start, segment.line.length, segmentIndex === segments.length - 1)}
                         baseAbsoluteKey={baseAbsoluteKey}
                         capo={capo}
@@ -1581,7 +1577,7 @@ export function MusicianLiveView({ canUseMusic = false, canControlAudio = false,
                     <div className="musician-lyric-line-group" key={`${lineIndex}-${nextLyricLines[lineIndex]}`}>
                       {segments.map((segment, segmentIndex) => (
                         <MusicianChordLine
-                          timing={timingFor(pageNextSlide.text, lineIndex, segment.start, sequenceBlocks.findIndex(block => currentSongContentSlideIndex + 1 >= block.slideIndex && currentSongContentSlideIndex + 1 < block.endSlideIndex), segmentIndex === segments.length - 1)}
+                          timing={timingFor(nextPageContext.sourceOffset, lineIndex, segment.start, nextPageContext.occurrence, segmentIndex === segments.length - 1)}
                           annotations={annotationsForSegment(nextAnnotationsByLine.get(lineIndex) ?? [], segment.start, segment.line.length, segmentIndex === segments.length - 1)}
                           baseAbsoluteKey={baseAbsoluteKey}
                           capo={capo}

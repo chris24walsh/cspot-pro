@@ -1007,6 +1007,11 @@ Search modes:
   start line and sequence occurrence. Coupled playback publishes page changes through
   the normal service slide API and browser broadcasts; uncoupled turns stay local.
   Page changes are deduplicated so beat updates do not republish the same slide.
+  `lyricPages.ts` resolves each sequence block within its source section, then
+  assigns split pages consecutive source line ranges. Chord rendering, bar/dot
+  overlays, wrapping and auto turns share these ranges instead of finding the
+  first matching lyric text. Identical pages keep distinct chords and a single
+  active dot, including repeat occurrences and the next-page preview.
   Turning Music off restores normal sync.
   Source positions provide the shared anchor framework for future
   directions/dynamics, without adding persisted unused fields or additional rows.

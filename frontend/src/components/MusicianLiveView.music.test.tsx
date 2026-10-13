@@ -51,3 +51,43 @@ it.each([false, true])('turns playback pages and publishes them only when synced
     expect(audio.stop).toHaveBeenCalledOnce();
   } finally { act(() => root.unmount()); vi.unstubAllGlobals(); vi.clearAllMocks(); }
 });
+
+it('keeps different chords and a single active dot on identical lyric pages, including repeated sections', async () => {
+  vi.stubGlobal('matchMedia', () => ({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() }));
+  vi.mocked(getPresentationLiveState).mockResolvedValue({ plan_id: 'plan', index: 0, updated_at: 1, worship_coupled: false, plan_item_id: 'item', slide_offset: 0 } as Awaited<ReturnType<typeof getPresentationLiveState>>);
+  const content = 'Sing together\nPraise the Lord\nLift your voice';
+  const song = { id: 'song', title: 'Repeated lyrics', lyrics: `[V1]\n${content}\n${content}`, sequence: 'V1 V1', chords: serializeChordChart({ ...createEmptyChordChart(), absoluteKey: 'C', annotations: [
+    { id: 'first', section: 'V1', lineIndex: 0, anchorIndex: 3, chord: 'C' },
+    { id: 'second', section: 'V1', lineIndex: 3, anchorIndex: 3, chord: 'F' },
+  ] }), rhythm: { numerator: 4, denominator: 4, patterns: [], notes: '', markers: [
+    { id: 'first', section: 'V1', lineIndex: 0, anchorIndex: 3 },
+    { id: 'second', section: 'V1', lineIndex: 3, anchorIndex: 3 },
+  ] } } as unknown as Song;
+  const plan = { id: 'plan', items: [{ id: 'item', item_type: 'song', song_id: 'song', sequence: '1', title: song.title }] } as PlanDetail;
+  const container = document.createElement('div'), mount = document.createElement('div'), toolbar = document.createElement('div');
+  container.append(mount, toolbar); const root = createRoot(mount);
+  const labels = (selector: string) => Array.from(container.querySelectorAll(`${selector} .musician-chord-token`)).map(element => element.textContent);
+  try {
+    await act(async () => root.render(<MusicianLiveView canUseMusic plan={plan} songs={[song]} topbarSlot={toolbar} onEditSong={() => {}} onExit={() => {}} />));
+    act(() => container.querySelector<HTMLButtonElement>('[aria-label="Show music timing"]')!.click());
+    await act(async () => container.querySelector<HTMLButtonElement>('[aria-label="Listen with timing guide"]')!.click());
+    const position = audio.play.mock.calls[0][4] as (position: number) => void;
+    await act(async () => position(0.05));
+    expect(labels('.musician-page.is-current')).toEqual(['C']);
+    expect(labels('.musician-page.is-next')).toEqual(['F']);
+    expect(container.querySelectorAll('.musician-page.is-current .lyric-timing-dot')).toHaveLength(1);
+    expect(container.querySelectorAll('.musician-page.is-next .lyric-timing-dot')).toHaveLength(0);
+    await act(async () => position(1.05));
+    expect(labels('.musician-page.is-current')).toEqual(['F']);
+    expect(labels('.musician-page.is-next')).toEqual(['C']);
+    expect(container.querySelectorAll('.musician-page.is-current .lyric-timing-dot')).toHaveLength(1);
+    expect(container.querySelectorAll('.musician-page.is-next .lyric-timing-dot')).toHaveLength(0);
+    await act(async () => position(2.05));
+    expect(labels('.musician-page.is-current')).toEqual(['C']);
+    expect(labels('.musician-page.is-next')).toEqual(['F']);
+    expect(container.querySelectorAll('.lyric-timing-dot')).toHaveLength(1);
+    act(() => container.querySelector<HTMLButtonElement>('[aria-label="Switch to Scroll view"]')!.click());
+    expect(labels('.musician-song-part')).toEqual(['C', 'F', 'C', 'F']);
+    expect(container.querySelectorAll('.lyric-timing-dot')).toHaveLength(1);
+  } finally { act(() => root.unmount()); vi.unstubAllGlobals(); vi.clearAllMocks(); }
+});

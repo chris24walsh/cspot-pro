@@ -380,6 +380,8 @@ Before any chord has played, they use metronome-only playback.
 The editor uses the same guide and source anchors. Lyrics retain normal character
 and word spacing when chords or bars move, including while Music is hidden.
 The dot varies its speed between anchors to follow musical time without stretching text.
+Pages resolve chords and timing by section, sequence occurrence and source line
+range, so identical lyric pages retain their own chords and active timing dot.
 Overlays occupy existing lyric/chord rows; the positional framework can also host
 future dynamics and player directions.
 
