@@ -1005,7 +1005,8 @@ Search modes:
   in both guided and rhythm-editor playback. Only bars before any chord has played
   remain silent apart from the metronome. No implicit mute is inferred.
   The Worship Live Musician menu consolidates Chords, Bars, Rhythm, view mode
-  and Edit; Dynamics remains disabled until annotation support exists. Guided
+  while Edit song is a direct toolbar action; Dynamics remains disabled until
+  annotation support exists. Guided
   playback and the Bars toggle are gated by the administrator role, separately
   from user-management permissions. CompactControlMenu portals accessible menus
   with arrow-key navigation, Escape, outside dismissal and focus restoration.

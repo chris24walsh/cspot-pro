@@ -410,7 +410,8 @@ manual charts. Marked lyric parts use the same timing map for playback and MIDI;
 unmarked songs retain the whole-song/part chart workflow. Fuller chord voicings,
 brighter harmonics and sustained envelopes make chord quality audible.
 Worship Live's **Musician** menu (guitar icon) groups Chords, Bars, Rhythm,
-page/scroll view and Edit. Bars and guided practice remain admin-only for now;
+and page/scroll view. Edit song is directly on the toolbar. Bars and guided
+practice remain admin-only for now;
 Dynamics is shown as unavailable until annotations exist. A compact **Play**
 dropdown selects Metronome, MIDI strum, or Backing track; active playback becomes
 a direct Stop button. In Worship Live, guided playback starts at the first bar
