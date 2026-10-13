@@ -999,6 +999,8 @@ Search modes:
   between anchors; it never stretches lyric characters or changes word spacing. Editor song/part playback and MIDI share these timed bars;
   legacy chart-only songs keep the original playback path. Guided song playback
   requires markers in every sequenced part and starts with a one-bar count-in.
+  Empty opening bars are valid rests in both guided and rhythm-editor playback;
+  chord synthesis begins at the first assigned chord while the metronome continues.
   The Worship Live Music toggle is gated by the administrator role, separately
   from user-management permissions. Auto page turns use the active bar's source
   start line and sequence occurrence, changing only the local musician index even
