@@ -1178,3 +1178,10 @@ Right-click or press and hold the Pointer switch for marker colour and thickness
 The Pointer dropdown includes Zoom, off by default. With Zoom off, pointing shows an emphasis ring; enable Zoom for the 2× magnifier. Highlight drawing and marker styles work in either mode, and the zoom choice follows the pointer to live displays.
 
 The preview has no Clear highlights button. Switching Pointer off clears its highlights across connected displays and previews, including when the last stroke update is still in flight.
+
+Worship Live’s Musician menu includes **Band sync**, enabled by default per device.
+With service Sync off, manual navigation and playback page turns share a separate
+musician-only page position; turning Band sync off allows independent browsing.
+Service Sync takes priority on every device, regardless of the Band sync setting.
+The band position is stored separately in the presentation payload and polled via
+`/api/v1/presentation/band-sync/{plan_id}`; it never changes congregation output.

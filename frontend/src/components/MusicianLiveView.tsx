@@ -40,6 +40,7 @@ import { mergeWorshipSetIntoService } from "../worshipSets";
 
 import { lyricBarLayout, lyricColumnWidths, wrapTimedLine, lyricCursorAt, lyricPlaybackBars, musicalSectionKey, type LyricBar, type LyricCursor } from "../lyricTiming";
 import { LyricMusicControls, TimingDot } from "./LyricMusicControls";
+import { useBandSync } from "./useBandSync";
 import { useSharedMusicTiming } from "./useSharedMusicTiming";
 import { MusicianDisplayChoice, musicianDisplayVisible, readMusicianDisplayMode, type MusicianDisplayMode } from "./MusicianDisplayChoice";
 import { CompactControlMenu } from "./CompactControlMenu";
@@ -477,7 +478,6 @@ export function MusicianLiveView({ canUseMusic = false, canControlAudio = false,
   const [localIndex, setLocalIndex] = useState(0);
   const [barDisplay, setBarDisplay] = useState(() => readMusicianDisplayMode("worship-bars-display"));
   const [localMusicCursor, setMusicCursor] = useState<LyricCursor | null>(null);
-  const [musicFollowing, setMusicFollowing] = useState(false);
   const [localPlaybackActive, setLocalPlaybackActive] = useState(false);
   const [dotDisplay, setDotDisplay] = useState(() => readMusicianDisplayMode("worship-dot-display", "worship-timing-dot"));
   const [followSharedTiming, setFollowSharedTiming] = useState(() => { try { return localStorage.getItem('worship-follow-timing') === 'on'; } catch { return false; } });
@@ -492,16 +492,24 @@ export function MusicianLiveView({ canUseMusic = false, canControlAudio = false,
     return exactIndex >= 0 ? exactIndex : slides.findIndex((slide) => slide.planItemId === remoteSlide.planItemId);
   }, [liveState, presentationSlides, slides, worshipItems]);
   const worshipCoupled = Boolean(liveState?.worshipCoupled);
+  const [bandSyncEnabled, setBandSyncEnabled] = useState(() => { try { return localStorage.getItem("worship-band-sync") !== "off"; } catch { return true; } });
+  const bandSync = useBandSync(plan?.id ?? null, bandSyncEnabled && !worshipCoupled);
+  const bandIndex = bandSync.selection ? slides.findIndex(slide => slide.id === bandSync.selection?.slide_id) : -1;
+  useEffect(() => {
+    if (!worshipCoupled && bandSyncEnabled && bandIndex >= 0) {
+      setLocalIndex(bandIndex);
+    }
+  }, [bandIndex, bandSync.selection?.updated_at, bandSyncEnabled, worshipCoupled]);
   const worshipSyncOverridden = isWorshipSyncOverridden(worshipCoupled, Boolean(liveState), remoteWorshipIndex);
-  const syncedIndex = worshipCoupled && !musicFollowing && remoteWorshipIndex >= 0 ? remoteWorshipIndex : boundedIndex(localIndex, slides.length);
+  const syncedIndex = worshipCoupled && remoteWorshipIndex >= 0 ? remoteWorshipIndex : boundedIndex(localIndex, slides.length);
   const liveIndex = syncedIndex;
   const liveSlide = slides[liveIndex] ?? null;
 
   useEffect(() => {
-    if (worshipCoupled && !musicFollowing && remoteWorshipIndex >= 0) {
+    if (worshipCoupled && remoteWorshipIndex >= 0) {
       setLocalIndex(remoteWorshipIndex);
     }
-  }, [remoteWorshipIndex, worshipCoupled, musicFollowing]);
+  }, [remoteWorshipIndex, worshipCoupled]);
   const isWorshipEndSlide = liveSlide?.itemType === "worship_end";
   const pageLeadIndex = liveSlide?.slideKind === "title"
     ? slides.findIndex((slide, index) => index > liveIndex && slide.planItemId === liveSlide.planItemId && slide.slideKind === "content")
@@ -554,11 +562,10 @@ export function MusicianLiveView({ canUseMusic = false, canControlAudio = false,
     setter(mode); try { localStorage.setItem(key, mode); } catch {}
   }
   const followingRemote = !localPlaybackActive && Boolean(remoteCursor);
-  useEffect(() => { if (followSharedTiming && !sharedTiming.remote && !localPlaybackActive) setMusicFollowing(false); }, [followSharedTiming, Boolean(sharedTiming.remote), localPlaybackActive]);
   useEffect(() => {
     if (!followSharedTiming || localPlaybackActive || !sharedTiming.remote || remoteSongMatches) return;
     const index = slides.findIndex(slide => slide.planItemId === sharedTiming.remote?.timing.plan_item_id && slide.slideKind === 'content');
-    if (index >= 0) { setMusicFollowing(true); setLocalIndex(index); }
+    if (index >= 0) { setLocalIndex(index); }
   }, [sharedTiming.remote?.timing.song_id, sharedTiming.remote?.timing.plan_item_id, followSharedTiming, localPlaybackActive, remoteSongMatches]);
   function wrapMusicLine(line: string, limit: number, offset: number, lineIndex: number) {
     return timingBars.length && offset >= 0 ? wrapTimedLine(line, limit, lyricColumnWidths(liveSong?.lyrics, timingBars, offset + lineIndex, LEADING_CHORD_ANCHORS, line.length)) : wrapLyricLine(line, limit);
@@ -785,9 +792,11 @@ export function MusicianLiveView({ canUseMusic = false, canControlAudio = false,
     if (!slide) {
       return;
     }
-    // A decoupled Worship Live selection is deliberately local. Broadcasting it
-    // here makes another tab move even though the shared service state is unchanged.
-    if (!worshipCoupled) return;
+    // Rehearsal navigation uses its own channel and never changes service output.
+    if (!worshipCoupled) {
+      await bandSync.publish(slide.id);
+      return;
+    }
     if (slide.itemType === "worship_end") {
       if (nextServiceSlide) await publishServiceSlide(nextServiceSlide, false);
       return;
@@ -1138,7 +1147,7 @@ export function MusicianLiveView({ canUseMusic = false, canControlAudio = false,
     : -1;
 
   const lastMusicPageRef = useRef<string | null>(null);
-  useEffect(() => { setMusicCursor(null); setMusicFollowing(false); }, [liveSong?.id]);
+  useEffect(() => { setMusicCursor(null); }, [liveSong?.id]);
   useEffect(() => {
     if (!musicCursor) { lastMusicPageRef.current = null; return; }
     const block = sequenceBlocks[musicCursor.occurrence];
@@ -1153,14 +1162,13 @@ export function MusicianLiveView({ canUseMusic = false, canControlAudio = false,
       const pageKey = `${liveSyncPlanId}:${liveSlide?.planItemId}:${targetIndex}:${worshipCoupled}`;
       if (lastMusicPageRef.current === pageKey) return;
       lastMusicPageRef.current = pageKey;
-      setMusicFollowing(true);
       setLocalIndex(targetIndex);
-      if (worshipCoupled && !followingRemote) {
+      if (!followingRemote && (worshipCoupled || bandSyncEnabled)) {
         navigationGenerationRef.current += 1;
         void publishWorshipSlide(targetIndex, navigationGenerationRef.current);
       }
     }
-  }, [musicCursor?.occurrence, musicCursor?.barStartLine, musicMode, liveSong?.id, worshipCoupled, liveSyncPlanId, followingRemote]);
+  }, [musicCursor?.occurrence, musicCursor?.barStartLine, musicMode, liveSong?.id, worshipCoupled, liveSyncPlanId, followingRemote, bandSyncEnabled]);
   function timingFor(offset: number, lineIndex: number, segmentStart: number, occurrence: number, lastSegment: boolean) {
     return { lyrics: liveSong?.lyrics ?? '', bars: timingBars, sourceLine: offset < 0 ? -1 : offset + lineIndex, segmentStart, lastSegment, showBars: canUseMusic && musicMode, cursor: displayCursor?.occurrence === occurrence ? displayCursor : null };
   }
@@ -1255,7 +1263,9 @@ export function MusicianLiveView({ canUseMusic = false, canControlAudio = false,
             <MusicianDisplayChoice label="Chords" icon={<Guitar size={16} aria-hidden="true" />} value={chordDisplay} onChange={mode => chooseDisplay('worship-chords-display', setChordDisplay, mode)} />
             {canUseMusic ? <MusicianDisplayChoice label="Bars" icon={<ListMusic size={16} aria-hidden="true" />} value={barDisplay} onChange={mode => chooseDisplay('worship-bars-display', setBarDisplay, mode)} /> : null}
             <MusicianDisplayChoice label="Dot" icon={<Music2 size={16} aria-hidden="true" />} value={dotDisplay} onChange={mode => chooseDisplay('worship-dot-display', setDotDisplay, mode)} />
-            <button role="menuitemcheckbox" aria-checked={followSharedTiming} onClick={() => { setFollowSharedTiming(value => { try { localStorage.setItem('worship-follow-timing', value ? 'off' : 'on'); } catch {} if (value && !localPlaybackActive) setMusicFollowing(false); return !value; }); }} type="button"><Link2 size={16} aria-hidden="true" /><span>Follow shared timing<small>Dot and page turns on this device · no audio</small></span>{followSharedTiming ? <Check size={16} aria-hidden="true" /> : null}</button>
+            <button role="menuitemcheckbox" aria-checked={bandSyncEnabled} onClick={() => setBandSyncEnabled(value => { try { localStorage.setItem("worship-band-sync", value ? "off" : "on"); } catch {} return !value; })} type="button"><Link2 size={16} aria-hidden="true" /><span>Band sync<small>{worshipCoupled ? "Service Sync takes priority" : "Share pages with other musicians"}</small></span>{bandSyncEnabled ? <Check size={16} aria-hidden="true" /> : null}</button>
+            {bandSync.error ? <small role="status">{bandSync.error}</small> : null}
+            <button role="menuitemcheckbox" aria-checked={followSharedTiming} onClick={() => { setFollowSharedTiming(value => { try { localStorage.setItem('worship-follow-timing', value ? 'off' : 'on'); } catch {} return !value; }); }} type="button"><Link2 size={16} aria-hidden="true" /><span>Follow shared timing<small>Dot and page turns on this device · no audio</small></span>{followSharedTiming ? <Check size={16} aria-hidden="true" /> : null}</button>
             {canUseMusic ? <button role="menuitemcheckbox" aria-checked={shareTiming} onClick={() => setShareTiming(value => !value)} type="button"><Music2 size={16} aria-hidden="true" /><span>Share timing<small>Let other Worship Live devices follow</small></span>{shareTiming ? <Check size={16} aria-hidden="true" /> : null}</button> : null}
             {sharedTiming.error ? <small role="alert">{sharedTiming.error}</small> : null}
             <button role="menuitemcheckbox" aria-checked={false} disabled title="Dynamics annotations are not available yet" type="button"><AudioLines size={16} aria-hidden="true" /><span>Dynamics<small>Not available yet</small></span></button>

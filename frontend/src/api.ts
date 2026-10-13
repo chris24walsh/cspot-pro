@@ -1985,3 +1985,11 @@ export function getWorshipMusicTiming(planId: string): Promise<WorshipMusicTimin
 export function updateWorshipMusicTiming(planId: string, timing: WorshipMusicTiming): Promise<WorshipMusicTimingRead> {
   return sendJson<WorshipMusicTimingRead>(`/api/v1/presentation/music-timing/${planId}`, "PATCH", timing);
 }
+
+export interface BandSelection { slide_id: string; updated_at: number }
+export function getBandSelection(planId: string): Promise<{ selection: BandSelection | null }> {
+  return getJson(`/api/v1/presentation/band-sync/${planId}`);
+}
+export function updateBandSelection(planId: string, slideId: string): Promise<{ selection: BandSelection | null }> {
+  return sendJson(`/api/v1/presentation/band-sync/${planId}`, "PATCH", { slide_id: slideId });
+}

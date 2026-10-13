@@ -144,6 +144,67 @@ def update_presentation_pointer(
     return payload
 
 
+class BandSelection(BaseModel):
+    slide_id: str = Field(min_length=1, max_length=200)
+    updated_at: int = 0
+
+
+class BandSelectionRead(BaseModel):
+    selection: BandSelection | None = None
+
+
+@router.get("/band-sync/{plan_id}", response_model=BandSelectionRead)
+def get_band_selection(
+    plan_id: str,
+    _current_user: User = Depends(require_any_permission("plans:read", "presentation:use")),
+    session: Session = Depends(get_session),
+) -> BandSelectionRead:
+    live = _latest_session(session, plan_id)
+    position = _latest_position(session, live.id) if live else None
+    data = _position_payload(position).get("band_selection")
+    return BandSelectionRead(selection=BandSelection(**data) if data else None)
+
+
+@router.patch("/band-sync/{plan_id}", response_model=BandSelectionRead)
+def update_band_selection(
+    plan_id: str,
+    payload: BandSelection,
+    current_user: User = Depends(require_any_permission("plans:read", "presentation:use")),
+    session: Session = Depends(get_session),
+) -> BandSelectionRead:
+    if session.get(Plan, plan_id) is None:
+        raise HTTPException(status_code=404, detail="Plan not found")
+    live = _latest_session(session, plan_id)
+    if live is None:
+        live = PresentationSession(plan_id=plan_id, presenter_id=current_user.id, status="ready")
+        session.add(live)
+        session.flush()
+    position = _latest_position(session, live.id)
+    if position is None:
+        position = PresentationPosition(session_id=live.id, payload_json="{}")
+        session.add(position)
+        session.flush()
+    data = _position_payload(position)
+    payload.updated_at = max(
+        int(datetime.now(UTC).timestamp() * 1000),
+        data.get("band_selection", {}).get("updated_at", 0) + 1,
+    )
+    data["band_selection"] = payload.model_dump()
+    result = session.execute(
+        update(PresentationPosition)
+        .where(
+            PresentationPosition.id == position.id,
+            PresentationPosition.payload_json == position.payload_json,
+        )
+        .values(payload_json=json.dumps(data))
+    )
+    if result.rowcount != 1:
+        session.rollback()
+        raise HTTPException(status_code=409, detail="Live state changed; retry band selection")
+    session.commit()
+    return BandSelectionRead(selection=payload)
+
+
 class WorshipMusicTiming(BaseModel):
     owner_id: str = Field(min_length=1, max_length=100)
     active: bool = True

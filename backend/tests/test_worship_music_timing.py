@@ -107,3 +107,27 @@ def test_disconnected_clock_expires_without_changing_slides(timing_context):
     session.commit()
     assert get_worship_music_timing(plan.id, None, session).timing is None
     assert json.loads(position.payload_json)["index"] == 7
+
+
+def test_band_selection_is_independent_and_last_writer_wins(timing_context):
+    from app.modules.presentation.routes import (
+        BandSelection,
+        get_band_selection,
+        update_band_selection,
+    )
+
+    session, plan, position, _payload = timing_context
+    assert get_band_selection(plan.id, None, session).selection is None
+    first = update_band_selection(
+        plan.id, BandSelection(slide_id="first"), SimpleNamespace(id="musician"), session
+    )
+    second = update_band_selection(
+        plan.id, BandSelection(slide_id="second"), SimpleNamespace(id="another"), session
+    )
+    assert second.selection.updated_at > first.selection.updated_at
+    assert get_band_selection(plan.id, None, session).selection.slide_id == "second"
+    data = json.loads(position.payload_json)
+    assert data["index"] == 7
+    assert data["slide_offset"] == 2
+    assert data["updated_at"] == 123
+    assert data["worship_coupled"] is True
