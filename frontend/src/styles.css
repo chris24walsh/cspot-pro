@@ -4109,7 +4109,6 @@ button.musician-page {
   .musician-page.is-next { display: none; }
   .musician-page { border: 0; border-radius: 0; padding-inline: 8px; }
   .musician-page-label { display: none; }
-  .musician-full-song { columns: 1; }
 }
 
 .compact-empty {
