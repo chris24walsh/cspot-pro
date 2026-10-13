@@ -1008,7 +1008,13 @@ Search modes:
   from user-management permissions. CompactControlMenu portals accessible menus
   with arrow-key navigation, Escape, outside dismissal and focus restoration.
   Play chooses metronome, MIDI strum or backing track and becomes direct Stop
-  while playing. Backing track retains the existing service-audio permission and
+  while playing. Worship Live captures the selected page’s occurrence and source
+  range at Play, slices the full harmonic timeline from its first bar, and retains
+  the inherited chord and one-bar count-in. Cursor progress adds the captured bar
+  offset only after count-in, so it cannot jump back to an earlier page. Page changes
+  during playback do not restart audio; a new Play uses the newly selected page.
+  Pages without a bar boundary report that a boundary is needed rather than jumping
+  to the song start. Backing track retains the existing service-audio permission and
   Sync requirement. Hiding bars does not stop guided playback or page turns. Auto page turns use the active bar's source
   start line and sequence occurrence. Coupled playback publishes page changes through
   the normal service slide API and browser broadcasts; uncoupled turns stay local.

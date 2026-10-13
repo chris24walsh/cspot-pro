@@ -82,3 +82,44 @@ it('offers permission-scoped backing playback and a direct stop, with no local s
     expect(toggle).toHaveBeenCalledTimes(2);
   } finally { act(() => root.unmount()); vi.clearAllMocks(); }
 });
+
+it.each(['Metronome', 'MIDI strum'])('starts %s at the selected sequence occurrence and carries the incoming chord', async source => {
+  const lyrics = '[V1]\nFirst line\nSecond line\n[C]\nHold the chord';
+  const annotations = [
+    { id: 'c', section: 'V1', lineIndex: 0, anchorIndex: 3, chord: 'C' },
+    { id: 'g', section: 'V1', lineIndex: 1, anchorIndex: 3, chord: 'G' },
+  ];
+  const rhythm: SongRhythm = { numerator: 4, denominator: 4, patterns: [], notes: '', markers: [
+    { id: 'v1', section: 'V1', lineIndex: 0, anchorIndex: 3 },
+    { id: 'v2', section: 'V1', lineIndex: 1, anchorIndex: 3 },
+    { id: 'c', section: 'C', lineIndex: 0, anchorIndex: 3 },
+  ] };
+  const cursor = vi.fn(), container = document.createElement('div'), root = createRoot(container);
+  const bars = lyricBarLayout(lyrics, rhythm, annotations);
+  const render = (occurrence: number, lineStart: number) => root.render(<LyricMusicControls rhythm={rhythm} lyrics={lyrics} sequence="V1 C V1" annotations={annotations} bars={bars} startAt={{ occurrence, lineStart, lineEnd: lineStart + 1 }} onCursor={cursor} />);
+  try {
+    await act(async () => render(1, 4));
+    await play(container, source);
+    const music = audio.play.mock.calls[0][0] as PracticePerformance;
+    expect(music.bars.map(bar => bar.chords[0].chord)).toEqual(['G', 'C', 'G']);
+    expect(music.countInTicks).toBe(music.barTicks);
+    expect(music.notes.some(note => note.channel === 0)).toBe(source === 'MIDI strum');
+    const position = audio.play.mock.calls[0][4] as (position: number) => void;
+    act(() => position(-0.5));
+    expect(cursor).toHaveBeenLastCalledWith(null);
+    act(() => position(0.05));
+    expect(cursor).toHaveBeenLastCalledWith(expect.objectContaining({ occurrence: 1, lineIndex: 4, barStartLine: 4 }));
+    await act(async () => render(2, 1)); // auto page turn updates the selected page while audio is running
+    expect(audio.stop).not.toHaveBeenCalled();
+    expect(audio.play).toHaveBeenCalledOnce();
+    act(() => position(1.05));
+    expect(cursor).toHaveBeenLastCalledWith(expect.objectContaining({ occurrence: 2, lineIndex: 1 }));
+    act(() => container.querySelector<HTMLButtonElement>('[aria-label="Stop playback"]')!.click());
+    await act(async () => render(2, 2)); // explicitly start on the second slide of the repeated verse
+    await play(container, source);
+    expect((audio.play.mock.calls[1][0] as PracticePerformance).bars).toHaveLength(1);
+    const secondPosition = audio.play.mock.calls[1][4] as (position: number) => void;
+    act(() => secondPosition(0.05));
+    expect(cursor).toHaveBeenLastCalledWith(expect.objectContaining({ occurrence: 2, lineIndex: 2 }));
+  } finally { act(() => root.unmount()); vi.clearAllMocks(); }
+});

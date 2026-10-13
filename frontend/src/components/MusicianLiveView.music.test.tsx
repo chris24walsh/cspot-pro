@@ -106,5 +106,18 @@ it('keeps different chords and a single active dot on identical lyric pages, inc
     act(() => document.querySelector<HTMLButtonElement>('[aria-label="Switch to Scroll view"]')!.click());
     expect(labels('.musician-song-part')).toEqual(['C', 'F', 'C', 'F']);
     expect(container.querySelectorAll('.lyric-timing-dot')).toHaveLength(1);
+    musician(container);
+    act(() => document.querySelector<HTMLButtonElement>('[aria-label="Switch to Pages view"]')!.click());
+    act(() => container.querySelector<HTMLButtonElement>('[aria-label="Stop playback"]')!.click());
+    await act(async () => container.querySelector<HTMLButtonElement>('.musician-page.is-next')!.click());
+    expect(labels('.musician-page.is-current')).toEqual(['F']);
+    await play(container);
+    expect((audio.play.mock.calls[1][0] as import('../musicPractice').PracticePerformance).bars).toHaveLength(1);
+    const selectedPosition = audio.play.mock.calls[1][4] as (position: number) => void;
+    await act(async () => selectedPosition(-0.5));
+    expect(labels('.musician-page.is-current')).toEqual(['F']);
+    await act(async () => selectedPosition(0.05));
+    expect(labels('.musician-page.is-current')).toEqual(['F']);
+    expect(container.querySelectorAll('.musician-page.is-current .lyric-timing-dot')).toHaveLength(1);
   } finally { act(() => root.unmount()); vi.unstubAllGlobals(); vi.clearAllMocks(); }
 });
