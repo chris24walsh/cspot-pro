@@ -3,6 +3,29 @@ import { strumPatternForSection, type SongRhythm, type StrumPattern } from "./so
 import { lyricBarLayout, lyricPlaybackBars, musicalSectionKey, timedPracticeBars } from "./lyricTiming";
 import { worshipSequenceBlocks } from "./worshipText";
 
+// A noise-excited delay loop models a plucked string: higher harmonics decay
+// faster than the fundamental. Heavy damping gives muted strokes a woody,
+// short string sound rather than a drum click.
+export function pluckedGuitarSamples(pitch: number, sampleRate: number, seconds: number, muted = false): Float32Array<ArrayBuffer> {
+  const frequency = 440 * 2 ** ((pitch - 69) / 12);
+  const period = Math.max(2, Math.round(sampleRate / frequency - 0.5));
+  const string = new Float32Array(period);
+  let seed = pitch + 1;
+  for (let index = 0; index < period; index++) {
+    seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
+    string[index] = (seed / 4294967296 * 2 - 1) * 0.7;
+  }
+  const samples = new Float32Array(Math.max(1, Math.ceil(sampleRate * seconds)));
+  const damping = muted ? 0.72 : 0.9997;
+  for (let index = 0; index < samples.length; index++) {
+    const slot = index % period;
+    const value = string[slot];
+    string[slot] = damping * (value + string[(slot + 1) % period]) * 0.5;
+    samples[index] = value;
+  }
+  return samples;
+}
+
 export const MIDI_PPQ = 480;
 export interface BarChord { beat: number; chord: string }
 export interface PracticeBar { section: string; chords: BarChord[] }
@@ -149,7 +172,12 @@ export function buildPracticePerformance(rhythm: SongRhythm, options: {
       const stepTicks = barTicks / pattern.strokes.length;
       const chord = bar.chords.slice().reverse().find((entry) => entry.beat <= beat)?.chord;
       if (!chord) return;
-      if (stroke === "X") { notes.push({ tick, duration: Math.min(60, stepTicks * 0.4), pitch: 37, velocity: 85, channel: 9 }); return; }
+      if (stroke === "X") {
+        chordMidiNotes(transposeChordSymbol(chord, options.transpose ?? 0)).forEach((pitch, stringIndex) => notes.push({
+          tick: tick + stringIndex * 3, duration: Math.min(60, stepTicks * 0.4), pitch, velocity: 70, channel: 1,
+        }));
+        return;
+      }
       const pitches = chordMidiNotes(transposeChordSymbol(chord, options.transpose ?? 0));
       lastPlayedPitches = [...pitches];
       if (stroke === "U") pitches.reverse();
@@ -161,7 +189,7 @@ export function buildPracticePerformance(rhythm: SongRhythm, options: {
   });
   if (options.finish && lastPlayedPitches.length) {
     const secondsPerTick = 60 / quarterBpm / MIDI_PPQ;
-    const sustain = 6 / secondsPerTick;
+    const sustain = 4 / secondsPerTick;
     const ending = totalTicks;
     lastPlayedPitches.forEach((pitch, index) => notes.push({
       tick: ending + index * 0.012 / secondsPerTick, duration: sustain,
@@ -184,6 +212,7 @@ export function practiceMidi(performance: PracticePerformance): Uint8Array {
   const events: Array<{ tick: number; bytes: number[]; order: number }> = [
     { tick: 0, bytes: [0xff, 0x51, 3, (tempo >>> 16) & 255, (tempo >>> 8) & 255, tempo & 255], order: 0 },
     { tick: 0, bytes: [0xff, 0x58, 4, performance.numerator, Math.log2(performance.denominator), Math.round(24 * (performance.denominator === 8 && performance.numerator % 3 === 0 ? 1.5 : 4 / performance.denominator)), 8], order: 0 },
+    { tick: 0, bytes: [0xc1, 28], order: 0 }, // General MIDI muted guitar for X strokes.
     { tick: 0, bytes: [0xc0, 25], order: 0 }, // General MIDI steel-string acoustic guitar.
   ];
   for (const note of performance.notes) {
@@ -244,8 +273,6 @@ export class PracticeAudioPlayer {
     const duration = performance.totalTicks * secondsPerTick;
     const master = context.createGain();
     master.gain.value = 0.25;
-    const wave = typeof context.createPeriodicWave === "function"
-      ? context.createPeriodicWave(new Float32Array(8), new Float32Array([0, 1, 0.48, 0.27, 0.16, 0.1, 0.06, 0.04])) : null;
     master.connect(context.destination);
     const schedule = () => {
       let elapsed = context.currentTime - started;
@@ -263,19 +290,27 @@ export class PracticeAudioPlayer {
         if (note.tick * secondsPerTick < elapsed - 0.08) continue;
         const at = Math.max(context.currentTime, started + note.tick * secondsPerTick);
         const length = Math.max(0.025, note.duration * secondsPerTick);
-        const oscillator = context.createOscillator();
         const gain = context.createGain();
-        oscillator.type = "triangle";
-        if (note.channel !== 9 && wave) oscillator.setPeriodicWave(wave);
-        oscillator.frequency.setValueAtTime(note.channel === 9 ? note.pitch === 76 ? 1600 : note.pitch === 77 ? 1100 : 250 : 440 * 2 ** ((note.pitch - 69) / 12), at);
+        const peak = note.velocity / 127 * (note.channel === 9 ? 0.3 : note.channel === 1 ? 0.16 : 0.3);
+        const muted = note.channel === 1;
+        const soundLength = note.channel === 9 ? 0.05 : muted ? Math.min(0.09, length) : length;
+        const source = note.channel === 9 ? context.createOscillator() : context.createBufferSource();
+        if ("frequency" in source) {
+          source.type = "triangle";
+          source.frequency.setValueAtTime(note.pitch === 76 ? 1600 : 1100, at);
+        } else {
+          const samples = pluckedGuitarSamples(note.pitch, context.sampleRate, soundLength, muted);
+          const buffer = context.createBuffer(1, samples.length, context.sampleRate);
+          buffer.copyToChannel(samples, 0);
+          source.buffer = buffer;
+        }
         gain.gain.setValueAtTime(0.0001, at);
-        const peak = note.velocity / 127 * (note.channel === 9 ? 0.3 : 0.22);
         gain.gain.exponentialRampToValueAtTime(peak, at + 0.003);
-        if (note.channel !== 9) gain.gain.exponentialRampToValueAtTime(peak * (note.finishing ? 0.35 : 0.5), at + (note.finishing ? Math.min(0.6, length * 0.2) : length * 0.7));
-        gain.gain.exponentialRampToValueAtTime(0.0001, at + (note.channel === 9 ? 0.05 : length));
-        oscillator.connect(gain); gain.connect(master);
-        oscillator.start(at); oscillator.stop(at + length + 0.02);
-        oscillator.onended = () => { oscillator.disconnect(); gain.disconnect(); };
+        if (note.channel !== 9) gain.gain.exponentialRampToValueAtTime(peak * (note.finishing ? 0.35 : 0.5), at + (note.finishing ? Math.min(0.6, soundLength * 0.2) : soundLength * 0.4));
+        gain.gain.exponentialRampToValueAtTime(0.0001, at + soundLength);
+        source.connect(gain); gain.connect(master);
+        source.start(at); source.stop(at + soundLength + 0.02);
+        source.onended = () => { source.disconnect(); gain.disconnect(); };
       }
     };
     this.timer = setInterval(schedule, 25);

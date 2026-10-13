@@ -8,6 +8,10 @@ class FakeAudioContext {
   currentTime = 0;
   state = "running";
   destination = {};
+  sampleRate = 44100;
+  buffers: Float32Array[] = [];
+  createBuffer(_channels: number, length: number) { return { copyToChannel: (samples: Float32Array) => { this.buffers.push(samples); }, length }; }
+  createBufferSource() { return { buffer: null, connect: vi.fn(), disconnect: vi.fn(), start: vi.fn(), stop: vi.fn(), onended: null }; }
   frequencies: number[] = [];
   waveUses = 0;
   waves: number[][] = [];
@@ -31,9 +35,9 @@ it("schedules upstrokes from high to low, then ends and closes the audio context
   const performance = buildPracticePerformance(rhythm, { mode: "song" });
   const ended = vi.fn();
   await player.play(performance, false, vi.fn(), ended);
-  expect(instances[0].frequencies).toEqual(chordMidiNotes("C").reverse().map((pitch) => 440 * 2 ** ((pitch - 69) / 12)));
-  expect(instances[0].waveUses).toBe(chordMidiNotes("C").length);
-  expect(instances[0].waves[0][2]).toBeCloseTo(0.48);
+  expect(instances[0].buffers).toHaveLength(chordMidiNotes("C").length);
+  expect(instances[0].buffers.every(samples => samples.some(value => value !== 0))).toBe(true);
+  expect(instances[0].frequencies).toEqual([]);
   instances[0].currentTime = 2.2;
   vi.advanceTimersByTime(25);
   expect(ended).toHaveBeenCalledOnce();

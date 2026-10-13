@@ -518,6 +518,9 @@ live page change. Playback turns pages half a bar before the next page’s first
 musical timing. The same early turn drives Band sync and coupled service output.
 
 Non-looping guitar previews finish with a gentle down-strum of the last sounded
-chord, sustained for six seconds with a soft decay. Exported practice MIDI adds
+chord, sustained for four seconds with a soft decay. Exported practice MIDI adds
 held guitar notes and an expression fade for the same ending. Metronome-only
 and silent guides keep their original duration; loops have no ending pause.
+
+Guitar previews synthesize plucked strings with natural harmonic decay. X strokes
+use heavily damped strings; MIDI exports use a separate muted-guitar channel.

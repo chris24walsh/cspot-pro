@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildPracticePerformance, chordMidiNotes, MIDI_PPQ, parseBarChart, practiceMidi, rhythmQuarterBpm, transposeBarCharts } from "./musicPractice";
+import { buildPracticePerformance, pluckedGuitarSamples, chordMidiNotes, MIDI_PPQ, parseBarChart, practiceMidi, rhythmQuarterBpm, transposeBarCharts } from "./musicPractice";
 import type { SongRhythm } from "./songRhythm";
 
 const rhythm: SongRhythm = { numerator: 4, denominator: 4, notes: "", bpm: 120,
@@ -134,13 +134,13 @@ it('adds only the missing lead-in when the first chord change is inside the open
   expect(Math.min(...music.notes.filter(note => note.channel === 0).map(note => note.tick))).toBe(music.barTicks);
 });
 
-it('ends on the last sounded full chord with a six-second sustain and MIDI expression fade', () => {
+it('ends on the last sounded full chord with a four-second sustain and MIDI expression fade', () => {
   const bars = [{ section: 'Default', chords: [{ beat: 1, chord: 'C' }] }, { section: 'Default', chords: [{ beat: 1, chord: 'G' }] }];
   const music = buildPracticePerformance(rhythm, { mode: 'song', bars, finish: true, transpose: 2 });
   const ending = music.notes.filter(note => note.finishing);
   expect(ending.map(note => note.pitch)).toEqual(chordMidiNotes('A'));
   expect(ending[0].tick).toBe(2 * music.barTicks);
-  expect(ending[0].duration / MIDI_PPQ * 60 / music.quarterBpm).toBeCloseTo(6);
+  expect(ending[0].duration / MIDI_PPQ * 60 / music.quarterBpm).toBeCloseTo(4);
   expect(music.totalTicks).toBeGreaterThan(ending[ending.length - 1].tick + ending[ending.length - 1].duration);
   const expression = readMidi(practiceMidi(music)).events.filter(event => event.status === 0xb0 && event.data[0] === 11);
   expect(expression[0].data[1]).toBe(127);
@@ -148,4 +148,24 @@ it('ends on the last sounded full chord with a six-second sustain and MIDI expre
   expect(music.notes.filter(note => note.channel === 9).every(note => note.tick < ending[0].tick)).toBe(true);
   expect(buildPracticePerformance(rhythm, { mode: 'song', bars, finish: false }).notes.some(note => note.finishing)).toBe(false);
   expect(buildPracticePerformance(rhythm, { mode: 'song', bars, finish: true, chords: false }).notes.some(note => note.finishing)).toBe(false);
+});
+
+
+it('plays X as muted guitar strings and keeps them distinct from metronome clicks', () => {
+  const music = buildPracticePerformance({ ...rhythm, patterns: [{ section: 'Default', subdivision: 1, strokes: ['D', 'X', '-', '-'] }] }, { mode: 'song', metronome: true });
+  const muted = music.notes.filter(note => note.channel === 1);
+  expect(muted.length).toBeGreaterThan(1);
+  expect(muted.every(note => note.duration <= 60)).toBe(true);
+  expect(music.notes.filter(note => note.channel === 9).every(note => note.pitch === 76 || note.pitch === 77)).toBe(true);
+  expect(readMidi(practiceMidi(music)).events.find(event => event.status === 0xc1)?.data).toEqual([28]);
+});
+
+it('plucked strings ring at the intended pitch while muted strings decay quickly', () => {
+  const sampleRate = 44100;
+  const normal = pluckedGuitarSamples(69, sampleRate, 0.3);
+  const muted = pluckedGuitarSamples(69, sampleRate, 0.3, true);
+  const energy = (samples: Float32Array, start: number, end: number) => samples.slice(start, end).reduce((sum, value) => sum + value * value, 0);
+  expect(energy(normal, 4410, 8820)).toBeGreaterThan(energy(muted, 4410, 8820) * 100);
+  const difference = (lag: number) => normal.slice(4410, 8820).reduce((sum, value, index) => sum + (value - normal[4410 + index + lag]) ** 2, 0);
+  expect(difference(100)).toBeLessThan(difference(50)); // 44100 / 440 ≈ 100 samples per period.
 });
