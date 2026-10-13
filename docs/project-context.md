@@ -502,3 +502,9 @@ Guitar strings ring through skipped strokes for up to 2.5 seconds. Replucking a
 string replaces its previous voice; X strokes and chord changes damp ringing
 strings. These durations apply to both live playback and MIDI downloads, while
 the final chord retains its four-second fade.
+
+Strumming patterns can span one or two bars. The rhythm editor selects the length
+and shows a separate row per bar with repeated counts. Shared strums preserve
+the full cycle, and playback alternates its bars at the song tempo. Annotated
+playback retains the cycle phase when starting from a later lyric page. Existing
+one-bar patterns keep their previous behavior.

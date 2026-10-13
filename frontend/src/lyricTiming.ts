@@ -45,8 +45,8 @@ export function musicalSectionKey(section: string) {
   return section.replace(/verse/ig, 'V').replace(/pre[- ]?chorus/ig, 'P').replace(/chorus|refrain/ig, 'C').replace(/bridge/ig, 'B').replace(/intro/ig, 'I').replace(/outro/ig, 'O').replace(/ending/ig, 'E').replace(/tag/ig, 'T').replace(/\s/g, '').toUpperCase();
 }
 
-export function lyricPlaybackBars(lyrics: string | null | undefined, sequence: string | null | undefined, bars: LyricBar[]): Array<LyricBar & { occurrence: number }> {
-  return worshipSequenceBlocks(lyrics, sequence).flatMap((block, occurrence) => bars.filter(bar => musicalSectionKey(bar.section) === musicalSectionKey(block.label) || bar.section === 'Default' && !/^\[.*\]$/m.test(lyrics ?? '')).map(bar => ({ ...bar, occurrence })));
+export function lyricPlaybackBars(lyrics: string | null | undefined, sequence: string | null | undefined, bars: LyricBar[]): Array<LyricBar & { occurrence: number; patternBar: number }> {
+  return worshipSequenceBlocks(lyrics, sequence).flatMap((block, occurrence) => bars.filter(bar => musicalSectionKey(bar.section) === musicalSectionKey(block.label) || bar.section === 'Default' && !/^\[.*\]$/m.test(lyrics ?? '')).map((bar, patternBar) => ({ ...bar, occurrence, patternBar })));
 }
 
 export function lyricCursorAt(lyrics: string | null | undefined, bars: Array<LyricBar & { occurrence: number }>, barPosition: number, numerator: number, denominator: number): LyricCursor | null {
@@ -79,7 +79,7 @@ export function wrapTimedLine(line: string, maxWidth: number, widths: number[]):
 export function timedPracticeBars(lyrics: string | null | undefined, bars: LyricBar[], annotations: ChordAnnotation[], numerator: number) {
   const resolved = resolveChordAnnotations(annotations, lyrics ?? null).sort((a, b) => a.absoluteLineIndex - b.absoluteLineIndex || a.anchorIndex - b.anchorIndex);
   let previousChord = "";
-  return bars.map(bar => ({ section: bar.section, chords: bar.stops.slice(0, -1).map((position, index, stops) => {
+  return bars.map(bar => ({ section: bar.section, ...('patternBar' in bar ? { patternBar: bar.patternBar as number } : {}), chords: bar.stops.slice(0, -1).map((position, index, stops) => {
     const candidates = resolved.filter(chord => musicalSectionKey(chord.section ?? 'Default') === musicalSectionKey(bar.section));
     const chord = candidates.filter(chord => chord.absoluteLineIndex === position.lineIndex && chord.anchorIndex === position.anchorIndex).slice(-1)[0];
     previousChord = chord?.chord || previousChord;

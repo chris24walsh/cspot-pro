@@ -2,6 +2,7 @@ export type StrumStroke = "D" | "U" | "-" | "X";
 export type StrumSection = "Default" | "Verse" | "Chorus" | "Bridge";
 export interface StrumPattern {
   name?: string;
+  bars?: 1 | 2;
   section: StrumSection;
   subdivision: 1 | 2;
   strokes: StrumStroke[];
@@ -47,16 +48,18 @@ export const STRUM_PRESETS: Array<{
 export function strumCounts(rhythm: SongRhythm, pattern: StrumPattern): string[] {
   const compound = rhythm.denominator === 8 && rhythm.numerator % 3 === 0 && pattern.subdivision === 1;
   return pattern.strokes.map((_, index) => {
+    index %= rhythm.numerator * pattern.subdivision;
     if (compound) return index % 3 === 0 ? String(index / 3 + 1) : index % 3 === 1 ? "&" : "a";
     return index % pattern.subdivision === 0 ? String(index / pattern.subdivision + 1) : "&";
   });
 }
 
-export function resizeStrumPattern(pattern: StrumPattern, numerator: number, subdivision = pattern.subdivision): StrumPattern {
+export function resizeStrumPattern(pattern: StrumPattern, numerator: number, subdivision = pattern.subdivision, bars: 1 | 2 = pattern.bars ?? 1): StrumPattern {
   return {
-    ...pattern, subdivision,
-    strokes: Array.from({ length: numerator * subdivision }, (_, index) => {
-      const oldIndex = index * pattern.subdivision / subdivision;
+    ...pattern, subdivision, bars,
+    strokes: Array.from({ length: numerator * subdivision * bars }, (_, index) => {
+      const oldSlots = pattern.strokes.length / (pattern.bars ?? 1);
+      const oldIndex = Math.floor(index / (numerator * subdivision)) * oldSlots + (index % (numerator * subdivision)) * pattern.subdivision / subdivision;
       return Number.isInteger(oldIndex) ? pattern.strokes[oldIndex] ?? "-" : "-";
     }),
   };
@@ -85,7 +88,7 @@ export interface RhythmPreset {
 export function normalizeSongRhythm(rhythm: SongRhythm | null | undefined): SongRhythm | null {
   return rhythm ? {
     numerator: rhythm.numerator, denominator: rhythm.denominator,
-    patterns: rhythm.patterns.map((pattern) => ({ name: pattern.name ?? "", section: pattern.section, subdivision: pattern.subdivision, strokes: [...pattern.strokes] })),
+    patterns: rhythm.patterns.map((pattern) => ({ name: pattern.name ?? "", section: pattern.section, bars: pattern.bars ?? 1, subdivision: pattern.subdivision, strokes: [...pattern.strokes] })),
     notes: rhythm.notes ?? "", bpm: rhythm.bpm ?? 90,
     markers: (rhythm.markers ?? []).map((marker) => ({ id: marker.id, section: marker.section, lineIndex: marker.lineIndex, anchorIndex: marker.anchorIndex }))
       .sort((a, b) => (a.section ?? "").localeCompare(b.section ?? "") || a.lineIndex - b.lineIndex || a.anchorIndex - b.anchorIndex),

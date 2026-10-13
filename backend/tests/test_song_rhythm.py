@@ -29,12 +29,14 @@ def rhythm_value() -> dict:
                 "name": "",
                 "section": "Default",
                 "subdivision": 1,
+                "bars": 1,
                 "strokes": ["D", "-", "U", "D", "-", "U"],
             },
             {
                 "name": "",
                 "section": "Chorus",
                 "subdivision": 1,
+                "bars": 1,
                 "strokes": ["D", "U", "U", "D", "U", "U"],
             },
         ],
@@ -78,8 +80,22 @@ def test_song_rhythm_round_trips_and_can_be_cleared_without_changing_chords() ->
         {"numerator": 0},
         {"numerator": 13},
         {"denominator": 3},
-        {"patterns": [{"name": "", "section": "Default", "subdivision": 1, "strokes": ["D"]}]},
-        {"patterns": [{"name": "", "section": "Default", "subdivision": 1, "strokes": ["?"] * 6}]},
+        {
+            "patterns": [
+                {"name": "", "section": "Default", "subdivision": 1, "bars": 1, "strokes": ["D"]}
+            ]
+        },
+        {
+            "patterns": [
+                {
+                    "name": "",
+                    "section": "Default",
+                    "subdivision": 1,
+                    "bars": 1,
+                    "strokes": ["?"] * 6,
+                }
+            ]
+        },
         {"patterns": [rhythm_value()["patterns"][0]] * 2},
     ],
 )
@@ -113,3 +129,24 @@ def test_rhythm_migration_preserves_existing_song_rows() -> None:
             text("SELECT title, rhythm FROM songs WHERE id = 'existing'")
         ).one()
         assert row == ("Existing song", None)
+
+
+def test_two_bar_strums_validate_and_legacy_patterns_default_to_one_bar():
+    from app.modules.music.schemas import RhythmPresetCreate, SongRhythm
+
+    value = rhythm_value()
+    value["patterns"][0]["bars"] = 2
+    value["patterns"][0]["strokes"] *= 2
+    assert SongRhythm.model_validate(value).patterns[0].bars == 2
+    preset = RhythmPresetCreate(
+        kind="strum",
+        name="Two-bar groove",
+        numerator=4,
+        denominator=4,
+        subdivision=2,
+        strokes=["D", "-"] * 8,
+    )
+    assert len(preset.strokes) == 16
+    legacy = rhythm_value()
+    legacy["patterns"][0].pop("bars")
+    assert SongRhythm.model_validate(legacy).patterns[0].bars == 1

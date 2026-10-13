@@ -32,3 +32,10 @@ describe("song rhythm", () => {
     expect(strumPatternForSection({ ...rhythm, patterns: rhythm.patterns.slice(1) }, "V1")).toBeUndefined();
   });
 });
+
+it('counts each bar separately and preserves the second bar when changing grids or meter', () => {
+  const pattern = { section: 'Default' as const, bars: 2 as const, subdivision: 1 as const, strokes: ['D', '-', 'U', '-', 'X', '-', 'D', '-'] as ('D' | 'U' | 'X' | '-')[] };
+  expect(strumCounts({ numerator: 4, denominator: 4, patterns: [], notes: '' }, pattern)).toEqual(['1', '2', '3', '4', '1', '2', '3', '4']);
+  expect(resizeStrumPattern(pattern, 3).strokes).toEqual(['D', '-', 'U', 'X', '-', 'D']);
+  expect(resizeStrumPattern(pattern, 4, 2).strokes[8]).toBe('X');
+});

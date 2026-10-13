@@ -52,7 +52,7 @@ export function SongRhythmDisplay({ rhythm, section, lyrics, sequence, previewCh
             const counts = strumCounts(rhythm, pattern);
             return <div className="song-rhythm-reference" key={pattern.section}>
               <strong>{pattern.section === "Default" ? "Whole song" : pattern.section}{pattern.name ? ` · ${pattern.name}` : ""}</strong>
-              <div className="song-strum-grid" style={{ gridTemplateColumns: `repeat(${pattern.strokes.length}, minmax(22px, 1fr))` }}>
+              <div className="song-strum-grid" style={{ gridTemplateColumns: `repeat(${rhythm.numerator * pattern.subdivision}, minmax(22px, 1fr))` }}>
                 {pattern.strokes.map((stroke, index) => <div className="song-strum-cell" key={index}><span>{counts[index]}</span><span className="song-strum-symbol" aria-label={STROKE_NAMES[stroke]}>{STROKE_SYMBOLS[stroke]}</span></div>)}
               </div>
             </div>;

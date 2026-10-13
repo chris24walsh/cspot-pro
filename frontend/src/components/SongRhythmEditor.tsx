@@ -1,7 +1,7 @@
 import { Music2, Save, X } from "lucide-react";
 import { createPortal } from "react-dom";
 import { useConfirmationDialog } from "./ConfirmationDialog";
-import { useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import {
   resizeStrumPattern, STRUM_PRESETS, STRUM_SECTIONS, STROKE_CYCLE, STROKE_NAMES, STROKE_SYMBOLS,
   strumCounts, type RhythmPreset, type SongRhythm, type StrumPattern, type StrumSection,
@@ -126,7 +126,7 @@ export function SongRhythmEditor({ value, canEdit, onChange, lyrics, sequence, p
                 }}>
                 <option value="">Unset</option>
                 {METERS.map((entry) => <option key={entry} value={entry}>{entry}</option>)}
-                {savedMeters.length ? <optgroup label="Shared custom meters">{savedMeters.map((entry) => <option key={entry.id} value={`meter:${entry.id}`}>{entry.name} · {entry.numerator}/{entry.denominator}</option>)}</optgroup> : null}
+                {savedMeters.length ? <optgroup label="Shared custom meters">{savedMeters.map((entry) => <option key={entry.id} value={`meter:${entry.id}`}>{entry.name} · {entry.numerator}/{entry.denominator}{entry.kind === "strum" && entry.strokes!.length === 2 * entry.numerator * entry.subdivision! ? " · 2 bars" : ""}</option>)}</optgroup> : null}
                 <option value="custom">Custom</option>
               </select>
             </label>
@@ -150,7 +150,7 @@ export function SongRhythmEditor({ value, canEdit, onChange, lyrics, sequence, p
                 const saved = savedStrums.find((entry) => `strum:${entry.id}` === event.target.value)!;
                 setCustomMeter(false);
                 onChange({ ...rhythm, numerator: saved.numerator, denominator: saved.denominator,
-                  patterns: rhythm.patterns.filter((entry) => entry.section !== section).map((entry) => resizeStrumPattern(entry, saved.numerator)).concat({ section, name: saved.name, subdivision: saved.subdivision!, strokes: [...saved.strokes!] }),
+                  patterns: rhythm.patterns.filter((entry) => entry.section !== section).map((entry) => resizeStrumPattern(entry, saved.numerator)).concat({ section, name: saved.name, bars: (saved.strokes!.length / (saved.numerator * saved.subdivision!)) as 1 | 2, subdivision: saved.subdivision!, strokes: [...saved.strokes!] }),
                 }); return;
               }
               const preset = presets.find((entry) => entry.id === event.target.value);
@@ -158,7 +158,7 @@ export function SongRhythmEditor({ value, canEdit, onChange, lyrics, sequence, p
             }}>
               <option value="">{pattern.strokes.length ? "Custom pattern" : "Choose a pattern or edit below"}</option>
               {presets.map((preset) => <option key={preset.id} value={preset.id}>{preset.name} · {preset.strokes.map((stroke) => STROKE_SYMBOLS[stroke]).join(" ")}</option>)}
-              {savedStrums.length ? <optgroup label="Shared strums">{savedStrums.map((entry) => <option key={entry.id} value={`strum:${entry.id}`}>{entry.name} · {entry.numerator}/{entry.denominator}</option>)}</optgroup> : null}
+              {savedStrums.length ? <optgroup label="Shared strums">{savedStrums.map((entry) => <option key={entry.id} value={`strum:${entry.id}`}>{entry.name} · {entry.numerator}/{entry.denominator}{entry.kind === "strum" && entry.strokes!.length === 2 * entry.numerator * entry.subdivision! ? " · 2 bars" : ""}</option>)}</optgroup> : null}
             </select>
           </label>
           <div className="song-rhythm-fields">
@@ -168,16 +168,20 @@ export function SongRhythmEditor({ value, canEdit, onChange, lyrics, sequence, p
                 <option value={2}>Two per {rhythm.denominator === 8 ? "eighth note" : "beat"}</option>
               </select>
             </label>
+            <label className="compact-field">Pattern length<select aria-label="Strum pattern length" disabled={!canEdit} value={pattern.bars ?? 1} onChange={event => updatePattern(resizeStrumPattern(editablePattern, rhythm.numerator, pattern.subdivision, Number(event.target.value) as 1 | 2))}><option value={1}>1 bar</option><option value={2}>2 bars</option></select></label>
             {pattern.strokes.length ? <button className="text-button" disabled={!canEdit} onClick={() => onChange({ ...rhythm, patterns: rhythm.patterns.filter((entry) => entry.section !== section) })} type="button">Clear pattern</button> : null}
           </div>
-          <div className="song-strum-grid" style={{ gridTemplateColumns: `repeat(${editablePattern.strokes.length}, minmax(26px, 1fr))` }}>
+          <div className="song-strum-grid" style={{ gridTemplateColumns: `repeat(${rhythm.numerator * pattern.subdivision}, minmax(26px, 1fr))` }}>
             {editablePattern.strokes.map((stroke, index) => (
-              <div className="song-strum-cell" key={index}>
+              <Fragment key={index}>
+                {(pattern.bars ?? 1) === 2 && index % (rhythm.numerator * pattern.subdivision) === 0 ? <small style={{ gridColumn: "1 / -1", textAlign: "left" }}>Bar {Math.floor(index / (rhythm.numerator * pattern.subdivision)) + 1}</small> : null}
+              <div className="song-strum-cell">
                 <span>{counts[index]}</span>
                 <button aria-label={`Strum ${index + 1}, count ${counts[index]}: ${STROKE_NAMES[stroke]}. Click to change.`} disabled={!canEdit}
                   onClick={() => updatePattern({ ...editablePattern, strokes: editablePattern.strokes.map((entry, position) => position === index ? STROKE_CYCLE[(STROKE_CYCLE.indexOf(entry) + 1) % STROKE_CYCLE.length] : entry) })}
                   title="Click to cycle: rest, downstroke, upstroke, muted stroke" type="button">{STROKE_SYMBOLS[stroke]}</button>
               </div>
+              </Fragment>
             ))}
           </div>
           <RhythmPracticeControls annotations={annotations} onPosition={onPosition} rhythm={rhythm} section={barPart} strumSection={section} lyrics={lyrics} sequence={sequence} previewChord={previewChord} onTempoChange={canEdit ? (bpm) => onChange({ ...rhythm, bpm }) : undefined} />

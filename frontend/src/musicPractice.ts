@@ -6,7 +6,7 @@ import { worshipSequenceBlocks } from "./worshipText";
 
 export const MIDI_PPQ = 480;
 export interface BarChord { beat: number; chord: string }
-export interface PracticeBar { section: string; chords: BarChord[] }
+export interface PracticeBar { patternBar?: number; section: string; chords: BarChord[] }
 export interface PracticeNote { tick: number; duration: number; pitch: number; velocity: number; channel: number; finishing?: boolean }
 export interface PracticePerformance { notes: PracticeNote[]; bars: PracticeBar[]; barTicks: number; countInTicks: number; totalTicks: number; quarterBpm: number; numerator: number; denominator: number }
 export type PracticeMode = "strum" | "part" | "song";
@@ -93,7 +93,7 @@ export function buildPracticePerformance(rhythm: SongRhythm, options: {
     bars = options.bars;
   } else if (options.mode !== "strum" && options.annotations && rhythm.markers?.length) {
     const layout = lyricBarLayout(options.lyrics, rhythm, options.annotations);
-    const timeline = options.mode === "part" ? layout.filter(bar => musicalSectionKey(bar.section) === musicalSectionKey(section)) : lyricPlaybackBars(options.lyrics, options.sequence, layout);
+    const timeline = options.mode === "part" ? layout.filter(bar => musicalSectionKey(bar.section) === musicalSectionKey(section)).map((bar, patternBar) => ({ ...bar, patternBar })) : lyricPlaybackBars(options.lyrics, options.sequence, layout);
     if (options.mode === "song") {
       const missing = worshipSequenceBlocks(options.lyrics, options.sequence).find((_block, occurrence) => !timeline.some(bar => 'occurrence' in bar && bar.occurrence === occurrence));
       if (missing) throw new Error(`Place bar boundaries for ${missing.label} before following the whole song.`);
@@ -138,18 +138,24 @@ export function buildPracticePerformance(rhythm: SongRhythm, options: {
   let lastPlayedPitches: number[] = [];
   let lastPlayedChord = "";
   const dampTicks: number[] = [];
+  let patternBar = -1;
+  let previousSection = "";
   bars.forEach((bar, barIndex) => {
+    patternBar = bar.section === previousSection ? patternBar + 1 : 0;
+    previousSection = bar.section;
     const pattern: StrumPattern = strumPatternForSection(rhythm, bar.section) ?? {
       section: "Default", subdivision: 1, strokes: Array.from({ length: rhythm.numerator }, (_, index) => index % pulseCount === 0 ? "D" : "-"),
     };
     const start = countInTicks + barIndex * barTicks;
     if (options.metronome) clicks(start);
     if (options.chords === false) return;
-    pattern.strokes.forEach((stroke, index) => {
+    const slots = rhythm.numerator * pattern.subdivision;
+    const phase = (bar.patternBar ?? patternBar) % (pattern.bars ?? 1);
+    pattern.strokes.slice(phase * slots, (phase + 1) * slots).forEach((stroke, index) => {
       if (stroke === "-") return;
       const beat = 1 + index / pattern.subdivision;
-      const tick = start + index / pattern.strokes.length * barTicks;
-      const stepTicks = barTicks / pattern.strokes.length;
+      const tick = start + index / slots * barTicks;
+      const stepTicks = barTicks / slots;
       const chord = bar.chords.slice().reverse().find((entry) => entry.beat <= beat)?.chord;
       if (!chord) return;
       if (stroke === "X") {

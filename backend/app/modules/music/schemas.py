@@ -5,9 +5,10 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 
 class StrumPattern(BaseModel):
     name: str = Field(default="", max_length=80)
+    bars: Literal[1, 2] = 1
     section: Literal["Default", "Verse", "Chorus", "Bridge"] = "Default"
     subdivision: Literal[1, 2] = 2
-    strokes: list[Literal["D", "U", "-", "X"]] = Field(max_length=24)
+    strokes: list[Literal["D", "U", "-", "X"]] = Field(max_length=48)
 
 
 class SongBarChart(BaseModel):
@@ -21,7 +22,7 @@ class RhythmPresetCreate(BaseModel):
     numerator: int = Field(ge=1, le=12)
     denominator: Literal[2, 4, 8, 16]
     subdivision: Literal[1, 2] | None = None
-    strokes: list[Literal["D", "U", "-", "X"]] | None = Field(default=None, max_length=24)
+    strokes: list[Literal["D", "U", "-", "X"]] | None = Field(default=None, max_length=48)
 
     @field_validator("name")
     @classmethod
@@ -36,9 +37,10 @@ class RhythmPresetCreate(BaseModel):
             if (
                 not self.subdivision
                 or not self.strokes
-                or len(self.strokes) != self.numerator * self.subdivision
+                or len(self.strokes)
+                not in (self.numerator * self.subdivision, 2 * self.numerator * self.subdivision)
             ):
-                raise ValueError("A strum preset must fill exactly one bar")
+                raise ValueError("A strum preset must fill one or two bars")
         elif self.strokes is not None or self.subdivision is not None:
             raise ValueError("Meter presets contain only the time signature")
         return self
@@ -70,9 +72,9 @@ class SongRhythm(BaseModel):
         if len(sections) != len(set(sections)):
             raise ValueError("Each section may have only one strumming pattern")
         for pattern in self.patterns:
-            if len(pattern.strokes) != self.numerator * pattern.subdivision:
+            if len(pattern.strokes) != self.numerator * pattern.subdivision * pattern.bars:
                 raise ValueError(
-                    "Strumming pattern must fill exactly one bar of the selected meter"
+                    "Strumming pattern must fill the selected pattern length and meter"
                 )
         chart_sections = [entry.section.strip().casefold() for entry in self.arrangements]
         if len(chart_sections) != len(set(chart_sections)) or any(

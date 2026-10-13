@@ -173,3 +173,16 @@ it('ends the previous string voice on a repluck and damps the old chord on chord
   const music = buildPracticePerformance({ ...rhythm, patterns: [{ section: 'Default', subdivision: 1, strokes: ['D', 'D', '-', '-'] }] }, { mode: 'song', bars: [{ section: 'Default', chords: [{ beat: 1, chord: 'C' }, { beat: 2, chord: 'F' }] }] });
   expect(music.notes.filter(note => note.channel === 0 && note.tick < MIDI_PPQ).every(note => note.tick + note.duration === MIDI_PPQ)).toBe(true);
 });
+
+it('alternates a two-bar pattern at normal tempo and respects a later-page starting phase', () => {
+  const two = { ...rhythm, patterns: [{ section: 'Default' as const, bars: 2 as const, subdivision: 1 as const, strokes: ['D', '-', '-', '-', '-', 'U', 'X', '-'] as ('D' | 'U' | 'X' | '-')[] }] };
+  const chart = [{ section: 'Default', chords: [{ beat: 1, chord: 'C' }] }];
+  const music = buildPracticePerformance(two, { mode: 'song', bars: [...chart, ...chart, ...chart] });
+  const starts = music.notes.filter(note => note.channel === 0).map(note => note.tick);
+  expect(starts).toContain(0);
+  expect(starts).toContain(music.barTicks + MIDI_PPQ);
+  expect(starts).toContain(2 * music.barTicks);
+  expect(music.notes.find(note => note.channel === 1)!.tick).toBe(music.barTicks + 2 * MIDI_PPQ);
+  const later = buildPracticePerformance(two, { mode: 'song', bars: [{ ...chart[0], patternBar: 1 }] });
+  expect(later.notes.find(note => note.channel === 0)!.tick).toBe(MIDI_PPQ);
+});
