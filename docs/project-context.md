@@ -497,3 +497,8 @@ guitar bank; MIDI exports use a separate muted-guitar channel.
 Saving a strum with an existing shared name (case-insensitive) asks for confirmation
 before updating that library entry. Cancel keeps it unchanged. Song patterns
 already applied remain copies; future selections use the updated shared strum.
+
+Guitar strings ring through skipped strokes for up to 2.5 seconds. Replucking a
+string replaces its previous voice; X strokes and chord changes damp ringing
+strings. These durations apply to both live playback and MIDI downloads, while
+the final chord retains its four-second fade.

@@ -136,6 +136,8 @@ export function buildPracticePerformance(rhythm: SongRhythm, options: {
   }
   if (countInTicks) clicks(countInTicks - barTicks, countInTicks);
   let lastPlayedPitches: number[] = [];
+  let lastPlayedChord = "";
+  const dampTicks: number[] = [];
   bars.forEach((bar, barIndex) => {
     const pattern: StrumPattern = strumPatternForSection(rhythm, bar.section) ?? {
       section: "Default", subdivision: 1, strokes: Array.from({ length: rhythm.numerator }, (_, index) => index % pulseCount === 0 ? "D" : "-"),
@@ -151,11 +153,14 @@ export function buildPracticePerformance(rhythm: SongRhythm, options: {
       const chord = bar.chords.slice().reverse().find((entry) => entry.beat <= beat)?.chord;
       if (!chord) return;
       if (stroke === "X") {
+        dampTicks.push(tick);
         chordMidiNotes(transposeChordSymbol(chord, options.transpose ?? 0)).forEach((pitch, stringIndex) => notes.push({
           tick: tick + stringIndex * 3, duration: Math.min(60, stepTicks * 0.4), pitch, velocity: 70, channel: 1,
         }));
         return;
       }
+      if (lastPlayedChord && lastPlayedChord !== chord) dampTicks.push(tick);
+      lastPlayedChord = chord;
       const pitches = chordMidiNotes(transposeChordSymbol(chord, options.transpose ?? 0));
       lastPlayedPitches = [...pitches];
       if (stroke === "U") pitches.reverse();
@@ -165,6 +170,20 @@ export function buildPracticePerformance(rhythm: SongRhythm, options: {
       }));
     });
   });
+  // Strings ring through rests, until they are replucked or damped by X/a
+  // chord change. Use the same note lengths for live audio and MIDI exports.
+  const ringing = notes.filter(note => note.channel === 0).sort((a, b) => a.tick - b.tick);
+  const ringTicks = 2.5 * quarterBpm / 60 * MIDI_PPQ;
+  const nextPlucks = new Map<number, number>();
+  let dampIndex = dampTicks.length;
+  for (let index = ringing.length - 1; index >= 0; index--) {
+    const note = ringing[index];
+    while (dampIndex > 0 && dampTicks[dampIndex - 1] > note.tick) dampIndex--;
+    const damp = dampTicks[dampIndex] ?? totalTicks;
+    const repluck = nextPlucks.get(note.pitch) ?? totalTicks;
+    note.duration = Math.max(1, Math.min(ringTicks, damp - note.tick, repluck - note.tick, totalTicks - note.tick));
+    nextPlucks.set(note.pitch, note.tick);
+  }
   if (options.finish && lastPlayedPitches.length) {
     const secondsPerTick = 60 / quarterBpm / MIDI_PPQ;
     const sustain = 4 / secondsPerTick;
@@ -273,7 +292,7 @@ export class PracticeAudioPlayer {
         const gain = context.createGain();
         const peak = note.velocity / 127 * (note.channel === 9 ? 0.3 : note.channel === 1 ? 0.32 : 0.5);
         const muted = note.channel === 1;
-        const soundLength = note.channel === 9 ? 0.05 : muted ? Math.min(0.12, length) : note.finishing ? length : Math.max(0.45, length);
+        const soundLength = note.channel === 9 ? 0.05 : muted ? Math.min(0.12, length) : length;
         const source = note.channel === 9 ? context.createOscillator() : context.createBufferSource();
         if ("frequency" in source) {
           source.type = "triangle";
@@ -287,7 +306,7 @@ export class PracticeAudioPlayer {
         }
         gain.gain.setValueAtTime(0.0001, at);
         gain.gain.exponentialRampToValueAtTime(peak, at + 0.003);
-        if (note.channel !== 9) gain.gain.exponentialRampToValueAtTime(peak * (note.finishing ? 0.35 : 0.5), at + (note.finishing ? Math.min(0.6, soundLength * 0.2) : soundLength * 0.65));
+        if (note.channel !== 9) gain.gain.exponentialRampToValueAtTime(peak * (note.finishing ? 0.35 : muted ? 0.5 : 0.8), at + (note.finishing ? Math.min(0.6, soundLength * 0.2) : muted ? soundLength * 0.65 : Math.max(0.004, soundLength - 0.025)));
         gain.gain.exponentialRampToValueAtTime(0.0001, at + soundLength);
         source.connect(gain); gain.connect(master);
         source.start(at); source.stop(at + soundLength + 0.02);
