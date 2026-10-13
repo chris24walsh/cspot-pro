@@ -54,7 +54,7 @@ it('allows an opening bar of silence and matches whole-song and part playback in
     expect(audio.play).toHaveBeenCalledOnce();
     const inline = audio.play.mock.calls[0][0] as PracticePerformance;
     for (const mode of ['song', 'part'] as const) {
-      const editor = buildPracticePerformance(rhythm, { mode, section: 'V1', lyrics, sequence: 'V1', annotations, countIn: true, metronome: true });
+      const editor = buildPracticePerformance(rhythm, { mode, finish: true, section: 'V1', lyrics, sequence: 'V1', annotations, countIn: true, metronome: true });
       expect(inline).toEqual(editor);
     }
     expect(inline.bars[0].chords).toEqual([{ beat: 1, chord: '' }]);

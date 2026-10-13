@@ -483,3 +483,8 @@ height of forward lookahead), and scroll movement eases between line targets.
 Early page cues do not move unfinished lyrics above the viewport. Manual wheel/touch scrolling pauses this motion until the next
 live page change. Playback turns pages half a bar before the next page’s first bar; the dot and audio keep their actual
 musical timing. The same early turn drives Band sync and coupled service output.
+
+Non-looping guitar previews finish with a gentle down-strum of the last sounded
+chord, sustained for six seconds with a soft decay. Exported practice MIDI adds
+held guitar notes and an expression fade for the same ending. Metronome-only
+and silent guides keep their original duration; loops have no ending pause.

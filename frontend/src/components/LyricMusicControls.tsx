@@ -45,7 +45,7 @@ export function LyricMusicControls({ rhythm, lyrics, sequence, annotations, bars
       const missing = worshipSequenceBlocks(lyrics, sequence).find((_block, occurrence) => occurrence >= (startAt?.occurrence ?? 0) && !timeline.some(bar => bar.occurrence === occurrence));
       if (missing) throw new Error(`Place bar boundaries for ${missing.label} before following the whole song.`);
       const practiceBars = timedPracticeBars(lyrics, timeline.slice(startIndex), annotations, rhythm.numerator);
-      const performance = buildPracticePerformance(rhythm, { mode: 'song', countIn: mode !== 'silent', metronome: mode !== "silent", chords: mode === "midi", transpose, bars: practiceBars });
+      const performance = buildPracticePerformance(rhythm, { mode: 'song', countIn: mode !== 'silent', metronome: mode !== "silent", chords: mode === "midi", finish: mode === "midi", transpose, bars: practiceBars });
       player = mode === "silent" ? new PracticeSilentPlayer() : new PracticeAudioPlayer(); const requested = player; playerRef.current = player; setPlaying(true); onStarted?.();
       await player.play(performance, false, () => {}, () => { if (playerRef.current === requested) { playerRef.current = null; setPlaying(false); callback.current(null); timingCallback.current?.(null); } }, position => {
         if (playerRef.current === requested) {

@@ -36,7 +36,7 @@ export function RhythmPracticeControls({ rhythm, annotations, section = "Default
   }, [signature, section, strumSection, lyrics, sequence, transpose, bpm, chord, loop, countIn, metronome]);
 
   function performance(mode: PracticeMode) {
-    return buildPracticePerformance({ ...rhythm, bpm }, { mode, annotations, section: mode === "strum" ? strumSection ?? section : section, lyrics, sequence, previewChord: chord, transpose, countIn, metronome });
+    return buildPracticePerformance({ ...rhythm, bpm }, { mode, annotations, section: mode === "strum" ? strumSection ?? section : section, lyrics, sequence, previewChord: chord, transpose, countIn, metronome, finish: !loop });
   }
 
   async function listen(mode: PracticeMode) {

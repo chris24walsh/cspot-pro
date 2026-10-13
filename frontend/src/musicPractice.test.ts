@@ -133,3 +133,19 @@ it('adds only the missing lead-in when the first chord change is inside the open
   expect(new Set(clicks.map(note => note.tick)).size).toBe(clicks.length);
   expect(Math.min(...music.notes.filter(note => note.channel === 0).map(note => note.tick))).toBe(music.barTicks);
 });
+
+it('ends on the last sounded full chord with a six-second sustain and MIDI expression fade', () => {
+  const bars = [{ section: 'Default', chords: [{ beat: 1, chord: 'C' }] }, { section: 'Default', chords: [{ beat: 1, chord: 'G' }] }];
+  const music = buildPracticePerformance(rhythm, { mode: 'song', bars, finish: true, transpose: 2 });
+  const ending = music.notes.filter(note => note.finishing);
+  expect(ending.map(note => note.pitch)).toEqual(chordMidiNotes('A'));
+  expect(ending[0].tick).toBe(2 * music.barTicks);
+  expect(ending[0].duration / MIDI_PPQ * 60 / music.quarterBpm).toBeCloseTo(6);
+  expect(music.totalTicks).toBeGreaterThan(ending[ending.length - 1].tick + ending[ending.length - 1].duration);
+  const expression = readMidi(practiceMidi(music)).events.filter(event => event.status === 0xb0 && event.data[0] === 11);
+  expect(expression[0].data[1]).toBe(127);
+  expect(expression[expression.length - 1].data[1]).toBe(1);
+  expect(music.notes.filter(note => note.channel === 9).every(note => note.tick < ending[0].tick)).toBe(true);
+  expect(buildPracticePerformance(rhythm, { mode: 'song', bars, finish: false }).notes.some(note => note.finishing)).toBe(false);
+  expect(buildPracticePerformance(rhythm, { mode: 'song', bars, finish: true, chords: false }).notes.some(note => note.finishing)).toBe(false);
+});

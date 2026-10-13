@@ -6,7 +6,7 @@ import { worshipSequenceBlocks } from "./worshipText";
 export const MIDI_PPQ = 480;
 export interface BarChord { beat: number; chord: string }
 export interface PracticeBar { section: string; chords: BarChord[] }
-export interface PracticeNote { tick: number; duration: number; pitch: number; velocity: number; channel: number }
+export interface PracticeNote { tick: number; duration: number; pitch: number; velocity: number; channel: number; finishing?: boolean }
 export interface PracticePerformance { notes: PracticeNote[]; bars: PracticeBar[]; barTicks: number; countInTicks: number; totalTicks: number; quarterBpm: number; numerator: number; denominator: number }
 export type PracticeMode = "strum" | "part" | "song";
 
@@ -81,7 +81,7 @@ export function songPracticeParts(lyrics?: string | null, sequence?: string | nu
 
 export function buildPracticePerformance(rhythm: SongRhythm, options: {
   mode: PracticeMode; annotations?: ChordAnnotation[]; section?: string; lyrics?: string | null; sequence?: string | null;
-  previewChord?: string; transpose?: number; countIn?: boolean; metronome?: boolean; chords?: boolean; bars?: PracticeBar[];
+  previewChord?: string; transpose?: number; countIn?: boolean; metronome?: boolean; chords?: boolean; bars?: PracticeBar[]; finish?: boolean;
 }): PracticePerformance {
   if (!Number.isInteger(rhythm.bpm ?? 90) || (rhythm.bpm ?? 90) < 30 || (rhythm.bpm ?? 90) > 240) throw new Error("Enter a tempo between 30 and 240 BPM.");
   const section = options.section ?? "Default";
@@ -121,7 +121,7 @@ export function buildPracticePerformance(rhythm: SongRhythm, options: {
   // Opening rests are part of the selected slide. Add only the missing lead-in.
   const countInTicks = options.countIn ? Math.max(0, barTicks - (firstChordTick ?? 0)) : 0;
   const metronomeStart = firstChordTick === null ? 0 : Math.max(0, countInTicks + firstChordTick - barTicks);
-  const totalTicks = countInTicks + bars.length * barTicks;
+  let totalTicks = countInTicks + bars.length * barTicks;
   const quarterBpm = rhythmQuarterBpm(rhythm);
   if (totalTicks / MIDI_PPQ * 60 / quarterBpm > 1200) throw new Error("Keep a practice preview under 20 minutes.");
   const notes: PracticeNote[] = [];
@@ -134,6 +134,7 @@ export function buildPracticePerformance(rhythm: SongRhythm, options: {
     }
   }
   if (countInTicks) clicks(countInTicks - barTicks, countInTicks);
+  let lastPlayedPitches: number[] = [];
   bars.forEach((bar, barIndex) => {
     const pattern: StrumPattern = strumPatternForSection(rhythm, bar.section) ?? {
       section: "Default", subdivision: 1, strokes: Array.from({ length: rhythm.numerator }, (_, index) => index % pulseCount === 0 ? "D" : "-"),
@@ -150,6 +151,7 @@ export function buildPracticePerformance(rhythm: SongRhythm, options: {
       if (!chord) return;
       if (stroke === "X") { notes.push({ tick, duration: Math.min(60, stepTicks * 0.4), pitch: 37, velocity: 85, channel: 9 }); return; }
       const pitches = chordMidiNotes(transposeChordSymbol(chord, options.transpose ?? 0));
+      lastPlayedPitches = [...pitches];
       if (stroke === "U") pitches.reverse();
       pitches.forEach((pitch, stringIndex) => notes.push({
         tick: tick + stringIndex * Math.min(5, stepTicks / 16), duration: Math.max(12, stepTicks * 0.8 - stringIndex * 5),
@@ -157,6 +159,16 @@ export function buildPracticePerformance(rhythm: SongRhythm, options: {
       }));
     });
   });
+  if (options.finish && lastPlayedPitches.length) {
+    const secondsPerTick = 60 / quarterBpm / MIDI_PPQ;
+    const sustain = 6 / secondsPerTick;
+    const ending = totalTicks;
+    lastPlayedPitches.forEach((pitch, index) => notes.push({
+      tick: ending + index * 0.012 / secondsPerTick, duration: sustain,
+      pitch, velocity: 82, channel: 0, finishing: true,
+    }));
+    totalTicks = Math.ceil(ending + sustain + (lastPlayedPitches.length * 0.012 + 0.04) / secondsPerTick);
+  }
   notes.sort((a, b) => a.tick - b.tick);
   return { notes, bars, barTicks, countInTicks, totalTicks, quarterBpm, numerator: rhythm.numerator, denominator: rhythm.denominator };
 }
@@ -177,6 +189,15 @@ export function practiceMidi(performance: PracticePerformance): Uint8Array {
   for (const note of performance.notes) {
     events.push({ tick: Math.round(note.tick), bytes: [0x90 | note.channel, note.pitch, note.velocity], order: 2 });
     events.push({ tick: Math.round(note.tick + note.duration), bytes: [0x80 | note.channel, note.pitch, 0], order: 1 });
+  }
+  const ending = performance.notes.find(note => note.finishing);
+  if (ending) {
+    events.push({ tick: 0, bytes: [0xb0, 11, 127], order: 0 });
+    // Expression fades the held guitar voice in MIDI players as well as the
+    // natural decay provided by their acoustic guitar patch.
+    for (let step = 0; step <= 32; step++) {
+      events.push({ tick: Math.round(ending.tick + ending.duration * step / 32), bytes: [0xb0, 11, Math.max(1, Math.round(127 * Math.exp(-6 * step / 32)))], order: 0 });
+    }
   }
   events.sort((a, b) => a.tick - b.tick || a.order - b.order);
   const track: number[] = [];
@@ -234,7 +255,7 @@ export class PracticeAudioPlayer {
         nextNote = 0;
         elapsed = context.currentTime - started;
       }
-      const position = (elapsed / secondsPerTick - performance.countInTicks) / performance.barTicks;
+      const position = Math.min(performance.bars.length - 0.00001, (elapsed / secondsPerTick - performance.countInTicks) / performance.barTicks);
       onProgress(Math.floor(position));
       onPosition?.(position);
       while (nextNote < performance.notes.length && performance.notes[nextNote].tick * secondsPerTick < elapsed + 0.16) {
@@ -250,7 +271,7 @@ export class PracticeAudioPlayer {
         gain.gain.setValueAtTime(0.0001, at);
         const peak = note.velocity / 127 * (note.channel === 9 ? 0.3 : 0.22);
         gain.gain.exponentialRampToValueAtTime(peak, at + 0.003);
-        if (note.channel !== 9) gain.gain.exponentialRampToValueAtTime(peak * 0.5, at + length * 0.7);
+        if (note.channel !== 9) gain.gain.exponentialRampToValueAtTime(peak * (note.finishing ? 0.35 : 0.5), at + (note.finishing ? Math.min(0.6, length * 0.2) : length * 0.7));
         gain.gain.exponentialRampToValueAtTime(0.0001, at + (note.channel === 9 ? 0.05 : length));
         oscillator.connect(gain); gain.connect(master);
         oscillator.start(at); oscillator.stop(at + length + 0.02);
