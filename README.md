@@ -414,7 +414,10 @@ page/scroll view and Edit. Bars and guided practice remain admin-only for now;
 Dynamics is shown as unavailable until annotations exist. A compact **Play**
 dropdown selects Metronome, MIDI strum, or Backing track; active playback becomes
 a direct Stop button. In Worship Live, guided playback starts at the first bar
-on the selected slide, with a one-bar count-in, then continues through the song.
+on the selected slide, then continues through the song. Opening bars remain silent
+until the first annotated chord change; chords before the playback starting point
+are not inherited. Metronome clicks begin one bar before that first change. Opening
+rests supply the lead-in, so only any missing preparation time is added.
 The selected sequence occurrence is preserved, including repeated verses.
 A slide needs a bar boundary to start guided playback there. Backing track keeps existing service-audio permissions and requires Sync.
 Menus support keyboard navigation, Escape and outside-click dismissal.
@@ -434,7 +437,8 @@ congregation/display screens do not receive the dot. A bouncing dot follows the 
 Pages turn at their first bar. When synced, the service display advances too;
 with Sync off, page turns stay local.
 Place boundaries in each sequenced part to enable the whole-song timing guide.
-Empty bars carry the last played chord, including across parts and repeats.
+After the first annotated change has played, empty bars carry the last played chord,
+including across parts and repeats.
 Before any chord has played, they use metronome-only playback.
 The editor uses the same guide and source anchors. Lyrics retain normal character
 and word spacing when chords or bars move, including while Music is hidden.

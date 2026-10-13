@@ -81,7 +81,7 @@ export function timedPracticeBars(lyrics: string | null | undefined, bars: Lyric
   let previousChord = "";
   return bars.map(bar => ({ section: bar.section, chords: bar.stops.slice(0, -1).map((position, index, stops) => {
     const candidates = resolved.filter(chord => musicalSectionKey(chord.section ?? 'Default') === musicalSectionKey(bar.section));
-    const chord = candidates.filter(chord => chord.absoluteLineIndex < position.lineIndex || chord.absoluteLineIndex === position.lineIndex && chord.anchorIndex <= position.anchorIndex).slice(-1)[0];
+    const chord = candidates.filter(chord => chord.absoluteLineIndex === position.lineIndex && chord.anchorIndex === position.anchorIndex).slice(-1)[0];
     previousChord = chord?.chord || previousChord;
     return { beat: 1 + index * numerator / stops.length, chord: previousChord };
   }) }));

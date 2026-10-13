@@ -58,7 +58,8 @@ it('allows an opening bar of silence and matches whole-song and part playback in
       expect(inline).toEqual(editor);
     }
     expect(inline.bars[0].chords).toEqual([{ beat: 1, chord: '' }]);
-    expect(inline.notes.filter(note => note.channel === 0).every(note => note.tick >= inline.countInTicks + inline.barTicks)).toBe(true);
+    expect(inline.countInTicks).toBe(0);
+    expect(inline.notes.filter(note => note.channel === 0).every(note => note.tick >= inline.barTicks)).toBe(true);
     expect(inline.notes.some(note => note.channel === 0)).toBe(true);
   } finally { act(() => root.unmount()); vi.clearAllMocks(); }
 });
@@ -84,7 +85,7 @@ it('offers permission-scoped backing playback and a direct stop, with no local s
   } finally { act(() => root.unmount()); vi.clearAllMocks(); }
 });
 
-it.each(['Metronome', 'MIDI strum'])('starts %s at the selected sequence occurrence and carries the incoming chord', async source => {
+it.each(['Metronome', 'MIDI strum'])('starts %s at the selected sequence occurrence and leaves the opening bar silent', async source => {
   const lyrics = '[V1]\nFirst line\nSecond line\n[C]\nHold the chord';
   const annotations = [
     { id: 'c', section: 'V1', lineIndex: 0, anchorIndex: 3, chord: 'C' },
@@ -102,8 +103,8 @@ it.each(['Metronome', 'MIDI strum'])('starts %s at the selected sequence occurre
     await act(async () => render(1, 4));
     await play(container, source);
     const music = audio.play.mock.calls[0][0] as PracticePerformance;
-    expect(music.bars.map(bar => bar.chords[0].chord)).toEqual(['G', 'C', 'G']);
-    expect(music.countInTicks).toBe(music.barTicks);
+    expect(music.bars.map(bar => bar.chords[0].chord)).toEqual(['', 'C', 'G']);
+    expect(music.countInTicks).toBe(0);
     expect(music.notes.some(note => note.channel === 0)).toBe(source === 'MIDI strum');
     const position = audio.play.mock.calls[0][4] as (position: number) => void;
     act(() => position(-0.5));

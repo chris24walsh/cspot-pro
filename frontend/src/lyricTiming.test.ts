@@ -94,3 +94,12 @@ it('carries the last played chord through empty bars and across repeated section
   const part = timedPracticeBars(lyrics, layout.filter(bar => bar.section === 'C'), annotations, 4);
   expect(part.map(bar => bar.chords[0].chord)).toEqual(['', 'G']); // no previous chord when practice starts here
 });
+
+it('treats annotations as changes and does not inherit a chord from before the playback start', () => {
+  const lyrics = '[V1]\nEarlier chord\nEmpty opening\nFirst change\nKeep playing';
+  const annotations = [{ id: 'earlier', section: 'V1', lineIndex: 0, anchorIndex: 3, chord: 'C' }, { id: 'change', section: 'V1', lineIndex: 2, anchorIndex: 3, chord: 'G' }];
+  const rhythm: SongRhythm = { numerator: 4, denominator: 4, patterns: [], notes: '', markers: [0, 1, 2, 3].map(lineIndex => ({ id: `bar-${lineIndex}`, section: 'V1', lineIndex, anchorIndex: 3 })) };
+  const layout = lyricBarLayout(lyrics, rhythm, annotations);
+  expect(timedPracticeBars(lyrics, layout.slice(1), annotations, 4).map(bar => bar.chords[0].chord)).toEqual(['', 'G', 'G']);
+  expect(timedPracticeBars(lyrics, layout, annotations, 4).map(bar => bar.chords[0].chord)).toEqual(['C', 'C', 'G', 'G']);
+});

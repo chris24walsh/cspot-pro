@@ -111,3 +111,25 @@ it("exports a complete standard MIDI file with meter, tempo, guitar and matching
   expect(starts).toHaveLength(performance.notes.length); expect(ends).toHaveLength(starts.length);
   expect(midi.events[midi.events.length - 1]).toEqual({ tick: performance.totalTicks, status: 0x2f, data: [] });
 });
+
+it('keeps opening bars silent and starts clicks one bar before the first chord', () => {
+  const music = buildPracticePerformance({ ...rhythm, patterns: [] }, { mode: 'song', countIn: true, metronome: true, bars: [
+    { section: 'Default', chords: [{ beat: 1, chord: '' }] },
+    { section: 'Default', chords: [{ beat: 1, chord: '' }] },
+    { section: 'Default', chords: [{ beat: 1, chord: 'G' }] },
+  ] });
+  expect(music.countInTicks).toBe(0);
+  expect(Math.min(...music.notes.filter(note => note.channel === 9).map(note => note.tick))).toBe(music.barTicks);
+  expect(Math.min(...music.notes.filter(note => note.channel === 0).map(note => note.tick))).toBe(2 * music.barTicks);
+});
+
+it('adds only the missing lead-in when the first chord change is inside the opening bar', () => {
+  const music = buildPracticePerformance({ ...rhythm, patterns: [] }, { mode: 'song', countIn: true, metronome: true, bars: [
+    { section: 'Default', chords: [{ beat: 1, chord: '' }, { beat: 3, chord: 'C' }] },
+  ] });
+  expect(music.countInTicks).toBe(music.barTicks / 2);
+  const clicks = music.notes.filter(note => note.channel === 9);
+  expect(clicks[0].tick).toBe(0);
+  expect(new Set(clicks.map(note => note.tick)).size).toBe(clicks.length);
+  expect(Math.min(...music.notes.filter(note => note.channel === 0).map(note => note.tick))).toBe(music.barTicks);
+});

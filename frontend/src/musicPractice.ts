@@ -115,16 +115,25 @@ export function buildPracticePerformance(rhythm: SongRhythm, options: {
   if (!bars.length) throw new Error("Add chords to the bar chart before listening.");
   if (bars.length > 256) throw new Error("A practice arrangement can contain up to 256 bars.");
   const barTicks = rhythm.numerator * 4 / rhythm.denominator * MIDI_PPQ;
-  const countInTicks = options.countIn ? barTicks : 0;
+  const firstChordBar = bars.findIndex(bar => bar.chords.some(change => Boolean(change.chord)));
+  const firstChord = firstChordBar < 0 ? null : bars[firstChordBar].chords.find(change => Boolean(change.chord))!;
+  const firstChordTick = firstChord ? firstChordBar * barTicks + (firstChord.beat - 1) / rhythm.numerator * barTicks : null;
+  // Opening rests are part of the selected slide. Add only the missing lead-in.
+  const countInTicks = options.countIn ? Math.max(0, barTicks - (firstChordTick ?? 0)) : 0;
+  const metronomeStart = firstChordTick === null ? 0 : Math.max(0, countInTicks + firstChordTick - barTicks);
   const totalTicks = countInTicks + bars.length * barTicks;
   const quarterBpm = rhythmQuarterBpm(rhythm);
   if (totalTicks / MIDI_PPQ * 60 / quarterBpm > 1200) throw new Error("Keep a practice preview under 20 minutes.");
   const notes: PracticeNote[] = [];
   const pulseCount = rhythm.denominator === 8 && rhythm.numerator % 3 === 0 ? 3 : 1;
-  function clicks(start: number) {
-    for (let count = 0; count < rhythm.numerator; count += pulseCount) notes.push({ tick: start + count / rhythm.numerator * barTicks, duration: 36, pitch: count === 0 ? 76 : 77, velocity: 65, channel: 9 });
+  function clicks(start: number, end = start + barTicks) {
+    for (let count = 0; count < rhythm.numerator; count += pulseCount) {
+      const tick = start + count / rhythm.numerator * barTicks;
+      if (tick < 0 || tick < metronomeStart || tick >= end) continue;
+      notes.push({ tick, duration: 36, pitch: count === 0 ? 76 : 77, velocity: 65, channel: 9 });
+    }
   }
-  if (countInTicks) clicks(0);
+  if (countInTicks) clicks(countInTicks - barTicks, countInTicks);
   bars.forEach((bar, barIndex) => {
     const pattern: StrumPattern = strumPatternForSection(rhythm, bar.section) ?? {
       section: "Default", subdivision: 1, strokes: Array.from({ length: rhythm.numerator }, (_, index) => index % pulseCount === 0 ? "D" : "-"),
@@ -137,9 +146,9 @@ export function buildPracticePerformance(rhythm: SongRhythm, options: {
       const beat = 1 + index / pattern.subdivision;
       const tick = start + index / pattern.strokes.length * barTicks;
       const stepTicks = barTicks / pattern.strokes.length;
-      if (stroke === "X") { notes.push({ tick, duration: Math.min(60, stepTicks * 0.4), pitch: 37, velocity: 85, channel: 9 }); return; }
       const chord = bar.chords.slice().reverse().find((entry) => entry.beat <= beat)?.chord;
       if (!chord) return;
+      if (stroke === "X") { notes.push({ tick, duration: Math.min(60, stepTicks * 0.4), pitch: 37, velocity: 85, channel: 9 }); return; }
       const pitches = chordMidiNotes(transposeChordSymbol(chord, options.transpose ?? 0));
       if (stroke === "U") pitches.reverse();
       pitches.forEach((pitch, stringIndex) => notes.push({

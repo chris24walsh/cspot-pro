@@ -998,7 +998,9 @@ Search modes:
   Live render bar lines and a dot in existing rows. Musical time varies cursor speed
   between anchors; it never stretches lyric characters or changes word spacing. Editor song/part playback and MIDI share these timed bars;
   legacy chart-only songs keep the original playback path. Guided song playback
-  requires markers in every sequenced part and starts with a one-bar count-in.
+  requires markers in every remaining sequenced part and provides a one-bar
+  metronome lead-in before the first chord change. Existing opening rests provide
+  that lead-in; only missing preparation time is prepended.
   Empty bars carry the last played chord across bars, parts and sequence repeats
   in both guided and rhythm-editor playback. Only bars before any chord has played
   remain silent apart from the metronome. No implicit mute is inferred.
@@ -1009,8 +1011,9 @@ Search modes:
   with arrow-key navigation, Escape, outside dismissal and focus restoration.
   Play chooses metronome, MIDI strum or backing track and becomes direct Stop
   while playing. Worship Live captures the selected page’s occurrence and source
-  range at Play, slices the full harmonic timeline from its first bar, and retains
-  the inherited chord and one-bar count-in. Cursor progress adds the captured bar
+  range at Play, slices the source timeline before resolving annotated chord
+  changes, and starts with no inherited chord. Only annotations at each timed
+  position change the active chord; subsequent empty bars hold it. Cursor progress adds the captured bar
   offset only after count-in, so it cannot jump back to an earlier page. Page changes
   during playback do not restart audio; a new Play uses the newly selected page.
   PracticeSilentPlayer uses a monotonic timer without constructing AudioContext;

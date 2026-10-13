@@ -44,7 +44,7 @@ export function LyricMusicControls({ rhythm, lyrics, sequence, annotations, bars
       if (startIndex < 0) throw new Error('Place a bar boundary on this slide to start playback here.');
       const missing = worshipSequenceBlocks(lyrics, sequence).find((_block, occurrence) => occurrence >= (startAt?.occurrence ?? 0) && !timeline.some(bar => bar.occurrence === occurrence));
       if (missing) throw new Error(`Place bar boundaries for ${missing.label} before following the whole song.`);
-      const practiceBars = timedPracticeBars(lyrics, timeline, annotations, rhythm.numerator).slice(startIndex);
+      const practiceBars = timedPracticeBars(lyrics, timeline.slice(startIndex), annotations, rhythm.numerator);
       const performance = buildPracticePerformance(rhythm, { mode: 'song', countIn: mode !== 'silent', metronome: mode !== "silent", chords: mode === "midi", transpose, bars: practiceBars });
       player = mode === "silent" ? new PracticeSilentPlayer() : new PracticeAudioPlayer(); const requested = player; playerRef.current = player; setPlaying(true); onStarted?.();
       await player.play(performance, false, () => {}, () => { if (playerRef.current === requested) { playerRef.current = null; setPlaying(false); callback.current(null); timingCallback.current?.(null); } }, position => {
@@ -60,7 +60,7 @@ export function LyricMusicControls({ rhythm, lyrics, sequence, annotations, bars
       {close => <>
         {canPractice ? <>
           <button role="menuitem" disabled={!rhythm} onClick={() => { close(); void listen("silent"); }} type="button"><VolumeX size={16} aria-hidden="true" /><span>Silent guide<small>Dot + auto page turn · no sound</small></span></button>
-          <button role="menuitem" disabled={!rhythm} onClick={() => { close(); void listen("metronome"); }} type="button"><Timer size={16} aria-hidden="true" /><span>Metronome<small>{rhythm ? `${rhythm.bpm ?? 90} BPM · ${startAt ? 'current slide' : 'song start'} · count-in` : 'Add song rhythm first'}</small></span></button>
+          <button role="menuitem" disabled={!rhythm} onClick={() => { close(); void listen("metronome"); }} type="button"><Timer size={16} aria-hidden="true" /><span>Metronome<small>{rhythm ? `${rhythm.bpm ?? 90} BPM · clicks one bar before first chord` : 'Add song rhythm first'}</small></span></button>
           <button role="menuitem" disabled={!rhythm} onClick={() => { close(); void listen("midi"); }} type="button"><Guitar size={16} aria-hidden="true" /><span>MIDI strum<small>Chords + metronome · {startAt ? 'current slide' : 'song start'}</small></span></button>
         </> : null}
         {backing ? <button role="menuitem" disabled={Boolean(backing.disabledReason)} title={backing.disabledReason} onClick={() => { close(); stop(); setError(null); void backing.toggle(); }} type="button"><Volume2 size={16} aria-hidden="true" /><span>Backing track<small>{backing.disabledReason ?? 'Service audio'}</small></span></button> : null}
