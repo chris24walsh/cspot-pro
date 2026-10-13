@@ -481,6 +481,5 @@ default) that follows the active source lyric line during guided playback or fol
 shared timing. The sung line stays near the centre (with at most 15% viewport
 height of forward lookahead), and scroll movement eases between line targets.
 Early page cues do not move unfinished lyrics above the viewport. Manual wheel/touch scrolling pauses this motion until the next
-live page change. Playback turns pages one bar before the next page’s first bar,
-with a half-bar lead for single-bar pages; the dot and audio keep their actual
+live page change. Playback turns pages half a bar before the next page’s first bar; the dot and audio keep their actual
 musical timing. The same early turn drives Band sync and coupled service output.
