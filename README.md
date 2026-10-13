@@ -510,8 +510,10 @@ The band position is stored separately in the presentation payload and polled vi
 `/api/v1/presentation/band-sync/{plan_id}`; it never changes congregation output.
 
 Worship Live scroll mode has a per-device **Auto-scroll** option (enabled by
-default) that interpolates page positions during guided playback or followed
-shared timing. Manual wheel/touch scrolling pauses this motion until the next
+default) that follows the active source lyric line during guided playback or followed
+shared timing. The sung line stays near the centre (with at most 15% viewport
+height of forward lookahead), and scroll movement eases between line targets.
+Early page cues do not move unfinished lyrics above the viewport. Manual wheel/touch scrolling pauses this motion until the next
 live page change. Playback turns pages one bar before the next page’s first bar,
 with a half-bar lead for single-bar pages; the dot and audio keep their actual
 musical timing. The same early turn drives Band sync and coupled service output.

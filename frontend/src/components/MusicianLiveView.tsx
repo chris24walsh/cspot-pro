@@ -1184,13 +1184,22 @@ export function MusicianLiveView({ canUseMusic = false, canControlAudio = false,
     if (readerMode !== "scroll" || !autoScroll || !playbackMotion || manualScrollPaused.current) return;
     const container = fullSongRef.current;
     if (!container) return;
-    const parts = Array.from(container.querySelectorAll<HTMLElement>("[data-playback-slide]"));
-    const from = parts.find(part => Number(part.dataset.playbackSlide) === playbackMotion.slideIndex);
-    const to = parts.find(part => Number(part.dataset.playbackSlide) === playbackMotion.nextSlideIndex);
-    if (!from || !to) return;
-    const top = (part: HTMLElement) => Math.max(0, part.offsetTop - (container.clientHeight - part.clientHeight) / 2);
-    container.scrollTop = top(from) + (top(to) - top(from)) * playbackMotion.fraction;
-  }, [readerMode, autoScroll, playbackPosition, playbackMotion?.slideIndex, liveSlide?.id, showChords]);
+    if (!musicCursor) return;
+    const lines = Array.from(container.querySelectorAll<HTMLElement>("[data-playback-line]"));
+    const index = lines.findIndex(line => Number(line.dataset.playbackOccurrence) === musicCursor.occurrence && Number(line.dataset.playbackLine) === musicCursor.lineIndex);
+    const active = lines[index];
+    if (!active) return;
+    const bounds = active.getBoundingClientRect();
+    const next = lines[index + 1]?.getBoundingClientRect();
+    const line = lyricLines(liveSong?.lyrics ?? "")[musicCursor.lineIndex] ?? "";
+    const progress = Math.max(0, Math.min(1, (musicCursor.anchorIndex - LEADING_CHORD_ANCHORS) / Math.max(1, line.length)));
+    // Keep the sung line between the centre and 35% of the viewport. Page
+    // cues can advance early without pulling unfinished lyrics out of view.
+    const travel = Math.min(Math.max(0, (next?.top ?? bounds.top) - bounds.top), container.clientHeight * 0.15);
+    const target = Math.max(0, container.scrollTop + bounds.top - container.getBoundingClientRect().top + bounds.height / 2 + travel * progress - container.clientHeight / 2);
+    container.scrollTop += (target - container.scrollTop) * 0.2;
+  }, [readerMode, autoScroll, playbackPosition, playbackMotion?.slideIndex, liveSlide?.id, showChords, musicCursor?.lineIndex, musicCursor?.anchorIndex]);
+
   function timingFor(offset: number, lineIndex: number, segmentStart: number, occurrence: number, lastSegment: boolean) {
     return { lyrics: liveSong?.lyrics ?? '', bars: timingBars, sourceLine: offset < 0 ? -1 : offset + lineIndex, segmentStart, lastSegment, showBars: canUseMusic && musicMode, cursor: displayCursor?.occurrence === occurrence ? displayCursor : null };
   }
@@ -1504,7 +1513,7 @@ export function MusicianLiveView({ canUseMusic = false, canControlAudio = false,
                           {partLines.map((line, lineIndex) => {
                             const segments = wrapMusicLine(line, songModeWrapCharacters, block.partLineOffsets[partIndex], lineIndex);
                             return (
-                              <div className="musician-lyric-line-group" key={`${lineIndex}-${line}`}>
+                              <div className="musician-lyric-line-group" data-playback-occurrence={blockIndex} data-playback-line={block.partLineOffsets[partIndex] + lineIndex} key={`${lineIndex}-${line}`}>
                                 {segments.map((segment, segmentIndex) => (
                                   <MusicianChordLine
                                     timing={timingFor(block.partLineOffsets[partIndex], lineIndex, segment.start, blockIndex, segmentIndex === segments.length - 1)}

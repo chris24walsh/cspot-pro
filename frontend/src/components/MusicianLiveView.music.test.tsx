@@ -193,7 +193,7 @@ it.each(['auto', 'on', 'off'])('keeps %s visibility choices through playback sta
   } finally { act(() => root.unmount()); vi.unstubAllGlobals(); vi.clearAllMocks(); }
 });
 
-it('scrolls proportionally, pauses on manual scroll, and resumes at the early page turn', async () => {
+it('keeps sung lyrics in view across early page turns and pauses on manual scroll', async () => {
   vi.stubGlobal('matchMedia', () => ({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() }));
   vi.stubGlobal('requestAnimationFrame', vi.fn(() => 1));
   vi.stubGlobal('cancelAnimationFrame', vi.fn());
@@ -209,19 +209,24 @@ it('scrolls proportionally, pauses on manual scroll, and resumes at the early pa
     const parts = Array.from(scroller.querySelectorAll<HTMLElement>('.musician-song-part'));
     Object.defineProperty(scroller, 'clientHeight', { value: 100 });
     parts.forEach((part, index) => { Object.defineProperty(part, 'offsetTop', { value: 100 + 200 * index }); Object.defineProperty(part, 'clientHeight', { value: 100 }); });
+    const lines = Array.from(scroller.querySelectorAll<HTMLElement>('[data-playback-line]'));
+    lines.forEach((line, index) => { line.getBoundingClientRect = () => ({ top: 100 + 200 * index - scroller.scrollTop, height: 20 } as DOMRect); });
     await play(container);
     const position = audio.play.mock.calls[0][4] as (position: number) => void;
     await act(async () => position(0.25));
-    expect(scroller.scrollTop).toBe(200);
+    expect(scroller.scrollTop).toBeGreaterThan(0);
+    expect(lines[0].getBoundingClientRect().top).toBeGreaterThan(35);
     act(() => scroller.dispatchEvent(new WheelEvent('wheel', { bubbles: true })));
     scroller.scrollTop = 50;
     await act(async () => position(0.4));
     expect(scroller.scrollTop).toBe(50);
     await act(async () => position(0.5));
     expect(parts[1].classList.contains('is-current')).toBe(true);
-    expect(scroller.scrollTop).toBe(300);
+    expect(scroller.scrollTop).not.toBe(50);
+    expect(lines[0].getBoundingClientRect().top).toBeGreaterThan(35); // still singing the first slide
     await act(async () => position(1));
-    expect(scroller.scrollTop).toBe(400);
+    expect(scroller.scrollTop).toBeLessThan(300);
+    expect(lines[1].getBoundingClientRect().top).toBeGreaterThan(35);
     musician(container);
     const toggle = Array.from(document.querySelectorAll<HTMLButtonElement>('[role="menuitemcheckbox"]')).find(button => button.textContent!.startsWith('Auto-scroll'))!;
     act(() => toggle.click());
