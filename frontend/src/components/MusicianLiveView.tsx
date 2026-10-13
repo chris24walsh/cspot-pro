@@ -39,11 +39,13 @@ import { PROGRAM_AUDIO_FADE_DURATION_MS } from "../audioTransitions";
 import { worshipSequenceBlocks } from "../worshipText";
 import { mergeWorshipSetIntoService } from "../worshipSets";
 
-import { PracticeListenButton } from "./PracticeListenButton";
+import { lyricBarLayout, lyricColumnWidths, wrapTimedLine, lyricCursorAt, lyricPlaybackBars, musicalSectionKey, type LyricBar, type LyricCursor } from "../lyricTiming";
+import { LyricMusicControls, TimingDot } from "./LyricMusicControls";
 import { SongRhythmDisplay } from "./SongRhythmDisplay";
 
 interface MusicianLiveViewProps {
   canControlAudio?: boolean;
+  canUseMusic?: boolean;
   controlPlanId?: string | null;
   onEditSong: (song: Song) => void;
   onExit: () => void;
@@ -239,7 +241,7 @@ function wrappedLineCount(lines: string[], maxCharacters: number) {
   return lines.reduce((total, line) => total + wrapLyricLine(line, maxCharacters).length, 0);
 }
 
-function fitFontSizeForSlide(slideText: string, stageWidth: number, stageHeight: number) {
+function fitFontSizeForSlide(slideText: string, stageWidth: number, stageHeight: number, sourceLyrics?: string, bars: LyricBar[] = []) {
   const lines = lyricLines(slideText);
   if (!lines.length) {
     return 40;
@@ -253,7 +255,8 @@ function fitFontSizeForSlide(slideText: string, stageWidth: number, stageHeight:
   while (low <= high) {
     const candidate = Math.floor((low + high) / 2);
     const wrapCharacters = wrapCharacterLimit(candidate, stageWidth);
-    const visualLineCount = wrappedLineCount(lines, wrapCharacters);
+    const offset = sourceLyrics ? findSlideLineOffset(sourceLyrics, slideText, 'content') : -1;
+    const visualLineCount = bars.length && offset >= 0 ? lines.reduce((sum, line, index) => sum + wrapTimedLine(line, wrapCharacters, lyricColumnWidths(sourceLyrics, bars, offset + index, LEADING_CHORD_ANCHORS, line.length)).length, 0) : wrappedLineCount(lines, wrapCharacters);
     const groupGapCount = Math.max(lines.length - 1, 0);
     const estimatedHeight = visualLineCount * candidate * 2.35 + groupGapCount * candidate * 0.5;
     if (estimatedHeight <= usableHeight) {
@@ -308,7 +311,9 @@ function MusicianChordLine({
   line,
   showChords,
   targetAbsoluteKey,
+  timing,
 }: {
+  timing?: { lyrics: string; bars: LyricBar[]; sourceLine: number; segmentStart: number; lastSegment: boolean; showBars: boolean; cursor: LyricCursor | null };
   annotations: ChordAnnotation[];
   baseAbsoluteKey: string | null;
   capo: number;
@@ -320,9 +325,16 @@ function MusicianChordLine({
 }) {
   const totalSlots = Math.max(LEADING_CHORD_ANCHORS + line.length + TRAILING_CHORD_ANCHORS, 16);
   const characters = Array.from(line);
+  const widths = useMemo(() => timing && timing.sourceLine >= 0 ? lyricColumnWidths(timing.lyrics, timing.bars, timing.sourceLine, timing.segmentStart, totalSlots) : Array.from({ length: totalSlots }, () => 1), [timing?.lyrics, timing?.bars, timing?.sourceLine, timing?.segmentStart, totalSlots]);
+  const rangeStart = timing?.segmentStart ? timing.segmentStart + LEADING_CHORD_ANCHORS : 0;
+  const rangeEnd = (timing?.segmentStart ?? 0) + LEADING_CHORD_ANCHORS + line.length + (timing?.lastSegment ? TRAILING_CHORD_ANCHORS : 0);
+  const boundaries = timing?.showBars ? timing.bars.flatMap(bar => [bar.start, bar.end]).filter(position => position.lineIndex === timing.sourceLine && position.anchorIndex >= rangeStart && position.anchorIndex < rangeEnd) : [];
+  const cursor = timing && timing.cursor && timing.cursor.lineIndex === timing.sourceLine && timing.cursor.anchorIndex >= rangeStart && timing.cursor.anchorIndex < rangeEnd ? timing.cursor : null;
 
   return (
-    <div className="musician-chord-line" style={{ gridTemplateColumns: `repeat(${totalSlots}, 1ch)` }}>
+    <div className="musician-chord-line" style={{ gridTemplateColumns: widths.map(width => `${width}ch`).join(" ") }}>
+      {boundaries.map((position, index) => <span aria-hidden="true" className="lyric-bar-line" key={`${position.anchorIndex}-${index}`} style={{ gridColumn: Math.floor(position.anchorIndex - timing!.segmentStart) + 1, gridRow: '1 / 3' }} />)}
+      {cursor ? <span className="lyric-timing-track" style={{ gridColumn: '1 / -1', gridRow: 2 }}><TimingDot widths={widths} anchor={cursor.anchorIndex - timing!.segmentStart} pulse={cursor.pulse} /></span> : null}
       {annotations.map((annotation) => {
         const label = musicianChordLabel(annotation.chord, {
           baseAbsoluteKey,
@@ -397,7 +409,7 @@ function chordAnnotationsBySlideLine(
   return grouped;
 }
 
-export function MusicianLiveView({ canControlAudio = false, controlPlanId, onEditSong, onExit, plan, servicePlan, songs, topbarSlot }: MusicianLiveViewProps) {
+export function MusicianLiveView({ canUseMusic = false, canControlAudio = false, controlPlanId, onEditSong, onExit, plan, servicePlan, songs, topbarSlot }: MusicianLiveViewProps) {
   const [liveState, setLiveState] = useState<PresentationLiveState | null>(null);
   const [showChords, setShowChords] = useState(true);
   const [capo, setCapo] = useState(0);
@@ -460,6 +472,9 @@ export function MusicianLiveView({ canControlAudio = false, controlPlanId, onEdi
     },
   ] : presentationSlides, [nextServiceSlide, presentationSlides]);
   const [localIndex, setLocalIndex] = useState(0);
+  const [musicMode, setMusicMode] = useState(false);
+  const [musicCursor, setMusicCursor] = useState<LyricCursor | null>(null);
+  const [musicFollowing, setMusicFollowing] = useState(false);
   const remoteWorshipIndex = useMemo(() => {
     if (!liveState?.planItemId || !worshipItems.some((item) => item.id === liveState.planItemId)) {
       return -1;
@@ -471,15 +486,15 @@ export function MusicianLiveView({ canControlAudio = false, controlPlanId, onEdi
   }, [liveState, presentationSlides, slides, worshipItems]);
   const worshipCoupled = Boolean(liveState?.worshipCoupled);
   const worshipSyncOverridden = isWorshipSyncOverridden(worshipCoupled, Boolean(liveState), remoteWorshipIndex);
-  const syncedIndex = worshipCoupled && remoteWorshipIndex >= 0 ? remoteWorshipIndex : boundedIndex(localIndex, slides.length);
+  const syncedIndex = worshipCoupled && !musicFollowing && remoteWorshipIndex >= 0 ? remoteWorshipIndex : boundedIndex(localIndex, slides.length);
   const liveIndex = syncedIndex;
   const liveSlide = slides[liveIndex] ?? null;
 
   useEffect(() => {
-    if (worshipCoupled && remoteWorshipIndex >= 0) {
+    if (worshipCoupled && !musicFollowing && remoteWorshipIndex >= 0) {
       setLocalIndex(remoteWorshipIndex);
     }
-  }, [remoteWorshipIndex, worshipCoupled]);
+  }, [remoteWorshipIndex, worshipCoupled, musicFollowing]);
   const isWorshipEndSlide = liveSlide?.itemType === "worship_end";
   const pageLeadIndex = liveSlide?.slideKind === "title"
     ? slides.findIndex((slide, index) => index > liveIndex && slide.planItemId === liveSlide.planItemId && slide.slideKind === "content")
@@ -502,6 +517,11 @@ export function MusicianLiveView({ canControlAudio = false, controlPlanId, onEdi
     () => parseChordChart(liveSong?.chords ?? null, liveSong?.lyrics ?? null).document,
     [liveSong?.chords, liveSong?.lyrics],
   );
+  const timingBars = useMemo(() => lyricBarLayout(liveSong?.lyrics, liveSong?.rhythm, chordChart.annotations), [liveSong?.lyrics, liveSong?.rhythm, chordChart.annotations]);
+  function wrapMusicLine(line: string, limit: number, text: string, lineIndex: number) {
+    const offset = findSlideLineOffset(liveSong?.lyrics ?? '', text, 'content');
+    return timingBars.length && offset >= 0 ? wrapTimedLine(line, limit, lyricColumnWidths(liveSong?.lyrics, timingBars, offset + lineIndex, LEADING_CHORD_ANCHORS, line.length)) : wrapLyricLine(line, limit);
+  }
   const pageColumnWidth = stageSize.width >= 700 ? stageSize.width / 2 : stageSize.width;
   const pageContentWidth = pageColumnWidth;
   const pageContentHeight = stageSize.height;
@@ -511,12 +531,12 @@ export function MusicianLiveView({ canControlAudio = false, controlPlanId, onEdi
       (slide) => slide.itemType === "song" && slide.slideKind === "content",
     );
     const baselineFit = Math.min(
-      ...contentSlides.map((slide) => fitFontSizeForSlide(slide.text, pageContentWidth, pageContentHeight)),
+      ...contentSlides.map((slide) => fitFontSizeForSlide(slide.text, pageContentWidth, pageContentHeight, slide.planItemId === liveItem?.id ? liveSong?.lyrics ?? undefined : undefined, slide.planItemId === liveItem?.id ? timingBars : [])),
       56,
     );
     const groupedFits = new Map<string, number>();
     for (const slide of contentSlides) {
-      const slideFit = fitFontSizeForSlide(slide.text, pageContentWidth, pageContentHeight);
+      const slideFit = fitFontSizeForSlide(slide.text, pageContentWidth, pageContentHeight, slide.planItemId === liveItem?.id ? liveSong?.lyrics ?? undefined : undefined, slide.planItemId === liveItem?.id ? timingBars : []);
       groupedFits.set(slide.planItemId, Math.min(groupedFits.get(slide.planItemId) ?? 56, slideFit));
     }
     for (const [planItemId, songFit] of groupedFits) {
@@ -524,7 +544,7 @@ export function MusicianLiveView({ canControlAudio = false, controlPlanId, onEdi
       groupedFits.set(planItemId, Math.min(songFit, baselineFit + discreetUplift));
     }
     return groupedFits;
-  }, [pageContentHeight, pageContentWidth, readerMode, slides]);
+  }, [pageContentHeight, pageContentWidth, readerMode, slides, liveItem?.id, liveSong?.lyrics, timingBars]);
   const liveFontSize = readerMode === "pages"
     ? pageFontSizesByPlanItem.get(pageLeadSlide?.planItemId ?? "") ?? 40
     : fitFontSizeForSlide(
@@ -569,7 +589,7 @@ export function MusicianLiveView({ canControlAudio = false, controlPlanId, onEdi
     ? keySetupLabel({ absoluteKey: pageNextAbsoluteKey, capo: pageNextChordChart.capo, shapeKey: pageNextShapeKey }, true)
     : null;
   const nextLyricLines = pageNextSlideUsesCurrentSong ? lyricLines(pageNextSlide?.text ?? "") : [];
-  const nextWrappedLyricLines = nextLyricLines.map((line) => wrapLyricLine(line, nextWrapCharacters));
+  const nextWrappedLyricLines = nextLyricLines.map((line, lineIndex) => wrapMusicLine(line, nextWrapCharacters, pageNextSlide?.text ?? "", lineIndex));
   const nextAnnotationsByLine = useMemo(
     () => chordAnnotationsBySlideLine(
       liveSong?.lyrics ?? "",
@@ -1011,8 +1031,8 @@ export function MusicianLiveView({ canControlAudio = false, controlPlanId, onEdi
 
   const lyricLinesForSlide = lyricLines(pageLeadSlide?.text ?? "");
   const wrappedLyricLinesForSlide = useMemo(
-    () => lyricLinesForSlide.map((line) => wrapLyricLine(line, liveWrapCharacters)),
-    [liveWrapCharacters, lyricLinesForSlide],
+    () => lyricLinesForSlide.map((line, lineIndex) => wrapMusicLine(line, liveWrapCharacters, pageLeadSlide?.text ?? "", lineIndex)),
+    [liveWrapCharacters, lyricLinesForSlide, timingBars, pageLeadSlide?.text, liveSong?.lyrics],
   );
   const currentGuitarKey = guitarKey ?? chordChart.absoluteKey ?? chordChart.capoKey ?? null;
   const currentAbsoluteKey = currentGuitarKey ? deriveAbsoluteKey(currentGuitarKey, capo) : null;
@@ -1088,6 +1108,23 @@ export function MusicianLiveView({ canControlAudio = false, controlPlanId, onEdi
   const currentSequencePartIndex = currentSequenceBlockIndex >= 0
     ? currentSongContentSlideIndex - sequenceBlocks[currentSequenceBlockIndex].slideIndex
     : -1;
+
+  useEffect(() => { setMusicCursor(null); setMusicFollowing(false); }, [liveSong?.id]);
+  useEffect(() => {
+    if (!musicCursor || !musicMode) return;
+    const block = sequenceBlocks[musicCursor.occurrence];
+    if (!block) return;
+    const partIndex = block.parts.findIndex(part => {
+      const start = findSlideLineOffset(liveSong?.lyrics ?? '', part, 'content');
+      return start >= 0 && musicCursor.barStartLine >= start && musicCursor.barStartLine < start + lyricLines(part).length;
+    });
+    const first = slides.findIndex(slide => slide.planItemId === liveSlide?.planItemId && slide.slideKind === 'content');
+    if (partIndex >= 0 && first >= 0) { setMusicFollowing(true); setLocalIndex(first + block.slideIndex + partIndex); }
+  }, [musicCursor?.occurrence, musicCursor?.barStartLine, musicMode, liveSong?.id]);
+  function timingFor(text: string, lineIndex: number, segmentStart: number, occurrence: number, lastSegment: boolean) {
+    const offset = findSlideLineOffset(liveSong?.lyrics ?? '', text, 'content');
+    return { lyrics: liveSong?.lyrics ?? '', bars: timingBars, sourceLine: offset < 0 ? -1 : offset + lineIndex, segmentStart, lastSegment, showBars: canUseMusic && musicMode, cursor: musicCursor?.occurrence === occurrence ? musicCursor : null };
+  }
 
   function navigateToSequenceBlock(blockIndex: number, partIndex = 0) {
     const block = sequenceBlocks[blockIndex];
@@ -1172,10 +1209,19 @@ export function MusicianLiveView({ canControlAudio = false, controlPlanId, onEdi
             ))}
           </select>
         </label>
-        <SongRhythmDisplay key={liveSong?.id} rhythm={liveSong?.rhythm} section={sequenceBlocks[currentSequenceBlockIndex]?.label} lyrics={liveSong?.lyrics} sequence={liveSong?.sequence} previewChord={baseAbsoluteKey} transpose={currentAbsoluteKey ? semitoneDistance(baseAbsoluteKey, currentAbsoluteKey) : 0} title={liveSong?.title} />
+        <SongRhythmDisplay annotations={chordChart.annotations} onPosition={canUseMusic ? (position, mode, section) => {
+          const timeline = lyricPlaybackBars(liveSong?.lyrics, liveSong?.sequence, timingBars);
+          const part = timeline.filter(bar => musicalSectionKey(bar.section) === musicalSectionKey(section));
+          const occurrence = part.some(bar => bar.occurrence === currentSequenceBlockIndex) ? currentSequenceBlockIndex : part[0]?.occurrence;
+          const selected = mode === "part" ? part.filter(bar => bar.occurrence === occurrence) : timeline;
+          const cursor = position === null || mode === "strum" || !liveSong?.rhythm ? null : lyricCursorAt(liveSong.lyrics, selected, position, liveSong.rhythm.numerator, liveSong.rhythm.denominator);
+          if (cursor) setMusicMode(true);
+          setMusicCursor(cursor);
+        } : undefined} key={liveSong?.id} rhythm={liveSong?.rhythm} section={sequenceBlocks[currentSequenceBlockIndex]?.label} lyrics={liveSong?.lyrics} sequence={liveSong?.sequence} previewChord={baseAbsoluteKey} transpose={currentAbsoluteKey ? semitoneDistance(baseAbsoluteKey, currentAbsoluteKey) : 0} title={liveSong?.title} />
       </div>
       <div className="musician-live-controls" aria-label="Musician display controls">
-        <PracticeListenButton key={liveSong?.id} rhythm={liveSong?.rhythm} lyrics={liveSong?.lyrics} sequence={liveSong?.sequence} section={sequenceBlocks[currentSequenceBlockIndex]?.label} previewChord={baseAbsoluteKey} transpose={currentAbsoluteKey ? semitoneDistance(baseAbsoluteKey, currentAbsoluteKey) : 0} />
+        {canUseMusic ? <button aria-label="Show music timing" aria-pressed={musicMode} className={`musician-reader-toggle ${musicMode ? 'is-active' : ''}`} onClick={() => { setMusicMode(value => !value); setMusicFollowing(false); setMusicCursor(null); }} title="Show bars and music playback" type="button"><Music2 size={16} /><span className="musician-control-text">Music</span></button> : null}
+        {canUseMusic && musicMode ? <LyricMusicControls key={liveSong?.id} rhythm={liveSong?.rhythm} lyrics={liveSong?.lyrics} sequence={liveSong?.sequence} annotations={chordChart.annotations} bars={timingBars} transpose={currentAbsoluteKey ? semitoneDistance(baseAbsoluteKey, currentAbsoluteKey) : 0} onCursor={setMusicCursor} /> : null}
         {servicePlan ? <button aria-label={worshipSyncOverridden ? "Worship sync is enabled but the service view has moved outside worship" : worshipCoupled ? "Stop syncing Worship Live with service and move after worship" : "Sync Worship Live with service"} aria-pressed={worshipCoupled} className={`musician-service-couple-button ${worshipCoupled ? "is-active" : ""} ${worshipSyncOverridden ? "is-overridden" : ""}`} onClick={() => void toggleServiceCoupling()} title={worshipSyncOverridden ? "Service view moved outside worship. Change a worship slide to resync." : worshipCoupled ? "Stop syncing and go after worship" : "Sync with service"} type="button">{worshipCoupled ? <Unlink2 size={16} aria-hidden="true" /> : <Link2 size={16} aria-hidden="true" />}<span className="musician-control-text">Sync</span></button> : null}
         {canControlAudio ? <button aria-label={`${backingAudioPlaying ? "Fade out" : "Play"} backing audio for ${liveSong?.title ?? "song"}`} aria-pressed={backingAudioPlaying} className={`musician-audio-button ${backingAudioPlaying ? "is-active" : ""}`} disabled={!backingAudioAvailable || !worshipCoupled} onClick={() => void toggleBackingAudio()} title={!worshipCoupled ? "Sync with the service to control backing audio" : backingAudioAvailable ? `${backingAudioPlaying ? "Fade out" : "Play"} backing audio` : "No backing audio for this song"} type="button">{backingAudioPlaying ? <Pause size={16} aria-hidden="true" /> : <Play size={16} aria-hidden="true" />}<span className="musician-control-text">Audio</span></button> : null}
         <button
@@ -1402,14 +1448,15 @@ export function MusicianLiveView({ canControlAudio = false, controlPlanId, onEdi
                       style={{ "--musician-live-font-size": `${songModeFontSize}px` } as CSSProperties}
                       tabIndex={0}
                     >
-                      {showChords ? (
+                      {showChords || musicMode || timingBars.length > 0 ? (
                         <div className="musician-song-chord-sheet">
                           {partLines.map((line, lineIndex) => {
-                            const segments = wrapLyricLine(line, songModeWrapCharacters);
+                            const segments = wrapMusicLine(line, songModeWrapCharacters, part, lineIndex);
                             return (
                               <div className="musician-lyric-line-group" key={`${lineIndex}-${line}`}>
                                 {segments.map((segment, segmentIndex) => (
                                   <MusicianChordLine
+                                    timing={timingFor(part, lineIndex, segment.start, blockIndex, segmentIndex === segments.length - 1)}
                                     annotations={annotationsForSegment(partAnnotations.get(lineIndex) ?? [], segment.start, segment.line.length, segmentIndex === segments.length - 1)}
                                     baseAbsoluteKey={baseAbsoluteKey}
                                     capo={capo}
@@ -1417,7 +1464,7 @@ export function MusicianLiveView({ canControlAudio = false, controlPlanId, onEdi
                                     displayMode={displayMode}
                                     key={`${lineIndex}-${segmentIndex}-${segment.line}`}
                                     line={segment.line}
-                                    showChords
+                                    showChords={showChords}
                                     targetAbsoluteKey={currentGuitarKey}
                                   />
                                 ))}
@@ -1477,6 +1524,7 @@ export function MusicianLiveView({ canControlAudio = false, controlPlanId, onEdi
                   <div className="musician-lyric-line-group" key={`${lineIndex}-${lyricLinesForSlide[lineIndex]}`}>
                     {segments.map((segment, segmentIndex) => (
                       <MusicianChordLine
+                        timing={timingFor(pageLeadSlide?.text ?? "", lineIndex, segment.start, currentSequenceBlockIndex, segmentIndex === segments.length - 1)}
                         annotations={annotationsForSegment(annotationsByLine.get(lineIndex) ?? [], segment.start, segment.line.length, segmentIndex === segments.length - 1)}
                         baseAbsoluteKey={baseAbsoluteKey}
                         capo={capo}
@@ -1515,12 +1563,13 @@ export function MusicianLiveView({ canControlAudio = false, controlPlanId, onEdi
                   <strong>{pageNextSlide.text}</strong>
                   {pageNextKeyLabel ? <span>{pageNextKeyLabel}</span> : null}
                 </div>
-              ) : pageNextSlide && showChords && pageNextSlideUsesCurrentSong ? (
+              ) : pageNextSlide && (showChords || musicMode || timingBars.length > 0) && pageNextSlideUsesCurrentSong ? (
                 <div className="musician-chord-sheet musician-next-chord-sheet" aria-label="Next lyrics with chords">
                   {nextWrappedLyricLines.map((segments, lineIndex) => (
                     <div className="musician-lyric-line-group" key={`${lineIndex}-${nextLyricLines[lineIndex]}`}>
                       {segments.map((segment, segmentIndex) => (
                         <MusicianChordLine
+                          timing={timingFor(pageNextSlide.text, lineIndex, segment.start, sequenceBlocks.findIndex(block => currentSongContentSlideIndex + 1 >= block.slideIndex && currentSongContentSlideIndex + 1 < block.endSlideIndex), segmentIndex === segments.length - 1)}
                           annotations={annotationsForSegment(nextAnnotationsByLine.get(lineIndex) ?? [], segment.start, segment.line.length, segmentIndex === segments.length - 1)}
                           baseAbsoluteKey={baseAbsoluteKey}
                           capo={capo}
@@ -1528,7 +1577,7 @@ export function MusicianLiveView({ canControlAudio = false, controlPlanId, onEdi
                           displayMode={displayMode}
                           key={`${lineIndex}-${segmentIndex}-${segment.line}`}
                           line={segment.line}
-                          showChords
+                          showChords={showChords}
                           targetAbsoluteKey={currentGuitarKey}
                         />
                       ))}

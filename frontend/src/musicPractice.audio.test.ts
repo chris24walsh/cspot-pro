@@ -53,3 +53,14 @@ it("stops the previous preview when another starts and clears loop timers on sto
   expect(instances[1].state).toBe("closed");
   expect(vi.getTimerCount()).toBe(0);
 });
+
+it('reports fractional progress from the audio clock, excluding the count-in', async () => {
+  const music = buildPracticePerformance(rhythm, { mode: 'song', countIn: true, metronome: true, chords: false });
+  expect(music.notes.every(note => note.channel === 9)).toBe(true);
+  const position = vi.fn();
+  await player.play(music, false, vi.fn(), vi.fn(), position);
+  expect(position.mock.calls[0][0]).toBeLessThan(0);
+  instances[0].currentTime = 2.08 + 0.5; // one 2-second bar of count-in + quarter-bar
+  vi.advanceTimersByTime(25);
+  expect(position.mock.calls[position.mock.calls.length - 1][0]).toBeCloseTo(0.25);
+});

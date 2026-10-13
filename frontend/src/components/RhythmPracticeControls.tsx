@@ -1,10 +1,12 @@
 import { Download, Play, Square } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { buildPracticePerformance, practiceMidi, PracticeAudioPlayer, type PracticeMode } from "../musicPractice";
+import type { ChordAnnotation } from "../chordSheet";
 import type { SongRhythm } from "../songRhythm";
 
-export function RhythmPracticeControls({ rhythm, section = "Default", strumSection, lyrics, sequence, previewChord = "C", transpose = 0, title = "Song", onTempoChange }: {
-  rhythm: SongRhythm; section?: string; strumSection?: string; lyrics?: string | null; sequence?: string | null;
+export function RhythmPracticeControls({ rhythm, annotations, section = "Default", strumSection, lyrics, sequence, previewChord = "C", transpose = 0, title = "Song", onPosition, onTempoChange }: {
+  onPosition?: (position: number | null, mode: PracticeMode, section: string) => void;
+  annotations?: ChordAnnotation[]; rhythm: SongRhythm; section?: string; strumSection?: string; lyrics?: string | null; sequence?: string | null;
   previewChord?: string; transpose?: number; title?: string; onTempoChange?: (bpm: number) => void;
 }) {
   const [bpm, setBpm] = useState(rhythm.bpm ?? 90);
@@ -17,9 +19,10 @@ export function RhythmPracticeControls({ rhythm, section = "Default", strumSecti
   const [barCount, setBarCount] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [exportMode, setExportMode] = useState<PracticeMode>("song");
+  const positionCallback = useRef(onPosition); positionCallback.current = onPosition;
   const playerRef = useRef<PracticeAudioPlayer | null>(null);
   const signature = JSON.stringify(rhythm);
-  const stop = () => { const player = playerRef.current; playerRef.current = null; player?.stop(); setPlaying(null); };
+  const stop = () => { const player = playerRef.current; playerRef.current = null; player?.stop(); setPlaying(null); positionCallback.current?.(null, "song", section); };
   useEffect(() => { setBpm(rhythm.bpm ?? 90); }, [rhythm.bpm]);
   useEffect(() => { setChord(previewChord); }, [previewChord]);
   useEffect(() => {
@@ -28,12 +31,12 @@ export function RhythmPracticeControls({ rhythm, section = "Default", strumSecti
     document.addEventListener("visibilitychange", hide);
     return () => {
       document.removeEventListener("visibilitychange", hide);
-      const player = playerRef.current; playerRef.current = null; player?.stop();
+      const player = playerRef.current; playerRef.current = null; player?.stop(); positionCallback.current?.(null, "song", section);
     };
   }, [signature, section, strumSection, lyrics, sequence, transpose, bpm, chord, loop, countIn, metronome]);
 
   function performance(mode: PracticeMode) {
-    return buildPracticePerformance({ ...rhythm, bpm }, { mode, section: mode === "strum" ? strumSection ?? section : section, lyrics, sequence, previewChord: chord, transpose, countIn, metronome });
+    return buildPracticePerformance({ ...rhythm, bpm }, { mode, annotations, section: mode === "strum" ? strumSection ?? section : section, lyrics, sequence, previewChord: chord, transpose, countIn, metronome });
   }
 
   async function listen(mode: PracticeMode) {
@@ -46,8 +49,8 @@ export function RhythmPracticeControls({ rhythm, section = "Default", strumSecti
       playerRef.current = player;
       setBar(-1); setBarCount(music.bars.length); setPlaying(mode);
       await player.play(music, loop, (index) => { if (playerRef.current === player) setBar(index); }, () => {
-        if (playerRef.current === player) { playerRef.current = null; setPlaying(null); }
-      });
+        if (playerRef.current === player) { playerRef.current = null; setPlaying(null); positionCallback.current?.(null, mode, section); }
+      }, position => { if (playerRef.current === player) positionCallback.current?.(position, mode, section); });
     } catch (cause) {
       if (requestedPlayer && playerRef.current !== requestedPlayer) return;
       stop(); setError(cause instanceof Error ? cause.message : "Could not start audio preview.");

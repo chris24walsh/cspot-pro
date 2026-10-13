@@ -33,6 +33,8 @@ import { parseBarChart, transposeBarCharts } from "../musicPractice";
 import { canonicalizeWorshipLyrics, normalizeWorshipSequence } from "../worshipText";
 import { useConfirmationDialog } from "./ConfirmationDialog";
 import { placeBarMarker, removeBarMarker, rhythmWithBarMarkers } from "../barMarkers";
+import { lyricBarLayout, lyricColumnWidths, wrapTimedLine, lyricCursorAt, lyricPlaybackBars, musicalSectionKey, type LyricCursor } from "../lyricTiming";
+import { LyricMusicControls, TimingDot } from "./LyricMusicControls";
 import { SongRhythmEditor } from "./SongRhythmEditor";
 import { SongYouTubeSearch } from "./SongYouTubeSearch";
 import { useEscapeClose } from "./useEscapeClose";
@@ -325,7 +327,13 @@ export function SongEditorDialog({
     .slice()
     .sort((left, right) => left.absoluteLineIndex - right.absoluteLineIndex || left.anchorIndex - right.anchorIndex);
   const effectiveRhythm = useMemo(() => rhythmWithBarMarkers(form.rhythm, chordChart.annotations), [form.rhythm, chordChart.annotations]);
+  const [musicCursor, setMusicCursor] = useState<LyricCursor | null>(null);
+  const timingBars = useMemo(() => lyricBarLayout(chordLyrics, effectiveRhythm, chordChart.annotations), [chordLyrics, effectiveRhythm, chordChart.annotations]);
   const lineBars = resolveChordAnnotations(form.rhythm?.markers ?? [], chordLyrics);
+  useEffect(() => {
+    const dot = chordChartPanelRef.current?.querySelector('.lyric-timing-dot');
+    dot?.closest('.musician-line-grid')?.scrollIntoView?.({ block: 'nearest', behavior: 'smooth' });
+  }, [musicCursor?.lineIndex]);
   const activeChordAnnotation =
     lineAnnotations.find((annotation) => annotation.id === editingAnnotationId) ??
     lineAnnotations.find((annotation) => annotation.id === hoveredChordId) ??
@@ -699,7 +707,12 @@ export function SongEditorDialog({
                 ))}
               </div>
               {tab === "chords" ? <button aria-label="Switch between chord and bar editing" aria-pressed={barEditing} className={`section-icon-button section-edit-button musician-bars-toggle ${barEditing ? "is-active" : ""}`} onClick={() => { setBarEditing((enabled) => !enabled); setDraggedBarId(null); setDraggedAnnotationId(null); }} title={barEditing ? "Bar editing: click to return to chords" : "Chord editing: click to place and move bars"} type="button"><Columns3 size={15} aria-hidden="true" /><span>{barEditing ? "Bars" : "Chords"}</span></button> : null}
-              {tab === "chords" ? <SongRhythmEditor value={effectiveRhythm} canEdit={canEdit} lyrics={chordLyrics} sequence={form.sequence} previewChord={activeDisplayedChord ?? chordChart.absoluteKey ?? "C"} songChords={lineAnnotations.map((entry) => ({ section: entry.section, chord: entry.chord }))} onSave={saveSong} saving={saving} isDirty={isDirty} onChange={(rhythm) => setForm((current) => ({ ...current, rhythm }))} /> : null}
+              {tab === "chords" ? <LyricMusicControls rhythm={effectiveRhythm} lyrics={chordLyrics} sequence={form.sequence} annotations={chordChart.annotations} bars={timingBars} onCursor={setMusicCursor} /> : null}
+              {tab === "chords" ? <SongRhythmEditor annotations={chordChart.annotations} onPosition={(position, mode, section) => {
+                const timeline = lyricPlaybackBars(chordLyrics, form.sequence, timingBars).filter(bar => mode !== "part" || musicalSectionKey(bar.section) === musicalSectionKey(section));
+                const uniquePart = mode === "part" ? timeline.filter(bar => bar.occurrence === timeline[0]?.occurrence) : timeline;
+                setMusicCursor(position === null || mode === "strum" || !effectiveRhythm ? null : lyricCursorAt(chordLyrics, uniquePart, position, effectiveRhythm.numerator, effectiveRhythm.denominator));
+              }} value={effectiveRhythm} canEdit={canEdit} lyrics={chordLyrics} sequence={form.sequence} previewChord={activeDisplayedChord ?? chordChart.absoluteKey ?? "C"} songChords={lineAnnotations.map((entry) => ({ section: entry.section, chord: entry.chord }))} onSave={saveSong} saving={saving} isDirty={isDirty} onChange={(rhythm) => setForm((current) => ({ ...current, rhythm }))} /> : null}
             </div>
             {tab === "chords" ? (
               <div className="musician-control-row musician-key-row">
@@ -882,12 +895,14 @@ export function SongEditorDialog({
                           </button>
                         );
                       };
-                      return wrapChordEditorLine(line, chordEditorLineLength).map((segment, segmentIndex, segments) => {
+                      return (timingBars.length ? wrapTimedLine(line, chordEditorLineLength, lyricColumnWidths(chordLyrics, timingBars, lineIndex, LEADING_CHORD_ANCHORS, line.length)) : wrapChordEditorLine(line, chordEditorLineLength)).map((segment, segmentIndex, segments) => {
                         const globalSlotStart = segmentIndex === 0 ? 0 : LEADING_CHORD_ANCHORS + segment.start;
                         const globalSlotEnd = segmentIndex === segments.length - 1 ? totalSlots : LEADING_CHORD_ANCHORS + segment.end;
                         const visualSlotCount = globalSlotEnd - globalSlotStart;
+                        const widths = lyricColumnWidths(chordLyrics, timingBars, lineIndex, globalSlotStart, visualSlotCount);
                         return (
-                          <div className={`musician-line-grid ${segmentIndex > 0 ? "is-continuation" : ""}`} key={`${lineIndex}-${segment.start}`} style={{ gridTemplateColumns: `repeat(${visualSlotCount}, minmax(1ch, 1ch))` }}>
+                          <div className={`musician-line-grid ${segmentIndex > 0 ? "is-continuation" : ""}`} key={`${lineIndex}-${segment.start}`} style={{ gridTemplateColumns: widths.map(width => `${width}ch`).join(" ") }}>
+                            {musicCursor?.lineIndex === lineIndex && musicCursor.anchorIndex >= globalSlotStart && musicCursor.anchorIndex < globalSlotEnd ? <TimingDot widths={widths} anchor={musicCursor.anchorIndex - globalSlotStart} pulse={musicCursor.pulse} /> : null}
                             {Array.from({ length: visualSlotCount }, (_, localSlotIndex) => {
                               const slotIndex = globalSlotStart + localSlotIndex;
                               return renderSlot(slotIndex, localSlotIndex + 1);

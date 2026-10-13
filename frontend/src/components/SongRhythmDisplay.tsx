@@ -2,10 +2,13 @@ import { X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { STROKE_NAMES, STROKE_SYMBOLS, strumCounts, strumPatternForSection, type SongRhythm } from "../songRhythm";
+import type { ChordAnnotation } from "../chordSheet";
+import type { PracticeMode } from "../musicPractice";
 import { RhythmPracticeControls } from "./RhythmPracticeControls";
 import { useEscapeClose } from "./useEscapeClose";
 
-export function SongRhythmDisplay({ rhythm, section, lyrics, sequence, previewChord, transpose, title }: {
+export function SongRhythmDisplay({ rhythm, section, lyrics, sequence, previewChord, transpose, title, annotations, onPosition }: {
+  annotations?: ChordAnnotation[]; onPosition?: (position: number | null, mode: PracticeMode, section: string) => void;
   rhythm?: SongRhythm | null; section?: string | null; lyrics?: string | null; sequence?: string | null;
   previewChord?: string; transpose?: number; title?: string;
 }) {
@@ -54,7 +57,7 @@ export function SongRhythmDisplay({ rhythm, section, lyrics, sequence, previewCh
               </div>
             </div>;
           })}
-          <RhythmPracticeControls rhythm={rhythm} section={section ?? "Default"} lyrics={lyrics} sequence={sequence} previewChord={previewChord} transpose={transpose} title={title} />
+          <RhythmPracticeControls annotations={annotations} onPosition={onPosition} rhythm={rhythm} section={section ?? "Default"} lyrics={lyrics} sequence={sequence} previewChord={previewChord} transpose={transpose} title={title} />
           {rhythm.notes ? <p>{rhythm.notes}</p> : null}
           {rhythm.patterns.length ? <small>↓ Down · ↑ Up · – Rest · × Muted</small> : null}
         </div>, document.fullscreenElement ?? (document as Document & { webkitFullscreenElement?: Element }).webkitFullscreenElement ?? document.body,

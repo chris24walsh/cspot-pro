@@ -6,14 +6,17 @@ import {
 } from "../songRhythm";
 import { createRhythmPreset, getRhythmPresets } from "../api";
 import { parseBarChart, songPracticeParts } from "../musicPractice";
+import type { ChordAnnotation } from "../chordSheet";
+import type { PracticeMode } from "../musicPractice";
 import { RhythmPracticeControls } from "./RhythmPracticeControls";
 import { useEscapeClose } from "./useEscapeClose";
 
 const METERS = ["4/4", "3/4", "6/8", "2/4", "12/8"];
 const emptyRhythm = (): SongRhythm => ({ numerator: 4, denominator: 4, patterns: [], notes: "" });
 
-export function SongRhythmEditor({ value, canEdit, onChange, lyrics, sequence, previewChord, songChords = [], onSave, saving, isDirty }: {
-  value: SongRhythm | null; canEdit: boolean; onChange: (value: SongRhythm | null) => void;
+export function SongRhythmEditor({ value, canEdit, onChange, lyrics, sequence, previewChord, songChords = [], annotations, onPosition, onSave, saving, isDirty }: {
+  onPosition?: (position: number | null, mode: PracticeMode, section: string) => void;
+  annotations?: ChordAnnotation[]; value: SongRhythm | null; canEdit: boolean; onChange: (value: SongRhythm | null) => void;
   lyrics?: string | null; sequence?: string | null; previewChord?: string;
   songChords?: Array<{ section: string | null; chord: string }>;
   onSave?: () => Promise<void>; saving?: boolean; isDirty?: boolean;
@@ -169,7 +172,7 @@ export function SongRhythmEditor({ value, canEdit, onChange, lyrics, sequence, p
               </div>
             ))}
           </div>
-          <RhythmPracticeControls rhythm={rhythm} section={barPart} strumSection={section} lyrics={lyrics} sequence={sequence} previewChord={previewChord} onTempoChange={canEdit ? (bpm) => onChange({ ...rhythm, bpm }) : undefined} />
+          <RhythmPracticeControls annotations={annotations} onPosition={onPosition} rhythm={rhythm} section={barPart} strumSection={section} lyrics={lyrics} sequence={sequence} previewChord={previewChord} onTempoChange={canEdit ? (bpm) => onChange({ ...rhythm, bpm }) : undefined} />
           <div className="rhythm-save-preset-row">
             <label className="compact-field">Strum name<input aria-label="Shared strum name" disabled={!canEdit} maxLength={80} onChange={(event) => updatePattern({ ...editablePattern, name: event.target.value })} placeholder="Name this pattern" value={pattern.name ?? ""} /></label>
             <button className="text-button" disabled={!canEdit || libraryBusy || !pattern.name?.trim() || !pattern.strokes.some((stroke) => stroke !== "-")} onClick={() => void saveLibrary("strum")} type="button"><Save size={14} aria-hidden="true" />Save strum to library</button>

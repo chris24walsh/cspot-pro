@@ -1,5 +1,6 @@
-import { transposeChordSymbol, validateChordSymbol } from "./chordSheet";
+import { transposeChordSymbol, validateChordSymbol, type ChordAnnotation } from "./chordSheet";
 import { strumPatternForSection, type SongRhythm, type StrumPattern } from "./songRhythm";
+import { lyricBarLayout, lyricPlaybackBars, musicalSectionKey, timedPracticeBars } from "./lyricTiming";
 import { worshipSequenceBlocks } from "./worshipText";
 
 export const MIDI_PPQ = 480;
@@ -79,15 +80,25 @@ export function songPracticeParts(lyrics?: string | null, sequence?: string | nu
 }
 
 export function buildPracticePerformance(rhythm: SongRhythm, options: {
-  mode: PracticeMode; section?: string; lyrics?: string | null; sequence?: string | null;
-  previewChord?: string; transpose?: number; countIn?: boolean; metronome?: boolean;
+  mode: PracticeMode; annotations?: ChordAnnotation[]; section?: string; lyrics?: string | null; sequence?: string | null;
+  previewChord?: string; transpose?: number; countIn?: boolean; metronome?: boolean; chords?: boolean; bars?: PracticeBar[];
 }): PracticePerformance {
   if (!Number.isInteger(rhythm.bpm ?? 90) || (rhythm.bpm ?? 90) < 30 || (rhythm.bpm ?? 90) > 240) throw new Error("Enter a tempo between 30 and 240 BPM.");
   const section = options.section ?? "Default";
   const charts = rhythm.arrangements ?? [];
   const whole = charts.find((entry) => entry.section === "Default" && entry.chart.trim());
   let bars: PracticeBar[];
-  if (options.mode === "strum") {
+  if (options.bars) {
+    bars = options.bars;
+  } else if (options.mode !== "strum" && options.annotations && rhythm.markers?.length) {
+    const layout = lyricBarLayout(options.lyrics, rhythm, options.annotations);
+    const timeline = options.mode === "part" ? layout.filter(bar => musicalSectionKey(bar.section) === musicalSectionKey(section)) : lyricPlaybackBars(options.lyrics, options.sequence, layout);
+    if (options.mode === "song") {
+      const missing = worshipSequenceBlocks(options.lyrics, options.sequence).find((_block, occurrence) => !timeline.some(bar => 'occurrence' in bar && bar.occurrence === occurrence));
+      if (missing) throw new Error(`Place bar boundaries for ${missing.label} before following the whole song.`);
+    }
+    bars = timedPracticeBars(options.lyrics, timeline, options.annotations, rhythm.numerator);
+  } else if (options.mode === "strum") {
     if (!strumPatternForSection(rhythm, section)?.strokes.some((stroke) => stroke !== "-")) throw new Error("Add a strumming pattern with at least one stroke to listen.");
     bars = parseBarChart(`${options.previewChord || "C"} *2`, rhythm.numerator, section);
   } else if (options.mode === "song" && whole) {
@@ -120,13 +131,15 @@ export function buildPracticePerformance(rhythm: SongRhythm, options: {
     };
     const start = countInTicks + barIndex * barTicks;
     if (options.metronome) clicks(start);
+    if (options.chords === false) return;
     pattern.strokes.forEach((stroke, index) => {
       if (stroke === "-") return;
       const beat = 1 + index / pattern.subdivision;
       const tick = start + index / pattern.strokes.length * barTicks;
       const stepTicks = barTicks / pattern.strokes.length;
       if (stroke === "X") { notes.push({ tick, duration: Math.min(60, stepTicks * 0.4), pitch: 37, velocity: 85, channel: 9 }); return; }
-      const chord = bar.chords.slice().reverse().find((entry) => entry.beat <= beat)!.chord;
+      const chord = bar.chords.slice().reverse().find((entry) => entry.beat <= beat)?.chord;
+      if (!chord) return;
       const pitches = chordMidiNotes(transposeChordSymbol(chord, options.transpose ?? 0));
       if (stroke === "U") pitches.reverse();
       pitches.forEach((pitch, stringIndex) => notes.push({
@@ -184,7 +197,7 @@ export class PracticeAudioPlayer {
   private cancelled = false;
   private onEnd: (() => void) | null = null;
 
-  async play(performance: PracticePerformance, loop: boolean, onProgress: (bar: number) => void, onEnd: () => void) {
+  async play(performance: PracticePerformance, loop: boolean, onProgress: (bar: number) => void, onEnd: () => void, onPosition?: (barPosition: number) => void) {
     const AudioConstructor = window.AudioContext ?? (window as Window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
     if (!AudioConstructor) throw new Error("Audio preview is unavailable in this browser. Download the MIDI file to listen in a music app.");
     activePracticePlayer?.stop();
@@ -212,7 +225,9 @@ export class PracticeAudioPlayer {
         nextNote = 0;
         elapsed = context.currentTime - started;
       }
-      onProgress(Math.floor((elapsed / secondsPerTick - performance.countInTicks) / performance.barTicks));
+      const position = (elapsed / secondsPerTick - performance.countInTicks) / performance.barTicks;
+      onProgress(Math.floor(position));
+      onPosition?.(position);
       while (nextNote < performance.notes.length && performance.notes[nextNote].tick * secondsPerTick < elapsed + 0.16) {
         const note = performance.notes[nextNote++];
         if (note.tick * secondsPerTick < elapsed - 0.08) continue;

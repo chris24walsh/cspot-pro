@@ -14238,3 +14238,11 @@ button.musician-page {
 .musician-slot.is-bar-editing:not(.has-bar):hover {
   border-left: 2px dashed #b07827;
 }
+
+/* Musical overlays use the existing chord/lyric rows; hiding them never changes spacing. */
+.musician-line-grid { position: relative; }
+.lyric-timing-track { position: relative; align-self: start; height: 0; pointer-events: none; z-index: 3; }
+.lyric-timing-dot { position: absolute; top: -.12em; width: .18em; height: .18em; min-width: 5px; min-height: 5px; border-radius: 50%; background: #cf6b12; box-shadow: 0 0 0 1px #fff8; pointer-events: none; z-index: 3; }
+.musician-line-grid > .lyric-timing-dot { top: 1.7em; }
+.lyric-bar-line { border-left: 2px solid #b58836; opacity: .75; pointer-events: none; z-index: 1; }
+.musician-practice-listen { display: inline-flex; align-items: center; gap: 3px; }

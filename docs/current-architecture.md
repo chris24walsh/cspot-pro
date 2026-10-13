@@ -974,8 +974,8 @@ Search modes:
   schedules Web Audio with bounded lookahead, and exports Standard MIDI files
   with a GM guitar, percussion, tempo, meter and balanced note-on/off events.
   Audio and MIDI share the same performance event list. Whole-song charts take
-  precedence; otherwise every sequenced part needs a chart. No timing is inferred
-  from lyric spacing. Practice charts are bounded to 256 bars / 20 minutes.
+  precedence for chart-only songs; otherwise every sequenced part needs a chart.
+  Marked editor lyrics instead supply explicit timing anchors through lyricTiming.ts. Practice charts are bounded to 256 bars / 20 minutes.
   `RhythmPracticeControls` handles listen/stop, count-in, metronome, loop and MIDI
   export in both editor and musician references. Only one preview runs at once;
   unmounts, edits, key changes and hidden tabs stop it. Song normalization includes
@@ -990,7 +990,22 @@ Search modes:
   positions. Chords divide each bar evenly; empty later bars hold the prior chord.
   Removing a part's last marker clears its derived chart. Unmarked manual charts
   are retained, and whole-song charts keep their established playback precedence.
-  `PracticeListenButton` provides local practice in Worship Live. Browser synthesis
+  `lyricTiming.ts` maps source lyric anchors to bar spans, equally timed chord
+  stops, weighted character widths, wrapped lines and repeated sequence occurrences.
+  `LyricMusicControls` provides metronome-only or combined chord-strum playback.
+  Its fractional cursor comes from the same AudioContext clock as note scheduling;
+  compound meters bounce on dotted-quarter pulses. Both chord editing and Worship
+  Live render bar lines and a dot in existing rows, retaining weighted spacing when
+  overlays are hidden. Editor song/part playback and MIDI share these timed bars;
+  legacy chart-only songs keep the original playback path. Guided song playback
+  requires markers in every sequenced part and starts with a one-bar count-in.
+  The Worship Live Music toggle is gated by the administrator role, separately
+  from user-management permissions. Auto page turns use the active bar's source
+  start line and sequence occurrence, changing only the local musician index even
+  when congregation sync is coupled. Turning Music off restores normal sync.
+  Source positions and widths provide the shared anchor framework for future
+  directions/dynamics, without adding persisted unused fields or additional rows.
+  Browser synthesis
   uses upper chord tones, a harmonic waveform and sustained decay; MIDI shares the
   same full voicings. No database migration is needed for optional rhythm markers.
 - coherent modular monolith shape

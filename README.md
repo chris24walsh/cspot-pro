@@ -406,10 +406,19 @@ clicking it again. Existing chords remain visible and their positions are kept.
 Markers are saved with rhythm metadata using section-relative lyric anchors.
 They generate the marked part's playback chart: chord changes within a bar divide
 its time evenly, and empty later bars hold the previous chord. Unmarked parts keep
-manual charts; a whole-song chart still takes precedence for song playback.
-Worship Live has a direct Listen/Stop button for local practice audio, using the
-whole arrangement when bars exist and the current strum otherwise. Fuller chord
-voicings, brighter harmonics and sustained envelopes make chord quality audible.
+manual charts. Marked lyric parts use the same timing map for playback and MIDI;
+unmarked songs retain the whole-song/part chart workflow. Fuller chord voicings,
+brighter harmonics and sustained envelopes make chord quality audible.
+Worship Live's **Music** toggle is available to administrators only for now. It
+shows bar lines and compact Listen/Stop controls: playback starts at the first bar
+with a one-bar count-in, using a metronome by default; **MIDI** adds the chord
+strum in the selected key. A bouncing dot follows the lyrics using the audio clock.
+Pages turn locally at their first bar, without advancing congregation slides.
+Place boundaries in each sequenced part to enable the whole-song timing guide.
+The editor uses the same guide and source anchors. Chord intervals get equal space
+within each bar, and wrapping respects that spacing even while Music is hidden.
+Overlays occupy existing lyric/chord rows; the positional framework can also host
+future dynamics and player directions.
 
 
 Sermon recording follows the live service session, including scheduled services

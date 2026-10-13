@@ -98,6 +98,7 @@ type WorshipHistoryMissingSong = {
 
 interface WorshipBuilderViewProps {
   active?: boolean;
+  isAdmin?: boolean;
   canAccessAdminTools: boolean;
   canArchiveSong: boolean;
   canCreateSong: boolean;
@@ -338,7 +339,7 @@ function detectMissingSongsInDeck(deck: ParsedSlideDeck, songs: Song[]) {
   return missing;
 }
 
-export function WorshipBuilderView({ active = true, canAccessAdminTools, canArchiveSong, canCreateSong, canDeletePlan, canEditSong, canEditPlan: hasPlanEditPermission }: WorshipBuilderViewProps) {
+export function WorshipBuilderView({ active = true, isAdmin = false, canAccessAdminTools, canArchiveSong, canCreateSong, canDeletePlan, canEditSong, canEditPlan: hasPlanEditPermission }: WorshipBuilderViewProps) {
   const { confirm, confirmationDialog } = useConfirmationDialog();
   const [plans, setPlans] = useState<PlanSummary[]>([]);
   const [planTypes, setPlanTypes] = useState<PlanType[]>([]);
@@ -1971,6 +1972,7 @@ export function WorshipBuilderView({ active = true, canAccessAdminTools, canArch
         <section className="worship-live-shell" aria-label="Musician live worship">
           <MusicianLiveView
             canControlAudio={canAccessAdminTools}
+            canUseMusic={isAdmin}
             controlPlanId={liveControlPlanId}
             onEditSong={openSongEditor}
             onExit={() => setViewMode("builder")}
