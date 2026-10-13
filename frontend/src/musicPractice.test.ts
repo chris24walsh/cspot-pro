@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildPracticePerformance, pluckedGuitarSamples, chordMidiNotes, MIDI_PPQ, parseBarChart, practiceMidi, rhythmQuarterBpm, transposeBarCharts } from "./musicPractice";
+import { buildPracticePerformance, chordMidiNotes, MIDI_PPQ, parseBarChart, practiceMidi, rhythmQuarterBpm, transposeBarCharts } from "./musicPractice";
 import type { SongRhythm } from "./songRhythm";
 
 const rhythm: SongRhythm = { numerator: 4, denominator: 4, notes: "", bpm: 120,
@@ -158,14 +158,4 @@ it('plays X as muted guitar strings and keeps them distinct from metronome click
   expect(muted.every(note => note.duration <= 60)).toBe(true);
   expect(music.notes.filter(note => note.channel === 9).every(note => note.pitch === 76 || note.pitch === 77)).toBe(true);
   expect(readMidi(practiceMidi(music)).events.find(event => event.status === 0xc1)?.data).toEqual([28]);
-});
-
-it('plucked strings ring at the intended pitch while muted strings decay quickly', () => {
-  const sampleRate = 44100;
-  const normal = pluckedGuitarSamples(69, sampleRate, 0.3);
-  const muted = pluckedGuitarSamples(69, sampleRate, 0.3, true);
-  const energy = (samples: Float32Array, start: number, end: number) => samples.slice(start, end).reduce((sum, value) => sum + value * value, 0);
-  expect(energy(normal, 4410, 8820)).toBeGreaterThan(energy(muted, 4410, 8820) * 100);
-  const difference = (lag: number) => normal.slice(4410, 8820).reduce((sum, value, index) => sum + (value - normal[4410 + index + lag]) ** 2, 0);
-  expect(difference(100)).toBeLessThan(difference(50)); // 44100 / 440 ≈ 100 samples per period.
 });

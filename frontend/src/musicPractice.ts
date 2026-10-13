@@ -1,30 +1,8 @@
+import { guitarSampleFor, guitarSustainBuffer, loadGuitarSamples } from "./guitarSamples";
 import { transposeChordSymbol, validateChordSymbol, type ChordAnnotation } from "./chordSheet";
 import { strumPatternForSection, type SongRhythm, type StrumPattern } from "./songRhythm";
 import { lyricBarLayout, lyricPlaybackBars, musicalSectionKey, timedPracticeBars } from "./lyricTiming";
 import { worshipSequenceBlocks } from "./worshipText";
-
-// A noise-excited delay loop models a plucked string: higher harmonics decay
-// faster than the fundamental. Heavy damping gives muted strokes a woody,
-// short string sound rather than a drum click.
-export function pluckedGuitarSamples(pitch: number, sampleRate: number, seconds: number, muted = false): Float32Array<ArrayBuffer> {
-  const frequency = 440 * 2 ** ((pitch - 69) / 12);
-  const period = Math.max(2, Math.round(sampleRate / frequency - 0.5));
-  const string = new Float32Array(period);
-  let seed = pitch + 1;
-  for (let index = 0; index < period; index++) {
-    seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
-    string[index] = (seed / 4294967296 * 2 - 1) * 0.7;
-  }
-  const samples = new Float32Array(Math.max(1, Math.ceil(sampleRate * seconds)));
-  const damping = muted ? 0.72 : 0.9997;
-  for (let index = 0; index < samples.length; index++) {
-    const slot = index % period;
-    const value = string[slot];
-    string[slot] = damping * (value + string[(slot + 1) % period]) * 0.5;
-    samples[index] = value;
-  }
-  return samples;
-}
 
 export const MIDI_PPQ = 480;
 export interface BarChord { beat: number; chord: string }
@@ -267,6 +245,8 @@ export class PracticeAudioPlayer {
     await context.resume();
     if (this.cancelled) return;
     if (context.state !== "running") throw new Error("The browser could not start audio. Tap Listen again, or download the MIDI file.");
+    const guitar = await loadGuitarSamples(context, performance.notes);
+    if (this.cancelled) return;
     const secondsPerTick = 60 / performance.quarterBpm / MIDI_PPQ;
     let started = context.currentTime + 0.08;
     let nextNote = 0;
@@ -291,22 +271,23 @@ export class PracticeAudioPlayer {
         const at = Math.max(context.currentTime, started + note.tick * secondsPerTick);
         const length = Math.max(0.025, note.duration * secondsPerTick);
         const gain = context.createGain();
-        const peak = note.velocity / 127 * (note.channel === 9 ? 0.3 : note.channel === 1 ? 0.16 : 0.3);
+        const peak = note.velocity / 127 * (note.channel === 9 ? 0.3 : note.channel === 1 ? 0.32 : 0.5);
         const muted = note.channel === 1;
-        const soundLength = note.channel === 9 ? 0.05 : muted ? Math.min(0.09, length) : length;
+        const soundLength = note.channel === 9 ? 0.05 : muted ? Math.min(0.12, length) : note.finishing ? length : Math.max(0.45, length);
         const source = note.channel === 9 ? context.createOscillator() : context.createBufferSource();
         if ("frequency" in source) {
           source.type = "triangle";
           source.frequency.setValueAtTime(note.pitch === 76 ? 1600 : 1100, at);
         } else {
-          const samples = pluckedGuitarSamples(note.pitch, context.sampleRate, soundLength, muted);
-          const buffer = context.createBuffer(1, samples.length, context.sampleRate);
-          buffer.copyToChannel(samples, 0);
-          source.buffer = buffer;
+          const sample = guitarSampleFor(note.pitch, muted);
+          const recording = guitar.get(sample.key)!;
+          source.buffer = note.finishing ? guitarSustainBuffer(context, recording) : recording;
+          if (note.finishing) { source.loop = true; source.loopStart = 1; source.loopEnd = 2; }
+          source.playbackRate.setValueAtTime(sample.rate, at);
         }
         gain.gain.setValueAtTime(0.0001, at);
         gain.gain.exponentialRampToValueAtTime(peak, at + 0.003);
-        if (note.channel !== 9) gain.gain.exponentialRampToValueAtTime(peak * (note.finishing ? 0.35 : 0.5), at + (note.finishing ? Math.min(0.6, soundLength * 0.2) : soundLength * 0.4));
+        if (note.channel !== 9) gain.gain.exponentialRampToValueAtTime(peak * (note.finishing ? 0.35 : 0.5), at + (note.finishing ? Math.min(0.6, soundLength * 0.2) : soundLength * 0.65));
         gain.gain.exponentialRampToValueAtTime(0.0001, at + soundLength);
         source.connect(gain); gain.connect(master);
         source.start(at); source.stop(at + soundLength + 0.02);

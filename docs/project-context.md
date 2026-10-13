@@ -489,5 +489,7 @@ chord, sustained for four seconds with a soft decay. Exported practice MIDI adds
 held guitar notes and an expression fade for the same ending. Metronome-only
 and silent guides keep their original duration; loops have no ending pause.
 
-Guitar previews synthesize plucked strings with natural harmonic decay. X strokes
-use heavily damped strings; MIDI exports use a separate muted-guitar channel.
+Guitar previews use bundled FluidR3_GM steel-string and muted-guitar samples
+(CC BY 3.0; attribution shipped with the assets). Only required notes load on
+Listen, and compressed samples are cached for reuse. X strokes use the muted
+guitar bank; MIDI exports use a separate muted-guitar channel.

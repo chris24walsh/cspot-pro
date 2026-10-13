@@ -11,7 +11,8 @@ class FakeAudioContext {
   sampleRate = 44100;
   buffers: Float32Array[] = [];
   createBuffer(_channels: number, length: number) { return { copyToChannel: (samples: Float32Array) => { this.buffers.push(samples); }, length }; }
-  createBufferSource() { return { buffer: null, connect: vi.fn(), disconnect: vi.fn(), start: vi.fn(), stop: vi.fn(), onended: null }; }
+  decodeAudioData(_data: ArrayBuffer, resolve: (buffer: unknown) => void) { resolve({ duration: 8 }); }
+  createBufferSource() { const context = this; return { buffer: null, playbackRate: { setValueAtTime: (rate: number) => context.frequencies.push(rate) }, connect: vi.fn(), disconnect: vi.fn(), start: vi.fn(), stop: vi.fn(), onended: null }; }
   frequencies: number[] = [];
   waveUses = 0;
   waves: number[][] = [];
@@ -28,16 +29,15 @@ class FakeAudioContext {
 }
 const rhythm: SongRhythm = { numerator: 4, denominator: 4, bpm: 120, notes: "", patterns: [{ section: "Default", subdivision: 1, strokes: ["U", "D", "-", "X"] }], arrangements: [{ section: "Default", chart: "C" }] };
 let player: PracticeAudioPlayer;
-beforeEach(() => { instances.length = 0; vi.useFakeTimers(); vi.stubGlobal("AudioContext", FakeAudioContext); player = new PracticeAudioPlayer(); });
+beforeEach(() => { instances.length = 0; vi.useFakeTimers(); vi.stubGlobal("fetch", vi.fn(async () => ({ ok: true, arrayBuffer: async () => new ArrayBuffer(8) }))); vi.stubGlobal("AudioContext", FakeAudioContext); player = new PracticeAudioPlayer(); });
 afterEach(() => { player.stop(); vi.useRealTimers(); vi.unstubAllGlobals(); });
 
 it("schedules upstrokes from high to low, then ends and closes the audio context", async () => {
   const performance = buildPracticePerformance(rhythm, { mode: "song" });
   const ended = vi.fn();
   await player.play(performance, false, vi.fn(), ended);
-  expect(instances[0].buffers).toHaveLength(chordMidiNotes("C").length);
-  expect(instances[0].buffers.every(samples => samples.some(value => value !== 0))).toBe(true);
-  expect(instances[0].frequencies).toEqual([]);
+  expect(instances[0].frequencies).toHaveLength(chordMidiNotes("C").length);
+  expect(instances[0].frequencies.every(rate => rate > 0.8 && rate < 1.3)).toBe(true);
   instances[0].currentTime = 2.2;
   vi.advanceTimersByTime(25);
   expect(ended).toHaveBeenCalledOnce();
