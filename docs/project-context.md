@@ -378,10 +378,14 @@ The selected sequence occurrence is preserved, including repeated verses.
 A slide needs a bar boundary to start guided playback there. Backing track keeps existing service-audio permissions and requires Sync.
 Menus support keyboard navigation, Escape and outside-click dismissal.
 **Silent guide** starts from the current slide without sound or count-in, showing
-the dot and turning pages. **Musician → Timing dot** shows/hides the dot independently.
+the dot and turning pages. **Musician → Chords / Bars / Dot** each has Auto, On
+and Off choices. Auto keeps chords visible and shows bars/dot while playing
+(including shared timing). On stays visible while idle, playing and stopped;
+Off stays hidden through playback changes. An always-on dot parks at its last
+position on the current page, or at that page's first bar before playback.
 For other Worship Live devices, enable **Share timing** on the admin playback
 host and **Follow shared timing** on each receiving device. Followers get the dot
-and local page turns without audio or duplicate service commands. Dot visibility
+and local page turns without audio or duplicate service commands. Display modes
 and following are remembered per device; sharing is opt-in for the current session.
 Sharing works with silent, metronome and MIDI guidance. Only the playback host
 advances the synced service display. Shared timing expires when the host disconnects;

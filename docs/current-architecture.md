@@ -1014,8 +1014,12 @@ Search modes:
   offset only after count-in, so it cannot jump back to an earlier page. Page changes
   during playback do not restart audio; a new Play uses the newly selected page.
   PracticeSilentPlayer uses a monotonic timer without constructing AudioContext;
-  silent mode omits count-in and all note events. Timing dot visibility is separate
-  from bar visibility and auto-advance. The per-device Follow shared timing option
+  silent mode omits count-in and all note events. Chords, Bars and Dot each use
+  per-device Auto/On/Off display modes. Auto shows chords by default and bars/dot
+  during playback, including an opted-in shared clock. Explicit On/Off never mutate
+  on play/stop. An On dot parks at the last cursor in the current page (or its first
+  bar) when idle; this display-only cursor never drives auto-advance. Display modes
+  are independent from the playback cursor and source timing. The per-device Follow shared timing option
   lets musician readers animate an administrator's shared clock without audio.
   GET/PATCH /presentation/music-timing/{plan_id} stores a bounded transport snapshot
   in the existing position payload; it preserves slide state and requires admin

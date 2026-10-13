@@ -14258,3 +14258,9 @@ button.musician-page {
 .musician-control-menu .song-rhythm-summary::before { content: 'Rhythm'; }
 .musician-control-menu .song-rhythm-summary > span:first-child { margin-left: auto; }
 .song-rhythm-display-panel { z-index: 181; }
+
+.musician-display-choice { display: flex; align-items: center; justify-content: space-between; gap: 6px; padding: 7px 5px; }
+.musician-display-choice > span { display: flex; align-items: center; gap: 7px; font-size: 13px; font-weight: 650; }
+.musician-display-choice > div { display: inline-flex; padding: 2px; border: 1px solid #d3d9ce; border-radius: 7px; }
+.musician-display-choice button { border: 0; background: transparent; color: #536657; padding: 5px 6px; border-radius: 4px; font-size: 11px; font-weight: 650; cursor: pointer; }
+.musician-display-choice button[aria-checked="true"] { background: #dcefe6; color: #184b39; }

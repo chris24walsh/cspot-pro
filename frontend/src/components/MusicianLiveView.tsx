@@ -41,6 +41,7 @@ import { mergeWorshipSetIntoService } from "../worshipSets";
 import { lyricBarLayout, lyricColumnWidths, wrapTimedLine, lyricCursorAt, lyricPlaybackBars, musicalSectionKey, type LyricBar, type LyricCursor } from "../lyricTiming";
 import { LyricMusicControls, TimingDot } from "./LyricMusicControls";
 import { useSharedMusicTiming } from "./useSharedMusicTiming";
+import { MusicianDisplayChoice, musicianDisplayVisible, readMusicianDisplayMode, type MusicianDisplayMode } from "./MusicianDisplayChoice";
 import { CompactControlMenu } from "./CompactControlMenu";
 import { SongRhythmDisplay } from "./SongRhythmDisplay";
 
@@ -413,7 +414,7 @@ function chordAnnotationsBySlideLine(
 
 export function MusicianLiveView({ canUseMusic = false, canControlAudio = false, controlPlanId, onEditSong, onExit, plan, servicePlan, songs, topbarSlot }: MusicianLiveViewProps) {
   const [liveState, setLiveState] = useState<PresentationLiveState | null>(null);
-  const [showChords, setShowChords] = useState(true);
+  const [chordDisplay, setChordDisplay] = useState(() => readMusicianDisplayMode("worship-chords-display"));
   const [capo, setCapo] = useState(0);
   const [guitarKey, setGuitarKey] = useState<string | null>(null);
   const [keySelectExpanded, setKeySelectExpanded] = useState(false);
@@ -474,11 +475,11 @@ export function MusicianLiveView({ canUseMusic = false, canControlAudio = false,
     },
   ] : presentationSlides, [nextServiceSlide, presentationSlides]);
   const [localIndex, setLocalIndex] = useState(0);
-  const [musicMode, setMusicMode] = useState(false);
+  const [barDisplay, setBarDisplay] = useState(() => readMusicianDisplayMode("worship-bars-display"));
   const [localMusicCursor, setMusicCursor] = useState<LyricCursor | null>(null);
   const [musicFollowing, setMusicFollowing] = useState(false);
   const [localPlaybackActive, setLocalPlaybackActive] = useState(false);
-  const [showTimingDot, setShowTimingDot] = useState(() => { try { return localStorage.getItem('worship-timing-dot') !== 'off'; } catch { return true; } });
+  const [dotDisplay, setDotDisplay] = useState(() => readMusicianDisplayMode("worship-dot-display", "worship-timing-dot"));
   const [followSharedTiming, setFollowSharedTiming] = useState(() => { try { return localStorage.getItem('worship-follow-timing') === 'on'; } catch { return false; } });
   const [shareTiming, setShareTiming] = useState(false);
   const remoteWorshipIndex = useMemo(() => {
@@ -540,6 +541,18 @@ export function MusicianLiveView({ canUseMusic = false, canControlAudio = false,
   const remoteCursor = remoteSongMatches && sharedTiming.remote && sharedTiming.remote.position >= 0 && liveSong?.rhythm
     ? lyricCursorAt(liveSong.lyrics, remoteTimeline, sharedTiming.remote.timing.start_index + sharedTiming.remote.position, liveSong.rhythm.numerator, liveSong.rhythm.denominator) : null;
   const musicCursor = localPlaybackActive ? localMusicCursor : remoteCursor ?? localMusicCursor;
+  const playbackActive = localPlaybackActive || Boolean(localMusicCursor) || Boolean(remoteSongMatches && sharedTiming.remote) || backingAudioPlaying;
+  const showChords = musicianDisplayVisible(chordDisplay, playbackActive, true);
+  const musicMode = musicianDisplayVisible(barDisplay, playbackActive);
+  const showTimingDot = musicianDisplayVisible(dotDisplay, playbackActive);
+  const idleBar = remoteTimeline.find(bar => bar.occurrence === leadPageContext.occurrence && bar.start.lineIndex >= leadPageContext.sourceOffset && bar.start.lineIndex < leadPageContext.sourceOffset + lyricLines(pageLeadSlide?.text ?? '').length);
+  const parkedDot = useRef<LyricCursor | null>(null);
+  if (musicCursor) parkedDot.current = { ...musicCursor, pulse: 0 };
+  const parkedOnPage = dotDisplay === 'on' && parkedDot.current?.occurrence === leadPageContext.occurrence && parkedDot.current.lineIndex >= leadPageContext.sourceOffset && parkedDot.current.lineIndex < leadPageContext.sourceOffset + lyricLines(pageLeadSlide?.text ?? '').length ? parkedDot.current : null;
+  const displayCursor = showTimingDot ? musicCursor ?? parkedOnPage ?? (leadPageContext.sourceOffset < 0 ? null : { ...(idleBar?.start ?? { lineIndex: leadPageContext.sourceOffset, anchorIndex: LEADING_CHORD_ANCHORS }), occurrence: leadPageContext.occurrence, barStartLine: idleBar?.start.lineIndex ?? leadPageContext.sourceOffset, pulse: 0 }) : null;
+  function chooseDisplay(key: string, setter: (mode: MusicianDisplayMode) => void, mode: MusicianDisplayMode) {
+    setter(mode); try { localStorage.setItem(key, mode); } catch {}
+  }
   const followingRemote = !localPlaybackActive && Boolean(remoteCursor);
   useEffect(() => { if (followSharedTiming && !sharedTiming.remote && !localPlaybackActive) setMusicFollowing(false); }, [followSharedTiming, Boolean(sharedTiming.remote), localPlaybackActive]);
   useEffect(() => {
@@ -1149,7 +1162,7 @@ export function MusicianLiveView({ canUseMusic = false, canControlAudio = false,
     }
   }, [musicCursor?.occurrence, musicCursor?.barStartLine, musicMode, liveSong?.id, worshipCoupled, liveSyncPlanId, followingRemote]);
   function timingFor(offset: number, lineIndex: number, segmentStart: number, occurrence: number, lastSegment: boolean) {
-    return { lyrics: liveSong?.lyrics ?? '', bars: timingBars, sourceLine: offset < 0 ? -1 : offset + lineIndex, segmentStart, lastSegment, showBars: canUseMusic && musicMode, cursor: showTimingDot && musicCursor?.occurrence === occurrence ? musicCursor : null };
+    return { lyrics: liveSong?.lyrics ?? '', bars: timingBars, sourceLine: offset < 0 ? -1 : offset + lineIndex, segmentStart, lastSegment, showBars: canUseMusic && musicMode, cursor: displayCursor?.occurrence === occurrence ? displayCursor : null };
   }
 
   function navigateToSequenceBlock(blockIndex: number, partIndex = 0) {
@@ -1239,9 +1252,9 @@ export function MusicianLiveView({ canUseMusic = false, canControlAudio = false,
       <div className="musician-live-controls" aria-label="Musician display controls">
         <CompactControlMenu label="Musician" icon={<Guitar size={16} aria-hidden="true" />} active={showChords || musicMode}>
           {close => <>
-            <button role="menuitemcheckbox" aria-checked={showChords} onClick={() => setShowChords(value => !value)} type="button"><Guitar size={16} aria-hidden="true" /><span>Chords</span>{showChords ? <Check size={16} aria-hidden="true" /> : null}</button>
-            {canUseMusic ? <button role="menuitemcheckbox" aria-label="Show music timing" aria-checked={musicMode} onClick={() => setMusicMode(value => !value)} type="button"><ListMusic size={16} aria-hidden="true" /><span>Bars</span>{musicMode ? <Check size={16} aria-hidden="true" /> : null}</button> : null}
-            <button role="menuitemcheckbox" aria-checked={showTimingDot} onClick={() => { setShowTimingDot(value => { try { localStorage.setItem('worship-timing-dot', value ? 'off' : 'on'); } catch {} return !value; }); }} type="button"><Music2 size={16} aria-hidden="true" /><span>Timing dot</span>{showTimingDot ? <Check size={16} aria-hidden="true" /> : null}</button>
+            <MusicianDisplayChoice label="Chords" icon={<Guitar size={16} aria-hidden="true" />} value={chordDisplay} onChange={mode => chooseDisplay('worship-chords-display', setChordDisplay, mode)} />
+            {canUseMusic ? <MusicianDisplayChoice label="Bars" icon={<ListMusic size={16} aria-hidden="true" />} value={barDisplay} onChange={mode => chooseDisplay('worship-bars-display', setBarDisplay, mode)} /> : null}
+            <MusicianDisplayChoice label="Dot" icon={<Music2 size={16} aria-hidden="true" />} value={dotDisplay} onChange={mode => chooseDisplay('worship-dot-display', setDotDisplay, mode)} />
             <button role="menuitemcheckbox" aria-checked={followSharedTiming} onClick={() => { setFollowSharedTiming(value => { try { localStorage.setItem('worship-follow-timing', value ? 'off' : 'on'); } catch {} if (value && !localPlaybackActive) setMusicFollowing(false); return !value; }); }} type="button"><Link2 size={16} aria-hidden="true" /><span>Follow shared timing<small>Dot and page turns on this device · no audio</small></span>{followSharedTiming ? <Check size={16} aria-hidden="true" /> : null}</button>
             {canUseMusic ? <button role="menuitemcheckbox" aria-checked={shareTiming} onClick={() => setShareTiming(value => !value)} type="button"><Music2 size={16} aria-hidden="true" /><span>Share timing<small>Let other Worship Live devices follow</small></span>{shareTiming ? <Check size={16} aria-hidden="true" /> : null}</button> : null}
             {sharedTiming.error ? <small role="alert">{sharedTiming.error}</small> : null}
@@ -1252,7 +1265,6 @@ export function MusicianLiveView({ canUseMusic = false, canControlAudio = false,
               const occurrence = part.some(bar => bar.occurrence === currentSequenceBlockIndex) ? currentSequenceBlockIndex : part[0]?.occurrence;
               const selected = mode === "part" ? part.filter(bar => bar.occurrence === occurrence) : timeline;
               const cursor = position === null || mode === "strum" || !liveSong?.rhythm ? null : lyricCursorAt(liveSong.lyrics, selected, position, liveSong.rhythm.numerator, liveSong.rhythm.denominator);
-              if (cursor) setMusicMode(true);
               setMusicCursor(cursor);
             } : undefined} key={liveSong?.id} rhythm={liveSong?.rhythm} section={sequenceBlocks[currentSequenceBlockIndex]?.label} lyrics={liveSong?.lyrics} sequence={liveSong?.sequence} previewChord={baseAbsoluteKey} transpose={currentAbsoluteKey ? semitoneDistance(baseAbsoluteKey, currentAbsoluteKey) : 0} title={liveSong?.title} />
             <hr />
@@ -1260,7 +1272,7 @@ export function MusicianLiveView({ canUseMusic = false, canControlAudio = false,
             <button role="menuitem" disabled={!liveSong} onClick={() => { close(); if (liveSong) onEditSong(liveSong); }} type="button"><Pencil size={16} aria-hidden="true" /><span>Edit song</span></button>
           </>}
         </CompactControlMenu>
-        {canUseMusic || canControlAudio ? <LyricMusicControls startAt={leadPageContext.occurrence >= 0 ? { occurrence: leadPageContext.occurrence, lineStart: leadPageContext.sourceOffset, lineEnd: leadPageContext.sourceOffset + lyricLines(pageLeadSlide?.text ?? "").length } : undefined} key={liveSong?.id} rhythm={liveSong?.rhythm} lyrics={liveSong?.lyrics} sequence={liveSong?.sequence} annotations={chordChart.annotations} bars={timingBars} transpose={currentAbsoluteKey ? semitoneDistance(baseAbsoluteKey, currentAbsoluteKey) : 0} canPractice={canUseMusic} onStarted={() => { setMusicMode(true); setLocalPlaybackActive(true); }} onTiming={timing => { setLocalPlaybackActive(Boolean(timing)); sharedTiming.setLocalTiming(timing); }} onCursor={setMusicCursor} backing={canControlAudio ? { playing: backingAudioPlaying, disabledReason: !worshipCoupled ? 'Sync with the service first' : !backingAudioAvailable ? 'No backing track for this song' : undefined, toggle: toggleBackingAudio } : undefined} /> : null}
+        {canUseMusic || canControlAudio ? <LyricMusicControls startAt={leadPageContext.occurrence >= 0 ? { occurrence: leadPageContext.occurrence, lineStart: leadPageContext.sourceOffset, lineEnd: leadPageContext.sourceOffset + lyricLines(pageLeadSlide?.text ?? "").length } : undefined} key={liveSong?.id} rhythm={liveSong?.rhythm} lyrics={liveSong?.lyrics} sequence={liveSong?.sequence} annotations={chordChart.annotations} bars={timingBars} transpose={currentAbsoluteKey ? semitoneDistance(baseAbsoluteKey, currentAbsoluteKey) : 0} canPractice={canUseMusic} onStarted={() => setLocalPlaybackActive(true)} onTiming={timing => { setLocalPlaybackActive(Boolean(timing)); sharedTiming.setLocalTiming(timing); }} onCursor={setMusicCursor} backing={canControlAudio ? { playing: backingAudioPlaying, disabledReason: !worshipCoupled ? 'Sync with the service first' : !backingAudioAvailable ? 'No backing track for this song' : undefined, toggle: toggleBackingAudio } : undefined} /> : null}
         {servicePlan ? <button aria-label={worshipSyncOverridden ? "Worship sync is enabled but the service view has moved outside worship" : worshipCoupled ? "Stop syncing Worship Live with service and move after worship" : "Sync Worship Live with service"} aria-pressed={worshipCoupled} className={`musician-service-couple-button ${worshipCoupled ? "is-active" : ""} ${worshipSyncOverridden ? "is-overridden" : ""}`} onClick={() => void toggleServiceCoupling()} title={worshipSyncOverridden ? "Service view moved outside worship. Change a worship slide to resync." : worshipCoupled ? "Stop syncing and go after worship" : "Sync with service"} type="button">{worshipCoupled ? <Unlink2 size={16} aria-hidden="true" /> : <Link2 size={16} aria-hidden="true" />}<span className="musician-control-text">Sync</span></button> : null}
         <button className="musician-fullscreen-button" onClick={onExit} type="button" aria-label="Exit live worship">
           <LogOut size={18} aria-hidden="true" />
@@ -1453,7 +1465,7 @@ export function MusicianLiveView({ canUseMusic = false, canControlAudio = false,
                       style={{ "--musician-live-font-size": `${songModeFontSize}px` } as CSSProperties}
                       tabIndex={0}
                     >
-                      {showChords || musicMode || timingBars.length > 0 ? (
+                      {showChords || musicMode || showTimingDot || timingBars.length > 0 ? (
                         <div className="musician-song-chord-sheet">
                           {partLines.map((line, lineIndex) => {
                             const segments = wrapMusicLine(line, songModeWrapCharacters, block.partLineOffsets[partIndex], lineIndex);
@@ -1568,7 +1580,7 @@ export function MusicianLiveView({ canUseMusic = false, canControlAudio = false,
                   <strong>{pageNextSlide.text}</strong>
                   {pageNextKeyLabel ? <span>{pageNextKeyLabel}</span> : null}
                 </div>
-              ) : pageNextSlide && (showChords || musicMode || timingBars.length > 0) && pageNextSlideUsesCurrentSong ? (
+              ) : pageNextSlide && (showChords || musicMode || showTimingDot || timingBars.length > 0) && pageNextSlideUsesCurrentSong ? (
                 <div className="musician-chord-sheet musician-next-chord-sheet" aria-label="Next lyrics with chords">
                   {nextWrappedLyricLines.map((segments, lineIndex) => (
                     <div className="musician-lyric-line-group" key={`${lineIndex}-${nextLyricLines[lineIndex]}`}>
