@@ -1,4 +1,5 @@
 const pitches = [40, 45, 50, 55, 59, 64, 69, 74, 79, 84, 89];
+const decodedSamples = new WeakMap<AudioContext, Map<string, Promise<AudioBuffer>>>();
 const downloads = new Map<string, Promise<ArrayBuffer>>();
 export function guitarSampleFor(pitch: number, muted: boolean) {
   const root = pitches.reduce((best, candidate) => Math.abs(candidate - pitch) < Math.abs(best - pitch) ? candidate : best);
@@ -7,21 +8,31 @@ export function guitarSampleFor(pitch: number, muted: boolean) {
 export async function loadGuitarSamples(context: AudioContext, notes: Array<{ pitch: number; channel: number }>) {
   const keys = [...new Set(notes.filter(note => note.channel !== 9).map(note => guitarSampleFor(note.pitch, note.channel === 1).key))];
   const buffers = new Map<string, AudioBuffer>();
+  let cache = decodedSamples.get(context);
+  if (!cache) { cache = new Map(); decodedSamples.set(context, cache); }
   await Promise.all(keys.map(async key => {
-    let request = downloads.get(key);
-    if (!request) {
-      request = fetch(`${import.meta.env.BASE_URL}audio/guitar/${key}.mp3`).then(response => {
-        if (!response.ok) throw new Error("Could not load guitar sounds. Try Listen again.");
-        return response.arrayBuffer();
-      });
-      downloads.set(key, request);
-      request.catch(() => { downloads.delete(key); });
+    let ready = cache!.get(key);
+    if (!ready) {
+      ready = (async () => {
+        let request = downloads.get(key);
+        if (!request) {
+          request = fetch(`${import.meta.env.BASE_URL}audio/guitar/${key}.mp3`).then(response => {
+            if (!response.ok) throw new Error("Could not load guitar sounds. Try Listen again.");
+            return response.arrayBuffer();
+          });
+          downloads.set(key, request);
+          request.catch(() => { downloads.delete(key); });
+        }
+        const data = await request;
+        // Safari's callback form also works on older supported iPhones. Decoding
+        // consumes the input on some engines, so retain a copy in the download cache.
+        const decoded = await new Promise<AudioBuffer>((resolve, reject) => context.decodeAudioData(data.slice(0), resolve, reject));
+        return decoded;
+      })();
+      cache!.set(key, ready);
+      ready.catch(() => cache!.delete(key));
     }
-    const data = await request;
-    // Safari's callback form also works on older supported iPhones. Decoding
-    // consumes the input on some engines, so retain a copy in the download cache.
-    const decoded = await new Promise<AudioBuffer>((resolve, reject) => context.decodeAudioData(data.slice(0), resolve, reject));
-    buffers.set(key, decoded);
+    buffers.set(key, await ready);
   }));
   return buffers;
 }

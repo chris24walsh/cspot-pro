@@ -5,7 +5,7 @@ import { beforeEach, expect, it, vi } from 'vitest';
 import { MusicianLiveView } from './MusicianLiveView';
 import { createEmptyChordChart, serializeChordChart } from '../chordSheet';
 import { updateBandSelection, getWorshipMusicTiming, updateWorshipMusicTiming, getPresentationLiveState, updatePresentationLiveState, type PlanDetail, type Song } from '../api';
-const audio = vi.hoisted(() => ({ play: vi.fn(async (..._args: unknown[]) => {}), stop: vi.fn() }));
+const audio = vi.hoisted(() => ({ play: vi.fn(async (..._args: unknown[]) => {}), queuePerformance: vi.fn(async (..._args: unknown[]) => {}), stop: vi.fn() }));
 vi.mock('../musicPractice', async original => ({ ...await original<typeof import('../musicPractice')>(), PracticeAudioPlayer: vi.fn(function() { return audio; }) }));
 vi.mock('../api', () => ({ getBandSelection: vi.fn(async () => ({ selection: null })), updateBandSelection: vi.fn(async (_id, slide_id) => ({ selection: { slide_id, updated_at: Date.now() } })), getPresentationLiveState: vi.fn(async () => ({ plan_id: 'plan', index: 0, updated_at: '2026-10-13', worship_coupled: true, plan_item_id: 'item', slide_offset: 0 })), updatePresentationLiveState: vi.fn(), getWorshipMusicTiming: vi.fn(async () => ({ timing: null, server_now: 0 })), updateWorshipMusicTiming: vi.fn() }));
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -261,5 +261,32 @@ it('preserves pre-lyric chord positions in page and scroll views', async () => {
     musician(container);
     act(() => document.querySelector<HTMLButtonElement>('[aria-label="Switch to Scroll view"]')!.click());
     assertPositions('.musician-full-song .musician-chord-line');
+  } finally { act(() => root.unmount()); vi.unstubAllGlobals(); vi.clearAllMocks(); }
+});
+
+it('queues manual section changes while automatic page turns leave the player running', async () => {
+  vi.stubGlobal('matchMedia', () => ({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() }));
+  vi.mocked(getPresentationLiveState).mockResolvedValue({ plan_id: 'plan', index: 0, updated_at: 1, worship_coupled: false } as Awaited<ReturnType<typeof getPresentationLiveState>>);
+  const annotations = ['V1', 'C'].map((section, index) => ({ id: section, section, lineIndex: 0, anchorIndex: 3, chord: index ? 'G' : 'C' }));
+  const song = { id: 'song', title: 'Jump song', lyrics: '[V1]\nFirst line\n[C]\nSecond line', sequence: 'V1 C', chords: serializeChordChart({ ...createEmptyChordChart(), absoluteKey: 'C', annotations }), rhythm: { numerator: 4, denominator: 4, patterns: [], notes: '', markers: annotations.map(({ chord: _chord, ...marker }) => marker) } } as unknown as Song;
+  const plan = { id: 'plan', items: [{ id: 'item', item_type: 'song', song_id: 'song', sequence: '1', title: song.title }] } as PlanDetail;
+  const container = document.createElement('div'), mount = document.createElement('div'), toolbar = document.createElement('div'); container.append(mount, toolbar); const root = createRoot(mount);
+  try {
+    await act(async () => root.render(<MusicianLiveView canUseMusic plan={plan} songs={[song]} topbarSlot={toolbar} onEditSong={() => {}} onExit={() => {}} />));
+    await play(container);
+    const oldPosition = audio.play.mock.calls[0][4] as (position: number) => void;
+    await act(async () => oldPosition(0.25));
+    expect(audio.queuePerformance).not.toHaveBeenCalled();
+    await act(async () => container.querySelector<HTMLButtonElement>('[aria-label="Next slide"]')!.click());
+    expect(audio.queuePerformance).toHaveBeenCalledOnce();
+    expect(audio.play).toHaveBeenCalledOnce();
+    expect(audio.stop).not.toHaveBeenCalled();
+    await act(async () => oldPosition(0.4));
+    expect(container.querySelector('.musician-page.is-current')?.textContent).toContain('Second');
+    const [, nextPosition, commit] = audio.queuePerformance.mock.calls[0] as [unknown, (position: number) => void, () => void];
+    await act(async () => { commit(); nextPosition(0); });
+    expect(container.querySelector('.musician-page.is-current')?.textContent).toContain('Second');
+    await act(async () => container.querySelector<HTMLButtonElement>('[aria-label="Previous slide"]')!.click());
+    expect(audio.queuePerformance).toHaveBeenCalledTimes(2);
   } finally { act(() => root.unmount()); vi.unstubAllGlobals(); vi.clearAllMocks(); }
 });

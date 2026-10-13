@@ -38,3 +38,17 @@ it('publishes only when opted in, uses bounded heartbeats, and releases on stop 
     expect(vi.getTimerCount()).toBe(0);
   } finally { vi.useRealTimers(); vi.clearAllMocks(); }
 });
+
+it('publishes a committed destination immediately instead of waiting for the heartbeat', async () => {
+  vi.useFakeTimers();
+  let clock!: ReturnType<typeof useSharedMusicTiming>;
+  function Harness() { clock = useSharedMusicTiming({ planId: 'plan', songId: 'first', itemId: 'one', share: true, follow: false }); return null; }
+  const root = createRoot(document.createElement('div'));
+  try {
+    await act(async () => root.render(<Harness />));
+    await act(async () => clock.setLocalTiming({ startIndex: 0, position: 2, barDurationMs: 2000, totalBars: 5 }));
+    await act(async () => { clock.setLocalSource('second', 'two'); clock.setLocalTiming({ startIndex: 0, position: 0, barDurationMs: 2000, totalBars: 5 }); });
+    expect(updateWorshipMusicTiming).toHaveBeenCalledTimes(2);
+    expect(vi.mocked(updateWorshipMusicTiming).mock.calls[1][1]).toMatchObject({ song_id: 'second', plan_item_id: 'two', position: 0, active: true });
+  } finally { act(() => root.unmount()); vi.useRealTimers(); vi.clearAllMocks(); }
+});

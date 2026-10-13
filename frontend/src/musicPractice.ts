@@ -82,7 +82,7 @@ export function songPracticeParts(lyrics?: string | null, sequence?: string | nu
 
 export function buildPracticePerformance(rhythm: SongRhythm, options: {
   mode: PracticeMode; annotations?: ChordAnnotation[]; section?: string; lyrics?: string | null; sequence?: string | null;
-  previewChord?: string; transpose?: number; countIn?: boolean; metronome?: boolean; chords?: boolean; bars?: PracticeBar[]; finish?: boolean;
+  previewChord?: string; transpose?: number; countIn?: boolean; metronome?: boolean; chords?: boolean; bars?: PracticeBar[]; finish?: boolean; metronomeDuringRests?: boolean;
 }): PracticePerformance {
   if (!Number.isInteger(rhythm.bpm ?? 90) || (rhythm.bpm ?? 90) < 30 || (rhythm.bpm ?? 90) > 240) throw new Error("Enter a tempo between 30 and 240 BPM.");
   const section = options.section ?? "Default";
@@ -121,7 +121,7 @@ export function buildPracticePerformance(rhythm: SongRhythm, options: {
   const firstChordTick = firstChord ? firstChordBar * barTicks + (firstChord.beat - 1) / rhythm.numerator * barTicks : null;
   // Opening rests are part of the selected slide. Add only the missing lead-in.
   const countInTicks = options.countIn ? Math.max(0, barTicks - (firstChordTick ?? 0)) : 0;
-  const metronomeStart = firstChordTick === null ? 0 : Math.max(0, countInTicks + firstChordTick - barTicks);
+  const metronomeStart = options.metronomeDuringRests || firstChordTick === null ? 0 : Math.max(0, countInTicks + firstChordTick - barTicks);
   let totalTicks = countInTicks + bars.length * barTicks;
   const quarterBpm = rhythmQuarterBpm(rhythm);
   if (totalTicks / MIDI_PPQ * 60 / quarterBpm > 1200) throw new Error("Keep a practice preview under 20 minutes.");
@@ -254,6 +254,12 @@ export function transposeBarCharts(rhythm: SongRhythm | null | undefined, semito
 let activePracticePlayer: PracticeAudioPlayer | PracticeSilentPlayer | null = null;
 
 export class PracticeAudioPlayer {
+  private queuedVersion = 0;
+  private queue: ((music: PracticePerformance, position: (position: number) => void, commit: () => void) => Promise<void>) | null = null;
+  async queuePerformance(music: PracticePerformance, position: (position: number) => void, commit: () => void) {
+    if (!this.queue || this.cancelled) throw new Error("Playback is not ready yet. Try the slide again.");
+    await this.queue(music, position, commit);
+  }
   private context: AudioContext | null = null;
   private timer: ReturnType<typeof setInterval> | null = null;
   private cancelled = false;
@@ -270,53 +276,110 @@ export class PracticeAudioPlayer {
     await context.resume();
     if (this.cancelled) return;
     if (context.state !== "running") throw new Error("The browser could not start audio. Tap Listen again, or download the MIDI file.");
-    const guitar = await loadGuitarSamples(context, performance.notes);
+    let guitar = await loadGuitarSamples(context, performance.notes);
     if (this.cancelled) return;
-    const secondsPerTick = 60 / performance.quarterBpm / MIDI_PPQ;
+    let secondsPerTick = 60 / performance.quarterBpm / MIDI_PPQ;
     let started = context.currentTime + 0.08;
     let nextNote = 0;
-    const duration = performance.totalTicks * secondsPerTick;
+    let duration = performance.totalTicks * secondsPerTick;
     const master = context.createGain();
     master.gain.value = 0.25;
     master.connect(context.destination);
+    type Voice = { source: AudioScheduledSourceNode; gain: GainNode; at: number; end: number; queued: boolean };
+    const voices = new Set<Voice>();
+    const scheduleNote = (note: PracticeNote, at: number, secondsPerTick: number, guitar: Map<string, AudioBuffer>, queued = false) => {
+      const length = Math.max(0.025, note.duration * secondsPerTick);
+      const gain = context.createGain();
+      const peak = note.velocity / 127 * (note.channel === 9 ? 0.3 : note.channel === 1 ? 0.32 : 0.5);
+      const muted = note.channel === 1;
+      const soundLength = note.channel === 9 ? 0.05 : muted ? Math.min(0.12, length) : length;
+      const source = note.channel === 9 ? context.createOscillator() : context.createBufferSource();
+      if ("frequency" in source) {
+        source.type = "triangle";
+        source.frequency.setValueAtTime(note.pitch === 76 ? 1600 : 1100, at);
+      } else {
+        const sample = guitarSampleFor(note.pitch, muted);
+        const recording = guitar.get(sample.key)!;
+        source.buffer = note.finishing ? guitarSustainBuffer(context, recording) : recording;
+        if (note.finishing) { source.loop = true; source.loopStart = 1; source.loopEnd = 2; }
+        source.playbackRate.setValueAtTime(sample.rate, at);
+      }
+      gain.gain.setValueAtTime(0.0001, at);
+      gain.gain.exponentialRampToValueAtTime(peak, at + 0.003);
+      if (note.channel !== 9) gain.gain.exponentialRampToValueAtTime(peak * (note.finishing ? 0.35 : muted ? 0.5 : 0.8), at + (note.finishing ? Math.min(0.6, soundLength * 0.2) : muted ? soundLength * 0.65 : Math.max(0.004, soundLength - 0.025)));
+      gain.gain.exponentialRampToValueAtTime(0.0001, at + soundLength);
+      source.connect(gain); gain.connect(master);
+      source.start(at); source.stop(at + soundLength + 0.02);
+      const voice = { source, gain, at, end: at + soundLength, queued };
+      voices.add(voice);
+      source.onended = () => { voices.delete(voice); source.disconnect(); gain.disconnect(); };
+      return voice;
+    };
+    let pending: { music: PracticePerformance; guitar: Map<string, AudioBuffer>; at: number; index: number; position: (position: number) => void; commit: () => void } | null = null;
+    const cut = (voice: Voice, at: number) => {
+      if (voice.at >= at) { voice.source.stop(at); return; }
+      if (voice.end <= at) return;
+      const release = Math.max(context.currentTime, at - 0.012);
+      const volume = voice.gain.gain;
+      if (typeof volume.cancelAndHoldAtTime === "function") volume.cancelAndHoldAtTime(release);
+      else { volume.cancelScheduledValues(release); volume.setValueAtTime(Math.max(0.0001, volume.value), release); }
+      volume.exponentialRampToValueAtTime(0.0001, at);
+      voice.source.stop(at + 0.005);
+    };
+    let preparing = false;
+    this.queue = async (music, position, commit) => {
+      const version = ++this.queuedVersion;
+      preparing = true;
+      let samples: Map<string, AudioBuffer>;
+      try { samples = await loadGuitarSamples(context, music.notes); }
+      finally { if (version === this.queuedVersion) preparing = false; }
+      if (this.cancelled || version !== this.queuedVersion) return;
+      // Keep the existing audio clock and choose the next downbeat after loading.
+      const barSeconds = performance.barTicks * secondsPerTick;
+      const beginning = started + performance.countInTicks * secondsPerTick;
+      const at = beginning + Math.max(0, Math.floor((context.currentTime - beginning) / barSeconds) + 1) * barSeconds;
+      for (const voice of voices) {
+        if (voice.queued) voice.source.stop(context.currentTime);
+        else cut(voice, at);
+      }
+      pending = { music, guitar: samples, at, index: 0, position, commit };
+    };
     const schedule = () => {
-      let elapsed = context.currentTime - started;
-      if (elapsed >= duration) {
+      const now = context.currentTime;
+      if (pending) {
+        const nextSecondsPerTick = 60 / pending.music.quarterBpm / MIDI_PPQ;
+        while (pending.index < pending.music.notes.length && pending.at + pending.music.notes[pending.index].tick * nextSecondsPerTick < now + 0.16) {
+          const note = pending.music.notes[pending.index++];
+          scheduleNote(note, Math.max(now, pending.at + note.tick * nextSecondsPerTick), nextSecondsPerTick, pending.guitar, true);
+        }
+        if (now >= pending.at) {
+          performance = pending.music; guitar = pending.guitar; started = pending.at;
+          secondsPerTick = nextSecondsPerTick; duration = performance.totalTicks * secondsPerTick;
+          nextNote = pending.index; onPosition = pending.position;
+          const commit = pending.commit; pending = null;
+          for (const voice of voices) voice.queued = false;
+          commit();
+        }
+      }
+      let elapsed = now - started;
+      if (elapsed >= duration && !pending && !preparing) {
         if (!loop) { this.stop(); return; }
         started += Math.floor(elapsed / duration) * duration;
         nextNote = 0;
-        elapsed = context.currentTime - started;
+        elapsed = now - started;
       }
       const position = Math.min(performance.bars.length - 0.00001, (elapsed / secondsPerTick - performance.countInTicks) / performance.barTicks);
       onProgress(Math.floor(position));
       onPosition?.(position);
       while (nextNote < performance.notes.length && performance.notes[nextNote].tick * secondsPerTick < elapsed + 0.16) {
-        const note = performance.notes[nextNote++];
-        if (note.tick * secondsPerTick < elapsed - 0.08) continue;
-        const at = Math.max(context.currentTime, started + note.tick * secondsPerTick);
-        const length = Math.max(0.025, note.duration * secondsPerTick);
-        const gain = context.createGain();
-        const peak = note.velocity / 127 * (note.channel === 9 ? 0.3 : note.channel === 1 ? 0.32 : 0.5);
-        const muted = note.channel === 1;
-        const soundLength = note.channel === 9 ? 0.05 : muted ? Math.min(0.12, length) : length;
-        const source = note.channel === 9 ? context.createOscillator() : context.createBufferSource();
-        if ("frequency" in source) {
-          source.type = "triangle";
-          source.frequency.setValueAtTime(note.pitch === 76 ? 1600 : 1100, at);
-        } else {
-          const sample = guitarSampleFor(note.pitch, muted);
-          const recording = guitar.get(sample.key)!;
-          source.buffer = note.finishing ? guitarSustainBuffer(context, recording) : recording;
-          if (note.finishing) { source.loop = true; source.loopStart = 1; source.loopEnd = 2; }
-          source.playbackRate.setValueAtTime(sample.rate, at);
-        }
-        gain.gain.setValueAtTime(0.0001, at);
-        gain.gain.exponentialRampToValueAtTime(peak, at + 0.003);
-        if (note.channel !== 9) gain.gain.exponentialRampToValueAtTime(peak * (note.finishing ? 0.35 : muted ? 0.5 : 0.8), at + (note.finishing ? Math.min(0.6, soundLength * 0.2) : muted ? soundLength * 0.65 : Math.max(0.004, soundLength - 0.025)));
-        gain.gain.exponentialRampToValueAtTime(0.0001, at + soundLength);
-        source.connect(gain); gain.connect(master);
-        source.start(at); source.stop(at + soundLength + 0.02);
-        source.onended = () => { source.disconnect(); gain.disconnect(); };
+        const note = performance.notes[nextNote];
+        const intended = started + note.tick * secondsPerTick;
+        if (pending && intended >= pending.at) break;
+        nextNote++;
+        if (intended < now - 0.08) continue;
+        const at = Math.max(now, intended);
+        const voice = scheduleNote(note, at, secondsPerTick, guitar);
+        if (pending) cut(voice, pending.at);
       }
     };
     this.timer = setInterval(schedule, 25);
@@ -325,6 +388,7 @@ export class PracticeAudioPlayer {
 
   stop() {
     this.cancelled = true;
+    this.queuedVersion++; this.queue = null;
     if (this.timer) clearInterval(this.timer);
     this.timer = null;
     if (this.context && this.context.state !== "closed") void this.context.close().catch(() => {});

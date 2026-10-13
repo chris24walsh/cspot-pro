@@ -21,7 +21,7 @@ class FakeAudioContext {
   resume = vi.fn(async () => {});
   close = vi.fn(async () => { this.state = "closed"; });
   createGain() {
-    return { gain: { value: 1, setValueAtTime: vi.fn(), exponentialRampToValueAtTime: vi.fn() }, connect: vi.fn(), disconnect: vi.fn() };
+    return { gain: { value: 1, setValueAtTime: vi.fn(), exponentialRampToValueAtTime: vi.fn(), cancelScheduledValues: vi.fn() }, connect: vi.fn(), disconnect: vi.fn() };
   }
   createOscillator() {
     return { type: "", setPeriodicWave: () => { this.waveUses += 1; }, frequency: { setValueAtTime: (frequency: number) => this.frequencies.push(frequency) }, connect: vi.fn(), disconnect: vi.fn(), start: vi.fn(), stop: vi.fn(), onended: null };
@@ -85,4 +85,23 @@ it('runs silent guidance without constructing an audio context and cleans up the
     expect(ended).toHaveBeenCalledOnce();
     expect(vi.getTimerCount()).toBe(0);
   } finally { silent.stop(); now.mockRestore(); }
+});
+
+it('redirects playback on the next downbeat without closing or restarting its audio clock', async () => {
+  const first = buildPracticePerformance(rhythm, { mode: 'song', countIn: true, metronome: true });
+  const position = vi.fn(), commit = vi.fn();
+  await player.play(first, false, vi.fn(), vi.fn());
+  const context = instances[0];
+  context.currentTime = 2.58; // half a second into the first musical bar
+  const next = buildPracticePerformance(rhythm, { mode: 'song', countIn: false, metronome: true, bars: [{ section: 'Default', chords: [{ beat: 1, chord: 'G' }] }] });
+  await player.queuePerformance(next, position, commit);
+  context.currentTime = 4.0; vi.advanceTimersByTime(25);
+  expect(commit).not.toHaveBeenCalled();
+  context.currentTime = 4.08; vi.advanceTimersByTime(25);
+  expect(commit).toHaveBeenCalledOnce();
+  expect(position.mock.calls[0][0]).toBeCloseTo(0);
+  expect(instances).toHaveLength(1);
+  expect(context.close).not.toHaveBeenCalled();
+  context.currentTime = 4.58; vi.advanceTimersByTime(25);
+  expect(position.mock.calls[position.mock.calls.length - 1][0]).toBeCloseTo(0.25);
 });

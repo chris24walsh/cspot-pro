@@ -541,3 +541,12 @@ and shows a separate row per bar with repeated counts. Shared strums preserve
 the full cycle, and playback alternates its bars at the song tempo. Annotated
 playback retains the cycle phase when starting from a later lyric page. Existing
 one-bar patterns keep their previous behavior.
+
+During Worship Live metronome or MIDI playback, selecting another lyric page
+queues “play from here” for the next downbeat. The running audio clock finishes
+its current bar, then starts the selected page without another count-in. Repeat
+sections and different songs use the same player; the destination’s bar markers,
+chords, pattern phase and tempo apply after the transition. Automatic early page
+turns do not trigger jumps, and manual shared band/service selections can redirect
+the device running playback. Shared timing changes to the destination on the
+downbeat. Independent scrolling does not redirect playback.

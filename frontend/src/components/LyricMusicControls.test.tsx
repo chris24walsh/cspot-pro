@@ -6,8 +6,8 @@ import { LyricMusicControls } from './LyricMusicControls';
 import { lyricBarLayout, type LyricCursor } from '../lyricTiming';
 import { buildPracticePerformance, type PracticePerformance } from '../musicPractice';
 import type { SongRhythm } from '../songRhythm';
-const silent = vi.hoisted(() => ({ play: vi.fn(async (..._args: unknown[]) => {}), stop: vi.fn() }));
-const audio = vi.hoisted(() => ({ play: vi.fn(async (..._args: unknown[]) => {}), stop: vi.fn() }));
+const silent = vi.hoisted(() => ({ play: vi.fn(async (..._args: unknown[]) => {}), queuePerformance: vi.fn(async (..._args: unknown[]) => {}), stop: vi.fn() }));
+const audio = vi.hoisted(() => ({ play: vi.fn(async (..._args: unknown[]) => {}), queuePerformance: vi.fn(async (..._args: unknown[]) => {}), stop: vi.fn() }));
 vi.mock('../musicPractice', async original => ({ ...await original<typeof import('../musicPractice')>(), PracticeAudioPlayer: vi.fn(function() { return audio; }), PracticeSilentPlayer: vi.fn(function() { return silent; }) }));
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -146,5 +146,52 @@ it('selects silent guidance from the current slide and emits shareable clock pro
     act(() => container.querySelector<HTMLButtonElement>('[aria-label="Stop playback"]')!.click());
     expect(silent.stop).toHaveBeenCalledOnce();
     expect(timing).toHaveBeenLastCalledWith(null);
+  } finally { act(() => root.unmount()); vi.clearAllMocks(); }
+});
+
+it.each(['Metronome', 'MIDI strum'])('queues a manual slide destination without restarting or adding a count-in (%s)', async source => {
+  const lyrics = '[V1]\nFirst line\n[C]\nSecond line';
+  const annotations = [{ id: 'v', section: 'V1', lineIndex: 0, anchorIndex: 3, chord: 'C' }, { id: 'c', section: 'C', lineIndex: 0, anchorIndex: 3, chord: 'G' }];
+  const rhythm: SongRhythm = { numerator: 4, denominator: 4, patterns: [], notes: '', markers: annotations.map(({ chord: _chord, ...marker }) => marker) };
+  const bars = lyricBarLayout(lyrics, rhythm, annotations);
+  const cursor = vi.fn(), timing = vi.fn(), pending = vi.fn();
+  const container = document.createElement('div'), root = createRoot(container);
+  const render = (revision: number, occurrence: number, line: number) => root.render(<LyricMusicControls rhythm={rhythm} lyrics={lyrics} sequence="V1 C" annotations={annotations} bars={bars} onCursor={cursor} onTiming={timing} onJumpPending={pending} jumpRevision={revision} startAt={{ occurrence, lineStart: line, lineEnd: line + 1 }} />);
+  try {
+    await act(async () => render(0, 0, 1));
+    await play(container, source);
+    await act(async () => render(1, 1, 3));
+    expect(audio.play).toHaveBeenCalledOnce();
+    expect(audio.stop).not.toHaveBeenCalled();
+    expect(audio.queuePerformance).toHaveBeenCalledOnce();
+    const [music, progress, committed] = audio.queuePerformance.mock.calls[0] as [PracticePerformance, (position: number) => void, () => void];
+    expect(music.countInTicks).toBe(0);
+    expect(music.bars[0].chords[0].chord).toBe('G');
+    expect(container.textContent).toContain('next bar');
+    await act(async () => { committed(); progress(0); });
+    expect(cursor).toHaveBeenLastCalledWith(expect.objectContaining({ occurrence: 1, lineIndex: 3 }));
+    expect(timing).toHaveBeenLastCalledWith(expect.objectContaining({ startIndex: 1, position: 0 }));
+    expect(pending).toHaveBeenLastCalledWith(false);
+  } finally { act(() => root.unmount()); vi.clearAllMocks(); }
+});
+
+it('keeps the player when a manual jump selects another song', async () => {
+  const container = document.createElement('div'), root = createRoot(container);
+  const render = (revision: number, name: string, chord: string) => {
+    const lyrics = `[V1]\n${name}`;
+    const annotations = [{ id: 'v', section: 'V1', lineIndex: 0, anchorIndex: 3, chord }];
+    const rhythm: SongRhythm = { numerator: 4, denominator: 4, patterns: [], notes: '', markers: annotations.map(({ chord: _chord, ...marker }) => marker) };
+    root.render(<LyricMusicControls rhythm={rhythm} lyrics={lyrics} sequence="V1" annotations={annotations} bars={lyricBarLayout(lyrics, rhythm, annotations)} jumpRevision={revision} startAt={{ occurrence: 0, lineStart: 1, lineEnd: 2 }} onCursor={() => {}} />);
+  };
+  try {
+    await act(async () => render(0, 'First song', 'C'));
+    await play(container, 'MIDI strum');
+    await act(async () => render(1, 'Another song', 'F'));
+    expect(audio.play).toHaveBeenCalledOnce();
+    expect(audio.stop).not.toHaveBeenCalled();
+    expect(audio.queuePerformance).toHaveBeenCalledOnce();
+    const queued = audio.queuePerformance.mock.calls[0][0] as PracticePerformance;
+    expect(queued.bars[0].chords[0].chord).toBe('F');
+    expect(queued.countInTicks).toBe(0);
   } finally { act(() => root.unmount()); vi.clearAllMocks(); }
 });

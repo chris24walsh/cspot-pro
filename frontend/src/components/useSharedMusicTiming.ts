@@ -48,8 +48,12 @@ export function useSharedMusicTiming({ planId, songId, itemId, share, follow }: 
     }
   }
   publishRef.current = () => { void publish(); };
+  function setLocalSource(songId: string, itemId: string) {
+    context.current = { ...context.current, songId, itemId };
+    latest.current = null; // Next position publishes the destination immediately.
+  }
   function setLocalTiming(timing: MusicTimingProgress | null) {
-    const changed = Boolean(latest.current) !== Boolean(timing);
+    const changed = Boolean(latest.current) !== Boolean(timing) || Boolean(timing && latest.current && (timing.startIndex !== latest.current.startIndex || timing.position < latest.current.position - 0.2));
     latest.current = timing;
     if (changed) publishRef.current();
   }
@@ -57,7 +61,7 @@ export function useSharedMusicTiming({ planId, songId, itemId, share, follow }: 
     publishRef.current();
     const timer = window.setInterval(() => publishRef.current(), 2000);
     return () => window.clearInterval(timer);
-  }, [planId, share]);
+  }, [planId, songId, itemId, share]);
   useEffect(() => {
     mounted.current = true;
     return () => { mounted.current = false; latest.current = null; context.current = { ...context.current, share: false }; publishRef.current(); };
@@ -85,5 +89,5 @@ export function useSharedMusicTiming({ planId, songId, itemId, share, follow }: 
     const poll = window.setInterval(() => void read(), 1000), frames = window.setInterval(render, 25);
     return () => { cancelled = true; window.clearInterval(poll); window.clearInterval(frames); };
   }, [planId, follow]);
-  return { remote, error, setLocalTiming };
+  return { remote, error, setLocalSource, setLocalTiming };
 }
