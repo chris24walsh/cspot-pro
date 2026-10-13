@@ -235,3 +235,31 @@ it('keeps sung lyrics in view across early page turns and pauses on manual scrol
     expect(scroller.scrollTop).toBe(75);
   } finally { act(() => root.unmount()); vi.unstubAllGlobals(); vi.clearAllMocks(); }
 });
+
+
+it('preserves pre-lyric chord positions in page and scroll views', async () => {
+  vi.stubGlobal('matchMedia', () => ({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() }));
+  vi.stubGlobal('requestAnimationFrame', vi.fn(() => 1));
+  vi.stubGlobal('cancelAnimationFrame', vi.fn());
+  vi.mocked(getPresentationLiveState).mockResolvedValue({ plan_id: 'plan', index: 0, updated_at: 1, worship_coupled: false } as Awaited<ReturnType<typeof getPresentationLiveState>>);
+  const song = { id: 'song', title: 'Lead-in chords', lyrics: '[V1]\nSing together', sequence: 'V1', chords: serializeChordChart({ ...createEmptyChordChart(), absoluteKey: 'C', annotations: [
+    { id: 'before', section: 'V1', lineIndex: 0, anchorIndex: 0, chord: 'C' },
+    { id: 'lead', section: 'V1', lineIndex: 0, anchorIndex: 2, chord: 'F' },
+    { id: 'word', section: 'V1', lineIndex: 0, anchorIndex: 3, chord: 'G' },
+  ] }) } as unknown as Song;
+  const plan = { id: 'plan', items: [{ id: 'item', item_type: 'song', song_id: 'song', sequence: '1', title: song.title }] } as PlanDetail;
+  const container = document.createElement('div'), mount = document.createElement('div'), toolbar = document.createElement('div'); container.append(mount, toolbar); const root = createRoot(mount);
+  const assertPositions = (selector: string) => {
+    const line = container.querySelector(selector)!;
+    expect(Array.from(line.querySelectorAll<HTMLElement>('.musician-chord-token')).map(token => token.style.gridColumn)).toEqual(['1 / span 1', '3 / span 1', '4 / span 1']);
+    expect(line.querySelector<HTMLElement>('.musician-lyric-character')!.style.gridColumn).toBe('4');
+  };
+  try {
+    await act(async () => root.render(<MusicianLiveView plan={plan} songs={[song]} topbarSlot={toolbar} onEditSong={() => {}} onExit={() => {}} />));
+    await act(async () => container.querySelector<HTMLButtonElement>('[aria-label="Next slide"]')!.click());
+    assertPositions('.musician-page.is-current .musician-chord-line');
+    musician(container);
+    act(() => document.querySelector<HTMLButtonElement>('[aria-label="Switch to Scroll view"]')!.click());
+    assertPositions('.musician-full-song .musician-chord-line');
+  } finally { act(() => root.unmount()); vi.unstubAllGlobals(); vi.clearAllMocks(); }
+});

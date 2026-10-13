@@ -378,7 +378,10 @@ function annotationsForSegment(annotations: ChordAnnotation[], segmentStart: num
   const segmentEnd = segmentStart + segmentLength;
   return annotations
     .map((annotation) => {
-      const lyricAnchor = annotation.anchorIndex >= LEADING_CHORD_ANCHORS ? annotation.anchorIndex - LEADING_CHORD_ANCHORS : annotation.anchorIndex;
+      const lyricAnchor = annotation.anchorIndex - LEADING_CHORD_ANCHORS;
+      // The leading slots belong only to the first wrapped segment. Preserve
+      // their position before the words rather than shifting them onto lyrics.
+      if (lyricAnchor < 0) return segmentStart === 0 ? { ...annotation } : null;
       const lastAllowedAnchor = isLastSegment ? segmentEnd + TRAILING_CHORD_ANCHORS : segmentEnd - 1;
       if (lyricAnchor < segmentStart || lyricAnchor > lastAllowedAnchor) {
         return null;

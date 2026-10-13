@@ -3989,7 +3989,6 @@ button.musician-page {
 .musician-song-chord-sheet .musician-chord-line {
   justify-content: start;
   line-height: 1.08;
-  margin-left: -3ch;
   row-gap: 2px;
 }
 
