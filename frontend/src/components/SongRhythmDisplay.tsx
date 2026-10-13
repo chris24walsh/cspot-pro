@@ -7,8 +7,8 @@ import type { PracticeMode } from "../musicPractice";
 import { RhythmPracticeControls } from "./RhythmPracticeControls";
 import { useEscapeClose } from "./useEscapeClose";
 
-export function SongRhythmDisplay({ rhythm, section, lyrics, sequence, previewChord, transpose, title, annotations, onPosition }: {
-  annotations?: ChordAnnotation[]; onPosition?: (position: number | null, mode: PracticeMode, section: string) => void;
+export function SongRhythmDisplay({ rhythm, section, lyrics, sequence, previewChord, transpose, title, annotations, onPosition, menuItem = false }: {
+  menuItem?: boolean; annotations?: ChordAnnotation[]; onPosition?: (position: number | null, mode: PracticeMode, section: string) => void;
   rhythm?: SongRhythm | null; section?: string | null; lyrics?: string | null; sequence?: string | null;
   previewChord?: string; transpose?: number; title?: string;
 }) {
@@ -34,7 +34,7 @@ export function SongRhythmDisplay({ rhythm, section, lyrics, sequence, previewCh
   const currentPattern = strumPatternForSection(rhythm, section);
   return (
     <div className="song-rhythm-display">
-      <button aria-label="Show song rhythm" aria-expanded={Boolean(position)} className="song-rhythm-summary" ref={triggerRef}
+      <button role={menuItem ? "menuitem" : undefined} aria-label="Show song rhythm" aria-expanded={Boolean(position)} className="song-rhythm-summary" ref={triggerRef}
         onClick={() => {
           if (position) { close(); return; }
           const bounds = triggerRef.current!.getBoundingClientRect();

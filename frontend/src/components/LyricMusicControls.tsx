@@ -1,20 +1,23 @@
-import { Guitar, Play, Square } from 'lucide-react';
+import { Guitar, Play, Square, Timer, Volume2 } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { type ChordAnnotation } from '../chordSheet';
 import { buildPracticePerformance, PracticeAudioPlayer } from '../musicPractice';
 import { lyricCursorAt, lyricPlaybackBars, timedPracticeBars, type LyricBar, type LyricCursor } from '../lyricTiming';
 import { worshipSequenceBlocks } from '../worshipText';
+import { CompactControlMenu } from './CompactControlMenu';
 import type { SongRhythm } from '../songRhythm';
 
-export function LyricMusicControls({ rhythm, lyrics, sequence, annotations, bars, transpose = 0, onCursor }: {
+export function LyricMusicControls({ rhythm, lyrics, sequence, annotations, bars, transpose = 0, onCursor, onStarted, canPractice = true, backing }: {
   rhythm: SongRhythm | null | undefined; lyrics: string | null | undefined; sequence: string | null | undefined;
+  canPractice?: boolean; onStarted?: () => void;
+  backing?: { playing: boolean; disabledReason?: string; toggle: () => Promise<void> };
   annotations: ChordAnnotation[]; bars: LyricBar[]; transpose?: number; onCursor: (cursor: LyricCursor | null) => void;
 }) {
-  const [playing, setPlaying] = useState(false), [chords, setChords] = useState(false), [error, setError] = useState<string | null>(null);
+  const [playing, setPlaying] = useState(false), [error, setError] = useState<string | null>(null);
   const playerRef = useRef<PracticeAudioPlayer | null>(null);
   const callback = useRef(onCursor); callback.current = onCursor;
   const timeline = useMemo(() => lyricPlaybackBars(lyrics, sequence, bars), [lyrics, sequence, bars]);
-  const signature = JSON.stringify([rhythm, lyrics, sequence, annotations, transpose, chords]);
+  const signature = JSON.stringify([rhythm, lyrics, sequence, annotations, transpose, canPractice]);
   function stop() { const player = playerRef.current; playerRef.current = null; player?.stop(); setPlaying(false); callback.current(null); }
   useEffect(() => {
     stop(); setError(null);
@@ -22,9 +25,11 @@ export function LyricMusicControls({ rhythm, lyrics, sequence, annotations, bars
     document.addEventListener('visibilitychange', hide);
     return () => { document.removeEventListener('visibilitychange', hide); playerRef.current?.stop(); playerRef.current = null; callback.current(null); };
   }, [signature]);
-  async function listen() {
+  useEffect(() => { if (backing?.playing && playerRef.current) stop(); }, [backing?.playing]);
+  async function listen(chords: boolean) {
     if (playing) { stop(); return; }
-    if (!rhythm) return;
+    if (!rhythm || !canPractice) return;
+    if (backing?.playing) await backing.toggle();
     let player: PracticeAudioPlayer | null = null;
     try {
       setError(null);
@@ -33,15 +38,22 @@ export function LyricMusicControls({ rhythm, lyrics, sequence, annotations, bars
       if (missing) throw new Error(`Place bar boundaries for ${missing.label} before following the whole song.`);
       const practiceBars = timedPracticeBars(lyrics, timeline, annotations, rhythm.numerator);
       const performance = buildPracticePerformance(rhythm, { mode: 'song', countIn: true, metronome: true, chords, transpose, bars: practiceBars });
-      player = new PracticeAudioPlayer(); const requested = player; playerRef.current = player; setPlaying(true);
+      player = new PracticeAudioPlayer(); const requested = player; playerRef.current = player; setPlaying(true); onStarted?.();
       await player.play(performance, false, () => {}, () => { if (playerRef.current === requested) { playerRef.current = null; setPlaying(false); callback.current(null); } }, position => {
         if (playerRef.current === requested) callback.current(lyricCursorAt(lyrics, timeline, position, rhythm.numerator, rhythm.denominator));
       });
     } catch (cause) { if (player && playerRef.current !== player) return; stop(); setError(cause instanceof Error ? cause.message : 'Could not start playback.'); }
   }
   return <div className="musician-practice-listen">
-    <button aria-label={playing ? 'Stop music playback' : 'Listen with timing guide'} aria-pressed={playing} className="musician-reader-toggle" disabled={!rhythm} onClick={() => void listen()} title="Play from the first bar, with one bar of count-in" type="button">{playing ? <Square size={16} /> : <Play size={16} />}<span className="musician-control-text">{playing ? 'Stop' : 'Listen'}</span></button>
-    <button aria-label="Add MIDI chords to metronome" aria-pressed={chords} className={`musician-reader-toggle ${chords ? 'is-active' : ''}`} onClick={() => setChords(value => !value)} title={chords ? 'Metronome and chords' : 'Metronome only; enable to add chords'} type="button"><Guitar size={16} /><span className="musician-control-text">MIDI</span></button>
+    <CompactControlMenu label={playing || backing?.playing ? 'Stop playback' : 'Play'} icon={playing || backing?.playing ? <Square size={16} aria-hidden="true" /> : <Play size={16} aria-hidden="true" />} active={playing || backing?.playing} action={playing || backing?.playing ? () => { if (playing) stop(); else void backing?.toggle(); } : undefined}>
+      {close => <>
+        {canPractice ? <>
+          <button role="menuitem" disabled={!rhythm} onClick={() => { close(); void listen(false); }} type="button"><Timer size={16} aria-hidden="true" /><span>Metronome<small>{rhythm ? `${rhythm.bpm ?? 90} BPM · count-in + timing guide` : 'Add song rhythm first'}</small></span></button>
+          <button role="menuitem" disabled={!rhythm} onClick={() => { close(); void listen(true); }} type="button"><Guitar size={16} aria-hidden="true" /><span>MIDI strum<small>Chords + metronome + timing guide</small></span></button>
+        </> : null}
+        {backing ? <button role="menuitem" disabled={Boolean(backing.disabledReason)} title={backing.disabledReason} onClick={() => { close(); stop(); setError(null); void backing.toggle(); }} type="button"><Volume2 size={16} aria-hidden="true" /><span>Backing track<small>{backing.disabledReason ?? 'Service audio'}</small></span></button> : null}
+      </>}
+    </CompactControlMenu>
     {error ? <div className="musician-practice-error" role="alert">{error}<button aria-label="Dismiss playback error" onClick={() => setError(null)} type="button">×</button></div> : null}
   </div>;
 }

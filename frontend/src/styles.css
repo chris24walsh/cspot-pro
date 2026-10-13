@@ -14246,3 +14246,15 @@ button.musician-page {
 .musician-line-grid > .lyric-timing-dot { top: 1.7em; }
 .lyric-bar-line { border-left: 2px solid #b58836; opacity: .75; pointer-events: none; z-index: 1; }
 .musician-practice-listen { display: inline-flex; align-items: center; gap: 3px; }
+
+.musician-control-menu { position: fixed; z-index: 180; width: 240px; max-width: calc(100vw - 16px); overflow-y: auto; padding: 5px; border: 1px solid #cfc7b4; border-radius: 10px; background: #fffefa; color: #234a40; box-shadow: 0 8px 24px #0003; }
+.musician-control-menu > button, .musician-control-menu .song-rhythm-summary { display: flex; align-items: center; gap: 9px; width: 100%; padding: 9px; border: 0; border-radius: 6px; background: transparent; color: inherit; font-size: 14px; font-weight: 650; text-align: left; cursor: pointer; }
+.musician-control-menu > button > span { flex: 1; }
+.musician-control-menu small { display: block; margin-top: 2px; color: #69756a; font-size: 11px; font-weight: 400; }
+.musician-control-menu button:hover, .musician-control-menu button:focus-visible { background: #e8eee6; outline: 2px solid #7c9b87; outline-offset: -2px; }
+.musician-control-menu button:disabled { opacity: .5; cursor: default; }
+.musician-control-menu hr { border: 0; border-top: 1px solid #e2dccf; margin: 5px 0; }
+.musician-control-menu .song-rhythm-inline-pattern { display: none; }
+.musician-control-menu .song-rhythm-summary::before { content: 'Rhythm'; }
+.musician-control-menu .song-rhythm-summary > span:first-child { margin-left: auto; }
+.song-rhythm-display-panel { z-index: 181; }

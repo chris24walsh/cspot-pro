@@ -1002,8 +1002,14 @@ Search modes:
   Empty bars carry the last played chord across bars, parts and sequence repeats
   in both guided and rhythm-editor playback. Only bars before any chord has played
   remain silent apart from the metronome. No implicit mute is inferred.
-  The Worship Live Music toggle is gated by the administrator role, separately
-  from user-management permissions. Auto page turns use the active bar's source
+  The Worship Live Musician menu consolidates Chords, Bars, Rhythm, view mode
+  and Edit; Dynamics remains disabled until annotation support exists. Guided
+  playback and the Bars toggle are gated by the administrator role, separately
+  from user-management permissions. CompactControlMenu portals accessible menus
+  with arrow-key navigation, Escape, outside dismissal and focus restoration.
+  Play chooses metronome, MIDI strum or backing track and becomes direct Stop
+  while playing. Backing track retains the existing service-audio permission and
+  Sync requirement. Hiding bars does not stop guided playback or page turns. Auto page turns use the active bar's source
   start line and sequence occurrence. Coupled playback publishes page changes through
   the normal service slide API and browser broadcasts; uncoupled turns stay local.
   Page changes are deduplicated so beat updates do not republish the same slide.
@@ -1012,7 +1018,7 @@ Search modes:
   overlays, wrapping and auto turns share these ranges instead of finding the
   first matching lyric text. Identical pages keep distinct chords and a single
   active dot, including repeat occurrences and the next-page preview.
-  Turning Music off restores normal sync.
+  Musical overlays do not affect normal lyric character spacing.
   Source positions provide the shared anchor framework for future
   directions/dynamics, without adding persisted unused fields or additional rows.
   Browser synthesis

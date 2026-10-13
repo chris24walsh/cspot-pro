@@ -10,6 +10,11 @@ const audio = vi.hoisted(() => ({ play: vi.fn(async (..._args: unknown[]) => {})
 vi.mock('../musicPractice', async original => ({ ...await original<typeof import('../musicPractice')>(), PracticeAudioPlayer: vi.fn(function() { return audio; }) }));
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
+async function play(container: HTMLElement, source: string) {
+  act(() => container.querySelector<HTMLButtonElement>('[aria-label="Play"]')!.click());
+  await act(async () => Array.from(document.querySelectorAll<HTMLButtonElement>('.musician-control-menu [role="menuitem"]')).find(button => button.textContent!.startsWith(source))!.click());
+}
+
 it('starts with clicks only, adds complete chords, and reports the same timed lyric cursor', async () => {
   const lyrics = '[V1]\nSing now';
   const annotations = [{ id: 'c', section: 'V1', lineIndex: 0, anchorIndex: 3, chord: 'C' }];
@@ -18,15 +23,15 @@ it('starts with clicks only, adds complete chords, and reports the same timed ly
   const container = document.createElement('div'), root = createRoot(container);
   try {
     await act(async () => root.render(<LyricMusicControls rhythm={rhythm} lyrics={lyrics} sequence="V1" annotations={annotations} bars={lyricBarLayout(lyrics, rhythm, annotations)} onCursor={onCursor} />));
-    await act(async () => container.querySelector<HTMLButtonElement>('[aria-label="Listen with timing guide"]')!.click());
+    await play(container, 'Metronome');
     expect((audio.play.mock.calls[0][0] as PracticePerformance).notes.every(note => note.channel === 9)).toBe(true);
     const position = audio.play.mock.calls[0][4] as (position: number) => void;
     act(() => position(0.25));
     expect(onCursor).toHaveBeenLastCalledWith(expect.objectContaining({ lineIndex: 1, occurrence: 0, pulse: 0 }));
-    act(() => container.querySelector<HTMLButtonElement>('[aria-label="Add MIDI chords to metronome"]')!.click());
+    act(() => container.querySelector<HTMLButtonElement>('[aria-label="Stop playback"]')!.click());
     expect(audio.stop).toHaveBeenCalledOnce();
     expect(onCursor).toHaveBeenLastCalledWith(null);
-    await act(async () => container.querySelector<HTMLButtonElement>('[aria-label="Listen with timing guide"]')!.click());
+    await play(container, 'MIDI strum');
     const notes = (audio.play.mock.calls[1][0] as PracticePerformance).notes.filter(note => note.channel === 0);
     expect(new Set(notes.map(note => note.pitch)).size).toBeGreaterThan(3);
   } finally { act(() => root.unmount()); vi.clearAllMocks(); }
@@ -43,8 +48,7 @@ it('allows an opening bar of silence and matches whole-song and part playback in
   const container = document.createElement('div'), root = createRoot(container);
   try {
     await act(async () => root.render(<LyricMusicControls rhythm={rhythm} lyrics={lyrics} sequence="V1" annotations={annotations} bars={lyricBarLayout(lyrics, rhythm, annotations)} onCursor={() => {}} />));
-    act(() => container.querySelector<HTMLButtonElement>('[aria-label="Add MIDI chords to metronome"]')!.click());
-    await act(async () => container.querySelector<HTMLButtonElement>('[aria-label="Listen with timing guide"]')!.click());
+    await play(container, 'MIDI strum');
     expect(container.querySelector('[role="alert"]')).toBeNull();
     expect(audio.play).toHaveBeenCalledOnce();
     const inline = audio.play.mock.calls[0][0] as PracticePerformance;
@@ -55,5 +59,26 @@ it('allows an opening bar of silence and matches whole-song and part playback in
     expect(inline.bars[0].chords).toEqual([{ beat: 1, chord: '' }]);
     expect(inline.notes.filter(note => note.channel === 0).every(note => note.tick >= inline.countInTicks + inline.barTicks)).toBe(true);
     expect(inline.notes.some(note => note.channel === 0)).toBe(true);
+  } finally { act(() => root.unmount()); vi.clearAllMocks(); }
+});
+
+
+it('offers permission-scoped backing playback and a direct stop, with no local synthesis', async () => {
+  const toggle = vi.fn(async () => {});
+  const container = document.createElement('div'), root = createRoot(container);
+  const render = (playing: boolean, disabledReason?: string) => root.render(<LyricMusicControls rhythm={null} lyrics={null} sequence={null} annotations={[]} bars={[]} canPractice={false} onCursor={() => {}} backing={{ playing, disabledReason, toggle }} />);
+  try {
+    await act(async () => render(false, 'Sync with the service first'));
+    act(() => container.querySelector<HTMLButtonElement>('[aria-label="Play"]')!.click());
+    expect(document.querySelectorAll('.musician-control-menu [role="menuitem"]')).toHaveLength(1);
+    expect(document.querySelector<HTMLButtonElement>('.musician-control-menu [role="menuitem"]')!.disabled).toBe(true);
+    act(() => container.querySelector<HTMLButtonElement>('[aria-label="Play"]')!.click());
+    await act(async () => render(false));
+    await play(container, 'Backing track');
+    expect(toggle).toHaveBeenCalledOnce();
+    expect(audio.play).not.toHaveBeenCalled();
+    await act(async () => render(true));
+    await act(async () => container.querySelector<HTMLButtonElement>('[aria-label="Stop playback"]')!.click());
+    expect(toggle).toHaveBeenCalledTimes(2);
   } finally { act(() => root.unmount()); vi.clearAllMocks(); }
 });

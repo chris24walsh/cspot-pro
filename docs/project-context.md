@@ -368,10 +368,13 @@ its time evenly, and empty later bars hold the previous chord. Unmarked parts ke
 manual charts. Marked lyric parts use the same timing map for playback and MIDI;
 unmarked songs retain the whole-song/part chart workflow. Fuller chord voicings,
 brighter harmonics and sustained envelopes make chord quality audible.
-Worship Live's **Music** toggle is available to administrators only for now. It
-shows bar lines and compact Listen/Stop controls: playback starts at the first bar
-with a one-bar count-in, using a metronome by default; **MIDI** adds the chord
-strum in the selected key. A bouncing dot follows the lyrics using the audio clock.
+Worship Live's **Musician** menu (guitar icon) groups Chords, Bars, Rhythm,
+page/scroll view and Edit. Bars and guided practice remain admin-only for now;
+Dynamics is shown as unavailable until annotations exist. A compact **Play**
+dropdown selects Metronome, MIDI strum, or Backing track; active playback becomes
+a direct Stop button. Guided playback starts at the first bar with a one-bar
+count-in. Backing track keeps existing service-audio permissions and requires Sync.
+Menus support keyboard navigation, Escape and outside-click dismissal. A bouncing dot follows the lyrics using the audio clock.
 Pages turn at their first bar. When synced, the service display advances too;
 with Sync off, page turns stay local.
 Place boundaries in each sequenced part to enable the whole-song timing guide.

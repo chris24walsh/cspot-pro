@@ -1,4 +1,4 @@
-import { BookOpen, ChevronLeft, ChevronRight, Guitar, Link2, LogOut, Music2, Pause, Pencil, Play, ScrollText, Unlink2 } from "lucide-react";
+import { BookOpen, ChevronLeft, ChevronRight, Guitar, Link2, LogOut, Music2, Pencil, ListMusic, Check, AudioLines, ScrollText, Unlink2 } from "lucide-react";
 import type { CSSProperties } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -40,6 +40,7 @@ import { mergeWorshipSetIntoService } from "../worshipSets";
 
 import { lyricBarLayout, lyricColumnWidths, wrapTimedLine, lyricCursorAt, lyricPlaybackBars, musicalSectionKey, type LyricBar, type LyricCursor } from "../lyricTiming";
 import { LyricMusicControls, TimingDot } from "./LyricMusicControls";
+import { CompactControlMenu } from "./CompactControlMenu";
 import { SongRhythmDisplay } from "./SongRhythmDisplay";
 
 interface MusicianLiveViewProps {
@@ -999,7 +1000,7 @@ export function MusicianLiveView({ canUseMusic = false, canControlAudio = false,
         return;
       }
 
-      if (isEditableKeyboardTarget(event.target)) {
+      if (isEditableKeyboardTarget(event.target) || event.target instanceof Element && Boolean(event.target.closest('[role="menu"], [aria-haspopup="menu"]'))) {
         return;
       }
 
@@ -1108,7 +1109,7 @@ export function MusicianLiveView({ canUseMusic = false, canControlAudio = false,
   const lastMusicPageRef = useRef<string | null>(null);
   useEffect(() => { setMusicCursor(null); setMusicFollowing(false); }, [liveSong?.id]);
   useEffect(() => {
-    if (!musicCursor || !musicMode) { lastMusicPageRef.current = null; return; }
+    if (!musicCursor) { lastMusicPageRef.current = null; return; }
     const block = sequenceBlocks[musicCursor.occurrence];
     if (!block) return;
     const partIndex = block.parts.findIndex((part, index) => {
@@ -1216,55 +1217,29 @@ export function MusicianLiveView({ canUseMusic = false, canControlAudio = false,
             ))}
           </select>
         </label>
-        <SongRhythmDisplay annotations={chordChart.annotations} onPosition={canUseMusic ? (position, mode, section) => {
-          const timeline = lyricPlaybackBars(liveSong?.lyrics, liveSong?.sequence, timingBars);
-          const part = timeline.filter(bar => musicalSectionKey(bar.section) === musicalSectionKey(section));
-          const occurrence = part.some(bar => bar.occurrence === currentSequenceBlockIndex) ? currentSequenceBlockIndex : part[0]?.occurrence;
-          const selected = mode === "part" ? part.filter(bar => bar.occurrence === occurrence) : timeline;
-          const cursor = position === null || mode === "strum" || !liveSong?.rhythm ? null : lyricCursorAt(liveSong.lyrics, selected, position, liveSong.rhythm.numerator, liveSong.rhythm.denominator);
-          if (cursor) setMusicMode(true);
-          setMusicCursor(cursor);
-        } : undefined} key={liveSong?.id} rhythm={liveSong?.rhythm} section={sequenceBlocks[currentSequenceBlockIndex]?.label} lyrics={liveSong?.lyrics} sequence={liveSong?.sequence} previewChord={baseAbsoluteKey} transpose={currentAbsoluteKey ? semitoneDistance(baseAbsoluteKey, currentAbsoluteKey) : 0} title={liveSong?.title} />
       </div>
       <div className="musician-live-controls" aria-label="Musician display controls">
-        {canUseMusic ? <button aria-label="Show music timing" aria-pressed={musicMode} className={`musician-reader-toggle ${musicMode ? 'is-active' : ''}`} onClick={() => { setMusicMode(value => !value); setMusicFollowing(false); setMusicCursor(null); }} title="Show bars and music playback" type="button"><Music2 size={16} /><span className="musician-control-text">Music</span></button> : null}
-        {canUseMusic && musicMode ? <LyricMusicControls key={liveSong?.id} rhythm={liveSong?.rhythm} lyrics={liveSong?.lyrics} sequence={liveSong?.sequence} annotations={chordChart.annotations} bars={timingBars} transpose={currentAbsoluteKey ? semitoneDistance(baseAbsoluteKey, currentAbsoluteKey) : 0} onCursor={setMusicCursor} /> : null}
+        <CompactControlMenu label="Musician" icon={<Guitar size={16} aria-hidden="true" />} active={showChords || musicMode}>
+          {close => <>
+            <button role="menuitemcheckbox" aria-checked={showChords} onClick={() => setShowChords(value => !value)} type="button"><Guitar size={16} aria-hidden="true" /><span>Chords</span>{showChords ? <Check size={16} aria-hidden="true" /> : null}</button>
+            {canUseMusic ? <button role="menuitemcheckbox" aria-label="Show music timing" aria-checked={musicMode} onClick={() => setMusicMode(value => !value)} type="button"><ListMusic size={16} aria-hidden="true" /><span>Bars</span>{musicMode ? <Check size={16} aria-hidden="true" /> : null}</button> : null}
+            <button role="menuitemcheckbox" aria-checked={false} disabled title="Dynamics annotations are not available yet" type="button"><AudioLines size={16} aria-hidden="true" /><span>Dynamics<small>Not available yet</small></span></button>
+            <SongRhythmDisplay menuItem annotations={chordChart.annotations} onPosition={canUseMusic ? (position, mode, section) => {
+              const timeline = lyricPlaybackBars(liveSong?.lyrics, liveSong?.sequence, timingBars);
+              const part = timeline.filter(bar => musicalSectionKey(bar.section) === musicalSectionKey(section));
+              const occurrence = part.some(bar => bar.occurrence === currentSequenceBlockIndex) ? currentSequenceBlockIndex : part[0]?.occurrence;
+              const selected = mode === "part" ? part.filter(bar => bar.occurrence === occurrence) : timeline;
+              const cursor = position === null || mode === "strum" || !liveSong?.rhythm ? null : lyricCursorAt(liveSong.lyrics, selected, position, liveSong.rhythm.numerator, liveSong.rhythm.denominator);
+              if (cursor) setMusicMode(true);
+              setMusicCursor(cursor);
+            } : undefined} key={liveSong?.id} rhythm={liveSong?.rhythm} section={sequenceBlocks[currentSequenceBlockIndex]?.label} lyrics={liveSong?.lyrics} sequence={liveSong?.sequence} previewChord={baseAbsoluteKey} transpose={currentAbsoluteKey ? semitoneDistance(baseAbsoluteKey, currentAbsoluteKey) : 0} title={liveSong?.title} />
+            <hr />
+            <button role="menuitem" aria-label={`Switch to ${readerMode === 'pages' ? 'Scroll' : 'Pages'} view`} onClick={() => { setReaderMode(value => value === 'pages' ? 'scroll' : 'pages'); close(); }} type="button">{readerMode === 'pages' ? <ScrollText size={16} /> : <BookOpen size={16} />}<span>{readerMode === 'pages' ? 'Scroll view' : 'Page view'}</span></button>
+            <button role="menuitem" disabled={!liveSong} onClick={() => { close(); if (liveSong) onEditSong(liveSong); }} type="button"><Pencil size={16} aria-hidden="true" /><span>Edit song</span></button>
+          </>}
+        </CompactControlMenu>
+        {canUseMusic || canControlAudio ? <LyricMusicControls key={liveSong?.id} rhythm={liveSong?.rhythm} lyrics={liveSong?.lyrics} sequence={liveSong?.sequence} annotations={chordChart.annotations} bars={timingBars} transpose={currentAbsoluteKey ? semitoneDistance(baseAbsoluteKey, currentAbsoluteKey) : 0} canPractice={canUseMusic} onStarted={() => setMusicMode(true)} onCursor={setMusicCursor} backing={canControlAudio ? { playing: backingAudioPlaying, disabledReason: !worshipCoupled ? 'Sync with the service first' : !backingAudioAvailable ? 'No backing track for this song' : undefined, toggle: toggleBackingAudio } : undefined} /> : null}
         {servicePlan ? <button aria-label={worshipSyncOverridden ? "Worship sync is enabled but the service view has moved outside worship" : worshipCoupled ? "Stop syncing Worship Live with service and move after worship" : "Sync Worship Live with service"} aria-pressed={worshipCoupled} className={`musician-service-couple-button ${worshipCoupled ? "is-active" : ""} ${worshipSyncOverridden ? "is-overridden" : ""}`} onClick={() => void toggleServiceCoupling()} title={worshipSyncOverridden ? "Service view moved outside worship. Change a worship slide to resync." : worshipCoupled ? "Stop syncing and go after worship" : "Sync with service"} type="button">{worshipCoupled ? <Unlink2 size={16} aria-hidden="true" /> : <Link2 size={16} aria-hidden="true" />}<span className="musician-control-text">Sync</span></button> : null}
-        {canControlAudio ? <button aria-label={`${backingAudioPlaying ? "Fade out" : "Play"} backing audio for ${liveSong?.title ?? "song"}`} aria-pressed={backingAudioPlaying} className={`musician-audio-button ${backingAudioPlaying ? "is-active" : ""}`} disabled={!backingAudioAvailable || !worshipCoupled} onClick={() => void toggleBackingAudio()} title={!worshipCoupled ? "Sync with the service to control backing audio" : backingAudioAvailable ? `${backingAudioPlaying ? "Fade out" : "Play"} backing audio` : "No backing audio for this song"} type="button">{backingAudioPlaying ? <Pause size={16} aria-hidden="true" /> : <Play size={16} aria-hidden="true" />}<span className="musician-control-text">Audio</span></button> : null}
-        <button
-          aria-label={`Switch to ${readerMode === "pages" ? "Scroll" : "Pages"} view`}
-          className="musician-reader-toggle"
-          onClick={() => setReaderMode((current) => current === "pages" ? "scroll" : "pages")}
-          title={`Switch to ${readerMode === "pages" ? "Scroll" : "Pages"} view`}
-          type="button"
-        >
-          {readerMode === "pages"
-            ? <ScrollText size={16} aria-hidden="true" />
-            : <BookOpen size={16} aria-hidden="true" />}
-          <span className="musician-control-text">{readerMode === "pages" ? "Scroll" : "Pages"}</span>
-        </button>
-        <button
-          aria-label="Edit song"
-          className="musician-edit-button"
-          disabled={!liveSong}
-          onClick={() => liveSong && onEditSong(liveSong)}
-          title="Edit song"
-          type="button"
-        >
-          <Pencil size={14} aria-hidden="true" />
-          <span className="musician-control-text">Edit</span>
-        </button>
-        <button
-          aria-pressed={showChords}
-          className={`chord-toggle-button ${showChords ? "is-active" : ""}`}
-          onClick={() => setShowChords((current) => !current)}
-          title={showChords ? "Hide chords" : "Show chords"}
-          type="button"
-        >
-          <span className="chord-toggle-indicator" aria-hidden="true" />
-          <Guitar className="chord-toggle-icon" size={16} aria-hidden="true" />
-          <span className="musician-control-text">Chords</span>
-        </button>
         <button className="musician-fullscreen-button" onClick={onExit} type="button" aria-label="Exit live worship">
           <LogOut size={18} aria-hidden="true" />
         </button>

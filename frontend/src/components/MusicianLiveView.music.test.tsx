@@ -10,6 +10,17 @@ vi.mock('../musicPractice', async original => ({ ...await original<typeof import
 vi.mock('../api', () => ({ getPresentationLiveState: vi.fn(async () => ({ plan_id: 'plan', index: 0, updated_at: '2026-10-13', worship_coupled: true, plan_item_id: 'item', slide_offset: 0 })), updatePresentationLiveState: vi.fn() }));
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
+function musician(container: HTMLElement) { act(() => container.querySelector<HTMLButtonElement>('[aria-label="Musician"]')!.click()); }
+function toggleBars(container: HTMLElement) {
+  musician(container);
+  act(() => document.querySelector<HTMLButtonElement>('[aria-label="Show music timing"]')!.click());
+  musician(container);
+}
+async function play(container: HTMLElement) {
+  act(() => container.querySelector<HTMLButtonElement>('[aria-label="Play"]')!.click());
+  await act(async () => Array.from(document.querySelectorAll<HTMLButtonElement>('.musician-control-menu [role="menuitem"]')).find(button => button.textContent!.startsWith('Metronome'))!.click());
+}
+
 it.each([false, true])('turns playback pages and publishes them only when synced (%s)', async (coupled) => {
   vi.mocked(getPresentationLiveState).mockResolvedValue({ plan_id: 'plan', index: 0, updated_at: 1, worship_coupled: coupled, plan_item_id: 'item', slide_offset: 0 } as Awaited<ReturnType<typeof getPresentationLiveState>>);
   vi.mocked(updatePresentationLiveState).mockImplementation(async (_id, state) => state as Awaited<ReturnType<typeof updatePresentationLiveState>>);
@@ -25,14 +36,16 @@ it.each([false, true])('turns playback pages and publishes them only when synced
   const render = (canUseMusic: boolean) => root.render(<MusicianLiveView canUseMusic={canUseMusic} plan={plan} songs={[song]} topbarSlot={toolbar} onEditSong={() => {}} onExit={() => {}} />);
   try {
     await act(async () => render(false));
-    expect(container.querySelector('[aria-label="Show music timing"]')).toBeNull();
+    musician(container);
+    expect(document.querySelector('[aria-label="Show music timing"]')).toBeNull();
+    musician(container);
     await act(async () => render(true));
     const grid = container.querySelector<HTMLElement>('.musician-chord-line')!.style.gridTemplateColumns;
     expect(container.querySelector('.lyric-bar-line')).toBeNull();
-    act(() => container.querySelector<HTMLButtonElement>('[aria-label="Show music timing"]')!.click());
+    toggleBars(container);
     expect(container.querySelector('.lyric-bar-line')).not.toBeNull();
     expect(container.querySelector<HTMLElement>('.musician-chord-line')!.style.gridTemplateColumns).toBe(grid);
-    await act(async () => container.querySelector<HTMLButtonElement>('[aria-label="Listen with timing guide"]')!.click());
+    await play(container);
     const position = audio.play.mock.calls[0][4] as (position: number) => void;
     await act(async () => position(0.25));
     expect(container.querySelector('.lyric-timing-dot')).not.toBeNull();
@@ -45,9 +58,12 @@ it.each([false, true])('turns playback pages and publishes them only when synced
       expect(updatePresentationLiveState).toHaveBeenCalledTimes(2);
       expect(updatePresentationLiveState).toHaveBeenLastCalledWith('plan', expect.objectContaining({ index: 2, plan_item_id: 'item', slide_offset: 2, worship_coupled: true }));
     } else expect(updatePresentationLiveState).not.toHaveBeenCalled();
-    act(() => container.querySelector<HTMLButtonElement>('[aria-label="Show music timing"]')!.click());
-    expect(container.querySelector('.lyric-timing-dot')).toBeNull();
+    toggleBars(container);
+    expect(container.querySelector('.lyric-timing-dot')).not.toBeNull();
     expect(container.querySelector('.lyric-bar-line')).toBeNull();
+    expect(audio.stop).not.toHaveBeenCalled();
+    act(() => container.querySelector<HTMLButtonElement>('[aria-label="Stop playback"]')!.click());
+    expect(container.querySelector('.lyric-timing-dot')).toBeNull();
     expect(audio.stop).toHaveBeenCalledOnce();
   } finally { act(() => root.unmount()); vi.unstubAllGlobals(); vi.clearAllMocks(); }
 });
@@ -69,8 +85,8 @@ it('keeps different chords and a single active dot on identical lyric pages, inc
   const labels = (selector: string) => Array.from(container.querySelectorAll(`${selector} .musician-chord-token`)).map(element => element.textContent);
   try {
     await act(async () => root.render(<MusicianLiveView canUseMusic plan={plan} songs={[song]} topbarSlot={toolbar} onEditSong={() => {}} onExit={() => {}} />));
-    act(() => container.querySelector<HTMLButtonElement>('[aria-label="Show music timing"]')!.click());
-    await act(async () => container.querySelector<HTMLButtonElement>('[aria-label="Listen with timing guide"]')!.click());
+    toggleBars(container);
+    await play(container);
     const position = audio.play.mock.calls[0][4] as (position: number) => void;
     await act(async () => position(0.05));
     expect(labels('.musician-page.is-current')).toEqual(['C']);
@@ -86,7 +102,8 @@ it('keeps different chords and a single active dot on identical lyric pages, inc
     expect(labels('.musician-page.is-current')).toEqual(['C']);
     expect(labels('.musician-page.is-next')).toEqual(['F']);
     expect(container.querySelectorAll('.lyric-timing-dot')).toHaveLength(1);
-    act(() => container.querySelector<HTMLButtonElement>('[aria-label="Switch to Scroll view"]')!.click());
+    musician(container);
+    act(() => document.querySelector<HTMLButtonElement>('[aria-label="Switch to Scroll view"]')!.click());
     expect(labels('.musician-song-part')).toEqual(['C', 'F', 'C', 'F']);
     expect(container.querySelectorAll('.lyric-timing-dot')).toHaveLength(1);
   } finally { act(() => root.unmount()); vi.unstubAllGlobals(); vi.clearAllMocks(); }
