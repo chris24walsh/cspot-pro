@@ -1185,3 +1185,10 @@ musician-only page position; turning Band sync off allows independent browsing.
 Service Sync takes priority on every device, regardless of the Band sync setting.
 The band position is stored separately in the presentation payload and polled via
 `/api/v1/presentation/band-sync/{plan_id}`; it never changes congregation output.
+
+Worship Live scroll mode has a per-device **Auto-scroll** option (enabled by
+default) that interpolates page positions during guided playback or followed
+shared timing. Manual wheel/touch scrolling pauses this motion until the next
+live page change. Playback turns pages one bar before the next page’s first bar,
+with a half-bar lead for single-bar pages; the dot and audio keep their actual
+musical timing. The same early turn drives Band sync and coupled service output.

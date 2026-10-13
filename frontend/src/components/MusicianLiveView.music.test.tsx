@@ -56,7 +56,7 @@ it.each([false, true])('turns playback pages and publishes them only when synced
     expect(container.querySelector('.lyric-timing-dot')).not.toBeNull();
     expect(container.querySelector('.musician-page.is-current')?.textContent).toContain('First');
     await act(async () => position(0.5));
-    expect(updatePresentationLiveState).toHaveBeenCalledTimes(coupled ? 1 : 0);
+    expect(updatePresentationLiveState).toHaveBeenCalledTimes(coupled ? 2 : 0);
     await act(async () => position(1));
     expect(container.querySelector('.musician-page.is-current')?.textContent).toContain('Second');
     if (coupled) {
@@ -190,5 +190,43 @@ it.each(['auto', 'on', 'off'])('keeps %s visibility choices through playback sta
     expect(localStorage.getItem('worship-chords-display')).toBe(mode);
     expect(localStorage.getItem('worship-bars-display')).toBe(mode);
     expect(localStorage.getItem('worship-dot-display')).toBe(mode);
+  } finally { act(() => root.unmount()); vi.unstubAllGlobals(); vi.clearAllMocks(); }
+});
+
+it('scrolls proportionally, pauses on manual scroll, and resumes at the early page turn', async () => {
+  vi.stubGlobal('matchMedia', () => ({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() }));
+  vi.stubGlobal('requestAnimationFrame', vi.fn(() => 1));
+  vi.stubGlobal('cancelAnimationFrame', vi.fn());
+  vi.mocked(getPresentationLiveState).mockResolvedValue({ plan_id: 'plan', index: 0, updated_at: 1, worship_coupled: false } as Awaited<ReturnType<typeof getPresentationLiveState>>);
+  const song = { id: 'song', title: 'Scrolling', lyrics: '[V1]\nFirst line\n[C]\nSecond line\n[B]\nThird line', sequence: 'V1 C B', chords: null, rhythm: { numerator: 4, denominator: 4, patterns: [], notes: '', markers: ['V1', 'C', 'B'].map(section => ({ id: section, section, lineIndex: 0, anchorIndex: 3 })) } } as unknown as Song;
+  const plan = { id: 'plan', items: [{ id: 'item', item_type: 'song', song_id: 'song', sequence: '1', title: song.title }] } as PlanDetail;
+  const container = document.createElement('div'), mount = document.createElement('div'), toolbar = document.createElement('div'); container.append(mount, toolbar); const root = createRoot(mount);
+  try {
+    await act(async () => root.render(<MusicianLiveView canUseMusic plan={plan} songs={[song]} topbarSlot={toolbar} onEditSong={() => {}} onExit={() => {}} />));
+    musician(container);
+    act(() => document.querySelector<HTMLButtonElement>('[aria-label="Switch to Scroll view"]')!.click());
+    const scroller = container.querySelector<HTMLElement>('.musician-full-song')!;
+    const parts = Array.from(scroller.querySelectorAll<HTMLElement>('.musician-song-part'));
+    Object.defineProperty(scroller, 'clientHeight', { value: 100 });
+    parts.forEach((part, index) => { Object.defineProperty(part, 'offsetTop', { value: 100 + 200 * index }); Object.defineProperty(part, 'clientHeight', { value: 100 }); });
+    await play(container);
+    const position = audio.play.mock.calls[0][4] as (position: number) => void;
+    await act(async () => position(0.25));
+    expect(scroller.scrollTop).toBe(200);
+    act(() => scroller.dispatchEvent(new WheelEvent('wheel', { bubbles: true })));
+    scroller.scrollTop = 50;
+    await act(async () => position(0.4));
+    expect(scroller.scrollTop).toBe(50);
+    await act(async () => position(0.5));
+    expect(parts[1].classList.contains('is-current')).toBe(true);
+    expect(scroller.scrollTop).toBe(300);
+    await act(async () => position(1));
+    expect(scroller.scrollTop).toBe(400);
+    musician(container);
+    const toggle = Array.from(document.querySelectorAll<HTMLButtonElement>('[role="menuitemcheckbox"]')).find(button => button.textContent!.startsWith('Auto-scroll'))!;
+    act(() => toggle.click());
+    scroller.scrollTop = 75;
+    await act(async () => position(1.1));
+    expect(scroller.scrollTop).toBe(75);
   } finally { act(() => root.unmount()); vi.unstubAllGlobals(); vi.clearAllMocks(); }
 });
