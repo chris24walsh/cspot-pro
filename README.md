@@ -415,8 +415,9 @@ with a one-bar count-in, using a metronome by default; **MIDI** adds the chord
 strum in the selected key. A bouncing dot follows the lyrics using the audio clock.
 Pages turn locally at their first bar, without advancing congregation slides.
 Place boundaries in each sequenced part to enable the whole-song timing guide.
-The editor uses the same guide and source anchors. Chord intervals get equal space
-within each bar, and wrapping respects that spacing even while Music is hidden.
+The editor uses the same guide and source anchors. Lyrics retain normal character
+and word spacing when chords or bars move, including while Music is hidden.
+The dot varies its speed between anchors to follow musical time without stretching text.
 Overlays occupy existing lyric/chord rows; the positional framework can also host
 future dynamics and player directions.
 

@@ -35,21 +35,10 @@ function offsets(lyrics: string | null | undefined) {
   return lyricLines(lyrics ?? null).map(line => { const result = offset; offset += line.length + LEADING_CHORD_ANCHORS + TRAILING_CHORD_ANCHORS; return result; });
 }
 
-// Equal-time chord intervals get equal space, stretching whitespace rather than moving anchors away from their words.
-export function lyricColumnWidths(lyrics: string | null | undefined, bars: LyricBar[], lineIndex: number, start: number, count: number): number[] {
-  const starts = offsets(lyrics);
-  const scalar = (position: LyricPosition) => starts[position.lineIndex] + position.anchorIndex;
-  const widths = Array.from({ length: count }, () => 1);
-  for (const bar of bars) {
-    const lengths = bar.stops.slice(1).map((stop, index) => scalar(stop) - scalar(bar.stops[index]));
-    const size = Math.max(...lengths, 1);
-    lengths.forEach((length, index) => {
-      if (length <= 0) return;
-      const from = scalar(bar.stops[index]), to = scalar(bar.stops[index + 1]);
-      widths.forEach((_, slot) => { const at = starts[lineIndex] + start + slot; if (at >= from && at < to) widths[slot] = size / length; });
-    });
-  }
-  return widths;
+// Musical time controls cursor speed, never the width of lyric characters.
+// Chords and bars retain their source anchors even when placed inside a word.
+export function lyricColumnWidths(_lyrics: string | null | undefined, _bars: LyricBar[], _lineIndex: number, _start: number, count: number): number[] {
+  return Array.from({ length: count }, () => 1);
 }
 
 export function musicalSectionKey(section: string) {

@@ -22,12 +22,10 @@ it('creates source spans, including the implicit first bar, without crossing sec
   expect(bars[2].start.lineIndex).toBe(4);
 });
 
-it('spaces chord changes equally in time and keeps the same source anchors when wrapping', () => {
+it('preserves normal character spacing and source anchors when wrapping', () => {
   const bars = lyricBarLayout(lyrics, rhythm, chords);
   const widths = lyricColumnWidths(lyrics, bars, 1, 0, 22);
-  // The shorter C-to-G span is expanded to match G-to-the-next-bar (including the line break).
-  expect(widths[3]).toBeGreaterThan(1);
-  expect(widths[10]).toBe(1);
+  expect(widths).toEqual(Array(22).fill(1));
   const segments = wrapTimedLine('Sing a song now', 10, widths.slice(3));
   expect(segments.map(segment => segment.line).join('')).toBe('Sing a song now');
   expect(segments.length).toBeGreaterThan(1);
@@ -60,4 +58,20 @@ it('uses the shared marker timing in editor playback and MIDI instead of an appr
   expect(performance.bars[0].chords).toEqual([{ beat: 1, chord: 'C' }, { beat: 3, chord: 'G' }]);
   expect(performance.bars[2].chords[0].chord).toBe('F');
   expect(practiceMidi(performance).slice(0, 4)).toEqual(new Uint8Array([77, 84, 104, 100]));
+});
+
+
+it('does not spread letters or rewrap lyrics when chords and bars move inside words', () => {
+  const text = '[V1]\nInto Your glorious day';
+  const render = (chordAnchor: number, barAnchor: number) => {
+    const annotations = [{ id: 'c', section: 'V1', lineIndex: 0, anchorIndex: chordAnchor, chord: 'C' }];
+    const metadata = { ...rhythm, markers: [{ id: 'bar', section: 'V1', lineIndex: 0, anchorIndex: barAnchor }] };
+    const bars = lyricBarLayout(text, metadata, annotations);
+    const widths = lyricColumnWidths(text, bars, 1, 3, 22);
+    return { widths, segments: wrapTimedLine('Into Your glorious day', 18, widths) };
+  };
+  const baseline = render(3, 3);
+  for (const [chord, bar] of [[22, 3], [23, 3], [23, 21], [8, 7]]) {
+    expect(render(chord, bar)).toEqual(baseline);
+  }
 });

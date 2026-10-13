@@ -991,19 +991,19 @@ Search modes:
   Removing a part's last marker clears its derived chart. Unmarked manual charts
   are retained, and whole-song charts keep their established playback precedence.
   `lyricTiming.ts` maps source lyric anchors to bar spans, equally timed chord
-  stops, weighted character widths, wrapped lines and repeated sequence occurrences.
+  stops, fixed character widths, wrapped lines and repeated sequence occurrences.
   `LyricMusicControls` provides metronome-only or combined chord-strum playback.
   Its fractional cursor comes from the same AudioContext clock as note scheduling;
   compound meters bounce on dotted-quarter pulses. Both chord editing and Worship
-  Live render bar lines and a dot in existing rows, retaining weighted spacing when
-  overlays are hidden. Editor song/part playback and MIDI share these timed bars;
+  Live render bar lines and a dot in existing rows. Musical time varies cursor speed
+  between anchors; it never stretches lyric characters or changes word spacing. Editor song/part playback and MIDI share these timed bars;
   legacy chart-only songs keep the original playback path. Guided song playback
   requires markers in every sequenced part and starts with a one-bar count-in.
   The Worship Live Music toggle is gated by the administrator role, separately
   from user-management permissions. Auto page turns use the active bar's source
   start line and sequence occurrence, changing only the local musician index even
   when congregation sync is coupled. Turning Music off restores normal sync.
-  Source positions and widths provide the shared anchor framework for future
+  Source positions provide the shared anchor framework for future
   directions/dynamics, without adding persisted unused fields or additional rows.
   Browser synthesis
   uses upper chord tones, a harmonic waveform and sustained decay; MIDI shares the
