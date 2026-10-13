@@ -3874,11 +3874,15 @@ button.musician-page {
 .musician-edge-nav:disabled { opacity: 0; pointer-events: none; }
 .musician-edge-nav:not(:disabled):hover { opacity: 0.8; }
 
+/* Anchor the lyric viewport to the stage rather than resolving percentage
+   heights through grid tracks. Mobile engines otherwise expand this child and
+   the stage clips its overflow, leaving no usable scroll range. */
 .musician-full-song {
-  align-self: stretch;
-  align-content: start;
+  position: absolute;
+  inset: 0;
+  margin-inline: auto;
   box-sizing: border-box;
-  height: 100%;
+  height: auto;
   min-height: 0;
   overflow-x: hidden;
   overflow-y: auto;
@@ -3891,13 +3895,6 @@ button.musician-page {
 
 .musician-reader-scroll {
   align-items: stretch;
-}
-
-@supports (-webkit-touch-callout: none) {
-  .musician-reader-scroll .musician-full-song {
-    height: auto;
-    max-height: 100%;
-  }
 }
 
 .musician-full-song section {
