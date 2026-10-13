@@ -1972,3 +1972,16 @@ export function updatePresentationPointer(planId: string, pointer: PresentationP
 export function setRecordingVisibility(recordingId: string, visible: boolean) {
   return sendJson<BroadcastRecording>(`/api/v1/broadcast/recordings/${recordingId}/visibility`, visible ? "POST" : "DELETE", {});
 }
+
+
+export interface WorshipMusicTiming {
+  owner_id: string; active: boolean; song_id: string; plan_item_id: string;
+  start_index: number; position: number; bar_duration_ms: number; total_bars: number; updated_at: number;
+}
+export interface WorshipMusicTimingRead { timing: WorshipMusicTiming | null; server_now: number }
+export function getWorshipMusicTiming(planId: string): Promise<WorshipMusicTimingRead> {
+  return getJson<WorshipMusicTimingRead>(`/api/v1/presentation/music-timing/${planId}`);
+}
+export function updateWorshipMusicTiming(planId: string, timing: WorshipMusicTiming): Promise<WorshipMusicTimingRead> {
+  return sendJson<WorshipMusicTimingRead>(`/api/v1/presentation/music-timing/${planId}`, "PATCH", timing);
+}

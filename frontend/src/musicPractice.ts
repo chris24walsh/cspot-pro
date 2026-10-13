@@ -189,7 +189,7 @@ export function transposeBarCharts(rhythm: SongRhythm | null | undefined, semito
   })) };
 }
 
-let activePracticePlayer: PracticeAudioPlayer | null = null;
+let activePracticePlayer: PracticeAudioPlayer | PracticeSilentPlayer | null = null;
 
 export class PracticeAudioPlayer {
   private context: AudioContext | null = null;
@@ -260,5 +260,33 @@ export class PracticeAudioPlayer {
     this.context = null;
     if (activePracticePlayer === this) activePracticePlayer = null;
     const onEnd = this.onEnd; this.onEnd = null; onEnd?.();
+  }
+}
+
+
+// Silent guidance uses a monotonic clock and never creates an AudioContext.
+export class PracticeSilentPlayer {
+  private timer: ReturnType<typeof setInterval> | null = null;
+  private onEnd: (() => void) | null = null;
+  async play(music: PracticePerformance, loop: boolean, onProgress: (bar: number) => void, onEnd: () => void, onPosition?: (position: number) => void) {
+    activePracticePlayer?.stop(); activePracticePlayer = this; this.onEnd = onEnd;
+    const msPerTick = 60_000 / music.quarterBpm / MIDI_PPQ;
+    const duration = music.totalTicks * msPerTick;
+    let started = performance.now() + 80;
+    const tick = () => {
+      let elapsed = performance.now() - started;
+      if (elapsed >= duration) {
+        if (!loop) { this.stop(); return; }
+        started += Math.floor(elapsed / duration) * duration; elapsed = performance.now() - started;
+      }
+      const position = (elapsed / msPerTick - music.countInTicks) / music.barTicks;
+      onProgress(Math.floor(position)); onPosition?.(position);
+    };
+    this.timer = setInterval(tick, 25); tick();
+  }
+  stop() {
+    if (this.timer) clearInterval(this.timer); this.timer = null;
+    if (activePracticePlayer === this) activePracticePlayer = null;
+    const ended = this.onEnd; this.onEnd = null; ended?.();
   }
 }

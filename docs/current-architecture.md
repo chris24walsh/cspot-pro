@@ -1013,6 +1013,21 @@ Search modes:
   the inherited chord and one-bar count-in. Cursor progress adds the captured bar
   offset only after count-in, so it cannot jump back to an earlier page. Page changes
   during playback do not restart audio; a new Play uses the newly selected page.
+  PracticeSilentPlayer uses a monotonic timer without constructing AudioContext;
+  silent mode omits count-in and all note events. Timing dot visibility is separate
+  from bar visibility and auto-advance. The per-device Follow shared timing option
+  lets musician readers animate an administrator's shared clock without audio.
+  GET/PATCH /presentation/music-timing/{plan_id} stores a bounded transport snapshot
+  in the existing position payload; it preserves slide state and requires admin
+  permission to write. An owner id prevents overlapping controllers, heartbeats
+  run every two seconds, and disconnected clocks expire after twelve seconds.
+  Receivers poll once per second and interpolate on a local monotonic clock using
+  server elapsed time and a round-trip estimate, avoiding device wall-clock skew.
+  Followers move their own pages and never publish service slide updates; only
+  the local playback host does that when synced. Sharing is opt-in and released
+  on stop/unmount. Dot visibility and following persist as device preferences.
+  This transport is scoped to Worship Live; no congregation overlay is introduced
+  and no database migration is needed.
   Pages without a bar boundary report that a boundary is needed rather than jumping
   to the song start. Backing track retains the existing service-audio permission and
   Sync requirement. Hiding bars does not stop guided playback or page turns. Auto page turns use the active bar's source

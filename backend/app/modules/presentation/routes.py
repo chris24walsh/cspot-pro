@@ -144,6 +144,96 @@ def update_presentation_pointer(
     return payload
 
 
+class WorshipMusicTiming(BaseModel):
+    owner_id: str = Field(min_length=1, max_length=100)
+    active: bool = True
+    song_id: str = Field(min_length=1, max_length=100)
+    plan_item_id: str = Field(min_length=1, max_length=100)
+    start_index: int = Field(default=0, ge=0, le=255)
+    position: float = Field(default=-1, ge=-2, le=256, allow_inf_nan=False)
+    bar_duration_ms: float = Field(ge=100, le=64000, allow_inf_nan=False)
+    total_bars: int = Field(ge=1, le=256)
+    updated_at: int = 0
+
+
+class WorshipMusicTimingRead(BaseModel):
+    timing: WorshipMusicTiming | None = None
+    server_now: int
+
+
+@router.get("/music-timing/{plan_id}", response_model=WorshipMusicTimingRead)
+def get_worship_music_timing(
+    plan_id: str,
+    _current_user: User = Depends(require_any_permission("plans:read", "presentation:use")),
+    session: Session = Depends(get_session),
+) -> WorshipMusicTimingRead:
+    now = int(datetime.now(UTC).timestamp() * 1000)
+    live = _latest_session(session, plan_id)
+    position = _latest_position(session, live.id) if live else None
+    data = _position_payload(position).get("music_timing")
+    timing = (
+        WorshipMusicTiming(**data)
+        if data and data.get("active") and now - data.get("updated_at", 0) < 12000
+        else None
+    )
+    return WorshipMusicTimingRead(timing=timing, server_now=now)
+
+
+@router.patch("/music-timing/{plan_id}", response_model=WorshipMusicTimingRead)
+def update_worship_music_timing(
+    plan_id: str,
+    payload: WorshipMusicTiming,
+    current_user: User = Depends(require_permission("presentation:use")),
+    session: Session = Depends(get_session),
+) -> WorshipMusicTimingRead:
+    if "administrator" not in list_role_names(session, current_user.id):
+        raise HTTPException(status_code=403, detail="Only administrators can share music timing")
+    if session.get(Plan, plan_id) is None:
+        raise HTTPException(status_code=404, detail="Plan not found")
+    item = session.get(PlanItem, payload.plan_item_id)
+    if item is None or item.song_id != payload.song_id:
+        raise HTTPException(
+            status_code=422, detail="Timing must refer to a song in the worship plan"
+        )
+    now = int(datetime.now(UTC).timestamp() * 1000)
+    live = _latest_session(session, plan_id)
+    if live is None:
+        live = PresentationSession(plan_id=plan_id, presenter_id=current_user.id, status="ready")
+        session.add(live)
+        session.flush()
+    position = _latest_position(session, live.id)
+    if position is None:
+        position = PresentationPosition(session_id=live.id, payload_json="{}")
+        session.add(position)
+        session.flush()
+    data = _position_payload(position)
+    current = data.get("music_timing")
+    if (
+        current
+        and current.get("active")
+        and now - current.get("updated_at", 0) < 12000
+        and current.get("owner_id") != payload.owner_id
+    ):
+        raise HTTPException(
+            status_code=409, detail="Another device is sharing timing; stop it before sharing here"
+        )
+    payload.updated_at = now
+    data["music_timing"] = payload.model_dump()
+    result = session.execute(
+        update(PresentationPosition)
+        .where(
+            PresentationPosition.id == position.id,
+            PresentationPosition.payload_json == position.payload_json,
+        )
+        .values(payload_json=json.dumps(data))
+    )
+    if result.rowcount != 1:
+        session.rollback()
+        raise HTTPException(status_code=409, detail="Live state changed; retry music timing update")
+    session.commit()
+    return WorshipMusicTimingRead(timing=payload if payload.active else None, server_now=now)
+
+
 class PresentationOutputStatusRead(BaseModel):
     plan_id: str
     active: bool = False

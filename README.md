@@ -417,7 +417,16 @@ a direct Stop button. In Worship Live, guided playback starts at the first bar
 on the selected slide, with a one-bar count-in, then continues through the song.
 The selected sequence occurrence is preserved, including repeated verses.
 A slide needs a bar boundary to start guided playback there. Backing track keeps existing service-audio permissions and requires Sync.
-Menus support keyboard navigation, Escape and outside-click dismissal. A bouncing dot follows the lyrics using the audio clock.
+Menus support keyboard navigation, Escape and outside-click dismissal.
+**Silent guide** starts from the current slide without sound or count-in, showing
+the dot and turning pages. **Musician → Timing dot** shows/hides the dot independently.
+For other Worship Live devices, enable **Share timing** on the admin playback
+host and **Follow shared timing** on each receiving device. Followers get the dot
+and local page turns without audio or duplicate service commands. Dot visibility
+and following are remembered per device; sharing is opt-in for the current session.
+Sharing works with silent, metronome and MIDI guidance. Only the playback host
+advances the synced service display. Shared timing expires when the host disconnects;
+congregation/display screens do not receive the dot. A bouncing dot follows the lyrics using the audio clock.
 Pages turn at their first bar. When synced, the service display advances too;
 with Sync off, page turns stay local.
 Place boundaries in each sequenced part to enable the whole-song timing guide.

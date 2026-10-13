@@ -4,10 +4,10 @@ import { createRoot } from 'react-dom/client';
 import { expect, it, vi } from 'vitest';
 import { MusicianLiveView } from './MusicianLiveView';
 import { createEmptyChordChart, serializeChordChart } from '../chordSheet';
-import { getPresentationLiveState, updatePresentationLiveState, type PlanDetail, type Song } from '../api';
+import { getWorshipMusicTiming, updateWorshipMusicTiming, getPresentationLiveState, updatePresentationLiveState, type PlanDetail, type Song } from '../api';
 const audio = vi.hoisted(() => ({ play: vi.fn(async (..._args: unknown[]) => {}), stop: vi.fn() }));
 vi.mock('../musicPractice', async original => ({ ...await original<typeof import('../musicPractice')>(), PracticeAudioPlayer: vi.fn(function() { return audio; }) }));
-vi.mock('../api', () => ({ getPresentationLiveState: vi.fn(async () => ({ plan_id: 'plan', index: 0, updated_at: '2026-10-13', worship_coupled: true, plan_item_id: 'item', slide_offset: 0 })), updatePresentationLiveState: vi.fn() }));
+vi.mock('../api', () => ({ getPresentationLiveState: vi.fn(async () => ({ plan_id: 'plan', index: 0, updated_at: '2026-10-13', worship_coupled: true, plan_item_id: 'item', slide_offset: 0 })), updatePresentationLiveState: vi.fn(), getWorshipMusicTiming: vi.fn(async () => ({ timing: null, server_now: 0 })), updateWorshipMusicTiming: vi.fn() }));
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
 function musician(container: HTMLElement) { act(() => container.querySelector<HTMLButtonElement>('[aria-label="Musician"]')!.click()); }
@@ -120,4 +120,34 @@ it('keeps different chords and a single active dot on identical lyric pages, inc
     expect(labels('.musician-page.is-current')).toEqual(['F']);
     expect(container.querySelectorAll('.musician-page.is-current .lyric-timing-dot')).toHaveLength(1);
   } finally { act(() => root.unmount()); vi.unstubAllGlobals(); vi.clearAllMocks(); }
+});
+
+
+it('follows a remote dot and local pages without audio or republishing service slides', async () => {
+  localStorage.clear();
+  vi.stubGlobal('matchMedia', () => ({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() }));
+  vi.mocked(getPresentationLiveState).mockResolvedValue({ plan_id: 'plan', index: 0, updated_at: 1, worship_coupled: true, plan_item_id: 'item', slide_offset: 0 } as Awaited<ReturnType<typeof getPresentationLiveState>>);
+  vi.mocked(getWorshipMusicTiming).mockResolvedValue({ server_now: 100000, timing: {
+    owner_id: 'another-device', active: true, song_id: 'song', plan_item_id: 'item', start_index: 0, position: 1.05,
+    bar_duration_ms: 2000, total_bars: 2, updated_at: 100000,
+  } });
+  const song = { id: 'song', title: 'Shared song', lyrics: '[V1]\nFirst line\n[C]\nSecond line', sequence: 'V1 C', chords: null, rhythm: { numerator: 4, denominator: 4, patterns: [], notes: '', markers: [
+    { id: 'v', section: 'V1', lineIndex: 0, anchorIndex: 3 }, { id: 'c', section: 'C', lineIndex: 0, anchorIndex: 3 },
+  ] } } as unknown as Song;
+  const plan = { id: 'plan', items: [{ id: 'item', item_type: 'song', song_id: 'song', sequence: '1', title: song.title }] } as PlanDetail;
+  const container = document.createElement('div'), mount = document.createElement('div'), toolbar = document.createElement('div'); container.append(mount, toolbar); const root = createRoot(mount);
+  try {
+    await act(async () => root.render(<MusicianLiveView plan={plan} songs={[song]} topbarSlot={toolbar} onEditSong={() => {}} onExit={() => {}} />));
+    expect(getWorshipMusicTiming).not.toHaveBeenCalled();
+    musician(container);
+    await act(async () => Array.from(document.querySelectorAll<HTMLButtonElement>('[role="menuitemcheckbox"]')).find(button => button.textContent!.startsWith('Follow shared timing'))!.click());
+    expect(container.querySelector('.musician-page.is-current')?.textContent).toContain('Second');
+    expect(container.querySelectorAll('.lyric-timing-dot')).toHaveLength(1);
+    expect(audio.play).not.toHaveBeenCalled();
+    expect(updatePresentationLiveState).not.toHaveBeenCalled();
+    expect(updateWorshipMusicTiming).not.toHaveBeenCalled();
+    act(() => Array.from(document.querySelectorAll<HTMLButtonElement>('[role="menuitemcheckbox"]')).find(button => button.textContent === 'Timing dot')!.click());
+    expect(container.querySelector('.lyric-timing-dot')).toBeNull();
+    expect(container.querySelector('.musician-page.is-current')?.textContent).toContain('Second');
+  } finally { act(() => root.unmount()); vi.unstubAllGlobals(); vi.clearAllMocks(); localStorage.clear(); }
 });

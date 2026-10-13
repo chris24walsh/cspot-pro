@@ -6,8 +6,9 @@ import { LyricMusicControls } from './LyricMusicControls';
 import { lyricBarLayout, type LyricCursor } from '../lyricTiming';
 import { buildPracticePerformance, type PracticePerformance } from '../musicPractice';
 import type { SongRhythm } from '../songRhythm';
+const silent = vi.hoisted(() => ({ play: vi.fn(async (..._args: unknown[]) => {}), stop: vi.fn() }));
 const audio = vi.hoisted(() => ({ play: vi.fn(async (..._args: unknown[]) => {}), stop: vi.fn() }));
-vi.mock('../musicPractice', async original => ({ ...await original<typeof import('../musicPractice')>(), PracticeAudioPlayer: vi.fn(function() { return audio; }) }));
+vi.mock('../musicPractice', async original => ({ ...await original<typeof import('../musicPractice')>(), PracticeAudioPlayer: vi.fn(function() { return audio; }), PracticeSilentPlayer: vi.fn(function() { return silent; }) }));
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
 async function play(container: HTMLElement, source: string) {
@@ -121,5 +122,28 @@ it.each(['Metronome', 'MIDI strum'])('starts %s at the selected sequence occurre
     const secondPosition = audio.play.mock.calls[1][4] as (position: number) => void;
     act(() => secondPosition(0.05));
     expect(cursor).toHaveBeenLastCalledWith(expect.objectContaining({ occurrence: 2, lineIndex: 2 }));
+  } finally { act(() => root.unmount()); vi.clearAllMocks(); }
+});
+
+
+it('selects silent guidance from the current slide and emits shareable clock progress without audio', async () => {
+  const lyrics = '[V1]\nSing now';
+  const rhythm: SongRhythm = { numerator: 4, denominator: 4, patterns: [], notes: '', markers: [{ id: 'one', section: 'V1', lineIndex: 0, anchorIndex: 3 }] };
+  const cursor = vi.fn(), timing = vi.fn(), container = document.createElement('div'), root = createRoot(container);
+  try {
+    await act(async () => root.render(<LyricMusicControls rhythm={rhythm} lyrics={lyrics} sequence="V1" annotations={[]} bars={lyricBarLayout(lyrics, rhythm, [])} onCursor={cursor} onTiming={timing} startAt={{ occurrence: 0, lineStart: 1, lineEnd: 2 }} />));
+    await play(container, 'Silent guide');
+    expect(audio.play).not.toHaveBeenCalled();
+    expect(silent.play).toHaveBeenCalledOnce();
+    const music = silent.play.mock.calls[0][0] as PracticePerformance;
+    expect(music.notes).toHaveLength(0);
+    expect(music.countInTicks).toBe(0);
+    const position = silent.play.mock.calls[0][4] as (position: number) => void;
+    act(() => position(0.25));
+    expect(cursor).toHaveBeenLastCalledWith(expect.objectContaining({ occurrence: 0, lineIndex: 1 }));
+    expect(timing).toHaveBeenLastCalledWith(expect.objectContaining({ position: 0.25, startIndex: 0, totalBars: 1 }));
+    act(() => container.querySelector<HTMLButtonElement>('[aria-label="Stop playback"]')!.click());
+    expect(silent.stop).toHaveBeenCalledOnce();
+    expect(timing).toHaveBeenLastCalledWith(null);
   } finally { act(() => root.unmount()); vi.clearAllMocks(); }
 });

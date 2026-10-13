@@ -64,3 +64,21 @@ it('reports fractional progress from the audio clock, excluding the count-in', a
   vi.advanceTimersByTime(25);
   expect(position.mock.calls[position.mock.calls.length - 1][0]).toBeCloseTo(0.25);
 });
+
+it('runs silent guidance without constructing an audio context and cleans up the clock', async () => {
+  const { PracticeSilentPlayer } = await import('./musicPractice');
+  const silent = new PracticeSilentPlayer();
+  const music = buildPracticePerformance(rhythm, { mode: 'song', countIn: false, chords: false, metronome: false });
+  const position = vi.fn(), ended = vi.fn();
+  const now = vi.spyOn(performance, 'now').mockReturnValue(0);
+  try {
+    await silent.play(music, false, vi.fn(), ended, position);
+    expect(instances).toHaveLength(0);
+    now.mockReturnValue(580);
+    vi.advanceTimersByTime(25);
+    expect(position.mock.calls[position.mock.calls.length - 1][0]).toBeCloseTo(0.25);
+    silent.stop();
+    expect(ended).toHaveBeenCalledOnce();
+    expect(vi.getTimerCount()).toBe(0);
+  } finally { silent.stop(); now.mockRestore(); }
+});
