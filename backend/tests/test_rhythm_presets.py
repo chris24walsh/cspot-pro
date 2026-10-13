@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from app.core.database import Base
 from app.modules.identity.models import User
 from app.modules.music.models import RhythmPreset
-from app.modules.music.routes import create_rhythm_preset, list_rhythm_presets
+from app.modules.music.routes import create_rhythm_preset, list_rhythm_presets, update_rhythm_preset
 from app.modules.music.schemas import RhythmPresetCreate, SongRhythm
 
 
@@ -96,3 +96,63 @@ def test_bar_charts_tempo_and_pattern_names_round_trip_and_old_metadata_gets_def
                 "arrangements": [{"section": "V1", "chart": "C"}, {"section": "v1", "chart": "G"}],
             }
         )
+
+
+def test_update_shared_strum_preserves_id_and_does_not_create_a_duplicate() -> None:
+    engine = create_engine("sqlite://")
+    Base.metadata.create_all(engine, tables=[RhythmPreset.__table__])
+    with Session(engine) as session:
+        user = User(id="author")
+        saved = create_rhythm_preset(
+            RhythmPresetCreate(
+                kind="strum",
+                name="Groove",
+                numerator=4,
+                denominator=4,
+                subdivision=1,
+                strokes=["D", "-", "U", "-"],
+            ),
+            user,
+            session,
+        )
+        updated = update_rhythm_preset(
+            saved.id,
+            RhythmPresetCreate(
+                kind="strum",
+                name="groove",
+                numerator=3,
+                denominator=4,
+                subdivision=1,
+                strokes=["D", "X", "U"],
+            ),
+            user,
+            session,
+        )
+        assert updated.id == saved.id
+        assert updated.strokes == ["D", "X", "U"]
+        assert updated.numerator == 3
+        assert len(list_rhythm_presets(user, session)) == 1
+        with pytest.raises(HTTPException) as error:
+            update_rhythm_preset(
+                saved.id,
+                RhythmPresetCreate(kind="meter", name="Groove", numerator=4, denominator=4),
+                user,
+                session,
+            )
+        assert error.value.status_code == 422
+        with pytest.raises(HTTPException) as error:
+            update_rhythm_preset(
+                "missing",
+                RhythmPresetCreate(
+                    kind="strum",
+                    name="Groove",
+                    numerator=4,
+                    denominator=4,
+                    subdivision=1,
+                    strokes=["D"] * 4,
+                ),
+                user,
+                session,
+            )
+        assert error.value.status_code == 404
+    engine.dispose()

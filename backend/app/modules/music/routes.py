@@ -689,6 +689,40 @@ def list_song_parts(
     ]
 
 
+@router.patch("/rhythm-presets/{preset_id}", response_model=RhythmPresetRead)
+def update_rhythm_preset(
+    preset_id: str,
+    payload: RhythmPresetCreate,
+    _current_user: User = Depends(require_any_permission("songs:edit", "songs:create")),
+    session: Session = Depends(get_session),
+) -> RhythmPresetRead:
+    preset = session.get(RhythmPreset, preset_id)
+    if preset is None:
+        raise HTTPException(status_code=404, detail="Strum not found")
+    if preset.kind != "strum" or payload.kind != "strum":
+        raise HTTPException(status_code=422, detail="Only shared strums can be updated")
+    duplicate = session.scalar(
+        select(RhythmPreset).where(
+            RhythmPreset.kind == "strum",
+            func.lower(RhythmPreset.name) == payload.name.lower(),
+            RhythmPreset.id != preset_id,
+        )
+    )
+    if duplicate:
+        raise HTTPException(status_code=409, detail="A strum with that name already exists")
+    for field, value in payload.model_dump().items():
+        setattr(preset, field, value)
+    try:
+        session.commit()
+    except IntegrityError as error:
+        session.rollback()
+        raise HTTPException(
+            status_code=409, detail="A strum with that name already exists"
+        ) from error
+    session.refresh(preset)
+    return RhythmPresetRead.model_validate(preset, from_attributes=True)
+
+
 @router.get("/rhythm-presets", response_model=list[RhythmPresetRead])
 def list_rhythm_presets(
     _current_user: User = Depends(require_permission("songs:read")),

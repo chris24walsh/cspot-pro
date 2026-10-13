@@ -1993,3 +1993,7 @@ export function getBandSelection(planId: string): Promise<{ selection: BandSelec
 export function updateBandSelection(planId: string, slideId: string): Promise<{ selection: BandSelection | null }> {
   return sendJson(`/api/v1/presentation/band-sync/${planId}`, "PATCH", { slide_id: slideId });
 }
+
+export function updateRhythmPreset(id: string, payload: Omit<RhythmPreset, "id">): Promise<RhythmPreset> {
+  return sendJson(`/api/v1/music/rhythm-presets/${encodeURIComponent(id)}`, "PATCH", payload);
+}

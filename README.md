@@ -526,3 +526,7 @@ Guitar previews use bundled FluidR3_GM steel-string and muted-guitar samples
 (CC BY 3.0; attribution shipped with the assets). Only required notes load on
 Listen, and compressed samples are cached for reuse. X strokes use the muted
 guitar bank; MIDI exports use a separate muted-guitar channel.
+
+Saving a strum with an existing shared name (case-insensitive) asks for confirmation
+before updating that library entry. Cancel keeps it unchanged. Song patterns
+already applied remain copies; future selections use the updated shared strum.

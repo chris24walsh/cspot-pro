@@ -1,10 +1,12 @@
 import { Music2, Save, X } from "lucide-react";
+import { createPortal } from "react-dom";
+import { useConfirmationDialog } from "./ConfirmationDialog";
 import { useEffect, useRef, useState } from "react";
 import {
   resizeStrumPattern, STRUM_PRESETS, STRUM_SECTIONS, STROKE_CYCLE, STROKE_NAMES, STROKE_SYMBOLS,
   strumCounts, type RhythmPreset, type SongRhythm, type StrumPattern, type StrumSection,
 } from "../songRhythm";
-import { createRhythmPreset, getRhythmPresets } from "../api";
+import { createRhythmPreset, getRhythmPresets, updateRhythmPreset } from "../api";
 import { parseBarChart, songPracticeParts } from "../musicPractice";
 import type { ChordAnnotation } from "../chordSheet";
 import type { PracticeMode } from "../musicPractice";
@@ -21,6 +23,7 @@ export function SongRhythmEditor({ value, canEdit, onChange, lyrics, sequence, p
   songChords?: Array<{ section: string | null; chord: string }>;
   onSave?: () => Promise<void>; saving?: boolean; isDirty?: boolean;
 }) {
+  const { confirm, confirmationDialog } = useConfirmationDialog();
   const [open, setOpen] = useState(false);
   const [section, setSection] = useState<StrumSection>("Default");
   const [customMeter, setCustomMeter] = useState(false);
@@ -40,7 +43,7 @@ export function SongRhythmEditor({ value, canEdit, onChange, lyrics, sequence, p
   }, [open]);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const close = () => { setOpen(false); triggerRef.current?.focus(); };
-  useEscapeClose(open, close, 1);
+  useEscapeClose(open && !confirmationDialog, close, 1);
   const rhythm = value ?? emptyRhythm();
   const meter = `${rhythm.numerator}/${rhythm.denominator}`;
   const pattern = rhythm.patterns.find((entry) => entry.section === section)
@@ -80,11 +83,15 @@ export function SongRhythmEditor({ value, canEdit, onChange, lyrics, sequence, p
   async function saveLibrary(kind: "meter" | "strum") {
     setLibraryBusy(true); setLibraryMessage(null);
     try {
-      const saved = await createRhythmPreset({ kind, name: kind === "meter" ? meterName.trim() : (pattern.name ?? "").trim(),
+      const payload = { kind, name: kind === "meter" ? meterName.trim() : (pattern.name ?? "").trim(),
         numerator: rhythm.numerator, denominator: rhythm.denominator,
-        subdivision: kind === "strum" ? pattern.subdivision : null, strokes: kind === "strum" ? [...pattern.strokes] : null });
-      setLibrary((current) => [...current, saved]);
-      setLibraryMessage(`“${saved.name}” saved for all players.`);
+        subdivision: kind === "strum" ? pattern.subdivision : null, strokes: kind === "strum" ? [...pattern.strokes] : null };
+      const latest = kind === "strum" ? await getRhythmPresets() : library;
+      const existing = latest.find(entry => entry.kind === kind && entry.name.trim().toLowerCase() === payload.name.toLowerCase());
+      if (kind === "strum" && existing && !await confirm({ title: "Update shared strum?", confirmLabel: "Update strum", message: `Replace “${existing.name}” with this pattern? Other players will see the updated pattern in the shared library. Patterns already applied to songs will stay unchanged.` })) return;
+      const saved = kind === "strum" && existing ? await updateRhythmPreset(existing.id, payload) : await createRhythmPreset(payload);
+      setLibrary([...latest.filter(entry => entry.id !== saved.id), saved]);
+      setLibraryMessage(`“${saved.name}” ${kind === "strum" && existing ? "updated" : "saved"} for all players.`);
       if (kind === "meter") setCustomMeter(false);
     } catch (error) { setLibraryMessage(error instanceof Error ? error.message : "Could not save the shared preset."); }
     finally { setLibraryBusy(false); }
@@ -92,6 +99,7 @@ export function SongRhythmEditor({ value, canEdit, onChange, lyrics, sequence, p
 
   return (
     <>
+      {confirmationDialog ? createPortal(<div style={{ position: "relative", zIndex: 200 }}>{confirmationDialog}</div>, document.body) : null}
       <button aria-label="Song rhythm" aria-expanded={open} className={`section-icon-button section-edit-button song-rhythm-trigger ${value ? "is-active" : ""}`}
         onClick={() => setOpen((current) => !current)} ref={triggerRef} title="Meter and strumming patterns" type="button">
         <Music2 size={15} aria-hidden="true" /><span>Rhythm</span>
