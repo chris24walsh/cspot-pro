@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest';
-import { lyricBarLayout, lyricColumnWidths, lyricCursorAt, lyricPlaybackBars, wrapTimedLine } from './lyricTiming';
+import { lyricBarLayout, lyricColumnWidths, lyricCursorAt, lyricPlaybackBars, timedPracticeBars, wrapTimedLine } from './lyricTiming';
 import type { ChordAnnotation } from './chordSheet';
 import type { SongRhythm } from './songRhythm';
 const lyrics = '[V1]\nSing a song now\nKeep the rhythm\n[C]\nPraise again';
@@ -74,4 +74,23 @@ it('does not spread letters or rewrap lyrics when chords and bars move inside wo
   for (const [chord, bar] of [[22, 3], [23, 3], [23, 21], [8, 7]]) {
     expect(render(chord, bar)).toEqual(baseline);
   }
+});
+
+
+it('carries the last played chord through empty bars and across repeated section boundaries', () => {
+  const lyrics = '[V1]\nSing first\n[C]\nHold it\nChange now';
+  const annotations = [
+    { id: 'v', section: 'V1', lineIndex: 0, anchorIndex: 3, chord: 'C' },
+    { id: 'c', section: 'C', lineIndex: 1, anchorIndex: 3, chord: 'G' },
+  ];
+  const rhythm: SongRhythm = { numerator: 4, denominator: 4, patterns: [], notes: '', markers: [
+    { id: 'v', section: 'V1', lineIndex: 0, anchorIndex: 3 },
+    { id: 'c1', section: 'C', lineIndex: 0, anchorIndex: 3 },
+    { id: 'c2', section: 'C', lineIndex: 1, anchorIndex: 3 },
+  ] };
+  const layout = lyricBarLayout(lyrics, rhythm, annotations);
+  const song = timedPracticeBars(lyrics, lyricPlaybackBars(lyrics, 'V1 C C', layout), annotations, 4);
+  expect(song.map(bar => bar.chords[0].chord)).toEqual(['C', 'C', 'G', 'G', 'G']);
+  const part = timedPracticeBars(lyrics, layout.filter(bar => bar.section === 'C'), annotations, 4);
+  expect(part.map(bar => bar.chords[0].chord)).toEqual(['', 'G']); // no previous chord when practice starts here
 });

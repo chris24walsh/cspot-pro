@@ -4,13 +4,15 @@ import { createRoot } from 'react-dom/client';
 import { expect, it, vi } from 'vitest';
 import { MusicianLiveView } from './MusicianLiveView';
 import { createEmptyChordChart, serializeChordChart } from '../chordSheet';
-import { updatePresentationLiveState, type PlanDetail, type Song } from '../api';
+import { getPresentationLiveState, updatePresentationLiveState, type PlanDetail, type Song } from '../api';
 const audio = vi.hoisted(() => ({ play: vi.fn(async (..._args: unknown[]) => {}), stop: vi.fn() }));
 vi.mock('../musicPractice', async original => ({ ...await original<typeof import('../musicPractice')>(), PracticeAudioPlayer: vi.fn(function() { return audio; }) }));
 vi.mock('../api', () => ({ getPresentationLiveState: vi.fn(async () => ({ plan_id: 'plan', index: 0, updated_at: '2026-10-13', worship_coupled: true, plan_item_id: 'item', slide_offset: 0 })), updatePresentationLiveState: vi.fn() }));
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
-it('gates Music to admins, preserves hidden-bar spacing, and turns local pages at bar starts', async () => {
+it.each([false, true])('turns playback pages and publishes them only when synced (%s)', async (coupled) => {
+  vi.mocked(getPresentationLiveState).mockResolvedValue({ plan_id: 'plan', index: 0, updated_at: 1, worship_coupled: coupled, plan_item_id: 'item', slide_offset: 0 } as Awaited<ReturnType<typeof getPresentationLiveState>>);
+  vi.mocked(updatePresentationLiveState).mockImplementation(async (_id, state) => state as Awaited<ReturnType<typeof updatePresentationLiveState>>);
   vi.stubGlobal('matchMedia', () => ({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() }));
   const song = { id: 'song', title: 'Test song', lyrics: '[V1]\nFirst line\n[C]\nSecond line', sequence: 'V1 C', chords: serializeChordChart({ ...createEmptyChordChart(), absoluteKey: 'C', annotations: [
     { id: 'v', section: 'V1', lineIndex: 0, anchorIndex: 3, chord: 'C' }, { id: 'c', section: 'C', lineIndex: 0, anchorIndex: 3, chord: 'F' },
@@ -32,12 +34,17 @@ it('gates Music to admins, preserves hidden-bar spacing, and turns local pages a
     expect(container.querySelector<HTMLElement>('.musician-chord-line')!.style.gridTemplateColumns).toBe(grid);
     await act(async () => container.querySelector<HTMLButtonElement>('[aria-label="Listen with timing guide"]')!.click());
     const position = audio.play.mock.calls[0][4] as (position: number) => void;
-    act(() => position(0.25));
+    await act(async () => position(0.25));
     expect(container.querySelector('.lyric-timing-dot')).not.toBeNull();
     expect(container.querySelector('.musician-page.is-current')?.textContent).toContain('First');
-    act(() => position(1));
+    await act(async () => position(0.5));
+    expect(updatePresentationLiveState).toHaveBeenCalledTimes(coupled ? 1 : 0);
+    await act(async () => position(1));
     expect(container.querySelector('.musician-page.is-current')?.textContent).toContain('Second');
-    expect(updatePresentationLiveState).not.toHaveBeenCalled();
+    if (coupled) {
+      expect(updatePresentationLiveState).toHaveBeenCalledTimes(2);
+      expect(updatePresentationLiveState).toHaveBeenLastCalledWith('plan', expect.objectContaining({ index: 2, plan_item_id: 'item', slide_offset: 2, worship_coupled: true }));
+    } else expect(updatePresentationLiveState).not.toHaveBeenCalled();
     act(() => container.querySelector<HTMLButtonElement>('[aria-label="Show music timing"]')!.click());
     expect(container.querySelector('.lyric-timing-dot')).toBeNull();
     expect(container.querySelector('.lyric-bar-line')).toBeNull();

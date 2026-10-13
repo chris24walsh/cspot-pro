@@ -999,12 +999,15 @@ Search modes:
   between anchors; it never stretches lyric characters or changes word spacing. Editor song/part playback and MIDI share these timed bars;
   legacy chart-only songs keep the original playback path. Guided song playback
   requires markers in every sequenced part and starts with a one-bar count-in.
-  Empty opening bars are valid rests in both guided and rhythm-editor playback;
-  chord synthesis begins at the first assigned chord while the metronome continues.
+  Empty bars carry the last played chord across bars, parts and sequence repeats
+  in both guided and rhythm-editor playback. Only bars before any chord has played
+  remain silent apart from the metronome. No implicit mute is inferred.
   The Worship Live Music toggle is gated by the administrator role, separately
   from user-management permissions. Auto page turns use the active bar's source
-  start line and sequence occurrence, changing only the local musician index even
-  when congregation sync is coupled. Turning Music off restores normal sync.
+  start line and sequence occurrence. Coupled playback publishes page changes through
+  the normal service slide API and browser broadcasts; uncoupled turns stay local.
+  Page changes are deduplicated so beat updates do not republish the same slide.
+  Turning Music off restores normal sync.
   Source positions provide the shared anchor framework for future
   directions/dynamics, without adding persisted unused fields or additional rows.
   Browser synthesis

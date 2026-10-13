@@ -1109,9 +1109,10 @@ export function MusicianLiveView({ canUseMusic = false, canControlAudio = false,
     ? currentSongContentSlideIndex - sequenceBlocks[currentSequenceBlockIndex].slideIndex
     : -1;
 
+  const lastMusicPageRef = useRef<string | null>(null);
   useEffect(() => { setMusicCursor(null); setMusicFollowing(false); }, [liveSong?.id]);
   useEffect(() => {
-    if (!musicCursor || !musicMode) return;
+    if (!musicCursor || !musicMode) { lastMusicPageRef.current = null; return; }
     const block = sequenceBlocks[musicCursor.occurrence];
     if (!block) return;
     const partIndex = block.parts.findIndex(part => {
@@ -1119,8 +1120,19 @@ export function MusicianLiveView({ canUseMusic = false, canControlAudio = false,
       return start >= 0 && musicCursor.barStartLine >= start && musicCursor.barStartLine < start + lyricLines(part).length;
     });
     const first = slides.findIndex(slide => slide.planItemId === liveSlide?.planItemId && slide.slideKind === 'content');
-    if (partIndex >= 0 && first >= 0) { setMusicFollowing(true); setLocalIndex(first + block.slideIndex + partIndex); }
-  }, [musicCursor?.occurrence, musicCursor?.barStartLine, musicMode, liveSong?.id]);
+    if (partIndex >= 0 && first >= 0) {
+      const targetIndex = first + block.slideIndex + partIndex;
+      const pageKey = `${liveSyncPlanId}:${liveSlide?.planItemId}:${targetIndex}:${worshipCoupled}`;
+      if (lastMusicPageRef.current === pageKey) return;
+      lastMusicPageRef.current = pageKey;
+      setMusicFollowing(true);
+      setLocalIndex(targetIndex);
+      if (worshipCoupled) {
+        navigationGenerationRef.current += 1;
+        void publishWorshipSlide(targetIndex, navigationGenerationRef.current);
+      }
+    }
+  }, [musicCursor?.occurrence, musicCursor?.barStartLine, musicMode, liveSong?.id, worshipCoupled, liveSyncPlanId]);
   function timingFor(text: string, lineIndex: number, segmentStart: number, occurrence: number, lastSegment: boolean) {
     const offset = findSlideLineOffset(liveSong?.lyrics ?? '', text, 'content');
     return { lyrics: liveSong?.lyrics ?? '', bars: timingBars, sourceLine: offset < 0 ? -1 : offset + lineIndex, segmentStart, lastSegment, showBars: canUseMusic && musicMode, cursor: musicCursor?.occurrence === occurrence ? musicCursor : null };

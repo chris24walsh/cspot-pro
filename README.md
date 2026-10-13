@@ -413,10 +413,11 @@ Worship Live's **Music** toggle is available to administrators only for now. It
 shows bar lines and compact Listen/Stop controls: playback starts at the first bar
 with a one-bar count-in, using a metronome by default; **MIDI** adds the chord
 strum in the selected key. A bouncing dot follows the lyrics using the audio clock.
-Pages turn locally at their first bar, without advancing congregation slides.
+Pages turn at their first bar. When synced, the service display advances too;
+with Sync off, page turns stay local.
 Place boundaries in each sequenced part to enable the whole-song timing guide.
-Empty bars before a part’s first chord play metronome-only, consistently with the
-rhythm editor’s song and part playback.
+Empty bars carry the last played chord, including across parts and repeats.
+Before any chord has played, they use metronome-only playback.
 The editor uses the same guide and source anchors. Lyrics retain normal character
 and word spacing when chords or bars move, including while Music is hidden.
 The dot varies its speed between anchors to follow musical time without stretching text.

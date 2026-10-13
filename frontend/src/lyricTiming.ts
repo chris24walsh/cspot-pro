@@ -78,9 +78,11 @@ export function wrapTimedLine(line: string, maxWidth: number, widths: number[]):
 
 export function timedPracticeBars(lyrics: string | null | undefined, bars: LyricBar[], annotations: ChordAnnotation[], numerator: number) {
   const resolved = resolveChordAnnotations(annotations, lyrics ?? null).sort((a, b) => a.absoluteLineIndex - b.absoluteLineIndex || a.anchorIndex - b.anchorIndex);
+  let previousChord = "";
   return bars.map(bar => ({ section: bar.section, chords: bar.stops.slice(0, -1).map((position, index, stops) => {
     const candidates = resolved.filter(chord => musicalSectionKey(chord.section ?? 'Default') === musicalSectionKey(bar.section));
     const chord = candidates.filter(chord => chord.absoluteLineIndex < position.lineIndex || chord.absoluteLineIndex === position.lineIndex && chord.anchorIndex <= position.anchorIndex).slice(-1)[0];
-    return { beat: 1 + index * numerator / stops.length, chord: chord?.chord ?? '' };
+    previousChord = chord?.chord || previousChord;
+    return { beat: 1 + index * numerator / stops.length, chord: previousChord };
   }) }));
 }
