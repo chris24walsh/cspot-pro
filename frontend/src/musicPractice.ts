@@ -82,7 +82,7 @@ export function songPracticeParts(lyrics?: string | null, sequence?: string | nu
 
 export function buildPracticePerformance(rhythm: SongRhythm, options: {
   mode: PracticeMode; annotations?: ChordAnnotation[]; section?: string; lyrics?: string | null; sequence?: string | null;
-  previewChord?: string; transpose?: number; countIn?: boolean; metronome?: boolean; chords?: boolean; bars?: PracticeBar[]; finish?: boolean; metronomeDuringRests?: boolean;
+  previewChord?: string; transpose?: number; countIn?: boolean; metronome?: boolean; chords?: boolean; bars?: PracticeBar[]; finish?: boolean; metronomeDuringRests?: boolean; metronomeLeadIn?: boolean;
 }): PracticePerformance {
   if (!Number.isInteger(rhythm.bpm ?? 90) || (rhythm.bpm ?? 90) < 30 || (rhythm.bpm ?? 90) > 240) throw new Error("Enter a tempo between 30 and 240 BPM.");
   const section = options.section ?? "Default";
@@ -148,6 +148,7 @@ export function buildPracticePerformance(rhythm: SongRhythm, options: {
     };
     const start = countInTicks + barIndex * barTicks;
     if (options.metronome) clicks(start);
+    else if (options.metronomeLeadIn && firstChordTick !== null) clicks(start, countInTicks + firstChordTick);
     if (options.chords === false) return;
     const slots = rhythm.numerator * pattern.subdivision;
     const phase = (bar.patternBar ?? patternBar) % (pattern.bars ?? 1);

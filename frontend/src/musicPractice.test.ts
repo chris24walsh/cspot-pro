@@ -219,3 +219,14 @@ it('keeps upstrokes softer than downstrokes, including accented beats, and mutes
   expect(Math.max(...muted.map(note => note.velocity))).toBeLessThan(Math.min(...up.map(note => note.velocity)));
   expect(muted[0].pitch).toBeGreaterThan(muted[muted.findIndex(note => note.tick >= MIDI_PPQ) - 1].pitch);
 });
+
+
+it.each([0, 1, 2])('clicks only the bar before MIDI starts, including opening rests (%s)', emptyBars => {
+  const bars = [...Array.from({ length: emptyBars }, () => ({ section: 'Default', chords: [{ chord: '', beat: 1 }] })), { section: 'Default', chords: [{ chord: 'C', beat: 1 }] }, { section: 'Default', chords: [{ chord: 'G', beat: 1 }] }];
+  const music = buildPracticePerformance(rhythm, { mode: 'song', bars, countIn: true, metronome: false, metronomeLeadIn: true });
+  const firstChord = music.notes.find(note => note.channel === 0)!.tick;
+  const clicks = music.notes.filter(note => note.channel === 9);
+  expect(clicks).toHaveLength(4);
+  expect(clicks[0].tick).toBe(firstChord - music.barTicks);
+  expect(clicks.every(note => note.tick < firstChord)).toBe(true);
+});
