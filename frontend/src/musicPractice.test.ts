@@ -238,3 +238,14 @@ it.each(['S', 's'] as const)('plays soft strokes with shorter pitched sustain an
   expect(music.notes[0].pitch < music.notes[1].pitch).toBe(stroke === 'S');
   expect(music.notes[0].duration / MIDI_PPQ * 60 / music.quarterBpm).toBeCloseTo(0.7);
 });
+
+it('preserves 8/8 bar and stroke timings when converted to four subdivisions in 4/4 at half BPM', () => {
+  const old: SongRhythm = { numerator: 8, denominator: 8, bpm: 180, notes: '', patterns: [{ section: 'Default', subdivision: 2, bars: 1, strokes: ['D', '-', 'U', 'S', 's', '-', 'X', '-','D', '-', 'U', '-', 'D', '-', 'U', '-'] }], arrangements: [{ section: 'Default', chart: 'C@1 G@5 | Am' }] };
+  const converted: SongRhythm = { ...old, numerator: 4, denominator: 4, bpm: 90, patterns: old.patterns.map(pattern => ({ ...pattern, subdivision: 4 })), arrangements: [{ section: 'Default', chart: 'C@1 G@3 | Am' }] };
+  const before = buildPracticePerformance(old, { mode: 'song', countIn: false, metronome: false });
+  const after = buildPracticePerformance(converted, { mode: 'song', countIn: false, metronome: false });
+  expect(after.quarterBpm).toBe(before.quarterBpm);
+  expect(after.totalTicks).toBe(before.totalTicks);
+  const timings = (music: typeof before) => music.notes.map(({ tick, duration, pitch, channel }) => ({ tick, duration, pitch, channel }));
+  expect(timings(after)).toEqual(timings(before));
+});

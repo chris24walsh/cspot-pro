@@ -164,9 +164,10 @@ export function SongRhythmEditor({ value, canEdit, onChange, lyrics, sequence, p
           </label>
           <div className="song-rhythm-fields">
             <label className="compact-field">Grid
-              <select aria-label="Strumming grid subdivision" disabled={!canEdit} value={pattern.subdivision} onChange={(event) => updatePattern(resizeStrumPattern(editablePattern, rhythm.numerator, Number(event.target.value) as 1 | 2))}>
+              <select aria-label="Strumming grid subdivision" disabled={!canEdit} value={pattern.subdivision} onChange={(event) => updatePattern(resizeStrumPattern(editablePattern, rhythm.numerator, Number(event.target.value) as 1 | 2 | 4))}>
                 <option value={1}>One per {rhythm.denominator === 8 ? "eighth note" : "beat"}</option>
                 <option value={2}>Two per {rhythm.denominator === 8 ? "eighth note" : "beat"}</option>
+                <option value={4}>Four per beat · 1 e &amp; a</option>
               </select>
             </label>
             <label className="compact-field">Pattern length<select aria-label="Strum pattern length" disabled={!canEdit} value={pattern.bars ?? 1} onChange={event => updatePattern(resizeStrumPattern(editablePattern, rhythm.numerator, pattern.subdivision, Number(event.target.value) as 1 | 2))}><option value={1}>1 bar</option><option value={2}>2 bars</option></select></label>

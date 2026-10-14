@@ -39,3 +39,8 @@ it('counts each bar separately and preserves the second bar when changing grids 
   expect(resizeStrumPattern(pattern, 3).strokes).toEqual(['D', '-', 'U', 'X', '-', 'D']);
   expect(resizeStrumPattern(pattern, 4, 2).strokes[8]).toBe('X');
 });
+
+it('counts four subdivisions per beat without changing the pattern length', () => {
+  const rhythm: SongRhythm = { numerator: 4, denominator: 4, notes: '', patterns: [{ section: 'Default', subdivision: 4, strokes: Array(16).fill('D') }] };
+  expect(strumCounts(rhythm, rhythm.patterns[0])).toEqual(['1', 'e', '&', 'a', '2', 'e', '&', 'a', '3', 'e', '&', 'a', '4', 'e', '&', 'a']);
+});

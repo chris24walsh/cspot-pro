@@ -1313,3 +1313,9 @@ or synthesis help text. Playback checkboxes have larger, spaced tap targets.
 Worship Live keeps rhythm playback/tempo options expanded by default. Edit
 enables the tempo input as well as stroke editing; Save persists BPM with the
 pattern, and Cancel restores both to the saved song values.
+
+Strum grids support 1, 2 or 4 strokes per beat; four uses 1 e & a counts.
+Migration 0071 converts existing 8/8 songs and shared strums to 4/4 with doubled
+subdivision and half song BPM, preserving the same number of bars, stroke order
+and elapsed bar/stroke/chord timing. Explicit chart beat positions are rescaled;
+original converted values are backed up for rollback. Custom meter presets remain.

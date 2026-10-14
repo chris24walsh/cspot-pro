@@ -4,7 +4,7 @@ export interface StrumPattern {
   name?: string;
   bars?: 1 | 2;
   section: StrumSection;
-  subdivision: 1 | 2;
+  subdivision: 1 | 2 | 4;
   strokes: StrumStroke[];
 }
 export interface BarMarker {
@@ -31,7 +31,7 @@ export const STROKE_CYCLE: StrumStroke[] = ["-", "D", "U", "S", "s", "X"];
 
 export const STRUM_PRESETS: Array<{
   id: string; name: string; numerator: number; denominator: SongRhythm["denominator"];
-  subdivision: 1 | 2; strokes: StrumStroke[];
+  subdivision: 1 | 2 | 4; strokes: StrumStroke[];
 }> = [
   { id: "four-down", name: "Steady downstrokes", numerator: 4, denominator: 4, subdivision: 1, strokes: ["D", "D", "D", "D"] },
   { id: "four-alternating", name: "Straight down-up", numerator: 4, denominator: 4, subdivision: 2, strokes: ["D", "U", "D", "U", "D", "U", "D", "U"] },
@@ -51,6 +51,7 @@ export function strumCounts(rhythm: SongRhythm, pattern: StrumPattern): string[]
   return pattern.strokes.map((_, index) => {
     index %= rhythm.numerator * pattern.subdivision;
     if (compound) return index % 3 === 0 ? String(index / 3 + 1) : index % 3 === 1 ? "&" : "a";
+    if (pattern.subdivision === 4) return index % 4 === 0 ? String(index / 4 + 1) : ["", "e", "&", "a"][index % 4];
     return index % pattern.subdivision === 0 ? String(index / pattern.subdivision + 1) : "&";
   });
 }
@@ -82,7 +83,7 @@ export interface RhythmPreset {
   name: string;
   numerator: number;
   denominator: SongRhythm["denominator"];
-  subdivision: 1 | 2 | null;
+  subdivision: 1 | 2 | 4 | null;
   strokes: StrumStroke[] | null;
 }
 
