@@ -43,8 +43,9 @@ it.each([false, true])('turns playback pages and publishes them only when synced
     act(() => document.querySelector<HTMLButtonElement>('[aria-label="Bars: on"]')!.click());
     expect(container.querySelector(".lyric-bar-line")).not.toBeNull();
     act(() => document.querySelector<HTMLButtonElement>('[aria-label="Bars: auto"]')!.click());
-    const bandToggle = Array.from(document.querySelectorAll<HTMLButtonElement>('[role="menuitemcheckbox"]')).find(button => button.textContent!.startsWith('Band sync'))!;
-    expect(bandToggle.getAttribute('aria-checked')).toBe('true');
+    expect(document.querySelector('[aria-label="Band sync: on"]')?.getAttribute('aria-checked')).toBe('true');
+    const bandToggle = document.querySelector<HTMLButtonElement>('[aria-label="Band sync: off"]')!;
+    expect(bandToggle.getAttribute('aria-checked')).toBe('false');
     if (coupled) await act(async () => bandToggle.click()); // service sync works even with Band sync off
     musician(container);
     await act(async () => render(true));
@@ -149,7 +150,7 @@ it('follows a remote dot and local pages without audio or republishing service s
     await act(async () => root.render(<MusicianLiveView plan={plan} songs={[song]} topbarSlot={toolbar} onEditSong={() => {}} onExit={() => {}} />));
     expect(getWorshipMusicTiming).not.toHaveBeenCalled();
     musician(container);
-    await act(async () => Array.from(document.querySelectorAll<HTMLButtonElement>('[role="menuitemcheckbox"]')).find(button => button.textContent!.startsWith('Follow shared timing'))!.click());
+    await act(async () => document.querySelector<HTMLButtonElement>('[aria-label="Follow shared timing: on"]')!.click());
     expect(container.querySelector('.musician-page.is-current')?.textContent).toContain('Second');
     expect(container.querySelectorAll('.lyric-timing-dot')).toHaveLength(1);
     expect(audio.play).not.toHaveBeenCalled();
@@ -171,13 +172,13 @@ it.each(['auto', 'on', 'off'])('keeps %s visibility choices through playback sta
     const chord = container.querySelector('.musician-page.is-current .musician-chord-token')!;
     expect(chord.classList.contains('is-hidden')).toBe(mode === 'off');
     expect(Boolean(container.querySelector('.lyric-bar-line'))).toBe(mode === 'on' || mode === 'auto' && playing);
-    expect(Boolean(container.querySelector('.lyric-timing-dot'))).toBe(mode === 'on' || mode === 'auto' && playing);
+    expect(Boolean(container.querySelector('.lyric-timing-dot'))).toBe(mode !== 'off' && playing);
   };
   try {
     await act(async () => root.render(<MusicianLiveView canUseMusic plan={plan} songs={[song]} topbarSlot={toolbar} onEditSong={() => {}} onExit={() => {}} />));
     await act(async () => container.querySelector<HTMLButtonElement>('.musician-page.is-current')!.click());
     musician(container);
-    for (const label of ['Chords', 'Bars', 'Dot']) act(() => document.querySelector<HTMLButtonElement>(`[aria-label="${label}: ${mode}"]`)!.click());
+    for (const label of ['Chords', 'Bars', 'Dot']) act(() => document.querySelector<HTMLButtonElement>(`[aria-label="${label}: ${label === "Bars" ? mode : mode === "off" ? "off" : "on"}"]`)!.click());
     musician(container);
     assertVisible(false);
     expect(updatePresentationLiveState).not.toHaveBeenCalled(); // a parked dot never advances the service
@@ -189,10 +190,10 @@ it.each(['auto', 'on', 'off'])('keeps %s visibility choices through playback sta
     act(() => container.querySelector<HTMLButtonElement>('[aria-label="Stop playback"]')!.click());
     assertVisible(false);
     musician(container);
-    for (const label of ['Chords', 'Bars', 'Dot']) expect(document.querySelector(`[aria-label="${label}: ${mode}"]`)?.getAttribute('aria-checked')).toBe('true');
-    expect(localStorage.getItem('worship-chords-display')).toBe(mode);
+    for (const label of ['Chords', 'Bars', 'Dot']) expect(document.querySelector(`[aria-label="${label}: ${label === "Bars" ? mode : mode === "off" ? "off" : "on"}"]`)?.getAttribute('aria-checked')).toBe('true');
+    expect(localStorage.getItem('worship-chords-display')).toBe(mode === 'off' ? 'off' : 'on');
     expect(localStorage.getItem('worship-bars-display')).toBe(mode);
-    expect(localStorage.getItem('worship-dot-display')).toBe(mode);
+    expect(localStorage.getItem('worship-dot-display')).toBe(mode === 'off' ? 'off' : 'on');
   } finally { act(() => root.unmount()); vi.unstubAllGlobals(); vi.clearAllMocks(); }
 });
 
@@ -231,7 +232,7 @@ it('keeps sung lyrics in view across early page turns and pauses on manual scrol
     expect(scroller.scrollTop).toBeLessThan(300);
     expect(lines[1].getBoundingClientRect().top).toBeGreaterThan(35);
     musician(container);
-    const toggle = Array.from(document.querySelectorAll<HTMLButtonElement>('[role="menuitemcheckbox"]')).find(button => button.textContent!.startsWith('Auto-scroll'))!;
+    const toggle = document.querySelector<HTMLButtonElement>('[aria-label="Auto-scroll: off"]')!;
     act(() => toggle.click());
     scroller.scrollTop = 75;
     await act(async () => position(1.1));
@@ -310,7 +311,7 @@ it('shows four visual beats over 8/8 and lets the Musician menu hide them', asyn
     expect(container.querySelectorAll('.musician-beat-keeper span')).toHaveLength(4);
     expect(container.querySelector('.musician-beat-keeper .is-active')?.textContent).toBe('2');
     musician(container);
-    act(() => Array.from(document.querySelectorAll<HTMLButtonElement>('[role="menuitemcheckbox"]')).find(button => button.textContent!.startsWith('Beat keeper'))!.click());
+    act(() => document.querySelector<HTMLButtonElement>('[aria-label="Beat keeper: off"]')!.click());
     expect(container.querySelector('.musician-beat-keeper')).toBeNull();
     expect(audio.stop).not.toHaveBeenCalled();
     expect(localStorage.getItem('worship-beat-keeper')).toBe('off');

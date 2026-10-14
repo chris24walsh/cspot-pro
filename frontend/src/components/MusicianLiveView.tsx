@@ -1,4 +1,4 @@
-import { BookOpen, ChevronLeft, ChevronRight, Guitar, Link2, LogOut, Music2, Pencil, ListMusic, Check, AudioLines, ScrollText, Unlink2 } from "lucide-react";
+import { BookOpen, ChevronLeft, ChevronRight, Guitar, Link2, LogOut, Music2, Pencil, ListMusic, AudioLines, ScrollText, Unlink2 } from "lucide-react";
 import type { CSSProperties } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -588,12 +588,9 @@ export function MusicianLiveView({ canUseMusic = false, canControlAudio = false,
   const playbackActive = localPlaybackActive || Boolean(localMusicCursor) || Boolean(remoteSongMatches && sharedTiming.remote) || backingAudioPlaying;
   const showChords = musicianDisplayVisible(chordDisplay, playbackActive, true);
   const musicMode = musicianDisplayVisible(barDisplay, playbackActive);
-  const showTimingDot = musicianDisplayVisible(dotDisplay, playbackActive);
+  const showTimingDot = dotDisplay !== 'off' && playbackActive;
   const idleBar = remoteTimeline.find(bar => bar.occurrence === leadPageContext.occurrence && bar.start.lineIndex >= leadPageContext.sourceOffset && bar.start.lineIndex < leadPageContext.sourceOffset + lyricLines(pageLeadSlide?.text ?? '').length);
-  const parkedDot = useRef<LyricCursor | null>(null);
-  if (musicCursor) parkedDot.current = { ...musicCursor, pulse: 0 };
-  const parkedOnPage = dotDisplay === 'on' && parkedDot.current?.occurrence === leadPageContext.occurrence && parkedDot.current.lineIndex >= leadPageContext.sourceOffset && parkedDot.current.lineIndex < leadPageContext.sourceOffset + lyricLines(pageLeadSlide?.text ?? '').length ? parkedDot.current : null;
-  const displayCursor = showTimingDot ? musicCursor ?? parkedOnPage ?? (leadPageContext.sourceOffset < 0 ? null : { ...(idleBar?.start ?? { lineIndex: leadPageContext.sourceOffset, anchorIndex: LEADING_CHORD_ANCHORS }), occurrence: leadPageContext.occurrence, barStartLine: idleBar?.start.lineIndex ?? leadPageContext.sourceOffset, pulse: 0 }) : null;
+  const displayCursor = showTimingDot ? musicCursor ?? (leadPageContext.sourceOffset < 0 ? null : { ...(idleBar?.start ?? { lineIndex: leadPageContext.sourceOffset, anchorIndex: LEADING_CHORD_ANCHORS }), occurrence: leadPageContext.occurrence, barStartLine: idleBar?.start.lineIndex ?? leadPageContext.sourceOffset, pulse: 0 }) : null;
   function chooseDisplay(key: string, setter: (mode: MusicianDisplayMode) => void, mode: MusicianDisplayMode) {
     setter(mode); try { localStorage.setItem(key, mode); } catch {}
   }
@@ -1333,16 +1330,16 @@ export function MusicianLiveView({ canUseMusic = false, canControlAudio = false,
       <div className="musician-live-controls" aria-label="Musician display controls">
         <CompactControlMenu label="Musician" icon={<Guitar size={16} aria-hidden="true" />} active={showChords || musicMode}>
           {close => <>
-            <MusicianDisplayChoice label="Chords" icon={<Guitar size={16} aria-hidden="true" />} value={chordDisplay} onChange={mode => chooseDisplay('worship-chords-display', setChordDisplay, mode)} />
+            <MusicianDisplayChoice label="Chords" binary icon={<Guitar size={16} aria-hidden="true" />} value={chordDisplay} onChange={mode => chooseDisplay('worship-chords-display', setChordDisplay, mode)} />
             <MusicianDisplayChoice label="Bars" icon={<ListMusic size={16} aria-hidden="true" />} value={barDisplay} onChange={mode => chooseDisplay('worship-bars-display', setBarDisplay, mode)} />
-            <button role="menuitemcheckbox" aria-checked={beatKeeperEnabled} onClick={() => setBeatKeeperEnabled(value => { try { localStorage.setItem("worship-beat-keeper", value ? "off" : "on"); } catch {} return !value; })} type="button"><Music2 size={16} aria-hidden="true" /><span>Beat keeper<small>Show beats during playback</small></span>{beatKeeperEnabled ? <Check size={16} aria-hidden="true" /> : null}</button>
-            <MusicianDisplayChoice label="Dot" icon={<Music2 size={16} aria-hidden="true" />} value={dotDisplay} onChange={mode => chooseDisplay('worship-dot-display', setDotDisplay, mode)} />
-            <button role="menuitemcheckbox" aria-checked={bandSyncEnabled} onClick={() => setBandSyncEnabled(value => { try { localStorage.setItem("worship-band-sync", value ? "off" : "on"); } catch {} return !value; })} type="button"><Link2 size={16} aria-hidden="true" /><span>Band sync<small>{worshipCoupled ? "Service Sync takes priority" : "Share pages with other musicians"}</small></span>{bandSyncEnabled ? <Check size={16} aria-hidden="true" /> : null}</button>
+            <MusicianDisplayChoice label="Beat keeper" binary description="Show during playback" icon={<Music2 size={16} aria-hidden="true" />} value={beatKeeperEnabled ? "on" : "off"} onChange={mode => { setBeatKeeperEnabled(mode === "on"); try { localStorage.setItem("worship-beat-keeper", mode); } catch {} }} />
+            <MusicianDisplayChoice label="Dot" binary description="Show during playback" icon={<Music2 size={16} aria-hidden="true" />} value={dotDisplay} onChange={mode => chooseDisplay('worship-dot-display', setDotDisplay, mode)} />
+            <MusicianDisplayChoice label="Band sync" binary description={worshipCoupled ? "Service Sync takes priority" : "Share pages with musicians"} icon={<Link2 size={16} aria-hidden="true" />} value={bandSyncEnabled ? "on" : "off"} onChange={mode => { setBandSyncEnabled(mode === "on"); try { localStorage.setItem("worship-band-sync", mode); } catch {} }} />
             {bandSync.error ? <small role="status">{bandSync.error}</small> : null}
-            <button role="menuitemcheckbox" aria-checked={followSharedTiming} onClick={() => { setFollowSharedTiming(value => { try { localStorage.setItem('worship-follow-timing', value ? 'off' : 'on'); } catch {} return !value; }); }} type="button"><Link2 size={16} aria-hidden="true" /><span>Follow shared timing<small>Dot and page turns on this device · no audio</small></span>{followSharedTiming ? <Check size={16} aria-hidden="true" /> : null}</button>
-            {canUseMusic ? <button role="menuitemcheckbox" aria-checked={shareTiming} onClick={() => setShareTiming(value => { try { localStorage.setItem("worship-share-timing", value ? "off" : "on"); } catch {} return !value; })} type="button"><Music2 size={16} aria-hidden="true" /><span>Share timing<small>Let other Worship Live devices follow</small></span>{shareTiming ? <Check size={16} aria-hidden="true" /> : null}</button> : null}
+            <MusicianDisplayChoice label="Follow shared timing" binary description="Follow dot and page turns · no audio" icon={<Link2 size={16} aria-hidden="true" />} value={followSharedTiming ? "on" : "off"} onChange={mode => { setFollowSharedTiming(mode === "on"); try { localStorage.setItem("worship-follow-timing", mode); } catch {} }} />
+            {canUseMusic ? <MusicianDisplayChoice label="Share timing" binary description="Let other devices follow" icon={<Music2 size={16} aria-hidden="true" />} value={shareTiming ? "on" : "off"} onChange={mode => { setShareTiming(mode === "on"); try { localStorage.setItem("worship-share-timing", mode); } catch {} }} /> : null}
             {sharedTiming.error ? <small role="alert">{sharedTiming.error}</small> : null}
-            <button role="menuitemcheckbox" aria-checked={false} disabled title="Dynamics annotations are not available yet" type="button"><AudioLines size={16} aria-hidden="true" /><span>Dynamics<small>Not available yet</small></span></button>
+            <MusicianDisplayChoice label="Dynamics" binary disabled description="Not available yet" icon={<AudioLines size={16} aria-hidden="true" />} value="off" onChange={() => {}} />
             <SongRhythmDisplay menuItem annotations={chordChart.annotations} onPosition={canUseMusic ? (position, mode, section) => {
               const timeline = lyricPlaybackBars(liveSong?.lyrics, liveSong?.sequence, timingBars);
               const part = timeline.filter(bar => musicalSectionKey(bar.section) === musicalSectionKey(section));
@@ -1352,7 +1349,7 @@ export function MusicianLiveView({ canUseMusic = false, canControlAudio = false,
               setMusicCursor(cursor);
             } : undefined} key={liveSong?.id} rhythm={liveSong?.rhythm} section={sequenceBlocks[currentSequenceBlockIndex]?.label} lyrics={liveSong?.lyrics} sequence={liveSong?.sequence} previewChord={baseAbsoluteKey} transpose={currentAbsoluteKey ? semitoneDistance(baseAbsoluteKey, currentAbsoluteKey) : 0} title={liveSong?.title} />
             <hr />
-            {readerMode === "scroll" ? <button role="menuitemcheckbox" aria-checked={autoScroll} onClick={() => setAutoScroll(value => { try { localStorage.setItem("worship-auto-scroll", value ? "off" : "on"); } catch {} return !value; })} type="button"><ScrollText size={16} /><span>Auto-scroll<small>Follow playback smoothly</small></span>{autoScroll ? <Check size={16} /> : null}</button> : null}
+            {readerMode === "scroll" ? <MusicianDisplayChoice label="Auto-scroll" binary description="Follow playback smoothly" icon={<ScrollText size={16} aria-hidden="true" />} value={autoScroll ? "on" : "off"} onChange={mode => { setAutoScroll(mode === "on"); try { localStorage.setItem("worship-auto-scroll", mode); } catch {} }} /> : null}
             <button role="menuitem" aria-label={`Switch to ${readerMode === 'pages' ? 'Scroll' : 'Pages'} view`} onClick={() => { setReaderMode(value => value === 'pages' ? 'scroll' : 'pages'); close(); }} type="button">{readerMode === 'pages' ? <ScrollText size={16} /> : <BookOpen size={16} />}<span>{readerMode === 'pages' ? 'Scroll view' : 'Page view'}</span></button>
           </>}
         </CompactControlMenu>
