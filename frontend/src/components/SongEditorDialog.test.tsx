@@ -138,7 +138,15 @@ it("adds missing bars at chords and moves a paired chord/bar together", async ()
     const start = new Event('dragstart', { bubbles: true });
     Object.defineProperty(start, 'dataTransfer', { value: { setData: vi.fn() } });
     act(() => container.querySelector<HTMLButtonElement>('.musician-slot.has-chord.has-bar')!.dispatchEvent(start));
+    const over = new Event('dragover', { bubbles: true, cancelable: true });
+    Object.defineProperty(over, 'dataTransfer', { value: { dropEffect: '' } });
+    act(() => container.querySelectorAll<HTMLButtonElement>('.musician-slot')[5].dispatchEvent(over));
+    expect(container.querySelector('.musician-slot.is-drop-target')).toBe(container.querySelectorAll('.musician-slot')[5]);
+    expect(container.querySelector('.musician-char.is-drop-target')?.textContent).toBe('s');
+    expect(container.querySelector<HTMLElement>('.musician-drop-column')?.style.gridColumn).toBe('6');
     act(() => container.querySelectorAll<HTMLButtonElement>('.musician-slot')[5].dispatchEvent(new Event('drop', { bubbles: true })));
+    expect(container.querySelector('.musician-drop-column')).toBeNull();
+    expect(container.querySelector('.is-drop-target')).toBeNull();
     act(() => toggle.click());
     expect(toggle.textContent).toBe('Chords');
     await act(async () => {

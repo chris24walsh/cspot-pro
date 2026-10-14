@@ -315,6 +315,7 @@ export function SongEditorDialog({
   const [chordInput, setChordInput] = useState("");
   const [draggedBarId, setDraggedBarId] = useState<string | null>(null);
   const [draggedAnnotationId, setDraggedAnnotationId] = useState<string | null>(null);
+  const [dropTarget, setDropTarget] = useState<{ lineIndex: number; slotIndex: number } | null>(null);
   const [hoveredAnchor, setHoveredAnchor] = useState<{ lineIndex: number; slotIndex: number } | null>(null);
   const [hoveredChordId, setHoveredChordId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -510,6 +511,7 @@ export function SongEditorDialog({
   }
 
   function dropAt(lineIndex: number, anchorIndex: number) {
+    setDropTarget(null);
     if (!canEdit) return;
     if (combinedEditing) {
       const source = chordChart.annotations.find(chord => chord.id === draggedAnnotationId) ?? form.rhythm?.markers?.find(bar => bar.id === draggedBarId);
@@ -908,15 +910,15 @@ export function SongEditorDialog({
                         }
                         return (
                           <button
-                            className={`musician-slot ${annotation ? "has-chord" : ""} ${bar ? "has-bar" : ""} ${barEditing ? "is-bar-editing" : ""}`}
+                            className={`musician-slot ${annotation ? "has-chord" : ""} ${bar ? "has-bar" : ""} ${barEditing ? "is-bar-editing" : ""} ${dropTarget?.lineIndex === lineIndex && dropTarget.slotIndex === slotIndex ? "is-drop-target" : ""}`}
                             aria-label={barEditing ? `${bar ? "Remove" : "Add"} bar at line ${lineIndex + 1}, position ${slotIndex}` : undefined}
                             title={barEditing ? bar ? "Drag to move bar; click to remove" : "Click to add bar" : undefined}
                             disabled={!canEdit}
                             draggable={Boolean(combinedEditing ? bar || annotation : barEditing ? bar : annotation) && canEdit}
                             key={`slot-${lineIndex}-${slotIndex}`}
                             onClick={() => barEditing ? editBarAt(lineIndex, slotIndex) : startInlineChordEdit(lineIndex, slotIndex, annotation)}
-                            onDragEnd={() => { setDraggedAnnotationId(null); setDraggedBarId(null); }}
-                            onDragOver={(event) => { if (combinedEditing ? draggedBarId || draggedAnnotationId : barEditing ? draggedBarId : draggedAnnotationId) event.preventDefault(); }}
+                            onDragEnd={() => { setDraggedAnnotationId(null); setDraggedBarId(null); setDropTarget(null); }}
+                            onDragOver={(event) => { if (combinedEditing ? draggedBarId || draggedAnnotationId : barEditing ? draggedBarId : draggedAnnotationId) { event.preventDefault(); event.dataTransfer.dropEffect = "move"; setDropTarget({ lineIndex, slotIndex }); } }}
                             onDragStart={(event) => { if ((barEditing || combinedEditing) && bar) { setDraggedBarId(bar.id); event.dataTransfer.setData("text/plain", bar.id); } else if (annotation) setDraggedAnnotationId(annotation.id); }}
                             onDrop={(event) => {
                               event.preventDefault();
@@ -938,7 +940,8 @@ export function SongEditorDialog({
                         const visualSlotCount = globalSlotEnd - globalSlotStart;
                         const widths = lyricColumnWidths(chordLyrics, timingBars, lineIndex, globalSlotStart, visualSlotCount);
                         return (
-                          <div className={`musician-line-grid ${segmentIndex > 0 ? "is-continuation" : ""}`} key={`${lineIndex}-${segment.start}`} style={{ gridTemplateColumns: widths.map(width => `${width}ch`).join(" ") }}>
+                          <div className={`musician-line-grid ${segmentIndex > 0 ? "is-continuation" : ""}`} key={`${lineIndex}-${segment.start}`} onDragLeave={event => { if (!(event.relatedTarget instanceof Node) || !event.currentTarget.contains(event.relatedTarget)) setDropTarget(null); }} style={{ gridTemplateColumns: widths.map(width => `${width}ch`).join(" ") }}>
+                            {dropTarget?.lineIndex === lineIndex && dropTarget.slotIndex >= globalSlotStart && dropTarget.slotIndex < globalSlotEnd ? <span aria-hidden="true" className="musician-drop-column" style={{ gridColumn: dropTarget.slotIndex - globalSlotStart + 1, gridRow: "1 / 3" }} /> : null}
                             {musicCursor?.lineIndex === lineIndex && musicCursor.anchorIndex >= globalSlotStart && musicCursor.anchorIndex < globalSlotEnd ? <TimingDot widths={widths} anchor={musicCursor.anchorIndex - globalSlotStart} pulse={musicCursor.pulse} /> : null}
                             {Array.from({ length: visualSlotCount }, (_, localSlotIndex) => {
                               const slotIndex = globalSlotStart + localSlotIndex;
@@ -948,10 +951,10 @@ export function SongEditorDialog({
                               const charIndex = segment.start + localCharIndex;
                               return (
                                 <button
-                                  className={`musician-char ${line[charIndex] === " " ? "is-space" : ""} ${hoveredAnchor?.lineIndex === lineIndex && hoveredAnchor.slotIndex === LEADING_CHORD_ANCHORS + charIndex ? "is-anchor-hovered" : ""}`}
+                                  className={`musician-char ${line[charIndex] === " " ? "is-space" : ""} ${hoveredAnchor?.lineIndex === lineIndex && hoveredAnchor.slotIndex === LEADING_CHORD_ANCHORS + charIndex ? "is-anchor-hovered" : ""} ${dropTarget?.lineIndex === lineIndex && dropTarget.slotIndex === LEADING_CHORD_ANCHORS + charIndex ? "is-drop-target" : ""}`}
                                   disabled={!canEdit}
                                   key={`${lineIndex}-char-${charIndex}`}
-                                  onDragOver={(event) => { if (draggedBarId || draggedAnnotationId) event.preventDefault(); }}
+                                  onDragOver={(event) => { if (draggedBarId || draggedAnnotationId) { event.preventDefault(); event.dataTransfer.dropEffect = "move"; setDropTarget({ lineIndex, slotIndex: LEADING_CHORD_ANCHORS + charIndex }); } }}
                                   onDrop={(event) => {
                                     if (draggedBarId || draggedAnnotationId) { event.preventDefault(); dropAt(lineIndex, LEADING_CHORD_ANCHORS + charIndex); }
                                   }}

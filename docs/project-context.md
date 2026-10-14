@@ -540,3 +540,7 @@ Right-click or hold the chord/bar mode toggle to enter Both mode, moving chords
 and bar boundaries at the same position together. Click returns to Chords.
 Chord tools → Bars at chords adds missing boundaries at existing chord positions
 without removing existing bars, providing a quick starting rhythm layout.
+
+Chord/bar dragging highlights the exact destination slot and lyric character,
+with a vertical guide through both rows. The preview uses the same source anchor
+as the drop handler, including wrapped lines and leading/trailing positions.

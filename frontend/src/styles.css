@@ -14277,3 +14277,8 @@ button.musician-page {
 }
 
 .musician-control-menu .musician-clear-chords-button { color: #a42f25; }
+
+/* Drop feedback shares the exact source column used by placement. */
+.musician-drop-column { pointer-events: none; z-index: 3; border-left: 2px solid #c56a08; background: #ffbb4933; position: relative; }
+.musician-drop-column::before { content: ""; position: absolute; top: 0; left: -5px; border-left: 4px solid transparent; border-right: 4px solid transparent; border-top: 6px solid #c56a08; }
+.musician-slot.is-drop-target, .musician-char.is-drop-target { background: #ffd88b; color: #17201b; border-radius: 2px; box-shadow: inset 0 0 0 1px #c56a08; opacity: 1; }
