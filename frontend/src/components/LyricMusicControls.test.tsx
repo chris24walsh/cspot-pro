@@ -176,7 +176,7 @@ it.each(['Metronome', 'MIDI strum', 'Silent guide'])('queues a manual slide dest
   } finally { act(() => root.unmount()); vi.clearAllMocks(); }
 });
 
-it('keeps the player when a manual jump selects another song', async () => {
+it.each(['F', ''])('keeps the player and carries chords through unannotated live destinations (%s)', async destinationChord => {
   const container = document.createElement('div'), root = createRoot(container);
   const render = (revision: number, name: string, chord: string) => {
     const lyrics = `[V1]\n${name}`;
@@ -187,12 +187,14 @@ it('keeps the player when a manual jump selects another song', async () => {
   try {
     await act(async () => render(0, 'First song', 'C'));
     await play(container, 'MIDI strum');
-    await act(async () => render(1, 'Another song', 'F'));
+    const progress = audio.play.mock.calls[0][4] as (position: number) => void;
+    await act(async () => progress(0.25));
+    await act(async () => render(1, 'Another song', destinationChord));
     expect(audio.play).toHaveBeenCalledOnce();
     expect(audio.stop).not.toHaveBeenCalled();
     expect(audio.queuePerformance).toHaveBeenCalledOnce();
     const queued = audio.queuePerformance.mock.calls[0][0] as PracticePerformance;
-    expect(queued.bars[0].chords[0].chord).toBe('F');
+    expect(queued.bars[0].chords[0].chord).toBe(destinationChord || 'C');
     expect(queued.countInTicks).toBe(0);
   } finally { act(() => root.unmount()); vi.clearAllMocks(); }
 });

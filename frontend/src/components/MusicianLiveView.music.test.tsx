@@ -277,19 +277,27 @@ it('queues manual section changes while automatic page turns leave the player ru
   const container = document.createElement('div'), mount = document.createElement('div'), toolbar = document.createElement('div'); container.append(mount, toolbar); const root = createRoot(mount);
   try {
     await act(async () => root.render(<MusicianLiveView canUseMusic plan={plan} songs={[song]} topbarSlot={toolbar} onEditSong={() => {}} onExit={() => {}} />));
+    musician(container);
+    act(() => document.querySelector<HTMLButtonElement>('[aria-label="Switch to Scroll view"]')!.click());
+    const scroller = container.querySelector<HTMLElement>('.musician-full-song')!;
+    Object.defineProperty(scroller, 'clientHeight', { value: 100 });
+    const lines = Array.from(scroller.querySelectorAll<HTMLElement>('[data-playback-line]'));
+    lines.forEach((line, index) => { line.getBoundingClientRect = () => ({ top: 100 + 200 * index - scroller.scrollTop, height: 20 } as DOMRect); });
     await play(container);
     const oldPosition = audio.play.mock.calls[0][4] as (position: number) => void;
     await act(async () => oldPosition(0.25));
     expect(audio.queuePerformance).not.toHaveBeenCalled();
     await act(async () => container.querySelector<HTMLButtonElement>('[aria-label="Next slide"]')!.click());
+    expect(scroller.scrollTop).toBe(260);
     expect(audio.queuePerformance).toHaveBeenCalledOnce();
     expect(audio.play).toHaveBeenCalledOnce();
     expect(audio.stop).not.toHaveBeenCalled();
     await act(async () => oldPosition(0.4));
-    expect(container.querySelector('.musician-page.is-current')?.textContent).toContain('Second');
+    expect(scroller.scrollTop).toBe(260);
+    expect(container.querySelector('.musician-song-part.is-current')?.textContent).toContain('Second');
     const [, nextPosition, commit] = audio.queuePerformance.mock.calls[0] as [unknown, (position: number) => void, () => void];
     await act(async () => { commit(); nextPosition(0); });
-    expect(container.querySelector('.musician-page.is-current')?.textContent).toContain('Second');
+    expect(container.querySelector('.musician-song-part.is-current')?.textContent).toContain('Second');
     await act(async () => container.querySelector<HTMLButtonElement>('[aria-label="Previous slide"]')!.click());
     expect(audio.queuePerformance).toHaveBeenCalledTimes(2);
   } finally { act(() => root.unmount()); vi.unstubAllGlobals(); vi.clearAllMocks(); }

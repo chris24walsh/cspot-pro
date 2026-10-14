@@ -1,7 +1,7 @@
 import { Guitar, Play, Square, Timer, Volume2, VolumeX } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { type ChordAnnotation } from '../chordSheet';
-import { buildPracticePerformance, PracticeAudioPlayer, PracticeSilentPlayer, MIDI_PPQ } from '../musicPractice';
+import { transposeChordSymbol, type ChordAnnotation } from '../chordSheet';
+import { buildPracticePerformance, PracticeAudioPlayer, PracticeSilentPlayer, MIDI_PPQ, type PracticeBar } from '../musicPractice';
 import { lyricCursorAt, lyricPlaybackBars, timedPracticeBars, type LyricBar, type LyricCursor } from '../lyricTiming';
 import { worshipSequenceBlocks } from '../worshipText';
 import { CompactControlMenu } from './CompactControlMenu';
@@ -19,6 +19,7 @@ export function LyricMusicControls({ rhythm, lyrics, sequence, annotations, bars
   annotations: ChordAnnotation[]; bars: LyricBar[]; transpose?: number; onCursor: (cursor: LyricCursor | null) => void;
 }) {
   const [playing, setPlaying] = useState(false), [error, setError] = useState<string | null>(null);
+  const activeBars = useRef<{ bars: PracticeBar[]; position: number; transpose: number }>({ bars: [], position: -1, transpose: 0 });
   const modeRef = useRef<"metronome" | "midi" | "silent" | null>(null);
   const readyRef = useRef<Promise<void>>(Promise.resolve());
   const handledJump = useRef(jumpRevision);
@@ -56,12 +57,18 @@ export function LyricMusicControls({ rhythm, lyrics, sequence, annotations, bars
         if (index < 0 || !timeline.length) throw new Error("Place a bar boundary on this slide to play from here.");
         const missing = worshipSequenceBlocks(lyrics, sequence).find((_block, occurrence) => occurrence >= (startAt?.occurrence ?? 0) && !timeline.some(bar => bar.occurrence === occurrence));
         if (missing) throw new Error(`Place bar boundaries for ${missing.label} before playing from here.`);
-        const practiceBars = timedPracticeBars(lyrics, timeline.slice(index), annotations, rhythm.numerator);
+        // Live navigation keeps the chord sounding at the end of this bar.
+        const oldBars = activeBars.current;
+        const changes = oldBars.bars.slice(0, Math.max(0, Math.floor(oldBars.position) + 1)).flatMap(bar => bar.chords).filter(change => change.chord);
+        const previous = changes[changes.length - 1]?.chord;
+        const initialChord = mode === "midi" && previous ? transposeChordSymbol(previous, oldBars.transpose - transpose) : "";
+        const practiceBars = timedPracticeBars(lyrics, timeline.slice(index), annotations, rhythm.numerator, initialChord);
         const music = buildPracticePerformance(rhythm, { mode: "song", countIn: false, metronome: mode !== "silent", metronomeDuringRests: true, chords: mode === "midi", finish: mode === "midi", transpose, bars: practiceBars });
         await readyRef.current;
         if (playerRef.current !== requested || handledJump.current !== revision) return;
         await requested.queuePerformance(music, position => {
           if (playerRef.current !== requested) return;
+          activeBars.current = { bars: practiceBars, position, transpose };
           callback.current(lyricCursorAt(lyrics, timeline, index + position, rhythm.numerator, rhythm.denominator));
           timingCallback.current?.({ startIndex: index, position, barDurationMs: music.barTicks / MIDI_PPQ * 60_000 / music.quarterBpm, totalBars: practiceBars.length });
         }, () => { committed?.(); if (handledJump.current === revision) { setJumpPending(false); pendingCallback.current?.(false); } });
@@ -89,8 +96,10 @@ export function LyricMusicControls({ rhythm, lyrics, sequence, annotations, bars
       const practiceBars = timedPracticeBars(lyrics, timeline.slice(startIndex), annotations, rhythm.numerator);
       const performance = buildPracticePerformance(rhythm, { mode: 'song', countIn: mode !== 'silent', metronome: mode !== "silent", chords: mode === "midi", finish: mode === "midi", transpose, bars: practiceBars });
       player = mode === "silent" ? new PracticeSilentPlayer() : new PracticeAudioPlayer(); const requested = player; playerRef.current = player; modeRef.current = mode; setPlaying(true); onStarted?.();
+      activeBars.current = { bars: practiceBars, position: -1, transpose };
       readyRef.current = player.play(performance, false, () => {}, () => { if (playerRef.current === requested) { playerRef.current = null; modeRef.current = null; setPlaying(false); setJumpPending(false); pendingCallback.current?.(false); callback.current(null); timingCallback.current?.(null); } }, position => {
         if (playerRef.current === requested) {
+          activeBars.current = { bars: practiceBars, position, transpose };
           callback.current(position < 0 ? null : lyricCursorAt(lyrics, timeline, position + startIndex, rhythm.numerator, rhythm.denominator));
           timingCallback.current?.({ startIndex, position, barDurationMs: performance.barTicks / MIDI_PPQ * 60_000 / performance.quarterBpm, totalBars: practiceBars.length });
         }

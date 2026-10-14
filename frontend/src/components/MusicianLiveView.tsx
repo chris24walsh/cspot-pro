@@ -598,9 +598,11 @@ export function MusicianLiveView({ canUseMusic = false, canControlAudio = false,
   const followingRemote = !localPlaybackActive && Boolean(remoteCursor);
   useEffect(() => {
     if (!followSharedTiming || localPlaybackActive || !sharedTiming.remote || remoteSongMatches) return;
+    // A synced slide selection wins while the old song finishes its bar.
+    if (worshipCoupled || (bandSyncEnabled && bandSync.selection)) return;
     const index = slides.findIndex(slide => slide.planItemId === sharedTiming.remote?.timing.plan_item_id && slide.slideKind === 'content');
     if (index >= 0) { setLocalIndex(index); }
-  }, [sharedTiming.remote?.timing.song_id, sharedTiming.remote?.timing.plan_item_id, followSharedTiming, localPlaybackActive, remoteSongMatches]);
+  }, [sharedTiming.remote?.timing.song_id, sharedTiming.remote?.timing.plan_item_id, followSharedTiming, localPlaybackActive, remoteSongMatches, worshipCoupled, bandSyncEnabled, bandSync.selection?.slide_id]);
   function wrapMusicLine(line: string, limit: number, offset: number, lineIndex: number) {
     return timingBars.length && offset >= 0 ? wrapTimedLine(line, limit, lyricColumnWidths(liveSong?.lyrics, timingBars, offset + lineIndex, LEADING_CHORD_ANCHORS, line.length)) : wrapLyricLine(line, limit);
   }
@@ -1203,10 +1205,13 @@ export function MusicianLiveView({ canUseMusic = false, canControlAudio = false,
   // Starting on a later page must never lead back into the preceding page.
   const startedAt = localPlaybackActive ? localTiming?.startIndex : sharedTiming.remote?.timing.start_index;
   const playbackMotion = playbackPosition === null ? null : playbackPageMotion(playbackPages.filter(page => page.firstBar >= (startedAt ?? 0)), playbackPosition);
+  const lastScrollSlide = useRef<string | null>(null);
+  const manualScrollDestination = useRef<string | null>(null);
   const lastMusicPageRef = useRef<string | null>(null);
   useEffect(() => { setMusicCursor(null); }, [liveSong?.id]);
   useEffect(() => {
     if (jumpPending || jumpHoldRef.current) return;
+    if (manualScrollDestination.current && !(musicCursor?.occurrence === leadPageContext.occurrence && musicCursor.lineIndex >= leadPageContext.sourceOffset && musicCursor.lineIndex < leadPageContext.sourceOffset + lyricLines(pageLeadSlide?.text ?? "").length)) return;
     if (!playbackMotion) { lastMusicPageRef.current = null; return; }
     const targetIndex = playbackMotion.slideIndex;
     const pageKey = `${liveSyncPlanId}:${liveItem?.id}:${targetIndex}:${worshipCoupled}`;
@@ -1218,13 +1223,30 @@ export function MusicianLiveView({ canUseMusic = false, canControlAudio = false,
       navigationGenerationRef.current += 1;
       void publishWorshipSlide(targetIndex, navigationGenerationRef.current, true);
     }
-  }, [playbackMotion?.slideIndex, liveItem?.id, worshipCoupled, liveSyncPlanId, followingRemote, bandSyncEnabled, jumpPending]);
+  }, [playbackMotion?.slideIndex, liveItem?.id, worshipCoupled, liveSyncPlanId, followingRemote, bandSyncEnabled, jumpPending, musicCursor?.occurrence, musicCursor?.lineIndex]);
+  useEffect(() => {
+    const changed = lastScrollSlide.current !== null && lastScrollSlide.current !== liveSlide?.id;
+    lastScrollSlide.current = liveSlide?.id ?? null;
+    if (readerMode !== "scroll" || !autoScroll || !playbackMotion || !liveSlide) { manualScrollDestination.current = null; return; }
+    if (!(jumpPending || changed && liveIndex !== playbackMotion.slideIndex)) return;
+    const container = fullSongRef.current, part = activeSongPartRef.current;
+    if (!container || !part) return;
+    manualScrollDestination.current = liveSlide.id;
+    const firstLine = part.querySelector<HTMLElement>("[data-playback-line]") ?? part;
+    const bounds = firstLine.getBoundingClientRect();
+    container.scrollTop = Math.max(0, container.scrollTop + bounds.top - container.getBoundingClientRect().top + bounds.height / 2 - container.clientHeight / 2);
+  }, [liveSlide?.id, jumpPending, readerMode, autoScroll]);
   useEffect(() => { manualScrollPaused.current = false; }, [liveSlide?.id, playbackActive, autoScroll]);
   useEffect(() => {
     if (readerMode !== "scroll" || !autoScroll || !playbackMotion || manualScrollPaused.current) return;
     const container = fullSongRef.current;
     if (!container) return;
-    if (!musicCursor) return;
+    if (!musicCursor || jumpPending || jumpHoldRef.current) return;
+    if (manualScrollDestination.current) {
+      const onDestination = manualScrollDestination.current === liveSlide?.id && musicCursor.occurrence === leadPageContext.occurrence && musicCursor.lineIndex >= leadPageContext.sourceOffset && musicCursor.lineIndex < leadPageContext.sourceOffset + lyricLines(pageLeadSlide?.text ?? "").length;
+      if (!onDestination) return;
+      manualScrollDestination.current = null;
+    }
     const lines = Array.from(container.querySelectorAll<HTMLElement>("[data-playback-line]"));
     const index = lines.findIndex(line => Number(line.dataset.playbackOccurrence) === musicCursor.occurrence && Number(line.dataset.playbackLine) === musicCursor.lineIndex);
     const active = lines[index];
@@ -1247,7 +1269,7 @@ export function MusicianLiveView({ canUseMusic = false, canControlAudio = false,
     if (points.length) points.push({ bar: remoteTimeline.length, y: lineY(lines[lines.length - 1]) });
     const target = playbackScrollTarget(points, playbackPosition ?? 0, lineY(active), container.clientHeight);
     container.scrollTop += (target - container.scrollTop) * 0.2;
-  }, [readerMode, autoScroll, playbackPosition, playbackMotion?.slideIndex, liveSlide?.id, showChords, musicCursor?.lineIndex, musicCursor?.anchorIndex]);
+  }, [readerMode, autoScroll, playbackPosition, playbackMotion?.slideIndex, liveSlide?.id, showChords, musicCursor?.lineIndex, musicCursor?.anchorIndex, jumpPending]);
 
   function timingFor(offset: number, lineIndex: number, segmentStart: number, occurrence: number, lastSegment: boolean) {
     return { lyrics: liveSong?.lyrics ?? '', bars: timingBars, sourceLine: offset < 0 ? -1 : offset + lineIndex, segmentStart, lastSegment, showBars: musicMode, cursor: displayCursor?.occurrence === occurrence ? displayCursor : null };

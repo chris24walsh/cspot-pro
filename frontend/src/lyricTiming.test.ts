@@ -102,4 +102,5 @@ it('treats annotations as changes and does not inherit a chord from before the p
   const layout = lyricBarLayout(lyrics, rhythm, annotations);
   expect(timedPracticeBars(lyrics, layout.slice(1), annotations, 4).map(bar => bar.chords[0].chord)).toEqual(['', 'G', 'G']);
   expect(timedPracticeBars(lyrics, layout, annotations, 4).map(bar => bar.chords[0].chord)).toEqual(['C', 'C', 'G', 'G']);
+  expect(timedPracticeBars(lyrics, layout.slice(1), annotations, 4, 'F').map(bar => bar.chords[0].chord)).toEqual(['F', 'G', 'G']);
 });

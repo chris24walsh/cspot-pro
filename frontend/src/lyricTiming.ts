@@ -76,9 +76,9 @@ export function wrapTimedLine(line: string, maxWidth: number, widths: number[]):
   return segments.length ? segments : [{ start: 0, end: 0, line: '' }];
 }
 
-export function timedPracticeBars(lyrics: string | null | undefined, bars: LyricBar[], annotations: ChordAnnotation[], numerator: number) {
+export function timedPracticeBars(lyrics: string | null | undefined, bars: LyricBar[], annotations: ChordAnnotation[], numerator: number, initialChord = "") {
   const resolved = resolveChordAnnotations(annotations, lyrics ?? null).sort((a, b) => a.absoluteLineIndex - b.absoluteLineIndex || a.anchorIndex - b.anchorIndex);
-  let previousChord = "";
+  let previousChord = initialChord;
   return bars.map(bar => ({ section: bar.section, ...('patternBar' in bar ? { patternBar: bar.patternBar as number } : {}), chords: bar.stops.slice(0, -1).map((position, index, stops) => {
     const candidates = resolved.filter(chord => musicalSectionKey(chord.section ?? 'Default') === musicalSectionKey(bar.section));
     const chord = candidates.filter(chord => chord.absoluteLineIndex === position.lineIndex && chord.anchorIndex === position.anchorIndex).slice(-1)[0];

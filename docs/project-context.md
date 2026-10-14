@@ -554,3 +554,9 @@ Worship Live auto-scroll averages the lyric trajectory over four bars and blends
 it with the overall song pace, reducing pauses and abrupt changes in speed.
 The active sung line constrains the target to 32–65% of the viewport; manual
 scrolling still pauses following until the next slide advance.
+
+Manual live navigation immediately centres the selected slide in scroll mode,
+including synced devices, while playback finishes its current bar. Scroll
+following waits for the musical destination before resuming. MIDI carries the
+last sounding chord through unannotated destination bars until the next change;
+a fresh playback start still leaves opening unannotated bars silent.
