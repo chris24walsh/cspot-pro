@@ -1330,6 +1330,15 @@ export function MusicianLiveView({ canUseMusic = false, canControlAudio = false,
       <div className="musician-live-controls" aria-label="Musician display controls">
         <CompactControlMenu label="Musician" icon={<Guitar size={16} aria-hidden="true" />} active={showChords || musicMode}>
           {close => <>
+            <SongRhythmDisplay menuItem annotations={chordChart.annotations} onPosition={canUseMusic ? (position, mode, section) => {
+              const timeline = lyricPlaybackBars(liveSong?.lyrics, liveSong?.sequence, timingBars);
+              const part = timeline.filter(bar => musicalSectionKey(bar.section) === musicalSectionKey(section));
+              const occurrence = part.some(bar => bar.occurrence === currentSequenceBlockIndex) ? currentSequenceBlockIndex : part[0]?.occurrence;
+              const selected = mode === "part" ? part.filter(bar => bar.occurrence === occurrence) : timeline;
+              const cursor = position === null || mode === "strum" || !liveSong?.rhythm ? null : lyricCursorAt(liveSong.lyrics, selected, position, liveSong.rhythm.numerator, liveSong.rhythm.denominator);
+              setMusicCursor(cursor);
+            } : undefined} key={liveSong?.id} rhythm={liveSong?.rhythm} section={sequenceBlocks[currentSequenceBlockIndex]?.label} lyrics={liveSong?.lyrics} sequence={liveSong?.sequence} previewChord={baseAbsoluteKey} transpose={currentAbsoluteKey ? semitoneDistance(baseAbsoluteKey, currentAbsoluteKey) : 0} title={liveSong?.title} />
+            <hr />
             <MusicianDisplayChoice label="Chords" binary icon={<Guitar size={16} aria-hidden="true" />} value={chordDisplay} onChange={mode => chooseDisplay('worship-chords-display', setChordDisplay, mode)} />
             <MusicianDisplayChoice label="Bars" icon={<ListMusic size={16} aria-hidden="true" />} value={barDisplay} onChange={mode => chooseDisplay('worship-bars-display', setBarDisplay, mode)} />
             <MusicianDisplayChoice label="Beat keeper" binary description="Show during playback" icon={<Music2 size={16} aria-hidden="true" />} value={beatKeeperEnabled ? "on" : "off"} onChange={mode => { setBeatKeeperEnabled(mode === "on"); try { localStorage.setItem("worship-beat-keeper", mode); } catch {} }} />
@@ -1340,14 +1349,7 @@ export function MusicianLiveView({ canUseMusic = false, canControlAudio = false,
             {canUseMusic ? <MusicianDisplayChoice label="Share timing" binary description="Let other devices follow" icon={<Music2 size={16} aria-hidden="true" />} value={shareTiming ? "on" : "off"} onChange={mode => { setShareTiming(mode === "on"); try { localStorage.setItem("worship-share-timing", mode); } catch {} }} /> : null}
             {sharedTiming.error ? <small role="alert">{sharedTiming.error}</small> : null}
             <MusicianDisplayChoice label="Dynamics" binary disabled description="Not available yet" icon={<AudioLines size={16} aria-hidden="true" />} value="off" onChange={() => {}} />
-            <SongRhythmDisplay menuItem annotations={chordChart.annotations} onPosition={canUseMusic ? (position, mode, section) => {
-              const timeline = lyricPlaybackBars(liveSong?.lyrics, liveSong?.sequence, timingBars);
-              const part = timeline.filter(bar => musicalSectionKey(bar.section) === musicalSectionKey(section));
-              const occurrence = part.some(bar => bar.occurrence === currentSequenceBlockIndex) ? currentSequenceBlockIndex : part[0]?.occurrence;
-              const selected = mode === "part" ? part.filter(bar => bar.occurrence === occurrence) : timeline;
-              const cursor = position === null || mode === "strum" || !liveSong?.rhythm ? null : lyricCursorAt(liveSong.lyrics, selected, position, liveSong.rhythm.numerator, liveSong.rhythm.denominator);
-              setMusicCursor(cursor);
-            } : undefined} key={liveSong?.id} rhythm={liveSong?.rhythm} section={sequenceBlocks[currentSequenceBlockIndex]?.label} lyrics={liveSong?.lyrics} sequence={liveSong?.sequence} previewChord={baseAbsoluteKey} transpose={currentAbsoluteKey ? semitoneDistance(baseAbsoluteKey, currentAbsoluteKey) : 0} title={liveSong?.title} />
+
             <hr />
             {readerMode === "scroll" ? <MusicianDisplayChoice label="Auto-scroll" binary description="Follow playback smoothly" icon={<ScrollText size={16} aria-hidden="true" />} value={autoScroll ? "on" : "off"} onChange={mode => { setAutoScroll(mode === "on"); try { localStorage.setItem("worship-auto-scroll", mode); } catch {} }} /> : null}
             <button role="menuitem" aria-label={`Switch to ${readerMode === 'pages' ? 'Scroll' : 'Pages'} view`} onClick={() => { setReaderMode(value => value === 'pages' ? 'scroll' : 'pages'); close(); }} type="button">{readerMode === 'pages' ? <ScrollText size={16} /> : <BookOpen size={16} />}<span>{readerMode === 'pages' ? 'Scroll view' : 'Page view'}</span></button>
