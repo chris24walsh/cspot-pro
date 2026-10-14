@@ -55,6 +55,9 @@ it("requires Edit before changing strums, cancels drafts, and saves explicitly",
     await act(async () => document.querySelector<HTMLButtonElement>('[aria-label="Edit song rhythm"]')!.click());
     const saveButton = () => document.querySelector<HTMLButtonElement>('[aria-label="Save song rhythm"]')!;
     expect(saveButton().disabled).toBe(true);
+    expect(document.querySelector('[aria-label="Song meter"]')).toBeNull();
+    expect(document.querySelector('[aria-label="Download practice MIDI"]')).toBeNull();
+    expect(document.querySelector('[aria-label="Listen to selected part chords and strum"]')).toBeNull();
     act(() => document.querySelector<HTMLButtonElement>('[aria-label^="Strum 1,"]')!.click());
     expect(saveButton().disabled).toBe(false);
     act(() => document.querySelector<HTMLButtonElement>('[aria-label="Edit song rhythm"]')!.click());

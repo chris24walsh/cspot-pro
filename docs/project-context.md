@@ -592,6 +592,9 @@ lightly damped sustain, brushing high strings to low. Both can be saved in
 songs and shared patterns and are supported by playback and MIDI export.
 
 Users with song-edit permission can enable Edit in the Worship Live Rhythm
-popout to change meter, tempo, beat display, strums and notes, then explicitly
-Save song. The popout is read-only by default; Cancel discards the draft.
-The same rhythm editor supports shared presets in song editing and Worship Live.
+popout to click-edit existing strum strokes, then explicitly Save. The popout is read-only by default; Cancel discards the draft.
+Full meter and shared-preset editing remains in the song editor.
+
+The Worship Live rhythm popout groups Edit beside Close, retains the stroke
+legend and offers Listen strum / Listen song without part preview, MIDI download
+or synthesis help text. Playback checkboxes have larger, spaced tap targets.

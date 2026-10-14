@@ -14290,3 +14290,9 @@ button.musician-page {
 .musician-display-choice button { min-height: 30px; }
 
 .song-rhythm-display-panel .song-rhythm-panel.is-inline { position: static; width: auto; max-width: none; max-height: none; overflow: visible; padding: 0; border: 0; box-shadow: none; margin-top: 8px; }
+
+.song-rhythm-header-actions { display: flex; align-items: center; gap: 6px; margin-left: auto; }
+.song-rhythm-display-panel button.song-strum-symbol { min-height: 38px; min-width: 28px; background: #e8eee6; border: 1px solid #b6c9bc; border-radius: 4px; cursor: pointer; }
+.rhythm-practice-options { display: flex; flex-wrap: wrap; gap: 8px 12px; }
+.rhythm-practice-options label { display: inline-flex; align-items: center; gap: 7px; min-height: 38px; padding: 4px 6px; cursor: pointer; }
+.rhythm-practice-options input { width: 18px; height: 18px; margin: 0; }

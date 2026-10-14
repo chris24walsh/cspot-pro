@@ -4,10 +4,10 @@ import { buildPracticePerformance, practiceMidi, PracticeAudioPlayer, type Pract
 import type { ChordAnnotation } from "../chordSheet";
 import type { SongRhythm } from "../songRhythm";
 
-export function RhythmPracticeControls({ rhythm, annotations, section = "Default", strumSection, lyrics, sequence, previewChord = "C", transpose = 0, title = "Song", onPosition, onTempoChange }: {
+export function RhythmPracticeControls({ rhythm, annotations, section = "Default", strumSection, lyrics, sequence, previewChord = "C", transpose = 0, title = "Song", onPosition, onTempoChange, compact = false }: {
   onPosition?: (position: number | null, mode: PracticeMode, section: string) => void;
   annotations?: ChordAnnotation[]; rhythm: SongRhythm; section?: string; strumSection?: string; lyrics?: string | null; sequence?: string | null;
-  previewChord?: string; transpose?: number; title?: string; onTempoChange?: (bpm: number) => void;
+  compact?: boolean; previewChord?: string; transpose?: number; title?: string; onTempoChange?: (bpm: number) => void;
 }) {
   const [bpm, setBpm] = useState(rhythm.bpm ?? 90);
   const [chord, setChord] = useState(previewChord);
@@ -74,13 +74,13 @@ export function RhythmPracticeControls({ rhythm, annotations, section = "Default
     <div className="rhythm-practice-actions">
       {playing ? <button aria-label="Stop practice playback" className="text-button" onClick={stop} type="button"><Square size={14} aria-hidden="true" />Stop</button> : <>
         <button aria-label="Listen to strumming pattern" className="text-button" onClick={() => void listen("strum")} type="button"><Play size={14} aria-hidden="true" />Listen strum</button>
-        <button aria-label="Listen to selected part chords and strum" className="text-button" onClick={() => void listen("part")} type="button"><Play size={14} aria-hidden="true" />Listen {section === "Default" ? "chart" : section}</button>
+        {!compact ? <button aria-label="Listen to selected part chords and strum" className="text-button" onClick={() => void listen("part")} type="button"><Play size={14} aria-hidden="true" />Listen {section === "Default" ? "chart" : section}</button> : null}
         <button aria-label="Listen to whole song chords and strum" className="text-button" onClick={() => void listen("song")} type="button"><Play size={14} aria-hidden="true" />Listen song</button>
       </>}
       {playing ? <small role="status">{bar < 0 ? countIn ? "Count-in…" : "Starting…" : `Bar ${Math.min(bar + 1, barCount)} / ${barCount}`}</small> : null}
     </div>
     <details className="rhythm-playback-options">
-      <summary>Tempo {bpm || "–"} · playback &amp; MIDI</summary>
+      <summary>Tempo {bpm || "–"} · playback{compact ? "" : " & MIDI"}</summary>
     <div className="song-rhythm-fields">
       <label className="compact-field">Tempo<input aria-label="Practice tempo BPM" max={240} min={30} onChange={(event) => {
         const next = Number(event.target.value); setBpm(next); if (Number.isInteger(next) && next >= 30 && next <= 240) onTempoChange?.(next);
@@ -92,11 +92,13 @@ export function RhythmPracticeControls({ rhythm, annotations, section = "Default
       <label><input checked={metronome} onChange={(event) => setMetronome(event.target.checked)} type="checkbox" />Metronome</label>
       <label><input checked={loop} onChange={(event) => setLoop(event.target.checked)} type="checkbox" />Loop</label>
     </div>
+    {!compact ? <>
     <div className="song-rhythm-fields">
       <label className="compact-field">MIDI<select aria-label="MIDI export contents" onChange={(event) => setExportMode(event.target.value as PracticeMode)} value={exportMode}><option value="strum">Strum pattern</option><option value="part">Selected part / chart</option><option value="song">Whole song</option></select></label>
       <button aria-label="Download practice MIDI" className="text-button" onClick={download} type="button"><Download size={14} aria-hidden="true" />Download MIDI</button>
     </div>
     <small className="field-help">Synthesized practice audio. In 6/8 and 12/8, BPM counts the dotted-quarter pulse. Song playback uses the whole-song chart, or follows the lyric sequence through part charts.</small>
+    </> : null}
     </details>
     {error ? <p className="form-message" role="alert">{error}</p> : null}
   </div>;
