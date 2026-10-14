@@ -149,7 +149,7 @@ it('selects silent guidance from the current slide and emits shareable clock pro
   } finally { act(() => root.unmount()); vi.clearAllMocks(); }
 });
 
-it.each(['Metronome', 'MIDI strum'])('queues a manual slide destination without restarting or adding a count-in (%s)', async source => {
+it.each(['Metronome', 'MIDI strum', 'Silent guide'])('queues a manual slide destination without restarting or adding a count-in (%s)', async source => {
   const lyrics = '[V1]\nFirst line\n[C]\nSecond line';
   const annotations = [{ id: 'v', section: 'V1', lineIndex: 0, anchorIndex: 3, chord: 'C' }, { id: 'c', section: 'C', lineIndex: 0, anchorIndex: 3, chord: 'G' }];
   const rhythm: SongRhythm = { numerator: 4, denominator: 4, patterns: [], notes: '', markers: annotations.map(({ chord: _chord, ...marker }) => marker) };
@@ -161,10 +161,11 @@ it.each(['Metronome', 'MIDI strum'])('queues a manual slide destination without 
     await act(async () => render(0, 0, 1));
     await play(container, source);
     await act(async () => render(1, 1, 3));
-    expect(audio.play).toHaveBeenCalledOnce();
-    expect(audio.stop).not.toHaveBeenCalled();
-    expect(audio.queuePerformance).toHaveBeenCalledOnce();
-    const [music, progress, committed] = audio.queuePerformance.mock.calls[0] as [PracticePerformance, (position: number) => void, () => void];
+    const player = source === "Silent guide" ? silent : audio;
+    expect(player.play).toHaveBeenCalledOnce();
+    expect(player.stop).not.toHaveBeenCalled();
+    expect(player.queuePerformance).toHaveBeenCalledOnce();
+    const [music, progress, committed] = player.queuePerformance.mock.calls[0] as [PracticePerformance, (position: number) => void, () => void];
     expect(music.countInTicks).toBe(0);
     expect(music.bars[0].chords[0].chord).toBe('G');
     expect(container.textContent).toContain('next bar');

@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
-import { buildPracticePerformance, chordMidiNotes, MIDI_PPQ, parseBarChart, practiceMidi, rhythmQuarterBpm, transposeBarCharts } from "./musicPractice";
+import { describe, expect, it, vi } from "vitest";
+import { buildPracticePerformance, PracticeSilentPlayer, chordMidiNotes, MIDI_PPQ, parseBarChart, practiceMidi, rhythmQuarterBpm, transposeBarCharts } from "./musicPractice";
 import type { SongRhythm } from "./songRhythm";
 
 const rhythm: SongRhythm = { numerator: 4, denominator: 4, notes: "", bpm: 120,
@@ -185,4 +185,28 @@ it('alternates a two-bar pattern at normal tempo and respects a later-page start
   expect(music.notes.find(note => note.channel === 1)!.tick).toBe(music.barTicks + 2 * MIDI_PPQ);
   const later = buildPracticePerformance(two, { mode: 'song', bars: [{ ...chart[0], patternBar: 1 }] });
   expect(later.notes.find(note => note.channel === 0)!.tick).toBe(MIDI_PPQ);
+});
+
+
+it("redirects silent guidance on the next bar without creating audio", async () => {
+  vi.useFakeTimers({ toFake: ["setInterval", "clearInterval", "performance"] });
+  const player = new PracticeSilentPlayer();
+  const progress = vi.fn(), committed = vi.fn(), ended = vi.fn();
+  try {
+    const music = buildPracticePerformance(rhythm, { mode: "song", countIn: false, metronome: false, chords: false });
+    await player.play(music, false, () => {}, ended);
+    vi.advanceTimersByTime(1000);
+    await player.queuePerformance(music, progress, committed);
+    vi.advanceTimersByTime(1050);
+    expect(committed).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(50);
+    expect(committed).toHaveBeenCalledOnce();
+    expect(progress).toHaveBeenCalledWith(expect.any(Number));
+    expect(progress.mock.calls[0][0]).toBeLessThan(0.02);
+    expect(ended).not.toHaveBeenCalled();
+    player.stop();
+    vi.advanceTimersByTime(5000);
+    expect(committed).toHaveBeenCalledOnce();
+    expect(ended).toHaveBeenCalledOnce();
+  } finally { player.stop(); vi.useRealTimers(); }
 });

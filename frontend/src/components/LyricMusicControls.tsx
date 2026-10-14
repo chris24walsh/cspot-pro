@@ -37,7 +37,7 @@ export function LyricMusicControls({ rhythm, lyrics, sequence, annotations, bars
     return () => { document.removeEventListener('visibilitychange', hide); playerRef.current?.stop(); playerRef.current = null; callback.current(null); timingCallback.current?.(null); pendingCallback.current?.(false); };
   }, []);
   useEffect(() => {
-    if (modeRef.current && modeRef.current !== "silent" && jumpRevision !== handledJump.current) return;
+    if (modeRef.current && jumpRevision !== handledJump.current) return;
     stop(); setError(null);
   }, [signature]);
   useEffect(() => {
@@ -45,7 +45,7 @@ export function LyricMusicControls({ rhythm, lyrics, sequence, annotations, bars
     handledJump.current = jumpRevision;
     const requested = playerRef.current;
     const mode = modeRef.current;
-    if (!requested || !mode || mode === "silent") { pendingCallback.current?.(false); return; }
+    if (!requested || !mode) { pendingCallback.current?.(false); return; }
     const revision = jumpRevision;
     const committed = commitCallback.current;
     setJumpPending(true); pendingCallback.current?.(true);
@@ -57,10 +57,10 @@ export function LyricMusicControls({ rhythm, lyrics, sequence, annotations, bars
         const missing = worshipSequenceBlocks(lyrics, sequence).find((_block, occurrence) => occurrence >= (startAt?.occurrence ?? 0) && !timeline.some(bar => bar.occurrence === occurrence));
         if (missing) throw new Error(`Place bar boundaries for ${missing.label} before playing from here.`);
         const practiceBars = timedPracticeBars(lyrics, timeline.slice(index), annotations, rhythm.numerator);
-        const music = buildPracticePerformance(rhythm, { mode: "song", countIn: false, metronome: true, metronomeDuringRests: true, chords: mode === "midi", finish: mode === "midi", transpose, bars: practiceBars });
+        const music = buildPracticePerformance(rhythm, { mode: "song", countIn: false, metronome: mode !== "silent", metronomeDuringRests: true, chords: mode === "midi", finish: mode === "midi", transpose, bars: practiceBars });
         await readyRef.current;
         if (playerRef.current !== requested || handledJump.current !== revision) return;
-        await (requested as PracticeAudioPlayer).queuePerformance(music, position => {
+        await requested.queuePerformance(music, position => {
           if (playerRef.current !== requested) return;
           callback.current(lyricCursorAt(lyrics, timeline, index + position, rhythm.numerator, rhythm.denominator));
           timingCallback.current?.({ startIndex: index, position, barDurationMs: music.barTicks / MIDI_PPQ * 60_000 / music.quarterBpm, totalBars: practiceBars.length });

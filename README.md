@@ -556,3 +556,7 @@ Musician-menu toggle defaults to enabled and shows it during guided playback or
 followed shared timing. The song rhythm panel saves its visual count, which can
 follow the meter or use a separate 1–12 count: selecting four shows 1–2–3–4 evenly across an 8/8 bar without changing
 the meter, tempo, strum or MIDI. Count-in beats use the same audio clock.
+
+Silent guide also supports manual slide changes during playback: it switches to
+the selected slide on the next bar boundary, keeping the timing overlays and
+automatic advance aligned without creating an audio session.

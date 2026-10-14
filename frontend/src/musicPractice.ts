@@ -402,13 +402,31 @@ export class PracticeAudioPlayer {
 // Silent guidance uses a monotonic clock and never creates an AudioContext.
 export class PracticeSilentPlayer {
   private timer: ReturnType<typeof setInterval> | null = null;
+  private queue: ((music: PracticePerformance, position: (position: number) => void, commit: () => void) => void) | null = null;
+  async queuePerformance(music: PracticePerformance, position: (position: number) => void, commit: () => void) {
+    if (!this.queue) throw new Error("Playback is not ready yet. Try the slide again.");
+    this.queue(music, position, commit);
+  }
   private onEnd: (() => void) | null = null;
   async play(music: PracticePerformance, loop: boolean, onProgress: (bar: number) => void, onEnd: () => void, onPosition?: (position: number) => void) {
     activePracticePlayer?.stop(); activePracticePlayer = this; this.onEnd = onEnd;
-    const msPerTick = 60_000 / music.quarterBpm / MIDI_PPQ;
-    const duration = music.totalTicks * msPerTick;
+    let msPerTick = 60_000 / music.quarterBpm / MIDI_PPQ;
+    let duration = music.totalTicks * msPerTick;
     let started = performance.now() + 80;
+    let pending: { music: PracticePerformance; position: (position: number) => void; commit: () => void; at: number } | null = null;
+    this.queue = (next, position, commit) => {
+      const elapsedTicks = (performance.now() - started) / msPerTick;
+      const nextBar = Math.floor((elapsedTicks - music.countInTicks) / music.barTicks) + 1;
+      pending = { music: next, position, commit, at: started + (music.countInTicks + nextBar * music.barTicks) * msPerTick };
+    };
     const tick = () => {
+      if (pending && performance.now() >= pending.at) {
+        const destination = pending; pending = null;
+        music = destination.music; started = destination.at;
+        msPerTick = 60_000 / music.quarterBpm / MIDI_PPQ;
+        duration = music.totalTicks * msPerTick;
+        onPosition = destination.position; destination.commit();
+      }
       let elapsed = performance.now() - started;
       if (elapsed >= duration) {
         if (!loop) { this.stop(); return; }
@@ -420,6 +438,7 @@ export class PracticeSilentPlayer {
     this.timer = setInterval(tick, 25); tick();
   }
   stop() {
+    this.queue = null;
     if (this.timer) clearInterval(this.timer); this.timer = null;
     if (activePracticePlayer === this) activePracticePlayer = null;
     const ended = this.onEnd; this.onEnd = null; ended?.();
