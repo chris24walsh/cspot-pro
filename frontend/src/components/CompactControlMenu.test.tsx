@@ -9,7 +9,7 @@ it('supports keyboard navigation, skips disabled choices, and restores focus on 
   const container = document.createElement('div'); document.body.appendChild(container); const root = createRoot(container);
   try {
     await act(async () => root.render(<CompactControlMenu label="Musician" icon={null}>{() => <>
-      <button role="menuitem" type="button">First</button><button disabled role="menuitem" type="button">Disabled</button><button role="menuitem" type="button">Last</button>
+      <select aria-label="Key"><option>C</option><option>D</option></select><button role="menuitem" type="button">First</button><button disabled role="menuitem" type="button">Disabled</button><button role="menuitem" type="button">Last</button>
     </>}</CompactControlMenu>));
     const trigger = container.querySelector<HTMLButtonElement>('button')!;
     act(() => trigger.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true })));
@@ -19,6 +19,12 @@ it('supports keyboard navigation, skips disabled choices, and restores focus on 
     expect(document.activeElement?.textContent).toBe('Last');
     act(() => document.activeElement!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Home', bubbles: true })));
     expect(document.activeElement?.textContent).toBe('First');
+    const select = menu.querySelector<HTMLSelectElement>('select')!;
+    select.focus();
+    const selectArrow = new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true, cancelable: true });
+    act(() => select.dispatchEvent(selectArrow));
+    expect(selectArrow.defaultPrevented).toBe(false);
+    expect(document.activeElement).toBe(select);
     expect(menu.getAttribute('aria-label')).toBe('Musician options');
     act(() => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' })));
     expect(document.querySelector('[role="menu"]')).toBeNull();

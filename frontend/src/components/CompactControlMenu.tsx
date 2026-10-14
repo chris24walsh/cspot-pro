@@ -30,6 +30,7 @@ export function CompactControlMenu({ label, icon, children, active = false, acti
       {icon}<span className="musician-control-text">{label}</span>{!action ? <ChevronDown size={12} aria-hidden="true" /> : null}
     </button>
     {position ? createPortal(<div className="musician-control-menu" role="menu" aria-label={`${label} options`} ref={panel} style={{ left: position.left, top: position.top, maxHeight: Math.max(60, window.innerHeight - position.top - 8) }} onKeyDown={event => {
+      if (event.target instanceof HTMLSelectElement || event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) return;
       if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) return;
       event.preventDefault();
       const items = Array.from(panel.current!.querySelectorAll<HTMLButtonElement>('button:not(:disabled)'));

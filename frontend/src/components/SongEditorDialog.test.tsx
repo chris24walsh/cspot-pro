@@ -23,14 +23,15 @@ it("lets the user toggle off transposition and save a corrected key with the sam
   try {
     await act(async () => root.render(<SongEditorDialog song={song} canEdit onClose={() => {}} onSaved={() => {}} />));
     act(() => Array.from(container.querySelectorAll("button")).find((button) => button.textContent === "Chords")!.click());
-    const toggle = container.querySelector<HTMLButtonElement>('[aria-label="Transpose chords when changing key"]')!;
-    expect(toggle.closest(".musician-key-row")).not.toBeNull();
-    expect(toggle.closest(".song-editor-tab-toolbar")?.querySelector(".tab-row")).not.toBeNull();
+    act(() => container.querySelector<HTMLButtonElement>('[aria-label="Chord tools"]')!.click());
+    const toggle = document.querySelector<HTMLButtonElement>('[aria-label="Transpose chords when changing key"]')!;
+    expect(toggle.closest(".song-chord-menu-key")).not.toBeNull();
+    expect(document.querySelector('[aria-label="Chord tools options"]')).not.toBeNull();
     expect(toggle.closest(".musician-tools")).toBeNull();
     expect(toggle.getAttribute("aria-pressed")).toBe("true");
     act(() => toggle.click());
     expect(toggle.getAttribute("aria-pressed")).toBe("false");
-    const key = container.querySelector<HTMLSelectElement>(".musician-key-field select")!;
+    const key = document.querySelector<HTMLSelectElement>(".musician-key-field select")!;
     act(() => { key.value = "D"; key.dispatchEvent(new Event("change", { bubbles: true })); });
     await act(async () => container.querySelector<HTMLButtonElement>('[aria-label="Save song"]')!.click());
     expect(updateSong).toHaveBeenCalledOnce();

@@ -1,4 +1,4 @@
-import { Archive, ArrowRightLeft, Columns3, Copy, ListRestart, Search, Save, Trash2, WandSparkles, X } from "lucide-react";
+import { Archive, ArrowRightLeft, Columns3, Copy, Guitar, ListRestart, Search, Save, Trash2, WandSparkles, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { createSong, updateSong, type Song } from "../api";
@@ -35,6 +35,7 @@ import { useConfirmationDialog } from "./ConfirmationDialog";
 import { placeBarMarker, removeBarMarker, rhythmWithBarMarkers } from "../barMarkers";
 import { lyricBarLayout, lyricColumnWidths, wrapTimedLine, lyricCursorAt, lyricPlaybackBars, musicalSectionKey, type LyricCursor } from "../lyricTiming";
 import { LyricMusicControls, TimingDot } from "./LyricMusicControls";
+import { CompactControlMenu } from "./CompactControlMenu";
 import { SongRhythmEditor } from "./SongRhythmEditor";
 import { SongYouTubeSearch } from "./SongYouTubeSearch";
 import { useEscapeClose } from "./useEscapeClose";
@@ -715,37 +716,40 @@ export function SongEditorDialog({
               }} value={effectiveRhythm} canEdit={canEdit} lyrics={chordLyrics} sequence={form.sequence} previewChord={activeDisplayedChord ?? chordChart.absoluteKey ?? "C"} songChords={lineAnnotations.map((entry) => ({ section: entry.section, chord: entry.chord }))} onSave={saveSong} saving={saving} isDirty={isDirty} onChange={(rhythm) => setForm((current) => ({ ...current, rhythm }))} /> : null}
             </div>
             {tab === "chords" ? (
-              <div className="musician-control-row musician-key-row">
-                <label className="compact-field musician-key-field">
-                  Key
-                  <select disabled={!canEdit} onChange={(event) => updateAbsoluteKey(event.target.value)} value={chordChart.absoluteKey ?? ""}>
-                    <option value="">Unset</option>
-                    {MUSICAL_KEYS.map((keyOption) => <option key={keyOption} value={keyOption}>{keyOption}</option>)}
-                  </select>
-                </label>
-                <label className="compact-field musician-capo-field">Capo<select disabled={!canEdit} onChange={(event) => updateCapo(Number(event.target.value))} value={chordChart.capo}>{[0, 1, 2, 3, 4, 5].map((capo) => <option key={capo} value={capo}>{capo}</option>)}</select></label>
-                <button
-                  aria-label="Transpose chords when changing key"
-                  aria-pressed={transposeChordsOnKeyChange}
-                  className={`section-icon-button musician-transpose-toggle ${transposeChordsOnKeyChange ? "is-active" : ""}`}
-                  disabled={!canEdit}
-                  onClick={() => setTransposeChordsOnKeyChange((enabled) => !enabled)}
-                  title={transposeChordsOnKeyChange ? "Transpose chords when changing key: on. Click to preserve existing chords." : "Transpose chords when changing key: off. Click to transpose existing chords."}
-                  type="button"
-                >
-                  <ArrowRightLeft size={15} aria-hidden="true" />
-                </button>
-                <div className="musician-chord-actions">
-                  <button aria-label="Copy verse chords" className="text-button musician-copy-verse-button" disabled={!canEdit || lineAnnotations.length === 0} onClick={copyVerseChords} title="Copy verse chords" type="button">
-                    <Copy size={14} aria-hidden="true" />
-                    <span>Copy verse chords</span>
-                  </button>
-                  <button aria-label="Clear all chords" className="danger-button musician-clear-chords-button" disabled={!canEdit || (!lineAnnotations.length && !legacyChords)} onClick={() => void clearAllChords()} title="Clear all chords" type="button">
-                    <Trash2 size={14} aria-hidden="true" />
-                    <span>Clear all chords</span>
-                  </button>
-                </div>
-              </div>
+              <CompactControlMenu label="Chord tools" icon={<Guitar size={16} aria-hidden="true" />}>
+                {close => <>
+                  <div className="song-chord-menu-key" role="group" aria-label="Key and capo">
+                    <label className="compact-field musician-key-field">
+                      Key
+                      <select disabled={!canEdit} onChange={(event) => updateAbsoluteKey(event.target.value)} value={chordChart.absoluteKey ?? ""}>
+                        <option value="">Unset</option>
+                        {MUSICAL_KEYS.map((keyOption) => <option key={keyOption} value={keyOption}>{keyOption}</option>)}
+                      </select>
+                    </label>
+                    <label className="compact-field musician-capo-field">Capo<select disabled={!canEdit} onChange={(event) => updateCapo(Number(event.target.value))} value={chordChart.capo}>{[0, 1, 2, 3, 4, 5].map((capo) => <option key={capo} value={capo}>{capo}</option>)}</select></label>
+                    <button
+                      aria-label="Transpose chords when changing key"
+                      aria-pressed={transposeChordsOnKeyChange}
+                      className={`section-icon-button musician-transpose-toggle ${transposeChordsOnKeyChange ? "is-active" : ""}`}
+                      disabled={!canEdit}
+                      onClick={() => setTransposeChordsOnKeyChange((enabled) => !enabled)}
+                      title={transposeChordsOnKeyChange ? "Transpose chords when changing key: on. Click to preserve existing chords." : "Transpose chords when changing key: off. Click to transpose existing chords."}
+                      type="button"
+                    >
+                      <ArrowRightLeft size={15} aria-hidden="true" />
+                    </button>
+                    </div>
+                    <hr />
+                      <button aria-label="Copy verse chords" className="text-button musician-copy-verse-button" disabled={!canEdit || lineAnnotations.length === 0} role="menuitem" onClick={() => { close(); copyVerseChords(); }} title="Copy verse chords" type="button">
+                        <Copy size={14} aria-hidden="true" />
+                        <span>Copy verse chords</span>
+                      </button>
+                      <button aria-label="Clear all chords" className="danger-button musician-clear-chords-button" disabled={!canEdit || (!lineAnnotations.length && !legacyChords)} role="menuitem" onClick={() => { close(); void clearAllChords(); }} title="Clear all chords" type="button">
+                        <Trash2 size={14} aria-hidden="true" />
+                        <span>Clear all chords</span>
+                      </button>
+              </>}
+              </CompactControlMenu>
             ) : null}
           </div>
         </div>

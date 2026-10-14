@@ -530,3 +530,8 @@ automatic advance aligned without creating an audio session.
 
 The Musician menu remembers Share timing per browser, defaulting to off.
 Restoring this preference only shares timing once local playback starts.
+
+The song chord editor keeps chord/bar editing, Play, and Rhythm beside its tabs.
+A compact Chord tools menu groups key, capo, transposition, copy-verse and clear
+actions. On mobile, the controls sit just below the tabs to preserve chord-panel
+space. Clear retains its confirmation dialog.

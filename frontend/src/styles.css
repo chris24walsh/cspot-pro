@@ -14263,3 +14263,17 @@ button.musician-page {
 .musician-beat-keeper { position: absolute; top: 6px; left: 6px; z-index: 6; display: flex; flex-wrap: wrap; gap: 3px; max-width: calc(100% - 12px); padding: 4px; border: 1px solid #235b4930; border-radius: 8px; background: #fffefaad; backdrop-filter: blur(4px); pointer-events: none; box-shadow: 0 2px 8px #17201b12; }
 .musician-beat-keeper span { display: grid; place-items: center; width: 27px; height: 27px; border-radius: 5px; color: #33564c; font-size: 15px; font-weight: 800; font-variant-numeric: tabular-nums; }
 .musician-beat-keeper span.is-active { color: #fffefa; background: #245d4d; box-shadow: 0 0 0 1px #245d4d; }
+
+/* Compact song chord toolbar and key controls inside its tools menu. */
+.song-editor-tab-toolbar { flex-wrap: wrap; justify-content: flex-start; }
+.song-editor-tab-toolbar .song-editor-tab-group { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; min-width: 0; }
+.song-chord-menu-key { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 8px; }
+.song-chord-menu-key .compact-field { display: flex; align-items: center; gap: 5px; }
+.song-chord-menu-key select { width: 65px; padding: 6px; }
+@media (max-width: 900px) {
+  .song-editor-tab-toolbar { flex-direction: row; align-items: center; gap: 6px; }
+  .song-editor-tab-toolbar .song-editor-tab-group { display: contents; }
+  .song-editor-tab-toolbar .tab-row { flex-basis: 100%; }
+}
+
+.musician-control-menu .musician-clear-chords-button { color: #a42f25; }
