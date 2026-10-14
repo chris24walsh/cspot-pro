@@ -641,3 +641,7 @@ Migration 0071 converts existing 8/8 songs and shared strums to 4/4 with doubled
 subdivision and half song BPM, preserving the same number of bars, stroke order
 and elapsed bar/stroke/chord timing. Explicit chart beat positions are rescaled;
 original converted values are backed up for rollback. Custom meter presets remain.
+
+Strum bars with more than eight subdivisions wrap over two rows in the song
+rhythm editor and Worship Live reference/edit popout. Counts and stroke order
+remain aligned; wrapping changes no musical timing or saved pattern values.

@@ -1,7 +1,7 @@
 import { Pencil, Save, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { normalizeSongRhythm, STROKE_CYCLE, STROKE_NAMES, STROKE_SYMBOLS, strumCounts, strumPatternForSection, type SongRhythm } from "../songRhythm";
+import { normalizeSongRhythm, STROKE_CYCLE, STROKE_NAMES, STROKE_SYMBOLS, strumCounts, strumGridColumns, strumPatternForSection, type SongRhythm } from "../songRhythm";
 import type { ChordAnnotation } from "../chordSheet";
 import type { PracticeMode } from "../musicPractice";
 import { RhythmPracticeControls } from "./RhythmPracticeControls";
@@ -68,8 +68,8 @@ export function SongRhythmDisplay({ rhythm, section, lyrics, sequence, previewCh
             const counts = strumCounts(shownRhythm, pattern);
             return <div className="song-rhythm-reference" key={pattern.section}>
               <strong>{pattern.section === "Default" ? "Whole song" : pattern.section}{pattern.name ? ` · ${pattern.name}` : ""}</strong>
-              <div className="song-strum-grid" style={{ gridTemplateColumns: `repeat(${rhythm.numerator * pattern.subdivision}, minmax(22px, 1fr))` }}>
-                {pattern.strokes.map((stroke, index) => <div className="song-strum-cell" key={index}><span>{counts[index]}</span>{editing ? <button className="song-strum-symbol" aria-label={`Strum ${index + 1}, ${STROKE_NAMES[stroke]}`} disabled={saving} onClick={() => setDraft(current => current ? { ...current, patterns: current.patterns.map((entry, at) => at === patternIndex ? { ...entry, strokes: entry.strokes.map((value, beat) => beat === index ? STROKE_CYCLE[(STROKE_CYCLE.indexOf(value) + 1) % STROKE_CYCLE.length] : value) } : entry) } : current)} type="button">{STROKE_SYMBOLS[stroke]}</button> : <span className="song-strum-symbol" aria-label={STROKE_NAMES[stroke]}>{STROKE_SYMBOLS[stroke]}</span>}</div>)}
+              <div className="song-strum-grid" style={{ gridTemplateColumns: `repeat(${strumGridColumns(rhythm.numerator, pattern.subdivision)}, minmax(22px, 1fr))` }}>
+                {pattern.strokes.map((stroke, index) => <div className="song-strum-cell" key={index} style={{ gridColumn: index % (rhythm.numerator * pattern.subdivision) % strumGridColumns(rhythm.numerator, pattern.subdivision) + 1 }}><span>{counts[index]}</span>{editing ? <button className="song-strum-symbol" aria-label={`Strum ${index + 1}, ${STROKE_NAMES[stroke]}`} disabled={saving} onClick={() => setDraft(current => current ? { ...current, patterns: current.patterns.map((entry, at) => at === patternIndex ? { ...entry, strokes: entry.strokes.map((value, beat) => beat === index ? STROKE_CYCLE[(STROKE_CYCLE.indexOf(value) + 1) % STROKE_CYCLE.length] : value) } : entry) } : current)} type="button">{STROKE_SYMBOLS[stroke]}</button> : <span className="song-strum-symbol" aria-label={STROKE_NAMES[stroke]}>{STROKE_SYMBOLS[stroke]}</span>}</div>)}
               </div>
             </div>;
           })}

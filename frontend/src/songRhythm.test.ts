@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { resizeStrumPattern, STRUM_PRESETS, strumCounts, strumPatternForSection, type SongRhythm } from "./songRhythm";
+import { strumGridColumns, resizeStrumPattern, STRUM_PRESETS, strumCounts, strumPatternForSection, type SongRhythm } from "./songRhythm";
 
 describe("song rhythm", () => {
   it("keeps every preset to one complete bar", () => {
@@ -43,4 +43,10 @@ it('counts each bar separately and preserves the second bar when changing grids 
 it('counts four subdivisions per beat without changing the pattern length', () => {
   const rhythm: SongRhythm = { numerator: 4, denominator: 4, notes: '', patterns: [{ section: 'Default', subdivision: 4, strokes: Array(16).fill('D') }] };
   expect(strumCounts(rhythm, rhythm.patterns[0])).toEqual(['1', 'e', '&', 'a', '2', 'e', '&', 'a', '3', 'e', '&', 'a', '4', 'e', '&', 'a']);
+});
+
+it("splits dense bars into two rows while leaving eight-slot bars on one", () => {
+  expect(strumGridColumns(4, 4)).toBe(8);
+  expect(strumGridColumns(4, 2)).toBe(8);
+  expect(strumGridColumns(3, 4)).toBe(6);
 });

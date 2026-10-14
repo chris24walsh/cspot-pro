@@ -97,3 +97,8 @@ export function normalizeSongRhythm(rhythm: SongRhythm | null | undefined): Song
     arrangements: (rhythm.arrangements ?? []).map((entry) => ({ section: entry.section, chart: entry.chart })),
   } : null;
 }
+
+export function strumGridColumns(numerator: number, subdivision: number) {
+  const slots = numerator * subdivision;
+  return slots > 8 ? Math.ceil(slots / 2) : slots;
+}

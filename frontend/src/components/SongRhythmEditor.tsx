@@ -4,7 +4,7 @@ import { useConfirmationDialog } from "./ConfirmationDialog";
 import { Fragment, useEffect, useRef, useState } from "react";
 import {
   resizeStrumPattern, STRUM_PRESETS, STRUM_SECTIONS, STROKE_CYCLE, STROKE_NAMES, STROKE_SYMBOLS,
-  strumCounts, type RhythmPreset, type SongRhythm, type StrumPattern, type StrumSection,
+  strumGridColumns, strumCounts, type RhythmPreset, type SongRhythm, type StrumPattern, type StrumSection,
 } from "../songRhythm";
 import { createRhythmPreset, getRhythmPresets, updateRhythmPreset } from "../api";
 import { parseBarChart, songPracticeParts } from "../musicPractice";
@@ -173,11 +173,11 @@ export function SongRhythmEditor({ value, canEdit, onChange, lyrics, sequence, p
             <label className="compact-field">Pattern length<select aria-label="Strum pattern length" disabled={!canEdit} value={pattern.bars ?? 1} onChange={event => updatePattern(resizeStrumPattern(editablePattern, rhythm.numerator, pattern.subdivision, Number(event.target.value) as 1 | 2))}><option value={1}>1 bar</option><option value={2}>2 bars</option></select></label>
             {pattern.strokes.length ? <button className="text-button" disabled={!canEdit} onClick={() => onChange({ ...rhythm, patterns: rhythm.patterns.filter((entry) => entry.section !== section) })} type="button">Clear pattern</button> : null}
           </div>
-          <div className="song-strum-grid" style={{ gridTemplateColumns: `repeat(${rhythm.numerator * pattern.subdivision}, minmax(26px, 1fr))` }}>
+          <div className="song-strum-grid" style={{ gridTemplateColumns: `repeat(${strumGridColumns(rhythm.numerator, pattern.subdivision)}, minmax(26px, 1fr))` }}>
             {editablePattern.strokes.map((stroke, index) => (
               <Fragment key={index}>
                 {(pattern.bars ?? 1) === 2 && index % (rhythm.numerator * pattern.subdivision) === 0 ? <small style={{ gridColumn: "1 / -1", textAlign: "left" }}>Bar {Math.floor(index / (rhythm.numerator * pattern.subdivision)) + 1}</small> : null}
-              <div className="song-strum-cell">
+              <div className="song-strum-cell" style={{ gridColumn: index % (rhythm.numerator * pattern.subdivision) % strumGridColumns(rhythm.numerator, pattern.subdivision) + 1 }}>
                 <span>{counts[index]}</span>
                 <button aria-label={`Strum ${index + 1}, count ${counts[index]}: ${STROKE_NAMES[stroke]}. Click to change.`} disabled={!canEdit}
                   onClick={() => updatePattern({ ...editablePattern, strokes: editablePattern.strokes.map((entry, position) => position === index ? STROKE_CYCLE[(STROKE_CYCLE.indexOf(entry) + 1) % STROKE_CYCLE.length] : entry) })}
