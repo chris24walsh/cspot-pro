@@ -155,7 +155,7 @@ it('plays X as muted guitar strings and keeps them distinct from metronome click
   const music = buildPracticePerformance({ ...rhythm, patterns: [{ section: 'Default', subdivision: 1, strokes: ['D', 'X', '-', '-'] }] }, { mode: 'song', metronome: true });
   const muted = music.notes.filter(note => note.channel === 1);
   expect(muted.length).toBeGreaterThan(1);
-  expect(muted.every(note => note.duration <= 60)).toBe(true);
+  expect(muted.every(note => note.duration <= 240)).toBe(true);
   expect(music.notes.filter(note => note.channel === 9).every(note => note.pitch === 76 || note.pitch === 77)).toBe(true);
   expect(readMidi(practiceMidi(music)).events.find(event => event.status === 0xc1)?.data).toEqual([28]);
 });
@@ -165,7 +165,7 @@ it('lets strings ring through rests and damps them exactly at the next muted str
   const strings = music.notes.filter(note => note.channel === 0);
   expect(strings[0].duration).toBe(2 * MIDI_PPQ);
   expect(strings.every(note => note.tick + note.duration === 2 * MIDI_PPQ)).toBe(true);
-  expect(music.notes.filter(note => note.channel === 1).every(note => note.duration <= 60)).toBe(true);
+  expect(music.notes.filter(note => note.channel === 1).every(note => note.duration <= 240)).toBe(true);
   const open = buildPracticePerformance({ ...rhythm, bpm: 120, patterns: [{ section: 'Default', subdivision: 1, strokes: ['D', '-', '-', '-'] }] }, { mode: 'song', bars: [{ section: 'Default', chords: [{ beat: 1, chord: 'C' }] }] });
   expect(open.notes.find(note => note.channel === 0)!.duration).toBe(4 * MIDI_PPQ);
 });

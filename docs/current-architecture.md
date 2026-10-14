@@ -1286,3 +1286,6 @@ mid-bar entry; saved bars and normal fresh playback remain unchanged.
 Guitar upstrokes use lower velocity even on accented beats. Muted strokes brush
 high-to-low like a soft upstroke, with lower velocity and a gentler attack while
 still damping sustained strings. The velocity balance also applies to MIDI export.
+
+Muted guitar strokes now decay for up to 300 ms (bounded by strum spacing),
+with a longer smooth release instead of the earlier short cutoff.
