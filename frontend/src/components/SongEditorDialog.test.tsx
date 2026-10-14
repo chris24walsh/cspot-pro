@@ -120,3 +120,39 @@ it("places and drags bar boundaries in the lyric grid without opening a chord ed
 
   } finally { act(() => root.unmount()); vi.resetAllMocks(); }
 });
+
+it("adds missing bars at chords and moves a paired chord/bar together", async () => {
+  const chart = { ...createEmptyChordChart(), absoluteKey: "C", annotations: [{ id: "one", section: "V1", lineIndex: 0, anchorIndex: 3, chord: "C" }, { id: "two", section: "V1", lineIndex: 0, anchorIndex: 8, chord: "G" }] };
+  const song = { id: "paired", title: "Paired", lyrics: "[V1]\nTest lyrics", sequence: "V1", chords: serializeChordChart(chart), rhythm: { numerator: 4, denominator: 4, patterns: [], notes: "", markers: [{ id: "existing", section: "V1", lineIndex: 0, anchorIndex: 3 }] } } as unknown as Song;
+  vi.mocked(updateSong).mockImplementation(async (_id, payload) => ({ ...song, ...payload }));
+  const container = document.createElement("div"), root = createRoot(container);
+  try {
+    await act(async () => root.render(<SongEditorDialog song={song} canEdit onClose={() => {}} onSaved={() => {}} />));
+    act(() => Array.from(container.querySelectorAll("button")).find(button => button.textContent === "Chords")!.click());
+    act(() => container.querySelector<HTMLButtonElement>('[aria-label="Chord tools"]')!.click());
+    act(() => document.querySelector<HTMLButtonElement>('[aria-label="Add bars at all chords"]')!.click());
+    expect(container.querySelectorAll('.musician-slot.has-bar')).toHaveLength(2);
+    const toggle = container.querySelector<HTMLButtonElement>('[aria-label="Switch between chord and bar editing"]')!;
+    act(() => toggle.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true })));
+    expect(toggle.textContent).toBe('Both');
+    const start = new Event('dragstart', { bubbles: true });
+    Object.defineProperty(start, 'dataTransfer', { value: { setData: vi.fn() } });
+    act(() => container.querySelector<HTMLButtonElement>('.musician-slot.has-chord.has-bar')!.dispatchEvent(start));
+    act(() => container.querySelectorAll<HTMLButtonElement>('.musician-slot')[5].dispatchEvent(new Event('drop', { bubbles: true })));
+    act(() => toggle.click());
+    expect(toggle.textContent).toBe('Chords');
+    await act(async () => {
+      toggle.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, button: 0 }));
+      await new Promise(resolve => setTimeout(resolve, 550));
+    });
+    act(() => { toggle.dispatchEvent(new MouseEvent('pointerup', { bubbles: true })); toggle.click(); });
+    expect(toggle.textContent).toBe('Both');
+    act(() => toggle.click());
+    expect(toggle.textContent).toBe('Chords');
+    await act(async () => container.querySelector<HTMLButtonElement>('[aria-label="Save song"]')!.click());
+    const payload = vi.mocked(updateSong).mock.calls[0][1];
+    expect(payload.rhythm?.markers).toHaveLength(2);
+    expect(payload.rhythm?.markers).toContainEqual(expect.objectContaining({ id: 'existing', anchorIndex: 5 }));
+    expect(parseChordChart(payload.chords ?? null).document.annotations).toContainEqual(expect.objectContaining({ id: 'one', anchorIndex: 5 }));
+  } finally { act(() => root.unmount()); vi.resetAllMocks(); }
+});

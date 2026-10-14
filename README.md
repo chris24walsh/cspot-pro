@@ -568,3 +568,8 @@ The song chord editor keeps chord/bar editing, Play, and Rhythm beside its tabs.
 A compact Chord tools menu groups key, capo, transposition, copy-verse and clear
 actions. On mobile, the controls sit just below the tabs to preserve chord-panel
 space. Clear retains its confirmation dialog.
+
+Right-click or hold the chord/bar mode toggle to enter Both mode, moving chords
+and bar boundaries at the same position together. Click returns to Chords.
+Chord tools → Bars at chords adds missing boundaries at existing chord positions
+without removing existing bars, providing a quick starting rhythm layout.
