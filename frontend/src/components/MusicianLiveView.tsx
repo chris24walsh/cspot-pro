@@ -40,6 +40,7 @@ import { mergeWorshipSetIntoService } from "../worshipSets";
 
 import { lyricBarLayout, lyricColumnWidths, wrapTimedLine, lyricCursorAt, lyricPlaybackBars, musicalSectionKey, type LyricBar, type LyricCursor } from "../lyricTiming";
 import { LyricMusicControls, TimingDot } from "./LyricMusicControls";
+import { playbackScrollTarget } from "../playbackScroll";
 import { playbackPageMotion } from "../playbackPages";
 import type { MusicTimingProgress } from "./LyricMusicControls";
 import { BeatKeeper } from "./BeatKeeper";
@@ -1228,14 +1229,23 @@ export function MusicianLiveView({ canUseMusic = false, canControlAudio = false,
     const index = lines.findIndex(line => Number(line.dataset.playbackOccurrence) === musicCursor.occurrence && Number(line.dataset.playbackLine) === musicCursor.lineIndex);
     const active = lines[index];
     if (!active) return;
-    const bounds = active.getBoundingClientRect();
-    const next = lines[index + 1]?.getBoundingClientRect();
-    const line = lyricLines(liveSong?.lyrics ?? "")[musicCursor.lineIndex] ?? "";
-    const progress = Math.max(0, Math.min(1, (musicCursor.anchorIndex - LEADING_CHORD_ANCHORS) / Math.max(1, line.length)));
-    // Keep the sung line between the centre and 35% of the viewport. Page
-    // cues can advance early without pulling unfinished lyrics out of view.
-    const travel = Math.min(Math.max(0, (next?.top ?? bounds.top) - bounds.top), container.clientHeight * 0.15);
-    const target = Math.max(0, container.scrollTop + bounds.top - container.getBoundingClientRect().top + bounds.height / 2 + travel * progress - container.clientHeight / 2);
+    const containerTop = container.getBoundingClientRect().top;
+    const lineY = (element: HTMLElement) => {
+      const bounds = element.getBoundingClientRect();
+      return container.scrollTop + bounds.top - containerTop + bounds.height / 2;
+    };
+    const points = remoteTimeline.flatMap((bar, barIndex) => {
+      if (barIndex < (startedAt ?? 0)) return [];
+      const index = lines.findIndex(line => Number(line.dataset.playbackOccurrence) === bar.occurrence && Number(line.dataset.playbackLine) === bar.start.lineIndex);
+      if (index < 0) return [];
+      const y = lineY(lines[index]);
+      const nextY = lines[index + 1] ? lineY(lines[index + 1]) : y;
+      const length = lyricLines(liveSong?.lyrics ?? "")[bar.start.lineIndex]?.length ?? 1;
+      const fraction = Math.max(0, Math.min(1, (bar.start.anchorIndex - LEADING_CHORD_ANCHORS) / Math.max(1, length)));
+      return [{ bar: barIndex, y: y + (nextY - y) * fraction }];
+    });
+    if (points.length) points.push({ bar: remoteTimeline.length, y: lineY(lines[lines.length - 1]) });
+    const target = playbackScrollTarget(points, playbackPosition ?? 0, lineY(active), container.clientHeight);
     container.scrollTop += (target - container.scrollTop) * 0.2;
   }, [readerMode, autoScroll, playbackPosition, playbackMotion?.slideIndex, liveSlide?.id, showChords, musicCursor?.lineIndex, musicCursor?.anchorIndex]);
 

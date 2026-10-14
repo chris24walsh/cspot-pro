@@ -582,3 +582,8 @@ Musician settings use consistent compact segmented controls. Chords, Dot, Beat
 keeper, Band sync, Follow shared timing, Share timing and Auto-scroll use On/Off;
 Bars retains Auto/On/Off. Enabled chords stay visible; the dot and beat keeper
 appear only during playback. Existing saved Auto/On values remain enabled.
+
+Worship Live auto-scroll averages the lyric trajectory over four bars and blends
+it with the overall song pace, reducing pauses and abrupt changes in speed.
+The active sung line constrains the target to 32–65% of the viewport; manual
+scrolling still pauses following until the next slide advance.
