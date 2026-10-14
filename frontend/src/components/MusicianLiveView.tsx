@@ -1640,9 +1640,10 @@ export function MusicianLiveView({ canUseMusic = false, canShareTiming = canUseM
             <button
               aria-label={isSongTitleSlide ? "Start first lyrics" : "Current lyrics"}
               className="musician-page is-current"
-              disabled={!isSongTitleSlide || !pageLeadSlide}
+              disabled={(!isSongTitleSlide && !localPlaybackActive) || !pageLeadSlide}
+              title={!isSongTitleSlide && localPlaybackActive ? "Restart this slide on the next bar" : undefined}
               onClick={() => {
-                if (!isSongTitleSlide || !pageLeadSlide) return;
+                if (!pageLeadSlide || (!isSongTitleSlide && !localPlaybackActive)) return;
                 const firstLyricIndex = slides.findIndex((slide) => slide.id === pageLeadSlide.id);
                 if (firstLyricIndex < 0) return;
                 setLocalIndex(firstLyricIndex);

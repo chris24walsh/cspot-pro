@@ -612,3 +612,7 @@ original converted values are backed up for rollback. Custom meter presets remai
 Strum bars with more than eight subdivisions wrap over two rows in the song
 rhythm editor and Worship Live reference/edit popout. Counts and stroke order
 remain aligned; wrapping changes no musical timing or saved pattern values.
+
+Clicking the current lyrics page during local playback queues a restart of that
+slide at the next bar, using the same first-chord entry as other manual segues.
+The current bar continues uninterrupted; scroll-mode part clicks work likewise.

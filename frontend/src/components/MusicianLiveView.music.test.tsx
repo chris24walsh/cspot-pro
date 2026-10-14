@@ -318,6 +318,12 @@ it('shows four visual beats over 8/8 and lets the Musician menu hide them', asyn
     await act(async () => position(0.25));
     expect(container.querySelectorAll('.musician-beat-keeper span')).toHaveLength(4);
     expect(container.querySelector('.musician-beat-keeper .is-active')?.textContent).toBe('2');
+    await act(async () => container.querySelector<HTMLButtonElement>('[aria-label="Current lyrics"]')!.click());
+    expect(audio.queuePerformance).toHaveBeenCalledOnce();
+    expect(audio.play).toHaveBeenCalledOnce();
+    expect(audio.stop).not.toHaveBeenCalled();
+    const [, restarted, committed] = audio.queuePerformance.mock.calls[0] as [unknown, (position: number) => void, () => void];
+    await act(async () => { committed(); restarted(0.25); });
     musician(container);
     act(() => document.querySelector<HTMLButtonElement>('[aria-label="Beat keeper: off"]')!.click());
     expect(container.querySelector('.musician-beat-keeper')).toBeNull();
