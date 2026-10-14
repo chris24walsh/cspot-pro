@@ -31,7 +31,7 @@ def rhythm_value() -> dict:
                 "section": "Default",
                 "subdivision": 1,
                 "bars": 1,
-                "strokes": ["D", "-", "U", "S", "-", "U"],
+                "strokes": ["D", "-", "U", "S", "-", "s"],
             },
             {
                 "name": "",

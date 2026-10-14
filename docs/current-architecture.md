@@ -1297,3 +1297,7 @@ and the same manual segue behaviour as MIDI with metronome.
 Strumming includes ⇣ Soft downstroke between Up and Muted in the stroke cycle.
 It plays a quiet pitched downstroke with a shorter, lightly damped sustain,
 available in saved songs, shared patterns, live playback and MIDI export.
+
+⇡ Soft upstroke complements ⇣ Soft downstroke with the same quiet level and
+lightly damped sustain, brushing high strings to low. Both can be saved in
+songs and shared patterns and are supported by playback and MIDI export.

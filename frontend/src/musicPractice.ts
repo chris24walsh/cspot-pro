@@ -166,14 +166,14 @@ export function buildPracticePerformance(rhythm: SongRhythm, options: {
         }));
         return;
       }
-      if (stroke === "S" || lastPlayedChord && lastPlayedChord !== chord) dampTicks.push(tick);
+      if ((stroke === "S" || stroke === "s") || lastPlayedChord && lastPlayedChord !== chord) dampTicks.push(tick);
       lastPlayedChord = chord;
       const pitches = chordMidiNotes(transposeChordSymbol(chord, options.transpose ?? 0));
       lastPlayedPitches = [...pitches];
-      if (stroke === "U") pitches.reverse();
+      if (stroke === "U" || stroke === "s") pitches.reverse();
       pitches.forEach((pitch, stringIndex) => notes.push({
         tick: tick + stringIndex * Math.min(5, stepTicks / 16), duration: Math.max(12, stepTicks * 0.8 - stringIndex * 5),
-        pitch, ...(stroke === "S" ? { soft: true } : {}), velocity: stroke === "S" ? 50 : stroke === "U" ? index % (pulseCount * pattern.subdivision) === 0 ? 72 : 60 : index % (pulseCount * pattern.subdivision) === 0 ? 105 : 90, channel: 0,
+        pitch, ...((stroke === "S" || stroke === "s") ? { soft: true } : {}), velocity: (stroke === "S" || stroke === "s") ? 50 : stroke === "U" ? index % (pulseCount * pattern.subdivision) === 0 ? 72 : 60 : index % (pulseCount * pattern.subdivision) === 0 ? 105 : 90, channel: 0,
       }));
     });
   });

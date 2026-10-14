@@ -59,7 +59,7 @@ export function SongRhythmDisplay({ rhythm, section, lyrics, sequence, previewCh
           })}
           <RhythmPracticeControls annotations={annotations} onPosition={onPosition} rhythm={rhythm} section={section ?? "Default"} lyrics={lyrics} sequence={sequence} previewChord={previewChord} transpose={transpose} title={title} />
           {rhythm.notes ? <p>{rhythm.notes}</p> : null}
-          {rhythm.patterns.length ? <small>↓ Down · ↑ Up · ⇣ Soft down · – Rest · × Muted</small> : null}
+          {rhythm.patterns.length ? <small>↓ Down · ↑ Up · ⇣ Soft down · ⇡ Soft up · – Rest · × Muted</small> : null}
         </div>, document.fullscreenElement ?? (document as Document & { webkitFullscreenElement?: Element }).webkitFullscreenElement ?? document.body,
       ) : null}
     </div>
