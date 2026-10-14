@@ -290,3 +290,26 @@ it('queues manual section changes while automatic page turns leave the player ru
     expect(audio.queuePerformance).toHaveBeenCalledTimes(2);
   } finally { act(() => root.unmount()); vi.unstubAllGlobals(); vi.clearAllMocks(); }
 });
+
+
+it('shows four visual beats over 8/8 and lets the Musician menu hide them', async () => {
+  vi.stubGlobal('matchMedia', () => ({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() }));
+  vi.mocked(getPresentationLiveState).mockResolvedValue({ plan_id: 'plan', index: 0, updated_at: 1, worship_coupled: false } as Awaited<ReturnType<typeof getPresentationLiveState>>);
+  const song = { id: 'song', title: 'Eight beats', lyrics: '[V1]\nSing now', sequence: 'V1', chords: null, rhythm: { numerator: 8, denominator: 8, visual_beats: 4, patterns: [], notes: '', markers: [{ id: 'bar', section: 'V1', lineIndex: 0, anchorIndex: 3 }] } } as unknown as Song;
+  const plan = { id: 'plan', items: [{ id: 'item', item_type: 'song', song_id: 'song', sequence: '1', title: song.title }] } as PlanDetail;
+  const container = document.createElement('div'), mount = document.createElement('div'), toolbar = document.createElement('div'); container.append(mount, toolbar); const root = createRoot(mount);
+  try {
+    await act(async () => root.render(<MusicianLiveView canUseMusic plan={plan} songs={[song]} topbarSlot={toolbar} onEditSong={() => {}} onExit={() => {}} />));
+    expect(container.querySelector('.musician-beat-keeper')).toBeNull();
+    await play(container);
+    const position = audio.play.mock.calls[0][4] as (position: number) => void;
+    await act(async () => position(0.25));
+    expect(container.querySelectorAll('.musician-beat-keeper span')).toHaveLength(4);
+    expect(container.querySelector('.musician-beat-keeper .is-active')?.textContent).toBe('2');
+    musician(container);
+    act(() => Array.from(document.querySelectorAll<HTMLButtonElement>('[role="menuitemcheckbox"]')).find(button => button.textContent!.startsWith('Beat keeper'))!.click());
+    expect(container.querySelector('.musician-beat-keeper')).toBeNull();
+    expect(audio.stop).not.toHaveBeenCalled();
+    expect(localStorage.getItem('worship-beat-keeper')).toBe('off');
+  } finally { act(() => root.unmount()); vi.unstubAllGlobals(); vi.clearAllMocks(); }
+});

@@ -14259,3 +14259,7 @@ button.musician-page {
 .musician-display-choice > div { display: inline-flex; padding: 2px; border: 1px solid #d3d9ce; border-radius: 7px; }
 .musician-display-choice button { border: 0; background: transparent; color: #536657; padding: 5px 6px; border-radius: 4px; font-size: 11px; font-weight: 650; cursor: pointer; }
 .musician-display-choice button[aria-checked="true"] { background: #dcefe6; color: #184b39; }
+
+.musician-beat-keeper { position: absolute; top: 6px; left: 6px; z-index: 6; display: flex; flex-wrap: wrap; gap: 3px; max-width: calc(100% - 12px); padding: 4px; border: 1px solid #235b4930; border-radius: 8px; background: #fffefaad; backdrop-filter: blur(4px); pointer-events: none; box-shadow: 0 2px 8px #17201b12; }
+.musician-beat-keeper span { display: grid; place-items: center; width: 27px; height: 27px; border-radius: 5px; color: #33564c; font-size: 15px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.musician-beat-keeper span.is-active { color: #fffefa; background: #245d4d; box-shadow: 0 0 0 1px #245d4d; }

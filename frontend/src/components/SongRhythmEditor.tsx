@@ -111,6 +111,7 @@ export function SongRhythmEditor({ value, canEdit, onChange, lyrics, sequence, p
             <button aria-label="Close rhythm editor" className="section-icon-button" onClick={close} title="Close rhythm editor" type="button"><X size={15} aria-hidden="true" /></button>
           </div>
           <div className="song-rhythm-fields">
+            <label className="compact-field">Beat keeper<select aria-label="Beat keeper visual count" disabled={!canEdit} value={rhythm.visual_beats ?? 0} onChange={event => onChange({ ...rhythm, visual_beats: Number(event.target.value) || null })}><option value={0}>Auto (meter)</option>{Array.from({ length: 12 }, (_, index) => <option key={index + 1} value={index + 1}>{index + 1} beats</option>)}</select></label>
             <label className="compact-field">Meter
               <select aria-label="Song meter" disabled={!canEdit} value={!value && !customMeter ? "" : customMeter ? "custom" : savedMeter ? `meter:${savedMeter.id}` : !METERS.includes(meter) ? "custom" : meter}
                 onChange={(event) => {

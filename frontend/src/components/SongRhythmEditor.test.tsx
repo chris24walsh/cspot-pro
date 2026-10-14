@@ -42,6 +42,9 @@ it("names and saves a 7/8 meter and strum, then applies the shared strum to anot
     select("Song meter", "custom"); select("Beats per bar", "7"); select("Meter beat unit", "8");
     input("Shared meter name", "Seven");
     await act(async () => Array.from(container.querySelectorAll("button")).find((button) => button.textContent === "Save meter to library")!.click());
+    select("Beat keeper visual count", "4");
+    expect((current as SongRhythm | null)?.visual_beats).toBe(4);
+    expect((current as SongRhythm | null)?.numerator).toBe(7);
     select("Strum pattern length", "2");
     act(() => container.querySelector<HTMLButtonElement>('[aria-label^="Strum 1,"]')!.click());
     input("Shared strum name", "Seven groove");

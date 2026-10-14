@@ -63,6 +63,7 @@ class SongRhythm(BaseModel):
     patterns: list[StrumPattern] = Field(default_factory=list, max_length=4)
     notes: str = Field(default="", max_length=500)
     bpm: int = Field(default=90, ge=30, le=240)
+    visual_beats: int | None = Field(default=None, ge=1, le=12)
     markers: list[BarMarker] = Field(default_factory=list, max_length=1000)
     arrangements: list[SongBarChart] = Field(default_factory=list, max_length=64)
 

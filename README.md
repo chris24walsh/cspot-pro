@@ -550,3 +550,9 @@ chords, pattern phase and tempo apply after the transition. Automatic early page
 turns do not trigger jumps, and manual shared band/service selections can redirect
 the device running playback. Shared timing changes to the destination on the
 downbeat. Independent scrolling does not redirect playback.
+
+Worship Live has a translucent beat keeper at the lyric panel’s top-left. Its
+Musician-menu toggle defaults to enabled and shows it during guided playback or
+followed shared timing. The song rhythm panel saves its visual count, which can
+follow the meter or use a separate 1–12 count: selecting four shows 1–2–3–4 evenly across an 8/8 bar without changing
+the meter, tempo, strum or MIDI. Count-in beats use the same audio clock.

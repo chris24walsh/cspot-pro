@@ -19,6 +19,7 @@ export interface SongRhythm {
   patterns: StrumPattern[];
   notes: string;
   bpm?: number;
+  visual_beats?: number | null;
   markers?: BarMarker[];
   arrangements?: Array<{ section: string; chart: string }>;
 }
@@ -89,7 +90,7 @@ export function normalizeSongRhythm(rhythm: SongRhythm | null | undefined): Song
   return rhythm ? {
     numerator: rhythm.numerator, denominator: rhythm.denominator,
     patterns: rhythm.patterns.map((pattern) => ({ name: pattern.name ?? "", section: pattern.section, bars: pattern.bars ?? 1, subdivision: pattern.subdivision, strokes: [...pattern.strokes] })),
-    notes: rhythm.notes ?? "", bpm: rhythm.bpm ?? 90,
+    notes: rhythm.notes ?? "", bpm: rhythm.bpm ?? 90, visual_beats: rhythm.visual_beats ?? null,
     markers: (rhythm.markers ?? []).map((marker) => ({ id: marker.id, section: marker.section, lineIndex: marker.lineIndex, anchorIndex: marker.anchorIndex }))
       .sort((a, b) => (a.section ?? "").localeCompare(b.section ?? "") || a.lineIndex - b.lineIndex || a.anchorIndex - b.anchorIndex),
     arrangements: (rhythm.arrangements ?? []).map((entry) => ({ section: entry.section, chart: entry.chart })),

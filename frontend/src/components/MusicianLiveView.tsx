@@ -42,6 +42,7 @@ import { lyricBarLayout, lyricColumnWidths, wrapTimedLine, lyricCursorAt, lyricP
 import { LyricMusicControls, TimingDot } from "./LyricMusicControls";
 import { playbackPageMotion } from "../playbackPages";
 import type { MusicTimingProgress } from "./LyricMusicControls";
+import { BeatKeeper } from "./BeatKeeper";
 import { useBandSync } from "./useBandSync";
 import { useSharedMusicTiming } from "./useSharedMusicTiming";
 import { MusicianDisplayChoice, musicianDisplayVisible, readMusicianDisplayMode, type MusicianDisplayMode } from "./MusicianDisplayChoice";
@@ -481,6 +482,7 @@ export function MusicianLiveView({ canUseMusic = false, canControlAudio = false,
     },
   ] : presentationSlides, [nextServiceSlide, presentationSlides]);
   const [localIndex, setLocalIndex] = useState(0);
+  const [beatKeeperEnabled, setBeatKeeperEnabled] = useState(() => { try { return localStorage.getItem("worship-beat-keeper") !== "off"; } catch { return true; } });
   const [barDisplay, setBarDisplay] = useState(() => readMusicianDisplayMode("worship-bars-display"));
   const [localMusicCursor, setMusicCursor] = useState<LyricCursor | null>(null);
   const [localTiming, setLocalTiming] = useState<MusicTimingProgress | null>(null);
@@ -1185,6 +1187,10 @@ export function MusicianLiveView({ canUseMusic = false, canControlAudio = false,
     ? currentSongContentSlideIndex - sequenceBlocks[currentSequenceBlockIndex].slideIndex
     : -1;
 
+  const beatPosition = localPlaybackActive ? localTiming?.position ?? null : remoteSongMatches ? sharedTiming.remote?.position ?? null : null;
+  const beatRhythm = localPlaybackActive && playbackContext ? songs.find(song => song.id === playbackContext.songId)?.rhythm : liveSong?.rhythm;
+  const beatCount = beatRhythm?.visual_beats || (beatRhythm?.denominator === 8 && beatRhythm.numerator % 3 === 0 ? beatRhythm.numerator / 3 : beatRhythm?.numerator ?? 4);
+  const showBeatKeeper = beatKeeperEnabled && (localPlaybackActive || Boolean(remoteSongMatches && sharedTiming.remote));
   const playbackPosition = localPlaybackActive && localTiming && localTiming.position >= 0
     ? localTiming.startIndex + localTiming.position
     : !localPlaybackActive && remoteSongMatches && sharedTiming.remote && sharedTiming.remote.position >= 0 ? sharedTiming.remote.timing.start_index + sharedTiming.remote.position : null;
@@ -1329,6 +1335,7 @@ export function MusicianLiveView({ canUseMusic = false, canControlAudio = false,
           {close => <>
             <MusicianDisplayChoice label="Chords" icon={<Guitar size={16} aria-hidden="true" />} value={chordDisplay} onChange={mode => chooseDisplay('worship-chords-display', setChordDisplay, mode)} />
             {canUseMusic ? <MusicianDisplayChoice label="Bars" icon={<ListMusic size={16} aria-hidden="true" />} value={barDisplay} onChange={mode => chooseDisplay('worship-bars-display', setBarDisplay, mode)} /> : null}
+            <button role="menuitemcheckbox" aria-checked={beatKeeperEnabled} onClick={() => setBeatKeeperEnabled(value => { try { localStorage.setItem("worship-beat-keeper", value ? "off" : "on"); } catch {} return !value; })} type="button"><Music2 size={16} aria-hidden="true" /><span>Beat keeper<small>Show beats during playback</small></span>{beatKeeperEnabled ? <Check size={16} aria-hidden="true" /> : null}</button>
             <MusicianDisplayChoice label="Dot" icon={<Music2 size={16} aria-hidden="true" />} value={dotDisplay} onChange={mode => chooseDisplay('worship-dot-display', setDotDisplay, mode)} />
             <button role="menuitemcheckbox" aria-checked={bandSyncEnabled} onClick={() => setBandSyncEnabled(value => { try { localStorage.setItem("worship-band-sync", value ? "off" : "on"); } catch {} return !value; })} type="button"><Link2 size={16} aria-hidden="true" /><span>Band sync<small>{worshipCoupled ? "Service Sync takes priority" : "Share pages with other musicians"}</small></span>{bandSyncEnabled ? <Check size={16} aria-hidden="true" /> : null}</button>
             {bandSync.error ? <small role="status">{bandSync.error}</small> : null}
@@ -1475,6 +1482,7 @@ export function MusicianLiveView({ canUseMusic = false, canControlAudio = false,
           "--musician-live-font-size": `${liveFontSize}px`,
         } as CSSProperties & Record<"--musician-content-width" | "--musician-live-font-size", string>}
       >
+        {showBeatKeeper && liveSlide?.itemType === "song" ? <BeatKeeper position={beatPosition} count={beatCount} /> : null}
         {!liveSlide ? (
           <p className="empty-state compact-empty">
             <Music2 size={18} aria-hidden="true" />

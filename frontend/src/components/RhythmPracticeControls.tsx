@@ -21,7 +21,7 @@ export function RhythmPracticeControls({ rhythm, annotations, section = "Default
   const [exportMode, setExportMode] = useState<PracticeMode>("song");
   const positionCallback = useRef(onPosition); positionCallback.current = onPosition;
   const playerRef = useRef<PracticeAudioPlayer | null>(null);
-  const signature = JSON.stringify(rhythm);
+  const signature = JSON.stringify({ ...rhythm, visual_beats: undefined });
   const stop = () => { const player = playerRef.current; playerRef.current = null; player?.stop(); setPlaying(null); positionCallback.current?.(null, "song", section); };
   useEffect(() => { setBpm(rhythm.bpm ?? 90); }, [rhythm.bpm]);
   useEffect(() => { setChord(previewChord); }, [previewChord]);

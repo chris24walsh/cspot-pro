@@ -29,7 +29,7 @@ export function LyricMusicControls({ rhythm, lyrics, sequence, annotations, bars
   const timingCallback = useRef(onTiming); timingCallback.current = onTiming;
   const callback = useRef(onCursor); callback.current = onCursor;
   const timeline = useMemo(() => lyricPlaybackBars(lyrics, sequence, bars), [lyrics, sequence, bars]);
-  const signature = JSON.stringify([rhythm, lyrics, sequence, annotations, transpose, canPractice]);
+  const signature = JSON.stringify([{ ...rhythm, visual_beats: undefined }, lyrics, sequence, annotations, transpose, canPractice]);
   function stop() { modeRef.current = null; setJumpPending(false); pendingCallback.current?.(false); const player = playerRef.current; playerRef.current = null; player?.stop(); setPlaying(false); callback.current(null); timingCallback.current?.(null); }
   useEffect(() => {
     const hide = () => { if (document.hidden) stop(); };
