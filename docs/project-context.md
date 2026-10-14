@@ -582,3 +582,7 @@ with a longer smooth release instead of the earlier short cutoff.
 The Play menu offers MIDI only for guitar chords and strumming with a metronome count-in, then without
 metronome clicks during the MIDI, retaining guided slide following
 and the same manual segue behaviour as MIDI with metronome.
+
+Strumming includes ⇣ Soft downstroke between Up and Muted in the stroke cycle.
+It plays a quiet pitched downstroke with a shorter, lightly damped sustain,
+available in saved songs, shared patterns, live playback and MIDI export.

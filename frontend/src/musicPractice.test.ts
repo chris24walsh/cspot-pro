@@ -230,3 +230,11 @@ it.each([0, 1, 2])('clicks only the bar before MIDI starts, including opening re
   expect(clicks[0].tick).toBe(firstChord - music.barTicks);
   expect(clicks.every(note => note.tick < firstChord)).toBe(true);
 });
+
+
+it('plays soft downstrokes between upstroke and muted levels with a shorter pitched sustain', () => {
+  const music = buildPracticePerformance({ ...rhythm, patterns: [{ section: 'Default', subdivision: 1, strokes: ['S', '-', '-', '-'] }] }, { mode: 'strum', countIn: false, metronome: false });
+  expect(music.notes.every(note => note.channel === 0 && note.velocity === 50 && note.soft)).toBe(true);
+  expect(music.notes[0].pitch).toBeLessThan(music.notes[1].pitch);
+  expect(music.notes[0].duration / MIDI_PPQ * 60 / music.quarterBpm).toBeCloseTo(0.7);
+});

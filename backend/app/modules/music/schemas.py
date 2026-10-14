@@ -8,7 +8,7 @@ class StrumPattern(BaseModel):
     bars: Literal[1, 2] = 1
     section: Literal["Default", "Verse", "Chorus", "Bridge"] = "Default"
     subdivision: Literal[1, 2] = 2
-    strokes: list[Literal["D", "U", "-", "X"]] = Field(max_length=48)
+    strokes: list[Literal["D", "U", "S", "-", "X"]] = Field(max_length=48)
 
 
 class SongBarChart(BaseModel):
@@ -22,7 +22,7 @@ class RhythmPresetCreate(BaseModel):
     numerator: int = Field(ge=1, le=12)
     denominator: Literal[2, 4, 8, 16]
     subdivision: Literal[1, 2] | None = None
-    strokes: list[Literal["D", "U", "-", "X"]] | None = Field(default=None, max_length=48)
+    strokes: list[Literal["D", "U", "S", "-", "X"]] | None = Field(default=None, max_length=48)
 
     @field_validator("name")
     @classmethod

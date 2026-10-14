@@ -1,4 +1,4 @@
-export type StrumStroke = "D" | "U" | "-" | "X";
+export type StrumStroke = "D" | "U" | "S" | "-" | "X";
 export type StrumSection = "Default" | "Verse" | "Chorus" | "Bridge";
 export interface StrumPattern {
   name?: string;
@@ -25,9 +25,9 @@ export interface SongRhythm {
 }
 
 export const STRUM_SECTIONS: StrumSection[] = ["Default", "Verse", "Chorus", "Bridge"];
-export const STROKE_SYMBOLS: Record<StrumStroke, string> = { D: "↓", U: "↑", "-": "–", X: "×" };
-export const STROKE_NAMES: Record<StrumStroke, string> = { D: "Downstroke", U: "Upstroke", "-": "Rest", X: "Muted stroke" };
-export const STROKE_CYCLE: StrumStroke[] = ["-", "D", "U", "X"];
+export const STROKE_SYMBOLS: Record<StrumStroke, string> = { D: "↓", U: "↑", S: "⇣", "-": "–", X: "×" };
+export const STROKE_NAMES: Record<StrumStroke, string> = { D: "Downstroke", U: "Upstroke", S: "Soft downstroke", "-": "Rest", X: "Muted stroke" };
+export const STROKE_CYCLE: StrumStroke[] = ["-", "D", "U", "S", "X"];
 
 export const STRUM_PRESETS: Array<{
   id: string; name: string; numerator: number; denominator: SongRhythm["denominator"];

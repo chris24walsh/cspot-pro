@@ -180,7 +180,7 @@ export function SongRhythmEditor({ value, canEdit, onChange, lyrics, sequence, p
                 <span>{counts[index]}</span>
                 <button aria-label={`Strum ${index + 1}, count ${counts[index]}: ${STROKE_NAMES[stroke]}. Click to change.`} disabled={!canEdit}
                   onClick={() => updatePattern({ ...editablePattern, strokes: editablePattern.strokes.map((entry, position) => position === index ? STROKE_CYCLE[(STROKE_CYCLE.indexOf(entry) + 1) % STROKE_CYCLE.length] : entry) })}
-                  title="Click to cycle: rest, downstroke, upstroke, muted stroke" type="button">{STROKE_SYMBOLS[stroke]}</button>
+                  title="Click to cycle: rest, downstroke, upstroke, soft downstroke, muted stroke" type="button">{STROKE_SYMBOLS[stroke]}</button>
               </div>
               </Fragment>
             ))}
@@ -192,7 +192,7 @@ export function SongRhythmEditor({ value, canEdit, onChange, lyrics, sequence, p
           </div>
           {libraryMessage ? <p className="form-message" role="status">{libraryMessage}</p> : null}
           <small className="field-help">Library presets are shared with other players. Selecting a saved strum also selects its meter.</small>
-          <small className="field-help">↓ Down · ↑ Up · – Rest · × Muted. Click a stroke to change it. Keep your hand moving through rests.</small>
+          <small className="field-help">↓ Down · ↑ Up · ⇣ Soft down · – Rest · × Muted. Click a stroke to change it. Keep your hand moving through rests.</small>
           {section !== "Default" ? <small className="field-help">This pattern overrides the whole-song pattern for {section.toLowerCase()} sections.</small> : null}
           <label className="song-rhythm-notes">Feel / notes
             <textarea aria-label="Rhythm notes" disabled={!canEdit} maxLength={500} onChange={(event) => onChange({ ...rhythm, notes: event.target.value })} placeholder="Gentle swing; accent beats 2 and 4; pick the verses…" rows={2} value={rhythm.notes} />

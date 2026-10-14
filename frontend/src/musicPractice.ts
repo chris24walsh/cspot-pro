@@ -7,7 +7,7 @@ import { worshipSequenceBlocks } from "./worshipText";
 export const MIDI_PPQ = 480;
 export interface BarChord { beat: number; chord: string }
 export interface PracticeBar { patternBar?: number; section: string; chords: BarChord[] }
-export interface PracticeNote { tick: number; duration: number; pitch: number; velocity: number; channel: number; finishing?: boolean }
+export interface PracticeNote { tick: number; duration: number; pitch: number; velocity: number; channel: number; finishing?: boolean; soft?: boolean }
 export interface PracticePerformance { notes: PracticeNote[]; bars: PracticeBar[]; barTicks: number; countInTicks: number; totalTicks: number; quarterBpm: number; numerator: number; denominator: number }
 export type PracticeMode = "strum" | "part" | "song";
 
@@ -166,14 +166,14 @@ export function buildPracticePerformance(rhythm: SongRhythm, options: {
         }));
         return;
       }
-      if (lastPlayedChord && lastPlayedChord !== chord) dampTicks.push(tick);
+      if (stroke === "S" || lastPlayedChord && lastPlayedChord !== chord) dampTicks.push(tick);
       lastPlayedChord = chord;
       const pitches = chordMidiNotes(transposeChordSymbol(chord, options.transpose ?? 0));
       lastPlayedPitches = [...pitches];
       if (stroke === "U") pitches.reverse();
       pitches.forEach((pitch, stringIndex) => notes.push({
         tick: tick + stringIndex * Math.min(5, stepTicks / 16), duration: Math.max(12, stepTicks * 0.8 - stringIndex * 5),
-        pitch, velocity: stroke === "U" ? index % (pulseCount * pattern.subdivision) === 0 ? 72 : 60 : index % (pulseCount * pattern.subdivision) === 0 ? 105 : 90, channel: 0,
+        pitch, ...(stroke === "S" ? { soft: true } : {}), velocity: stroke === "S" ? 50 : stroke === "U" ? index % (pulseCount * pattern.subdivision) === 0 ? 72 : 60 : index % (pulseCount * pattern.subdivision) === 0 ? 105 : 90, channel: 0,
       }));
     });
   });
@@ -188,7 +188,7 @@ export function buildPracticePerformance(rhythm: SongRhythm, options: {
     while (dampIndex > 0 && dampTicks[dampIndex - 1] > note.tick) dampIndex--;
     const damp = dampTicks[dampIndex] ?? totalTicks;
     const repluck = nextPlucks.get(note.pitch) ?? totalTicks;
-    note.duration = Math.max(1, Math.min(ringTicks, damp - note.tick, repluck - note.tick, totalTicks - note.tick));
+    note.duration = Math.max(1, Math.min(note.soft ? 0.7 * quarterBpm / 60 * MIDI_PPQ : ringTicks, damp - note.tick, repluck - note.tick, totalTicks - note.tick));
     nextPlucks.set(note.pitch, note.tick);
   }
   if (options.finish && lastPlayedPitches.length) {
