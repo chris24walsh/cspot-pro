@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest';
-import { lyricBarLayout, lyricColumnWidths, lyricCursorAt, lyricPlaybackBars, timedPracticeBars, wrapTimedLine } from './lyricTiming';
+import { liveJumpStart, timelineWithEntry, lyricBarLayout, lyricColumnWidths, lyricCursorAt, lyricPlaybackBars, timedPracticeBars, wrapTimedLine } from './lyricTiming';
 import type { ChordAnnotation } from './chordSheet';
 import type { SongRhythm } from './songRhythm';
 const lyrics = '[V1]\nSing a song now\nKeep the rhythm\n[C]\nPraise again';
@@ -103,4 +103,20 @@ it('treats annotations as changes and does not inherit a chord from before the p
   expect(timedPracticeBars(lyrics, layout.slice(1), annotations, 4).map(bar => bar.chords[0].chord)).toEqual(['', 'G', 'G']);
   expect(timedPracticeBars(lyrics, layout, annotations, 4).map(bar => bar.chords[0].chord)).toEqual(['C', 'C', 'G', 'G']);
   expect(timedPracticeBars(lyrics, layout.slice(1), annotations, 4, 'F').map(bar => bar.chords[0].chord)).toEqual(['F', 'G', 'G']);
+});
+
+
+it('enters a manual destination at its first annotated chord as a fresh downbeat', () => {
+  const text = '[V1]\nEarlier\n[C]\nEmpty opening\nSing together';
+  const annotations = [{ id: 'old', section: 'V1', lineIndex: 0, anchorIndex: 3, chord: 'C' }, { id: 'new', section: 'C', lineIndex: 1, anchorIndex: 8, chord: 'F' }];
+  const rhythm: SongRhythm = { numerator: 4, denominator: 4, patterns: [], notes: '', markers: [{ id: 'v', section: 'V1', lineIndex: 0, anchorIndex: 3 }, { id: 'c1', section: 'C', lineIndex: 0, anchorIndex: 3 }, { id: 'c2', section: 'C', lineIndex: 1, anchorIndex: 3 }] };
+  const timeline = lyricPlaybackBars(text, 'V1 C C', lyricBarLayout(text, rhythm, annotations));
+  const page = { occurrence: 2, lineStart: 3, lineEnd: 5 };
+  const entry = liveJumpStart(text, timeline, annotations, page);
+  expect(entry).toEqual({ index: 4, stop: 1 });
+  const adjusted = timelineWithEntry(timeline, entry.index, entry.stop);
+  expect(timedPracticeBars(text, adjusted.slice(entry.index), annotations, 4)[0].chords[0]).toEqual({ chord: 'F', beat: 1 });
+  expect(lyricCursorAt(text, adjusted, entry.index, 4, 4)).toMatchObject({ occurrence: 2, lineIndex: 4, anchorIndex: 8, pulse: 0 });
+  expect(timeline[entry.index].start.anchorIndex).toBe(3); // saved bars are untouched
+  expect(liveJumpStart(text, timeline, [], page)).toEqual({ index: 3, stop: 0 });
 });

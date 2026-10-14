@@ -2,12 +2,12 @@ import { Guitar, Play, Square, Timer, Volume2, VolumeX } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { transposeChordSymbol, type ChordAnnotation } from '../chordSheet';
 import { buildPracticePerformance, PracticeAudioPlayer, PracticeSilentPlayer, MIDI_PPQ, type PracticeBar } from '../musicPractice';
-import { lyricCursorAt, lyricPlaybackBars, timedPracticeBars, type LyricBar, type LyricCursor } from '../lyricTiming';
+import { liveJumpStart, timelineWithEntry, lyricCursorAt, lyricPlaybackBars, timedPracticeBars, type LyricBar, type LyricCursor } from '../lyricTiming';
 import { worshipSequenceBlocks } from '../worshipText';
 import { CompactControlMenu } from './CompactControlMenu';
 import type { SongRhythm } from '../songRhythm';
 
-export interface MusicTimingProgress { startIndex: number; position: number; barDurationMs: number; totalBars: number }
+export interface MusicTimingProgress { startIndex: number; position: number; barDurationMs: number; totalBars: number; firstBarStop?: number }
 
 export function LyricMusicControls({ rhythm, lyrics, sequence, annotations, bars, transpose = 0, onCursor, onStarted, canPractice = true, backing, startAt, onTiming, jumpRevision = 0, onJumpPending, onJumpCommitted }: {
   rhythm: SongRhythm | null | undefined; lyrics: string | null | undefined; sequence: string | null | undefined;
@@ -53,7 +53,8 @@ export function LyricMusicControls({ rhythm, lyrics, sequence, annotations, bars
     void (async () => {
       try {
         if (!rhythm) throw new Error("Add rhythm and bar boundaries to this song before playing from here.");
-        const index = startAt ? timeline.findIndex(bar => bar.occurrence === startAt.occurrence && bar.start.lineIndex >= startAt.lineStart && bar.start.lineIndex < startAt.lineEnd) : 0;
+        const { index, stop: firstBarStop } = liveJumpStart(lyrics, timeline, annotations, startAt);
+        const jumpTimeline = timelineWithEntry(timeline, index, firstBarStop);
         if (index < 0 || !timeline.length) throw new Error("Place a bar boundary on this slide to play from here.");
         const missing = worshipSequenceBlocks(lyrics, sequence).find((_block, occurrence) => occurrence >= (startAt?.occurrence ?? 0) && !timeline.some(bar => bar.occurrence === occurrence));
         if (missing) throw new Error(`Place bar boundaries for ${missing.label} before playing from here.`);
@@ -62,15 +63,15 @@ export function LyricMusicControls({ rhythm, lyrics, sequence, annotations, bars
         const changes = oldBars.bars.slice(0, Math.max(0, Math.floor(oldBars.position) + 1)).flatMap(bar => bar.chords).filter(change => change.chord);
         const previous = changes[changes.length - 1]?.chord;
         const initialChord = mode === "midi" && previous ? transposeChordSymbol(previous, oldBars.transpose - transpose) : "";
-        const practiceBars = timedPracticeBars(lyrics, timeline.slice(index), annotations, rhythm.numerator, initialChord);
+        const practiceBars = timedPracticeBars(lyrics, jumpTimeline.slice(index), annotations, rhythm.numerator, initialChord);
         const music = buildPracticePerformance(rhythm, { mode: "song", countIn: false, metronome: mode !== "silent", metronomeDuringRests: true, chords: mode === "midi", finish: mode === "midi", transpose, bars: practiceBars });
         await readyRef.current;
         if (playerRef.current !== requested || handledJump.current !== revision) return;
         await requested.queuePerformance(music, position => {
           if (playerRef.current !== requested) return;
           activeBars.current = { bars: practiceBars, position, transpose };
-          callback.current(lyricCursorAt(lyrics, timeline, index + position, rhythm.numerator, rhythm.denominator));
-          timingCallback.current?.({ startIndex: index, position, barDurationMs: music.barTicks / MIDI_PPQ * 60_000 / music.quarterBpm, totalBars: practiceBars.length });
+          callback.current(lyricCursorAt(lyrics, jumpTimeline, index + position, rhythm.numerator, rhythm.denominator));
+          timingCallback.current?.({ startIndex: index, position, barDurationMs: music.barTicks / MIDI_PPQ * 60_000 / music.quarterBpm, totalBars: practiceBars.length, firstBarStop });
         }, () => { committed?.(); if (handledJump.current === revision) { setJumpPending(false); pendingCallback.current?.(false); } });
       } catch (cause) {
         if (playerRef.current !== requested || handledJump.current !== revision) return;

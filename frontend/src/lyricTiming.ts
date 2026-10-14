@@ -86,3 +86,20 @@ export function timedPracticeBars(lyrics: string | null | undefined, bars: Lyric
     return { beat: 1 + index * numerator / stops.length, chord: previousChord };
   }) }));
 }
+
+// A live segue enters at the first annotated chord on the selected page.
+export function liveJumpStart(lyrics: string | null | undefined, timeline: Array<LyricBar & { occurrence: number }>, annotations: ChordAnnotation[], page?: { occurrence: number; lineStart: number; lineEnd: number }) {
+  const fallback = page ? timeline.findIndex(bar => bar.occurrence === page.occurrence && bar.start.lineIndex >= page.lineStart && bar.start.lineIndex < page.lineEnd) : 0;
+  const changes = resolveChordAnnotations(annotations, lyrics ?? null).filter(chord => chord.chord && (!page || chord.absoluteLineIndex >= page.lineStart && chord.absoluteLineIndex < page.lineEnd)).sort((a, b) => a.absoluteLineIndex - b.absoluteLineIndex || a.anchorIndex - b.anchorIndex);
+  for (const chord of changes) {
+    const position = { lineIndex: chord.absoluteLineIndex, anchorIndex: chord.anchorIndex };
+    const index = timeline.findIndex(bar => (!page || bar.occurrence === page.occurrence) && musicalSectionKey(bar.section) === musicalSectionKey(chord.section ?? 'Default') && compare(bar.start, position) <= 0 && compare(position, bar.end) < 0);
+    if (index >= 0) return { index, stop: Math.max(0, timeline[index].stops.findIndex(stop => compare(stop, position) === 0)) };
+  }
+  return { index: fallback, stop: 0 };
+}
+
+export function timelineWithEntry<T extends LyricBar>(timeline: T[], index: number, stop: number): T[] {
+  if (!stop || !timeline[index] || stop >= timeline[index].stops.length - 1) return timeline;
+  return timeline.map((bar, current) => current === index ? { ...bar, start: bar.stops[stop], stops: bar.stops.slice(stop) } : bar);
+}

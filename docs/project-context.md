@@ -565,3 +565,9 @@ All users with Worship Live access can use Play for metronome, MIDI strum and
 silent guidance, including musicians and worship leaders. Sharing the timing
 clock is available to administrators and worship leaders; musicians can follow
 shared timing but cannot publish it. The API enforces the same role boundary.
+
+Manual playback segues finish the current bar, then enter at the destination
+slide’s first annotated chord as beat 1, skipping earlier unannotated bars.
+If no chord is annotated on that slide, its first bar carries the previous chord.
+An entry-stop index in the shared clock keeps follower dots aligned with a
+mid-bar entry; saved bars and normal fresh playback remain unchanged.

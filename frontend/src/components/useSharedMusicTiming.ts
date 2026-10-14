@@ -30,7 +30,7 @@ export function useSharedMusicTiming({ planId, songId, itemId, share, follow }: 
     const active = Boolean((!old || old.planId === current.planId) && current.share && current.planId && current.songId && current.itemId && progress);
     if (!active && !old) return;
     const request = active ? { planId: current.planId!, timing: {
-      owner_id: owner.current, active: true, song_id: current.songId!, plan_item_id: current.itemId!, start_index: progress!.startIndex,
+      owner_id: owner.current, active: true, song_id: current.songId!, plan_item_id: current.itemId!, start_index: progress!.startIndex, first_bar_stop: progress!.firstBarStop ?? 0,
       position: progress!.position, bar_duration_ms: progress!.barDurationMs, total_bars: progress!.totalBars, updated_at: 0,
     } } : { planId: old!.planId, timing: { ...old!.timing, active: false } };
     pending.current = true;
@@ -53,7 +53,7 @@ export function useSharedMusicTiming({ planId, songId, itemId, share, follow }: 
     latest.current = null; // Next position publishes the destination immediately.
   }
   function setLocalTiming(timing: MusicTimingProgress | null) {
-    const changed = Boolean(latest.current) !== Boolean(timing) || Boolean(timing && latest.current && (timing.startIndex !== latest.current.startIndex || timing.position < latest.current.position - 0.2));
+    const changed = Boolean(latest.current) !== Boolean(timing) || Boolean(timing && latest.current && (timing.startIndex !== latest.current.startIndex || (timing.firstBarStop ?? 0) !== (latest.current.firstBarStop ?? 0) || timing.position < latest.current.position - 0.2));
     latest.current = timing;
     if (changed) publishRef.current();
   }

@@ -57,6 +57,7 @@ def timing_context():
             song_id=song.id,
             plan_item_id=item.id,
             start_index=3,
+            first_bar_stop=1,
             position=0.25,
             bar_duration_ms=2000,
             total_bars=8,
@@ -80,6 +81,7 @@ def test_shared_clock_preserves_service_state_and_stops(timing_context, role):
         assert data["worship_coupled"] is True
         read = get_worship_music_timing(plan.id, None, session)
         assert read.timing.start_index == 3
+        assert read.timing.first_bar_stop == 1
         payload.active = False
         update_worship_music_timing(plan.id, payload, SimpleNamespace(id="admin"), session)
         assert get_worship_music_timing(plan.id, None, session).timing is None

@@ -38,7 +38,7 @@ import { PROGRAM_AUDIO_FADE_DURATION_MS } from "../audioTransitions";
 import { songLyricPageBlocks } from "../lyricPages";
 import { mergeWorshipSetIntoService } from "../worshipSets";
 
-import { lyricBarLayout, lyricColumnWidths, wrapTimedLine, lyricCursorAt, lyricPlaybackBars, musicalSectionKey, type LyricBar, type LyricCursor } from "../lyricTiming";
+import { timelineWithEntry, lyricBarLayout, lyricColumnWidths, wrapTimedLine, lyricCursorAt, lyricPlaybackBars, musicalSectionKey, type LyricBar, type LyricCursor } from "../lyricTiming";
 import { LyricMusicControls, TimingDot } from "./LyricMusicControls";
 import { playbackScrollTarget } from "../playbackScroll";
 import { playbackPageMotion } from "../playbackPages";
@@ -585,7 +585,7 @@ export function MusicianLiveView({ canUseMusic = false, canShareTiming = canUseM
   const sharedTiming = useSharedMusicTiming({ planId: liveSyncPlanId, songId: localPlaybackActive ? playbackContext?.songId ?? liveSong?.id ?? null : liveSong?.id ?? null, itemId: localPlaybackActive ? playbackContext?.itemId ?? liveItem?.id ?? null : liveItem?.id ?? null, share: canShareTiming && shareTiming, follow: followSharedTiming });
   const remoteSongMatches = sharedTiming.remote?.timing.song_id === liveSong?.id && sharedTiming.remote?.timing.plan_item_id === liveItem?.id;
   const remoteCursor = remoteSongMatches && sharedTiming.remote && sharedTiming.remote.position >= 0 && liveSong?.rhythm
-    ? lyricCursorAt(liveSong.lyrics, remoteTimeline, sharedTiming.remote.timing.start_index + sharedTiming.remote.position, liveSong.rhythm.numerator, liveSong.rhythm.denominator) : null;
+    ? lyricCursorAt(liveSong.lyrics, timelineWithEntry(remoteTimeline, sharedTiming.remote.timing.start_index, sharedTiming.remote.timing.first_bar_stop ?? 0), sharedTiming.remote.timing.start_index + sharedTiming.remote.position, liveSong.rhythm.numerator, liveSong.rhythm.denominator) : null;
   const musicCursor = jumpPending ? null : localPlaybackActive ? localMusicCursor : remoteCursor ?? localMusicCursor;
   const playbackActive = localPlaybackActive || Boolean(localMusicCursor) || Boolean(remoteSongMatches && sharedTiming.remote) || backingAudioPlaying;
   const showChords = musicianDisplayVisible(chordDisplay, playbackActive, true);
@@ -1205,7 +1205,8 @@ export function MusicianLiveView({ canUseMusic = false, canShareTiming = canUseM
   }, [slides, liveItem?.id, sequenceBlocks, remoteTimeline]);
   // Starting on a later page must never lead back into the preceding page.
   const startedAt = localPlaybackActive ? localTiming?.startIndex : sharedTiming.remote?.timing.start_index;
-  const playbackMotion = playbackPosition === null ? null : playbackPageMotion(playbackPages.filter(page => page.firstBar >= (startedAt ?? 0)), playbackPosition);
+  const startingPage = playbackPages.filter(page => page.firstBar <= (startedAt ?? 0)).slice(-1)[0];
+  const playbackMotion = playbackPosition === null ? null : playbackPageMotion(playbackPages.filter(page => page === startingPage || page.firstBar >= (startedAt ?? 0)), playbackPosition);
   const lastScrollSlide = useRef<string | null>(null);
   const manualScrollDestination = useRef<string | null>(null);
   const lastMusicPageRef = useRef<string | null>(null);

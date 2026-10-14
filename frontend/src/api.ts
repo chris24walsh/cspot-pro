@@ -1976,7 +1976,7 @@ export function setRecordingVisibility(recordingId: string, visible: boolean) {
 
 export interface WorshipMusicTiming {
   owner_id: string; active: boolean; song_id: string; plan_item_id: string;
-  start_index: number; position: number; bar_duration_ms: number; total_bars: number; updated_at: number;
+  start_index: number; first_bar_stop?: number; position: number; bar_duration_ms: number; total_bars: number; updated_at: number;
 }
 export interface WorshipMusicTimingRead { timing: WorshipMusicTiming | null; server_now: number }
 export function getWorshipMusicTiming(planId: string): Promise<WorshipMusicTimingRead> {
