@@ -498,7 +498,7 @@ export function MusicianLiveView({ canUseMusic = false, canControlAudio = false,
   const [localPlaybackActive, setLocalPlaybackActive] = useState(false);
   const [dotDisplay, setDotDisplay] = useState(() => readMusicianDisplayMode("worship-dot-display", "worship-timing-dot"));
   const [followSharedTiming, setFollowSharedTiming] = useState(() => { try { return localStorage.getItem('worship-follow-timing') === 'on'; } catch { return false; } });
-  const [shareTiming, setShareTiming] = useState(false);
+  const [shareTiming, setShareTiming] = useState(() => { try { return localStorage.getItem("worship-share-timing") === "on"; } catch { return false; } });
   const remoteWorshipIndex = useMemo(() => {
     if (!liveState?.planItemId || !worshipItems.some((item) => item.id === liveState.planItemId)) {
       return -1;
@@ -1340,7 +1340,7 @@ export function MusicianLiveView({ canUseMusic = false, canControlAudio = false,
             <button role="menuitemcheckbox" aria-checked={bandSyncEnabled} onClick={() => setBandSyncEnabled(value => { try { localStorage.setItem("worship-band-sync", value ? "off" : "on"); } catch {} return !value; })} type="button"><Link2 size={16} aria-hidden="true" /><span>Band sync<small>{worshipCoupled ? "Service Sync takes priority" : "Share pages with other musicians"}</small></span>{bandSyncEnabled ? <Check size={16} aria-hidden="true" /> : null}</button>
             {bandSync.error ? <small role="status">{bandSync.error}</small> : null}
             <button role="menuitemcheckbox" aria-checked={followSharedTiming} onClick={() => { setFollowSharedTiming(value => { try { localStorage.setItem('worship-follow-timing', value ? 'off' : 'on'); } catch {} return !value; }); }} type="button"><Link2 size={16} aria-hidden="true" /><span>Follow shared timing<small>Dot and page turns on this device · no audio</small></span>{followSharedTiming ? <Check size={16} aria-hidden="true" /> : null}</button>
-            {canUseMusic ? <button role="menuitemcheckbox" aria-checked={shareTiming} onClick={() => setShareTiming(value => !value)} type="button"><Music2 size={16} aria-hidden="true" /><span>Share timing<small>Let other Worship Live devices follow</small></span>{shareTiming ? <Check size={16} aria-hidden="true" /> : null}</button> : null}
+            {canUseMusic ? <button role="menuitemcheckbox" aria-checked={shareTiming} onClick={() => setShareTiming(value => { try { localStorage.setItem("worship-share-timing", value ? "off" : "on"); } catch {} return !value; })} type="button"><Music2 size={16} aria-hidden="true" /><span>Share timing<small>Let other Worship Live devices follow</small></span>{shareTiming ? <Check size={16} aria-hidden="true" /> : null}</button> : null}
             {sharedTiming.error ? <small role="alert">{sharedTiming.error}</small> : null}
             <button role="menuitemcheckbox" aria-checked={false} disabled title="Dynamics annotations are not available yet" type="button"><AudioLines size={16} aria-hidden="true" /><span>Dynamics<small>Not available yet</small></span></button>
             <SongRhythmDisplay menuItem annotations={chordChart.annotations} onPosition={canUseMusic ? (position, mode, section) => {

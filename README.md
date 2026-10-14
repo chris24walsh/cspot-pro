@@ -560,3 +560,6 @@ the meter, tempo, strum or MIDI. Count-in beats use the same audio clock.
 Silent guide also supports manual slide changes during playback: it switches to
 the selected slide on the next bar boundary, keeping the timing overlays and
 automatic advance aligned without creating an audio session.
+
+The Musician menu remembers Share timing per browser, defaulting to off.
+Restoring this preference only shares timing once local playback starts.
