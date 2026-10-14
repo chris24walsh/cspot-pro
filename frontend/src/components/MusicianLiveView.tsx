@@ -1243,7 +1243,7 @@ export function MusicianLiveView({ canUseMusic = false, canControlAudio = false,
   }, [readerMode, autoScroll, playbackPosition, playbackMotion?.slideIndex, liveSlide?.id, showChords, musicCursor?.lineIndex, musicCursor?.anchorIndex]);
 
   function timingFor(offset: number, lineIndex: number, segmentStart: number, occurrence: number, lastSegment: boolean) {
-    return { lyrics: liveSong?.lyrics ?? '', bars: timingBars, sourceLine: offset < 0 ? -1 : offset + lineIndex, segmentStart, lastSegment, showBars: canUseMusic && musicMode, cursor: displayCursor?.occurrence === occurrence ? displayCursor : null };
+    return { lyrics: liveSong?.lyrics ?? '', bars: timingBars, sourceLine: offset < 0 ? -1 : offset + lineIndex, segmentStart, lastSegment, showBars: musicMode, cursor: displayCursor?.occurrence === occurrence ? displayCursor : null };
   }
 
   function navigateToSequenceBlock(blockIndex: number, partIndex = 0) {
@@ -1334,7 +1334,7 @@ export function MusicianLiveView({ canUseMusic = false, canControlAudio = false,
         <CompactControlMenu label="Musician" icon={<Guitar size={16} aria-hidden="true" />} active={showChords || musicMode}>
           {close => <>
             <MusicianDisplayChoice label="Chords" icon={<Guitar size={16} aria-hidden="true" />} value={chordDisplay} onChange={mode => chooseDisplay('worship-chords-display', setChordDisplay, mode)} />
-            {canUseMusic ? <MusicianDisplayChoice label="Bars" icon={<ListMusic size={16} aria-hidden="true" />} value={barDisplay} onChange={mode => chooseDisplay('worship-bars-display', setBarDisplay, mode)} /> : null}
+            <MusicianDisplayChoice label="Bars" icon={<ListMusic size={16} aria-hidden="true" />} value={barDisplay} onChange={mode => chooseDisplay('worship-bars-display', setBarDisplay, mode)} />
             <button role="menuitemcheckbox" aria-checked={beatKeeperEnabled} onClick={() => setBeatKeeperEnabled(value => { try { localStorage.setItem("worship-beat-keeper", value ? "off" : "on"); } catch {} return !value; })} type="button"><Music2 size={16} aria-hidden="true" /><span>Beat keeper<small>Show beats during playback</small></span>{beatKeeperEnabled ? <Check size={16} aria-hidden="true" /> : null}</button>
             <MusicianDisplayChoice label="Dot" icon={<Music2 size={16} aria-hidden="true" />} value={dotDisplay} onChange={mode => chooseDisplay('worship-dot-display', setDotDisplay, mode)} />
             <button role="menuitemcheckbox" aria-checked={bandSyncEnabled} onClick={() => setBandSyncEnabled(value => { try { localStorage.setItem("worship-band-sync", value ? "off" : "on"); } catch {} return !value; })} type="button"><Link2 size={16} aria-hidden="true" /><span>Band sync<small>{worshipCoupled ? "Service Sync takes priority" : "Share pages with other musicians"}</small></span>{bandSyncEnabled ? <Check size={16} aria-hidden="true" /> : null}</button>

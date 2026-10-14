@@ -39,7 +39,10 @@ it.each([false, true])('turns playback pages and publishes them only when synced
   try {
     await act(async () => render(false));
     musician(container);
-    expect(document.querySelector('[aria-label="Bars display"]')).toBeNull();
+    expect(document.querySelector('[aria-label="Bars display"]')).not.toBeNull();
+    act(() => document.querySelector<HTMLButtonElement>('[aria-label="Bars: on"]')!.click());
+    expect(container.querySelector(".lyric-bar-line")).not.toBeNull();
+    act(() => document.querySelector<HTMLButtonElement>('[aria-label="Bars: auto"]')!.click());
     const bandToggle = Array.from(document.querySelectorAll<HTMLButtonElement>('[role="menuitemcheckbox"]')).find(button => button.textContent!.startsWith('Band sync'))!;
     expect(bandToggle.getAttribute('aria-checked')).toBe('true');
     if (coupled) await act(async () => bandToggle.click()); // service sync works even with Band sync off
