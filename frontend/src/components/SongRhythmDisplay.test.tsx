@@ -52,6 +52,8 @@ it("requires Edit before changing strums, cancels drafts, and saves explicitly",
     await act(async () => root.render(<Harness />));
     act(() => container.querySelector<HTMLButtonElement>('[aria-label="Show song rhythm"]')!.click());
     expect(document.querySelector('[aria-label^="Strum 1,"]')).toBeNull();
+    expect(document.querySelector<HTMLDetailsElement>(".rhythm-playback-options")?.open).toBe(true);
+    expect(document.querySelector<HTMLInputElement>('[aria-label="Practice tempo BPM"]')?.disabled).toBe(true);
     await act(async () => document.querySelector<HTMLButtonElement>('[aria-label="Edit song rhythm"]')!.click());
     const saveButton = () => document.querySelector<HTMLButtonElement>('[aria-label="Save song rhythm"]')!;
     expect(saveButton().disabled).toBe(true);
@@ -65,6 +67,11 @@ it("requires Edit before changing strums, cancels drafts, and saves explicitly",
     await act(async () => document.querySelector<HTMLButtonElement>('[aria-label="Edit song rhythm"]')!.click());
     expect(document.querySelector('[aria-label^="Strum 1,"]')?.textContent).toBe('↓');
     act(() => document.querySelector<HTMLButtonElement>('[aria-label^="Strum 1,"]')!.click());
+    act(() => {
+      const tempo = document.querySelector<HTMLInputElement>('[aria-label="Practice tempo BPM"]')!;
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(tempo, '120');
+      tempo.dispatchEvent(new Event('input', { bubbles: true }));
+    });
     save.mockRejectedValueOnce(new Error("Save failed"));
     await act(async () => saveButton().click());
     expect(document.querySelector('[aria-label="Song rhythm reference"]')?.textContent).toContain("Save failed");
@@ -72,6 +79,7 @@ it("requires Edit before changing strums, cancels drafts, and saves explicitly",
     await act(async () => saveButton().click());
     expect(save).toHaveBeenCalledTimes(2);
     expect(save.mock.calls[0][0]?.patterns[0].strokes[0]).toBe('U');
+    expect(save.mock.calls[1][0]?.bpm).toBe(120);
     expect(document.querySelector('[aria-label^="Strum 1,"]')).toBeNull();
     expect(document.querySelector('[aria-label="Song rhythm reference"]')?.textContent).toContain('Rhythm saved.');
   } finally { act(() => root.unmount()); }

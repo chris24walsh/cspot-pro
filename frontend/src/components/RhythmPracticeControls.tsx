@@ -4,10 +4,10 @@ import { buildPracticePerformance, practiceMidi, PracticeAudioPlayer, type Pract
 import type { ChordAnnotation } from "../chordSheet";
 import type { SongRhythm } from "../songRhythm";
 
-export function RhythmPracticeControls({ rhythm, annotations, section = "Default", strumSection, lyrics, sequence, previewChord = "C", transpose = 0, title = "Song", onPosition, onTempoChange, compact = false }: {
+export function RhythmPracticeControls({ rhythm, annotations, section = "Default", strumSection, lyrics, sequence, previewChord = "C", transpose = 0, title = "Song", onPosition, onTempoChange, compact = false, tempoReadOnly = false }: {
   onPosition?: (position: number | null, mode: PracticeMode, section: string) => void;
   annotations?: ChordAnnotation[]; rhythm: SongRhythm; section?: string; strumSection?: string; lyrics?: string | null; sequence?: string | null;
-  compact?: boolean; previewChord?: string; transpose?: number; title?: string; onTempoChange?: (bpm: number) => void;
+  tempoReadOnly?: boolean; compact?: boolean; previewChord?: string; transpose?: number; title?: string; onTempoChange?: (bpm: number) => void;
 }) {
   const [bpm, setBpm] = useState(rhythm.bpm ?? 90);
   const [chord, setChord] = useState(previewChord);
@@ -79,10 +79,10 @@ export function RhythmPracticeControls({ rhythm, annotations, section = "Default
       </>}
       {playing ? <small role="status">{bar < 0 ? countIn ? "Count-in…" : "Starting…" : `Bar ${Math.min(bar + 1, barCount)} / ${barCount}`}</small> : null}
     </div>
-    <details className="rhythm-playback-options">
+    <details className="rhythm-playback-options" open={compact || undefined}>
       <summary>Tempo {bpm || "–"} · playback{compact ? "" : " & MIDI"}</summary>
     <div className="song-rhythm-fields">
-      <label className="compact-field">Tempo<input aria-label="Practice tempo BPM" max={240} min={30} onChange={(event) => {
+      <label className="compact-field">Tempo<input disabled={tempoReadOnly} aria-label="Practice tempo BPM" max={240} min={30} onChange={(event) => {
         const next = Number(event.target.value); setBpm(next); if (Number.isInteger(next) && next >= 30 && next <= 240) onTempoChange?.(next);
       }} type="number" value={bpm || ""} /> BPM</label>
       <label className="compact-field">Preview chord<input aria-label="Strum preview chord" maxLength={24} onChange={(event) => setChord(event.target.value)} value={chord} /></label>

@@ -73,7 +73,7 @@ export function SongRhythmDisplay({ rhythm, section, lyrics, sequence, previewCh
               </div>
             </div>;
           })}
-          <RhythmPracticeControls compact annotations={annotations} onPosition={onPosition} rhythm={shownRhythm} section={section ?? "Default"} lyrics={lyrics} sequence={sequence} previewChord={previewChord} transpose={transpose} title={title} />
+          <RhythmPracticeControls compact tempoReadOnly={!editing || saving} onTempoChange={editing ? bpm => setDraft(current => current ? { ...current, bpm } : current) : undefined} annotations={annotations} onPosition={onPosition} rhythm={shownRhythm} section={section ?? "Default"} lyrics={lyrics} sequence={sequence} previewChord={previewChord} transpose={transpose} title={title} />
           {rhythm.notes ? <p>{rhythm.notes}</p> : null}
           {rhythm.patterns.length ? <small>↓ Down · ↑ Up · ⇣ Soft down · ⇡ Soft up · – Rest · × Muted</small> : null}
           {editing ? <button aria-label="Save song rhythm" disabled={saving || !dirty} className="text-button" onClick={() => void save()} type="button"><Save size={14} />{saving ? "Saving…" : "Save"}</button> : null}

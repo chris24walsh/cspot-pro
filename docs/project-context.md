@@ -598,3 +598,7 @@ Full meter and shared-preset editing remains in the song editor.
 The Worship Live rhythm popout groups Edit beside Close, retains the stroke
 legend and offers Listen strum / Listen song without part preview, MIDI download
 or synthesis help text. Playback checkboxes have larger, spaced tap targets.
+
+Worship Live keeps rhythm playback/tempo options expanded by default. Edit
+enables the tempo input as well as stroke editing; Save persists BPM with the
+pattern, and Cancel restores both to the saved song values.
