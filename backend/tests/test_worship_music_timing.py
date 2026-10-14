@@ -65,9 +65,10 @@ def timing_context():
     engine.dispose()
 
 
-def test_shared_clock_preserves_service_state_and_stops(timing_context):
+@pytest.mark.parametrize("role", ["administrator", "worship_leader"])
+def test_shared_clock_preserves_service_state_and_stops(timing_context, role):
     session, plan, position, payload = timing_context
-    with patch("app.modules.presentation.routes.list_role_names", return_value=["administrator"]):
+    with patch("app.modules.presentation.routes.list_role_names", return_value=[role]):
         response = update_worship_music_timing(
             plan.id, payload, SimpleNamespace(id="admin"), session
         )
@@ -84,7 +85,7 @@ def test_shared_clock_preserves_service_state_and_stops(timing_context):
         assert get_worship_music_timing(plan.id, None, session).timing is None
 
 
-def test_sharing_requires_admin_and_has_one_controller(timing_context):
+def test_sharing_rejects_musicians_and_has_one_controller(timing_context):
     session, plan, _position, payload = timing_context
     with patch("app.modules.presentation.routes.list_role_names", return_value=["musician"]):
         with pytest.raises(HTTPException) as error:

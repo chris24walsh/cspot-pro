@@ -569,6 +569,7 @@ function App() {
         {mountedModuleIds.has("worship") ? <div className="workspace-panel" hidden={activeModule.id !== "worship"}>
           <WorshipBuilderView
             isAdmin={isAdmin}
+            canShareMusicTiming={isAdmin || isWorshipLeader}
             active={activeModule.id === "worship"}
             canAccessAdminTools={canManageUsers}
             canArchiveSong={canDeleteSongs}

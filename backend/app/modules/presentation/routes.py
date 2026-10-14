@@ -247,8 +247,8 @@ def update_worship_music_timing(
     current_user: User = Depends(require_permission("presentation:use")),
     session: Session = Depends(get_session),
 ) -> WorshipMusicTimingRead:
-    if "administrator" not in list_role_names(session, current_user.id):
-        raise HTTPException(status_code=403, detail="Only administrators can share music timing")
+    if not {"administrator", "worship_leader"}.intersection(list_role_names(session, current_user.id)):
+        raise HTTPException(status_code=403, detail="Only administrators and worship leaders can share music timing")
     if session.get(Plan, plan_id) is None:
         raise HTTPException(status_code=404, detail="Plan not found")
     item = session.get(PlanItem, payload.plan_item_id)

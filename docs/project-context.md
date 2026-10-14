@@ -563,4 +563,5 @@ a fresh playback start still leaves opening unannotated bars silent.
 
 All users with Worship Live access can use Play for metronome, MIDI strum and
 silent guidance, including musicians and worship leaders. Sharing the timing
-clock remains an administrator capability, matching the API permission.
+clock is available to administrators and worship leaders; musicians can follow
+shared timing but cannot publish it. The API enforces the same role boundary.
