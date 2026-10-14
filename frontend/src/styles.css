@@ -14288,3 +14288,5 @@ button.musician-page {
 .musician-display-choice > span small { flex-basis: 100%; margin-top: 0; }
 .musician-display-choice > div { flex-shrink: 0; }
 .musician-display-choice button { min-height: 30px; }
+
+.song-rhythm-display-panel .song-rhythm-panel.is-inline { position: static; width: auto; max-width: none; max-height: none; overflow: visible; padding: 0; border: 0; box-shadow: none; margin-top: 8px; }

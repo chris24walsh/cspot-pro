@@ -55,6 +55,7 @@ interface MusicianLiveViewProps {
   canUseMusic?: boolean;
   canShareTiming?: boolean;
   controlPlanId?: string | null;
+  onSaveRhythm?: (song: Song, rhythm: Song["rhythm"]) => Promise<void>;
   onEditSong: (song: Song) => void;
   onExit: () => void;
   plan: PlanDetail | null;
@@ -421,7 +422,7 @@ function chordAnnotationsBySlideLine(
   return grouped;
 }
 
-export function MusicianLiveView({ canUseMusic = false, canShareTiming = canUseMusic, canControlAudio = false, controlPlanId, onEditSong, onExit, plan, servicePlan, songs, topbarSlot }: MusicianLiveViewProps) {
+export function MusicianLiveView({ canUseMusic = false, canShareTiming = canUseMusic, canControlAudio = false, controlPlanId, onEditSong, onSaveRhythm, onExit, plan, servicePlan, songs, topbarSlot }: MusicianLiveViewProps) {
   const [liveState, setLiveState] = useState<PresentationLiveState | null>(null);
   const [chordDisplay, setChordDisplay] = useState(() => readMusicianDisplayMode("worship-chords-display"));
   const [capo, setCapo] = useState(0);
@@ -1364,7 +1365,7 @@ export function MusicianLiveView({ canUseMusic = false, canShareTiming = canUseM
       <div className="musician-live-controls" aria-label="Musician display controls">
         <CompactControlMenu label="Musician" icon={<Guitar size={16} aria-hidden="true" />} active={showChords || musicMode}>
           {close => <>
-            <SongRhythmDisplay menuItem annotations={chordChart.annotations} onPosition={canUseMusic ? (position, mode, section) => {
+            <SongRhythmDisplay menuItem onSaveRhythm={onSaveRhythm && liveSong ? rhythm => onSaveRhythm(liveSong, rhythm) : undefined} annotations={chordChart.annotations} onPosition={canUseMusic ? (position, mode, section) => {
               const timeline = lyricPlaybackBars(liveSong?.lyrics, liveSong?.sequence, timingBars);
               const part = timeline.filter(bar => musicalSectionKey(bar.section) === musicalSectionKey(section));
               const occurrence = part.some(bar => bar.occurrence === currentSequenceBlockIndex) ? currentSequenceBlockIndex : part[0]?.occurrence;

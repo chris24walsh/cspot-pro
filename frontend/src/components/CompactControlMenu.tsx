@@ -15,7 +15,7 @@ export function CompactControlMenu({ label, icon, children, active = false, acti
     panel.current?.querySelector<HTMLButtonElement>('button:not(:disabled)')?.focus();
     const outside = (event: PointerEvent) => {
       const target = event.target as Node;
-      if (!trigger.current?.contains(target) && !panel.current?.contains(target) && !(target instanceof Element && target.closest('.song-rhythm-display-panel'))) setPosition(null);
+      if (!trigger.current?.contains(target) && !panel.current?.contains(target) && !(target instanceof Element && target.closest('.song-rhythm-display-panel, .confirmation-dialog-backdrop'))) setPosition(null);
     };
     const resize = () => setPosition(null);
     document.addEventListener('pointerdown', outside); window.addEventListener('resize', resize);

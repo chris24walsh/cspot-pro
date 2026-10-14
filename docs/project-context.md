@@ -590,3 +590,8 @@ available in saved songs, shared patterns, live playback and MIDI export.
 ⇡ Soft upstroke complements ⇣ Soft downstroke with the same quiet level and
 lightly damped sustain, brushing high strings to low. Both can be saved in
 songs and shared patterns and are supported by playback and MIDI export.
+
+Users with song-edit permission can enable Edit in the Worship Live Rhythm
+popout to change meter, tempo, beat display, strums and notes, then explicitly
+Save song. The popout is read-only by default; Cancel discards the draft.
+The same rhythm editor supports shared presets in song editing and Worship Live.

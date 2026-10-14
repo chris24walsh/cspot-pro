@@ -16,16 +16,16 @@ import { useEscapeClose } from "./useEscapeClose";
 const METERS = ["4/4", "3/4", "6/8", "2/4", "12/8"];
 const emptyRhythm = (): SongRhythm => ({ numerator: 4, denominator: 4, patterns: [], notes: "" });
 
-export function SongRhythmEditor({ value, canEdit, onChange, lyrics, sequence, previewChord, songChords = [], annotations, onPosition, onSave, saving, isDirty }: {
+export function SongRhythmEditor({ value, canEdit, onChange, lyrics, sequence, previewChord, songChords = [], annotations, onPosition, onSave, saving, isDirty, inline = false, initialSection = "Default" }: {
   onPosition?: (position: number | null, mode: PracticeMode, section: string) => void;
   annotations?: ChordAnnotation[]; value: SongRhythm | null; canEdit: boolean; onChange: (value: SongRhythm | null) => void;
   lyrics?: string | null; sequence?: string | null; previewChord?: string;
   songChords?: Array<{ section: string | null; chord: string }>;
-  onSave?: () => Promise<void>; saving?: boolean; isDirty?: boolean;
+  initialSection?: StrumSection; inline?: boolean; onSave?: () => Promise<void>; saving?: boolean; isDirty?: boolean;
 }) {
   const { confirm, confirmationDialog } = useConfirmationDialog();
-  const [open, setOpen] = useState(false);
-  const [section, setSection] = useState<StrumSection>("Default");
+  const [open, setOpen] = useState(inline);
+  const [section, setSection] = useState<StrumSection>(initialSection);
   const [customMeter, setCustomMeter] = useState(false);
   const [library, setLibrary] = useState<RhythmPreset[]>([]);
   const [libraryBusy, setLibraryBusy] = useState(false);
@@ -43,7 +43,7 @@ export function SongRhythmEditor({ value, canEdit, onChange, lyrics, sequence, p
   }, [open]);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const close = () => { setOpen(false); triggerRef.current?.focus(); };
-  useEscapeClose(open && !confirmationDialog, close, 1);
+  useEscapeClose(!inline && open && !confirmationDialog, close, 1);
   const rhythm = value ?? emptyRhythm();
   const meter = `${rhythm.numerator}/${rhythm.denominator}`;
   const pattern = rhythm.patterns.find((entry) => entry.section === section)
@@ -100,16 +100,16 @@ export function SongRhythmEditor({ value, canEdit, onChange, lyrics, sequence, p
   return (
     <>
       {confirmationDialog ? createPortal(<div style={{ position: "relative", zIndex: 200 }}>{confirmationDialog}</div>, document.body) : null}
-      <button aria-label="Song rhythm" aria-expanded={open} className={`section-icon-button section-edit-button song-rhythm-trigger ${value ? "is-active" : ""}`}
+      {!inline ? <button aria-label="Song rhythm" aria-expanded={open} className={`section-icon-button section-edit-button song-rhythm-trigger ${value ? "is-active" : ""}`}
         onClick={() => setOpen((current) => !current)} ref={triggerRef} title="Meter and strumming patterns" type="button">
         <Music2 size={15} aria-hidden="true" /><span>Rhythm</span>
-      </button>
+      </button> : null}
       {open ? (
-        <section className="song-rhythm-panel" aria-label="Meter and strumming patterns">
-          <div className="song-rhythm-heading">
+        <section className={`song-rhythm-panel ${inline ? "is-inline" : ""}`} aria-label="Meter and strumming patterns">
+          {!inline ? <div className="song-rhythm-heading">
             <strong>Meter &amp; strumming</strong>
             <button aria-label="Close rhythm editor" className="section-icon-button" onClick={close} title="Close rhythm editor" type="button"><X size={15} aria-hidden="true" /></button>
-          </div>
+          </div> : null}
           <div className="song-rhythm-fields">
             <label className="compact-field">Beat keeper<select aria-label="Beat keeper visual count" disabled={!canEdit} value={rhythm.visual_beats ?? 0} onChange={event => onChange({ ...rhythm, visual_beats: Number(event.target.value) || null })}><option value={0}>Auto (meter)</option>{Array.from({ length: 12 }, (_, index) => <option key={index + 1} value={index + 1}>{index + 1} beats</option>)}</select></label>
             <label className="compact-field">Meter

@@ -1976,6 +1976,7 @@ export function WorshipBuilderView({ active = true, isAdmin = false, canShareMus
             canUseMusic
             canShareTiming={canShareMusicTiming}
             controlPlanId={liveControlPlanId}
+            onSaveRhythm={canEditSong ? async (song, rhythm) => { const updated = await updateSong(song.id, { rhythm }); setSongs(current => current.map(existing => existing.id === updated.id ? updated : existing)); } : undefined}
             onEditSong={openSongEditor}
             onExit={() => setViewMode("builder")}
             plan={plan}
