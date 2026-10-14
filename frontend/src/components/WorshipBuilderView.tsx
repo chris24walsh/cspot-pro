@@ -1972,7 +1972,8 @@ export function WorshipBuilderView({ active = true, isAdmin = false, canAccessAd
         <section className="worship-live-shell" aria-label="Musician live worship">
           <MusicianLiveView
             canControlAudio={canAccessAdminTools}
-            canUseMusic={isAdmin}
+            canUseMusic
+            canShareTiming={isAdmin}
             controlPlanId={liveControlPlanId}
             onEditSong={openSongEditor}
             onExit={() => setViewMode("builder")}

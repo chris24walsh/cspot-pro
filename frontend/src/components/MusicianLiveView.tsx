@@ -53,6 +53,7 @@ import { SongRhythmDisplay } from "./SongRhythmDisplay";
 interface MusicianLiveViewProps {
   canControlAudio?: boolean;
   canUseMusic?: boolean;
+  canShareTiming?: boolean;
   controlPlanId?: string | null;
   onEditSong: (song: Song) => void;
   onExit: () => void;
@@ -420,7 +421,7 @@ function chordAnnotationsBySlideLine(
   return grouped;
 }
 
-export function MusicianLiveView({ canUseMusic = false, canControlAudio = false, controlPlanId, onEditSong, onExit, plan, servicePlan, songs, topbarSlot }: MusicianLiveViewProps) {
+export function MusicianLiveView({ canUseMusic = false, canShareTiming = canUseMusic, canControlAudio = false, controlPlanId, onEditSong, onExit, plan, servicePlan, songs, topbarSlot }: MusicianLiveViewProps) {
   const [liveState, setLiveState] = useState<PresentationLiveState | null>(null);
   const [chordDisplay, setChordDisplay] = useState(() => readMusicianDisplayMode("worship-chords-display"));
   const [capo, setCapo] = useState(0);
@@ -581,7 +582,7 @@ export function MusicianLiveView({ canUseMusic = false, canControlAudio = false,
   const nextPageContext = pageContext(pageNextSlide);
   const timingBars = useMemo(() => lyricBarLayout(liveSong?.lyrics, liveSong?.rhythm, chordChart.annotations), [liveSong?.lyrics, liveSong?.rhythm, chordChart.annotations]);
   const remoteTimeline = useMemo(() => lyricPlaybackBars(liveSong?.lyrics, liveSong?.sequence, timingBars), [liveSong?.lyrics, liveSong?.sequence, timingBars]);
-  const sharedTiming = useSharedMusicTiming({ planId: liveSyncPlanId, songId: localPlaybackActive ? playbackContext?.songId ?? liveSong?.id ?? null : liveSong?.id ?? null, itemId: localPlaybackActive ? playbackContext?.itemId ?? liveItem?.id ?? null : liveItem?.id ?? null, share: canUseMusic && shareTiming, follow: followSharedTiming });
+  const sharedTiming = useSharedMusicTiming({ planId: liveSyncPlanId, songId: localPlaybackActive ? playbackContext?.songId ?? liveSong?.id ?? null : liveSong?.id ?? null, itemId: localPlaybackActive ? playbackContext?.itemId ?? liveItem?.id ?? null : liveItem?.id ?? null, share: canShareTiming && shareTiming, follow: followSharedTiming });
   const remoteSongMatches = sharedTiming.remote?.timing.song_id === liveSong?.id && sharedTiming.remote?.timing.plan_item_id === liveItem?.id;
   const remoteCursor = remoteSongMatches && sharedTiming.remote && sharedTiming.remote.position >= 0 && liveSong?.rhythm
     ? lyricCursorAt(liveSong.lyrics, remoteTimeline, sharedTiming.remote.timing.start_index + sharedTiming.remote.position, liveSong.rhythm.numerator, liveSong.rhythm.denominator) : null;
@@ -1378,7 +1379,7 @@ export function MusicianLiveView({ canUseMusic = false, canControlAudio = false,
             <MusicianDisplayChoice label="Band sync" binary description={worshipCoupled ? "Service Sync takes priority" : "Share pages with musicians"} icon={<Link2 size={16} aria-hidden="true" />} value={bandSyncEnabled ? "on" : "off"} onChange={mode => { setBandSyncEnabled(mode === "on"); try { localStorage.setItem("worship-band-sync", mode); } catch {} }} />
             {bandSync.error ? <small role="status">{bandSync.error}</small> : null}
             <MusicianDisplayChoice label="Follow shared timing" binary description="Follow dot and page turns · no audio" icon={<Link2 size={16} aria-hidden="true" />} value={followSharedTiming ? "on" : "off"} onChange={mode => { setFollowSharedTiming(mode === "on"); try { localStorage.setItem("worship-follow-timing", mode); } catch {} }} />
-            {canUseMusic ? <MusicianDisplayChoice label="Share timing" binary description="Let other devices follow" icon={<Music2 size={16} aria-hidden="true" />} value={shareTiming ? "on" : "off"} onChange={mode => { setShareTiming(mode === "on"); try { localStorage.setItem("worship-share-timing", mode); } catch {} }} /> : null}
+            {canShareTiming ? <MusicianDisplayChoice label="Share timing" binary description="Let other devices follow" icon={<Music2 size={16} aria-hidden="true" />} value={shareTiming ? "on" : "off"} onChange={mode => { setShareTiming(mode === "on"); try { localStorage.setItem("worship-share-timing", mode); } catch {} }} /> : null}
             {sharedTiming.error ? <small role="alert">{sharedTiming.error}</small> : null}
             <MusicianDisplayChoice label="Dynamics" binary disabled description="Not available yet" icon={<AudioLines size={16} aria-hidden="true" />} value="off" onChange={() => {}} />
 

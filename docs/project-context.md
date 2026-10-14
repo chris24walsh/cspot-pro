@@ -560,3 +560,7 @@ including synced devices, while playback finishes its current bar. Scroll
 following waits for the musical destination before resuming. MIDI carries the
 last sounding chord through unannotated destination bars until the next change;
 a fresh playback start still leaves opening unannotated bars silent.
+
+All users with Worship Live access can use Play for metronome, MIDI strum and
+silent guidance, including musicians and worship leaders. Sharing the timing
+clock remains an administrator capability, matching the API permission.
