@@ -611,3 +611,7 @@ still damping sustained strings. The velocity balance also applies to MIDI expor
 
 Muted guitar strokes now decay for up to 300 ms (bounded by strum spacing),
 with a longer smooth release instead of the earlier short cutoff.
+
+The Play menu offers MIDI only for guitar chords and strumming without
+metronome clicks or an audible count-in, retaining guided slide following
+and the same manual segue behaviour as MIDI with metronome.

@@ -149,7 +149,7 @@ it('selects silent guidance from the current slide and emits shareable clock pro
   } finally { act(() => root.unmount()); vi.clearAllMocks(); }
 });
 
-it.each(['Metronome', 'MIDI strum', 'Silent guide'])('queues a manual slide destination without restarting or adding a count-in (%s)', async source => {
+it.each(['Metronome', 'MIDI strum', 'MIDI only', 'Silent guide'])('queues a manual slide destination without restarting or adding a count-in (%s)', async source => {
   const lyrics = '[V1]\nFirst line\n[C]\nSecond line';
   const annotations = [{ id: 'v', section: 'V1', lineIndex: 0, anchorIndex: 3, chord: 'C' }, { id: 'c', section: 'C', lineIndex: 0, anchorIndex: 3, chord: 'G' }];
   const rhythm: SongRhythm = { numerator: 4, denominator: 4, patterns: [], notes: '', markers: annotations.map(({ chord: _chord, ...marker }) => marker) };
@@ -167,6 +167,7 @@ it.each(['Metronome', 'MIDI strum', 'Silent guide'])('queues a manual slide dest
     expect(player.queuePerformance).toHaveBeenCalledOnce();
     const [music, progress, committed] = player.queuePerformance.mock.calls[0] as [PracticePerformance, (position: number) => void, () => void];
     expect(music.countInTicks).toBe(0);
+    if (source === 'MIDI only') { expect(music.notes.some(note => note.channel === 9)).toBe(false); expect(music.notes.some(note => note.channel === 0)).toBe(true); }
     expect(music.bars[0].chords[0].chord).toBe('G');
     expect(container.textContent).toContain('next bar');
     await act(async () => { committed(); progress(0); });
