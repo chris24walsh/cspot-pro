@@ -210,3 +210,12 @@ it("redirects silent guidance on the next bar without creating audio", async () 
     expect(ended).toHaveBeenCalledOnce();
   } finally { player.stop(); vi.useRealTimers(); }
 });
+
+
+it('keeps upstrokes softer than downstrokes, including accented beats, and mutes softer still', () => {
+  const voice = (stroke: 'D' | 'U' | 'X') => buildPracticePerformance({ ...rhythm, patterns: [{ section: 'Default', subdivision: 1, strokes: [stroke, stroke, stroke, stroke] }] }, { mode: 'strum', countIn: false, metronome: false }).notes;
+  const down = voice('D'), up = voice('U'), muted = voice('X');
+  expect(Math.max(...up.map(note => note.velocity))).toBeLessThan(Math.min(...down.map(note => note.velocity)));
+  expect(Math.max(...muted.map(note => note.velocity))).toBeLessThan(Math.min(...up.map(note => note.velocity)));
+  expect(muted[0].pitch).toBeGreaterThan(muted[muted.findIndex(note => note.tick >= MIDI_PPQ) - 1].pitch);
+});

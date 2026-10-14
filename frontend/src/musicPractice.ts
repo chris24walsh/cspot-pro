@@ -160,8 +160,8 @@ export function buildPracticePerformance(rhythm: SongRhythm, options: {
       if (!chord) return;
       if (stroke === "X") {
         dampTicks.push(tick);
-        chordMidiNotes(transposeChordSymbol(chord, options.transpose ?? 0)).forEach((pitch, stringIndex) => notes.push({
-          tick: tick + stringIndex * 3, duration: Math.min(60, stepTicks * 0.4), pitch, velocity: 70, channel: 1,
+        chordMidiNotes(transposeChordSymbol(chord, options.transpose ?? 0)).reverse().forEach((pitch, stringIndex) => notes.push({
+          tick: tick + stringIndex * 5, duration: Math.min(60, stepTicks * 0.4), pitch, velocity: 40, channel: 1,
         }));
         return;
       }
@@ -172,7 +172,7 @@ export function buildPracticePerformance(rhythm: SongRhythm, options: {
       if (stroke === "U") pitches.reverse();
       pitches.forEach((pitch, stringIndex) => notes.push({
         tick: tick + stringIndex * Math.min(5, stepTicks / 16), duration: Math.max(12, stepTicks * 0.8 - stringIndex * 5),
-        pitch, velocity: index % (pulseCount * pattern.subdivision) === 0 ? 105 : stroke === "U" ? 75 : 90, channel: 0,
+        pitch, velocity: stroke === "U" ? index % (pulseCount * pattern.subdivision) === 0 ? 72 : 60 : index % (pulseCount * pattern.subdivision) === 0 ? 105 : 90, channel: 0,
       }));
     });
   });
@@ -290,7 +290,7 @@ export class PracticeAudioPlayer {
     const scheduleNote = (note: PracticeNote, at: number, secondsPerTick: number, guitar: Map<string, AudioBuffer>, queued = false) => {
       const length = Math.max(0.025, note.duration * secondsPerTick);
       const gain = context.createGain();
-      const peak = note.velocity / 127 * (note.channel === 9 ? 0.3 : note.channel === 1 ? 0.32 : 0.5);
+      const peak = note.velocity / 127 * (note.channel === 9 ? 0.3 : note.channel === 1 ? 0.24 : 0.5);
       const muted = note.channel === 1;
       const soundLength = note.channel === 9 ? 0.05 : muted ? Math.min(0.12, length) : length;
       const source = note.channel === 9 ? context.createOscillator() : context.createBufferSource();
@@ -305,7 +305,7 @@ export class PracticeAudioPlayer {
         source.playbackRate.setValueAtTime(sample.rate, at);
       }
       gain.gain.setValueAtTime(0.0001, at);
-      gain.gain.exponentialRampToValueAtTime(peak, at + 0.003);
+      gain.gain.exponentialRampToValueAtTime(peak, at + (muted ? Math.min(0.012, soundLength * 0.25) : 0.003));
       if (note.channel !== 9) gain.gain.exponentialRampToValueAtTime(peak * (note.finishing ? 0.35 : muted ? 0.5 : 0.8), at + (note.finishing ? Math.min(0.6, soundLength * 0.2) : muted ? soundLength * 0.65 : Math.max(0.004, soundLength - 0.025)));
       gain.gain.exponentialRampToValueAtTime(0.0001, at + soundLength);
       source.connect(gain); gain.connect(master);

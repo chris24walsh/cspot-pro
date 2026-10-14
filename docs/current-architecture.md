@@ -1282,3 +1282,7 @@ slide’s first annotated chord as beat 1, skipping earlier unannotated bars.
 If no chord is annotated on that slide, its first bar carries the previous chord.
 An entry-stop index in the shared clock keeps follower dots aligned with a
 mid-bar entry; saved bars and normal fresh playback remain unchanged.
+
+Guitar upstrokes use lower velocity even on accented beats. Muted strokes brush
+high-to-low like a soft upstroke, with lower velocity and a gentler attack while
+still damping sustained strings. The velocity balance also applies to MIDI export.
