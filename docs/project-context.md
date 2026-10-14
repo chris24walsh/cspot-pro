@@ -616,3 +616,7 @@ remain aligned; wrapping changes no musical timing or saved pattern values.
 Clicking the current lyrics page during local playback queues a restart of that
 slide at the next bar, using the same first-chord entry as other manual segues.
 The current bar continues uninterrupted; scroll-mode part clicks work likewise.
+
+Mobile auto-scroll pauses only after an actual vertical touch movement, not
+on touch-down. Manual navigation/restarting the same slide and segue completion
+resume following; failed segues clear the scroll destination hold.

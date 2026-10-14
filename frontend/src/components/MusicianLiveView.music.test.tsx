@@ -300,6 +300,27 @@ it('queues manual section changes while automatic page turns leave the player ru
     expect(container.querySelector('.musician-song-part.is-current')?.textContent).toContain('Second');
     await act(async () => container.querySelector<HTMLButtonElement>('[aria-label="Previous slide"]')!.click());
     expect(audio.queuePerformance).toHaveBeenCalledTimes(2);
+    const [, returnPosition, returnCommit] = audio.queuePerformance.mock.calls[1] as [unknown, (position: number) => void, () => void];
+    await act(async () => { returnCommit(); returnPosition(0.25); });
+    const touch = (kind: string, y: number) => { const event = new Event(kind, { bubbles: true }); Object.defineProperty(event, 'touches', { value: [{ clientY: y }] }); act(() => scroller.dispatchEvent(event)); };
+    touch('touchstart', 100);
+    const priorScroll = scroller.scrollTop;
+    await act(async () => returnPosition(0.3));
+    expect(scroller.scrollTop).not.toBe(priorScroll); // a tap does not pause following
+    touch('touchmove', 150);
+    scroller.scrollTop = 400;
+    await act(async () => returnPosition(0.35));
+    expect(scroller.scrollTop).toBe(400); // a real swipe does pause following
+    act(() => scroller.dispatchEvent(new Event('touchend', { bubbles: true })));
+    await act(async () => container.querySelector<HTMLButtonElement>('.musician-song-part.is-current')!.click());
+    expect(audio.queuePerformance).toHaveBeenCalledTimes(3);
+    expect(scroller.scrollTop).toBe(60); // same slide immediately returns into view
+    const [, restartPosition, restartCommit] = audio.queuePerformance.mock.calls[2] as [unknown, (position: number) => void, () => void];
+    await act(async () => { restartCommit(); restartPosition(0.25); });
+    expect(scroller.scrollTop).not.toBe(400);
+    expect(audio.play).toHaveBeenCalledOnce();
+    expect(audio.stop).not.toHaveBeenCalled();
+
   } finally { act(() => root.unmount()); vi.unstubAllGlobals(); vi.clearAllMocks(); }
 });
 
