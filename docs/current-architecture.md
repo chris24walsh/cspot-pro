@@ -1340,3 +1340,8 @@ shared timing, without changing wrapping or auto-scroll. It waits during count-i
 and clears when playback stops. This is an approximate lyric guide rather than
 syllable-level vocal alignment. Beat one uses a larger, brighter tile and halo
 for peripheral visibility, including during count-in.
+
+Shared Worship Live timing recognises worship-leader access from approved
+serving roles as well as directly assigned roles, matching the rest of the app’s
+authorization. Musicians can follow timing; publishing remains limited to
+administrators and worship leaders.

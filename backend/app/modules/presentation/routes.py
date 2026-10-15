@@ -15,7 +15,12 @@ from app.modules.broadcast.models import BroadcastViewerSettings
 from app.modules.broadcast.recording import schedule_sermon_recording
 from app.modules.broadcast.schemas import ServiceScheduleRule
 from app.modules.broadcast.settings import service_schedules
-from app.modules.identity.auth import list_role_names, require_any_permission, require_permission
+from app.modules.identity.auth import (
+    list_authorization_role_names,
+    list_role_names,
+    require_any_permission,
+    require_permission,
+)
 from app.modules.identity.models import User
 from app.modules.planning.models import DefaultItem, Plan, PlanItem, PlanType
 from app.modules.planning.service_scaffold import ensure_welcome_stage_items
@@ -248,7 +253,9 @@ def update_worship_music_timing(
     current_user: User = Depends(require_permission("presentation:use")),
     session: Session = Depends(get_session),
 ) -> WorshipMusicTimingRead:
-    if not {"administrator", "worship_leader"}.intersection(list_role_names(session, current_user.id)):
+    if not {"administrator", "worship_leader"}.intersection(
+        list_authorization_role_names(session, current_user.id)
+    ):
         raise HTTPException(status_code=403, detail="Only administrators and worship leaders can share music timing")
     if session.get(Plan, plan_id) is None:
         raise HTTPException(status_code=404, detail="Plan not found")

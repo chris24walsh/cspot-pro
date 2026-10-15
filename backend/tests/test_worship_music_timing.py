@@ -69,7 +69,7 @@ def timing_context():
 @pytest.mark.parametrize("role", ["administrator", "worship_leader"])
 def test_shared_clock_preserves_service_state_and_stops(timing_context, role):
     session, plan, position, payload = timing_context
-    with patch("app.modules.presentation.routes.list_role_names", return_value=[role]):
+    with patch("app.modules.presentation.routes.list_authorization_role_names", return_value=[role]):
         response = update_worship_music_timing(
             plan.id, payload, SimpleNamespace(id="admin"), session
         )
@@ -89,11 +89,11 @@ def test_shared_clock_preserves_service_state_and_stops(timing_context, role):
 
 def test_sharing_rejects_musicians_and_has_one_controller(timing_context):
     session, plan, _position, payload = timing_context
-    with patch("app.modules.presentation.routes.list_role_names", return_value=["musician"]):
+    with patch("app.modules.presentation.routes.list_authorization_role_names", return_value=["musician"]):
         with pytest.raises(HTTPException) as error:
             update_worship_music_timing(plan.id, payload, SimpleNamespace(id="musician"), session)
         assert error.value.status_code == 403
-    with patch("app.modules.presentation.routes.list_role_names", return_value=["administrator"]):
+    with patch("app.modules.presentation.routes.list_authorization_role_names", return_value=["administrator"]):
         update_worship_music_timing(plan.id, payload, SimpleNamespace(id="admin"), session)
         payload.owner_id = "other-device"
         with pytest.raises(HTTPException) as error:
@@ -134,3 +134,30 @@ def test_band_selection_is_independent_and_last_writer_wins(timing_context):
     assert data["slide_offset"] == 2
     assert data["updated_at"] == 123
     assert data["worship_coupled"] is True
+
+
+@pytest.mark.parametrize("area_key,approval,allowed", [
+    ("worship", "approved", True),
+    ("worship", "pending", False),
+    ("worship_musician", "approved", False),
+])
+def test_sharing_uses_approved_serving_roles(timing_context, area_key, approval, allowed):
+    from app.modules.identity.models import ServingArea, User, VolunteerPreference
+
+    session, plan, _position, payload = timing_context
+    user = User(email="leader@example.com", username="leader", name="Leader")
+    area = ServingArea(key=area_key, name="Worship", category="Worship")
+    session.add_all([user, area])
+    session.flush()
+    session.add(VolunteerPreference(
+        user_id=user.id, serving_area_id=area.id, status=approval,
+    ))
+    session.commit()
+    if allowed:
+        result = update_worship_music_timing(plan.id, payload, user, session)
+        assert result.timing.active
+        assert get_worship_music_timing(plan.id, user, session).timing.owner_id == "host"
+    else:
+        with pytest.raises(HTTPException) as error:
+            update_worship_music_timing(plan.id, payload, user, session)
+        assert error.value.status_code == 403
