@@ -14296,3 +14296,9 @@ button.musician-page {
 .rhythm-practice-options { display: flex; flex-wrap: wrap; gap: 8px 12px; }
 .rhythm-practice-options label { display: inline-flex; align-items: center; gap: 7px; min-height: 38px; padding: 4px 6px; cursor: pointer; }
 .rhythm-practice-options input { width: 18px; height: 18px; margin: 0; }
+
+/* Lyric timing changes paint only, preserving chord anchors and wrapping. */
+.musician-chord-line.is-lyric-current { background: #f6e9b533; border-radius: 4px; }
+.lyric-highlight-character { color: #17251f; }
+.musician-beat-keeper span.is-downbeat { width: 33px; font-size: 18px; border: 2px solid #245d4d55; }
+.musician-beat-keeper span.is-downbeat.is-active { color: #102d23; background: #ffda70; border-color: #806013; box-shadow: 0 0 0 4px #ffd56a66, 0 0 14px #ffd56a99; }

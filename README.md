@@ -653,3 +653,12 @@ The current bar continues uninterrupted; scroll-mode part clicks work likewise.
 Mobile auto-scroll pauses only after an actual vertical touch movement, not
 on touch-down. Manual navigation/restarting the same slide and segue completion
 resume following; failed segues clear the scroll destination hold.
+
+Worship Live’s Musician menu includes a per-device **Lyric highlight** switch.
+Enable it alongside Dot or turn Dot off for lyric highlighting alone; the beat
+keeper remains independent. Highlighting shades the current wrapped line and
+fills through its characters using the existing bar/chord timing, including
+shared timing, without changing wrapping or auto-scroll. It waits during count-in
+and clears when playback stops. This is an approximate lyric guide rather than
+syllable-level vocal alignment. Beat one uses a larger, brighter tile and halo
+for peripheral visibility, including during count-in.

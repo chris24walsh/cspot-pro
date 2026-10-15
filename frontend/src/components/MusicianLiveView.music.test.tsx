@@ -58,6 +58,20 @@ it.each([false, true])('turns playback pages and publishes them only when synced
     const position = audio.play.mock.calls[0][4] as (position: number) => void;
     await act(async () => position(0.25));
     expect(container.querySelector('.lyric-timing-dot')).not.toBeNull();
+    musician(container);
+    act(() => document.querySelector<HTMLButtonElement>('[aria-label="Lyric highlight: on"]')!.click());
+    act(() => document.querySelector<HTMLButtonElement>('[aria-label="Dot: off"]')!.click());
+    musician(container);
+    expect(container.querySelector('.lyric-timing-dot')).toBeNull();
+    expect(container.querySelector('.is-lyric-current .lyric-highlight-character')).not.toBeNull();
+    expect(container.querySelector<HTMLElement>('.lyric-highlight-character')!.style.backgroundImage).toContain('linear-gradient');
+    expect(localStorage.getItem('worship-lyric-highlight')).toBe('on');
+    expect(container.querySelector<HTMLElement>('.musician-chord-line')!.style.gridTemplateColumns).toBe(grid);
+    musician(container);
+    act(() => document.querySelector<HTMLButtonElement>('[aria-label="Dot: on"]')!.click());
+    musician(container);
+    expect(container.querySelector('.lyric-timing-dot')).not.toBeNull();
+
     expect(container.querySelector('.musician-page.is-current')?.textContent).toContain('First');
     await act(async () => position(0.5));
     expect(updatePresentationLiveState).toHaveBeenCalledTimes(coupled ? 2 : 0);

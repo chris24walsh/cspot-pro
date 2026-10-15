@@ -322,7 +322,7 @@ function MusicianChordLine({
   targetAbsoluteKey,
   timing,
 }: {
-  timing?: { lyrics: string; bars: LyricBar[]; sourceLine: number; segmentStart: number; lastSegment: boolean; showBars: boolean; cursor: LyricCursor | null };
+  timing?: { lyrics: string; bars: LyricBar[]; sourceLine: number; segmentStart: number; lastSegment: boolean; showBars: boolean; showDot: boolean; highlight: boolean; cursor: LyricCursor | null };
   annotations: ChordAnnotation[];
   baseAbsoluteKey: string | null;
   capo: number;
@@ -341,9 +341,9 @@ function MusicianChordLine({
   const cursor = timing && timing.cursor && timing.cursor.lineIndex === timing.sourceLine && timing.cursor.anchorIndex >= rangeStart && timing.cursor.anchorIndex < rangeEnd ? timing.cursor : null;
 
   return (
-    <div className="musician-chord-line" style={{ gridTemplateColumns: widths.map(width => `${width}ch`).join(" ") }}>
+    <div className={`musician-chord-line${cursor && timing?.highlight ? " is-lyric-current" : ""}`} style={{ gridTemplateColumns: widths.map(width => `${width}ch`).join(" ") }}>
       {boundaries.map((position, index) => <span aria-hidden="true" className="lyric-bar-line" key={`${position.anchorIndex}-${index}`} style={{ gridColumn: Math.floor(position.anchorIndex - timing!.segmentStart) + 1, gridRow: '1 / 3' }} />)}
-      {cursor ? <span className="lyric-timing-track" style={{ gridColumn: '1 / -1', gridRow: 2 }}><TimingDot widths={widths} anchor={cursor.anchorIndex - timing!.segmentStart} pulse={cursor.pulse} /></span> : null}
+      {cursor && timing?.showDot ? <span className="lyric-timing-track" style={{ gridColumn: '1 / -1', gridRow: 2 }}><TimingDot widths={widths} anchor={cursor.anchorIndex - timing!.segmentStart} pulse={cursor.pulse} /></span> : null}
       {annotations.map((annotation) => {
         const label = musicianChordLabel(annotation.chord, {
           baseAbsoluteKey,
@@ -367,9 +367,11 @@ function MusicianChordLine({
       })}
       {characters.map((character, index) => (
         <span
-          className={character.trim() ? "musician-lyric-character" : "musician-lyric-space"}
+          className={`${character.trim() ? "musician-lyric-character" : "musician-lyric-space"}${cursor && timing?.highlight ? " lyric-highlight-character" : ""}`}
           key={`${index}-${character}`}
-          style={{ gridColumn: LEADING_CHORD_ANCHORS + index + 1, gridRow: 2 }}
+          style={{ gridColumn: LEADING_CHORD_ANCHORS + index + 1, gridRow: 2,
+            ...(cursor && timing?.highlight ? { backgroundImage: `linear-gradient(to right, #ffe08a ${Math.max(0, Math.min(1, cursor.anchorIndex - timing.segmentStart - LEADING_CHORD_ANCHORS - index)) * 100}%, transparent 0%)` } : {}),
+          }}
         >
           {character === " " ? "\u00a0" : character}
         </span>
@@ -500,6 +502,7 @@ export function MusicianLiveView({ canUseMusic = false, canShareTiming = canUseM
   const automaticSlideRef = useRef<string | null>(null);
   const previousRemoteIndex = useRef(-1);
   const [localPlaybackActive, setLocalPlaybackActive] = useState(false);
+  const [lyricHighlight, setLyricHighlight] = useState(() => { try { return localStorage.getItem("worship-lyric-highlight") === "on"; } catch { return false; } });
   const [dotDisplay, setDotDisplay] = useState(() => readMusicianDisplayMode("worship-dot-display", "worship-timing-dot"));
   const [followSharedTiming, setFollowSharedTiming] = useState(() => { try { return localStorage.getItem('worship-follow-timing') === 'on'; } catch { return false; } });
   const [shareTiming, setShareTiming] = useState(() => { try { return localStorage.getItem("worship-share-timing") === "on"; } catch { return false; } });
@@ -594,7 +597,7 @@ export function MusicianLiveView({ canUseMusic = false, canShareTiming = canUseM
   const musicMode = musicianDisplayVisible(barDisplay, playbackActive);
   const showTimingDot = dotDisplay !== 'off' && playbackActive;
   const idleBar = remoteTimeline.find(bar => bar.occurrence === leadPageContext.occurrence && bar.start.lineIndex >= leadPageContext.sourceOffset && bar.start.lineIndex < leadPageContext.sourceOffset + lyricLines(pageLeadSlide?.text ?? '').length);
-  const displayCursor = showTimingDot ? musicCursor ?? (leadPageContext.sourceOffset < 0 ? null : { ...(idleBar?.start ?? { lineIndex: leadPageContext.sourceOffset, anchorIndex: LEADING_CHORD_ANCHORS }), occurrence: leadPageContext.occurrence, barStartLine: idleBar?.start.lineIndex ?? leadPageContext.sourceOffset, pulse: 0 }) : null;
+  const displayCursor = lyricHighlight && playbackActive ? musicCursor : showTimingDot ? musicCursor ?? (leadPageContext.sourceOffset < 0 ? null : { ...(idleBar?.start ?? { lineIndex: leadPageContext.sourceOffset, anchorIndex: LEADING_CHORD_ANCHORS }), occurrence: leadPageContext.occurrence, barStartLine: idleBar?.start.lineIndex ?? leadPageContext.sourceOffset, pulse: 0 }) : null;
   function chooseDisplay(key: string, setter: (mode: MusicianDisplayMode) => void, mode: MusicianDisplayMode) {
     setter(mode); try { localStorage.setItem(key, mode); } catch {}
   }
@@ -1277,7 +1280,7 @@ export function MusicianLiveView({ canUseMusic = false, canShareTiming = canUseM
   }, [readerMode, autoScroll, playbackPosition, playbackMotion?.slideIndex, liveSlide?.id, showChords, musicCursor?.lineIndex, musicCursor?.anchorIndex, jumpPending]);
 
   function timingFor(offset: number, lineIndex: number, segmentStart: number, occurrence: number, lastSegment: boolean) {
-    return { lyrics: liveSong?.lyrics ?? '', bars: timingBars, sourceLine: offset < 0 ? -1 : offset + lineIndex, segmentStart, lastSegment, showBars: musicMode, cursor: displayCursor?.occurrence === occurrence ? displayCursor : null };
+    return { lyrics: liveSong?.lyrics ?? '', bars: timingBars, sourceLine: offset < 0 ? -1 : offset + lineIndex, segmentStart, lastSegment, showBars: musicMode, showDot: showTimingDot, highlight: lyricHighlight, cursor: displayCursor?.occurrence === occurrence ? displayCursor : null };
   }
 
   function navigateToSequenceBlock(blockIndex: number, partIndex = 0) {
@@ -1379,10 +1382,11 @@ export function MusicianLiveView({ canUseMusic = false, canShareTiming = canUseM
             <MusicianDisplayChoice label="Chords" binary icon={<Guitar size={16} aria-hidden="true" />} value={chordDisplay} onChange={mode => chooseDisplay('worship-chords-display', setChordDisplay, mode)} />
             <MusicianDisplayChoice label="Bars" icon={<ListMusic size={16} aria-hidden="true" />} value={barDisplay} onChange={mode => chooseDisplay('worship-bars-display', setBarDisplay, mode)} />
             <MusicianDisplayChoice label="Beat keeper" binary description="Show during playback" icon={<Music2 size={16} aria-hidden="true" />} value={beatKeeperEnabled ? "on" : "off"} onChange={mode => { setBeatKeeperEnabled(mode === "on"); try { localStorage.setItem("worship-beat-keeper", mode); } catch {} }} />
+            <MusicianDisplayChoice label="Lyric highlight" binary description="Follow sung words during playback" icon={<Music2 size={16} aria-hidden="true" />} value={lyricHighlight ? "on" : "off"} onChange={mode => { setLyricHighlight(mode === "on"); try { localStorage.setItem("worship-lyric-highlight", mode); } catch {} }} />
             <MusicianDisplayChoice label="Dot" binary description="Show during playback" icon={<Music2 size={16} aria-hidden="true" />} value={dotDisplay} onChange={mode => chooseDisplay('worship-dot-display', setDotDisplay, mode)} />
             <MusicianDisplayChoice label="Band sync" binary description={worshipCoupled ? "Service Sync takes priority" : "Share pages with musicians"} icon={<Link2 size={16} aria-hidden="true" />} value={bandSyncEnabled ? "on" : "off"} onChange={mode => { setBandSyncEnabled(mode === "on"); try { localStorage.setItem("worship-band-sync", mode); } catch {} }} />
             {bandSync.error ? <small role="status">{bandSync.error}</small> : null}
-            <MusicianDisplayChoice label="Follow shared timing" binary description="Follow dot and page turns · no audio" icon={<Link2 size={16} aria-hidden="true" />} value={followSharedTiming ? "on" : "off"} onChange={mode => { setFollowSharedTiming(mode === "on"); try { localStorage.setItem("worship-follow-timing", mode); } catch {} }} />
+            <MusicianDisplayChoice label="Follow shared timing" binary description="Follow lyric timing and page turns · no audio" icon={<Link2 size={16} aria-hidden="true" />} value={followSharedTiming ? "on" : "off"} onChange={mode => { setFollowSharedTiming(mode === "on"); try { localStorage.setItem("worship-follow-timing", mode); } catch {} }} />
             {canShareTiming ? <MusicianDisplayChoice label="Share timing" binary description="Let other devices follow" icon={<Music2 size={16} aria-hidden="true" />} value={shareTiming ? "on" : "off"} onChange={mode => { setShareTiming(mode === "on"); try { localStorage.setItem("worship-share-timing", mode); } catch {} }} /> : null}
             {sharedTiming.error ? <small role="alert">{sharedTiming.error}</small> : null}
             <MusicianDisplayChoice label="Dynamics" binary disabled description="Not available yet" icon={<AudioLines size={16} aria-hidden="true" />} value="off" onChange={() => {}} />
