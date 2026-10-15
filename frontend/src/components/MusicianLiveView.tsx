@@ -1579,7 +1579,7 @@ export function MusicianLiveView({ canUseMusic = false, canShareTiming = canUseM
           "--musician-live-font-size": `${liveFontSize}px`,
         } as CSSProperties & Record<"--musician-content-width" | "--musician-live-font-size", string>}
       >
-        {showBeatKeeper && liveSlide?.itemType === "song" ? <BeatKeeper position={beatPosition} count={beatCount} /> : null}
+        {showBeatKeeper && liveSlide?.itemType === "song" ? <BeatKeeper position={beatPosition} count={beatCount} introBars={localPlaybackActive ? localTiming?.introBars : undefined} /> : null}
         {!liveSlide ? (
           <p className="empty-state compact-empty">
             <Music2 size={18} aria-hidden="true" />

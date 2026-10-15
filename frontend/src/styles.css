@@ -14338,3 +14338,9 @@ button.musician-page {
   background: transparent; color: inherit; font-size: 12px;
   font-weight: 650; text-align: left; cursor: pointer;
 }
+.musician-intro-countdown { display: flex; align-items: center; gap: 6px; padding-right: 5px; border-right: 1px solid #245d4d55; }
+.musician-intro-square { display: grid; width: 42px; height: 42px; gap: 2px; border: 2px solid #245d4d; border-radius: 3px; overflow: hidden; }
+.musician-intro-segment { position: relative; min-height: 0; background: #245d4d20; overflow: hidden; }
+.musician-intro-segment > div { position: absolute; inset: 0; background: #245d4d; transform-origin: bottom; }
+.musician-intro-countdown strong { color: #234a40; font-size: 24px; line-height: 1; font-variant-numeric: tabular-nums; }
+.musician-intro-countdown small { display: block; font-size: 10px; line-height: 1.2; font-weight: 600; }

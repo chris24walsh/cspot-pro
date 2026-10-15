@@ -11,7 +11,7 @@ import type { SongRhythm } from '../songRhythm';
 type PlayMode = "metronome" | "midi" | "midi-only" | "silent";
 type StartPosition = { occurrence: number; lineStart: number; lineEnd: number };
 
-export interface MusicTimingProgress { startIndex: number; position: number; barDurationMs: number; totalBars: number; firstBarStop?: number }
+export interface MusicTimingProgress { startIndex: number; position: number; barDurationMs: number; totalBars: number; introBars?: number; firstBarStop?: number }
 
 export function LyricMusicControls({ rhythm, lyrics, sequence, annotations, bars, transpose = 0, onCursor, onStarted, canPractice = true, backing, startAt, onTiming, jumpRevision = 0, onJumpPending, onJumpCommitted, onPedalNavigate, onSaveIntroBars }: {
   onSaveIntroBars?: (bars: number) => Promise<void>;
@@ -172,7 +172,7 @@ export function LyricMusicControls({ rhythm, lyrics, sequence, annotations, bars
           trackPosition(position < 0 ? -1 : position + startIndex);
           activeBars.current = { bars: practiceBars, position, transpose };
           callback.current(position < 0 ? null : lyricCursorAt(lyrics, timeline, position + startIndex, rhythm.numerator, rhythm.denominator));
-          timingCallback.current?.({ startIndex, position, barDurationMs: performance.barTicks / MIDI_PPQ * 60_000 / performance.quarterBpm, totalBars: practiceBars.length });
+          timingCallback.current?.({ startIndex, position, barDurationMs: performance.barTicks / MIDI_PPQ * 60_000 / performance.quarterBpm, totalBars: practiceBars.length, introBars: pedalEnabled ? rhythm.intro_bars ?? 2 : undefined });
         }
       });
       await readyRef.current;

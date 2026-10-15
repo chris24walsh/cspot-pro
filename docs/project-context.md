@@ -685,7 +685,9 @@ trigger another command. An **Intro** dropdown beside the Pedal toggle saves
 When Pedal mode is on, these exact bars replace the ordinary lead-in before the
 selected lyric position, including songs with opening rests. Silent guide keeps
 the intro silent; audible modes click throughout the intro. The intro countdown
-and beat keeper run before lyrics and auto-scroll begin. Changing the dropdown
+and beat keeper run before lyrics and auto-scroll begin. Beside the beat pulses,
+a square fills one segment per intro bar (halves for two bars, quadrants for four),
+with a numerical bars-to-lyrics countdown. The indicator disappears at lyric entry. Changing the dropdown
 requires song editing permission; failed saves show a playback error. During playback, right tap advances one slide; left tap restarts the current
 slide, or selects the previous slide when pressed before halfway through the
 current slide's first bar. Slide changes commit at the next bar using the existing
