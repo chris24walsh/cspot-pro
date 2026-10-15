@@ -120,3 +120,10 @@ it('enters a manual destination at its first annotated chord as a fresh downbeat
   expect(timeline[entry.index].start.anchorIndex).toBe(3); // saved bars are untouched
   expect(liveJumpStart(text, timeline, [], page)).toEqual({ index: 3, stop: 0 });
 });
+
+import { lyricHighlightWord } from './lyricTiming';
+it('highlights only the current word, including partial words and held notes', () => {
+  expect(lyricHighlightWord('Sing Hallelujah now', 7.5)).toEqual({ start: 5, end: 15 });
+  expect(lyricHighlightWord('Sing Hallelujah now', 16.2)).toEqual({ start: 16, end: 19 });
+  for (const position of [-1, 4.5, 19, NaN]) expect(lyricHighlightWord('Sing Hallelujah now', position)).toBeNull();
+});

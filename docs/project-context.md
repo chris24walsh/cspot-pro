@@ -623,8 +623,7 @@ resume following; failed segues clear the scroll destination hold.
 
 Worship Live’s Musician menu includes a per-device **Lyric highlight** switch.
 Enable it alongside Dot or turn Dot off for lyric highlighting alone; the beat
-keeper remains independent. Highlighting shades the current wrapped line and
-fills through its characters using the existing bar/chord timing, including
+keeper remains independent. Highlighting fills through the current word only using the existing bar/chord timing, including
 shared timing, without changing wrapping or auto-scroll. It waits during count-in
 and clears when playback stops. This is an approximate lyric guide rather than
 syllable-level vocal alignment. Beat one uses a larger, brighter tile and halo
@@ -646,3 +645,7 @@ Paused lyric auto-scroll resumes independently on each device when the live
 scroll target reaches the manually chosen position (within 12% of viewport
 height, bounded to 12–64 pixels). It waits until touch and momentum scrolling
 have settled for 1.2 seconds. The catch-up arrow still resumes immediately.
+
+Lyric highlighting clears completed words rather than filling the whole line.
+The current word uses green normally, switching to amber with an underline on
+the first visual beat of each bar, aligned with the beat keeper on that device.

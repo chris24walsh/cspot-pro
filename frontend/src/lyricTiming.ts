@@ -103,3 +103,13 @@ export function timelineWithEntry<T extends LyricBar>(timeline: T[], index: numb
   if (!stop || !timeline[index] || stop >= timeline[index].stops.length - 1) return timeline;
   return timeline.map((bar, current) => current === index ? { ...bar, start: bar.stops[stop], stops: bar.stops.slice(stop) } : bar);
 }
+
+// Only the current word retains fill; completed words return to normal.
+export function lyricHighlightWord(line: string, position: number): { start: number; end: number } | null {
+  if (!Number.isFinite(position) || position < 0 || position >= line.length) return null;
+  for (const match of line.matchAll(/\S+/g)) {
+    const start = match.index!, end = start + match[0].length;
+    if (position >= start && position < end) return { start, end };
+  }
+  return null;
+}

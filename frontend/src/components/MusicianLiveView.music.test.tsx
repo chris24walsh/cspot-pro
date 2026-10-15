@@ -380,9 +380,17 @@ it('shows four visual beats over 8/8 and lets the Musician menu hide them', asyn
   try {
     await act(async () => root.render(<MusicianLiveView canUseMusic plan={plan} songs={[song]} topbarSlot={toolbar} onEditSong={() => {}} onExit={() => {}} />));
     expect(container.querySelector('.musician-beat-keeper')).toBeNull();
+    musician(container);
+    act(() => document.querySelector<HTMLButtonElement>('[aria-label="Lyric highlight: on"]')!.click());
+    musician(container);
     await play(container);
     const position = audio.play.mock.calls[0][4] as (position: number) => void;
     await act(async () => position(0.25));
+    expect(container.querySelector('.lyric-highlight-character.is-downbeat')).toBeNull();
+    await act(async () => position(0.1));
+    expect(container.querySelector('.lyric-highlight-character.is-downbeat')).not.toBeNull();
+    await act(async () => position(0.25));
+    expect(container.querySelector('.lyric-highlight-character.is-downbeat')).toBeNull();
     expect(container.querySelectorAll('.musician-beat-keeper span')).toHaveLength(4);
     expect(container.querySelector('.musician-beat-keeper .is-active')?.textContent).toBe('2');
     await act(async () => container.querySelector<HTMLButtonElement>('[aria-label="Current lyrics"]')!.click());
