@@ -322,7 +322,7 @@ function MusicianChordLine({
   targetAbsoluteKey,
   timing,
 }: {
-  timing?: { lyrics: string; bars: LyricBar[]; sourceLine: number; segmentStart: number; lastSegment: boolean; showBars: boolean; showDot: boolean; highlight: boolean; downbeat: boolean; pulseStrength: number; cursor: LyricCursor | null };
+  timing?: { lyrics: string; bars: LyricBar[]; sourceLine: number; segmentStart: number; lastSegment: boolean; showBars: boolean; showDot: boolean; highlight: boolean; downbeat: boolean; pulseStrength: number; barStart: { lineIndex: number; anchorIndex: number } | null; cursor: LyricCursor | null };
   annotations: ChordAnnotation[];
   baseAbsoluteKey: string | null;
   capo: number;
@@ -370,13 +370,14 @@ function MusicianChordLine({
       {characters.map((character, index) => {
         const sourceSlot = index >= LEADING_CHORD_ANCHORS && index < LEADING_CHORD_ANCHORS + line.length || timing?.segmentStart === 0 && index < LEADING_CHORD_ANCHORS || timing?.lastSegment && index >= LEADING_CHORD_ANCHORS + line.length;
         const fill = timing?.highlight && sourceSlot ? lyricBarHighlightFill({ lineIndex: 0, anchorIndex: 0 }, timing.cursor, timing.sourceLine, timing.segmentStart + index) : 0;
+        const amber = fill > 0 && timing?.downbeat && lyricBarHighlightFill(timing.barStart, timing.cursor, timing.sourceLine, timing.segmentStart + index) > 0;
         return <span
-          className={`${character.trim() ? "musician-lyric-character" : "musician-lyric-space"}${fill > 0 ? ` lyric-highlight-character${timing?.downbeat ? " is-downbeat" : ""}` : ""} lyric-highlight-slot`}
+          className={`${character.trim() ? "musician-lyric-character" : "musician-lyric-space"}${fill > 0 ? ` lyric-highlight-character${amber ? " is-downbeat" : ""}` : ""} lyric-highlight-slot`}
           key={`${index}-${character}`}
           style={{ gridColumn: index + 1, gridRow: 2,
           }}
         >
-          <span aria-hidden="true" className="lyric-highlight-fill" style={{ opacity: fill > 0 && timing?.cursor ? lyricHighlightTrail(trailDistance + LEADING_CHORD_ANCHORS - index) * timing.pulseStrength : 0, width: `${fill > 0 ? fill * 100 : 100}%`, backgroundColor: fill > 0 && timing?.downbeat ? '#f2cf7f' : '#b9dfd0' }} />
+          <span aria-hidden="true" className="lyric-highlight-fill" style={{ opacity: fill > 0 && timing?.cursor ? lyricHighlightTrail(trailDistance + LEADING_CHORD_ANCHORS - index) * timing.pulseStrength : 0, width: `${fill > 0 ? fill * 100 : 100}%`, backgroundColor: amber ? '#f2cf7f' : '#b9dfd0', transitionProperty: fill > 0 && timing?.downbeat && !amber ? 'opacity' : undefined }} />
           {character === " " ? "\u00a0" : character}
         </span>;
       })}
@@ -1326,7 +1327,11 @@ export function MusicianLiveView({ canUseMusic = false, canShareTiming = canUseM
   }, [readerMode, autoScroll, playbackPosition, playbackMotion?.slideIndex, liveSlide?.id, showChords, musicCursor?.lineIndex, musicCursor?.anchorIndex, jumpPending]);
 
   function timingFor(offset: number, lineIndex: number, segmentStart: number, occurrence: number, lastSegment: boolean) {
-    return { pulseStrength: lyricHighlightPulse(beatPosition, beatCount), lyrics: liveSong?.lyrics ?? '', bars: timingBars, sourceLine: offset < 0 ? -1 : offset + lineIndex, segmentStart, lastSegment, showBars: musicMode, showDot: showTimingDot, highlight: lyricHighlight, downbeat: beatPosition !== null && ((beatPosition % 1 + 1) % 1) * beatCount < Math.min(beatCount, 1.5), cursor: displayCursor?.occurrence === occurrence ? displayCursor : null };
+    const barIndex = playbackPosition === null ? -1 : Math.floor(playbackPosition);
+    const bar = remoteTimeline[barIndex];
+    const entryStop = (localPlaybackActive ? localTiming?.firstBarStop : sharedTiming.remote?.timing.first_bar_stop) ?? 0;
+    const barStart = bar ? bar.stops[barIndex === startedAt ? entryStop : 0] ?? bar.start : null;
+    return { barStart, pulseStrength: lyricHighlightPulse(beatPosition, beatCount), lyrics: liveSong?.lyrics ?? '', bars: timingBars, sourceLine: offset < 0 ? -1 : offset + lineIndex, segmentStart, lastSegment, showBars: musicMode, showDot: showTimingDot, highlight: lyricHighlight, downbeat: beatPosition !== null && ((beatPosition % 1 + 1) % 1) * beatCount < Math.min(beatCount, 1.5), cursor: displayCursor?.occurrence === occurrence ? displayCursor : null };
   }
 
   function navigateToSequenceBlock(blockIndex: number, partIndex = 0) {

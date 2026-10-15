@@ -1369,3 +1369,6 @@ The lyric wave includes whitespace and blank leading/trailing timing slots.
 While following an active shared clock, the receiving device derives its song
 and lyric page directly from that clock, even if the band or service selection
 still points elsewhere. Followers do not republish those local page changes.
+
+The amber downbeat accent starts at the current bar boundary and extends only
+to its right; the fading trail in the preceding bar stays green.

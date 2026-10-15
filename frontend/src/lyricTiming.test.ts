@@ -147,3 +147,10 @@ it('gently swells on each beat without fully extinguishing the trail', () => {
   expect(lyricHighlightPulse(0.2, 4)).toBeLessThan(0.8);
   expect(lyricHighlightPulse(null, 4)).toBe(1);
 });
+
+it('keeps the previous-bar trail outside the new bar accent', () => {
+  const start = { lineIndex: 1, anchorIndex: 8 }, cursor = { lineIndex: 1, anchorIndex: 10.5 };
+  expect(lyricBarHighlightFill(start, cursor, 1, 7)).toBe(0);
+  expect(lyricBarHighlightFill(start, cursor, 1, 8)).toBe(1);
+  expect(lyricBarHighlightFill(start, cursor, 0, 12)).toBe(0);
+});
