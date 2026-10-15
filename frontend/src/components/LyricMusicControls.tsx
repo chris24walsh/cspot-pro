@@ -32,6 +32,7 @@ export function LyricMusicControls({ rhythm, lyrics, sequence, annotations, bars
   const [chooser, setChooser] = useState<number | null>(null);
   const currentBar = useRef(0);
   const currentPosition = useRef(-1);
+  const leftTap = useRef<(() => void) | null>(null);
   const resumeAt = useRef<StartPosition | undefined>();
   const sections = useMemo(() => worshipSequenceBlocks(lyrics, sequence), [lyrics, sequence]);
   function sectionStart(occurrence: number): StartPosition | undefined {
@@ -67,11 +68,16 @@ export function LyricMusicControls({ rhythm, lyrics, sequence, annotations, bars
     }
     if (!playing) { if (direction === 1 && armedMode) void listen(armedMode, resumeAt.current ?? startAt); return; }
     if (direction === 1) onPedalNavigate?.(1);
-    else {
-      const firstBar = startAt ? timeline.findIndex(bar => bar.occurrence === startAt.occurrence && bar.start.lineIndex >= startAt.lineStart && bar.start.lineIndex < startAt.lineEnd) : 0;
-      onPedalNavigate?.(firstBar >= 0 && currentPosition.current < firstBar + 0.5 ? -1 : 0);
-    }
+    else leftTap.current?.();
   }, direction => {
+    if (direction === -1 && playing && chooser === null) {
+      // Live segues enter at the first chord, which may be later than the first
+      // bar marker or inside a bar spanning two slides. Measure at press time.
+      const firstBar = liveJumpStart(lyrics, timeline, annotations, startAt).index;
+      const back = firstBar >= 0 && currentPosition.current < firstBar + 0.5;
+      const navigate = onPedalNavigate;
+      leftTap.current = () => navigate?.(back ? -1 : 0);
+    }
     if (direction !== 1 || playing || chooser !== null || !armedMode) return false;
     void listen(armedMode, resumeAt.current ?? startAt);
     return true;

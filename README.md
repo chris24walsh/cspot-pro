@@ -723,7 +723,9 @@ a square fills one segment per intro bar (halves for two bars, quadrants for fou
 with a numerical bars-to-lyrics countdown. The indicator disappears at lyric entry. Changing the dropdown
 requires song editing permission; failed saves show a playback error. During playback, right tap advances one slide; left tap restarts the current
 slide, or selects the previous slide when pressed before halfway through the
-current slide's first bar. Slide changes commit at the next bar using the existing
+current slide's entry bar. The early-back window uses keydown timing and the
+same first-chord entry as live restarts, even when the chord follows an opening
+rest or the bar spans slides. Slide changes commit at the next bar using the existing
 live segue. Hold right for at least 0.6 seconds and release to pause/resume;
 resume starts the current bar again after the song's configured intro.
 Hold left and release to open a large section selector; tap left/right to choose

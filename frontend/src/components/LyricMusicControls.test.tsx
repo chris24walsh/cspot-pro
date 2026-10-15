@@ -244,7 +244,9 @@ it('arms pedal playback and distinguishes restart/back taps, holds, repeats and 
     expect(navigate).not.toHaveBeenCalled();
     const progress = silent.play.mock.calls[0][4] as (position: number) => void;
     act(() => progress(0.49));
-    await key('ArrowLeft');
+    act(() => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', code: 'ArrowLeft' })));
+    act(() => progress(0.6)); // The tap began early, even though release crosses halfway.
+    await act(async () => window.dispatchEvent(new KeyboardEvent('keyup', { key: 'ArrowLeft', code: 'ArrowLeft' })));
     expect(navigate).toHaveBeenLastCalledWith(-1);
     act(() => progress(0.5));
     await key('ArrowLeft');
@@ -302,5 +304,38 @@ it.each(['Silent guide', 'Metronome', 'MIDI strum', 'MIDI only'])('uses the save
     expect(container.textContent).not.toContain('bars remaining');
     if (source === 'Silent guide') expect(music.notes).toHaveLength(0);
     else expect(music.notes.filter(note => note.channel === 9 && note.tick < music.countInTicks)).toHaveLength(16);
+  } finally { act(() => root.unmount()); vi.clearAllMocks(); }
+});
+
+it('measures the previous-slide window from the actual chord entry after a live restart', async () => {
+  const lyrics = '[V1]\nOpening rest\nSing now';
+  const annotations = [{ id: 'chord', section: 'V1', lineIndex: 1, anchorIndex: 0, chord: 'C' }];
+  const rhythm: SongRhythm = { numerator: 4, denominator: 4, patterns: [], notes: '', markers: [
+    { id: 'rest', section: 'V1', lineIndex: 0, anchorIndex: 0 },
+    { id: 'entry', section: 'V1', lineIndex: 1, anchorIndex: 0 },
+  ] };
+  const navigate = vi.fn(), container = document.createElement('div'), root = createRoot(container);
+  const render = (revision: number) => root.render(<LyricMusicControls rhythm={rhythm} lyrics={lyrics} sequence="V1" annotations={annotations} bars={lyricBarLayout(lyrics, rhythm, annotations)} startAt={{ occurrence: 0, lineStart: 1, lineEnd: 3 }} jumpRevision={revision} onCursor={() => {}} onPedalNavigate={navigate} />);
+  const left = async () => act(async () => {
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', code: 'ArrowLeft' }));
+    window.dispatchEvent(new KeyboardEvent('keyup', { key: 'ArrowLeft', code: 'ArrowLeft' }));
+  });
+  try {
+    await act(async () => render(0));
+    act(() => container.querySelector<HTMLButtonElement>('[aria-label="Play"]')!.click());
+    act(() => document.querySelector<HTMLButtonElement>('[role="menuitemcheckbox"]')!.click());
+    await act(async () => Array.from(document.querySelectorAll<HTMLButtonElement>('[role="menuitem"]')).find(button => button.textContent!.startsWith('Silent guide'))!.click());
+    await act(async () => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', code: 'ArrowRight' }));
+      window.dispatchEvent(new KeyboardEvent('keyup', { key: 'ArrowRight', code: 'ArrowRight' }));
+    });
+    await act(async () => render(1));
+    const [, progress, committed] = silent.queuePerformance.mock.calls[0] as [PracticePerformance, (position: number) => void, () => void];
+    act(() => { committed(); progress(0.25); });
+    await left();
+    expect(navigate).toHaveBeenLastCalledWith(-1);
+    act(() => progress(0.5));
+    await left();
+    expect(navigate).toHaveBeenLastCalledWith(0);
   } finally { act(() => root.unmount()); vi.clearAllMocks(); }
 });
