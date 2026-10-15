@@ -1345,3 +1345,10 @@ Shared Worship Live timing recognises worship-leader access from approved
 serving roles as well as directly assigned roles, matching the rest of the app’s
 authorization. Musicians can follow timing; publishing remains limited to
 administrators and worship leaders.
+
+In Worship Live scroll view, scrolling manually pauses automatic following.
+A Service-view-style up/down catch-up arrow points toward the current singing
+position. Tap it to return to the live lyric position and resume auto-scroll
+without seeking playback or changing the shared service selection. Automatic
+page changes preserve the manual pause; local and shared timing both support
+catch-up.

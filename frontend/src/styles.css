@@ -14302,3 +14302,5 @@ button.musician-page {
 .lyric-highlight-character { color: #17251f; }
 .musician-beat-keeper span.is-downbeat { width: 33px; font-size: 18px; border: 2px solid #245d4d55; }
 .musician-beat-keeper span.is-downbeat.is-active { color: #102d23; background: #ffda70; border-color: #806013; box-shadow: 0 0 0 4px #ffd56a66, 0 0 14px #ffd56a99; }
+
+.musician-scroll-reader { position: absolute; inset: 0; min-height: 0; overflow: hidden; }

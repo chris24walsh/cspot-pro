@@ -1,4 +1,4 @@
-import { BookOpen, ChevronLeft, ChevronRight, Guitar, Link2, LogOut, Music2, Pencil, ListMusic, AudioLines, ScrollText, Unlink2 } from "lucide-react";
+import { BookOpen, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Guitar, Link2, LogOut, Music2, Pencil, ListMusic, AudioLines, ScrollText, Unlink2 } from "lucide-react";
 import type { CSSProperties } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -493,6 +493,20 @@ export function MusicianLiveView({ canUseMusic = false, canShareTiming = canUseM
   const [localTiming, setLocalTiming] = useState<MusicTimingProgress | null>(null);
   const [autoScroll, setAutoScroll] = useState(() => { try { return localStorage.getItem("worship-auto-scroll") !== "off"; } catch { return true; } });
   const manualScrollPaused = useRef(false);
+  const playbackScrollTargetRef = useRef<number | null>(null);
+  const [scrollCatchUp, setScrollCatchUp] = useState<'up' | 'down' | null>(null);
+  function updateScrollCatchUp() {
+    const container = fullSongRef.current, target = playbackScrollTargetRef.current;
+    setScrollCatchUp(manualScrollPaused.current && container && target !== null && Math.abs(target - container.scrollTop) > 4 ? target < container.scrollTop ? 'up' : 'down' : null);
+  }
+  function catchUpLyrics() {
+    const container = fullSongRef.current, target = playbackScrollTargetRef.current;
+    if (!container || target === null) return;
+    manualScrollPaused.current = false;
+    manualScrollDestination.current = null;
+    container.scrollTop = target;
+    setScrollCatchUp(null);
+  }
   const scrollTouchStart = useRef<number | null>(null);
   const [playbackContext, setPlaybackContext] = useState<{ songId: string; itemId: string } | null>(null);
   const [jumpPending, setJumpPending] = useState(false);
@@ -1236,7 +1250,7 @@ export function MusicianLiveView({ canUseMusic = false, canShareTiming = canUseM
     const changed = lastScrollSlide.current !== null && lastScrollSlide.current !== liveSlide?.id;
     lastScrollSlide.current = liveSlide?.id ?? null;
     if (readerMode !== "scroll" || !autoScroll || !playbackMotion || !liveSlide) { manualScrollDestination.current = null; return; }
-    if (!(jumpPending || changed && liveIndex !== playbackMotion.slideIndex)) return;
+    if (manualScrollPaused.current || !(jumpPending || changed && liveIndex !== playbackMotion.slideIndex)) return;
     const container = fullSongRef.current, part = activeSongPartRef.current;
     if (!container || !part) return;
     manualScrollDestination.current = liveSlide.id;
@@ -1244,9 +1258,13 @@ export function MusicianLiveView({ canUseMusic = false, canShareTiming = canUseM
     const bounds = firstLine.getBoundingClientRect();
     container.scrollTop = Math.max(0, container.scrollTop + bounds.top - container.getBoundingClientRect().top + bounds.height / 2 - container.clientHeight / 2);
   }, [liveSlide?.id, jumpPending, readerMode, autoScroll]);
-  useEffect(() => { manualScrollPaused.current = false; }, [liveSlide?.id, playbackActive, autoScroll, playFrom?.revision, jumpPending]);
   useEffect(() => {
-    if (readerMode !== "scroll" || !autoScroll || !playbackMotion || manualScrollPaused.current) return;
+    manualScrollPaused.current = false;
+    playbackScrollTargetRef.current = null;
+    setScrollCatchUp(null);
+  }, [liveSong?.id, playbackActive, autoScroll, readerMode, playFrom?.revision, jumpPending]);
+  useEffect(() => {
+    if (readerMode !== "scroll" || !autoScroll || !playbackMotion) return;
     const container = fullSongRef.current;
     if (!container) return;
     if (!musicCursor || jumpPending || jumpHoldRef.current) return;
@@ -1276,6 +1294,9 @@ export function MusicianLiveView({ canUseMusic = false, canShareTiming = canUseM
     });
     if (points.length) points.push({ bar: remoteTimeline.length, y: lineY(lines[lines.length - 1]) });
     const target = playbackScrollTarget(points, playbackPosition ?? 0, lineY(active), container.clientHeight);
+    playbackScrollTargetRef.current = Math.max(0, Math.min(target, Math.max(0, container.scrollHeight - container.clientHeight)));
+    if (manualScrollPaused.current) { updateScrollCatchUp(); return; }
+    setScrollCatchUp(null);
     container.scrollTop += (target - container.scrollTop) * 0.2;
   }, [readerMode, autoScroll, playbackPosition, playbackMotion?.slideIndex, liveSlide?.id, showChords, musicCursor?.lineIndex, musicCursor?.anchorIndex, jumpPending]);
 
@@ -1541,7 +1562,11 @@ export function MusicianLiveView({ canUseMusic = false, canShareTiming = canUseM
             <p>The congregation view is not on a song right now.</p>
           </div>
         ) : readerMode === "scroll" ? (
-          <div className="musician-full-song" aria-label="Full song lyrics" ref={fullSongRef} onWheel={() => { manualScrollPaused.current = true; }} onTouchStart={event => { scrollTouchStart.current = event.touches[0]?.clientY ?? null; }} onTouchMove={event => { const y = event.touches[0]?.clientY; if (y !== undefined && scrollTouchStart.current !== null && Math.abs(y - scrollTouchStart.current) > 8) manualScrollPaused.current = true; }} onTouchEnd={() => { scrollTouchStart.current = null; }} onTouchCancel={() => { scrollTouchStart.current = null; }}>
+          <div className="musician-scroll-reader">
+          {scrollCatchUp ? <button type="button" className={`sorter-catch-up sorter-catch-up-${scrollCatchUp}`} aria-label="Catch up to current lyrics" title="Catch up to current lyrics and resume auto-scroll" onClick={catchUpLyrics}>
+            {scrollCatchUp === 'up' ? <ChevronUp size={18} aria-hidden="true" /> : <ChevronDown size={18} aria-hidden="true" />}
+          </button> : null}
+          <div className="musician-full-song" aria-label="Full song lyrics" ref={fullSongRef} onScroll={updateScrollCatchUp} onWheel={() => { manualScrollPaused.current = true; updateScrollCatchUp(); }} onTouchStart={event => { scrollTouchStart.current = event.touches[0]?.clientY ?? null; }} onTouchMove={event => { const y = event.touches[0]?.clientY; if (y !== undefined && scrollTouchStart.current !== null && Math.abs(y - scrollTouchStart.current) > 8) { manualScrollPaused.current = true; updateScrollCatchUp(); } }} onTouchEnd={() => { scrollTouchStart.current = null; }} onTouchCancel={() => { scrollTouchStart.current = null; }}>
             <button
               aria-current={isSongTitleSlide ? "step" : undefined}
               aria-label={`Go to ${liveSong?.title ?? liveSlide.sectionTitle} title cue`}
@@ -1632,6 +1657,7 @@ export function MusicianLiveView({ canUseMusic = false, canShareTiming = canUseM
                 <span>End of worship</span>
               </button>
             ) : null}
+          </div>
           </div>
         ) : (
           <div

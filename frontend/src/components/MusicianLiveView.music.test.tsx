@@ -226,6 +226,7 @@ it('keeps sung lyrics in view across early page turns and pauses on manual scrol
     const scroller = container.querySelector<HTMLElement>('.musician-full-song')!;
     const parts = Array.from(scroller.querySelectorAll<HTMLElement>('.musician-song-part'));
     Object.defineProperty(scroller, 'clientHeight', { value: 100 });
+    Object.defineProperty(scroller, 'scrollHeight', { value: 1000 });
     parts.forEach((part, index) => { Object.defineProperty(part, 'offsetTop', { value: 100 + 200 * index }); Object.defineProperty(part, 'clientHeight', { value: 100 }); });
     const lines = Array.from(scroller.querySelectorAll<HTMLElement>('[data-playback-line]'));
     lines.forEach((line, index) => { line.getBoundingClientRect = () => ({ top: 100 + 200 * index - scroller.scrollTop, height: 20 } as DOMRect); });
@@ -240,9 +241,11 @@ it('keeps sung lyrics in view across early page turns and pauses on manual scrol
     expect(scroller.scrollTop).toBe(50);
     await act(async () => position(0.5));
     expect(parts[1].classList.contains('is-current')).toBe(true);
-    expect(scroller.scrollTop).not.toBe(50);
+    expect(scroller.scrollTop).toBe(50); // automatic page turns preserve manual browsing
     expect(lines[0].getBoundingClientRect().top).toBeGreaterThan(35); // still singing the first slide
     await act(async () => position(1));
+    expect(scroller.scrollTop).toBe(50);
+    act(() => container.querySelector<HTMLButtonElement>('[aria-label="Catch up to current lyrics"]')!.click());
     expect(scroller.scrollTop).toBeLessThan(300);
     expect(lines[1].getBoundingClientRect().top).toBeGreaterThan(35);
     musician(container);
@@ -295,6 +298,7 @@ it('queues manual section changes while automatic page turns leave the player ru
     act(() => document.querySelector<HTMLButtonElement>('[aria-label="Switch to Scroll view"]')!.click());
     const scroller = container.querySelector<HTMLElement>('.musician-full-song')!;
     Object.defineProperty(scroller, 'clientHeight', { value: 100 });
+    Object.defineProperty(scroller, 'scrollHeight', { value: 1000 });
     const lines = Array.from(scroller.querySelectorAll<HTMLElement>('[data-playback-line]'));
     lines.forEach((line, index) => { line.getBoundingClientRect = () => ({ top: 100 + 200 * index - scroller.scrollTop, height: 20 } as DOMRect); });
     await play(container);
@@ -326,6 +330,22 @@ it('queues manual section changes while automatic page turns leave the player ru
     await act(async () => returnPosition(0.35));
     expect(scroller.scrollTop).toBe(400); // a real swipe does pause following
     act(() => scroller.dispatchEvent(new Event('touchend', { bubbles: true })));
+    const catchUp = container.querySelector<HTMLButtonElement>('[aria-label="Catch up to current lyrics"]')!;
+    expect(catchUp.classList.contains('sorter-catch-up-up')).toBe(true);
+    act(() => catchUp.click());
+    expect(container.querySelector('[aria-label="Catch up to current lyrics"]')).toBeNull();
+    expect(scroller.scrollTop).toBeLessThan(400);
+    expect(audio.queuePerformance).toHaveBeenCalledTimes(2);
+    scroller.scrollTop = 0;
+    act(() => scroller.dispatchEvent(new Event('wheel', { bubbles: true })));
+    act(() => scroller.dispatchEvent(new Event('scroll')));
+    expect(container.querySelector('.sorter-catch-up-down')).not.toBeNull();
+    act(() => container.querySelector<HTMLButtonElement>('[aria-label="Catch up to current lyrics"]')!.click());
+    const caughtUpScroll = scroller.scrollTop;
+    scroller.scrollTop += 10;
+    await act(async () => returnPosition(0.4));
+    expect(scroller.scrollTop).toBeLessThan(caughtUpScroll + 10);
+
     await act(async () => container.querySelector<HTMLButtonElement>('.musician-song-part.is-current')!.click());
     expect(audio.queuePerformance).toHaveBeenCalledTimes(3);
     expect(scroller.scrollTop).toBe(60); // same slide immediately returns into view
