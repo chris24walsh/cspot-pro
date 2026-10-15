@@ -680,11 +680,17 @@ Worship Live's playback menu offers an opt-in **Pedal mode** (off on entry).
 Enable it, then select Silent guide, Metronome, MIDI strum or MIDI only: selection
 arms playback without starting it. A right pedal/arrow tap starts the selected
 mode immediately on keydown (including resume); releasing that press does not
-trigger another command. During playback, right tap advances one slide; left tap restarts the current
+trigger another command. An **Intro** dropdown beside the Pedal toggle saves
+0–16 intro bars per song in `rhythm.intro_bars`, defaulting to 2 for existing songs.
+When Pedal mode is on, these exact bars replace the ordinary lead-in before the
+selected lyric position, including songs with opening rests. Silent guide keeps
+the intro silent; audible modes click throughout the intro. The intro countdown
+and beat keeper run before lyrics and auto-scroll begin. Changing the dropdown
+requires song editing permission; failed saves show a playback error. During playback, right tap advances one slide; left tap restarts the current
 slide, or selects the previous slide when pressed before halfway through the
 current slide's first bar. Slide changes commit at the next bar using the existing
 live segue. Hold right for at least 0.6 seconds and release to pause/resume;
-resume starts the current bar again with the selected mode's lead-in.
+resume starts the current bar again after the song's configured intro.
 Hold left and release to open a large section selector; tap left/right to choose
 an arrangement occurrence, hold right to confirm, or hold left to cancel. Playback
 continues while choosing; confirmation during playback queues the section at the

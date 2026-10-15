@@ -23,6 +23,7 @@ def rhythm_value() -> dict:
         "notes": "Accent the two main beats",
         "bpm": 90,
         "visual_beats": 4,
+        "intro_bars": 4,
         "markers": [{"id": "bar-one", "section": "V1", "lineIndex": 0, "anchorIndex": 8}],
         "arrangements": [],
         "patterns": [
@@ -78,6 +79,9 @@ def test_song_rhythm_round_trips_and_can_be_cleared_without_changing_chords() ->
 @pytest.mark.parametrize(
     "changes",
     [
+        {"intro_bars": -1},
+        {"intro_bars": 17},
+        {"intro_bars": 1.5},
         {"numerator": 0},
         {"numerator": 13},
         {"denominator": 3},
@@ -108,6 +112,7 @@ def test_rejects_invalid_meters_strokes_and_duplicate_patterns(changes: dict) ->
 def test_meter_only_and_existing_songs_need_no_pattern() -> None:
     assert SongCreate(title="Existing song").rhythm is None
     assert SongRhythm(numerator=7, denominator=8).patterns == []
+    assert SongRhythm(numerator=7, denominator=8).intro_bars == 2
 
 
 def test_rhythm_migration_preserves_existing_song_rows() -> None:

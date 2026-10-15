@@ -82,7 +82,7 @@ export function songPracticeParts(lyrics?: string | null, sequence?: string | nu
 
 export function buildPracticePerformance(rhythm: SongRhythm, options: {
   mode: PracticeMode; annotations?: ChordAnnotation[]; section?: string; lyrics?: string | null; sequence?: string | null;
-  previewChord?: string; transpose?: number; countIn?: boolean; metronome?: boolean; chords?: boolean; bars?: PracticeBar[]; finish?: boolean; metronomeDuringRests?: boolean; metronomeLeadIn?: boolean;
+  previewChord?: string; transpose?: number; countIn?: boolean; countInBars?: number; metronome?: boolean; chords?: boolean; bars?: PracticeBar[]; finish?: boolean; metronomeDuringRests?: boolean; metronomeLeadIn?: boolean;
 }): PracticePerformance {
   if (!Number.isInteger(rhythm.bpm ?? 90) || (rhythm.bpm ?? 90) < 30 || (rhythm.bpm ?? 90) > 240) throw new Error("Enter a tempo between 30 and 240 BPM.");
   const section = options.section ?? "Default";
@@ -120,8 +120,9 @@ export function buildPracticePerformance(rhythm: SongRhythm, options: {
   const firstChord = firstChordBar < 0 ? null : bars[firstChordBar].chords.find(change => Boolean(change.chord))!;
   const firstChordTick = firstChord ? firstChordBar * barTicks + (firstChord.beat - 1) / rhythm.numerator * barTicks : null;
   // Opening rests are part of the selected slide. Add only the missing lead-in.
-  const countInTicks = options.countIn ? Math.max(0, barTicks - (firstChordTick ?? 0)) : 0;
-  const metronomeStart = options.metronomeDuringRests || firstChordTick === null ? 0 : Math.max(0, countInTicks + firstChordTick - barTicks);
+  if (options.countInBars !== undefined && (!Number.isInteger(options.countInBars) || options.countInBars < 0 || options.countInBars > 16)) throw new Error("Choose an intro between 0 and 16 bars.");
+  const countInTicks = options.countInBars !== undefined ? options.countInBars * barTicks : options.countIn ? Math.max(0, barTicks - (firstChordTick ?? 0)) : 0;
+  const metronomeStart = options.countInBars !== undefined || options.metronomeDuringRests || firstChordTick === null ? 0 : Math.max(0, countInTicks + firstChordTick - barTicks);
   let totalTicks = countInTicks + bars.length * barTicks;
   const quarterBpm = rhythmQuarterBpm(rhythm);
   if (totalTicks / MIDI_PPQ * 60 / quarterBpm > 1200) throw new Error("Keep a practice preview under 20 minutes.");
@@ -134,7 +135,9 @@ export function buildPracticePerformance(rhythm: SongRhythm, options: {
       notes.push({ tick, duration: 36, pitch: count === 0 ? 76 : 77, velocity: 65, channel: 9 });
     }
   }
-  if (countInTicks) clicks(countInTicks - barTicks, countInTicks);
+  if (options.countInBars !== undefined) {
+    if (options.metronome || options.metronomeLeadIn) for (let tick = 0; tick < countInTicks; tick += barTicks) clicks(tick);
+  } else if (countInTicks) clicks(countInTicks - barTicks, countInTicks);
   let lastPlayedPitches: number[] = [];
   let lastPlayedChord = "";
   const dampTicks: number[] = [];

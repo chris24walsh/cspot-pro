@@ -14328,3 +14328,13 @@ button.musician-page {
 }
 .pedal-section-picker strong { font-size: clamp(28px, 6vw, 48px); }
 .pedal-section-picker span { font-size: 14px; }
+.pedal-playback-options { display: flex; align-items: center; gap: 6px; }
+.pedal-playback-options > button { flex: 1; }
+.pedal-playback-options > label { display: flex; align-items: center; gap: 4px; font-size: 12px; padding-right: 8px; }
+.pedal-playback-options select { max-width: 80px; padding: 4px; }
+.pedal-playback-options > button {
+  display: flex; align-items: center; gap: 6px; min-width: 0;
+  padding: 9px; border: 0; border-radius: 6px;
+  background: transparent; color: inherit; font-size: 12px;
+  font-weight: 650; text-align: left; cursor: pointer;
+}

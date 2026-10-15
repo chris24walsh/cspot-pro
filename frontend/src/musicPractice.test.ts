@@ -249,3 +249,13 @@ it('preserves 8/8 bar and stroke timings when converted to four subdivisions in 
   const timings = (music: typeof before) => music.notes.map(({ tick, duration, pitch, channel }) => ({ tick, duration, pitch, channel }));
   expect(timings(after)).toEqual(timings(before));
 });
+
+it.each([0, 2, 4])('uses exactly %i intro bars even when the song opens with rests', countInBars => {
+  const music = buildPracticePerformance(rhythm, { mode: 'song', countIn: true, countInBars, metronome: true, bars: [
+    { section: 'V1', chords: [{ chord: '', beat: 1 }] },
+    { section: 'V1', chords: [{ chord: 'C', beat: 1 }] },
+  ] });
+  expect(music.countInTicks).toBe(countInBars * music.barTicks);
+  expect(music.notes.filter(note => note.channel === 9 && note.tick < music.countInTicks)).toHaveLength(countInBars * 4);
+  expect(music.notes.filter(note => note.channel === 0).every(note => note.tick >= (countInBars + 1) * music.barTicks)).toBe(true);
+});

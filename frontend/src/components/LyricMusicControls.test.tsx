@@ -272,3 +272,35 @@ it('arms pedal playback and distinguishes restart/back taps, holds, repeats and 
     expect(navigate).not.toHaveBeenCalled();
   } finally { act(() => root.unmount()); vi.useRealTimers(); vi.clearAllMocks(); }
 });
+
+it.each(['Silent guide', 'Metronome', 'MIDI strum', 'MIDI only'])('uses the saved intro instead of an extra count-in in pedal mode (%s)', async source => {
+  const lyrics = '[V1]\nSing now';
+  const rhythm: SongRhythm = { numerator: 4, denominator: 4, patterns: [], notes: '', markers: [{ id: 'one', section: 'V1', lineIndex: 0, anchorIndex: 0 }] };
+  const container = document.createElement('div'), root = createRoot(container);
+  const save = vi.fn(async (intro_bars: number) => { render({ ...rhythm, intro_bars }); });
+  const render = (value: SongRhythm) => root.render(<LyricMusicControls rhythm={value} lyrics={lyrics} sequence="V1" annotations={[]} bars={lyricBarLayout(lyrics, value, [])} onCursor={() => {}} onSaveIntroBars={save} />);
+  try {
+    await act(async () => render(rhythm));
+    act(() => container.querySelector<HTMLButtonElement>('[aria-label="Play"]')!.click());
+    const select = document.querySelector<HTMLSelectElement>('[aria-label="Song intro bars"]')!;
+    expect(select.value).toBe('2');
+    await act(async () => { select.value = '4'; select.dispatchEvent(new Event('change', { bubbles: true })); });
+    expect(save).toHaveBeenCalledWith(4);
+    expect(select.value).toBe('4');
+    act(() => document.querySelector<HTMLButtonElement>('[role="menuitemcheckbox"]')!.click());
+    await act(async () => Array.from(document.querySelectorAll<HTMLButtonElement>('[role="menuitem"]')).find(button => button.textContent!.startsWith(source))!.click());
+    const player = source === 'Silent guide' ? silent : audio;
+    expect(player.play).not.toHaveBeenCalled();
+    await act(async () => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', code: 'ArrowRight' })));
+    const music = player.play.mock.calls[0][0] as PracticePerformance;
+    expect(music.countInTicks).toBe(4 * music.barTicks);
+    expect(container.textContent).toContain('Intro: 4 bars remaining');
+    const progress = player.play.mock.calls[0][4] as (position: number) => void;
+    act(() => progress(-1.25));
+    expect(container.textContent).toContain('Intro: 2 bars remaining');
+    act(() => progress(0));
+    expect(container.textContent).not.toContain('bars remaining');
+    if (source === 'Silent guide') expect(music.notes).toHaveLength(0);
+    else expect(music.notes.filter(note => note.channel === 9 && note.tick < music.countInTicks)).toHaveLength(16);
+  } finally { act(() => root.unmount()); vi.clearAllMocks(); }
+});

@@ -64,6 +64,7 @@ class SongRhythm(BaseModel):
     notes: str = Field(default="", max_length=500)
     bpm: int = Field(default=90, ge=30, le=240)
     visual_beats: int | None = Field(default=None, ge=1, le=12)
+    intro_bars: int = Field(default=2, ge=0, le=16, strict=True)
     markers: list[BarMarker] = Field(default_factory=list, max_length=1000)
     arrangements: list[SongBarChart] = Field(default_factory=list, max_length=64)
 
