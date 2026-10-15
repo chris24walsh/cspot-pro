@@ -1019,7 +1019,7 @@ Search modes:
   offset only after count-in, so it cannot jump back to an earlier page. Page changes
   during playback do not restart audio; a new Play uses the newly selected page.
   PracticeSilentPlayer uses a monotonic timer without constructing AudioContext;
-  silent mode omits count-in and all note events. Chords, Bars and Dot each use
+  silent mode includes a full one-bar visual lead-in and omits all note events. Chords, Bars and Dot each use
   per-device Auto/On/Off display modes. Auto shows chords by default and bars/dot
   during playback, including an opted-in shared clock. Explicit On/Off never mutate
   on play/stop. An On dot parks at the last cursor in the current page (or its first
@@ -1372,3 +1372,7 @@ still points elsewhere. Followers do not republish those local page changes.
 
 The amber downbeat accent starts at the current bar boundary and extends only
 to its right; the fading trail in the preceding bar stays green.
+
+Silent guide shares its clock during a full one-bar visual lead-in, giving
+followers time to receive timing before the first lyric/downbeat. Opening rests
+do not shorten this preparation bar. Manual segues still have no new count-in.

@@ -138,8 +138,14 @@ it('selects silent guidance from the current slide and emits shareable clock pro
     expect(silent.play).toHaveBeenCalledOnce();
     const music = silent.play.mock.calls[0][0] as PracticePerformance;
     expect(music.notes).toHaveLength(0);
-    expect(music.countInTicks).toBe(0);
+    expect(music.countInTicks).toBe(music.barTicks);
+    expect(music.totalTicks).toBe(music.barTicks * 2);
     const position = silent.play.mock.calls[0][4] as (position: number) => void;
+    act(() => position(-1));
+    expect(cursor).toHaveBeenLastCalledWith(null);
+    expect(timing).toHaveBeenLastCalledWith(expect.objectContaining({ position: -1, startIndex: 0 }));
+    act(() => position(0));
+    expect(cursor).toHaveBeenLastCalledWith(expect.objectContaining({ occurrence: 0, lineIndex: 1, pulse: 0 }));
     act(() => position(0.25));
     expect(cursor).toHaveBeenLastCalledWith(expect.objectContaining({ occurrence: 0, lineIndex: 1 }));
     expect(timing).toHaveBeenLastCalledWith(expect.objectContaining({ position: 0.25, startIndex: 0, totalBars: 1 }));

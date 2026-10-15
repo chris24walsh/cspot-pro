@@ -422,7 +422,7 @@ rests supply the lead-in, so only any missing preparation time is added.
 The selected sequence occurrence is preserved, including repeated verses.
 A slide needs a bar boundary to start guided playback there. Backing track keeps existing service-audio permissions and requires Sync.
 Menus support keyboard navigation, Escape and outside-click dismissal.
-**Silent guide** starts from the current slide without sound or count-in, showing
+**Silent guide** starts from the current slide without sound, with a one-bar visual count-in, showing
 the dot and turning pages. **Musician → Chords / Bars / Dot** each has Auto, On
 and Off choices. Auto keeps chords visible and shows bars/dot while playing
 (including shared timing). On stays visible while idle, playing and stopped;
@@ -694,3 +694,7 @@ still points elsewhere. Followers do not republish those local page changes.
 
 The amber downbeat accent starts at the current bar boundary and extends only
 to its right; the fading trail in the preceding bar stays green.
+
+Silent guide shares its clock during a full one-bar visual lead-in, giving
+followers time to receive timing before the first lyric/downbeat. Opening rests
+do not shorten this preparation bar. Manual segues still have no new count-in.
