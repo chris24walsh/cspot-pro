@@ -665,3 +665,12 @@ to its right; the fading trail in the preceding bar stays green.
 Silent guide shares its clock during a full one-bar visual lead-in, giving
 followers time to receive timing before the first lyric/downbeat. Opening rests
 do not shorten this preparation bar. Manual segues still have no new count-in.
+
+### Worship Live sync responsiveness
+
+Band page writes collapse queued navigation to the latest selection while a
+request is in flight. Service-state reads discard responses from an old plan
+or from before local navigation. Shared music timing immediately follows a
+successful in-flight update with any intervening start/stop or seek change,
+rather than waiting for the next two-second heartbeat. Polling intervals and
+local clock animation rates remain unchanged; no LAN transport is introduced.

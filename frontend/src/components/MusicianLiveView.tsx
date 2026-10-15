@@ -446,7 +446,6 @@ export function MusicianLiveView({ canUseMusic = false, canShareTiming = canUseM
   const activeSongPartRef = useRef<HTMLDivElement | null>(null);
   const swipeStartRef = useRef<{ x: number; y: number } | null>(null);
   const channelRef = useRef<BroadcastChannel | null>(null);
-  const pollingRef = useRef(false);
   const lastLiveStateAtRef = useRef(0);
   const navigationGenerationRef = useRef(0);
   const handledKeyboardEventsRef = useRef<WeakSet<KeyboardEvent>>(new WeakSet());
@@ -817,22 +816,28 @@ export function MusicianLiveView({ canUseMusic = false, canShareTiming = canUseM
       return undefined;
     }
 
+    let disposed = false;
+    let polling = false;
     async function pullLiveState() {
-      if (!liveSyncPlanId || pollingRef.current) {
+      if (!liveSyncPlanId || polling) {
         return;
       }
-      pollingRef.current = true;
+      polling = true;
+      const generation = navigationGenerationRef.current;
       try {
         const remoteState = await getPresentationLiveState(liveSyncPlanId);
+        if (disposed || generation !== navigationGenerationRef.current) return;
         if (remoteState.updated_at > lastLiveStateAtRef.current) {
           lastLiveStateAtRef.current = remoteState.updated_at;
           setLiveState(syncStateFromApi(remoteState));
         }
         setMessage(null);
       } catch (error) {
-        setMessage(error instanceof Error ? error.message : "Could not sync live slide.");
+        if (!disposed && generation === navigationGenerationRef.current) {
+          setMessage(error instanceof Error ? error.message : "Could not sync live slide.");
+        }
       } finally {
-        pollingRef.current = false;
+        polling = false;
       }
     }
 
@@ -841,7 +846,7 @@ export function MusicianLiveView({ canUseMusic = false, canShareTiming = canUseM
       () => void pullLiveState(),
       isMobileOrTabletDevice() ? 1000 : WORSHIP_LIVE_POLL_INTERVAL_MS,
     );
-    return () => window.clearInterval(timer);
+    return () => { disposed = true; window.clearInterval(timer); };
   }, [liveSyncPlanId]);
 
   function moveLive(delta: -1 | 1) {

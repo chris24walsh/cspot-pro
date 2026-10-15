@@ -53,3 +53,26 @@ it("ignores an old poll arriving after local navigation", async () => {
     expect(device.selection?.slide_id).toBe("new");
   } finally { act(() => root.unmount()); vi.clearAllMocks(); }
 });
+it("collapses queued page turns while a slow write is in flight", async () => {
+  let finish!: (value: { selection: BandSelection }) => void;
+  vi.mocked(getBandSelection).mockResolvedValue({ selection: null });
+  vi.mocked(updateBandSelection).mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }))
+    .mockImplementation(async (_plan, slide_id) => ({ selection: { slide_id, updated_at: 4 } }));
+  let device!: ReturnType<typeof useBandSync>;
+  function Device() { device = useBandSync("plan", true); return null; }
+  const root = createRoot(document.createElement("div"));
+  try {
+    await act(async () => root.render(<Device />));
+    let first!: Promise<void>, middle!: Promise<void>, last!: Promise<void>;
+    await act(async () => { first = device.publish("first"); });
+    await act(async () => { middle = device.publish("middle"); last = device.publish("last"); });
+    expect(device.selection?.slide_id).toBe("last");
+    expect(updateBandSelection).toHaveBeenCalledTimes(1);
+    await act(async () => {
+      finish({ selection: { slide_id: "first", updated_at: 1 } });
+      await Promise.all([first, middle, last]);
+    });
+    expect(vi.mocked(updateBandSelection).mock.calls.map(call => call[1])).toEqual(["first", "last"]);
+    expect(device.selection?.slide_id).toBe("last");
+  } finally { act(() => root.unmount()); vi.clearAllMocks(); }
+});

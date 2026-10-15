@@ -19,6 +19,7 @@ export function useSharedMusicTiming({ planId, songId, itemId, share, follow }: 
   const latest = useRef<MusicTimingProgress | null>(null);
   const context = useRef({ planId, songId, itemId, share }); context.current = { planId, songId, itemId, share };
   const published = useRef<{ planId: string; timing: WorshipMusicTiming } | null>(null);
+  const sourceRevision = useRef(0);
   const pending = useRef(false), mounted = useRef(true);
   const publishRef = useRef<() => void>(() => {});
   const [error, setError] = useState<string | null>(null);
@@ -33,6 +34,7 @@ export function useSharedMusicTiming({ planId, songId, itemId, share, follow }: 
       owner_id: owner.current, active: true, song_id: current.songId!, plan_item_id: current.itemId!, start_index: progress!.startIndex, first_bar_stop: progress!.firstBarStop ?? 0,
       position: progress!.position, bar_duration_ms: progress!.barDurationMs, total_bars: progress!.totalBars, updated_at: 0,
     } } : { planId: old!.planId, timing: { ...old!.timing, active: false } };
+    const revision = sourceRevision.current;
     pending.current = true;
     let succeeded = false;
     try {
@@ -44,18 +46,22 @@ export function useSharedMusicTiming({ planId, songId, itemId, share, follow }: 
     finally {
       pending.current = false;
       const shouldBeActive = Boolean(mounted.current && context.current.share && context.current.planId && context.current.songId && context.current.itemId && latest.current);
-      if (succeeded && active !== shouldBeActive) void publish();
+      if (succeeded && (active !== shouldBeActive || revision !== sourceRevision.current)) void publish();
     }
   }
   publishRef.current = () => { void publish(); };
   function setLocalSource(songId: string, itemId: string) {
     context.current = { ...context.current, songId, itemId };
+    sourceRevision.current += 1;
     latest.current = null; // Next position publishes the destination immediately.
   }
   function setLocalTiming(timing: MusicTimingProgress | null) {
     const changed = Boolean(latest.current) !== Boolean(timing) || Boolean(timing && latest.current && (timing.startIndex !== latest.current.startIndex || (timing.firstBarStop ?? 0) !== (latest.current.firstBarStop ?? 0) || timing.position < latest.current.position - 0.2));
     latest.current = timing;
-    if (changed) publishRef.current();
+    if (changed) {
+      sourceRevision.current += 1;
+      publishRef.current();
+    }
   }
   useEffect(() => {
     publishRef.current();

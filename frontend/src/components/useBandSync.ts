@@ -43,10 +43,14 @@ export function useBandSync(planId: string | null, enabled: boolean) {
     pending.current += 1;
     setSelection({ slide_id: slideId, updated_at: latest.current });
     try {
-      const request = writes.current.catch(() => {}).then(() => updateBandSelection(planId, slideId));
+      const request = writes.current.catch(() => {}).then(() => {
+        // Keep the in-flight write, but collapse queued turns to the newest page.
+        if (version !== generation.current) return null;
+        return updateBandSelection(planId, slideId);
+      });
       writes.current = request;
       const result = await request;
-      if (version === generation.current && result.selection) {
+      if (version === generation.current && result?.selection) {
         latest.current = result.selection.updated_at;
         setSelection(result.selection);
         setError("");
