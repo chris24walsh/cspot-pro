@@ -493,6 +493,7 @@ export function MusicianLiveView({ canUseMusic = false, canShareTiming = canUseM
   const [localTiming, setLocalTiming] = useState<MusicTimingProgress | null>(null);
   const [autoScroll, setAutoScroll] = useState(() => { try { return localStorage.getItem("worship-auto-scroll") !== "off"; } catch { return true; } });
   const manualScrollPaused = useRef(false);
+  const lastManualScrollAt = useRef(0);
   const playbackScrollTargetRef = useRef<number | null>(null);
   const [scrollCatchUp, setScrollCatchUp] = useState<'up' | 'down' | null>(null);
   function updateScrollCatchUp() {
@@ -1295,7 +1296,11 @@ export function MusicianLiveView({ canUseMusic = false, canShareTiming = canUseM
     if (points.length) points.push({ bar: remoteTimeline.length, y: lineY(lines[lines.length - 1]) });
     const target = playbackScrollTarget(points, playbackPosition ?? 0, lineY(active), container.clientHeight);
     playbackScrollTargetRef.current = Math.max(0, Math.min(target, Math.max(0, container.scrollHeight - container.clientHeight)));
-    if (manualScrollPaused.current) { updateScrollCatchUp(); return; }
+    if (manualScrollPaused.current) {
+      const closeEnough = Math.abs(playbackScrollTargetRef.current - container.scrollTop) <= Math.min(64, Math.max(12, container.clientHeight * 0.12));
+      if (!closeEnough || scrollTouchStart.current !== null || performance.now() - lastManualScrollAt.current < 1200) { updateScrollCatchUp(); return; }
+      manualScrollPaused.current = false;
+    }
     setScrollCatchUp(null);
     container.scrollTop += (target - container.scrollTop) * 0.2;
   }, [readerMode, autoScroll, playbackPosition, playbackMotion?.slideIndex, liveSlide?.id, showChords, musicCursor?.lineIndex, musicCursor?.anchorIndex, jumpPending]);
@@ -1566,7 +1571,7 @@ export function MusicianLiveView({ canUseMusic = false, canShareTiming = canUseM
           {scrollCatchUp ? <button type="button" className={`sorter-catch-up sorter-catch-up-${scrollCatchUp}`} aria-label="Catch up to current lyrics" title="Catch up to current lyrics and resume auto-scroll" onClick={catchUpLyrics}>
             {scrollCatchUp === 'up' ? <ChevronUp size={18} aria-hidden="true" /> : <ChevronDown size={18} aria-hidden="true" />}
           </button> : null}
-          <div className="musician-full-song" aria-label="Full song lyrics" ref={fullSongRef} onScroll={updateScrollCatchUp} onWheel={() => { manualScrollPaused.current = true; updateScrollCatchUp(); }} onTouchStart={event => { scrollTouchStart.current = event.touches[0]?.clientY ?? null; }} onTouchMove={event => { const y = event.touches[0]?.clientY; if (y !== undefined && scrollTouchStart.current !== null && Math.abs(y - scrollTouchStart.current) > 8) { manualScrollPaused.current = true; updateScrollCatchUp(); } }} onTouchEnd={() => { scrollTouchStart.current = null; }} onTouchCancel={() => { scrollTouchStart.current = null; }}>
+          <div className="musician-full-song" aria-label="Full song lyrics" ref={fullSongRef} onScroll={() => { if (manualScrollPaused.current) lastManualScrollAt.current = performance.now(); updateScrollCatchUp(); }} onWheel={() => { manualScrollPaused.current = true; lastManualScrollAt.current = performance.now(); updateScrollCatchUp(); }} onTouchStart={event => { scrollTouchStart.current = event.touches[0]?.clientY ?? null; }} onTouchMove={event => { const y = event.touches[0]?.clientY; if (y !== undefined && scrollTouchStart.current !== null && Math.abs(y - scrollTouchStart.current) > 8) { manualScrollPaused.current = true; lastManualScrollAt.current = performance.now(); updateScrollCatchUp(); } }} onTouchEnd={() => { scrollTouchStart.current = null; }} onTouchCancel={() => { scrollTouchStart.current = null; }}>
             <button
               aria-current={isSongTitleSlide ? "step" : undefined}
               aria-label={`Go to ${liveSong?.title ?? liveSlide.sectionTitle} title cue`}

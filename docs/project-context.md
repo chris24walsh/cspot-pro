@@ -641,3 +641,8 @@ position. Tap it to return to the live lyric position and resume auto-scroll
 without seeking playback or changing the shared service selection. Automatic
 page changes preserve the manual pause; local and shared timing both support
 catch-up.
+
+Paused lyric auto-scroll resumes independently on each device when the live
+scroll target reaches the manually chosen position (within 12% of viewport
+height, bounded to 12–64 pixels). It waits until touch and momentum scrolling
+have settled for 1.2 seconds. The catch-up arrow still resumes immediately.

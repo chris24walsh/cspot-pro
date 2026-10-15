@@ -342,9 +342,21 @@ it('queues manual section changes while automatic page turns leave the player ru
     expect(container.querySelector('.sorter-catch-up-down')).not.toBeNull();
     act(() => container.querySelector<HTMLButtonElement>('[aria-label="Catch up to current lyrics"]')!.click());
     const caughtUpScroll = scroller.scrollTop;
-    scroller.scrollTop += 10;
+    const clock = vi.spyOn(performance, 'now').mockReturnValue(10000);
+    scroller.scrollTop += 8;
+    act(() => scroller.dispatchEvent(new Event('wheel', { bubbles: true })));
     await act(async () => returnPosition(0.4));
-    expect(scroller.scrollTop).toBeLessThan(caughtUpScroll + 10);
+    expect(scroller.scrollTop).toBe(caughtUpScroll + 8); // allow the gesture to finish
+    clock.mockReturnValue(11300);
+    await act(async () => returnPosition(0.41));
+    expect(container.querySelector('[aria-label="Catch up to current lyrics"]')).toBeNull();
+    expect(scroller.scrollTop).toBeLessThan(caughtUpScroll + 8);
+    const resumedScroll = scroller.scrollTop;
+    scroller.scrollTop += 10;
+    await act(async () => returnPosition(0.42));
+    expect(scroller.scrollTop).toBeLessThan(resumedScroll + 10);
+    expect(audio.queuePerformance).toHaveBeenCalledTimes(2);
+    clock.mockRestore();
 
     await act(async () => container.querySelector<HTMLButtonElement>('.musician-song-part.is-current')!.click());
     expect(audio.queuePerformance).toHaveBeenCalledTimes(3);
