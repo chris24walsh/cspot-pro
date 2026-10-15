@@ -43,7 +43,7 @@ import { LyricMusicControls, TimingDot } from "./LyricMusicControls";
 import { playbackScrollTarget } from "../playbackScroll";
 import { playbackPageMotion } from "../playbackPages";
 import type { MusicTimingProgress } from "./LyricMusicControls";
-import { BeatKeeper, visualBeat } from "./BeatKeeper";
+import { BeatKeeper } from "./BeatKeeper";
 import { useBandSync } from "./useBandSync";
 import { useSharedMusicTiming } from "./useSharedMusicTiming";
 import { MusicianDisplayChoice, musicianDisplayVisible, readMusicianDisplayMode, type MusicianDisplayMode } from "./MusicianDisplayChoice";
@@ -322,7 +322,7 @@ function MusicianChordLine({
   targetAbsoluteKey,
   timing,
 }: {
-  timing?: { lyrics: string; bars: LyricBar[]; sourceLine: number; segmentStart: number; lastSegment: boolean; showBars: boolean; showDot: boolean; highlight: boolean; downbeat: boolean; pulseStrength: number; highlightStart: { lineIndex: number; anchorIndex: number } | null; cursor: LyricCursor | null };
+  timing?: { lyrics: string; bars: LyricBar[]; sourceLine: number; segmentStart: number; lastSegment: boolean; showBars: boolean; showDot: boolean; highlight: boolean; downbeat: boolean; pulseStrength: number; cursor: LyricCursor | null };
   annotations: ChordAnnotation[];
   baseAbsoluteKey: string | null;
   capo: number;
@@ -333,7 +333,8 @@ function MusicianChordLine({
   targetAbsoluteKey: string | null;
 }) {
   const totalSlots = Math.max(LEADING_CHORD_ANCHORS + line.length + TRAILING_CHORD_ANCHORS, 16);
-  const characters = Array.from(line);
+  const textCharacters = Array.from(line);
+  const characters = Array.from({ length: totalSlots }, (_, slot) => textCharacters[slot - LEADING_CHORD_ANCHORS] ?? " ");
   const widths = useMemo(() => timing && timing.sourceLine >= 0 ? lyricColumnWidths(timing.lyrics, timing.bars, timing.sourceLine, timing.segmentStart, totalSlots) : Array.from({ length: totalSlots }, () => 1), [timing?.lyrics, timing?.bars, timing?.sourceLine, timing?.segmentStart, totalSlots]);
   const rangeStart = timing?.segmentStart ? timing.segmentStart + LEADING_CHORD_ANCHORS : 0;
   const rangeEnd = (timing?.segmentStart ?? 0) + LEADING_CHORD_ANCHORS + line.length + (timing?.lastSegment ? TRAILING_CHORD_ANCHORS : 0);
@@ -367,14 +368,15 @@ function MusicianChordLine({
         );
       })}
       {characters.map((character, index) => {
-        const fill = timing?.highlight ? lyricBarHighlightFill(timing.highlightStart, timing.cursor, timing.sourceLine, timing.segmentStart + LEADING_CHORD_ANCHORS + index) : 0;
+        const sourceSlot = index >= LEADING_CHORD_ANCHORS && index < LEADING_CHORD_ANCHORS + line.length || timing?.segmentStart === 0 && index < LEADING_CHORD_ANCHORS || timing?.lastSegment && index >= LEADING_CHORD_ANCHORS + line.length;
+        const fill = timing?.highlight && sourceSlot ? lyricBarHighlightFill({ lineIndex: 0, anchorIndex: 0 }, timing.cursor, timing.sourceLine, timing.segmentStart + index) : 0;
         return <span
           className={`${character.trim() ? "musician-lyric-character" : "musician-lyric-space"}${fill > 0 ? ` lyric-highlight-character${timing?.downbeat ? " is-downbeat" : ""}` : ""} lyric-highlight-slot`}
           key={`${index}-${character}`}
-          style={{ gridColumn: LEADING_CHORD_ANCHORS + index + 1, gridRow: 2,
+          style={{ gridColumn: index + 1, gridRow: 2,
           }}
         >
-          <span aria-hidden="true" className="lyric-highlight-fill" style={{ opacity: fill > 0 && timing?.cursor ? lyricHighlightTrail(trailDistance - index) * timing.pulseStrength : 0, width: `${fill > 0 ? fill * 100 : 100}%`, backgroundColor: fill > 0 && timing?.downbeat ? '#f2cf7f' : '#b9dfd0' }} />
+          <span aria-hidden="true" className="lyric-highlight-fill" style={{ opacity: fill > 0 && timing?.cursor ? lyricHighlightTrail(trailDistance + LEADING_CHORD_ANCHORS - index) * timing.pulseStrength : 0, width: `${fill > 0 ? fill * 100 : 100}%`, backgroundColor: fill > 0 && timing?.downbeat ? '#f2cf7f' : '#b9dfd0' }} />
           {character === " " ? "\u00a0" : character}
         </span>;
       })}
@@ -562,7 +564,23 @@ export function MusicianLiveView({ canUseMusic = false, canShareTiming = canUseM
   function liveSlideIdForBand() { return slides[boundedIndex(localIndex, slides.length)]?.id; }
   const worshipSyncOverridden = isWorshipSyncOverridden(worshipCoupled, Boolean(liveState), remoteWorshipIndex);
   const syncedIndex = worshipCoupled && remoteWorshipIndex >= 0 ? remoteWorshipIndex : boundedIndex(localIndex, slides.length);
-  const liveIndex = syncedIndex;
+  const sharedTiming = useSharedMusicTiming({ planId: liveSyncPlanId, songId: playbackContext?.songId ?? null, itemId: playbackContext?.itemId ?? null, share: canShareTiming && shareTiming, follow: followSharedTiming });
+  const sharedSlideIndex = useMemo(() => {
+    const remote = !localPlaybackActive && followSharedTiming ? sharedTiming.remote : null;
+    if (!remote) return -1;
+    const song = songs.find(candidate => candidate.id === remote.timing.song_id);
+    const first = slides.findIndex(slide => slide.planItemId === remote.timing.plan_item_id && slide.slideKind === 'content');
+    if (!song?.rhythm || first < 0) return -1;
+    const annotations = parseChordChart(song.chords, song.lyrics).document.annotations;
+    const timeline = timelineWithEntry(lyricPlaybackBars(song.lyrics, song.sequence, lyricBarLayout(song.lyrics, song.rhythm, annotations)), remote.timing.start_index, remote.timing.first_bar_stop ?? 0);
+    const cursor = lyricCursorAt(song.lyrics, timeline, remote.timing.start_index + Math.max(0, remote.position), song.rhythm.numerator, song.rhythm.denominator);
+    if (!cursor) return first;
+    const block = songLyricPageBlocks(song.lyrics, song.sequence)[cursor.occurrence];
+    if (!block) return first;
+    const part = block.parts.findIndex((text, index) => cursor.lineIndex >= block.partLineOffsets[index] && cursor.lineIndex < block.partLineOffsets[index] + lyricLines(text).length);
+    return first + block.slideIndex + Math.max(0, part);
+  }, [localPlaybackActive, followSharedTiming, sharedTiming.remote, songs, slides]);
+  const liveIndex = sharedSlideIndex >= 0 ? sharedSlideIndex : syncedIndex;
   const liveSlide = slides[liveIndex] ?? null;
 
   useEffect(() => {
@@ -604,7 +622,7 @@ export function MusicianLiveView({ canUseMusic = false, canShareTiming = canUseM
   const nextPageContext = pageContext(pageNextSlide);
   const timingBars = useMemo(() => lyricBarLayout(liveSong?.lyrics, liveSong?.rhythm, chordChart.annotations), [liveSong?.lyrics, liveSong?.rhythm, chordChart.annotations]);
   const remoteTimeline = useMemo(() => lyricPlaybackBars(liveSong?.lyrics, liveSong?.sequence, timingBars), [liveSong?.lyrics, liveSong?.sequence, timingBars]);
-  const sharedTiming = useSharedMusicTiming({ planId: liveSyncPlanId, songId: localPlaybackActive ? playbackContext?.songId ?? liveSong?.id ?? null : liveSong?.id ?? null, itemId: localPlaybackActive ? playbackContext?.itemId ?? liveItem?.id ?? null : liveItem?.id ?? null, share: canShareTiming && shareTiming, follow: followSharedTiming });
+
   const remoteSongMatches = sharedTiming.remote?.timing.song_id === liveSong?.id && sharedTiming.remote?.timing.plan_item_id === liveItem?.id;
   const remoteCursor = remoteSongMatches && sharedTiming.remote && sharedTiming.remote.position >= 0 && liveSong?.rhythm
     ? lyricCursorAt(liveSong.lyrics, timelineWithEntry(remoteTimeline, sharedTiming.remote.timing.start_index, sharedTiming.remote.timing.first_bar_stop ?? 0), sharedTiming.remote.timing.start_index + sharedTiming.remote.position, liveSong.rhythm.numerator, liveSong.rhythm.denominator) : null;
@@ -1308,8 +1326,7 @@ export function MusicianLiveView({ canUseMusic = false, canShareTiming = canUseM
   }, [readerMode, autoScroll, playbackPosition, playbackMotion?.slideIndex, liveSlide?.id, showChords, musicCursor?.lineIndex, musicCursor?.anchorIndex, jumpPending]);
 
   function timingFor(offset: number, lineIndex: number, segmentStart: number, occurrence: number, lastSegment: boolean) {
-    const activeBar = playbackPosition === null ? null : timelineWithEntry(remoteTimeline, startedAt ?? 0, (localPlaybackActive ? localTiming?.firstBarStop : sharedTiming.remote?.timing.first_bar_stop) ?? 0)[Math.floor(playbackPosition)];
-    return { pulseStrength: lyricHighlightPulse(beatPosition, beatCount), highlightStart: activeBar?.start ?? null, lyrics: liveSong?.lyrics ?? '', bars: timingBars, sourceLine: offset < 0 ? -1 : offset + lineIndex, segmentStart, lastSegment, showBars: musicMode, showDot: showTimingDot, highlight: lyricHighlight, downbeat: visualBeat(beatPosition, beatCount) === 0, cursor: displayCursor?.occurrence === occurrence ? displayCursor : null };
+    return { pulseStrength: lyricHighlightPulse(beatPosition, beatCount), lyrics: liveSong?.lyrics ?? '', bars: timingBars, sourceLine: offset < 0 ? -1 : offset + lineIndex, segmentStart, lastSegment, showBars: musicMode, showDot: showTimingDot, highlight: lyricHighlight, downbeat: beatPosition !== null && ((beatPosition % 1 + 1) % 1) * beatCount < Math.min(beatCount, 1.5), cursor: displayCursor?.occurrence === occurrence ? displayCursor : null };
   }
 
   function navigateToSequenceBlock(blockIndex: number, partIndex = 0) {

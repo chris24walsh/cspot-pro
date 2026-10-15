@@ -14299,8 +14299,8 @@ button.musician-page {
 
 /* Lyric timing changes paint only, preserving chord anchors and wrapping. */
 
-.lyric-highlight-slot { position: relative; isolation: isolate; }
-.lyric-highlight-fill { position: absolute; left: 0; top: 0; bottom: 0; z-index: -1; pointer-events: none; transition: opacity 450ms ease-out, background-color 280ms ease-out; }
+.lyric-highlight-slot { position: relative; isolation: isolate; display: block; height: 1.22em; line-height: 1.22em; }
+.lyric-highlight-fill { position: absolute; left: 0; top: .1em; height: 1em; z-index: -1; pointer-events: none; transition: opacity 450ms ease-out, background-color 280ms ease-out; }
 .lyric-highlight-character > .lyric-highlight-fill { transition: opacity 80ms linear, background-color 280ms ease-out; }
 @media (prefers-reduced-motion: reduce) { .lyric-highlight-slot > .lyric-highlight-fill { transition: none; } }
 .musician-beat-keeper span.is-downbeat { width: 33px; font-size: 18px; border: 2px solid #245d4d55; }

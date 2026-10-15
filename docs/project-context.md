@@ -646,10 +646,15 @@ scroll target reaches the manually chosen position (within 12% of viewport
 height, bounded to 12–64 pixels). It waits until touch and momentum scrolling
 have settled for 1.2 seconds. The catch-up arrow still resumes immediately.
 
-Lyric highlighting progressively fills the current bar across words and lines.
-It uses soft amber during the first visual beat, blending to green afterwards,
+Lyric highlighting follows the cursor with a twelve-character wave across words, blank timing slots and bar boundaries.
+It holds soft amber for the first one-and-a-half visual beats, blending to green afterwards,
 aligned with the beat keeper. A soft trail fades continuously over the preceding twelve character positions,
-creating a wave before the bar ends. A subtle brightness swell follows each
+creating a wave with consistent width and a fixed one-em highlight height. A subtle brightness swell follows each
 visual beat without moving the timing edge. Previous bars fade out over 450 ms; colour changes
 blend over 280 ms. No underline is used. Reduced-motion preferences disable
 these transitions.
+
+The lyric wave includes whitespace and blank leading/trailing timing slots.
+While following an active shared clock, the receiving device derives its song
+and lyric page directly from that clock, even if the band or service selection
+still points elsewhere. Followers do not republish those local page changes.
