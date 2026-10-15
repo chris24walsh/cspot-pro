@@ -232,8 +232,16 @@ it('arms pedal playback and distinguishes restart/back taps, holds, repeats and 
     await act(async () => Array.from(document.querySelectorAll<HTMLButtonElement>('[role="menuitem"]')).find(button => button.textContent!.startsWith('Silent guide'))!.click());
     expect(silent.play).not.toHaveBeenCalled();
     expect(container.textContent).toContain('Ready: silent');
-    await key('ArrowRight');
+    await act(async () => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', code: 'ArrowRight' })));
+    expect(silent.play).toHaveBeenCalledOnce(); // starts before release
+    await act(async () => {
+      vi.advanceTimersByTime(650);
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', code: 'ArrowRight', repeat: true }));
+      window.dispatchEvent(new KeyboardEvent('keyup', { key: 'ArrowRight', code: 'ArrowRight' }));
+    });
     expect(silent.play).toHaveBeenCalledOnce();
+    expect(silent.stop).not.toHaveBeenCalled(); // release must not pause the newly started guide
+    expect(navigate).not.toHaveBeenCalled();
     const progress = silent.play.mock.calls[0][4] as (position: number) => void;
     act(() => progress(0.49));
     await key('ArrowLeft');

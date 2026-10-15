@@ -1,24 +1,29 @@
 import { useEffect, useRef } from 'react';
 import { isEditableKeyboardTarget, slideKeyboardDirection } from './keyboardNavigation';
 
-/** Act on release, so a hold never also performs a tap. Ignore hardware repeats. */
-export function usePedalKeyboard(enabled: boolean, action: (direction: -1 | 1, held: boolean) => void) {
+/** Commands may consume keydown; otherwise distinguish taps and holds on release. */
+export function usePedalKeyboard(enabled: boolean, action: (direction: -1 | 1, held: boolean) => void, onPress?: (direction: -1 | 1) => boolean) {
   const callback = useRef(action); callback.current = action;
+  const pressCallback = useRef(onPress); pressCallback.current = onPress;
   useEffect(() => {
     if (!enabled) return;
-    const pressed = new Map<string, { direction: -1 | 1; time: number }>();
+    const pressed = new Map<string, { direction: -1 | 1; time: number; consumed: boolean }>();
     const key = (event: KeyboardEvent) => event.code || event.key;
     const down = (event: KeyboardEvent) => {
       const direction = slideKeyboardDirection(event);
       if (!direction || isEditableKeyboardTarget(event.target) || event.target instanceof Element && event.target.closest('[role="menu"]')) return;
       event.preventDefault(); event.stopImmediatePropagation();
-      if (!event.repeat && !pressed.has(key(event))) pressed.set(key(event), { direction, time: Date.now() });
+      if (!event.repeat && !pressed.has(key(event))) {
+        const press = { direction, time: Date.now(), consumed: false };
+        pressed.set(key(event), press);
+        press.consumed = pressCallback.current?.(direction) ?? false;
+      }
     };
     const up = (event: KeyboardEvent) => {
       const press = pressed.get(key(event));
       if (!press) return;
       pressed.delete(key(event)); event.preventDefault(); event.stopImmediatePropagation();
-      callback.current(press.direction, Date.now() - press.time >= 600);
+      if (!press.consumed) callback.current(press.direction, Date.now() - press.time >= 600);
     };
     const clear = () => pressed.clear();
     window.addEventListener('keydown', down, true);

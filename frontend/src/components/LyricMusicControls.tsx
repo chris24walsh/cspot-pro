@@ -68,6 +68,10 @@ export function LyricMusicControls({ rhythm, lyrics, sequence, annotations, bars
       const firstBar = startAt ? timeline.findIndex(bar => bar.occurrence === startAt.occurrence && bar.start.lineIndex >= startAt.lineStart && bar.start.lineIndex < startAt.lineEnd) : 0;
       onPedalNavigate?.(firstBar >= 0 && currentPosition.current < firstBar + 0.5 ? -1 : 0);
     }
+  }, direction => {
+    if (direction !== 1 || playing || chooser !== null || !armedMode) return false;
+    void listen(armedMode, resumeAt.current ?? startAt);
+    return true;
   });
   const [playing, setPlaying] = useState(false), [error, setError] = useState<string | null>(null);
   const activeBars = useRef<{ bars: PracticeBar[]; position: number; transpose: number }>({ bars: [], position: -1, transpose: 0 });
