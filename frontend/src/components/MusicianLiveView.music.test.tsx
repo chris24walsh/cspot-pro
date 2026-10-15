@@ -64,7 +64,7 @@ it.each([false, true])('turns playback pages and publishes them only when synced
     musician(container);
     expect(container.querySelector('.lyric-timing-dot')).toBeNull();
     expect(container.querySelector('.is-lyric-current .lyric-highlight-character')).not.toBeNull();
-    expect(container.querySelector<HTMLElement>('.lyric-highlight-character')!.style.backgroundImage).toContain('linear-gradient');
+    expect(Number(container.querySelector<HTMLElement>('.lyric-highlight-character .lyric-highlight-fill')!.style.opacity)).toBeGreaterThan(0);
     expect(localStorage.getItem('worship-lyric-highlight')).toBe('on');
     expect(container.querySelector<HTMLElement>('.musician-chord-line')!.style.gridTemplateColumns).toBe(grid);
     musician(container);

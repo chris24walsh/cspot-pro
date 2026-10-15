@@ -104,12 +104,26 @@ export function timelineWithEntry<T extends LyricBar>(timeline: T[], index: numb
   return timeline.map((bar, current) => current === index ? { ...bar, start: bar.stops[stop], stops: bar.stops.slice(stop) } : bar);
 }
 
-// Only the current word retains fill; completed words return to normal.
-export function lyricHighlightWord(line: string, position: number): { start: number; end: number } | null {
-  if (!Number.isFinite(position) || position < 0 || position >= line.length) return null;
-  for (const match of line.matchAll(/\S+/g)) {
-    const start = match.index!, end = start + match[0].length;
-    if (position >= start && position < end) return { start, end };
-  }
-  return null;
+// Fill only the current bar, even when it crosses lines or begins inside a word.
+export function lyricBarHighlightFill(start: LyricPosition | null, cursor: LyricPosition | null, lineIndex: number, anchor: number): number {
+  if (!start || !cursor || compare({ lineIndex, anchorIndex: anchor + 1 }, start) <= 0 || compare({ lineIndex, anchorIndex: anchor }, cursor) >= 0) return 0;
+  const from = lineIndex === start.lineIndex ? Math.max(0, start.anchorIndex - anchor) : 0;
+  const to = lineIndex === cursor.lineIndex ? Math.min(1, cursor.anchorIndex - anchor) : 1;
+  return Math.max(0, to - from);
+}
+
+// A short, continuous trail follows the cursor across source lines and wrapping.
+export function lyricHighlightDistance(lyrics: string, cursor: LyricPosition, lineIndex: number, anchor: number): number {
+  const starts = offsets(lyrics);
+  return starts[cursor.lineIndex] + cursor.anchorIndex - starts[lineIndex] - anchor;
+}
+export function lyricHighlightTrail(distance: number): number {
+  return Math.max(0, Math.min(1, 1 - Math.max(0, distance - 1) / 12));
+}
+
+// A gentle swell per visual beat; the timing edge itself never moves or lags.
+export function lyricHighlightPulse(position: number | null, beats: number): number {
+  if (position === null || !Number.isFinite(position)) return 1;
+  const phase = ((position * beats % 1) + 1) % 1;
+  return 0.72 + 0.28 * Math.exp(-phase * 5);
 }

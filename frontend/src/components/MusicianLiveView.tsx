@@ -38,7 +38,7 @@ import { PROGRAM_AUDIO_FADE_DURATION_MS } from "../audioTransitions";
 import { songLyricPageBlocks } from "../lyricPages";
 import { mergeWorshipSetIntoService } from "../worshipSets";
 
-import { lyricHighlightWord, timelineWithEntry, lyricBarLayout, lyricColumnWidths, wrapTimedLine, lyricCursorAt, lyricPlaybackBars, musicalSectionKey, type LyricBar, type LyricCursor } from "../lyricTiming";
+import { lyricHighlightPulse, lyricHighlightDistance, lyricHighlightTrail, lyricBarHighlightFill, timelineWithEntry, lyricBarLayout, lyricColumnWidths, wrapTimedLine, lyricCursorAt, lyricPlaybackBars, musicalSectionKey, type LyricBar, type LyricCursor } from "../lyricTiming";
 import { LyricMusicControls, TimingDot } from "./LyricMusicControls";
 import { playbackScrollTarget } from "../playbackScroll";
 import { playbackPageMotion } from "../playbackPages";
@@ -322,7 +322,7 @@ function MusicianChordLine({
   targetAbsoluteKey,
   timing,
 }: {
-  timing?: { lyrics: string; bars: LyricBar[]; sourceLine: number; segmentStart: number; lastSegment: boolean; showBars: boolean; showDot: boolean; highlight: boolean; downbeat: boolean; cursor: LyricCursor | null };
+  timing?: { lyrics: string; bars: LyricBar[]; sourceLine: number; segmentStart: number; lastSegment: boolean; showBars: boolean; showDot: boolean; highlight: boolean; downbeat: boolean; pulseStrength: number; highlightStart: { lineIndex: number; anchorIndex: number } | null; cursor: LyricCursor | null };
   annotations: ChordAnnotation[];
   baseAbsoluteKey: string | null;
   capo: number;
@@ -340,8 +340,7 @@ function MusicianChordLine({
   const boundaries = timing?.showBars ? timing.bars.flatMap(bar => [bar.start, bar.end]).filter(position => position.lineIndex === timing.sourceLine && position.anchorIndex >= rangeStart && position.anchorIndex < rangeEnd) : [];
   const cursor = timing && timing.cursor && timing.cursor.lineIndex === timing.sourceLine && timing.cursor.anchorIndex >= rangeStart && timing.cursor.anchorIndex < rangeEnd ? timing.cursor : null;
 
-  const highlightPosition = cursor ? cursor.anchorIndex - (timing?.segmentStart ?? 0) - LEADING_CHORD_ANCHORS : -1;
-  const word = timing?.highlight ? lyricHighlightWord(line, highlightPosition) : null;
+  const trailDistance = timing?.highlight && timing.cursor ? lyricHighlightDistance(timing.lyrics, timing.cursor, timing.sourceLine, timing.segmentStart + LEADING_CHORD_ANCHORS) : 0;
   return (
     <div className={`musician-chord-line${cursor && timing?.highlight ? " is-lyric-current" : ""}`} style={{ gridTemplateColumns: widths.map(width => `${width}ch`).join(" ") }}>
       {boundaries.map((position, index) => <span aria-hidden="true" className="lyric-bar-line" key={`${position.anchorIndex}-${index}`} style={{ gridColumn: Math.floor(position.anchorIndex - timing!.segmentStart) + 1, gridRow: '1 / 3' }} />)}
@@ -367,17 +366,18 @@ function MusicianChordLine({
           </span>
         );
       })}
-      {characters.map((character, index) => (
-        <span
-          className={`${character.trim() ? "musician-lyric-character" : "musician-lyric-space"}${word && index >= word.start && index < word.end ? ` lyric-highlight-character${timing?.downbeat ? " is-downbeat" : ""}` : ""}`}
+      {characters.map((character, index) => {
+        const fill = timing?.highlight ? lyricBarHighlightFill(timing.highlightStart, timing.cursor, timing.sourceLine, timing.segmentStart + LEADING_CHORD_ANCHORS + index) : 0;
+        return <span
+          className={`${character.trim() ? "musician-lyric-character" : "musician-lyric-space"}${fill > 0 ? ` lyric-highlight-character${timing?.downbeat ? " is-downbeat" : ""}` : ""} lyric-highlight-slot`}
           key={`${index}-${character}`}
           style={{ gridColumn: LEADING_CHORD_ANCHORS + index + 1, gridRow: 2,
-            ...(word && index >= word.start && index < word.end ? { backgroundImage: `linear-gradient(to right, ${timing?.downbeat ? '#ffcf66' : '#b9dfd0'} ${Math.max(0, Math.min(1, highlightPosition - index)) * 100}%, transparent 0%)` } : {}),
           }}
         >
+          <span aria-hidden="true" className="lyric-highlight-fill" style={{ opacity: fill > 0 && timing?.cursor ? lyricHighlightTrail(trailDistance - index) * timing.pulseStrength : 0, width: `${fill > 0 ? fill * 100 : 100}%`, backgroundColor: fill > 0 && timing?.downbeat ? '#f2cf7f' : '#b9dfd0' }} />
           {character === " " ? "\u00a0" : character}
-        </span>
-      ))}
+        </span>;
+      })}
     </div>
   );
 }
@@ -1308,7 +1308,8 @@ export function MusicianLiveView({ canUseMusic = false, canShareTiming = canUseM
   }, [readerMode, autoScroll, playbackPosition, playbackMotion?.slideIndex, liveSlide?.id, showChords, musicCursor?.lineIndex, musicCursor?.anchorIndex, jumpPending]);
 
   function timingFor(offset: number, lineIndex: number, segmentStart: number, occurrence: number, lastSegment: boolean) {
-    return { lyrics: liveSong?.lyrics ?? '', bars: timingBars, sourceLine: offset < 0 ? -1 : offset + lineIndex, segmentStart, lastSegment, showBars: musicMode, showDot: showTimingDot, highlight: lyricHighlight, downbeat: visualBeat(beatPosition, beatCount) === 0, cursor: displayCursor?.occurrence === occurrence ? displayCursor : null };
+    const activeBar = playbackPosition === null ? null : timelineWithEntry(remoteTimeline, startedAt ?? 0, (localPlaybackActive ? localTiming?.firstBarStop : sharedTiming.remote?.timing.first_bar_stop) ?? 0)[Math.floor(playbackPosition)];
+    return { pulseStrength: lyricHighlightPulse(beatPosition, beatCount), highlightStart: activeBar?.start ?? null, lyrics: liveSong?.lyrics ?? '', bars: timingBars, sourceLine: offset < 0 ? -1 : offset + lineIndex, segmentStart, lastSegment, showBars: musicMode, showDot: showTimingDot, highlight: lyricHighlight, downbeat: visualBeat(beatPosition, beatCount) === 0, cursor: displayCursor?.occurrence === occurrence ? displayCursor : null };
   }
 
   function navigateToSequenceBlock(blockIndex: number, partIndex = 0) {

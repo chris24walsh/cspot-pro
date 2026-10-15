@@ -121,9 +121,29 @@ it('enters a manual destination at its first annotated chord as a fresh downbeat
   expect(liveJumpStart(text, timeline, [], page)).toEqual({ index: 3, stop: 0 });
 });
 
-import { lyricHighlightWord } from './lyricTiming';
-it('highlights only the current word, including partial words and held notes', () => {
-  expect(lyricHighlightWord('Sing Hallelujah now', 7.5)).toEqual({ start: 5, end: 15 });
-  expect(lyricHighlightWord('Sing Hallelujah now', 16.2)).toEqual({ start: 16, end: 19 });
-  for (const position of [-1, 4.5, 19, NaN]) expect(lyricHighlightWord('Sing Hallelujah now', position)).toBeNull();
+import { lyricBarHighlightFill } from './lyricTiming';
+it('fills only the current bar across words, wrapped lines and partial characters', () => {
+  const start = { lineIndex: 1, anchorIndex: 6 }, cursor = { lineIndex: 2, anchorIndex: 8.5 };
+  expect(lyricBarHighlightFill(start, cursor, 1, 5)).toBe(0);
+  expect(lyricBarHighlightFill(start, cursor, 1, 6)).toBe(1);
+  expect(lyricBarHighlightFill(start, cursor, 2, 8)).toBe(0.5);
+  expect(lyricBarHighlightFill(start, cursor, 2, 9)).toBe(0);
+  expect(lyricBarHighlightFill({ lineIndex: 2, anchorIndex: 8 }, cursor, 1, 6)).toBe(0);
+  expect(lyricBarHighlightFill(start, null, 1, 6)).toBe(0);
+});
+
+import { lyricHighlightTrail } from './lyricTiming';
+it('fades continuously behind the leading edge before the bar ends', () => {
+  expect(lyricHighlightTrail(0.5)).toBe(1);
+  expect(lyricHighlightTrail(6.5)).toBeCloseTo(1 - 5.5 / 12);
+  expect(lyricHighlightTrail(17.5)).toBe(0);
+});
+
+import { lyricHighlightPulse } from './lyricTiming';
+it('gently swells on each beat without fully extinguishing the trail', () => {
+  expect(lyricHighlightPulse(0, 4)).toBe(1);
+  expect(lyricHighlightPulse(0.25, 4)).toBe(1);
+  expect(lyricHighlightPulse(0.2, 4)).toBeGreaterThan(0.72);
+  expect(lyricHighlightPulse(0.2, 4)).toBeLessThan(0.8);
+  expect(lyricHighlightPulse(null, 4)).toBe(1);
 });
