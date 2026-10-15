@@ -14307,3 +14307,24 @@ button.musician-page {
 .musician-beat-keeper span.is-downbeat.is-active { color: #102d23; background: #ffda70; border-color: #806013; box-shadow: 0 0 0 4px #ffd56a66, 0 0 14px #ffd56a99; }
 
 .musician-scroll-reader { position: absolute; inset: 0; min-height: 0; overflow: hidden; }
+
+.pedal-section-picker {
+  position: fixed;
+  z-index: 1000;
+  inset: auto 12px 24px;
+  margin-inline: auto;
+  width: min(480px, calc(100vw - 24px));
+  box-sizing: border-box;
+  display: grid;
+  gap: 8px;
+  padding: 16px;
+  border: 2px solid #d59c43;
+  border-radius: 12px;
+  background: #17202b;
+  color: #fff;
+  text-align: center;
+  box-shadow: 0 8px 36px #0008;
+  pointer-events: none;
+}
+.pedal-section-picker strong { font-size: clamp(28px, 6vw, 48px); }
+.pedal-section-picker span { font-size: 14px; }

@@ -205,3 +205,62 @@ it.each(['F', ''])('keeps the player and carries chords through unannotated live
     expect(queued.countInTicks).toBe(0);
   } finally { act(() => root.unmount()); vi.clearAllMocks(); }
 });
+
+it('arms pedal playback and distinguishes restart/back taps, holds, repeats and section selection', async () => {
+  vi.useFakeTimers();
+  const lyrics = '[V1]\nFirst line\n[C]\nSecond line';
+  const rhythm: SongRhythm = { numerator: 4, denominator: 4, patterns: [], notes: '', markers: [
+    { id: 'v', section: 'V1', lineIndex: 0, anchorIndex: 0 },
+    { id: 'c', section: 'C', lineIndex: 0, anchorIndex: 0 },
+  ] };
+  const navigate = vi.fn();
+  const container = document.createElement('div'), root = createRoot(container);
+  const key = async (direction: 'ArrowLeft' | 'ArrowRight', held = false) => {
+    await act(async () => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: direction, code: direction, bubbles: true }));
+      if (held) {
+        vi.advanceTimersByTime(650);
+        window.dispatchEvent(new KeyboardEvent('keydown', { key: direction, code: direction, repeat: true }));
+      }
+      window.dispatchEvent(new KeyboardEvent('keyup', { key: direction, code: direction, bubbles: true }));
+    });
+  };
+  try {
+    await act(async () => root.render(<LyricMusicControls rhythm={rhythm} lyrics={lyrics} sequence="V1 C" annotations={[]} bars={lyricBarLayout(lyrics, rhythm, [])} startAt={{ occurrence: 0, lineStart: 1, lineEnd: 2 }} onCursor={() => {}} onPedalNavigate={navigate} />));
+    act(() => container.querySelector<HTMLButtonElement>('[aria-label="Play"]')!.click());
+    act(() => document.querySelector<HTMLButtonElement>('[role="menuitemcheckbox"]')!.click());
+    await act(async () => Array.from(document.querySelectorAll<HTMLButtonElement>('[role="menuitem"]')).find(button => button.textContent!.startsWith('Silent guide'))!.click());
+    expect(silent.play).not.toHaveBeenCalled();
+    expect(container.textContent).toContain('Ready: silent');
+    await key('ArrowRight');
+    expect(silent.play).toHaveBeenCalledOnce();
+    const progress = silent.play.mock.calls[0][4] as (position: number) => void;
+    act(() => progress(0.49));
+    await key('ArrowLeft');
+    expect(navigate).toHaveBeenLastCalledWith(-1);
+    act(() => progress(0.5));
+    await key('ArrowLeft');
+    expect(navigate).toHaveBeenLastCalledWith(0);
+    await key('ArrowRight');
+    expect(navigate).toHaveBeenLastCalledWith(1);
+    navigate.mockClear();
+    await key('ArrowLeft', true);
+    expect(navigate).not.toHaveBeenCalled();
+    expect(container.textContent).toContain('Choose:');
+    await key('ArrowRight');
+    await key('ArrowRight', true);
+    expect(silent.queuePerformance).toHaveBeenCalledOnce();
+    expect((silent.queuePerformance.mock.calls[0][0] as PracticePerformance).bars).toHaveLength(1);
+    await key('ArrowRight', true);
+    expect(silent.stop).toHaveBeenCalledOnce();
+    await key('ArrowRight');
+    expect(silent.play).toHaveBeenCalledTimes(2);
+    // Lost keyup on a tab switch must not turn into a delayed command.
+    act(() => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', code: 'ArrowLeft' }));
+      window.dispatchEvent(new Event('blur'));
+      window.dispatchEvent(new KeyboardEvent('keyup', { key: 'ArrowLeft', code: 'ArrowLeft' }));
+    });
+    expect(navigate).not.toHaveBeenCalled();
+  } finally { act(() => root.unmount()); vi.useRealTimers(); vi.clearAllMocks(); }
+});

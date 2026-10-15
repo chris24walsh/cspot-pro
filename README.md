@@ -707,3 +707,22 @@ or from before local navigation. Shared music timing immediately follows a
 successful in-flight update with any intervening start/stop or seek change,
 rather than waiting for the next two-second heartbeat. Polling intervals and
 local clock animation rates remain unchanged; no LAN transport is introduced.
+
+
+Worship Live's playback menu offers an opt-in **Pedal mode** (off on entry).
+Enable it, then select Silent guide, Metronome, MIDI strum or MIDI only: selection
+arms playback without starting it. A right pedal/arrow tap starts the selected
+mode. During playback, right tap advances one slide; left tap restarts the current
+slide, or selects the previous slide when pressed before halfway through the
+current slide's first bar. Slide changes commit at the next bar using the existing
+live segue. Hold right for at least 0.6 seconds and release to pause/resume;
+resume starts the current bar again with the selected mode's lead-in.
+Hold left and release to open a large section selector; tap left/right to choose
+an arrangement occurrence, hold right to confirm, or hold left to cancel. Playback
+continues while choosing; confirmation during playback queues the section at the
+next bar. Repeating a section continues the arrangement from that occurrence.
+Commands act on key release so holds never also trigger taps. Hardware key repeats
+are ignored, and focus loss clears held keys. Keyboard arrows or Page Up/Down can
+be used to rehearse these controls; ordinary navigation is unchanged with Pedal
+mode off. Pedal control applies to local guided playback, not backing-track audio
+or another device's shared timing. Auto-scroll must also be enabled in scroll view.
