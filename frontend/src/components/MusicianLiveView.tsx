@@ -451,7 +451,7 @@ export function MusicianLiveView({ canUseMusic = false, canShareTiming = canUseM
   const handledKeyboardEventsRef = useRef<WeakSet<KeyboardEvent>>(new WeakSet());
   const lastKeyboardNavigationRef = useRef<{ direction: SlideKeyboardDirection; key: string; time: number } | null>(null);
   const liveSyncPlanId = controlPlanId ?? plan?.id ?? null;
-  const keyboardCaptureEnabled = !isMobileOrTabletDevice();
+  const mobileKeyboardCapture = isMobileOrTabletDevice();
   const displayMode: ChordDisplayMode = "absolute";
   const detailMode: ChordDetailMode = "simple";
 
@@ -749,8 +749,8 @@ export function MusicianLiveView({ canUseMusic = false, canShareTiming = canUseM
   }, []);
 
   useEffect(() => {
-    if (keyboardCaptureEnabled) keyCaptureRef.current?.focus({ preventScroll: true });
-  }, [keyboardCaptureEnabled, liveSyncPlanId]);
+    keyCaptureRef.current?.focus({ preventScroll: true });
+  }, [liveSyncPlanId]);
 
   function nextLiveUpdateAt() {
     return Math.max(Date.now(), lastLiveStateAtRef.current + 1);
@@ -1129,11 +1129,11 @@ export function MusicianLiveView({ canUseMusic = false, canShareTiming = canUseM
         return;
       }
 
-      if (isEditableKeyboardTarget(event.target) || event.target instanceof Element && Boolean(event.target.closest('[role="menu"], [aria-haspopup="menu"]'))) {
+      if (isEditableKeyboardTarget(event.target) || event.target instanceof Element && Boolean(event.target.closest('[role="menu"]'))) {
         return;
       }
 
-      if (document.querySelector('[data-pedal-enabled="true"]')) return;
+      if (document.querySelector('[data-pedal-enabled="true"], [data-pedal-test="true"]')) return;
       const direction = slideKeyboardDirection(event);
       if (direction) {
         const eventKey = `${event.key}:${event.code}:${event.keyCode || event.which}`;
@@ -1468,7 +1468,6 @@ export function MusicianLiveView({ canUseMusic = false, canShareTiming = canUseM
       className={`musician-live-view musician-reader-mode-${readerMode} ${isLastSongSlide ? "is-song-end" : ""}`}
       aria-label="Musician live view"
       onPointerDownCapture={(event) => {
-        if (!keyboardCaptureEnabled) return;
         if (isEditableKeyboardTarget(event.target) || isInteractivePointerTarget(event.target)) {
           return;
         }
@@ -1476,7 +1475,7 @@ export function MusicianLiveView({ canUseMusic = false, canShareTiming = canUseM
       }}
       tabIndex={-1}
     >
-      {keyboardCaptureEnabled ? <input
+      <input
         aria-hidden="true"
         autoCapitalize="off"
         autoComplete="off"
@@ -1484,6 +1483,7 @@ export function MusicianLiveView({ canUseMusic = false, canShareTiming = canUseM
         className="slide-key-capture"
         data-slide-key-capture="true"
         inputMode="none"
+        readOnly={mobileKeyboardCapture}
         onBlur={() => window.setTimeout(() => {
           if (!isEditableKeyboardTarget(document.activeElement)) {
             keyCaptureRef.current?.focus({ preventScroll: true });
@@ -1492,7 +1492,7 @@ export function MusicianLiveView({ canUseMusic = false, canShareTiming = canUseM
         ref={keyCaptureRef}
         spellCheck={false}
         tabIndex={-1}
-      /> : null}
+      />
       {topbarSlot ? createPortal(toolbar, topbarSlot) : null}
 
       <div className="musician-song-navigation">

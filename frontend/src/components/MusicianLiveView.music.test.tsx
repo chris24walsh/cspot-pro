@@ -423,3 +423,25 @@ it('shows four visual beats over 8/8 and lets the Musician menu hide them', asyn
     expect(localStorage.getItem('worship-beat-keeper')).toBe('off');
   } finally { act(() => root.unmount()); vi.unstubAllGlobals(); vi.clearAllMocks(); }
 });
+
+it('keeps a read-only mobile keyboard target and accepts arrows from a closed menu trigger', async () => {
+  const userAgent = vi.spyOn(window.navigator, 'userAgent', 'get').mockReturnValue('Mozilla/5.0 (iPhone) CriOS/120 Mobile');
+  vi.stubGlobal('matchMedia', () => ({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() }));
+  vi.mocked(getPresentationLiveState).mockResolvedValue({ plan_id: 'plan', index: 0, updated_at: 1, worship_coupled: false, plan_item_id: 'item', slide_offset: 0 } as Awaited<ReturnType<typeof getPresentationLiveState>>);
+  const song = { id: 'song', title: 'Pedal test', lyrics: '[V1]\nFirst line\n[C]\nSecond line', sequence: 'V1 C', chords: null, rhythm: null } as unknown as Song;
+  const plan = { id: 'plan', items: [{ id: 'item', item_type: 'song', song_id: 'song', sequence: '1', title: song.title }] } as PlanDetail;
+  const container = document.createElement('div'), mount = document.createElement('div'), toolbar = document.createElement('div');
+  container.append(mount, toolbar); document.body.append(container);
+  const root = createRoot(mount);
+  try {
+    await act(async () => root.render(<MusicianLiveView canUseMusic plan={plan} songs={[song]} topbarSlot={toolbar} onEditSong={() => {}} onExit={() => {}} />));
+    const capture = container.querySelector<HTMLInputElement>('[data-slide-key-capture]')!;
+    expect(capture.readOnly).toBe(true);
+    expect(capture.inputMode).toBe('none');
+    expect(document.activeElement).toBe(capture);
+    const trigger = container.querySelector<HTMLButtonElement>('[aria-label="Play"]')!;
+    await act(async () => { trigger.focus(); trigger.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true })); });
+    expect(updateBandSelection).toHaveBeenCalled();
+    expect(container.querySelector('.musician-page.is-current')?.textContent?.replace(/\s/g, ' ')).toContain('First line');
+  } finally { act(() => root.unmount()); container.remove(); userAgent.mockRestore(); vi.clearAllMocks(); }
+});

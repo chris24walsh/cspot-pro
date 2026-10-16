@@ -4,6 +4,7 @@ import { transposeChordSymbol, type ChordAnnotation } from '../chordSheet';
 import { buildPracticePerformance, PracticeAudioPlayer, PracticeSilentPlayer, MIDI_PPQ, type PracticeBar } from '../musicPractice';
 import { liveJumpStart, timelineWithEntry, lyricCursorAt, lyricPlaybackBars, timedPracticeBars, type LyricBar, type LyricCursor } from '../lyricTiming';
 import { worshipSequenceBlocks } from '../worshipText';
+import { slideKeyboardDirection } from '../keyboardNavigation';
 import { usePedalKeyboard } from '../usePedalKeyboard';
 import { CompactControlMenu } from './CompactControlMenu';
 import type { SongRhythm } from '../songRhythm';
@@ -24,6 +25,21 @@ export function LyricMusicControls({ rhythm, lyrics, sequence, annotations, bars
   backing?: { playing: boolean; disabledReason?: string; toggle: () => Promise<void> };
   annotations: ChordAnnotation[]; bars: LyricBar[]; transpose?: number; onCursor: (cursor: LyricCursor | null) => void;
 }) {
+  const [testingPedal, setTestingPedal] = useState(false);
+  const [pedalEvents, setPedalEvents] = useState<string[]>([]);
+  const pedalTestRef = useRef<HTMLDivElement>(null);
+  // Register before the pedal handler, which consumes navigation key events.
+  useEffect(() => {
+    if (!testingPedal) return;
+    pedalTestRef.current?.focus({ preventScroll: true });
+    const record = (event: KeyboardEvent) => {
+      const direction = slideKeyboardDirection(event);
+      if (direction) event.preventDefault();
+      setPedalEvents(events => [`${event.type}: ${event.key || '(empty key)'} · code ${event.code || '(empty)'} · ${event.keyCode} · ${direction === -1 ? 'Left' : direction === 1 ? 'Right' : 'Unmapped'}${event.repeat ? ' · repeat' : ''}`, ...events].slice(0, 6));
+    };
+    window.addEventListener('keydown', record, true); window.addEventListener('keyup', record, true);
+    return () => { window.removeEventListener('keydown', record, true); window.removeEventListener('keyup', record, true); };
+  }, [testingPedal]);
   const [savingIntro, setSavingIntro] = useState(false);
   const [introRemaining, setIntroRemaining] = useState<number | null>(null);
   const [pedalEnabled, setPedalEnabled] = useState(false);
@@ -47,7 +63,7 @@ export function LyricMusicControls({ rhythm, lyrics, sequence, annotations, bars
     currentBar.current = Math.min(Math.floor(index), timeline.length - 1);
     currentPosition.current = index;
   }
-  usePedalKeyboard(pedalEnabled && canPractice, (direction, held) => {
+  usePedalKeyboard(pedalEnabled && canPractice && !testingPedal, (direction, held) => {
     const occurrence = timeline[currentBar.current]?.occurrence ?? startAt?.occurrence ?? 0;
     if (chooser !== null) {
       if (held && direction === -1) { setChooser(null); return; }
@@ -66,10 +82,15 @@ export function LyricMusicControls({ rhythm, lyrics, sequence, annotations, bars
       } else if (armedMode) void listen(armedMode, resumeAt.current ?? startAt);
       return;
     }
-    if (!playing) { if (direction === 1 && armedMode) void listen(armedMode, resumeAt.current ?? startAt); return; }
+    if (!playing) { if (direction === -1) { resumeAt.current = undefined; onPedalNavigate?.(-1); } return; }
     if (direction === 1) onPedalNavigate?.(1);
     else leftTap.current?.();
   }, direction => {
+    if (!playing && chooser === null && !armedMode) {
+      resumeAt.current = undefined;
+      onPedalNavigate?.(direction);
+      return true;
+    }
     if (direction === -1 && playing && chooser === null) {
       // Live segues enter at the first chord, which may be later than the first
       // bar marker or inside a bar spanning two slides. Measure at press time.
@@ -195,11 +216,19 @@ export function LyricMusicControls({ rhythm, lyrics, sequence, annotations, bars
       <strong>{sections[chooser]?.label}</strong>
       <span>← / → select · hold → confirm · hold ← cancel</span>
     </div> : null}
+    {testingPedal ? <div className="pedal-input-test" data-pedal-test="true" role="region" aria-label="Pedal input test" tabIndex={0} ref={pedalTestRef}>
+      <strong>Pedal input test</strong>
+      <p>Tap this panel, then press and release each pedal. Slides stay put during this test.</p>
+      {pedalEvents.length ? <ul>{pedalEvents.map((event, index) => <li key={index}>{event}</li>)}</ul> : <p>No keys received yet.</p>}
+      <button type="button" onClick={() => setPedalEvents([])}>Clear</button>
+      <button type="button" onClick={() => setTestingPedal(false)}>Done</button>
+    </div> : null}
     {introRemaining !== null ? <small role="status">Intro: {introRemaining} {introRemaining === 1 ? "bar" : "bars"} remaining</small> : null}
     {jumpPending ? <small role="status">Play from here on the next bar…</small> : null}
     <CompactControlMenu label={playing || backing?.playing ? 'Stop playback' : 'Play'} icon={playing || backing?.playing ? <Square size={16} aria-hidden="true" /> : <Play size={16} aria-hidden="true" />} active={playing || backing?.playing} action={playing || backing?.playing ? () => { if (playing) stop(); else void backing?.toggle(); } : undefined}>
       {close => <>
         {canPractice ? <>
+          <button role="menuitem" type="button" onClick={() => { close(); stop(); setPedalEvents([]); setTestingPedal(true); }}><Footprints size={16} aria-hidden="true" /><span>Test pedal<small>Check phone/tablet keydown and keyup</small></span></button>
           <div className="pedal-playback-options">
             <button role="menuitemcheckbox" aria-checked={pedalEnabled} onClick={() => { stop(); setArmedMode(null); setChooser(null); resumeAt.current = undefined; setPedalEnabled(!pedalEnabled); }} type="button"><Footprints size={16} aria-hidden="true" /><span>Pedal mode: {pedalEnabled ? 'On' : 'Off'}</span></button>
             <label>Intro<select aria-label="Song intro bars" value={rhythm?.intro_bars ?? 2} disabled={!rhythm || !onSaveIntroBars || savingIntro} title={!onSaveIntroBars ? 'Song editing permission required' : 'Saved for this song · used when Pedal mode is on'} onChange={async event => {

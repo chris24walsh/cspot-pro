@@ -14344,3 +14344,7 @@ button.musician-page {
 .musician-intro-segment > div { position: absolute; inset: 0; background: #245d4d; transform-origin: bottom; }
 .musician-intro-countdown strong { color: #234a40; font-size: 24px; line-height: 1; font-variant-numeric: tabular-nums; }
 .musician-intro-countdown small { display: block; font-size: 10px; line-height: 1.2; font-weight: 600; }
+.pedal-input-test { position: fixed; z-index: 1000; inset: auto 12px 24px; margin-inline: auto; width: min(540px, calc(100vw - 24px)); box-sizing: border-box; padding: 14px; border: 2px solid #245d4d; border-radius: 10px; background: #fffefa; color: #234a40; box-shadow: 0 8px 30px #0005; font-size: 14px; }
+.pedal-input-test p { margin: 8px 0; }
+.pedal-input-test ul { padding-left: 18px; font-size: 12px; overflow-wrap: anywhere; }
+.pedal-input-test button { margin-right: 8px; }

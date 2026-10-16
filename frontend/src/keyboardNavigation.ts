@@ -14,8 +14,8 @@ export function isEditableKeyboardTarget(target: EventTarget | null) {
 }
 
 export function slideKeyboardDirection(event: KeyboardEvent): SlideKeyboardDirection | null {
-  const key = event.key.toLowerCase();
-  const code = event.code.toLowerCase();
+  const key = (event.key ?? "").toLowerCase();
+  const code = (event.code ?? "").toLowerCase();
   const legacyCode = event.keyCode || event.which;
 
   if (

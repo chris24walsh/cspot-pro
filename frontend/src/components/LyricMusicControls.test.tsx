@@ -246,7 +246,7 @@ it('arms pedal playback and distinguishes restart/back taps, holds, repeats and 
     act(() => progress(0.49));
     act(() => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', code: 'ArrowLeft' })));
     act(() => progress(0.6)); // The tap began early, even though release crosses halfway.
-    await act(async () => window.dispatchEvent(new KeyboardEvent('keyup', { key: 'ArrowLeft', code: 'ArrowLeft' })));
+    await act(async () => window.dispatchEvent(new KeyboardEvent('keyup', { key: 'ArrowLeft', code: '' })));
     expect(navigate).toHaveBeenLastCalledWith(-1);
     act(() => progress(0.5));
     await key('ArrowLeft');
@@ -337,5 +337,35 @@ it('measures the previous-slide window from the actual chord entry after a live 
     act(() => progress(0.5));
     await left();
     expect(navigate).toHaveBeenLastCalledWith(0);
+  } finally { act(() => root.unmount()); vi.clearAllMocks(); }
+});
+
+it('allows manual pedal navigation before arming and records phone key events without moving slides', async () => {
+  const navigate = vi.fn(), container = document.createElement('div'), root = createRoot(container);
+  try {
+    await act(async () => root.render(<LyricMusicControls rhythm={{ numerator: 4, denominator: 4, patterns: [], notes: '' }} lyrics="[V1]\nSing" sequence="V1" annotations={[]} bars={[]} onCursor={() => {}} onPedalNavigate={navigate} />));
+    act(() => container.querySelector<HTMLButtonElement>('[aria-label="Play"]')!.click());
+    act(() => document.querySelector<HTMLButtonElement>('[role="menuitemcheckbox"]')!.click());
+    // Close the menu without arming playback.
+    act(() => container.querySelector<HTMLButtonElement>('[aria-label="Play"]')!.click());
+    await act(async () => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', code: 'ArrowLeft' }));
+      window.dispatchEvent(new KeyboardEvent('keyup', { key: 'ArrowLeft', code: '' }));
+    });
+    expect(navigate).toHaveBeenCalledOnce();
+    expect(navigate).toHaveBeenCalledWith(-1);
+    act(() => container.querySelector<HTMLButtonElement>('[aria-label="Play"]')!.click());
+    act(() => Array.from(document.querySelectorAll<HTMLButtonElement>('[role="menuitem"]')).find(button => button.textContent!.startsWith('Test pedal'))!.click());
+    expect(container.textContent).toContain('No keys received yet');
+    navigate.mockClear();
+    await act(async () => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', code: 'ArrowRight' }));
+      window.dispatchEvent(new KeyboardEvent('keyup', { key: 'ArrowRight', code: '' }));
+    });
+    expect(container.textContent).toContain('keydown: ArrowRight');
+    expect(container.textContent).toContain('keyup: ArrowRight');
+    expect(navigate).not.toHaveBeenCalled();
+    expect(audio.play).not.toHaveBeenCalled();
+    expect(silent.play).not.toHaveBeenCalled();
   } finally { act(() => root.unmount()); vi.clearAllMocks(); }
 });

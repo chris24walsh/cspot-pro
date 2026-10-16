@@ -704,3 +704,13 @@ are ignored, and focus loss clears held keys. Keyboard arrows or Page Up/Down ca
 be used to rehearse these controls; ordinary navigation is unchanged with Pedal
 mode off. Pedal control applies to local guided playback, not backing-track audio
 or another device's shared timing. Auto-scroll must also be enabled in scroll view.
+
+Worship Live keeps a read-only keyboard capture target on phones/tablets, with
+`inputMode="none"`, and restores capture when the lyric surface is tapped.
+Closed menu triggers no longer suppress ordinary arrow navigation. Pedal mode
+also allows manual navigation before a playback mode is armed. Press/release
+matching uses the interpreted direction so an empty mobile keyup `code` does
+not strand the press. **Play → Test pedal** focuses an input-test panel and
+shows the last six raw keydown/keyup events and interpreted directions while
+suspending slide commands. This can distinguish missing browser delivery from
+unrecognised keys or missing release events on actual phones and tablets.
