@@ -1431,3 +1431,10 @@ keyboard target focused on initial mount and view activation. Service view no
 longer depends on first visiting Worship to initialise mobile pedal capture.
 Search and editing overlays suspend Service capture, and actual form fields keep
 their normal keyboard handling.
+
+In Worship Live pedal playback, left taps can continue stepping backwards while
+a manual destination is queued and throughout its partial entry/pickup bar,
+then until halfway through its first full bar. This allows several quick taps
+to walk back multiple slides without waiting for each segue. Later taps restart
+the selected slide as before. Superseded jump commits cannot clear a newer
+pending destination.

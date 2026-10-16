@@ -369,3 +369,56 @@ it('allows manual pedal navigation before arming and records phone key events wi
     expect(silent.play).not.toHaveBeenCalled();
   } finally { act(() => root.unmount()); vi.clearAllMocks(); }
 });
+
+it('steps back repeatedly while jumps are pending and through the pickup before the first full bar', async () => {
+  const lyrics = '[V1]\nVerse line\n[C]\nOpening\nSing together';
+  const annotations = [{ id: 'v', section: 'V1', lineIndex: 0, anchorIndex: 3, chord: 'C' }, { id: 'c', section: 'C', lineIndex: 1, anchorIndex: 8, chord: 'F' }];
+  const rhythm: SongRhythm = { numerator: 4, denominator: 4, patterns: [], notes: '', markers: [
+    { id: 'v', section: 'V1', lineIndex: 0, anchorIndex: 3 },
+    { id: 'c1', section: 'C', lineIndex: 0, anchorIndex: 3 },
+    { id: 'c2', section: 'C', lineIndex: 1, anchorIndex: 3 },
+  ] };
+  const container = document.createElement('div'), root = createRoot(container);
+  const pending = vi.fn(), committed = vi.fn();
+  let occurrence = 3, revision = 0;
+  const navigate = vi.fn((direction: -1 | 0 | 1) => { occurrence += direction; revision++; render(); });
+  const render = () => root.render(<LyricMusicControls rhythm={rhythm} lyrics={lyrics} sequence="V1 C C C" annotations={annotations} bars={lyricBarLayout(lyrics, rhythm, annotations)} startAt={{ occurrence, lineStart: occurrence === 0 ? 1 : 3, lineEnd: occurrence === 0 ? 2 : 5 }} jumpRevision={revision} onCursor={() => {}} onPedalNavigate={navigate} onJumpPending={pending} onJumpCommitted={committed} />);
+  const left = async () => act(async () => {
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', code: 'ArrowLeft' }));
+    window.dispatchEvent(new KeyboardEvent('keyup', { key: 'ArrowLeft', code: 'ArrowLeft' }));
+  });
+  try {
+    await act(async () => render());
+    act(() => container.querySelector<HTMLButtonElement>('[aria-label="Play"]')!.click());
+    act(() => document.querySelector<HTMLButtonElement>('[role="menuitemcheckbox"]')!.click());
+    await act(async () => Array.from(document.querySelectorAll<HTMLButtonElement>('[role="menuitem"]')).find(button => button.textContent!.startsWith('Silent guide'))!.click());
+    await act(async () => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', code: 'ArrowRight' }));
+      window.dispatchEvent(new KeyboardEvent('keyup', { key: 'ArrowRight', code: 'ArrowRight' }));
+    });
+    // Simulate a manual entry into C3, including its partial entry bar.
+    await act(async () => { revision++; render(); });
+    const first = silent.queuePerformance.mock.calls[0] as [PracticePerformance, (position: number) => void, () => void];
+    expect(pending).toHaveBeenLastCalledWith(true);
+    await left(); // C3 -> C2 while C3 is still queued
+    expect(occurrence).toBe(2);
+    await left(); // C2 -> C1 without waiting for either jump to commit
+    expect(occurrence).toBe(1);
+    expect(navigate.mock.calls).toEqual([[-1], [-1]]);
+    // An obsolete commit must not release the latest destination hold.
+    act(() => first[2]());
+    expect(committed).not.toHaveBeenCalled();
+    expect(pending).toHaveBeenLastCalledWith(true);
+    const latest = silent.queuePerformance.mock.calls[2] as [PracticePerformance, (position: number) => void, () => void];
+    act(() => { latest[2](); latest[1](1.5); });
+    await left(); // After halfway through the first full bar, restart normally.
+    expect(occurrence).toBe(1);
+    expect(navigate).toHaveBeenLastCalledWith(0);
+    const restarted = silent.queuePerformance.mock.calls[3] as [PracticePerformance, (position: number) => void, () => void];
+    act(() => { restarted[2](); restarted[1](0.85); }); // still in C1's entry/pickup bar
+    await left();
+    expect(occurrence).toBe(0); // C1 -> V1, before its first full bar begins
+    expect(navigate.mock.calls).toEqual([[-1], [-1], [0], [-1]]);
+    expect(silent.play).toHaveBeenCalledOnce();
+  } finally { act(() => root.unmount()); vi.clearAllMocks(); }
+});

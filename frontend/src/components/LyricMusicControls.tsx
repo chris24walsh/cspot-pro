@@ -92,10 +92,13 @@ export function LyricMusicControls({ rhythm, lyrics, sequence, annotations, bars
       return true;
     }
     if (direction === -1 && playing && chooser === null) {
-      // Live segues enter at the first chord, which may be later than the first
-      // bar marker or inside a bar spanning two slides. Measure at press time.
-      const firstBar = liveJumpStart(lyrics, timeline, annotations, startAt).index;
-      const back = firstBar >= 0 && currentPosition.current < firstBar + 0.5;
+      // A selected destination may still be queued while the old source plays.
+      // Keep stepping back during that wait and through any partial entry bar,
+      // then retain the normal first-half-of-the-first-full-bar window.
+      const entry = liveJumpStart(lyrics, timeline, annotations, startAt);
+      const firstFullBar = entry.index + (entry.stop > 0 ? 1 : 0);
+      const back = jumpPending || jumpRevision !== handledJump.current
+        || entry.index >= 0 && currentPosition.current < firstFullBar + 0.5;
       const navigate = onPedalNavigate;
       leftTap.current = () => navigate?.(back ? -1 : 0);
     }
@@ -164,7 +167,7 @@ export function LyricMusicControls({ rhythm, lyrics, sequence, annotations, bars
           activeBars.current = { bars: practiceBars, position, transpose };
           callback.current(lyricCursorAt(lyrics, jumpTimeline, index + position, rhythm.numerator, rhythm.denominator));
           timingCallback.current?.({ startIndex: index, position, barDurationMs: music.barTicks / MIDI_PPQ * 60_000 / music.quarterBpm, totalBars: practiceBars.length, firstBarStop });
-        }, () => { committed?.(); if (handledToken.current === revision) { setJumpPending(false); pendingCallback.current?.(false); } });
+        }, () => { if (playerRef.current === requested && handledToken.current === revision) { committed?.(); setJumpPending(false); pendingCallback.current?.(false); } });
       } catch (cause) {
         if (playerRef.current !== requested || handledToken.current !== revision) return;
         setJumpPending(false); pendingCallback.current?.(false);
