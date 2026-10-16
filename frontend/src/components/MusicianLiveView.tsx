@@ -48,7 +48,7 @@ import { useBandSync } from "./useBandSync";
 import { useSharedMusicTiming } from "./useSharedMusicTiming";
 import { MusicianDisplayChoice, musicianDisplayVisible, readMusicianDisplayMode, type MusicianDisplayMode } from "./MusicianDisplayChoice";
 import { CompactControlMenu } from "./CompactControlMenu";
-import { SlideKeyCapture, SlideKeyboardCaptureContext } from "./SlideKeyCapture";
+import { SlideKeyCapture, SlideKeyboardCaptureContext, shouldRestoreSlideKeyCapture } from "./SlideKeyCapture";
 import { SongRhythmDisplay } from "./SongRhythmDisplay";
 
 interface MusicianLiveViewProps {
@@ -442,6 +442,7 @@ export function MusicianLiveView({ canUseMusic = false, canShareTiming = canUseM
     isMobileOrTabletDevice() && window.matchMedia("(orientation: portrait)").matches ? "scroll" : "pages",
   );
   const keyCaptureRef = useRef<HTMLInputElement | null>(null);
+  const keyPickerPointerInteraction = useRef(false);
   const restoreKeyboardCapture = useCallback(() => keyCaptureRef.current?.focus({ preventScroll: true }), []);
   const stageRef = useRef<HTMLDivElement | null>(null);
   const fullSongRef = useRef<HTMLDivElement | null>(null);
@@ -1411,9 +1412,17 @@ export function MusicianLiveView({ canUseMusic = false, canShareTiming = canUseM
               setGuitarKey(shapeKey);
               setCapo(normalizeCapo(Number(capoValue || 0)));
               setKeySelectExpanded(false);
+              if (keyPickerPointerInteraction.current) {
+                keyPickerPointerInteraction.current = false;
+                restoreKeyboardCapture();
+              }
+            }}
+            onKeyDown={event => {
+              keyPickerPointerInteraction.current = false;
+              if (event.key === 'Enter' || event.key === 'Escape') restoreKeyboardCapture();
             }}
             onFocus={() => setKeySelectExpanded(true)}
-            onPointerDown={() => setKeySelectExpanded(true)}
+            onPointerDown={() => { keyPickerPointerInteraction.current = true; setKeySelectExpanded(true); }}
             value={selectedSetupValue}
           >
             {!currentGuitarKey ? <option value="">{keySelectExpanded ? "Choose key" : "–"}</option> : null}
@@ -1470,19 +1479,12 @@ export function MusicianLiveView({ canUseMusic = false, canShareTiming = canUseM
       className={`musician-live-view musician-reader-mode-${readerMode} ${isLastSongSlide ? "is-song-end" : ""}`}
       aria-label="Musician live view"
       onClick={event => {
-        // Lyric parts are focusable buttons. Restore after their click/default
-        // focus, rather than only before it on pointerdown. Keep form editing native.
-        if (event.target instanceof Element && event.target.closest('.musician-live-stage')
-          && !isEditableKeyboardTarget(event.target)
-          && !event.target.closest('[role="dialog"], [role="menu"]')) {
-          keyCaptureRef.current?.focus({ preventScroll: true });
-        }
+        // All action controls (including the rail and portalled toolbar) return
+        // focus after their native click focus. Fields and popup editing opt out.
+        if (shouldRestoreSlideKeyCapture(event.target)) restoreKeyboardCapture();
       }}
-      onPointerDownCapture={(event) => {
-        if (isEditableKeyboardTarget(event.target) || isInteractivePointerTarget(event.target)) {
-          return;
-        }
-        keyCaptureRef.current?.focus({ preventScroll: true });
+      onPointerDownCapture={event => {
+        if (!isInteractivePointerTarget(event.target) && shouldRestoreSlideKeyCapture(event.target)) restoreKeyboardCapture();
       }}
       tabIndex={-1}
     >

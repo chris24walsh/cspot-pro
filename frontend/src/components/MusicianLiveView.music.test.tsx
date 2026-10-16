@@ -494,6 +494,22 @@ it('restores mobile capture after enabling pedal mode and selecting playback', a
     expect(document.activeElement).toBe(capture); // Tapping lyrics is an explicit return to pedal control.
     await press();
     expect(audio.queuePerformance).toHaveBeenCalledTimes(2);
+    const rail = container.querySelector<HTMLButtonElement>('.musician-sequence-strip button:not(.musician-sequence-title)')!;
+    await act(async () => { rail.focus(); rail.click(); });
+    expect(document.activeElement).toBe(capture);
+    await press();
+    expect(audio.queuePerformance).toHaveBeenCalledTimes(4);
     expect(audio.stop).not.toHaveBeenCalled();
+    const picker = container.querySelector<HTMLSelectElement>('[aria-label="Choose guitar key and capo"]')!;
+    await act(async () => {
+      picker.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true })); picker.focus();
+      picker.value = Array.from(picker.options).find(option => option.value.includes(':'))!.value;
+      picker.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    expect(document.activeElement).toBe(capture); // Touch key choice commits back to pedal capture.
+    act(() => picker.focus());
+    expect(document.activeElement).toBe(picker); // Keyboard users can still edit the native selector.
+    act(() => picker.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })));
+    expect(document.activeElement).toBe(capture);
   } finally { act(() => root.unmount()); container.remove(); userAgent.mockRestore(); vi.clearAllMocks(); }
 });

@@ -1420,3 +1420,13 @@ capture after the focusable lyric block's click. Actual form editing retains
 native focus. The diagnostic pedal test and topbar pedal instructions have been
 removed. The key picker has its own bounded hit area; mobile Worship toolbar
 buttons have at least 44×44-pixel targets, including the landscape control rail.
+
+Worship applies one action-focus policy to the whole view and its portalled
+controls: ordinary action clicks (rail, title, slide/song controls and toolbar)
+return to pedal capture after the action. Native fields, labels, content editing
+and open popups retain focus while in use. Touch key-picker commits and keyboard
+Enter/Escape return capture. The shared capture component also recovers idle
+body focus after a focused popup is removed or the window regains focus; it does
+not reclaim focus from an editing field or open popup. Left/right and Page
+Up/Down pedal modes use the same capture policy; changing hardware mode is not
+required.
