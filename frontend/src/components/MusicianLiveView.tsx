@@ -48,6 +48,7 @@ import { useBandSync } from "./useBandSync";
 import { useSharedMusicTiming } from "./useSharedMusicTiming";
 import { MusicianDisplayChoice, musicianDisplayVisible, readMusicianDisplayMode, type MusicianDisplayMode } from "./MusicianDisplayChoice";
 import { CompactControlMenu } from "./CompactControlMenu";
+import { SlideKeyCapture } from "./SlideKeyCapture";
 import { SongRhythmDisplay } from "./SongRhythmDisplay";
 
 interface MusicianLiveViewProps {
@@ -451,7 +452,6 @@ export function MusicianLiveView({ canUseMusic = false, canShareTiming = canUseM
   const handledKeyboardEventsRef = useRef<WeakSet<KeyboardEvent>>(new WeakSet());
   const lastKeyboardNavigationRef = useRef<{ direction: SlideKeyboardDirection; key: string; time: number } | null>(null);
   const liveSyncPlanId = controlPlanId ?? plan?.id ?? null;
-  const mobileKeyboardCapture = isMobileOrTabletDevice();
   const displayMode: ChordDisplayMode = "absolute";
   const detailMode: ChordDetailMode = "simple";
 
@@ -1475,24 +1475,7 @@ export function MusicianLiveView({ canUseMusic = false, canShareTiming = canUseM
       }}
       tabIndex={-1}
     >
-      <input
-        aria-hidden="true"
-        autoCapitalize="off"
-        autoComplete="off"
-        autoCorrect="off"
-        className="slide-key-capture"
-        data-slide-key-capture="true"
-        inputMode="none"
-        readOnly={mobileKeyboardCapture}
-        onBlur={() => window.setTimeout(() => {
-          if (!isEditableKeyboardTarget(document.activeElement)) {
-            keyCaptureRef.current?.focus({ preventScroll: true });
-          }
-        }, 0)}
-        ref={keyCaptureRef}
-        spellCheck={false}
-        tabIndex={-1}
-      />
+      <SlideKeyCapture ref={keyCaptureRef} />
       {topbarSlot ? createPortal(toolbar, topbarSlot) : null}
 
       <div className="musician-song-navigation">

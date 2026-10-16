@@ -1425,3 +1425,9 @@ not strand the press. **Play → Test pedal** focuses an input-test panel and
 shows the last six raw keydown/keyup events and interpreted directions while
 suspending slide commands. This can distinguish missing browser delivery from
 unrecognised keys or missing release events on actual phones and tablets.
+
+Service and Worship views share `SlideKeyCapture`: a mobile read-only hardware
+keyboard target focused on initial mount and view activation. Service view no
+longer depends on first visiting Worship to initialise mobile pedal capture.
+Search and editing overlays suspend Service capture, and actual form fields keep
+their normal keyboard handling.

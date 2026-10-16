@@ -1,4 +1,5 @@
 import { PointerToggle, DEFAULT_MARKER_STYLE } from "./PointerToggle";
+import { SlideKeyCapture } from "./SlideKeyCapture";
 import { LivePointer } from "./LivePointer";
 import { countdownStartsForSelection, withCountdownTiming } from "../countdown";
 import { shiftClock, templateServiceStart, welcomeLeadSeconds } from "../serviceTiming";
@@ -4548,18 +4549,7 @@ export function PresentationView({
           <button className="text-button" onClick={() => void undoArchivedService()} type="button">Undo</button>
         </div>
       ) : null}
-      <input
-        aria-hidden="true"
-        autoCapitalize="off"
-        autoComplete="off"
-        autoCorrect="off"
-        className="slide-key-capture"
-        data-slide-key-capture="true"
-        inputMode="none"
-        ref={keyCaptureRef}
-        spellCheck={false}
-        tabIndex={-1}
-      />
+      <SlideKeyCapture ref={keyCaptureRef} active={active && !searchOverlayOpen && !servicePickerOpen && !editingSongId} />
       {active && topbarSlot
         ? createPortal(
             <div className="presentation-topbar-tools">
