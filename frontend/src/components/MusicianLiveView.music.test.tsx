@@ -478,7 +478,22 @@ it('restores mobile capture after enabling pedal mode and selecting playback', a
     await press();
     expect(audio.play).toHaveBeenCalledOnce();
     act(() => (audio.play.mock.calls[0][4] as (position: number) => void)(0.1));
+    act(() => container.querySelector<HTMLButtonElement>('[aria-label="Musician"]')!.click());
+    act(() => document.querySelector<HTMLButtonElement>('[aria-label="Switch to Scroll view"]')!.click());
+    expect(document.activeElement).toBe(capture); // Any menu action must restore capture.
+    act(() => container.querySelector<HTMLButtonElement>('[aria-label="Musician"]')!.click());
+    act(() => container.querySelector<HTMLButtonElement>('[aria-label="Musician"]')!.click());
+    expect(document.activeElement).toBe(capture); // Closing by its trigger works too.
+    act(() => container.querySelector<HTMLButtonElement>('[aria-label="Musician"]')!.click());
+    const part = container.querySelector<HTMLElement>('.musician-song-part')!;
+    await act(async () => {
+      part.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true }));
+      part.focus(); // Native click focus happens after pointerdown on these lyric buttons.
+      part.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    expect(document.activeElement).toBe(capture); // Tapping lyrics is an explicit return to pedal control.
     await press();
-    expect(audio.queuePerformance).toHaveBeenCalledOnce();
+    expect(audio.queuePerformance).toHaveBeenCalledTimes(2);
+    expect(audio.stop).not.toHaveBeenCalled();
   } finally { act(() => root.unmount()); container.remove(); userAgent.mockRestore(); vi.clearAllMocks(); }
 });

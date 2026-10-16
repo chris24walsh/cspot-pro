@@ -733,3 +733,10 @@ when toggling Pedal mode, choosing a playback mode, stopping playback, or closin
 the pedal test. This happens inside the user action, so mobile capture is not
 left on a menu button. A regression test dispatches pedal events from the actual
 focused element through toggle, arm, start and live navigation.
+
+All compact menus within Worship Live now share the presenter's keyboard-focus
+restoration through `SlideKeyboardCaptureContext`. Closing a menu by action,
+trigger or tapping non-interactive background returns capture; real form controls
+keep their focus. Tapping a lyric block restores capture after its click, since
+scroll-view lyric parts are themselves focusable buttons. Playback and queued
+segues continue during menu use.

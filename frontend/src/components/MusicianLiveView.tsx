@@ -1,6 +1,6 @@
 import { BookOpen, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Guitar, Link2, LogOut, Music2, Pencil, ListMusic, AudioLines, ScrollText, Unlink2 } from "lucide-react";
 import type { CSSProperties } from "react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 import {
@@ -48,7 +48,7 @@ import { useBandSync } from "./useBandSync";
 import { useSharedMusicTiming } from "./useSharedMusicTiming";
 import { MusicianDisplayChoice, musicianDisplayVisible, readMusicianDisplayMode, type MusicianDisplayMode } from "./MusicianDisplayChoice";
 import { CompactControlMenu } from "./CompactControlMenu";
-import { SlideKeyCapture } from "./SlideKeyCapture";
+import { SlideKeyCapture, SlideKeyboardCaptureContext } from "./SlideKeyCapture";
 import { SongRhythmDisplay } from "./SongRhythmDisplay";
 
 interface MusicianLiveViewProps {
@@ -442,6 +442,7 @@ export function MusicianLiveView({ canUseMusic = false, canShareTiming = canUseM
     isMobileOrTabletDevice() && window.matchMedia("(orientation: portrait)").matches ? "scroll" : "pages",
   );
   const keyCaptureRef = useRef<HTMLInputElement | null>(null);
+  const restoreKeyboardCapture = useCallback(() => keyCaptureRef.current?.focus({ preventScroll: true }), []);
   const stageRef = useRef<HTMLDivElement | null>(null);
   const fullSongRef = useRef<HTMLDivElement | null>(null);
   const activeSongPartRef = useRef<HTMLDivElement | null>(null);
@@ -1453,7 +1454,7 @@ export function MusicianLiveView({ canUseMusic = false, canShareTiming = canUseM
             <button role="menuitem" aria-label={`Switch to ${readerMode === 'pages' ? 'Scroll' : 'Pages'} view`} onClick={() => { setReaderMode(value => value === 'pages' ? 'scroll' : 'pages'); close(); }} type="button">{readerMode === 'pages' ? <ScrollText size={16} /> : <BookOpen size={16} />}<span>{readerMode === 'pages' ? 'Scroll view' : 'Page view'}</span></button>
           </>}
         </CompactControlMenu>
-        {canUseMusic || canControlAudio ? <LyricMusicControls onRestoreKeyboardCapture={() => keyCaptureRef.current?.focus({ preventScroll: true })} onSaveIntroBars={onSaveRhythm && liveSong?.rhythm ? bars => onSaveRhythm(liveSong, { ...liveSong.rhythm!, intro_bars: bars }) : undefined} onPedalNavigate={direction => { if (direction) moveLive(direction); else { navigationGenerationRef.current += 1; void publishWorshipSlide(liveIndex, navigationGenerationRef.current); } }} startAt={leadPageContext.occurrence >= 0 ? { occurrence: leadPageContext.occurrence, lineStart: leadPageContext.sourceOffset, lineEnd: leadPageContext.sourceOffset + lyricLines(pageLeadSlide?.text ?? "").length } : undefined} jumpRevision={playFrom?.revision ?? 0} onJumpPending={pending => { jumpHoldRef.current = pending; setJumpPending(pending); if (!pending) { lastMusicPageRef.current = null; manualScrollDestination.current = null; manualScrollPaused.current = false; } }} rhythm={liveSong?.rhythm} lyrics={liveSong?.lyrics} sequence={liveSong?.sequence} annotations={chordChart.annotations} bars={timingBars} transpose={currentAbsoluteKey ? semitoneDistance(baseAbsoluteKey, currentAbsoluteKey) : 0} canPractice={canUseMusic} onStarted={() => { setLocalPlaybackActive(true); if (liveSong && liveItem) setPlaybackContext({ songId: liveSong.id, itemId: liveItem.id }); }} onJumpCommitted={() => { if (liveSong && liveItem) { sharedTiming.setLocalSource(liveSong.id, liveItem.id); setPlaybackContext({ songId: liveSong.id, itemId: liveItem.id }); } }} onTiming={timing => { setLocalPlaybackActive(Boolean(timing)); setLocalTiming(timing); sharedTiming.setLocalTiming(timing); }} onCursor={setMusicCursor} backing={canControlAudio ? { playing: backingAudioPlaying, disabledReason: !worshipCoupled ? 'Sync with the service first' : !backingAudioAvailable ? 'No backing track for this song' : undefined, toggle: toggleBackingAudio } : undefined} /> : null}
+        {canUseMusic || canControlAudio ? <LyricMusicControls onRestoreKeyboardCapture={restoreKeyboardCapture} onSaveIntroBars={onSaveRhythm && liveSong?.rhythm ? bars => onSaveRhythm(liveSong, { ...liveSong.rhythm!, intro_bars: bars }) : undefined} onPedalNavigate={direction => { if (direction) moveLive(direction); else { navigationGenerationRef.current += 1; void publishWorshipSlide(liveIndex, navigationGenerationRef.current); } }} startAt={leadPageContext.occurrence >= 0 ? { occurrence: leadPageContext.occurrence, lineStart: leadPageContext.sourceOffset, lineEnd: leadPageContext.sourceOffset + lyricLines(pageLeadSlide?.text ?? "").length } : undefined} jumpRevision={playFrom?.revision ?? 0} onJumpPending={pending => { jumpHoldRef.current = pending; setJumpPending(pending); if (!pending) { lastMusicPageRef.current = null; manualScrollDestination.current = null; manualScrollPaused.current = false; } }} rhythm={liveSong?.rhythm} lyrics={liveSong?.lyrics} sequence={liveSong?.sequence} annotations={chordChart.annotations} bars={timingBars} transpose={currentAbsoluteKey ? semitoneDistance(baseAbsoluteKey, currentAbsoluteKey) : 0} canPractice={canUseMusic} onStarted={() => { setLocalPlaybackActive(true); if (liveSong && liveItem) setPlaybackContext({ songId: liveSong.id, itemId: liveItem.id }); }} onJumpCommitted={() => { if (liveSong && liveItem) { sharedTiming.setLocalSource(liveSong.id, liveItem.id); setPlaybackContext({ songId: liveSong.id, itemId: liveItem.id }); } }} onTiming={timing => { setLocalPlaybackActive(Boolean(timing)); setLocalTiming(timing); sharedTiming.setLocalTiming(timing); }} onCursor={setMusicCursor} backing={canControlAudio ? { playing: backingAudioPlaying, disabledReason: !worshipCoupled ? 'Sync with the service first' : !backingAudioAvailable ? 'No backing track for this song' : undefined, toggle: toggleBackingAudio } : undefined} /> : null}
         {servicePlan ? <button aria-label={worshipSyncOverridden ? "Worship sync is enabled but the service view has moved outside worship" : worshipCoupled ? "Stop syncing Worship Live with service and move after worship" : "Sync Worship Live with service"} aria-pressed={worshipCoupled} className={`musician-service-couple-button ${worshipCoupled ? "is-active" : ""} ${worshipSyncOverridden ? "is-overridden" : ""}`} onClick={() => void toggleServiceCoupling()} title={worshipSyncOverridden ? "Service view moved outside worship. Change a worship slide to resync." : worshipCoupled ? "Stop syncing and go after worship" : "Sync with service"} type="button">{worshipCoupled ? <Unlink2 size={16} aria-hidden="true" /> : <Link2 size={16} aria-hidden="true" />}<span className="musician-control-text">Sync</span></button> : null}
         <button aria-label="Edit song" className="musician-edit-button" disabled={!liveSong} onClick={() => { if (liveSong) onEditSong(liveSong); }} title="Edit song" type="button"><Pencil size={16} aria-hidden="true" /><span className="musician-control-text">Edit</span></button>
         <button className="musician-fullscreen-button" onClick={onExit} type="button" aria-label="Exit live worship">
@@ -1464,9 +1465,19 @@ export function MusicianLiveView({ canUseMusic = false, canShareTiming = canUseM
   );
 
   return (
+    <SlideKeyboardCaptureContext.Provider value={restoreKeyboardCapture}>
     <section
       className={`musician-live-view musician-reader-mode-${readerMode} ${isLastSongSlide ? "is-song-end" : ""}`}
       aria-label="Musician live view"
+      onClick={event => {
+        // Lyric parts are focusable buttons. Restore after their click/default
+        // focus, rather than only before it on pointerdown. Keep form editing native.
+        if (event.target instanceof Element && event.target.closest('.musician-live-stage')
+          && !isEditableKeyboardTarget(event.target)
+          && !event.target.closest('[role="dialog"], [role="menu"], .pedal-input-test')) {
+          keyCaptureRef.current?.focus({ preventScroll: true });
+        }
+      }}
       onPointerDownCapture={(event) => {
         if (isEditableKeyboardTarget(event.target) || isInteractivePointerTarget(event.target)) {
           return;
@@ -1792,5 +1803,6 @@ export function MusicianLiveView({ canUseMusic = false, canShareTiming = canUseM
         ) : null}
       </div>
     </section>
+    </SlideKeyboardCaptureContext.Provider>
   );
 }

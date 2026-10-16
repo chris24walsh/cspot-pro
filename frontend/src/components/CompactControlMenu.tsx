@@ -1,26 +1,31 @@
 import { ChevronDown } from 'lucide-react';
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
+import { SlideKeyboardCaptureContext } from './SlideKeyCapture';
 import { useEscapeClose } from './useEscapeClose';
 
 export function CompactControlMenu({ label, icon, children, active = false, action }: {
   label: string; icon: ReactNode; children: (close: () => void) => ReactNode; active?: boolean; action?: () => void;
 }) {
+  const restoreCapture = useContext(SlideKeyboardCaptureContext);
   const [position, setPosition] = useState<{ left: number; top: number } | null>(null);
   const trigger = useRef<HTMLButtonElement>(null), panel = useRef<HTMLDivElement>(null);
-  const close = () => { setPosition(null); trigger.current?.focus(); };
+  const close = () => { setPosition(null); if (restoreCapture) restoreCapture(); else trigger.current?.focus(); };
   useEscapeClose(Boolean(position), close);
   useEffect(() => {
     if (!position) return;
     panel.current?.querySelector<HTMLButtonElement>('button:not(:disabled)')?.focus();
     const outside = (event: PointerEvent) => {
       const target = event.target as Node;
-      if (!trigger.current?.contains(target) && !panel.current?.contains(target) && !(target instanceof Element && target.closest('.song-rhythm-display-panel, .confirmation-dialog-backdrop'))) setPosition(null);
+      if (!trigger.current?.contains(target) && !panel.current?.contains(target) && !(target instanceof Element && target.closest('.song-rhythm-display-panel, .confirmation-dialog-backdrop'))) {
+        setPosition(null);
+        if (!(target instanceof Element && target.closest('button, a, input, select, textarea, [role="button"], [role="menu"], [role="dialog"]'))) restoreCapture?.();
+      }
     };
     const resize = () => setPosition(null);
     document.addEventListener('pointerdown', outside); window.addEventListener('resize', resize);
     return () => { document.removeEventListener('pointerdown', outside); window.removeEventListener('resize', resize); };
-  }, [position]);
+  }, [position, restoreCapture]);
   function open() {
     const bounds = trigger.current!.getBoundingClientRect();
     setPosition({ left: Math.max(8, Math.min(bounds.right - 240, window.innerWidth - 248)), top: Math.min(bounds.bottom + 5, window.innerHeight - 80) });

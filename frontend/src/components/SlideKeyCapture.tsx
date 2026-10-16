@@ -1,5 +1,8 @@
-import { forwardRef, useEffect, useRef } from 'react';
+import { createContext, forwardRef, useEffect, useRef } from 'react';
 import { isMobileOrTabletDevice } from '../presentationDevice';
+
+/** Menus inside a presenter return focus to its hardware-keyboard target. */
+export const SlideKeyboardCaptureContext = createContext<(() => void) | null>(null);
 
 /** A hardware-keyboard target that does not request the mobile software keyboard. */
 export const SlideKeyCapture = forwardRef<HTMLInputElement, { active?: boolean }>(function SlideKeyCapture({ active = true }, forwardedRef) {
