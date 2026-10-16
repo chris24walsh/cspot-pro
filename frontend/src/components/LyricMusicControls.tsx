@@ -4,7 +4,6 @@ import { transposeChordSymbol, type ChordAnnotation } from '../chordSheet';
 import { buildPracticePerformance, PracticeAudioPlayer, PracticeSilentPlayer, MIDI_PPQ, type PracticeBar } from '../musicPractice';
 import { liveJumpStart, timelineWithEntry, lyricCursorAt, lyricPlaybackBars, timedPracticeBars, type LyricBar, type LyricCursor } from '../lyricTiming';
 import { worshipSequenceBlocks } from '../worshipText';
-import { slideKeyboardDirection } from '../keyboardNavigation';
 import { usePedalKeyboard } from '../usePedalKeyboard';
 import { CompactControlMenu } from './CompactControlMenu';
 import type { SongRhythm } from '../songRhythm';
@@ -12,9 +11,10 @@ import type { SongRhythm } from '../songRhythm';
 type PlayMode = "metronome" | "midi" | "midi-only" | "silent";
 type StartPosition = { occurrence: number; lineStart: number; lineEnd: number };
 
-export interface MusicTimingProgress { startIndex: number; position: number; barDurationMs: number; totalBars: number; introBars?: number; firstBarStop?: number }
+export interface MusicTimingProgress { startIndex: number; position: number; barDurationMs: number; totalBars: number; introBars?: number; introChord?: string; introCountIn?: boolean; firstBarStop?: number }
 
-export function LyricMusicControls({ rhythm, lyrics, sequence, annotations, bars, transpose = 0, onCursor, onStarted, canPractice = true, backing, startAt, onTiming, jumpRevision = 0, onJumpPending, onJumpCommitted, onPedalNavigate, onSaveIntroBars, onRestoreKeyboardCapture }: {
+export function LyricMusicControls({ rhythm, lyrics, sequence, annotations, bars, transpose = 0, onCursor, onStarted, canPractice = true, backing, startAt, onTiming, jumpRevision = 0, onJumpPending, onJumpCommitted, onPedalNavigate, onSaveIntroBars, onRestoreKeyboardCapture, rootChord }: {
+  rootChord?: string;
   onRestoreKeyboardCapture?: () => void;
   onSaveIntroBars?: (bars: number) => Promise<void>;
   onPedalNavigate?: (direction: -1 | 0 | 1) => void;
@@ -26,23 +26,7 @@ export function LyricMusicControls({ rhythm, lyrics, sequence, annotations, bars
   backing?: { playing: boolean; disabledReason?: string; toggle: () => Promise<void> };
   annotations: ChordAnnotation[]; bars: LyricBar[]; transpose?: number; onCursor: (cursor: LyricCursor | null) => void;
 }) {
-  const [testingPedal, setTestingPedal] = useState(false);
-  const [pedalEvents, setPedalEvents] = useState<string[]>([]);
-  const pedalTestRef = useRef<HTMLDivElement>(null);
-  // Register before the pedal handler, which consumes navigation key events.
-  useEffect(() => {
-    if (!testingPedal) return;
-    pedalTestRef.current?.focus({ preventScroll: true });
-    const record = (event: KeyboardEvent) => {
-      const direction = slideKeyboardDirection(event);
-      if (direction) event.preventDefault();
-      setPedalEvents(events => [`${event.type}: ${event.key || '(empty key)'} · code ${event.code || '(empty)'} · ${event.keyCode} · ${direction === -1 ? 'Left' : direction === 1 ? 'Right' : 'Unmapped'}${event.repeat ? ' · repeat' : ''}`, ...events].slice(0, 6));
-    };
-    window.addEventListener('keydown', record, true); window.addEventListener('keyup', record, true);
-    return () => { window.removeEventListener('keydown', record, true); window.removeEventListener('keyup', record, true); };
-  }, [testingPedal]);
   const [savingIntro, setSavingIntro] = useState(false);
-  const [introRemaining, setIntroRemaining] = useState<number | null>(null);
   const [pedalEnabled, setPedalEnabled] = useState(false);
   const [armedMode, setArmedMode] = useState<PlayMode | null>(null);
   const [pedalJump, setPedalJump] = useState<{ revision: number; target: StartPosition } | null>(null);
@@ -64,7 +48,7 @@ export function LyricMusicControls({ rhythm, lyrics, sequence, annotations, bars
     currentBar.current = Math.min(Math.floor(index), timeline.length - 1);
     currentPosition.current = index;
   }
-  usePedalKeyboard(pedalEnabled && canPractice && !testingPedal, (direction, held) => {
+  usePedalKeyboard(pedalEnabled && canPractice, (direction, held) => {
     const occurrence = timeline[currentBar.current]?.occurrence ?? startAt?.occurrence ?? 0;
     if (chooser !== null) {
       if (held && direction === -1) { setChooser(null); return; }
@@ -120,7 +104,7 @@ export function LyricMusicControls({ rhythm, lyrics, sequence, annotations, bars
   const callback = useRef(onCursor); callback.current = onCursor;
   const timeline = useMemo(() => lyricPlaybackBars(lyrics, sequence, bars), [lyrics, sequence, bars]);
   const signature = JSON.stringify([{ ...rhythm, visual_beats: undefined }, lyrics, sequence, annotations, transpose, canPractice]);
-  function stop() { setIntroRemaining(null); modeRef.current = null; setJumpPending(false); pendingCallback.current?.(false); const player = playerRef.current; playerRef.current = null; player?.stop(); setPlaying(false); callback.current(null); timingCallback.current?.(null); }
+  function stop() { modeRef.current = null; setJumpPending(false); pendingCallback.current?.(false); const player = playerRef.current; playerRef.current = null; player?.stop(); setPlaying(false); callback.current(null); timingCallback.current?.(null); }
   useEffect(() => {
     const hide = () => { if (document.hidden) stop(); };
     document.addEventListener('visibilitychange', hide);
@@ -163,7 +147,6 @@ export function LyricMusicControls({ rhythm, lyrics, sequence, annotations, bars
         if (playerRef.current !== requested || handledToken.current !== revision) return;
         await requested.queuePerformance(music, position => {
           if (playerRef.current !== requested) return;
-          setIntroRemaining(null);
           trackPosition(index + position);
           activeBars.current = { bars: practiceBars, position, transpose };
           callback.current(lyricCursorAt(lyrics, jumpTimeline, index + position, rhythm.numerator, rhythm.denominator));
@@ -191,19 +174,26 @@ export function LyricMusicControls({ rhythm, lyrics, sequence, annotations, bars
       const missing = worshipSequenceBlocks(lyrics, sequence).find((_block, occurrence) => occurrence >= (destination?.occurrence ?? 0) && !timeline.some(bar => bar.occurrence === occurrence));
       if (missing) throw new Error(`Place bar boundaries for ${missing.label} before following the whole song.`);
       const practiceBars = timedPracticeBars(lyrics, timeline.slice(startIndex), annotations, rhythm.numerator);
-      const builtPerformance = buildPracticePerformance(rhythm, { mode: 'song', countIn: mode !== 'silent', countInBars: pedalEnabled ? rhythm.intro_bars ?? 2 : undefined, metronomeLeadIn: mode === 'midi-only', metronome: mode !== "silent" && mode !== "midi-only", chords: (mode === "midi" || mode === "midi-only"), finish: (mode === "midi" || mode === "midi-only"), transpose, bars: practiceBars });
+      const introBars = pedalEnabled ? rhythm.intro_bars ?? 2 : 0;
+      const openingChord = timedPracticeBars(lyrics, timeline, annotations, rhythm.numerator)
+        .flatMap(bar => bar.chords).find(change => change.chord)?.chord || rootChord || '';
+      const performanceBars: PracticeBar[] = [
+        ...Array.from({ length: introBars }, (_, patternBar) => ({ section: practiceBars[0]?.section ?? 'Default', patternBar, chords: [{ beat: 1, chord: openingChord }] })),
+        ...practiceBars,
+      ];
+      const builtPerformance = buildPracticePerformance(rhythm, { mode: 'song', countIn: mode !== 'silent', countInBars: pedalEnabled ? 1 : undefined, metronomeLeadIn: mode === 'midi-only', metronome: mode !== "silent" && mode !== "midi-only", chords: (mode === "midi" || mode === "midi-only"), finish: (mode === "midi" || mode === "midi-only"), transpose, bars: performanceBars });
       // Publish a full silent preparation bar before lyrics begin, regardless of opening rests.
       const performance = mode === 'silent' && !pedalEnabled ? { ...builtPerformance, countInTicks: builtPerformance.barTicks, totalTicks: builtPerformance.totalTicks + builtPerformance.barTicks } : builtPerformance;
-      player = mode === "silent" ? new PracticeSilentPlayer() : new PracticeAudioPlayer(); const requested = player; playerRef.current = player; modeRef.current = mode; setPlaying(true); setIntroRemaining(pedalEnabled && (rhythm.intro_bars ?? 2) > 0 ? rhythm.intro_bars ?? 2 : null); onStarted?.();
+      player = mode === "silent" ? new PracticeSilentPlayer() : new PracticeAudioPlayer(); const requested = player; playerRef.current = player; modeRef.current = mode; setPlaying(true); onStarted?.();
       currentBar.current = startIndex; currentPosition.current = startIndex - 1;
-      activeBars.current = { bars: practiceBars, position: -1, transpose };
-      readyRef.current = player.play(performance, false, () => {}, () => { if (playerRef.current === requested) { playerRef.current = null; modeRef.current = null; setIntroRemaining(null); setPlaying(false); setJumpPending(false); pendingCallback.current?.(false); callback.current(null); timingCallback.current?.(null); } }, position => {
+      activeBars.current = { bars: performanceBars, position: -1, transpose };
+      readyRef.current = player.play(performance, false, () => {}, () => { if (playerRef.current === requested) { playerRef.current = null; modeRef.current = null; setPlaying(false); setJumpPending(false); pendingCallback.current?.(false); callback.current(null); timingCallback.current?.(null); } }, position => {
         if (playerRef.current === requested) {
-          setIntroRemaining(pedalEnabled && position < 0 ? Math.ceil(-position) : null);
-          trackPosition(position < 0 ? -1 : position + startIndex);
-          activeBars.current = { bars: practiceBars, position, transpose };
-          callback.current(position < 0 ? null : lyricCursorAt(lyrics, timeline, position + startIndex, rhythm.numerator, rhythm.denominator));
-          timingCallback.current?.({ startIndex, position, barDurationMs: performance.barTicks / MIDI_PPQ * 60_000 / performance.quarterBpm, totalBars: practiceBars.length, introBars: pedalEnabled ? rhythm.intro_bars ?? 2 : undefined });
+          const lyricPosition = position - introBars;
+          trackPosition(lyricPosition < 0 ? -1 : lyricPosition + startIndex);
+          activeBars.current = { bars: performanceBars, position, transpose };
+          callback.current(lyricPosition < 0 ? null : lyricCursorAt(lyrics, timeline, lyricPosition + startIndex, rhythm.numerator, rhythm.denominator));
+          timingCallback.current?.({ startIndex, position: lyricPosition, barDurationMs: performance.barTicks / MIDI_PPQ * 60_000 / performance.quarterBpm, totalBars: practiceBars.length, introBars: pedalEnabled ? introBars : undefined, introChord: openingChord ? transposeChordSymbol(openingChord, transpose) : undefined, introCountIn: pedalEnabled });
         }
       });
       await readyRef.current;
@@ -215,25 +205,15 @@ export function LyricMusicControls({ rhythm, lyrics, sequence, annotations, bars
     else void listen(mode);
   }
   return <div className="musician-practice-listen" data-pedal-enabled={pedalEnabled && canPractice ? "true" : undefined}>
-    {pedalEnabled ? <small role="status">{chooser !== null ? `Choose: ${sections[chooser]?.label ?? ''} · ←/→ select · hold → confirm · hold ← cancel` : playing ? 'Pedal: ← restart/back · → next slide · hold → pause · hold ← choose' : armedMode ? `Ready: ${armedMode} · press → to start/resume` : 'Pedal: choose a playback mode to arm'} </small> : null}
     {pedalEnabled && chooser !== null ? <div className="pedal-section-picker" aria-label="Pedal section selection">
       <small>Jump to section · {chooser + 1}/{sections.length}</small>
       <strong>{sections[chooser]?.label}</strong>
       <span>← / → select · hold → confirm · hold ← cancel</span>
     </div> : null}
-    {testingPedal ? <div className="pedal-input-test" data-pedal-test="true" role="region" aria-label="Pedal input test" tabIndex={0} ref={pedalTestRef}>
-      <strong>Pedal input test</strong>
-      <p>Tap this panel, then press and release each pedal. Slides stay put during this test.</p>
-      {pedalEvents.length ? <ul>{pedalEvents.map((event, index) => <li key={index}>{event}</li>)}</ul> : <p>No keys received yet.</p>}
-      <button type="button" onClick={() => setPedalEvents([])}>Clear</button>
-      <button type="button" onClick={() => { setTestingPedal(false); onRestoreKeyboardCapture?.(); }}>Done</button>
-    </div> : null}
-    {introRemaining !== null ? <small role="status">Intro: {introRemaining} {introRemaining === 1 ? "bar" : "bars"} remaining</small> : null}
-    {jumpPending ? <small role="status">Play from here on the next bar…</small> : null}
+    {jumpPending ? <small role="status">Jump queued…</small> : null}
     <CompactControlMenu label={playing || backing?.playing ? 'Stop playback' : 'Play'} icon={playing || backing?.playing ? <Square size={16} aria-hidden="true" /> : <Play size={16} aria-hidden="true" />} active={playing || backing?.playing} action={playing || backing?.playing ? () => { if (playing) stop(); else void backing?.toggle(); onRestoreKeyboardCapture?.(); } : undefined}>
       {close => <>
         {canPractice ? <>
-          <button role="menuitem" type="button" onClick={() => { close(); stop(); setPedalEvents([]); setTestingPedal(true); }}><Footprints size={16} aria-hidden="true" /><span>Test pedal<small>Check phone/tablet keydown and keyup</small></span></button>
           <div className="pedal-playback-options">
             <button role="menuitemcheckbox" aria-checked={pedalEnabled} onClick={() => { stop(); setArmedMode(null); setChooser(null); resumeAt.current = undefined; setPedalEnabled(!pedalEnabled); onRestoreKeyboardCapture?.(); }} type="button"><Footprints size={16} aria-hidden="true" /><span>Pedal mode: {pedalEnabled ? 'On' : 'Off'}</span></button>
             <label>Intro<select aria-label="Song intro bars" value={rhythm?.intro_bars ?? 2} disabled={!rhythm || !onSaveIntroBars || savingIntro} title={!onSaveIntroBars ? 'Song editing permission required' : 'Saved for this song · used when Pedal mode is on'} onChange={async event => {
@@ -244,10 +224,10 @@ export function LyricMusicControls({ rhythm, lyrics, sequence, annotations, bars
               finally { setSavingIntro(false); }
             }}>{Array.from({ length: 17 }, (_, bars) => <option key={bars} value={bars}>{bars} {bars === 1 ? 'bar' : 'bars'}</option>)}</select></label>
           </div>
-          <button role="menuitem" disabled={!rhythm} onClick={() => { close(); selectMode("silent"); }} type="button"><VolumeX size={16} aria-hidden="true" /><span>Silent guide<small>One-bar lead-in · lyric guide · no sound</small></span></button>
-          <button role="menuitem" disabled={!rhythm} onClick={() => { close(); selectMode("metronome"); }} type="button"><Timer size={16} aria-hidden="true" /><span>Metronome<small>{rhythm ? `${rhythm.bpm ?? 90} BPM · clicks one bar before first chord` : 'Add song rhythm first'}</small></span></button>
-          <button role="menuitem" disabled={!rhythm} onClick={() => { close(); selectMode("midi"); }} type="button"><Guitar size={16} aria-hidden="true" /><span>MIDI strum<small>Chords + metronome · {startAt ? 'current slide' : 'song start'}</small></span></button>
-          <button role="menuitem" disabled={!rhythm} onClick={() => { close(); selectMode("midi-only"); }} type="button"><Guitar size={16} aria-hidden="true" /><span>MIDI only<small>Metronome count-in · then chords and strum</small></span></button>
+          <button role="menuitem" disabled={!rhythm} onClick={() => { close(); selectMode("silent"); }} type="button"><VolumeX size={16} aria-hidden="true" /><span>Lyrics only<small>Follow the lyrics · no sound</small></span></button>
+          <button role="menuitem" disabled={!rhythm} onClick={() => { close(); selectMode("metronome"); }} type="button"><Timer size={16} aria-hidden="true" /><span>Click only<small>{rhythm ? `Steady beat · ${rhythm.bpm ?? 90} BPM` : 'Add song rhythm first'}</small></span></button>
+          <button role="menuitem" disabled={!rhythm} onClick={() => { close(); selectMode("midi"); }} type="button"><Guitar size={16} aria-hidden="true" /><span>Guitar + click<small>Guitar chords + steady clicks · {startAt ? 'current slide' : 'song start'}</small></span></button>
+          <button role="menuitem" disabled={!rhythm} onClick={() => { close(); selectMode("midi-only"); }} type="button"><Guitar size={16} aria-hidden="true" /><span>Guitar only<small>Click count-in · then guitar chords</small></span></button>
         </> : null}
         {backing ? <button role="menuitem" disabled={Boolean(backing.disabledReason)} title={backing.disabledReason} onClick={() => { close(); stop(); setError(null); void backing.toggle(); }} type="button"><Volume2 size={16} aria-hidden="true" /><span>Backing track<small>{backing.disabledReason ?? 'Service audio'}</small></span></button> : null}
       </>}

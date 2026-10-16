@@ -161,3 +161,12 @@ def test_sharing_uses_approved_serving_roles(timing_context, area_key, approval,
         with pytest.raises(HTTPException) as error:
             update_worship_music_timing(plan.id, payload, user, session)
         assert error.value.status_code == 403
+
+
+def test_timing_accepts_full_intro_and_count_in_window(timing_context):
+    from pydantic import ValidationError
+
+    payload = timing_context[3].model_dump()
+    assert WorshipMusicTiming.model_validate({**payload, "position": -17.05}).position == -17.05
+    with pytest.raises(ValidationError):
+        WorshipMusicTiming.model_validate({**payload, "position": -19})

@@ -24,7 +24,7 @@ it('starts with clicks only, adds complete chords, and reports the same timed ly
   const container = document.createElement('div'), root = createRoot(container);
   try {
     await act(async () => root.render(<LyricMusicControls rhythm={rhythm} lyrics={lyrics} sequence="V1" annotations={annotations} bars={lyricBarLayout(lyrics, rhythm, annotations)} onCursor={onCursor} />));
-    await play(container, 'Metronome');
+    await play(container, 'Click only');
     expect((audio.play.mock.calls[0][0] as PracticePerformance).notes.every(note => note.channel === 9)).toBe(true);
     const position = audio.play.mock.calls[0][4] as (position: number) => void;
     act(() => position(0.25));
@@ -32,7 +32,7 @@ it('starts with clicks only, adds complete chords, and reports the same timed ly
     act(() => container.querySelector<HTMLButtonElement>('[aria-label="Stop playback"]')!.click());
     expect(audio.stop).toHaveBeenCalledOnce();
     expect(onCursor).toHaveBeenLastCalledWith(null);
-    await play(container, 'MIDI strum');
+    await play(container, 'Guitar + click');
     const notes = (audio.play.mock.calls[1][0] as PracticePerformance).notes.filter(note => note.channel === 0);
     expect(new Set(notes.map(note => note.pitch)).size).toBeGreaterThan(3);
   } finally { act(() => root.unmount()); vi.clearAllMocks(); }
@@ -49,7 +49,7 @@ it('allows an opening bar of silence and matches whole-song and part playback in
   const container = document.createElement('div'), root = createRoot(container);
   try {
     await act(async () => root.render(<LyricMusicControls rhythm={rhythm} lyrics={lyrics} sequence="V1" annotations={annotations} bars={lyricBarLayout(lyrics, rhythm, annotations)} onCursor={() => {}} />));
-    await play(container, 'MIDI strum');
+    await play(container, 'Guitar + click');
     expect(container.querySelector('[role="alert"]')).toBeNull();
     expect(audio.play).toHaveBeenCalledOnce();
     const inline = audio.play.mock.calls[0][0] as PracticePerformance;
@@ -85,7 +85,7 @@ it('offers permission-scoped backing playback and a direct stop, with no local s
   } finally { act(() => root.unmount()); vi.clearAllMocks(); }
 });
 
-it.each(['Metronome', 'MIDI strum'])('starts %s at the selected sequence occurrence and leaves the opening bar silent', async source => {
+it.each(['Click only', 'Guitar + click'])('starts %s at the selected sequence occurrence and leaves the opening bar silent', async source => {
   const lyrics = '[V1]\nFirst line\nSecond line\n[C]\nHold the chord';
   const annotations = [
     { id: 'c', section: 'V1', lineIndex: 0, anchorIndex: 3, chord: 'C' },
@@ -105,7 +105,7 @@ it.each(['Metronome', 'MIDI strum'])('starts %s at the selected sequence occurre
     const music = audio.play.mock.calls[0][0] as PracticePerformance;
     expect(music.bars.map(bar => bar.chords[0].chord)).toEqual(['', 'C', 'G']);
     expect(music.countInTicks).toBe(0);
-    expect(music.notes.some(note => note.channel === 0)).toBe(source === 'MIDI strum');
+    expect(music.notes.some(note => note.channel === 0)).toBe(source === 'Guitar + click');
     const position = audio.play.mock.calls[0][4] as (position: number) => void;
     act(() => position(-0.5));
     expect(cursor).toHaveBeenLastCalledWith(null);
@@ -133,7 +133,7 @@ it('selects silent guidance from the current slide and emits shareable clock pro
   const cursor = vi.fn(), timing = vi.fn(), container = document.createElement('div'), root = createRoot(container);
   try {
     await act(async () => root.render(<LyricMusicControls rhythm={rhythm} lyrics={lyrics} sequence="V1" annotations={[]} bars={lyricBarLayout(lyrics, rhythm, [])} onCursor={cursor} onTiming={timing} startAt={{ occurrence: 0, lineStart: 1, lineEnd: 2 }} />));
-    await play(container, 'Silent guide');
+    await play(container, 'Lyrics only');
     expect(audio.play).not.toHaveBeenCalled();
     expect(silent.play).toHaveBeenCalledOnce();
     const music = silent.play.mock.calls[0][0] as PracticePerformance;
@@ -155,7 +155,7 @@ it('selects silent guidance from the current slide and emits shareable clock pro
   } finally { act(() => root.unmount()); vi.clearAllMocks(); }
 });
 
-it.each(['Metronome', 'MIDI strum', 'MIDI only', 'Silent guide'])('queues a manual slide destination without restarting or adding a count-in (%s)', async source => {
+it.each(['Click only', 'Guitar + click', 'Guitar only', 'Lyrics only'])('queues a manual slide destination without restarting or adding a count-in (%s)', async source => {
   const lyrics = '[V1]\nFirst line\n[C]\nSecond line';
   const annotations = [{ id: 'v', section: 'V1', lineIndex: 0, anchorIndex: 3, chord: 'C' }, { id: 'c', section: 'C', lineIndex: 0, anchorIndex: 3, chord: 'G' }];
   const rhythm: SongRhythm = { numerator: 4, denominator: 4, patterns: [], notes: '', markers: annotations.map(({ chord: _chord, ...marker }) => marker) };
@@ -167,15 +167,15 @@ it.each(['Metronome', 'MIDI strum', 'MIDI only', 'Silent guide'])('queues a manu
     await act(async () => render(0, 0, 1));
     await play(container, source);
     await act(async () => render(1, 1, 3));
-    const player = source === "Silent guide" ? silent : audio;
+    const player = source === "Lyrics only" ? silent : audio;
     expect(player.play).toHaveBeenCalledOnce();
     expect(player.stop).not.toHaveBeenCalled();
     expect(player.queuePerformance).toHaveBeenCalledOnce();
     const [music, progress, committed] = player.queuePerformance.mock.calls[0] as [PracticePerformance, (position: number) => void, () => void];
     expect(music.countInTicks).toBe(0);
-    if (source === 'MIDI only') { expect(music.notes.some(note => note.channel === 9)).toBe(false); expect(music.notes.some(note => note.channel === 0)).toBe(true); }
+    if (source === 'Guitar only') { expect(music.notes.some(note => note.channel === 9)).toBe(false); expect(music.notes.some(note => note.channel === 0)).toBe(true); }
     expect(music.bars[0].chords[0].chord).toBe('G');
-    expect(container.textContent).toContain('next bar');
+    expect(container.textContent).toContain('Jump queued');
     await act(async () => { committed(); progress(0); });
     expect(cursor).toHaveBeenLastCalledWith(expect.objectContaining({ occurrence: 1, lineIndex: 3 }));
     expect(timing).toHaveBeenLastCalledWith(expect.objectContaining({ startIndex: 1, position: 0 }));
@@ -193,7 +193,7 @@ it.each(['F', ''])('keeps the player and carries chords through unannotated live
   };
   try {
     await act(async () => render(0, 'First song', 'C'));
-    await play(container, 'MIDI strum');
+    await play(container, 'Guitar + click');
     const progress = audio.play.mock.calls[0][4] as (position: number) => void;
     await act(async () => progress(0.25));
     await act(async () => render(1, 'Another song', destinationChord));
@@ -229,9 +229,9 @@ it('arms pedal playback and distinguishes restart/back taps, holds, repeats and 
     await act(async () => root.render(<LyricMusicControls rhythm={rhythm} lyrics={lyrics} sequence="V1 C" annotations={[]} bars={lyricBarLayout(lyrics, rhythm, [])} startAt={{ occurrence: 0, lineStart: 1, lineEnd: 2 }} onCursor={() => {}} onPedalNavigate={navigate} />));
     act(() => container.querySelector<HTMLButtonElement>('[aria-label="Play"]')!.click());
     act(() => document.querySelector<HTMLButtonElement>('[role="menuitemcheckbox"]')!.click());
-    await act(async () => Array.from(document.querySelectorAll<HTMLButtonElement>('[role="menuitem"]')).find(button => button.textContent!.startsWith('Silent guide'))!.click());
+    await act(async () => Array.from(document.querySelectorAll<HTMLButtonElement>('[role="menuitem"]')).find(button => button.textContent!.startsWith('Lyrics only'))!.click());
     expect(silent.play).not.toHaveBeenCalled();
-    expect(container.textContent).toContain('Ready: silent');
+    expect(container.textContent).not.toContain('Pedal:');
     await act(async () => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', code: 'ArrowRight' })));
     expect(silent.play).toHaveBeenCalledOnce(); // starts before release
     await act(async () => {
@@ -243,12 +243,12 @@ it('arms pedal playback and distinguishes restart/back taps, holds, repeats and 
     expect(silent.stop).not.toHaveBeenCalled(); // release must not pause the newly started guide
     expect(navigate).not.toHaveBeenCalled();
     const progress = silent.play.mock.calls[0][4] as (position: number) => void;
-    act(() => progress(0.49));
+    act(() => progress(2.49));
     act(() => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', code: 'ArrowLeft' })));
-    act(() => progress(0.6)); // The tap began early, even though release crosses halfway.
+    act(() => progress(2.6)); // The tap began early, even though release crosses halfway.
     await act(async () => window.dispatchEvent(new KeyboardEvent('keyup', { key: 'ArrowLeft', code: '' })));
     expect(navigate).toHaveBeenLastCalledWith(-1);
-    act(() => progress(0.5));
+    act(() => progress(2.5));
     await key('ArrowLeft');
     expect(navigate).toHaveBeenLastCalledWith(0);
     await key('ArrowRight');
@@ -256,7 +256,7 @@ it('arms pedal playback and distinguishes restart/back taps, holds, repeats and 
     navigate.mockClear();
     await key('ArrowLeft', true);
     expect(navigate).not.toHaveBeenCalled();
-    expect(container.textContent).toContain('Choose:');
+    expect(container.textContent).toContain('Jump to section');
     await key('ArrowRight');
     await key('ArrowRight', true);
     expect(silent.queuePerformance).toHaveBeenCalledOnce();
@@ -275,12 +275,13 @@ it('arms pedal playback and distinguishes restart/back taps, holds, repeats and 
   } finally { act(() => root.unmount()); vi.useRealTimers(); vi.clearAllMocks(); }
 });
 
-it.each(['Silent guide', 'Metronome', 'MIDI strum', 'MIDI only'])('uses the saved intro instead of an extra count-in in pedal mode (%s)', async source => {
+it.each(['Lyrics only', 'Click only', 'Guitar + click', 'Guitar only'])('plays one count-in bar then a chorded intro before lyric timing (%s)', async source => {
   const lyrics = '[V1]\nSing now';
   const rhythm: SongRhythm = { numerator: 4, denominator: 4, patterns: [], notes: '', markers: [{ id: 'one', section: 'V1', lineIndex: 0, anchorIndex: 0 }] };
   const container = document.createElement('div'), root = createRoot(container);
+  const timing = vi.fn(), cursor = vi.fn();
   const save = vi.fn(async (intro_bars: number) => { render({ ...rhythm, intro_bars }); });
-  const render = (value: SongRhythm) => root.render(<LyricMusicControls rhythm={value} lyrics={lyrics} sequence="V1" annotations={[]} bars={lyricBarLayout(lyrics, value, [])} onCursor={() => {}} onSaveIntroBars={save} />);
+  const render = (value: SongRhythm) => root.render(<LyricMusicControls rhythm={value} lyrics={lyrics} sequence="V1" annotations={[]} bars={lyricBarLayout(lyrics, value, [])} rootChord="D" onCursor={cursor} onTiming={timing} onSaveIntroBars={save} />);
   try {
     await act(async () => render(rhythm));
     act(() => container.querySelector<HTMLButtonElement>('[aria-label="Play"]')!.click());
@@ -291,19 +292,32 @@ it.each(['Silent guide', 'Metronome', 'MIDI strum', 'MIDI only'])('uses the save
     expect(select.value).toBe('4');
     act(() => document.querySelector<HTMLButtonElement>('[role="menuitemcheckbox"]')!.click());
     await act(async () => Array.from(document.querySelectorAll<HTMLButtonElement>('[role="menuitem"]')).find(button => button.textContent!.startsWith(source))!.click());
-    const player = source === 'Silent guide' ? silent : audio;
+    const player = source === 'Lyrics only' ? silent : audio;
     expect(player.play).not.toHaveBeenCalled();
     await act(async () => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', code: 'ArrowRight' })));
     const music = player.play.mock.calls[0][0] as PracticePerformance;
-    expect(music.countInTicks).toBe(4 * music.barTicks);
-    expect(container.textContent).toContain('Intro: 4 bars remaining');
+    expect(music.countInTicks).toBe(music.barTicks);
+    expect(music.bars).toHaveLength(5); // four musical intro bars, then one lyric bar
+    expect(music.bars.slice(0, 4).map(bar => bar.chords)).toEqual(Array(4).fill([{ beat: 1, chord: 'D' }]));
     const progress = player.play.mock.calls[0][4] as (position: number) => void;
-    act(() => progress(-1.25));
-    expect(container.textContent).toContain('Intro: 2 bars remaining');
+    act(() => progress(-0.25));
+    expect(cursor).toHaveBeenLastCalledWith(null);
+    expect(timing).toHaveBeenLastCalledWith(expect.objectContaining({ position: -4.25, introBars: 4, introChord: 'D', introCountIn: true }));
     act(() => progress(0));
-    expect(container.textContent).not.toContain('bars remaining');
-    if (source === 'Silent guide') expect(music.notes).toHaveLength(0);
-    else expect(music.notes.filter(note => note.channel === 9 && note.tick < music.countInTicks)).toHaveLength(16);
+    expect(timing).toHaveBeenLastCalledWith(expect.objectContaining({ position: -4 }));
+    expect(cursor).toHaveBeenLastCalledWith(null);
+    act(() => progress(3.99));
+    expect(cursor).toHaveBeenLastCalledWith(null);
+    act(() => progress(4));
+    expect(cursor).toHaveBeenLastCalledWith(expect.objectContaining({ lineIndex: 1 }));
+    expect(timing).toHaveBeenLastCalledWith(expect.objectContaining({ position: 0 }));
+    expect(container.textContent).not.toContain('Pedal:');
+    if (source === 'Lyrics only') expect(music.notes).toHaveLength(0);
+    else expect(music.notes.filter(note => note.channel === 9 && note.tick < music.countInTicks)).toHaveLength(4);
+    expect(music.notes.filter(note => note.channel === 0 && note.tick < music.countInTicks)).toHaveLength(0);
+    if (source.startsWith('Guitar')) for (let bar = 0; bar < 4; bar++) {
+      expect(music.notes.some(note => note.channel === 0 && note.tick >= music.countInTicks + bar * music.barTicks && note.tick < music.countInTicks + (bar + 1) * music.barTicks)).toBe(true);
+    }
   } finally { act(() => root.unmount()); vi.clearAllMocks(); }
 });
 
@@ -324,7 +338,7 @@ it('measures the previous-slide window from the actual chord entry after a live 
     await act(async () => render(0));
     act(() => container.querySelector<HTMLButtonElement>('[aria-label="Play"]')!.click());
     act(() => document.querySelector<HTMLButtonElement>('[role="menuitemcheckbox"]')!.click());
-    await act(async () => Array.from(document.querySelectorAll<HTMLButtonElement>('[role="menuitem"]')).find(button => button.textContent!.startsWith('Silent guide'))!.click());
+    await act(async () => Array.from(document.querySelectorAll<HTMLButtonElement>('[role="menuitem"]')).find(button => button.textContent!.startsWith('Lyrics only'))!.click());
     await act(async () => {
       window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', code: 'ArrowRight' }));
       window.dispatchEvent(new KeyboardEvent('keyup', { key: 'ArrowRight', code: 'ArrowRight' }));
@@ -340,35 +354,6 @@ it('measures the previous-slide window from the actual chord entry after a live 
   } finally { act(() => root.unmount()); vi.clearAllMocks(); }
 });
 
-it('allows manual pedal navigation before arming and records phone key events without moving slides', async () => {
-  const navigate = vi.fn(), container = document.createElement('div'), root = createRoot(container);
-  try {
-    await act(async () => root.render(<LyricMusicControls rhythm={{ numerator: 4, denominator: 4, patterns: [], notes: '' }} lyrics="[V1]\nSing" sequence="V1" annotations={[]} bars={[]} onCursor={() => {}} onPedalNavigate={navigate} />));
-    act(() => container.querySelector<HTMLButtonElement>('[aria-label="Play"]')!.click());
-    act(() => document.querySelector<HTMLButtonElement>('[role="menuitemcheckbox"]')!.click());
-    // Close the menu without arming playback.
-    act(() => container.querySelector<HTMLButtonElement>('[aria-label="Play"]')!.click());
-    await act(async () => {
-      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', code: 'ArrowLeft' }));
-      window.dispatchEvent(new KeyboardEvent('keyup', { key: 'ArrowLeft', code: '' }));
-    });
-    expect(navigate).toHaveBeenCalledOnce();
-    expect(navigate).toHaveBeenCalledWith(-1);
-    act(() => container.querySelector<HTMLButtonElement>('[aria-label="Play"]')!.click());
-    act(() => Array.from(document.querySelectorAll<HTMLButtonElement>('[role="menuitem"]')).find(button => button.textContent!.startsWith('Test pedal'))!.click());
-    expect(container.textContent).toContain('No keys received yet');
-    navigate.mockClear();
-    await act(async () => {
-      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', code: 'ArrowRight' }));
-      window.dispatchEvent(new KeyboardEvent('keyup', { key: 'ArrowRight', code: '' }));
-    });
-    expect(container.textContent).toContain('keydown: ArrowRight');
-    expect(container.textContent).toContain('keyup: ArrowRight');
-    expect(navigate).not.toHaveBeenCalled();
-    expect(audio.play).not.toHaveBeenCalled();
-    expect(silent.play).not.toHaveBeenCalled();
-  } finally { act(() => root.unmount()); vi.clearAllMocks(); }
-});
 
 it('steps back repeatedly while jumps are pending and through the pickup before the first full bar', async () => {
   const lyrics = '[V1]\nVerse line\n[C]\nOpening\nSing together';
@@ -391,7 +376,7 @@ it('steps back repeatedly while jumps are pending and through the pickup before 
     await act(async () => render());
     act(() => container.querySelector<HTMLButtonElement>('[aria-label="Play"]')!.click());
     act(() => document.querySelector<HTMLButtonElement>('[role="menuitemcheckbox"]')!.click());
-    await act(async () => Array.from(document.querySelectorAll<HTMLButtonElement>('[role="menuitem"]')).find(button => button.textContent!.startsWith('Silent guide'))!.click());
+    await act(async () => Array.from(document.querySelectorAll<HTMLButtonElement>('[role="menuitem"]')).find(button => button.textContent!.startsWith('Lyrics only'))!.click());
     await act(async () => {
       window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', code: 'ArrowRight' }));
       window.dispatchEvent(new KeyboardEvent('keyup', { key: 'ArrowRight', code: 'ArrowRight' }));
@@ -420,5 +405,34 @@ it('steps back repeatedly while jumps are pending and through the pickup before 
     expect(occurrence).toBe(0); // C1 -> V1, before its first full bar begins
     expect(navigate.mock.calls).toEqual([[-1], [-1], [0], [-1]]);
     expect(silent.play).toHaveBeenCalledOnce();
+  } finally { act(() => root.unmount()); vi.clearAllMocks(); }
+});
+
+it.each([0, 2])('uses the opening song chord before a later selected slide (%i intro bars)', async intro_bars => {
+  const lyrics = '[V1]\nFirst line\n[C]\nSecond line';
+  const annotations = [{ id: 'v', section: 'V1', lineIndex: 0, anchorIndex: 3, chord: 'C' }, { id: 'c', section: 'C', lineIndex: 0, anchorIndex: 3, chord: 'G' }];
+  const rhythm: SongRhythm = { numerator: 4, denominator: 4, patterns: [], notes: '', intro_bars, markers: annotations.map(({ chord: _chord, ...marker }) => marker) };
+  const cursor = vi.fn(), timing = vi.fn(), container = document.createElement('div'), root = createRoot(container);
+  try {
+    await act(async () => root.render(<LyricMusicControls rhythm={rhythm} lyrics={lyrics} sequence="V1 C" annotations={annotations} bars={lyricBarLayout(lyrics, rhythm, annotations)} rootChord="D" startAt={{ occurrence: 1, lineStart: 3, lineEnd: 4 }} onCursor={cursor} onTiming={timing} />));
+    act(() => container.querySelector<HTMLButtonElement>('[aria-label="Play"]')!.click());
+    expect(document.querySelector('[aria-label="Pedal input test"]')).toBeNull();
+    expect(document.body.textContent).not.toContain('Test pedal');
+    act(() => document.querySelector<HTMLButtonElement>('[role="menuitemcheckbox"]')!.click());
+    await act(async () => Array.from(document.querySelectorAll<HTMLButtonElement>('[role="menuitem"]')).find(button => button.textContent!.startsWith('Guitar only'))!.click());
+    await act(async () => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', code: 'ArrowRight' }));
+      window.dispatchEvent(new KeyboardEvent('keyup', { key: 'ArrowRight', code: 'ArrowRight' }));
+    });
+    expect(container.querySelector('[role="alert"]')?.textContent).toBeUndefined();
+    const music = audio.play.mock.calls[0][0] as PracticePerformance;
+    expect(music.countInTicks).toBe(music.barTicks);
+    expect(music.bars.map(bar => bar.chords[0].chord)).toEqual([...Array(intro_bars).fill('C'), 'G']);
+    const position = audio.play.mock.calls[0][4] as (position: number) => void;
+    act(() => position(-0.5));
+    expect(cursor).toHaveBeenLastCalledWith(null);
+    act(() => position(intro_bars));
+    expect(cursor).toHaveBeenLastCalledWith(expect.objectContaining({ occurrence: 1, lineIndex: 3 }));
+    expect(timing).toHaveBeenLastCalledWith(expect.objectContaining({ startIndex: 1, position: 0 }));
   } finally { act(() => root.unmount()); vi.clearAllMocks(); }
 });

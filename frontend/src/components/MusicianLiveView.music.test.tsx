@@ -20,7 +20,7 @@ function toggleBars(container: HTMLElement, mode = "on") {
 }
 async function play(container: HTMLElement) {
   act(() => container.querySelector<HTMLButtonElement>('[aria-label="Play"]')!.click());
-  await act(async () => Array.from(document.querySelectorAll<HTMLButtonElement>('.musician-control-menu [role="menuitem"]')).find(button => button.textContent!.startsWith('Metronome'))!.click());
+  await act(async () => Array.from(document.querySelectorAll<HTMLButtonElement>('.musician-control-menu [role="menuitem"]')).find(button => button.textContent!.startsWith('Click only'))!.click());
 }
 
 it.each([false, true])('turns playback pages and publishes them only when synced (%s)', async (coupled) => {
@@ -471,7 +471,7 @@ it('restores mobile capture after enabling pedal mode and selecting playback', a
     expect(document.activeElement).toBe(capture);
     await press(); // Manual navigation still works before playback is armed.
     expect(container.querySelector('.musician-page.is-current')?.textContent).toContain('First');
-    const metronome = Array.from(document.querySelectorAll<HTMLButtonElement>('[role="menuitem"]')).find(button => button.textContent!.startsWith('Metronome'))!;
+    const metronome = Array.from(document.querySelectorAll<HTMLButtonElement>('[role="menuitem"]')).find(button => button.textContent!.startsWith('Click only'))!;
     await act(async () => { metronome.focus(); metronome.click(); });
     expect(document.activeElement).toBe(capture);
     expect(audio.play).not.toHaveBeenCalled();

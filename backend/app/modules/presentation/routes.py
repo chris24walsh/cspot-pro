@@ -217,7 +217,8 @@ class WorshipMusicTiming(BaseModel):
     plan_item_id: str = Field(min_length=1, max_length=100)
     start_index: int = Field(default=0, ge=0, le=255)
     first_bar_stop: int = Field(default=0, ge=0, le=256)
-    position: float = Field(default=-1, ge=-2, le=256, allow_inf_nan=False)
+    # One count-in bar plus up to sixteen intro bars, including scheduler lead time.
+    position: float = Field(default=-1, ge=-18, le=256, allow_inf_nan=False)
     bar_duration_ms: float = Field(ge=100, le=64000, allow_inf_nan=False)
     total_bars: int = Field(ge=1, le=256)
     updated_at: int = 0

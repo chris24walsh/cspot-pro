@@ -1134,7 +1134,7 @@ export function MusicianLiveView({ canUseMusic = false, canShareTiming = canUseM
         return;
       }
 
-      if (document.querySelector('[data-pedal-enabled="true"], [data-pedal-test="true"]')) return;
+      if (document.querySelector('[data-pedal-enabled="true"]')) return;
       const direction = slideKeyboardDirection(event);
       if (direction) {
         const eventKey = `${event.key}:${event.code}:${event.keyCode || event.which}`;
@@ -1400,7 +1400,7 @@ export function MusicianLiveView({ canUseMusic = false, canShareTiming = canUseM
     <div className="musician-live-toolbar">
       <div className="musician-live-title">
         <strong>{isWorshipEndSlide ? "Worship finished" : liveSong?.title ?? liveSlide?.sectionTitle ?? "Waiting for a song"}</strong>
-        <label className="musician-key-select-label">
+        <div className="musician-key-picker">
           <select
             aria-label="Choose guitar key and capo"
             onBlur={() => setKeySelectExpanded(false)}
@@ -1423,7 +1423,7 @@ export function MusicianLiveView({ canUseMusic = false, canShareTiming = canUseM
               </option>
             ))}
           </select>
-        </label>
+        </div>
       </div>
       <div className="musician-live-controls" aria-label="Musician display controls">
         <CompactControlMenu label="Musician" icon={<Guitar size={16} aria-hidden="true" />} active={showChords || musicMode}>
@@ -1454,7 +1454,7 @@ export function MusicianLiveView({ canUseMusic = false, canShareTiming = canUseM
             <button role="menuitem" aria-label={`Switch to ${readerMode === 'pages' ? 'Scroll' : 'Pages'} view`} onClick={() => { setReaderMode(value => value === 'pages' ? 'scroll' : 'pages'); close(); }} type="button">{readerMode === 'pages' ? <ScrollText size={16} /> : <BookOpen size={16} />}<span>{readerMode === 'pages' ? 'Scroll view' : 'Page view'}</span></button>
           </>}
         </CompactControlMenu>
-        {canUseMusic || canControlAudio ? <LyricMusicControls onRestoreKeyboardCapture={restoreKeyboardCapture} onSaveIntroBars={onSaveRhythm && liveSong?.rhythm ? bars => onSaveRhythm(liveSong, { ...liveSong.rhythm!, intro_bars: bars }) : undefined} onPedalNavigate={direction => { if (direction) moveLive(direction); else { navigationGenerationRef.current += 1; void publishWorshipSlide(liveIndex, navigationGenerationRef.current); } }} startAt={leadPageContext.occurrence >= 0 ? { occurrence: leadPageContext.occurrence, lineStart: leadPageContext.sourceOffset, lineEnd: leadPageContext.sourceOffset + lyricLines(pageLeadSlide?.text ?? "").length } : undefined} jumpRevision={playFrom?.revision ?? 0} onJumpPending={pending => { jumpHoldRef.current = pending; setJumpPending(pending); if (!pending) { lastMusicPageRef.current = null; manualScrollDestination.current = null; manualScrollPaused.current = false; } }} rhythm={liveSong?.rhythm} lyrics={liveSong?.lyrics} sequence={liveSong?.sequence} annotations={chordChart.annotations} bars={timingBars} transpose={currentAbsoluteKey ? semitoneDistance(baseAbsoluteKey, currentAbsoluteKey) : 0} canPractice={canUseMusic} onStarted={() => { setLocalPlaybackActive(true); if (liveSong && liveItem) setPlaybackContext({ songId: liveSong.id, itemId: liveItem.id }); }} onJumpCommitted={() => { if (liveSong && liveItem) { sharedTiming.setLocalSource(liveSong.id, liveItem.id); setPlaybackContext({ songId: liveSong.id, itemId: liveItem.id }); } }} onTiming={timing => { setLocalPlaybackActive(Boolean(timing)); setLocalTiming(timing); sharedTiming.setLocalTiming(timing); }} onCursor={setMusicCursor} backing={canControlAudio ? { playing: backingAudioPlaying, disabledReason: !worshipCoupled ? 'Sync with the service first' : !backingAudioAvailable ? 'No backing track for this song' : undefined, toggle: toggleBackingAudio } : undefined} /> : null}
+        {canUseMusic || canControlAudio ? <LyricMusicControls rootChord={baseAbsoluteKey} onRestoreKeyboardCapture={restoreKeyboardCapture} onSaveIntroBars={onSaveRhythm && liveSong?.rhythm ? bars => onSaveRhythm(liveSong, { ...liveSong.rhythm!, intro_bars: bars }) : undefined} onPedalNavigate={direction => { if (direction) moveLive(direction); else { navigationGenerationRef.current += 1; void publishWorshipSlide(liveIndex, navigationGenerationRef.current); } }} startAt={leadPageContext.occurrence >= 0 ? { occurrence: leadPageContext.occurrence, lineStart: leadPageContext.sourceOffset, lineEnd: leadPageContext.sourceOffset + lyricLines(pageLeadSlide?.text ?? "").length } : undefined} jumpRevision={playFrom?.revision ?? 0} onJumpPending={pending => { jumpHoldRef.current = pending; setJumpPending(pending); if (!pending) { lastMusicPageRef.current = null; manualScrollDestination.current = null; manualScrollPaused.current = false; } }} rhythm={liveSong?.rhythm} lyrics={liveSong?.lyrics} sequence={liveSong?.sequence} annotations={chordChart.annotations} bars={timingBars} transpose={currentAbsoluteKey ? semitoneDistance(baseAbsoluteKey, currentAbsoluteKey) : 0} canPractice={canUseMusic} onStarted={() => { setLocalPlaybackActive(true); if (liveSong && liveItem) setPlaybackContext({ songId: liveSong.id, itemId: liveItem.id }); }} onJumpCommitted={() => { if (liveSong && liveItem) { sharedTiming.setLocalSource(liveSong.id, liveItem.id); setPlaybackContext({ songId: liveSong.id, itemId: liveItem.id }); } }} onTiming={timing => { setLocalPlaybackActive(Boolean(timing)); setLocalTiming(timing); sharedTiming.setLocalTiming(timing); }} onCursor={setMusicCursor} backing={canControlAudio ? { playing: backingAudioPlaying, disabledReason: !worshipCoupled ? 'Sync with the service first' : !backingAudioAvailable ? 'No backing track for this song' : undefined, toggle: toggleBackingAudio } : undefined} /> : null}
         {servicePlan ? <button aria-label={worshipSyncOverridden ? "Worship sync is enabled but the service view has moved outside worship" : worshipCoupled ? "Stop syncing Worship Live with service and move after worship" : "Sync Worship Live with service"} aria-pressed={worshipCoupled} className={`musician-service-couple-button ${worshipCoupled ? "is-active" : ""} ${worshipSyncOverridden ? "is-overridden" : ""}`} onClick={() => void toggleServiceCoupling()} title={worshipSyncOverridden ? "Service view moved outside worship. Change a worship slide to resync." : worshipCoupled ? "Stop syncing and go after worship" : "Sync with service"} type="button">{worshipCoupled ? <Unlink2 size={16} aria-hidden="true" /> : <Link2 size={16} aria-hidden="true" />}<span className="musician-control-text">Sync</span></button> : null}
         <button aria-label="Edit song" className="musician-edit-button" disabled={!liveSong} onClick={() => { if (liveSong) onEditSong(liveSong); }} title="Edit song" type="button"><Pencil size={16} aria-hidden="true" /><span className="musician-control-text">Edit</span></button>
         <button className="musician-fullscreen-button" onClick={onExit} type="button" aria-label="Exit live worship">
@@ -1474,7 +1474,7 @@ export function MusicianLiveView({ canUseMusic = false, canShareTiming = canUseM
         // focus, rather than only before it on pointerdown. Keep form editing native.
         if (event.target instanceof Element && event.target.closest('.musician-live-stage')
           && !isEditableKeyboardTarget(event.target)
-          && !event.target.closest('[role="dialog"], [role="menu"], .pedal-input-test')) {
+          && !event.target.closest('[role="dialog"], [role="menu"]')) {
           keyCaptureRef.current?.focus({ preventScroll: true });
         }
       }}
@@ -1573,7 +1573,7 @@ export function MusicianLiveView({ canUseMusic = false, canShareTiming = canUseM
           "--musician-live-font-size": `${liveFontSize}px`,
         } as CSSProperties & Record<"--musician-content-width" | "--musician-live-font-size", string>}
       >
-        {showBeatKeeper && liveSlide?.itemType === "song" ? <BeatKeeper position={beatPosition} count={beatCount} introBars={localPlaybackActive ? localTiming?.introBars : undefined} /> : null}
+        {showBeatKeeper && liveSlide?.itemType === "song" ? <BeatKeeper position={beatPosition} count={beatCount} introBars={localPlaybackActive ? localTiming?.introBars : undefined} introChord={localTiming?.introChord} introCountIn={localTiming?.introCountIn} /> : null}
         {!liveSlide ? (
           <p className="empty-state compact-empty">
             <Music2 size={18} aria-hidden="true" />

@@ -1387,67 +1387,36 @@ rather than waiting for the next two-second heartbeat. Polling intervals and
 local clock animation rates remain unchanged; no LAN transport is introduced.
 
 
-Worship Live's playback menu offers an opt-in **Pedal mode** (off on entry).
-Enable it, then select Silent guide, Metronome, MIDI strum or MIDI only: selection
-arms playback without starting it. A right pedal/arrow tap starts the selected
-mode immediately on keydown (including resume); releasing that press does not
-trigger another command. An **Intro** dropdown beside the Pedal toggle saves
-0–16 intro bars per song in `rhythm.intro_bars`, defaulting to 2 for existing songs.
-When Pedal mode is on, these exact bars replace the ordinary lead-in before the
-selected lyric position, including songs with opening rests. Silent guide keeps
-the intro silent; audible modes click throughout the intro. The intro countdown
-and beat keeper run before lyrics and auto-scroll begin. Beside the beat pulses,
-a square fills one segment per intro bar (halves for two bars, quadrants for four),
-with a numerical bars-to-lyrics countdown. The indicator disappears at lyric entry. Changing the dropdown
-requires song editing permission; failed saves show a playback error. During playback, right tap advances one slide; left tap restarts the current
-slide, or selects the previous slide when pressed before halfway through the
-current slide's entry bar. The early-back window uses keydown timing and the
-same first-chord entry as live restarts, even when the chord follows an opening
-rest or the bar spans slides. Slide changes commit at the next bar using the existing
-live segue. Hold right for at least 0.6 seconds and release to pause/resume;
-resume starts the current bar again after the song's configured intro.
-Hold left and release to open a large section selector; tap left/right to choose
-an arrangement occurrence, hold right to confirm, or hold left to cancel. Playback
-continues while choosing; confirmation during playback queues the section at the
-next bar. Repeating a section continues the arrangement from that occurrence.
-Other commands act on key release so holds never also trigger taps. Hardware key repeats
-are ignored, and focus loss clears held keys. Keyboard arrows or Page Up/Down can
-be used to rehearse these controls; ordinary navigation is unchanged with Pedal
-mode off. Pedal control applies to local guided playback, not backing-track audio
-or another device's shared timing. Auto-scroll must also be enabled in scroll view.
+Worship Live playback offers **Lyrics only**, **Click only**, **Guitar + click**,
+and **Guitar only**, plus **Backing track** where available. Pedal mode is opt-in
+and off on entry. Select a mode to arm it; the right pedal starts on keydown,
+and releasing that starting press does not issue another command. The Play
+menu retains the inline Pedal toggle and per-song **Intro** dropdown (0–16 bars,
+default 2, saved in `rhythm.intro_bars` with song editing permission).
 
-Worship Live keeps a read-only keyboard capture target on phones/tablets, with
-`inputMode="none"`, and restores capture when the lyric surface is tapped.
-Closed menu triggers no longer suppress ordinary arrow navigation. Pedal mode
-also allows manual navigation before a playback mode is armed. Press/release
-matching uses the interpreted direction so an empty mobile keyup `code` does
-not strand the press. **Play → Test pedal** focuses an input-test panel and
-shows the last six raw keydown/keyup events and interpreted directions while
-suspending slide commands. This can distinguish missing browser delivery from
-unrecognised keys or missing release events on actual phones and tablets.
+Pedal starts use one full count-in bar, then the configured number of musical
+intro bars on the song's first chord, falling back to its root key. Lyrics only
+keeps both phases silent; Click only provides clicks; Guitar + click strums the
+intro with clicks; Guitar only clicks the count-in then strums without clicks.
+Lyrics, highlighting and page-following wait until the intro finishes. The beat
+keeper labels the count-in, then fills a square one segment per intro bar and
+shows the chord and bars remaining. A zero-bar intro still has the one-bar
+count-in. The same preparation applies when resuming; manual live segues do not
+insert a new intro. Shared timing accepts the full negative preparation window.
 
-Service and Worship views share `SlideKeyCapture`: a mobile read-only hardware
-keyboard target focused on initial mount and view activation. Service view no
-longer depends on first visiting Worship to initialise mobile pedal capture.
-Search and editing overlays suspend Service capture, and actual form fields keep
-their normal keyboard handling.
+During playback, right tap advances a slide. Left tap restarts the current slide
+unless a destination is queued or playback is within its pickup/entry bar or the
+first half of its first full bar; in those cases it steps back. Repeated taps can
+walk back several slides without waiting for each segue. Decisions use keydown
+timing; tap/hold actions execute on release. Hold left for 0.6 seconds to choose
+a section; tap left/right to select, hold right to confirm, or hold left to cancel.
+Hold right during playback to pause. Hardware repeats are ignored. Before arming,
+pedal presses navigate manually. Superseded jumps cannot release newer holds.
 
-In Worship Live pedal playback, left taps can continue stepping backwards while
-a manual destination is queued and throughout its partial entry/pickup bar,
-then until halfway through its first full bar. This allows several quick taps
-to walk back multiple slides without waiting for each segue. Later taps restart
-the selected slide as before. Superseded jump commits cannot clear a newer
-pending destination.
-
-Worship Live explicitly returns hardware-keyboard focus to `SlideKeyCapture`
-when toggling Pedal mode, choosing a playback mode, stopping playback, or closing
-the pedal test. This happens inside the user action, so mobile capture is not
-left on a menu button. A regression test dispatches pedal events from the actual
-focused element through toggle, arm, start and live navigation.
-
-All compact menus within Worship Live now share the presenter's keyboard-focus
-restoration through `SlideKeyboardCaptureContext`. Closing a menu by action,
-trigger or tapping non-interactive background returns capture; real form controls
-keep their focus. Tapping a lyric block restores capture after its click, since
-scroll-view lyric parts are themselves focusable buttons. Playback and queued
-segues continue during menu use.
+Service and Worship share `SlideKeyCapture`, read-only on mobile with
+`inputMode="none"`, focused on initial mount and activation. Worship menus share
+`SlideKeyboardCaptureContext` to restore capture on close; lyric taps restore
+capture after the focusable lyric block's click. Actual form editing retains
+native focus. The diagnostic pedal test and topbar pedal instructions have been
+removed. The key picker has its own bounded hit area; mobile Worship toolbar
+buttons have at least 44×44-pixel targets, including the landscape control rail.
