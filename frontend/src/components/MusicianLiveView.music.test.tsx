@@ -445,3 +445,40 @@ it('keeps a read-only mobile keyboard target and accepts arrows from a closed me
     expect(container.querySelector('.musician-page.is-current')?.textContent?.replace(/\s/g, ' ')).toContain('First line');
   } finally { act(() => root.unmount()); container.remove(); userAgent.mockRestore(); vi.clearAllMocks(); }
 });
+
+it('restores mobile capture after enabling pedal mode and selecting playback', async () => {
+  const userAgent = vi.spyOn(window.navigator, 'userAgent', 'get').mockReturnValue('Mozilla/5.0 (iPhone) CriOS/120 Mobile');
+  vi.stubGlobal('matchMedia', () => ({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() }));
+  vi.mocked(getPresentationLiveState).mockResolvedValue({ plan_id: 'plan', index: 0, updated_at: 1, worship_coupled: false, plan_item_id: 'item', slide_offset: 0 } as Awaited<ReturnType<typeof getPresentationLiveState>>);
+  const song = { id: 'song', title: 'Pedal test', lyrics: '[V1]\nFirst line\n[C]\nSecond line', sequence: 'V1 C', chords: null,
+    rhythm: { numerator: 4, denominator: 4, patterns: [], notes: '', markers: [
+      { id: 'v', section: 'V1', lineIndex: 0, anchorIndex: 3 }, { id: 'c', section: 'C', lineIndex: 0, anchorIndex: 3 },
+    ] } } as unknown as Song;
+  const plan = { id: 'plan', items: [{ id: 'item', item_type: 'song', song_id: 'song', sequence: '1', title: song.title }] } as PlanDetail;
+  const container = document.createElement('div'), mount = document.createElement('div'), toolbar = document.createElement('div');
+  container.append(mount, toolbar); document.body.append(container);
+  const root = createRoot(mount);
+  const press = async () => act(async () => {
+    document.activeElement!.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', code: 'ArrowRight', bubbles: true }));
+    document.activeElement!.dispatchEvent(new KeyboardEvent('keyup', { key: 'ArrowRight', code: 'ArrowRight', bubbles: true }));
+  });
+  try {
+    await act(async () => root.render(<MusicianLiveView canUseMusic plan={plan} songs={[song]} topbarSlot={toolbar} onEditSong={() => {}} onExit={() => {}} />));
+    const capture = container.querySelector<HTMLInputElement>('[data-slide-key-capture]')!;
+    act(() => container.querySelector<HTMLButtonElement>('[aria-label="Play"]')!.click());
+    const toggle = document.querySelector<HTMLButtonElement>('[role="menuitemcheckbox"]')!;
+    act(() => { toggle.focus(); toggle.click(); });
+    expect(document.activeElement).toBe(capture);
+    await press(); // Manual navigation still works before playback is armed.
+    expect(container.querySelector('.musician-page.is-current')?.textContent).toContain('First');
+    const metronome = Array.from(document.querySelectorAll<HTMLButtonElement>('[role="menuitem"]')).find(button => button.textContent!.startsWith('Metronome'))!;
+    await act(async () => { metronome.focus(); metronome.click(); });
+    expect(document.activeElement).toBe(capture);
+    expect(audio.play).not.toHaveBeenCalled();
+    await press();
+    expect(audio.play).toHaveBeenCalledOnce();
+    act(() => (audio.play.mock.calls[0][4] as (position: number) => void)(0.1));
+    await press();
+    expect(audio.queuePerformance).toHaveBeenCalledOnce();
+  } finally { act(() => root.unmount()); container.remove(); userAgent.mockRestore(); vi.clearAllMocks(); }
+});

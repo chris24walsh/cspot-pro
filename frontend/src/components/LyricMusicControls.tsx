@@ -14,7 +14,8 @@ type StartPosition = { occurrence: number; lineStart: number; lineEnd: number };
 
 export interface MusicTimingProgress { startIndex: number; position: number; barDurationMs: number; totalBars: number; introBars?: number; firstBarStop?: number }
 
-export function LyricMusicControls({ rhythm, lyrics, sequence, annotations, bars, transpose = 0, onCursor, onStarted, canPractice = true, backing, startAt, onTiming, jumpRevision = 0, onJumpPending, onJumpCommitted, onPedalNavigate, onSaveIntroBars }: {
+export function LyricMusicControls({ rhythm, lyrics, sequence, annotations, bars, transpose = 0, onCursor, onStarted, canPractice = true, backing, startAt, onTiming, jumpRevision = 0, onJumpPending, onJumpCommitted, onPedalNavigate, onSaveIntroBars, onRestoreKeyboardCapture }: {
+  onRestoreKeyboardCapture?: () => void;
   onSaveIntroBars?: (bars: number) => Promise<void>;
   onPedalNavigate?: (direction: -1 | 0 | 1) => void;
   rhythm: SongRhythm | null | undefined; lyrics: string | null | undefined; sequence: string | null | undefined;
@@ -209,6 +210,7 @@ export function LyricMusicControls({ rhythm, lyrics, sequence, annotations, bars
     } catch (cause) { if (player && playerRef.current !== player) return; stop(); setError(cause instanceof Error ? cause.message : 'Could not start playback.'); }
   }
   function selectMode(mode: PlayMode) {
+    onRestoreKeyboardCapture?.();
     if (pedalEnabled) { stop(); resumeAt.current = undefined; setArmedMode(mode); }
     else void listen(mode);
   }
@@ -224,16 +226,16 @@ export function LyricMusicControls({ rhythm, lyrics, sequence, annotations, bars
       <p>Tap this panel, then press and release each pedal. Slides stay put during this test.</p>
       {pedalEvents.length ? <ul>{pedalEvents.map((event, index) => <li key={index}>{event}</li>)}</ul> : <p>No keys received yet.</p>}
       <button type="button" onClick={() => setPedalEvents([])}>Clear</button>
-      <button type="button" onClick={() => setTestingPedal(false)}>Done</button>
+      <button type="button" onClick={() => { setTestingPedal(false); onRestoreKeyboardCapture?.(); }}>Done</button>
     </div> : null}
     {introRemaining !== null ? <small role="status">Intro: {introRemaining} {introRemaining === 1 ? "bar" : "bars"} remaining</small> : null}
     {jumpPending ? <small role="status">Play from here on the next bar…</small> : null}
-    <CompactControlMenu label={playing || backing?.playing ? 'Stop playback' : 'Play'} icon={playing || backing?.playing ? <Square size={16} aria-hidden="true" /> : <Play size={16} aria-hidden="true" />} active={playing || backing?.playing} action={playing || backing?.playing ? () => { if (playing) stop(); else void backing?.toggle(); } : undefined}>
+    <CompactControlMenu label={playing || backing?.playing ? 'Stop playback' : 'Play'} icon={playing || backing?.playing ? <Square size={16} aria-hidden="true" /> : <Play size={16} aria-hidden="true" />} active={playing || backing?.playing} action={playing || backing?.playing ? () => { if (playing) stop(); else void backing?.toggle(); onRestoreKeyboardCapture?.(); } : undefined}>
       {close => <>
         {canPractice ? <>
           <button role="menuitem" type="button" onClick={() => { close(); stop(); setPedalEvents([]); setTestingPedal(true); }}><Footprints size={16} aria-hidden="true" /><span>Test pedal<small>Check phone/tablet keydown and keyup</small></span></button>
           <div className="pedal-playback-options">
-            <button role="menuitemcheckbox" aria-checked={pedalEnabled} onClick={() => { stop(); setArmedMode(null); setChooser(null); resumeAt.current = undefined; setPedalEnabled(!pedalEnabled); }} type="button"><Footprints size={16} aria-hidden="true" /><span>Pedal mode: {pedalEnabled ? 'On' : 'Off'}</span></button>
+            <button role="menuitemcheckbox" aria-checked={pedalEnabled} onClick={() => { stop(); setArmedMode(null); setChooser(null); resumeAt.current = undefined; setPedalEnabled(!pedalEnabled); onRestoreKeyboardCapture?.(); }} type="button"><Footprints size={16} aria-hidden="true" /><span>Pedal mode: {pedalEnabled ? 'On' : 'Off'}</span></button>
             <label>Intro<select aria-label="Song intro bars" value={rhythm?.intro_bars ?? 2} disabled={!rhythm || !onSaveIntroBars || savingIntro} title={!onSaveIntroBars ? 'Song editing permission required' : 'Saved for this song · used when Pedal mode is on'} onChange={async event => {
               const bars = Number(event.target.value);
               setSavingIntro(true); setError(null);

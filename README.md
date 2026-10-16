@@ -760,3 +760,9 @@ then until halfway through its first full bar. This allows several quick taps
 to walk back multiple slides without waiting for each segue. Later taps restart
 the selected slide as before. Superseded jump commits cannot clear a newer
 pending destination.
+
+Worship Live explicitly returns hardware-keyboard focus to `SlideKeyCapture`
+when toggling Pedal mode, choosing a playback mode, stopping playback, or closing
+the pedal test. This happens inside the user action, so mobile capture is not
+left on a menu button. A regression test dispatches pedal events from the actual
+focused element through toggle, arm, start and live navigation.
