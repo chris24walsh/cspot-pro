@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Activity, RefreshCw, Search, SlidersHorizontal, Save, Unplug, Radio } from 'lucide-react';
 import { buildAbsoluteApiUrl } from '../api';
-import { displayValue, emptyMixer, fromWire, mixerRequest, toWire, type MixerParameter, type MixerState, type MixerStrip } from '../xr18';
+import { displayValue, emptyMixer, fromWire, mixerRequest, physicalHeadamp, toWire, type MixerParameter, type MixerState, type MixerStrip } from '../xr18';
 import './Xr18MixerPanel.css';
 type Catalog = {
   strips: MixerStrip[];
@@ -203,7 +203,8 @@ export function Xr18MixerPanel() {
   }
   const strip = catalog.strips.find(s => s.id === selected);
   const parameters = Object.values(catalog.parameters).map(p => state.fx_specs[p.path] || p);
-  const selectedParameters = parameters.filter(p => p.path.startsWith(selected + '/') || selected.startsWith('/ch/') && p.path.startsWith('/headamp/' + selected.split('/')[2] + '/'));
+  const headamp = physicalHeadamp(state.values, selected);
+  const selectedParameters = parameters.filter(p => p.path.startsWith(selected + '/') || headamp !== null && p.path.startsWith(headamp + '/'));
   const groups = Array.from(new Set(selectedParameters.map(p => p.group)));
   const visible = catalog.strips.filter(s => bank === 'all' || bank === 'inputs' && s.kind === 'input' || bank === 'returns' && ['return', 'aux'].includes(s.kind) || bank === 'outputs' && ['bus', 'fxsend', 'dca'].includes(s.kind));
   const inspectorGroup = groups.includes(group) ? group : groups[0];
@@ -231,7 +232,7 @@ export function Xr18MixerPanel() {
               length: 10
             }, (_, i) => <option key={i} value={String(i + 1).padStart(2, '0')}>{i < 6 ? `Bus ${i + 1}` : `FX ${i - 5}`}</option>)}</select></label></div>{sendBus && <p className="xr-notice">Faders now adjust sends to {Number(sendBus) <= 6 ? `Bus ${Number(sendBus)}` : `FX ${Number(sendBus) - 6}`}. Mute buttons still mute the whole channel.</p>}
     <div className="xr-desk"><div className="xr-strip-scroll">{visible.filter(s => s.kind !== 'main').map(s => renderStrip(s))}</div>{main && renderStrip(main, true)}</div>
-    <div className="xr-inspector"><header><h3>{String(state.values[selected + '/config/name'] || strip?.name || 'Channel')} <small>{selected}</small></h3><span><Activity size={14} /> Live readback</span></header><nav className="xr-tabs" aria-label="Channel processing">{groups.map(g => <button key={g} className={inspectorGroup === g ? 'is-active' : ''} onClick={() => setGroup(g)}>{g}</button>)}</nav><div className="xr-control-grid">{shown.map(p => <div key={p.path}>{renderControl(p)}</div>)}</div></div></> : page === 'snapshots' ? <div className="xr-snapshots"><h3>Local desk snapshots</h3><p>Save the parameters read by cspot. Recalls preserve physical preamp gain and phantom power. These snapshots are separate from the mixer's internal scenes.</p><form onSubmit={e => {
+    <div className="xr-inspector"><header><h3>{String(state.values[selected + '/config/name'] || strip?.name || 'Channel')} <small>{selected}</small></h3><span><Activity size={14} /> Live readback</span></header><nav className="xr-tabs" aria-label="Channel processing">{groups.map(g => <button key={g} className={inspectorGroup === g ? 'is-active' : ''} onClick={() => setGroup(g)}>{g}</button>)}</nav>{inspectorGroup === 'Headamp' && headamp && <p className="xr-notice">Physical input {Number(headamp.split('/')[2])} · Gain and 48V follow the channel's analog input assignment.</p>}<div className="xr-control-grid">{shown.map(p => <div key={p.path}>{renderControl(p)}</div>)}</div></div></> : page === 'snapshots' ? <div className="xr-snapshots"><h3>Local desk snapshots</h3><p>Save the parameters read by cspot. Recalls preserve physical preamp gain and phantom power. These snapshots are separate from the mixer's internal scenes.</p><form onSubmit={e => {
         e.preventDefault();
         void run(async () => {
           await mixerRequest('/snapshots', 'POST', {

@@ -581,3 +581,6 @@ for strip in STRIPS:
     )
 for i in range(1, 17):
     add(f"/ch/{i:02}/config/icon", "Channel icon ID", "Setup", "int", hi=74)
+
+PARAMETERS['/routing/main/01/src']['label'] = 'Main LR output source'
+PARAMETERS['/routing/main/02/src']['label'] = 'Headphones output source'

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { fromWire, toWire, type MixerParameter } from './xr18';
+import { fromWire, physicalHeadamp, toWire, type MixerParameter } from './xr18';
 const spec: MixerParameter = {
   path: '/test',
   label: 'Test',
@@ -38,4 +38,10 @@ describe('XR18 physical-unit conversion', () => {
       for (const wire of [0, .1, .5, .9, 1]) expect(toWire(item, fromWire(item, wire))).toBeCloseTo(wire);
     }
   });
+});
+
+it('selects the physical preamp assigned to a channel, including repatched inputs', () => {
+  expect(physicalHeadamp({'/ch/01/config/insrc':6}, '/ch/01')).toBe('/headamp/07');
+  expect(physicalHeadamp({'/ch/01/config/insrc':16}, '/ch/01')).toBeNull();
+  expect(physicalHeadamp({}, '/ch/01')).toBeNull();
 });

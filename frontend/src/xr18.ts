@@ -93,3 +93,9 @@ export async function mixerRequest<T>(path: string, method = 'GET', body?: unkno
     clearTimeout(timeout);
   }
 }
+
+export function physicalHeadamp(values: Record<string, number | string>, channel: string) {
+  const source = values[channel + '/config/insrc'];
+  if (!channel.startsWith('/ch/') || typeof source !== 'number' || source < 0 || source > 15) return null;
+  return `/headamp/${String(source + 1).padStart(2, '0')}`;
+}
