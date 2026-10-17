@@ -126,3 +126,94 @@ def test_mixer_endpoints_require_authentication():
         client.post("/api/v1/mixer/command", json={"path": "/ch/01/mix/on", "value": 1}).status_code
         == 401
     )
+
+
+def test_events_are_uncompressed_and_both_clients_receive_changes(monkeypatch):
+    import json
+    from types import SimpleNamespace
+    from app.modules.mixer import routes
+
+    class Desk:
+        def __init__(self):
+            self.values = {"/ch/01/mix/fader": 0.5}
+
+        async def configure(self, host):
+            assert host == "192.168.2.141"
+
+        def snapshot(self):
+            return {"host": "192.168.2.141", "values": self.values.copy(), "fx_specs": {}}
+
+    desk = Desk()
+    monkeypatch.setattr(routes, "engine", desk)
+    monkeypatch.setattr(routes, "config", lambda session: SimpleNamespace(host="192.168.2.141"))
+
+    async def scenario():
+        session = SimpleNamespace(close=lambda: None)
+        left = await routes.events(session)
+        right = await routes.events(session)
+        assert "no-transform" in left.headers["cache-control"]
+        assert left.headers["content-encoding"] == "identity"
+        assert left.headers["x-accel-buffering"] == "no"
+        streams = [left.body_iterator, right.body_iterator]
+
+        def data(frame):
+            return json.loads(frame.removeprefix("data: ").strip())
+
+        try:
+            for stream in streams:
+                assert data(await anext(stream))["reset"] is True
+            desk.values["/ch/01/mix/fader"] = 0.8
+            for stream in streams:
+                update = data(await anext(stream))
+                assert update["reset"] is False
+                assert update["values"]["/ch/01/mix/fader"] == 0.8
+                assert data(await anext(stream))["values"] == {}
+        finally:
+            for stream in streams:
+                await stream.aclose()
+
+    asyncio.run(scenario())
+
+
+def test_command_batch_validates_before_any_hardware_writes(monkeypatch):
+    from fastapi import HTTPException
+    from app.modules.mixer import routes
+
+    desk = MixerEngine()
+    desk.host = "192.168.2.141"
+    desk.identity = ["192.168.2.141", "Test", "XR18V2", "1.19"]
+    desk.last_seen = time.monotonic()
+    sent = []
+
+    class Transport:
+        def sendto(self, packet, address):
+            sent.append(decode(packet))
+
+    desk.transport = Transport()
+    desk.values = {"/ch/01/mix/fader": 0.5, "/ch/01/mix/on": 1, "/headamp/01/phantom": 0}
+    monkeypatch.setattr(routes, "engine", desk)
+
+    async def scenario():
+        with pytest.raises(HTTPException):
+            await routes.commands(
+                routes.Commands(
+                    commands=[
+                        routes.Command(path="/ch/01/mix/fader", value=0.8),
+                        routes.Command(path="/headamp/01/phantom", value=1),
+                    ]
+                )
+            )
+        assert sent == []
+        result = await routes.commands(
+            routes.Commands(
+                commands=[
+                    routes.Command(path="/ch/01/mix/fader", value=0.8),
+                    routes.Command(path="/ch/01/mix/on", value=0),
+                ]
+            )
+        )
+        assert result["paths"] == ["/ch/01/mix/fader", "/ch/01/mix/on"]
+        assert sent[0] == ("/ch/01/mix/fader", [pytest.approx(0.8)])
+        assert sent[2] == ("/ch/01/mix/on", [0])
+
+    asyncio.run(scenario())

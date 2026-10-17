@@ -730,3 +730,8 @@ The XR18 desk now targets approximately 10-inch tablets with adaptive channel
 banks and a pinned main fader, collapsible setup/channel editing, expanded desk
 view and relative multi-pointer faders. Desktop keyboard controls and compact
 phone navigation remain available. See [XR18 layout](xr18-mixer.md#desktop-tablet-and-phone-layout).
+
+XR18 realtime verification must cover the complete public website route: proxy
+compression previously stalled SSE despite fast local commands. Events now
+forbid compression/transformation, recover automatically, and command batches
+retain only the latest pending value per parameter on slow connections.

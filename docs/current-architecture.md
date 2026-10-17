@@ -1443,3 +1443,10 @@ XR18 layout uses the measured panel width rather than device detection, adapting
 banks as app navigation or orientation changes. `MixerFader` owns independent
 pointer capture and relative movement for each strip; `mixerLayout` computes
 bank capacity with space reserved for Main LR. Layout changes send no OSC commands.
+
+XR18 commands use a single in-flight browser batch with latest-value coalescing
+per parameter; the original single-command endpoint remains compatible. The
+stream explicitly forbids proxy compression/transformation through the public
+website rewrite and gateway. Clients detect silent stalls and reopen a complete
+snapshot when returning from a background tab. Pending local feedback remains
+separate from authoritative hardware readback.

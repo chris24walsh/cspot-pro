@@ -225,7 +225,7 @@ class MixerEngine(asyncio.DatagramProtocol):
             ticks += 1
             await asyncio.sleep(0.25)
 
-    async def write(self, path, value):
+    def command_value(self, path, value):
         if path in self.fx_specs and self.fx_specs[path]["kind"] == "int":
             if (
                 not isinstance(value, (int, float))
@@ -241,6 +241,10 @@ class MixerEngine(asyncio.DatagramProtocol):
             raise ValueError("Mixer is offline; reconnect before changing controls")
         if path not in self.values:
             raise ValueError("Parameter has not been read from this mixer")
+        return value
+
+    async def write(self, path, value):
+        value = self.command_value(path, value)
         self.pending[path] = (value, time.monotonic(), 0)
         self.failed.pop(path, None)
         self.send(path, value)

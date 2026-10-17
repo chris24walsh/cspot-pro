@@ -71,6 +71,7 @@ afterEach(async () => {
   vi.unstubAllGlobals();
   vi.clearAllMocks();
   vi.restoreAllMocks();
+  vi.useRealTimers();
 });
 function emit(data: object) {
   act(() => stream.onmessage?.({
@@ -184,4 +185,66 @@ it('keeps desk gestures and snapshot controls out of the surrounding Broadcast s
   act(()=>Array.from(container.querySelectorAll<HTMLButtonElement>('button')).find(b=>b.textContent==='Snapshots')!.click());
   expect(container.querySelector('form')).toBeNull();
   parent.before(container);parent.remove();
+});
+
+it('shows mute changes immediately and keeps the newest intent until hardware readback', async()=>{
+  emit({...emptyMixer,reset:true,connected:true,values:{'/ch/01/mix/on':1,'/ch/01/mix/fader':.5}});
+  const releases:Array<()=>void>=[];
+  const original=vi.mocked(mixerRequest).getMockImplementation()!;
+  vi.mocked(mixerRequest).mockImplementation(async(path,...args)=>{
+    if(path==='/commands')return new Promise<void>(resolve=>releases.push(resolve));
+    return original(path,...args);
+  });
+  const mute=container.querySelector<HTMLButtonElement>('.xr-mute')!;
+  await act(async()=>mute.click());
+  expect(mute.textContent).toBe('MUTED');
+  await act(async()=>mute.click());
+  expect(mute.textContent).toBe('Mute');
+  expect(vi.mocked(mixerRequest).mock.calls.filter(([path])=>path==='/commands')).toHaveLength(1);
+  emit({...emptyMixer,connected:true,reset:false,values:{'/ch/01/mix/on':0}});
+  expect(mute.textContent).toBe('Mute');
+  await act(async()=>releases.shift()!());
+  expect(vi.mocked(mixerRequest).mock.calls.filter(([path])=>path==='/commands')).toHaveLength(2);
+  await act(async()=>releases.shift()!());
+  emit({...emptyMixer,connected:true,reset:false,values:{'/ch/01/mix/on':1}});
+  expect(container.textContent).toContain('No pending changes');
+});
+it('reconnects with a new full snapshot when returning from a background tab',()=>{
+  emit({...emptyMixer,reset:true,connected:true,values:{'/ch/01/mix/fader':.5}});
+  const previous=stream;
+  const visibility=vi.spyOn(document,'visibilityState','get');
+  visibility.mockReturnValue('hidden');
+  act(()=>document.dispatchEvent(new Event('visibilitychange')));
+  expect(previous.close).toHaveBeenCalled();
+  visibility.mockReturnValue('visible');
+  act(()=>document.dispatchEvent(new Event('visibilitychange')));
+  expect(stream).not.toBe(previous);
+  emit({...emptyMixer,reset:true,connected:true,values:{'/ch/01/mix/fader':.8}});
+  expect(container.querySelector('[aria-label="Ch 1 fader"]')?.getAttribute('aria-valuenow')).toBe('80');
+});
+it('reopens silently stalled streams without waiting for a page refresh',async()=>{
+  await act(async()=>root.unmount());
+  vi.useFakeTimers();
+  root=createRoot(container);
+  await act(async()=>root.render(<Xr18MixerPanel/>));
+  emit({...emptyMixer,reset:true,connected:true,values:{'/ch/01/mix/fader':.5}});
+  const previous=stream;
+  await act(async()=>vi.advanceTimersByTimeAsync(4000));
+  expect(previous.close).toHaveBeenCalled();
+  expect(stream).not.toBe(previous);
+  expect(container.querySelector('[aria-label="Ch 1 fader"]')?.getAttribute('aria-disabled')).toBe('true');
+  emit({...emptyMixer,reset:true,connected:true,values:{'/ch/01/mix/fader':.9}});
+  expect(container.querySelector('[aria-label="Ch 1 fader"]')?.getAttribute('aria-valuenow')).toBe('90');
+});
+it('does not overwrite live updates with a slower initial state request',async()=>{
+  await act(async()=>root.unmount());
+  let finish!: (state: typeof emptyMixer)=>void;
+  const delayed=new Promise<typeof emptyMixer>(resolve=>{finish=resolve;});
+  const original=vi.mocked(mixerRequest).getMockImplementation()!;
+  vi.mocked(mixerRequest).mockImplementation(async(path,...args)=>path==='/state'?delayed:original(path,...args));
+  root=createRoot(container);
+  await act(async()=>root.render(<Xr18MixerPanel/>));
+  emit({...emptyMixer,reset:true,connected:true,values:{'/ch/01/mix/fader':.8}});
+  await act(async()=>finish({...emptyMixer,values:{'/ch/01/mix/fader':.1}}));
+  expect(container.querySelector('[aria-label="Ch 1 fader"]')?.getAttribute('aria-valuenow')).toBe('80');
 });

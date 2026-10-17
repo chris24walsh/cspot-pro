@@ -3,6 +3,7 @@ import { RefreshCw, Search, SlidersHorizontal, Save, Unplug, Radio, Settings2, C
 import { buildAbsoluteApiUrl } from '../api';
 import { displayValue, emptyMixer, fromWire, mixerRequest, physicalHeadamp, toWire, type MixerParameter, type MixerState, type MixerStrip } from '../xr18';
 import { MixerFader } from './MixerFader';
+import { MixerCommandQueue } from '../mixerCommands';
 import { mixerBankSize } from '../mixerLayout';
 import './Xr18MixerPanel.css';
 type Catalog = {
@@ -86,12 +87,60 @@ export function Xr18MixerPanel() {
       window.removeEventListener('keydown', escape);
     };
   }, [focused, dialog]);
-  const timers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
-  const queued = useRef<Record<string, number>>({});
+  const commandQueue = useRef<MixerCommandQueue | null>(null);
+  const sequence = useRef(0);
+  const latestSequence = useRef(new Map<string, number>());
+  const lastEvent = useRef(0);
   const current = useRef(state);
   current.current = state;
-  const [drafts, setDrafts] = useState<Record<string, number>>({});
+  const [drafts, setDrafts] = useState<Record<string, number | string>>({});
   const alive = useRef(true);
+  useEffect(() => {
+    const queue = new MixerCommandQueue(async commands => {
+      if (!current.current.connected || current.current.recalling || Date.now() - lastEvent.current > 3000) {
+        throw new Error('Live connection interrupted; reconnect before changing controls');
+      }
+      await mixerRequest('/commands', 'POST', {
+        commands: commands.map(({
+          sequence: _sequence,
+          ...command
+        }) => command)
+      });
+    }, (commands, error) => {
+      if (!alive.current) return;
+      setError(error instanceof Error ? error.message : String(error));
+      setDrafts(previous => {
+        const next = {
+          ...previous
+        };
+        for (const command of commands) {
+          if (latestSequence.current.get(command.path) === command.sequence) delete next[command.path];
+        }
+        return next;
+      });
+    });
+    commandQueue.current = queue;
+    return () => {
+      queue.dispose();
+      commandQueue.current = null;
+    };
+  }, []);
+  useEffect(() => {
+    setDrafts(previous => {
+      let next = previous;
+      for (const [path, desired] of Object.entries(previous)) {
+        const actual = state.values[path];
+        const matches = actual === desired || typeof actual === 'number' && typeof desired === 'number' && Math.abs(actual - desired) < .002;
+        if (!commandQueue.current?.outstanding(path) && (matches || state.failed[path])) {
+          if (next === previous) next = {
+            ...previous
+          };
+          delete next[path];
+        }
+      }
+      return next;
+    });
+  }, [state]);
   async function run(action: () => Promise<unknown>) {
     setError('');
     setBusy(true);
@@ -105,70 +154,98 @@ export function Xr18MixerPanel() {
   }
   useEffect(() => {
     alive.current = true;
+    let receivedStream = false;
+    let streamHasFrame = false;
+    let source: EventSource | null = null;
+    const interrupted = () => {
+      setStreamOnline(false);
+      commandQueue.current?.clear();
+      latestSequence.current.clear();
+      setDrafts({});
+    };
     void Promise.all([mixerRequest<Catalog>('/catalog'), mixerRequest<MixerState>('/state'), mixerRequest<Snapshot[]>('/snapshots')]).then(([c, s, n]) => {
       if (alive.current) {
         setCatalog(c);
-        setState(s);
+        // A slow initial HTTP response must never overwrite a newer live snapshot.
+        if (!receivedStream) setState(s);
         setHost(s.host || '');
         setSnapshots(n);
       }
-    }).catch(e => setError(e.message));
-    const events = new EventSource(buildAbsoluteApiUrl('/api/v1/mixer/events'), {
-      withCredentials: true
+    }).catch(e => {
+      if (alive.current) setError(e.message);
     });
-    events.onmessage = event => {
-      const incoming = JSON.parse(event.data);
-      setState(previous => {
-        const values = incoming.reset ? incoming.values : {
-          ...previous.values,
-          ...incoming.values
-        };
-        const fx_specs = incoming.reset ? incoming.fx_specs : {
-          ...previous.fx_specs,
-          ...incoming.fx_specs
-        };
-        for (const path of incoming.removed || []) delete values[path];
-        for (const path of incoming.removed_fx || []) delete fx_specs[path];
-        return {
-          ...incoming,
-          values,
-          fx_specs
-        };
+    function openStream() {
+      source?.close();
+      interrupted();
+      lastEvent.current = Date.now();
+      streamHasFrame = false;
+      const events = new EventSource(buildAbsoluteApiUrl('/api/v1/mixer/events'), {
+        withCredentials: true
       });
-      setStreamOnline(true);
+      source = events;
+      events.onmessage = event => {
+        if (!alive.current || source !== events) return;
+        const incoming = JSON.parse(event.data);
+        receivedStream = true;
+        streamHasFrame = true;
+        lastEvent.current = Date.now();
+        setState(previous => {
+          const values = incoming.reset ? incoming.values : {
+            ...previous.values,
+            ...incoming.values
+          };
+          const fx_specs = incoming.reset ? incoming.fx_specs : {
+            ...previous.fx_specs,
+            ...incoming.fx_specs
+          };
+          for (const path of incoming.removed || []) delete values[path];
+          for (const path of incoming.removed_fx || []) delete fx_specs[path];
+          return {
+            ...incoming,
+            values,
+            fx_specs
+          };
+        });
+        setStreamOnline(true);
+      };
+      events.onerror = () => {
+        if (source === events && alive.current) interrupted();
+      };
+    }
+    const visibility = () => {
+      if (document.visibilityState === 'hidden') {
+        source?.close();
+        source = null;
+        interrupted();
+      } else openStream();
     };
-    events.onerror = () => {
-      setStreamOnline(false);
-      Object.values(timers.current).forEach(clearTimeout);
-      timers.current = {};
-      setDrafts({});
-    };
+    if (document.visibilityState !== 'hidden') openStream();
+    const watchdog = setInterval(() => {
+      if (document.visibilityState !== 'hidden' && Date.now() - lastEvent.current > (streamHasFrame ? 3000 : 10000)) openStream();
+    }, 1000);
+    document.addEventListener('visibilitychange', visibility);
     return () => {
       alive.current = false;
-      events.close();
-      Object.values(timers.current).forEach(clearTimeout);
+      source?.close();
+      clearInterval(watchdog);
+      document.removeEventListener('visibilitychange', visibility);
     };
   }, []);
   const enabled = state.connected && streamOnline && !state.recalling;
+  const controlValue = (path: string) => drafts[path] ?? state.values[path];
   async function write(path: string, value: number | string, confirmed = false) {
-    try {
-      await mixerRequest('/command', 'POST', {
-        path,
-        value,
-        confirm_phantom: confirmed
-      });
-    } catch (e) {
-      if (alive.current) setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      if (alive.current) setDrafts(d => {
-        if (d[path] !== value || timers.current[path]) return d;
-        const n = {
-          ...d
-        };
-        delete n[path];
-        return n;
-      });
-    }
+    const next = ++sequence.current;
+    latestSequence.current.set(path, next);
+    setDrafts(previous => ({
+      ...previous,
+      [path]: value
+    }));
+    commandQueue.current?.enqueue({
+      path,
+      value,
+      confirm_phantom: confirmed,
+      sequence: next
+    }, (state.fx_specs[path] || catalog.parameters[path])?.kind !== 'float');
   }
   function change(path: string, value: number | string) {
     if (path.endsWith('/phantom') && value === 1) {
@@ -177,24 +254,12 @@ export function Xr18MixerPanel() {
         body: `Apply phantom power to ${path.split('/')[2]} on the physical mixer. Check the connected equipment before enabling.`,
         action: () => write(path, value, true)
       });
-      return;
-    }
-    if (typeof value === 'number' && (state.fx_specs[path] || catalog.parameters[path])?.kind === 'float') {
-      setDrafts(d => ({
-        ...d,
-        [path]: value
-      }));
-      queued.current[path] = value;
-      if (!timers.current[path]) timers.current[path] = setTimeout(() => {
-        delete timers.current[path];
-        if (current.current.connected) void write(path, queued.current[path]);
-      }, 35);
     } else void write(path, value);
   }
   function renderControl(spec: MixerParameter) {
-    const value = state.values[spec.path];
-    const disabled = !enabled || value === undefined;
-    return <label className={`xr-control ${state.pending.includes(spec.path) ? 'is-pending' : ''}`} title={spec.path}>
+    const value = controlValue(spec.path);
+    const disabled = !enabled || state.values[spec.path] === undefined;
+    return <label className={`xr-control ${spec.path in drafts || state.pending.includes(spec.path) ? 'is-pending' : ''}`} title={spec.path}>
       <span>{spec.label}</span>
       {spec.path.endsWith('/grp/dca') || spec.path.endsWith('/grp/mute') ? <div className="xr-memberships">{Array.from({
           length: 4
@@ -217,7 +282,7 @@ export function Xr18MixerPanel() {
     const sends = !!sendBus && ['input', 'aux', 'return'].includes(strip.kind);
     const path = sends ? `${strip.id}/mix/${sendBus}/level` : `${mix}/fader`;
     const spec = catalog.parameters[path];
-    const on = state.values[mix + '/on'];
+    const on = controlValue(mix + '/on');
     const level = state.meters[strip.meter];
     const fader = state.values[path];
     const name = String(state.values[strip.id + '/config/name'] || strip.name);
@@ -235,16 +300,16 @@ export function Xr18MixerPanel() {
           block: 'nearest'
         }));
       }}><small>{strip.name}</small><strong>{name}</strong></button>
-      <div className="xr-strip-status">{state.pending.includes(path) ? 'Sending…' : sends ? `→ ${Number(sendBus) <= 6 ? 'Bus ' + Number(sendBus) : 'FX ' + (Number(sendBus) - 6)}` : 'MAIN MIX'}</div>
+      <div className="xr-strip-status">{path in drafts || state.pending.includes(path) ? 'Sending…' : sends ? `→ ${Number(sendBus) <= 6 ? 'Bus ' + Number(sendBus) : 'FX ' + (Number(sendBus) - 6)}` : 'MAIN MIX'}</div>
       <div className="xr-fader-area"><div className="xr-meter" role="meter" aria-label={`${name} level`} aria-valuemin={-90} aria-valuemax={0} aria-valuenow={level ?? -90}><div style={{
             height: `${level === undefined ? 0 : Math.max(0, Math.min(100, (level + 90) / 90 * 100))}%`
           }} /></div><MixerFader label={`${name} ${sends ? 'send' : 'fader'}`} value={Number(drafts[path] ?? fader ?? 0)} valueText={spec ? displayValue(spec, drafts[path] ?? fader) : 'Unavailable'} disabled={!enabled || fader === undefined} onChange={value => change(path, value)} /><div className="xr-scale"><span>+10</span><span>0</span><span>−10</span><span>−30</span><span>−∞</span></div></div>
       <output className="xr-db">{spec ? displayValue(spec, drafts[path] ?? fader) : '—'}</output>
-      {strip.kind === 'input' && <button type="button" className={state.values[`/-stat/solosw/${strip.id.split('/')[2]}`] === 1 ? 'xr-solo is-active' : 'xr-solo'} disabled={!enabled || state.values[`/-stat/solosw/${strip.id.split('/')[2]}`] === undefined} onClick={() => {
+      {strip.kind === 'input' && <button type="button" className={controlValue(`/-stat/solosw/${strip.id.split('/')[2]}`) === 1 ? 'xr-solo is-active' : 'xr-solo'} disabled={!enabled || state.values[`/-stat/solosw/${strip.id.split('/')[2]}`] === undefined} onClick={() => {
         const p = `/-stat/solosw/${strip.id.split('/')[2]}`;
-        change(p, state.values[p] === 1 ? 0 : 1);
+        change(p, controlValue(p) === 1 ? 0 : 1);
       }}>Solo</button>}
-      <button type="button" className={`xr-mute ${on === 0 ? 'is-muted' : ''}`} disabled={!enabled || on === undefined} onClick={() => change(mix + '/on', on === 1 ? 0 : 1)}>{on === 0 ? 'MUTED' : 'Mute'}</button>
+      <button type="button" className={`xr-mute ${on === 0 ? 'is-muted' : ''}`} aria-pressed={on === 0} aria-busy={mix + '/on' in drafts || state.pending.includes(mix + '/on')} disabled={!enabled || on === undefined} onClick={() => change(mix + '/on', on === 1 ? 0 : 1)}>{on === 0 ? 'MUTED' : 'Mute'}</button>
       {pan !== undefined ? <input className="xr-pan" title={`${name} pan`} aria-label={`${name} pan`} type="range" min="0" max="1" step="0.01" value={drafts[strip.id + '/mix/pan'] ?? pan} disabled={!enabled} onChange={e => change(strip.id + '/mix/pan', Number(e.target.value))} /> : <span className="xr-pan-spacer" />}
     </article>;
   }
@@ -286,6 +351,7 @@ export function Xr18MixerPanel() {
           })))}>Scan LAN</button>{found.map(f => <button type="button" key={f.host} onClick={() => setHost(f.host)}>{f.name} · {f.host} · {f.firmware}</button>)}<small>Discovery runs on the cspot server's LAN. Select an address, then Connect.</small></div></details></div>
     {(error || state.error) && <div className="xr-error" role="alert">{error || state.error}<button type="button" onClick={() => setError('')} aria-label="Dismiss error">×</button></div>}
     {Object.keys(state.failed).length > 0 && <p className="xr-error" role="alert">{Object.keys(state.failed).length} changes have no matching mixer readback. Sync to verify the desk.</p>}
+    {state.connected && !streamOnline && <p className="xr-notice" role="status">Live updates interrupted. Reconnecting; controls are disabled until updates resume.</p>}
     {!state.connected && <p className="xr-notice">{state.host ? `Waiting for ${state.host}:10024. Check power, Ethernet mode and LAN routing.` : 'Connect your XR18 to read the desk. Controls become available as the mixer replies.'} {Object.keys(state.values).length > 0 ? 'Displayed values are cached; controls are disabled.' : ''}</p>}
     <label className="xr-mobile-view">View<select aria-label="Mixer view" value={page} onChange={event => setPage(event.target.value)}>{[['desk', 'Faders & processing'], ['routing', 'Routing'], ['effects', 'Effects rack'], ['system', 'Links & monitor'], ['snapshots', 'Snapshots']].map(([id, label]) => <option key={id} value={id}>{label}</option>)}</select></label>
     <nav className="xr-tabs xr-view-tabs" aria-label="Mixer views">{[['desk', 'Faders & processing'], ['routing', 'Routing'], ['effects', 'Effects rack'], ['system', 'Links & monitor'], ['snapshots', 'Snapshots']].map(([id, label]) => <button type="button" key={id} className={page === id ? 'is-active' : ''} onClick={() => setPage(id)}>{label}</button>)}</nav>
@@ -301,13 +367,13 @@ export function Xr18MixerPanel() {
       <button type="button" aria-expanded={showEditor} aria-controls="xr-channel-editor" onClick={() => setEditorOpen(!showEditor)}><SlidersHorizontal size={17} /><span>{showEditor ? 'Hide editor' : 'Edit channel'}</span>{showEditor ? <ChevronUp size={16} /> : <ChevronDown size={16} />}</button>
     </div>
     <div className="xr-desk"><div className="xr-strip-scroll" aria-label="Channel faders">{pageStrips.filter(s => s.kind !== 'main').map(s => renderStrip(s))}</div>{main && renderStrip(main, true)}</div>
-    <div ref={editorRef} className="xr-inspector xr-channel-editor" id="xr-channel-editor" hidden={!showEditor}><header><h3>{String(state.values[selected + '/config/name'] || strip?.name || 'Channel')} <small>{selected}</small></h3><button type="button" aria-label="Collapse channel editor" onClick={() => setEditorOpen(false)}><ChevronUp size={16} /><span>Collapse</span></button></header><nav className="xr-tabs" aria-label="Channel processing">{groups.map(g => <button type="button" key={g} className={inspectorGroup === g ? 'is-active' : ''} onClick={() => setGroup(g)}>{g}</button>)}</nav>{inspectorGroup === 'Headamp' && headamp && <p className="xr-notice">Physical input {Number(headamp.split('/')[2])} · Gain and 48V follow the channel's analog input assignment.</p>}<div className="xr-control-grid">{shown.map(p => <div key={p.path}>{renderControl(p)}</div>)}</div></div></> : page === 'snapshots' ? <div className="xr-snapshots"><h3>Local desk snapshots</h3><p>Save the parameters read by cspot. Recalls preserve physical preamp gain and phantom power. These snapshots are separate from the mixer's internal scenes.</p><div className="xr-snapshot-save"><input aria-label="Snapshot name" placeholder="Snapshot name" maxLength={80} value={snapshotName} onChange={e => setSnapshotName(e.target.value)} /><button type="button" disabled={busy || !enabled || !state.synchronized || state.syncing || !!state.pending.length || !snapshotName.trim()} onClick={() => void run(async () => {
+    <div ref={editorRef} className="xr-inspector xr-channel-editor" id="xr-channel-editor" hidden={!showEditor}><header><h3>{String(state.values[selected + '/config/name'] || strip?.name || 'Channel')} <small>{selected}</small></h3><button type="button" aria-label="Collapse channel editor" onClick={() => setEditorOpen(false)}><ChevronUp size={16} /><span>Collapse</span></button></header><nav className="xr-tabs" aria-label="Channel processing">{groups.map(g => <button type="button" key={g} className={inspectorGroup === g ? 'is-active' : ''} onClick={() => setGroup(g)}>{g}</button>)}</nav>{inspectorGroup === 'Headamp' && headamp && <p className="xr-notice">Physical input {Number(headamp.split('/')[2])} · Gain and 48V follow the channel's analog input assignment.</p>}<div className="xr-control-grid">{shown.map(p => <div key={p.path}>{renderControl(p)}</div>)}</div></div></> : page === 'snapshots' ? <div className="xr-snapshots"><h3>Local desk snapshots</h3><p>Save the parameters read by cspot. Recalls preserve physical preamp gain and phantom power. These snapshots are separate from the mixer's internal scenes.</p><div className="xr-snapshot-save"><input aria-label="Snapshot name" placeholder="Snapshot name" maxLength={80} value={snapshotName} onChange={e => setSnapshotName(e.target.value)} /><button type="button" disabled={busy || !enabled || !state.synchronized || state.syncing || !!state.pending.length || !!Object.keys(drafts).length || !snapshotName.trim()} onClick={() => void run(async () => {
           await mixerRequest('/snapshots', 'POST', {
             name: snapshotName.trim()
           });
           setSnapshots(await mixerRequest('/snapshots'));
           setSnapshotName('');
-        })}><Save size={15} />Save current desk</button></div>{snapshots.map(s => <article key={s.id}><div><strong>{s.name}</strong><small>{new Date(s.created_at).toLocaleString()} · {Object.keys(s.values).length} parameters</small></div><button type="button" disabled={!enabled || busy || state.syncing} onClick={() => setDialog({
+        })}><Save size={15} />Save current desk</button></div>{snapshots.map(s => <article key={s.id}><div><strong>{s.name}</strong><small>{new Date(s.created_at).toLocaleString()} · {Object.keys(s.values).length} parameters</small></div><button type="button" disabled={!enabled || busy || state.syncing || !!Object.keys(drafts).length} onClick={() => setDialog({
           title: `Recall ${s.name}?`,
           body: 'This changes live levels, processing, sends, routing and effects. Physical preamps and phantom power are preserved.',
           action: async () => {
@@ -321,7 +387,7 @@ export function Xr18MixerPanel() {
             setSnapshots(await mixerRequest('/snapshots'));
           }
         })}>Delete</button></article>)}</div> : <div className="xr-inspector"><header><h3>{page === 'routing' ? 'Input & output routing' : page === 'effects' ? 'Effects rack' : 'Desk configuration'}</h3><input aria-label="Filter mixer parameters" placeholder="Filter parameters…" value={search} onChange={e => setSearch(e.target.value)} /></header>{page === 'effects' && <p className="xr-notice">FX parameters follow the selected algorithm. Continuous controls use normalized values (0–1); switches and enums use integer values. Less common algorithms show parameter indices; consult the X AIR effect reference for their order.</p>}<div className="xr-control-grid">{shown.filter(p => (p.label + ' ' + p.path).toLowerCase().includes(search.toLowerCase())).map(p => <div key={p.path}><small className="xr-path">{p.path}</small>{renderControl(p)}</div>)}</div></div>}
-    <footer className="xr-footer"><span>LAN UDP :10024 · 20 Hz dashboard stream · Hardware readback</span><span>{state.pending.length ? `${state.pending.length} awaiting confirmation` : 'No pending changes'}</span></footer>
+    <footer className="xr-footer"><span>LAN UDP :10024 · 20 Hz dashboard stream · Hardware readback</span><span>{state.pending.length || Object.keys(drafts).length ? `${new Set([...state.pending, ...Object.keys(drafts)]).size} awaiting desk confirmation` : 'No pending changes'}</span></footer>
     {dialog && <div className="xr-modal-backdrop" onKeyDown={event => {
       if (event.key === 'Escape') setDialog(null);
       if (event.key === 'Tab') {

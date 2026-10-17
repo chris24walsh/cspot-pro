@@ -758,3 +758,7 @@ connection from the API and live meter/parameter streaming to the browser. See
 [XR18 mixer setup and controls](docs/xr18-mixer.md) for LAN setup and FX/snapshot details.
 The XR18 desk adapts channel banks to desktop, tablet and phone widths and offers
 an expanded view, collapsible editing and relative touch faders for tablet use.
+
+Mixer live updates bypass proxy compression and reconnect automatically after
+stalls or returning to a backgrounded tab. Commands coalesce into bounded batches
+so slower mobile connections do not replay a backlog of fader movements.

@@ -50,7 +50,9 @@ scene, fader, routing or phantom setting is applied automatically.
 
 Unavailable parameters remain disabled. Synchronization is paced at 250 queries/s
 and takes around 12 seconds; valid controls become available as replies arrive.
-The client coalesces continuous gestures at approximately 28 updates/s. Hardware
+The client keeps one HTTP command batch in flight, coalescing queued movements to
+the latest value per parameter. Idle continuous gestures use a 35 ms coalescing
+window; slow connections never accumulate a replay of intermediate fader positions. Hardware
 readback, not a browser-only value, confirms a change. Unacknowledged commands
 retry twice and report failure rather than silently treating a UDP send as success.
 Changes from another controller arrive through `/xremote`. Loss of connection
@@ -108,3 +110,23 @@ panels, expanded view cleanup, keyboard/fine control, relative touch movement,
 pointer cancellation and simultaneous fader drags. Actual tablet-browser visual
 and physical touch testing remains necessary; DOM tests do not emulate rendering
 or the device's touch hardware.
+
+
+## Streaming through the public website
+
+The public route includes the website's Next.js rewrite, an outer nginx gateway
+and Cloudflare. Event responses explicitly set `Cache-Control: private, no-store,
+no-transform`, `Content-Encoding: identity` and `X-Accel-Buffering: no`. Cspot nginx
+disables gzip/buffering for the event endpoint and forwards the buffering header
+to later proxies. Without these directives, gzip in the website proxy buffers the
+live stream even while ordinary commands and state reads remain fast. Validate
+with normal browser compression headers through the public URL, not just the API
+or cspot's internal nginx, and read complete HTTP chunks rather than timing
+byte-at-a-time JSON parsing in the measurement client.
+
+Visible clients reconnect after three seconds without events. Returning from a
+background tab opens a fresh stream and full snapshot automatically. A delayed
+initial state request cannot overwrite newer streamed values. Local control
+feedback is immediate, but remains marked as pending until hardware readback;
+failed commands restore the authoritative value. Batched commands validate all
+parameters and phantom confirmations before writing any of them to the mixer.

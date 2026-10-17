@@ -47,6 +47,10 @@ class Command(BaseModel):
     confirm_phantom: bool = False
 
 
+class Commands(BaseModel):
+    commands: list[Command] = Field(min_length=1, max_length=32)
+
+
 class SnapshotName(BaseModel):
     name: str = Field(min_length=1, max_length=80, pattern=r".*\S.*")
 
@@ -105,6 +109,28 @@ async def command(payload: Command):
     return {"status": "pending", "path": payload.path}
 
 
+@router.post("/commands")
+async def commands(payload: Commands):
+    if engine.recalling:
+        raise HTTPException(409, "Wait for snapshot recall to finish")
+    # Validate the complete batch before applying any of it.
+    validated = []
+    try:
+        for command in payload.commands:
+            if (
+                command.path.endswith("/phantom")
+                and command.value == 1
+                and not command.confirm_phantom
+            ):
+                raise ValueError("Confirm enabling 48V phantom power")
+            validated.append((command.path, engine.command_value(command.path, command.value)))
+        for path, value in validated:
+            await engine.write(path, value)
+    except ValueError as exc:
+        raise HTTPException(409, str(exc)) from exc
+    return {"status": "pending", "paths": [path for path, _ in validated]}
+
+
 @router.post("/sync")
 async def sync():
     if engine.recalling:
@@ -147,7 +173,11 @@ async def events(session: Session = Depends(get_session)):
     return StreamingResponse(
         stream(),
         media_type="text/event-stream",
-        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+        headers={
+            "Cache-Control": "private, no-store, no-transform",
+            "X-Accel-Buffering": "no",
+            "Content-Encoding": "identity",
+        },
     )
 
 
