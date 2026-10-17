@@ -85,31 +85,37 @@ integer types; frontend tests cover the physical-unit conversion curves.
 ## Desktop, tablet and phone layout
 
 The desk measures its available container width with `ResizeObserver`, including
-space used by app navigation. Automatic banks show 2, 4, 8 or 16 strips while
-keeping Main LR pinned. Previous/next bank buttons switch channels without
-sending mixer commands. The All bank retains horizontal browsing.
+space used by app navigation. Banks fit 2, 4, 8 or 16 strips across while keeping Main LR pinned. Every bank
+(Inputs, Returns, Outputs and All) supports continuous horizontal scrolling.
+Previous/next buttons scroll one viewport without sending mixer commands.
 
 A roughly 10-inch tablet is the primary touch target. Landscape generally fits
 eight channels; portrait generally fits four. Touch and hybrid devices use
-44-pixel minimum action targets and 16-pixel text inputs to avoid iOS input zoom.
+44-pixel action targets and 16-pixel text inputs to avoid iOS input zoom. Short
+expanded landscape layouts use compact 32-pixel actions to keep controls visible.
 Faders use independent pointer capture and relative dragging, so touching a rail
 does not jump the level. Separate fingers can control separate faders. Arrow keys
 adjust a fader, Shift gives fine adjustment, Page Up/Down makes larger changes,
 and Home/End select the extremes. Meter updates preserve control focus and drag state.
 
 Connection setup collapses once an address is configured. The channel editor
-starts collapsed below 1100 pixels of available width; tap a channel name or
-Edit channel to open it. Explicit open/collapse choices persist during rotation
+starts collapsed on every screen. Tapping a channel name only selects it; use
+Edit channel to open processing explicitly. Explicit open/collapse choices persist during rotation
 for the current visit. Phone navigation uses a view selector. Expand fills the
 browser viewport with the XR18 desk, hiding the rest of the app visually; Restore
 or Escape returns to the normal app. This works without requiring browser
-fullscreen permission. Short landscape viewports use shorter fader tracks.
+fullscreen permission. With setup and the editor closed, expanded mode fits the
+viewport height: faders grow or shrink into the remaining space without vertical
+scrolling. Short landscape viewports condense navigation and put Solo/Mute side
+by side. Opening setup or the editor explicitly restores vertical scrolling.
 
-Automated interaction checks cover bank sizing and rotation, paging, collapsible
+Automated interaction checks cover bank sizing and rotation, continuous channel browsing, collapsible
 panels, expanded view cleanup, keyboard/fine control, relative touch movement,
 pointer cancellation and simultaneous fader drags. Actual tablet-browser visual
 and physical touch testing remains necessary; DOM tests do not emulate rendering
-or the device's touch hardware.
+or the device's touch hardware. Local headless Firefox checks with synthetic mixer
+data also verified fitted geometry, bank scrolling, explicit editing and rotation
+at phone, tablet and laptop sizes (including 740×360 and 1366×768).
 
 
 ## Streaming through the public website

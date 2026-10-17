@@ -40,8 +40,9 @@ beforeEach(async () => {
   deskWidth = 1280;
   vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(() => ({width:deskWidth,height:224}) as DOMRect);
   vi.stubGlobal('ResizeObserver', class {
-    constructor(callback: () => void) { resized = callback; }
-    observe() {} disconnect() {}
+    constructor(private callback: () => void) {}
+    observe(element: HTMLElement) { if (element.classList.contains('xr-dashboard')) resized = this.callback; }
+    disconnect() {}
   });
   vi.mocked(mixerRequest).mockImplementation(async path => {
     if (path === '/catalog') return {
@@ -137,26 +138,30 @@ it('closes the hardware event stream on leaving the mixer', async () => {
 });
 
 function resizeDesk(width: number) { deskWidth=width;act(()=>resized()); }
-it('adapts channel banks to rotation and phone widths with the main fader always present', () => {
+it('keeps every channel scrollable through rotation with the main fader pinned', () => {
   resizeDesk(900);
-  expect(container.querySelectorAll('[role=slider]')).toHaveLength(9);
+  expect(container.querySelectorAll('[role=slider]')).toHaveLength(17);
+  expect(container.querySelector<HTMLElement>('.xr-strip-scroll')?.style.getPropertyValue('--xr-visible-strips')).toBe('8');
   resizeDesk(700);
-  expect(container.querySelectorAll('[role=slider]')).toHaveLength(5);
+  expect(container.querySelectorAll('[role=slider]')).toHaveLength(17);
+  expect(container.querySelector<HTMLElement>('.xr-strip-scroll')?.style.getPropertyValue('--xr-visible-strips')).toBe('4');
   expect(container.querySelector('#xr-channel-editor')?.hasAttribute('hidden')).toBe(true);
   resizeDesk(390);
-  expect(container.querySelectorAll('[role=slider]')).toHaveLength(3);
+  expect(container.querySelectorAll('[role=slider]')).toHaveLength(17);
+  expect(container.querySelector<HTMLElement>('.xr-strip-scroll')?.style.getPropertyValue('--xr-visible-strips')).toBe('2');
   expect(container.querySelector('[aria-label="Main LR fader"]')).not.toBeNull();
-  act(()=>container.querySelector<HTMLButtonElement>('[aria-label="Next channel bank"]')!.click());
-  expect(container.querySelector('[aria-label="Ch 3 fader"]')).not.toBeNull();
-  expect(container.querySelector('[aria-label="Main LR fader"]')).not.toBeNull();
+  expect(container.querySelector('.xr-strip-scroll [aria-label="Ch 16 fader"]')).not.toBeNull();
+  expect(container.querySelector('.xr-strip-scroll .xr-master')).toBeNull();
   expect(vi.mocked(mixerRequest).mock.calls.every(([,method])=>method!=='POST')).toBe(true);
 });
-it('collapses saved connection settings and opens the channel editor on a channel tap', () => {
-  resizeDesk(768);
+it.each([768, 1366])('keeps channel selection separate from explicitly opening the editor at %i px', width => {
+  resizeDesk(width);
   expect(container.querySelector('#xr-connection-settings')?.hasAttribute('hidden')).toBe(true);
   act(()=>container.querySelector<HTMLButtonElement>('[aria-label="Connection settings"]')!.click());
   expect(container.querySelector('#xr-connection-settings')?.hasAttribute('hidden')).toBe(false);
-  act(()=>container.querySelector<HTMLButtonElement>('[aria-label="Edit Ch 1"]')!.click());
+  act(()=>container.querySelector<HTMLButtonElement>('[aria-label="Select Ch 1"]')!.click());
+  expect(container.querySelector('#xr-channel-editor')?.hasAttribute('hidden')).toBe(true);
+  act(()=>Array.from(container.querySelectorAll<HTMLButtonElement>('button')).find(b=>b.textContent==='Edit channel')!.click());
   expect(container.querySelector('#xr-channel-editor')?.hasAttribute('hidden')).toBe(false);
   act(()=>container.querySelector<HTMLButtonElement>('[aria-label="Collapse channel editor"]')!.click());
   expect(container.querySelector('#xr-channel-editor')?.hasAttribute('hidden')).toBe(true);
@@ -165,6 +170,7 @@ it('expands the desk without changing the mixer and restores scrolling with Esca
   act(()=>container.querySelector<HTMLButtonElement>('[aria-label="Expand desk"]')!.click());
   expect(container.querySelector('.xr-dashboard')?.classList.contains('is-focused')).toBe(true);
   expect(document.body.style.overflow).toBe('hidden');
+  expect(container.querySelector('.xr-dashboard')?.getAttribute('data-fit')).toBe('desk');
   act(()=>window.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape'})));
   expect(container.querySelector('.xr-dashboard')?.classList.contains('is-focused')).toBe(false);
   expect(document.body.style.overflow).toBe('');

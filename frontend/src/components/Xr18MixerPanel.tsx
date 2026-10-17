@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import { RefreshCw, Search, SlidersHorizontal, Save, Unplug, Radio, Settings2, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Maximize2, Minimize2 } from 'lucide-react';
 import { buildAbsoluteApiUrl } from '../api';
 import { displayValue, emptyMixer, fromWire, mixerRequest, physicalHeadamp, toWire, type MixerParameter, type MixerState, type MixerStrip } from '../xr18';
@@ -35,15 +35,17 @@ export function Xr18MixerPanel() {
   const [error, setError] = useState('');
   const [streamOnline, setStreamOnline] = useState(false);
   const [bank, setBank] = useState('inputs');
-  const [bankPage, setBankPage] = useState(0);
+  const [page, setPage] = useState('desk');
+  const [scrollEdges, setScrollEdges] = useState({ start: true, end: false });
+  const stripScrollRef = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(1200);
   const [setupOpen, setSetupOpen] = useState<boolean | null>(null);
-  const [editorOpen, setEditorOpen] = useState<boolean | null>(null);
+  const [editorOpen, setEditorOpen] = useState(false);
   const [focused, setFocused] = useState(false);
   const dashboardRef = useRef<HTMLElement>(null);
   const editorRef = useRef<HTMLDivElement>(null);
   const compact = width < 1100;
-  const showEditor = editorOpen ?? !compact;
+  const showEditor = editorOpen;
   const showSetup = setupOpen ?? !state.host;
   const bankSize = mixerBankSize(width);
   useEffect(() => {
@@ -59,12 +61,26 @@ export function Xr18MixerPanel() {
     window.addEventListener('resize', measure);
     return () => window.removeEventListener('resize', measure);
   }, []);
+  function measureScroll() {
+    const scroller = stripScrollRef.current;
+    if (scroller) setScrollEdges({ start: scroller.scrollLeft <= 1, end: scroller.scrollLeft + scroller.clientWidth >= scroller.scrollWidth - 1 });
+  }
   useEffect(() => {
-    setBankPage(0);
-  }, [bank, bankSize]);
+    const scroller = stripScrollRef.current;
+    if (!scroller) return;
+    scroller.scrollLeft = 0;
+    measureScroll();
+    if (typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(measureScroll);
+    observer.observe(scroller);
+    return () => observer.disconnect();
+  }, [bank, bankSize, catalog.strips, page]);
+  function browseChannels(direction: number) {
+    const scroller = stripScrollRef.current;
+    scroller?.scrollBy({ left: direction * scroller.clientWidth, behavior: window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+  }
   const [selected, setSelected] = useState('/ch/01');
   const [sendBus, setSendBus] = useState('');
-  const [page, setPage] = useState('desk');
   const [group, setGroup] = useState('Input');
   const [search, setSearch] = useState('');
   const [snapshots, setSnapshots] = useState<Snapshot[]>([]);
@@ -316,25 +332,21 @@ export function Xr18MixerPanel() {
     return <article key={strip.id} className={`xr-strip ${selected === strip.id ? 'is-selected' : ''} ${master ? 'xr-master' : ''}`} style={{
       borderTopColor: colors[color]
     }}>
-      <button type="button" className="xr-strip-name" title={`Edit ${name}`} aria-label={`Edit ${name}`} aria-pressed={selected === strip.id} onClick={() => {
+      <button type="button" className="xr-strip-name" title={`Select ${name}`} aria-label={`Select ${name}`} aria-pressed={selected === strip.id} onClick={() => {
         setSelected(strip.id);
         setPage('desk');
-        setEditorOpen(true);
-        if (compact) requestAnimationFrame(() => editorRef.current?.scrollIntoView?.({
-          behavior: 'smooth',
-          block: 'nearest'
-        }));
       }}><small>{strip.name}</small><strong>{name}</strong></button>
       <div className="xr-strip-status">{path in drafts || state.pending.includes(path) ? 'Sending…' : sends ? `→ ${Number(sendBus) <= 6 ? 'Bus ' + Number(sendBus) : 'FX ' + (Number(sendBus) - 6)}` : 'MAIN MIX'}</div>
       <div className="xr-fader-area"><div className="xr-meter" role="meter" aria-label={`${name} level`} aria-valuemin={-90} aria-valuemax={0} aria-valuenow={level ?? -90}><div style={{
             height: `${level === undefined ? 0 : Math.max(0, Math.min(100, (level + 90) / 90 * 100))}%`
           }} /></div><MixerFader label={`${name} ${sends ? 'send' : 'fader'}`} value={Number(drafts[path] ?? fader ?? 0)} valueText={spec ? displayValue(spec, drafts[path] ?? fader) : 'Unavailable'} disabled={!enabled || fader === undefined} onChange={value => change(path, value)} /><div className="xr-scale"><span>+10</span><span>0</span><span>−10</span><span>−30</span><span>−∞</span></div></div>
       <output className="xr-db">{spec ? displayValue(spec, drafts[path] ?? fader) : '—'}</output>
-      {strip.kind === 'input' && <button type="button" className={controlValue(`/-stat/solosw/${strip.id.split('/')[2]}`) === 1 ? 'xr-solo is-active' : 'xr-solo'} disabled={!enabled || state.values[`/-stat/solosw/${strip.id.split('/')[2]}`] === undefined} onClick={() => {
+      <div className="xr-strip-buttons">{strip.kind === 'input' && <button type="button" className={controlValue(`/-stat/solosw/${strip.id.split('/')[2]}`) === 1 ? 'xr-solo is-active' : 'xr-solo'} disabled={!enabled || state.values[`/-stat/solosw/${strip.id.split('/')[2]}`] === undefined} onClick={() => {
         const p = `/-stat/solosw/${strip.id.split('/')[2]}`;
         change(p, controlValue(p) === 1 ? 0 : 1);
       }}>Solo</button>}
-      <button type="button" className={`xr-mute ${on === 0 ? 'is-muted' : ''}`} aria-pressed={on === 0} aria-busy={mix + '/on' in drafts || state.pending.includes(mix + '/on')} disabled={!enabled || on === undefined} onClick={() => change(mix + '/on', on === 1 ? 0 : 1)}>{on === 0 ? 'MUTED' : 'Mute'}</button>
+      {strip.kind !== 'input' && <span className="xr-solo-spacer" aria-hidden="true" />}
+      <button type="button" className={`xr-mute ${on === 0 ? 'is-muted' : ''}`} aria-pressed={on === 0} aria-busy={mix + '/on' in drafts || state.pending.includes(mix + '/on')} disabled={!enabled || on === undefined} onClick={() => change(mix + '/on', on === 1 ? 0 : 1)}>{on === 0 ? 'MUTED' : 'Mute'}</button></div>
       {pan !== undefined ? <input className="xr-pan" title={`${name} pan`} aria-label={`${name} pan`} type="range" min="0" max="1" step="0.01" value={drafts[strip.id + '/mix/pan'] ?? pan} disabled={!enabled} onChange={e => change(strip.id + '/mix/pan', Number(e.target.value))} /> : <span className="xr-pan-spacer" />}
     </article>;
   }
@@ -347,10 +359,7 @@ export function Xr18MixerPanel() {
   const inspectorGroup = groups.includes(group) ? group : groups[0];
   const main = catalog.strips.find(s => s.kind === 'main');
   const shown = page === 'routing' ? parameters.filter(p => p.group === 'Routing') : page === 'effects' ? parameters.filter(p => p.path.startsWith('/fx/') && (!p.path.includes('/par/') || state.values[p.path] !== undefined)) : page === 'system' ? parameters.filter(p => ['Links', 'Mute groups', 'Monitor'].includes(p.group)) : selectedParameters.filter(p => p.group === inspectorGroup);
-  const pageCount = bank === 'all' ? 1 : Math.max(1, Math.ceil(visible.length / bankSize));
-  const currentPage = Math.min(bankPage, pageCount - 1);
-  const pageStrips = bank === 'all' ? visible : visible.slice(currentPage * bankSize, (currentPage + 1) * bankSize);
-  return <section ref={dashboardRef} className={`xr-dashboard ${focused ? 'is-focused' : ''}`} data-layout={compact ? 'compact' : 'wide'} aria-label="XR18 mixer dashboard" onKeyDown={event => {
+  return <section ref={dashboardRef} className={`xr-dashboard ${focused ? 'is-focused' : ''}`} data-fit={page === 'desk' && !showEditor && !showSetup ? 'desk' : undefined} data-layout={compact ? 'compact' : 'wide'} aria-label="XR18 mixer dashboard" onKeyDown={event => {
     // The desk lives inside Broadcast settings: editing must not submit that form.
     if (event.key === 'Enter' && event.target instanceof HTMLInputElement) {
       event.preventDefault();
@@ -384,14 +393,17 @@ export function Xr18MixerPanel() {
               length: 10
             }, (_, i) => <option key={i} value={String(i + 1).padStart(2, '0')}>{i < 6 ? `Bus ${i + 1}` : `FX ${i - 5}`}</option>)}</select></label></div>{sendBus && <p className="xr-notice">Faders now adjust sends to {Number(sendBus) <= 6 ? `Bus ${Number(sendBus)}` : `FX ${Number(sendBus) - 6}`}. Mute buttons still mute the whole channel.</p>}
     <div className="xr-desk-toolbar">
-      <div className="xr-bank-pager" role="group" aria-label="Channel bank pages">
-        <button type="button" title="Previous channel bank" aria-label="Previous channel bank" disabled={currentPage === 0} onClick={() => setBankPage(currentPage - 1)}><ChevronLeft size={19} /></button>
-        <span aria-live="polite">{bank === 'all' ? `${visible.length} strips · scroll to browse` : `${currentPage * bankSize + 1}–${Math.min((currentPage + 1) * bankSize, visible.length)} of ${visible.length}`}</span>
-        <button type="button" title="Next channel bank" aria-label="Next channel bank" disabled={currentPage >= pageCount - 1} onClick={() => setBankPage(currentPage + 1)}><ChevronRight size={19} /></button>
+      <div className="xr-bank-pager" role="group" aria-label="Browse channels">
+        <button type="button" title="Previous channel bank" aria-label="Previous channel bank" disabled={scrollEdges.start} onClick={() => browseChannels(-1)}><ChevronLeft size={19} /></button>
+        <span aria-live="polite">{visible.filter(s => s.kind !== 'main').length} channels · scroll</span>
+        <button type="button" title="Next channel bank" aria-label="Next channel bank" disabled={scrollEdges.end} onClick={() => browseChannels(1)}><ChevronRight size={19} /></button>
       </div>
-      <button type="button" aria-expanded={showEditor} aria-controls="xr-channel-editor" onClick={() => setEditorOpen(!showEditor)}><SlidersHorizontal size={17} /><span>{showEditor ? 'Hide editor' : 'Edit channel'}</span>{showEditor ? <ChevronUp size={16} /> : <ChevronDown size={16} />}</button>
+      <button type="button" aria-expanded={showEditor} aria-controls="xr-channel-editor" onClick={() => {
+        setEditorOpen(!showEditor);
+        if (!showEditor) requestAnimationFrame(() => editorRef.current?.scrollIntoView?.({ behavior: 'smooth', block: 'start' }));
+      }}><SlidersHorizontal size={17} /><span>{showEditor ? 'Hide editor' : 'Edit channel'}</span>{showEditor ? <ChevronUp size={16} /> : <ChevronDown size={16} />}</button>
     </div>
-    <div className="xr-desk"><div className="xr-strip-scroll" aria-label="Channel faders">{pageStrips.filter(s => s.kind !== 'main').map(s => renderStrip(s))}</div>{main && renderStrip(main, true)}</div>
+    <div className="xr-desk"><div ref={stripScrollRef} className="xr-strip-scroll" onScroll={measureScroll} style={{ '--xr-visible-strips': bankSize } as CSSProperties} aria-label="Channel faders">{visible.filter(s => s.kind !== 'main').map(s => renderStrip(s))}</div>{main && renderStrip(main, true)}</div>
     <div ref={editorRef} className="xr-inspector xr-channel-editor" id="xr-channel-editor" hidden={!showEditor}><header><h3>{String(state.values[selected + '/config/name'] || strip?.name || 'Channel')} <small>{selected}</small></h3><button type="button" aria-label="Collapse channel editor" onClick={() => setEditorOpen(false)}><ChevronUp size={16} /><span>Collapse</span></button></header><nav className="xr-tabs" aria-label="Channel processing">{groups.map(g => <button type="button" key={g} className={inspectorGroup === g ? 'is-active' : ''} onClick={() => setGroup(g)}>{g}</button>)}</nav>{inspectorGroup === 'Headamp' && headamp && <p className="xr-notice">Physical input {Number(headamp.split('/')[2])} · Gain and 48V follow the channel's analog input assignment.</p>}<div className="xr-control-grid">{shown.map(p => <div key={p.path}>{renderControl(p)}</div>)}</div></div></> : page === 'snapshots' ? <div className="xr-snapshots"><h3>Local desk snapshots</h3><p>Save the parameters read by cspot. Recalls preserve physical preamp gain and phantom power. These snapshots are separate from the mixer's internal scenes.</p><div className="xr-snapshot-save"><input aria-label="Snapshot name" placeholder="Snapshot name" maxLength={80} value={snapshotName} onChange={e => setSnapshotName(e.target.value)} /><button type="button" disabled={busy || !enabled || !state.synchronized || state.syncing || !!state.pending.length || !!Object.keys(drafts).length || !snapshotName.trim()} onClick={() => void run(async () => {
           await mixerRequest('/snapshots', 'POST', {
             name: snapshotName.trim()

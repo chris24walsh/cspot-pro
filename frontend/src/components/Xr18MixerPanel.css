@@ -758,3 +758,75 @@
   .xr-meter > div { transition: none; }
 }
 .xr-dashboard button[aria-busy=true] { box-shadow: inset 0 0 0 2px #d9ad46; }
+
+/* Every bank is a continuous horizontal desk; Main LR stays outside it. */
+.xr-strip-scroll > .xr-strip {
+  flex: 0 0 calc((100% - (var(--xr-visible-strips, 4) - 1) * 4px) / var(--xr-visible-strips, 4));
+  min-width: 88px;
+  box-sizing: border-box;
+}
+.xr-solo-spacer { min-height: 24px; }
+@media (pointer: coarse), (any-pointer: coarse) {
+  .xr-solo-spacer { min-height: 44px; }
+}
+.xr-strip-buttons { display: flex; flex-direction: column; gap: 6px; }
+.xr-dashboard.is-focused { box-sizing: border-box; }
+
+/* Reserve the chrome first and give the faders the actual remaining height. */
+.xr-dashboard.is-focused[data-fit=desk] {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.xr-dashboard.is-focused[data-fit=desk] > :not(.xr-desk) { flex-shrink: 0; }
+.xr-dashboard.is-focused[data-fit=desk] > .xr-desk {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+.xr-dashboard.is-focused[data-fit=desk] .xr-strip-scroll { padding-bottom: 4px; }
+.xr-dashboard.is-focused[data-fit=desk] .xr-strip { min-height: 0; }
+.xr-dashboard.is-focused[data-fit=desk] .xr-strip > :not(.xr-fader-area) { flex-shrink: 0; }
+.xr-dashboard.is-focused[data-fit=desk] .xr-fader-area { flex: 1; height: auto; min-height: 48px; }
+.xr-dashboard.is-focused[data-fit=desk] .xr-fader { height: 100%; }
+.xr-dashboard.is-focused[data-fit=desk] .xr-meter,
+.xr-dashboard.is-focused[data-fit=desk] .xr-scale { height: calc(100% - 24px); }
+
+/* Short landscape screens keep the entire desk in view. */
+@media (max-height: 650px) {
+  .xr-dashboard.is-focused { font-size: 12px; }
+  .xr-dashboard.is-focused .xr-header { flex-direction: row; flex-wrap: nowrap; align-items: center; gap: 6px; padding: 4px 8px; }
+  .xr-dashboard.is-focused .xr-header > div:first-child { flex: 0 0 auto; }
+  .xr-dashboard.is-focused .xr-header > div:first-child > small,
+  .xr-dashboard.is-focused .xr-title h2 span,
+  .xr-dashboard.is-focused .xr-connection > small,
+  .xr-dashboard.is-focused .xr-action-label { display: none; }
+  .xr-dashboard.is-focused .xr-title h2 { font-size: 16px; }
+  .xr-dashboard.is-focused .xr-connection { order: initial; flex-basis: auto; margin-left: auto; font-size: 11px; }
+  .xr-dashboard.is-focused .xr-header-actions button { min-height: 32px; min-width: 36px; padding: 4px; }
+  .xr-dashboard.is-focused .xr-view-tabs { display: none; }
+  .xr-dashboard.is-focused .xr-mobile-view { display: flex; padding: 3px 8px; gap: 8px; }
+  .xr-dashboard.is-focused .xr-mobile-view select { min-height: 30px; padding: 2px 6px; font-size: 12px; }
+  .xr-dashboard.is-focused .xr-bank-bar { flex-wrap: nowrap; padding: 0 6px; gap: 6px; }
+  .xr-dashboard.is-focused .xr-bank-bar .xr-tabs { width: auto; gap: 0; padding: 2px 0; }
+  .xr-dashboard.is-focused .xr-bank-bar > label { width: auto; font-size: 0; gap: 0; }
+  .xr-dashboard.is-focused .xr-bank-bar select { width: 112px; min-height: 32px; font-size: 12px; padding: 2px 4px; }
+  .xr-dashboard.is-focused .xr-tabs button,
+  .xr-dashboard.is-focused .xr-desk-toolbar button { min-height: 32px; padding: 3px 8px; }
+  .xr-dashboard.is-focused .xr-desk-toolbar { padding: 3px 6px; }
+  .xr-dashboard.is-focused .xr-bank-pager { gap: 4px; }
+  .xr-dashboard.is-focused .xr-bank-pager > span { min-width: 0; font-size: 10px; }
+  .xr-dashboard.is-focused .xr-bank-pager button { min-width: 32px; }
+  .xr-dashboard.is-focused .xr-desk { padding: 4px; gap: 4px; }
+  .xr-dashboard.is-focused .xr-strip { gap: 2px; padding: 3px; }
+  .xr-dashboard.is-focused .xr-strip .xr-strip-name { min-height: 30px; gap: 0; padding: 0; }
+  .xr-dashboard.is-focused .xr-strip-status { display: none; }
+  .xr-dashboard.is-focused .xr-solo-spacer { display: none; }
+  .xr-dashboard.is-focused .xr-strip-buttons { flex-direction: row; gap: 3px; }
+  .xr-dashboard.is-focused .xr-strip-buttons button { flex: 1; min-width: 0; min-height: 32px; font-size: 10px; padding: 2px 0; }
+  .xr-dashboard.is-focused .xr-db { min-height: 14px; font-size: 11px; }
+  .xr-dashboard.is-focused .xr-pan,
+  .xr-dashboard.is-focused .xr-pan-spacer { min-height: 26px; height: 26px; }
+  .xr-dashboard.is-focused .xr-footer { padding: 3px 8px; font-size: 9px; }
+  .xr-dashboard.is-focused .xr-footer > span:first-child { display: none; }
+}

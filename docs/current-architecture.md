@@ -1440,9 +1440,13 @@ clients within the single API worker. The Broadcast Mixer surface includes the
 XR18 desk alongside the existing software audio mixer. See [XR18 details](xr18-mixer.md).
 
 XR18 layout uses the measured panel width rather than device detection, adapting
-banks as app navigation or orientation changes. `MixerFader` owns independent
+strip widths as app navigation or orientation changes. Every bank renders one
+horizontally scrollable row with Main LR pinned outside it. `MixerFader` owns independent
 pointer capture and relative movement for each strip; `mixerLayout` computes
-bank capacity with space reserved for Main LR. Layout changes send no OSC commands.
+visible strip capacity with space reserved for Main LR. Expanded fader view uses
+a flex column to allocate remaining viewport height to the tracks. Channel
+selection never opens or scrolls to processing; editing is explicit on every
+screen size. Layout changes send no OSC commands.
 
 XR18 commands use a single in-flight browser batch with latest-value coalescing
 per parameter; the original single-command endpoint remains compatible. The
