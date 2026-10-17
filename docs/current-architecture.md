@@ -1438,3 +1438,8 @@ catalog, 20 Hz SSE updates, command readback/retries and PostgreSQL-backed
 connection/snapshot configuration. It shares one desk session among browser
 clients within the single API worker. The Broadcast Mixer surface includes the
 XR18 desk alongside the existing software audio mixer. See [XR18 details](xr18-mixer.md).
+
+XR18 layout uses the measured panel width rather than device detection, adapting
+banks as app navigation or orientation changes. `MixerFader` owns independent
+pointer capture and relative movement for each strip; `mixerLayout` computes
+bank capacity with space reserved for Main LR. Layout changes send no OSC commands.

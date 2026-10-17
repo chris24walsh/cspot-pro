@@ -30,19 +30,22 @@ class FakeStream {
     stream = this;
   }
 }
+let deskWidth = 1280;
+let resized: () => void;
 let container: HTMLDivElement;
 let root: Root;
 beforeEach(async () => {
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
   vi.stubGlobal('EventSource', FakeStream);
+  deskWidth = 1280;
+  vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(() => ({width:deskWidth,height:224}) as DOMRect);
+  vi.stubGlobal('ResizeObserver', class {
+    constructor(callback: () => void) { resized = callback; }
+    observe() {} disconnect() {}
+  });
   vi.mocked(mixerRequest).mockImplementation(async path => {
     if (path === '/catalog') return {
-      strips: [{
-        id: '/ch/01',
-        kind: 'input',
-        name: 'Ch 1',
-        meter: 0
-      }],
+      strips: [...Array.from({length:16},(_,i)=>({id:`/ch/${String(i+1).padStart(2,'0')}`,kind:'input',name:`Ch ${i+1}`,meter:i})),{id:'/lr',kind:'main',name:'Main LR',meter:36}],
       parameters: {
         '/ch/01/config/name': parameter('/ch/01/config/name', 'Name', 'string'),
         '/ch/01/mix/fader': parameter('/ch/01/mix/fader', 'Level'),
@@ -67,6 +70,7 @@ afterEach(async () => {
   container.remove();
   vi.unstubAllGlobals();
   vi.clearAllMocks();
+  vi.restoreAllMocks();
 });
 function emit(data: object) {
   act(() => stream.onmessage?.({
@@ -98,7 +102,7 @@ it('merges incremental readbacks and preserves focused controls during meter upd
   expect(container.querySelector('input[aria-label="Name"]')).toBe(input);
   expect(document.activeElement).toBe(input);
   expect(input.value).toBe('Vocal');
-  expect(container.querySelector<HTMLInputElement>('input[aria-label="Vocal fader"]')?.value).toBe('0.7');
+  expect(container.querySelector('[role=slider][aria-label="Vocal fader"]')?.getAttribute('aria-valuenow')).toBe('70');
 });
 it('disables hardware writes when either the desk or dashboard stream goes offline', () => {
   emit({
@@ -111,17 +115,17 @@ it('disables hardware writes when either the desk or dashboard stream goes offli
       '/ch/01/mix/on': 1
     }
   });
-  const fader = container.querySelector<HTMLInputElement>('input[aria-label="Vocal fader"]')!;
-  expect(fader.disabled).toBe(false);
+  const fader = container.querySelector('[role=slider][aria-label="Vocal fader"]')!;
+  expect(fader.getAttribute('aria-disabled')).toBe('false');
   act(() => stream.onerror?.());
-  expect(fader.disabled).toBe(true);
+  expect(fader.getAttribute('aria-disabled')).toBe('true');
   emit({
     ...emptyMixer,
     reset: false,
     connected: false,
     values: {}
   });
-  expect(fader.disabled).toBe(true);
+  expect(fader.getAttribute('aria-disabled')).toBe('true');
   expect(vi.mocked(mixerRequest).mock.calls.every(([, method]) => method !== 'POST')).toBe(true);
 });
 it('closes the hardware event stream on leaving the mixer', async () => {
@@ -129,4 +133,55 @@ it('closes the hardware event stream on leaving the mixer', async () => {
   await act(async () => root.unmount());
   expect(close).toHaveBeenCalledOnce();
   root = createRoot(container);
+});
+
+function resizeDesk(width: number) { deskWidth=width;act(()=>resized()); }
+it('adapts channel banks to rotation and phone widths with the main fader always present', () => {
+  resizeDesk(900);
+  expect(container.querySelectorAll('[role=slider]')).toHaveLength(9);
+  resizeDesk(700);
+  expect(container.querySelectorAll('[role=slider]')).toHaveLength(5);
+  expect(container.querySelector('#xr-channel-editor')?.hasAttribute('hidden')).toBe(true);
+  resizeDesk(390);
+  expect(container.querySelectorAll('[role=slider]')).toHaveLength(3);
+  expect(container.querySelector('[aria-label="Main LR fader"]')).not.toBeNull();
+  act(()=>container.querySelector<HTMLButtonElement>('[aria-label="Next channel bank"]')!.click());
+  expect(container.querySelector('[aria-label="Ch 3 fader"]')).not.toBeNull();
+  expect(container.querySelector('[aria-label="Main LR fader"]')).not.toBeNull();
+  expect(vi.mocked(mixerRequest).mock.calls.every(([,method])=>method!=='POST')).toBe(true);
+});
+it('collapses saved connection settings and opens the channel editor on a channel tap', () => {
+  resizeDesk(768);
+  expect(container.querySelector('#xr-connection-settings')?.hasAttribute('hidden')).toBe(true);
+  act(()=>container.querySelector<HTMLButtonElement>('[aria-label="Connection settings"]')!.click());
+  expect(container.querySelector('#xr-connection-settings')?.hasAttribute('hidden')).toBe(false);
+  act(()=>container.querySelector<HTMLButtonElement>('[aria-label="Edit Ch 1"]')!.click());
+  expect(container.querySelector('#xr-channel-editor')?.hasAttribute('hidden')).toBe(false);
+  act(()=>container.querySelector<HTMLButtonElement>('[aria-label="Collapse channel editor"]')!.click());
+  expect(container.querySelector('#xr-channel-editor')?.hasAttribute('hidden')).toBe(true);
+});
+it('expands the desk without changing the mixer and restores scrolling with Escape', () => {
+  act(()=>container.querySelector<HTMLButtonElement>('[aria-label="Expand desk"]')!.click());
+  expect(container.querySelector('.xr-dashboard')?.classList.contains('is-focused')).toBe(true);
+  expect(document.body.style.overflow).toBe('hidden');
+  act(()=>window.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape'})));
+  expect(container.querySelector('.xr-dashboard')?.classList.contains('is-focused')).toBe(false);
+  expect(document.body.style.overflow).toBe('');
+});
+it('keeps desk gestures and snapshot controls out of the surrounding Broadcast save form', () => {
+  const parent=document.createElement('form');
+  const submit=vi.fn((event: Event)=>event.preventDefault());
+  parent.addEventListener('submit',submit);
+  container.before(parent);parent.append(container);
+  act(()=>container.querySelector<HTMLButtonElement>('[aria-label="Expand desk"]')!.click());
+  act(()=>container.querySelector<HTMLButtonElement>('[aria-label="Connection settings"]')!.click());
+  expect(submit).not.toHaveBeenCalled();
+  expect(container.querySelectorAll('button:not([type="button"])')).toHaveLength(0);
+  const name=container.querySelector<HTMLInputElement>('input[aria-label="Name"]')!;
+  const enter=new KeyboardEvent('keydown',{key:'Enter',bubbles:true,cancelable:true});
+  act(()=>name.dispatchEvent(enter));
+  expect(enter.defaultPrevented).toBe(true);
+  act(()=>Array.from(container.querySelectorAll<HTMLButtonElement>('button')).find(b=>b.textContent==='Snapshots')!.click());
+  expect(container.querySelector('form')).toBeNull();
+  parent.before(container);parent.remove();
 });

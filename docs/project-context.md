@@ -725,3 +725,8 @@ with live meters, processing, sends, routing and cspot snapshots. Connecting
 reads the desk without applying defaults. Snapshot recall preserves headamps;
 advanced FX controls use normalized values and some algorithms retain indexed
 parameter labels. See [XR18 setup](xr18-mixer.md).
+
+The XR18 desk now targets approximately 10-inch tablets with adaptive channel
+banks and a pinned main fader, collapsible setup/channel editing, expanded desk
+view and relative multi-pointer faders. Desktop keyboard controls and compact
+phone navigation remain available. See [XR18 layout](xr18-mixer.md#desktop-tablet-and-phone-layout).

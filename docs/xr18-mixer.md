@@ -79,3 +79,32 @@ Unused FX parameters return NaN and are excluded from state and snapshots.
 Tests cover the codec, meter layout, validation, simulated UDP session, read-only
 synchronization, hardware confirmation, external changes, offline writes and FX
 integer types; frontend tests cover the physical-unit conversion curves.
+
+## Desktop, tablet and phone layout
+
+The desk measures its available container width with `ResizeObserver`, including
+space used by app navigation. Automatic banks show 2, 4, 8 or 16 strips while
+keeping Main LR pinned. Previous/next bank buttons switch channels without
+sending mixer commands. The All bank retains horizontal browsing.
+
+A roughly 10-inch tablet is the primary touch target. Landscape generally fits
+eight channels; portrait generally fits four. Touch and hybrid devices use
+44-pixel minimum action targets and 16-pixel text inputs to avoid iOS input zoom.
+Faders use independent pointer capture and relative dragging, so touching a rail
+does not jump the level. Separate fingers can control separate faders. Arrow keys
+adjust a fader, Shift gives fine adjustment, Page Up/Down makes larger changes,
+and Home/End select the extremes. Meter updates preserve control focus and drag state.
+
+Connection setup collapses once an address is configured. The channel editor
+starts collapsed below 1100 pixels of available width; tap a channel name or
+Edit channel to open it. Explicit open/collapse choices persist during rotation
+for the current visit. Phone navigation uses a view selector. Expand fills the
+browser viewport with the XR18 desk, hiding the rest of the app visually; Restore
+or Escape returns to the normal app. This works without requiring browser
+fullscreen permission. Short landscape viewports use shorter fader tracks.
+
+Automated interaction checks cover bank sizing and rotation, paging, collapsible
+panels, expanded view cleanup, keyboard/fine control, relative touch movement,
+pointer cancellation and simultaneous fader drags. Actual tablet-browser visual
+and physical touch testing remains necessary; DOM tests do not emulate rendering
+or the device's touch hardware.

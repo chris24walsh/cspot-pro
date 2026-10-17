@@ -756,3 +756,5 @@ required.
 XR18 hardware control is available in **Broadcast → Mixer**, using a local OSC/UDP
 connection from the API and live meter/parameter streaming to the browser. See
 [XR18 mixer setup and controls](docs/xr18-mixer.md) for LAN setup and FX/snapshot details.
+The XR18 desk adapts channel banks to desktop, tablet and phone widths and offers
+an expanded view, collapsible editing and relative touch faders for tablet use.
