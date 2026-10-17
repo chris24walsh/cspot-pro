@@ -20,6 +20,7 @@ from app.modules.library.models import (
     Resource,
     StoredFile,
 )
+from app.modules.mixer.models import MixerConfiguration
 from app.modules.music.models import LyricsImport, OnSongSection, RhythmPreset, Song, SongPart
 from app.modules.people.models import Instrument, TeamAssignment, UserInstrument
 from app.modules.planning.models import (
@@ -37,6 +38,7 @@ from app.modules.presentation.models import PresentationPosition, PresentationSe
 from app.modules.sunday_school.models import SundaySchoolLesson, SundaySchoolResource, SundaySchoolRoom
 
 __all__ = [
+    "MixerConfiguration",
     "BibleBook",
     "BibleVerse",
     "BibleVersion",

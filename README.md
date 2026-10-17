@@ -752,3 +752,7 @@ body focus after a focused popup is removed or the window regains focus; it does
 not reclaim focus from an editing field or open popup. Left/right and Page
 Up/Down pedal modes use the same capture policy; changing hardware mode is not
 required.
+
+XR18 hardware control is available in **Broadcast → Mixer**, using a local OSC/UDP
+connection from the API and live meter/parameter streaming to the browser. See
+[XR18 mixer setup and controls](docs/xr18-mixer.md) for LAN setup and FX/snapshot details.

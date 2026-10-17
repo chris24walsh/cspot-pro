@@ -1430,3 +1430,11 @@ body focus after a focused popup is removed or the window regains focus; it does
 not reclaim focus from an editing field or open popup. Left/right and Page
 Up/Down pedal modes use the same capture policy; changing hardware mode is not
 required.
+
+### XR18 mixer
+
+The `mixer` module provides an authenticated local OSC/UDP transport, parameter
+catalog, 20 Hz SSE updates, command readback/retries and PostgreSQL-backed
+connection/snapshot configuration. It shares one desk session among browser
+clients within the single API worker. The Broadcast Mixer surface includes the
+XR18 desk alongside the existing software audio mixer. See [XR18 details](xr18-mixer.md).

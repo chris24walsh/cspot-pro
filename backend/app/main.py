@@ -32,6 +32,8 @@ async def lifespan(_app: FastAPI):
     finally:
         from app.modules.broadcast.ptz import stop_cruises
         stop_cruises()
+        from app.modules.mixer.engine import engine as mixer_engine
+        await mixer_engine.stop()
 
 
 def create_app() -> FastAPI:

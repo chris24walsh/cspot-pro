@@ -8,6 +8,7 @@ from app.modules.identity.routes import router as identity_router
 from app.modules.imports.routes import router as imports_router
 from app.modules.integrations.routes import router as integrations_router
 from app.modules.library.routes import router as library_router
+from app.modules.mixer.routes import router as mixer_router
 from app.modules.music.routes import router as music_router
 from app.modules.people.routes import router as people_router
 from app.modules.planning.routes import router as planning_router
@@ -16,6 +17,7 @@ from app.modules.site.routes import router as site_router
 from app.modules.sunday_school.routes import router as sunday_school_router
 
 api_router = APIRouter()
+api_router.include_router(mixer_router, prefix="/api/v1/mixer", tags=["mixer"])
 
 
 @api_router.get("/health", tags=["system"])

@@ -719,3 +719,9 @@ body focus after a focused popup is removed or the window regains focus; it does
 not reclaim focus from an editing field or open popup. Left/right and Page
 Up/Down pedal modes use the same capture policy; changing hardware mode is not
 required.
+
+The Broadcast Mixer now includes direct XR18 hardware control over local UDP,
+with live meters, processing, sends, routing and cspot snapshots. Connecting
+reads the desk without applying defaults. Snapshot recall preserves headamps;
+advanced FX controls use normalized values and some algorithms retain indexed
+parameter labels. See [XR18 setup](xr18-mixer.md).

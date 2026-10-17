@@ -39,3 +39,7 @@ behavioural reference, while cspot-pro uses clearer module boundaries.
 5. Presentation mode and controller sync.
 6. File uploads, OnSong, Bible lookup, and lyrics import.
 7. Messaging, reminders, admin hardening, and migration scripts from legacy data.
+
+XR18 hardware mixer control is a new cspot-pro feature, independent of legacy
+presentation parity. Broadcast → Mixer exposes the local hardware desk as well
+as the existing software broadcast audio mix; see [XR18 details](xr18-mixer.md).

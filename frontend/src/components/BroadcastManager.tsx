@@ -29,6 +29,7 @@ import {
 } from "../broadcastSettingsSave";
 import { recordingTimestamp, recordingTimestampTitle, SermonRecordingPlayer } from "./SermonRecordingPlayer";
 import { RecordingActions } from "./RecordingActions";
+import { Xr18MixerPanel } from "./Xr18MixerPanel";
 import { AudioMixerPanel } from "./AudioMixerPanel";
 import { useConfirmationDialog } from "./ConfirmationDialog";
 import { LiveStreamAudio, LowLatencyCamera } from "./LowLatencyCamera";
@@ -901,6 +902,7 @@ export function BroadcastManager({
 
       {canManage && activeTab === "mixer" ? (
         <section className="broadcast-mixer broadcast-tab-panel" aria-label="Musician audio mixer" role="tabpanel">
+          <Xr18MixerPanel />
           <AudioMixerPanel
             activeScene={form.active_audio_scene}
             automation={form.audio_scene_automation}
