@@ -154,17 +154,22 @@ export function Xr18MixerPanel() {
   }
   useEffect(() => {
     alive.current = true;
+    let stopped = false;
+    let lastStreamFrame = 0;
+    let polling = false;
+    let lastPoll = 0;
     let receivedStream = false;
     let streamHasFrame = false;
     let source: EventSource | null = null;
     const interrupted = () => {
+      if (Date.now() - lastPoll < 3000) return;
       setStreamOnline(false);
       commandQueue.current?.clear();
       latestSequence.current.clear();
       setDrafts({});
     };
     void Promise.all([mixerRequest<Catalog>('/catalog'), mixerRequest<MixerState>('/state'), mixerRequest<Snapshot[]>('/snapshots')]).then(([c, s, n]) => {
-      if (alive.current) {
+      if (!stopped) {
         setCatalog(c);
         // A slow initial HTTP response must never overwrite a newer live snapshot.
         if (!receivedStream) setState(s);
@@ -172,23 +177,23 @@ export function Xr18MixerPanel() {
         setSnapshots(n);
       }
     }).catch(e => {
-      if (alive.current) setError(e.message);
+      if (!stopped) setError(e.message);
     });
     function openStream() {
       source?.close();
       interrupted();
-      lastEvent.current = Date.now();
+      lastStreamFrame = Date.now();
       streamHasFrame = false;
       const events = new EventSource(buildAbsoluteApiUrl('/api/v1/mixer/events'), {
         withCredentials: true
       });
       source = events;
       events.onmessage = event => {
-        if (!alive.current || source !== events) return;
+        if (stopped || source !== events) return;
         const incoming = JSON.parse(event.data);
         receivedStream = true;
         streamHasFrame = true;
-        lastEvent.current = Date.now();
+        lastStreamFrame = lastEvent.current = Date.now();
         setState(previous => {
           const values = incoming.reset ? incoming.values : {
             ...previous.values,
@@ -216,18 +221,38 @@ export function Xr18MixerPanel() {
       if (document.visibilityState === 'hidden') {
         source?.close();
         source = null;
+        lastPoll = lastEvent.current = 0;
         interrupted();
       } else openStream();
     };
     if (document.visibilityState !== 'hidden') openStream();
     const watchdog = setInterval(() => {
-      if (document.visibilityState !== 'hidden' && Date.now() - lastEvent.current > (streamHasFrame ? 3000 : 10000)) openStream();
+      if (document.visibilityState !== 'hidden' && Date.now() - lastStreamFrame > (streamHasFrame ? 3000 : 10000)) openStream();
     }, 1000);
+    // Recover from browser/proxy buffering without overlapping state requests.
+    const recovery = setInterval(() => {
+      if (!stopped && Date.now() - lastEvent.current >= 3000) interrupted();
+      if (stopped || polling || document.visibilityState === 'hidden' ||
+          (streamHasFrame && Date.now() - lastStreamFrame < 1000)) return;
+      polling = true;
+      const streamAtStart = lastStreamFrame;
+      void mixerRequest<MixerState>('/state').then(snapshot => {
+        if (stopped || document.visibilityState === 'hidden' || lastStreamFrame !== streamAtStart) return;
+        receivedStream = true;
+        lastPoll = lastEvent.current = Date.now();
+        setState(snapshot);
+        setStreamOnline(true);
+      }).catch(() => {
+        if (!stopped) interrupted();
+      }).finally(() => { polling = false; });
+    }, 250);
     document.addEventListener('visibilitychange', visibility);
     return () => {
+      stopped = true;
       alive.current = false;
       source?.close();
       clearInterval(watchdog);
+      clearInterval(recovery);
       document.removeEventListener('visibilitychange', visibility);
     };
   }, []);

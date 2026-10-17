@@ -248,3 +248,23 @@ it('does not overwrite live updates with a slower initial state request',async()
   await act(async()=>finish({...emptyMixer,values:{'/ch/01/mix/fader':.1}}));
   expect(container.querySelector('[aria-label="Ch 1 fader"]')?.getAttribute('aria-valuenow')).toBe('80');
 });
+it('recovers controls through state requests when EventSource never delivers', async () => {
+  await act(async () => root.unmount());
+  vi.useFakeTimers();
+  const original = vi.mocked(mixerRequest).getMockImplementation()!;
+  vi.mocked(mixerRequest).mockImplementation(async (path, ...args) => path === '/state'
+    ? {...emptyMixer, connected: true, values: {'/ch/01/mix/on': 1, '/ch/01/mix/fader': .6}}
+    : original(path, ...args));
+  root = createRoot(container);
+  await act(async () => root.render(<Xr18MixerPanel/>));
+  await act(async () => vi.advanceTimersByTimeAsync(250));
+  const mute = container.querySelector<HTMLButtonElement>('.xr-mute')!;
+  expect(mute.disabled).toBe(false);
+  await act(async () => mute.click());
+  expect(mute.textContent).toBe('MUTED');
+  expect(vi.mocked(mixerRequest).mock.calls.some(([path]) => path === '/commands')).toBe(true);
+  emit({...emptyMixer, reset: true, connected: true, values: {'/ch/01/mix/fader': .8}});
+  const count = vi.mocked(mixerRequest).mock.calls.filter(([path]) => path === '/state').length;
+  await act(async () => vi.advanceTimersByTimeAsync(500));
+  expect(vi.mocked(mixerRequest).mock.calls.filter(([path]) => path === '/state')).toHaveLength(count);
+});

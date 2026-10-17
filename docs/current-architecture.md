@@ -1450,3 +1450,8 @@ stream explicitly forbids proxy compression/transformation through the public
 website rewrite and gateway. Clients detect silent stalls and reopen a complete
 snapshot when returning from a background tab. Pending local feedback remains
 separate from authoritative hardware readback.
+
+If EventSource delivers no frames, the XR18 dashboard recovers through sequential
+state requests at 250 ms intervals. Successful responses refresh the command
+freshness guard; polling stops while stream frames arrive normally. Hidden tabs
+stop recovery requests, and late responses cannot replace newer stream frames.

@@ -130,3 +130,9 @@ initial state request cannot overwrite newer streamed values. Local control
 feedback is immediate, but remains marked as pending until hardware readback;
 failed commands restore the authoritative value. Batched commands validate all
 parameters and phantom confirmations before writing any of them to the mixer.
+
+Browser recovery: when a browser or proxy stalls the live event stream, the
+control surface falls back to one state request at a time, every 250 ms, while
+continuing stream reconnection. Recovery latency includes network round-trip time;
+normal streaming remains 20 Hz. Touch controls do not use desktop hover colours,
+so mute/solo and selection colours appear immediately after a tap.

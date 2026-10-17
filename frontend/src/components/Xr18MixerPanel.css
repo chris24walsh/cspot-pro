@@ -32,8 +32,10 @@
   cursor:default
 }
 
-.xr-dashboard button:hover:not(:disabled) {
-  background:#33465d
+@media (hover: hover) and (pointer: fine) {
+  .xr-dashboard :where(button:hover:not(:disabled)) {
+    background:#33465d
+  }
 }
 
 .xr-dashboard input:not([type=range]),.xr-dashboard select {
