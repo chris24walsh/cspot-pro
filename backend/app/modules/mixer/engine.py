@@ -3,7 +3,6 @@
 import asyncio
 import ipaddress
 import math
-import socket
 import struct
 import time
 from contextlib import suppress
@@ -272,31 +271,35 @@ class MixerEngine(asyncio.DatagramProtocol):
 engine = MixerEngine()
 
 
+class MixerDiscovery(asyncio.DatagramProtocol):
+    def __init__(self, hosts):
+        self.hosts = set(hosts)
+        self.found = {}
+
+    def datagram_received(self, data, addr):
+        if addr[1] != 10024 or ("255.255.255.255" not in self.hosts and addr[0] not in self.hosts):
+            return
+        try:
+            path, args = decode(data)
+            if path == "/xinfo" and len(args) >= 4 and str(args[2]).startswith(("XR18", "X18")):
+                self.found[addr[0]] = dict(
+                    host=addr[0], name=args[1], model=args[2], firmware=args[3]
+                )
+        except (ValueError, IndexError, UnicodeError, TypeError, struct.error):
+            # Unrelated or malformed LAN traffic must not abort the scan.
+            return
+
+
 async def discover(hosts: list[str]):
-    """Read-only broadcast/unicast discovery from the API's LAN."""
-    loop = asyncio.get_running_loop()
-    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-    sock.setblocking(False)
-    sock.bind(("0.0.0.0", 0))
-    found = {}
+    """Read-only broadcast/unicast discovery, compatible with asyncio and uvloop."""
+    transport, protocol = await asyncio.get_running_loop().create_datagram_endpoint(
+        lambda: MixerDiscovery(hosts), local_addr=("0.0.0.0", 0), allow_broadcast=True
+    )
     try:
         for host in hosts:
             with suppress(OSError):
-                await loop.sock_sendto(sock, encode("/xinfo"), (host, 10024))
-        end = loop.time() + 2
-        while loop.time() < end:
-            try:
-                data, addr = await asyncio.wait_for(
-                    loop.sock_recvfrom(sock, 4096), end - loop.time()
-                )
-                path, args = decode(data)
-                if path == "/xinfo" and len(args) >= 4 and str(args[2]).startswith(("XR18", "X18")):
-                    found[addr[0]] = dict(
-                        host=addr[0], name=args[1], model=args[2], firmware=args[3]
-                    )
-            except (TimeoutError, ValueError, IndexError, UnicodeError):
-                break
+                transport.sendto(encode("/xinfo"), (host, 10024))
+        await asyncio.sleep(2)
+        return list(protocol.found.values())
     finally:
-        sock.close()
-    return list(found.values())
+        transport.close()

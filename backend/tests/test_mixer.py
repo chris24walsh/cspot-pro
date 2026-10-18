@@ -217,3 +217,54 @@ def test_command_batch_validates_before_any_hardware_writes(monkeypatch):
         assert sent[2] == ("/ch/01/mix/on", [0])
 
     asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("loop_kind", ["asyncio", "uvloop"])
+def test_discovery_roundtrip_on_default_and_production_event_loops(loop_kind):
+    from app.modules.mixer.engine import discover
+
+    async def scenario():
+        probes = []
+
+        class Desk(asyncio.DatagramProtocol):
+            def connection_made(self, transport):
+                self.transport = transport
+
+            def datagram_received(self, data, addr):
+                probes.append(decode(data))
+                self.transport.sendto(b"invalid", addr)
+                self.transport.sendto(encode("/xinfo", "127.0.0.1", "Other", "X32", "1"), addr)
+                for _ in range(2):
+                    self.transport.sendto(
+                        encode("/xinfo", "127.0.0.1", "Church", "XR18V2", "1.19"), addr
+                    )
+
+        transport, _ = await asyncio.get_running_loop().create_datagram_endpoint(
+            Desk, local_addr=("127.0.0.1", 10024)
+        )
+        try:
+            assert await discover(["127.0.0.1"]) == [dict(
+                host="127.0.0.1", name="Church", model="XR18V2", firmware="1.19"
+            )]
+            assert probes == [("/xinfo", [])]
+        finally:
+            transport.close()
+
+    if loop_kind == "uvloop":
+        pytest.importorskip("uvloop").run(scenario())
+    else:
+        asyncio.run(scenario())
+
+
+def test_discovery_reports_network_setup_failure(monkeypatch):
+    from fastapi import HTTPException
+    from app.modules.mixer import routes
+
+    async def unavailable(hosts):
+        raise OSError("Network unavailable")
+
+    monkeypatch.setattr(routes, "discover", unavailable)
+    with pytest.raises(HTTPException) as error:
+        asyncio.run(routes.discovery(routes.Discovery(subnet="192.168.1.0/24")))
+    assert error.value.status_code == 503
+    assert "server network" in error.value.detail

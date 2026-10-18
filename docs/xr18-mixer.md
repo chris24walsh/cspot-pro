@@ -23,7 +23,15 @@ The existing production Uvicorn configuration uses one worker. Broadcast control
 permission (`broadcast:use`) gates every endpoint, including discovery and events.
 The mixer itself has no OSC authentication; keep UDP 10024 inside the trusted LAN.
 Docker bridge mode supports direct unicast control; subnet discovery works even
-where UDP broadcast does not cross the bridge. No extra published UDP port is needed.
+where UDP broadcast does not cross the bridge. Discovery uses datagram transports
+compatible with both asyncio and the production uvloop event loop; malformed
+replies are ignored and socket setup failures return a readable 503 response.
+No extra published UDP port is needed.
+
+The server needs a route to the mixer subnet. A browser at church on
+`192.168.4.0/24` cannot give a server at home on `192.168.2.0/24` access to the
+church desk. Use a routed VPN connection or a local mixer bridge in that case;
+changing the discovery subnet alone does not establish connectivity.
 
 Connection and snapshot configuration persist in PostgreSQL through migration
 `0072_xr18_mixer`. Opening the dashboard starts the saved connection. Connecting,

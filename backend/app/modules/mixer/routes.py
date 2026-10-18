@@ -93,7 +93,12 @@ async def discovery(payload: Discovery):
             hosts = [str(host) for host in network.hosts()]
         except ValueError as exc:
             raise HTTPException(422, str(exc)) from exc
-    return await discover(hosts)
+    try:
+        return await discover(hosts)
+    except OSError as exc:
+        raise HTTPException(
+            503, "Mixer discovery could not access the server network. Check its LAN connection."
+        ) from exc
 
 
 @router.post("/command")
