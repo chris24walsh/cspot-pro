@@ -32,6 +32,30 @@ let player: PracticeAudioPlayer;
 beforeEach(() => { instances.length = 0; vi.useFakeTimers(); vi.stubGlobal("fetch", vi.fn(async () => ({ ok: true, arrayBuffer: async () => new ArrayBuffer(8) }))); vi.stubGlobal("AudioContext", FakeAudioContext); player = new PracticeAudioPlayer(); });
 afterEach(() => { player.stop(); vi.useRealTimers(); vi.unstubAllGlobals(); });
 
+it('starts an unlock source synchronously before waiting for the phone audio context', async () => {
+  const start = vi.fn();
+  const original = FakeAudioContext.prototype.createBufferSource;
+  const source = vi.spyOn(FakeAudioContext.prototype, 'createBufferSource').mockImplementation(function(this: FakeAudioContext) {
+    return { ...original.call(this), start };
+  });
+  try {
+    const ready = player.play(buildPracticePerformance(rhythm, { mode: 'song' }), false, vi.fn(), vi.fn());
+    expect(start).toHaveBeenCalledWith(0);
+    await ready;
+  } finally { source.mockRestore(); }
+});
+
+it('reports stalled audio startup instead of leaving the beat keeper waiting forever', async () => {
+  const Original = window.AudioContext;
+  class StalledContext extends FakeAudioContext { resume = vi.fn(() => new Promise<void>(() => {})); }
+  vi.stubGlobal('AudioContext', StalledContext);
+  const ready = player.play(buildPracticePerformance(rhythm, { mode: 'song' }), false, vi.fn(), vi.fn());
+  const rejected = expect(ready).rejects.toThrow('Audio did not start');
+  await vi.advanceTimersByTimeAsync(15000);
+  await rejected;
+  vi.stubGlobal('AudioContext', Original);
+});
+
 it("schedules upstrokes from high to low, then ends and closes the audio context", async () => {
   const performance = buildPracticePerformance(rhythm, { mode: "song" });
   const ended = vi.fn();

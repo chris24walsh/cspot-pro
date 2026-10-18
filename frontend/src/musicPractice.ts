@@ -305,6 +305,15 @@ export function transposeBarCharts(rhythm: SongRhythm | null | undefined, semito
 
 let activePracticePlayer: PracticeAudioPlayer | PracticeSilentPlayer | null = null;
 
+async function audioStartup<T>(operation: Promise<T>): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([operation, new Promise<never>((_, reject) => {
+      timer = setTimeout(() => reject(new Error("Audio did not start. Check your connection and tap Play again.")), 15000);
+    })]);
+  } finally { clearTimeout(timer); }
+}
+
 export class PracticeAudioPlayer {
   private queuedVersion = 0;
   private queue: ((music: PracticePerformance, position: (position: number) => void, commit: () => void) => Promise<void>) | null = null;
@@ -325,10 +334,17 @@ export class PracticeAudioPlayer {
     this.onEnd = onEnd;
     this.context = new AudioConstructor();
     const context = this.context;
-    await context.resume();
+    // Start a source inside the tap itself, before resume or sample downloads
+    // yield. Mobile Safari can require this to unlock the audio output.
+    const unlock = context.createBufferSource();
+    unlock.buffer = context.createBuffer(1, 1, context.sampleRate);
+    unlock.connect(context.destination);
+    unlock.onended = () => unlock.disconnect();
+    unlock.start(0);
+    await audioStartup(context.resume());
     if (this.cancelled) return;
     if (context.state !== "running") throw new Error("The browser could not start audio. Tap Listen again, or download the MIDI file.");
-    let guitar = await loadGuitarSamples(context, performance.notes);
+    let guitar = await audioStartup(loadGuitarSamples(context, performance.notes));
     if (this.cancelled) return;
     let secondsPerTick = 60 / performance.quarterBpm / MIDI_PPQ;
     let started = context.currentTime + 0.08;
