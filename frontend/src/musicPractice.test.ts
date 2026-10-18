@@ -259,3 +259,10 @@ it.each([0, 2, 4])('uses exactly %i intro bars even when the song opens with res
   expect(music.notes.filter(note => note.channel === 9 && note.tick < music.countInTicks)).toHaveLength(countInBars * 4);
   expect(music.notes.filter(note => note.channel === 0).every(note => note.tick >= (countInBars + 1) * music.barTicks)).toBe(true);
 });
+
+it('sounds an explicitly timed offbeat change even when the strum grid has no stroke there', () => {
+  const music = buildPracticePerformance({ ...rhythm, arrangements: [{ section: 'Default', chart: 'C@1 G@3.5' }] }, { mode: 'song', countIn: false });
+  const attack = music.notes.filter(note => note.channel === 0 && note.tick >= 2.5 * MIDI_PPQ && note.tick < 2.5 * MIDI_PPQ + 40);
+  expect(attack.map(note => note.pitch)).toEqual(chordMidiNotes('G'));
+  expect(Math.min(...attack.map(note => note.tick))).toBe(2.5 * MIDI_PPQ);
+});

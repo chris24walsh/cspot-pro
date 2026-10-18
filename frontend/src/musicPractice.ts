@@ -6,7 +6,7 @@ import { worshipSequenceBlocks } from "./worshipText";
 
 export const MIDI_PPQ = 480;
 export interface BarChord { beat: number; chord: string }
-export interface PracticeBar { patternBar?: number; section: string; chords: BarChord[] }
+export interface PracticeBar { exactTiming?: boolean; patternBar?: number; section: string; chords: BarChord[] }
 export interface PracticeNote { tick: number; duration: number; pitch: number; velocity: number; channel: number; finishing?: boolean; soft?: boolean }
 export interface PracticePerformance { notes: PracticeNote[]; bars: PracticeBar[]; barTicks: number; countInTicks: number; totalTicks: number; quarterBpm: number; numerator: number; denominator: number }
 export type PracticeMode = "strum" | "part" | "song";
@@ -30,7 +30,7 @@ export function parseBarChart(chart: string, numerator: number, section = "Defau
       return { beat, chord: validation.normalized };
     });
     if (chords[0].beat !== 1 || chords.some((chord, index) => index > 0 && chord.beat <= chords[index - 1].beat)) throw new Error("Start each bar on count 1, with chord changes in increasing order.");
-    for (let repeat = 0; repeat < repeats; repeat += 1) bars.push({ section, chords: chords.map((entry) => ({ ...entry })) });
+    for (let repeat = 0; repeat < repeats; repeat += 1) bars.push({ section, ...(explicit ? { exactTiming: true } : {}), chords: chords.map((entry) => ({ ...entry })) });
     if (bars.length > 256) throw new Error("A practice chart can contain up to 256 bars.");
   }
   if (chart.trim() && !bars.length) throw new Error("Enter a chord for each bar.");
@@ -155,10 +155,19 @@ export function buildPracticePerformance(rhythm: SongRhythm, options: {
     if (options.chords === false) return;
     const slots = rhythm.numerator * pattern.subdivision;
     const phase = (bar.patternBar ?? patternBar) % (pattern.bars ?? 1);
-    pattern.strokes.slice(phase * slots, (phase + 1) * slots).forEach((stroke, index) => {
-      if (stroke === "-") return;
-      const beat = 1 + index / pattern.subdivision;
-      const tick = start + index / slots * barTicks;
+    const strokes = pattern.strokes.slice(phase * slots, (phase + 1) * slots);
+    const attacks = strokes.flatMap((stroke, index) => stroke !== "-" ? [{ stroke, beat: 1 + index / pattern.subdivision }] : []);
+    // A harmonic change must sound on its count even when the strum pattern rests
+    // there, or its grid does not include that subdivision.
+    bar.chords.forEach((change, index) => {
+      if (!bar.exactTiming || index === 0 || !change.chord || bar.chords[index - 1].chord === change.chord) return;
+      const existing = attacks.find(attack => Math.abs(attack.beat - change.beat) < 0.000001);
+      if (existing) { if (existing.stroke === "X") existing.stroke = "D"; }
+      else attacks.push({ stroke: "D", beat: change.beat });
+    });
+    attacks.sort((a, b) => a.beat - b.beat).forEach(({ stroke, beat }) => {
+      const index = (beat - 1) * pattern.subdivision;
+      const tick = start + (beat - 1) / rhythm.numerator * barTicks;
       const stepTicks = barTicks / slots;
       const chord = bar.chords.slice().reverse().find((entry) => entry.beat <= beat)?.chord;
       if (!chord) return;
