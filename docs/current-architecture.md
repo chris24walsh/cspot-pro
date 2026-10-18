@@ -580,6 +580,11 @@ The current live output model uses:
 This keeps the control window and output window in sync inside one browser
 environment without requiring a server push channel yet.
 
+Bible reading content refreshes retry failed requests at the live polling cadence,
+so receiving a live position does not leave a device stuck on an older verse
+after a transient content-loading failure. Output content loads discard responses
+from superseded requests.
+
 ### Network TV output
 
 The stable `/tv` display route (with `?presentation=tv` retained for

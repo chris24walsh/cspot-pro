@@ -1,3 +1,4 @@
+import { retryPresentationRefresh } from "../retryPresentationRefresh";
 import { LivePointer } from "./LivePointer";
 import { countdownStartsForSelection, withCountdownTiming } from "../countdown";
 import { Maximize2 } from "lucide-react";
@@ -138,8 +139,8 @@ export function PresentationOutput({ mediaOutput = false, networkDisplay = false
   const [preServiceAudioUrl, setPreServiceAudioUrl] = useState<string | null>(null);
   const [serviceSchedules, setServiceSchedules] = useState<import("../api").ServiceScheduleRule[]>([]);
   const lastLiveStateRef = useRef(0);
+  const contentRequestRef = useRef(0);
   const networkPlanIdRef = useRef<string | null>(null);
-  const lastReadingRefreshRef = useRef("");
   const livePollInFlightRef = useRef(false);
   const outputHeartbeatInFlightRef = useRef(false);
   const videoFrameRef = useRef<HTMLIFrameElement | null>(null);
@@ -255,6 +256,7 @@ export function PresentationOutput({ mediaOutput = false, networkDisplay = false
       return;
     }
 
+    const requestId = ++contentRequestRef.current;
     try {
       const [nextPlan, nextSongs, nextPlans, broadcastSettings] = await Promise.all([
         getPlan(state.planId),
@@ -264,13 +266,17 @@ export function PresentationOutput({ mediaOutput = false, networkDisplay = false
       ]);
       const matchingWorshipSet = matchingWorshipSetForService(nextPlan, nextPlans.filter(isWorshipSetPlan));
       const nextWorshipSetPlan = matchingWorshipSet ? await getPlan(matchingWorshipSet.id) : null;
+      if (requestId !== contentRequestRef.current) return true;
       setPlan(nextPlan);
       setWorshipSetPlan(nextWorshipSetPlan);
       setSongs(nextSongs);
       setPreServiceAudioUrl(broadcastSettings?.pre_service_audio_url ?? null);
       setMessage(null);
+      return true;
     } catch (error) {
+      if (requestId !== contentRequestRef.current) return true;
       setMessage(error instanceof Error ? error.message : "Could not load slideshow output.");
+      return false;
     }
   }, []);
 
@@ -342,13 +348,7 @@ export function PresentationOutput({ mediaOutput = false, networkDisplay = false
       return;
     }
 
-    const refreshKey = `${liveState.planId}:${liveState.planItemId}:${liveState.updatedAt}`;
-    if (lastReadingRefreshRef.current === refreshKey) {
-      return;
-    }
-
-    lastReadingRefreshRef.current = refreshKey;
-    void load(liveState);
+    return retryPresentationRefresh(async () => Boolean(await load(liveState)), REMOTE_LIVE_STATE_POLL_INTERVAL_MS);
   }, [liveSlide?.itemType, liveState, load]);
 
   useEffect(() => {

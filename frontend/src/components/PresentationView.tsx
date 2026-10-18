@@ -1,3 +1,4 @@
+import { retryPresentationRefresh } from "../retryPresentationRefresh";
 import { PointerToggle, DEFAULT_MARKER_STYLE } from "./PointerToggle";
 import { SlideKeyCapture } from "./SlideKeyCapture";
 import { LivePointer } from "./LivePointer";
@@ -1468,13 +1469,15 @@ export function PresentationView({
         railFollowingRef.current = true;
       }
       setLiveIndex(nextLiveIndex);
+      return true;
     } catch (error) {
       if (requestId !== loadRequestIdRef.current) return;
-      if (!isTransientApiError(error) || !plan) {
+      if ((!options?.silent && !isTransientApiError(error)) || !plan) {
         setPlan(null);
         setWorshipSetPlan(null);
       }
       setMessage(error instanceof Error ? error.message : "Could not load presentation.");
+      return false;
     } finally {
       if (requestId === loadRequestIdRef.current) {
         setLoading(false);
@@ -3934,6 +3937,7 @@ export function PresentationView({
       return;
     }
 
+    let cancelRefresh: (() => void) | undefined;
     const timer = window.setInterval(() => {
       if (livePollInFlightRef.current) {
         return;
@@ -3970,14 +3974,16 @@ export function PresentationView({
           setPresentationAutoStarted(Boolean(remoteState.auto_started));
           if (remoteState.plan_item_id && remoteState.plan_item_id === previousPlanItemId) {
             if (selectedPlanIdRef.current !== selectedPlanId) return;
-            await load(selectedPlanId, {
+            const readingItemId = remoteState.plan_item_id;
+            cancelRefresh?.();
+            cancelRefresh = retryPresentationRefresh(async () => Boolean(await load(selectedPlanId, {
               preserveLocation: {
-                planItemId: remoteState.plan_item_id,
+                planItemId: readingItemId,
                 slideOffset: remoteState.slide_offset,
               },
               publishPreservedLocation: false,
               silent: true,
-            });
+            })), REMOTE_LIVE_STATE_POLL_INTERVAL_MS);
           }
         } catch {
           // Keep local presentation usable even if sync polling fails briefly.
@@ -3988,6 +3994,7 @@ export function PresentationView({
     }, REMOTE_LIVE_STATE_POLL_INTERVAL_MS);
 
     return () => {
+      cancelRefresh?.();
       livePollInFlightRef.current = false;
       window.clearInterval(timer);
     };
