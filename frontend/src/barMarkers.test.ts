@@ -25,3 +25,15 @@ it("retains manual charts in other parts and updates linked charts when chord sy
   expect(updated?.arrangements).toEqual([{ section: "C", chart: "F | G" }, { section: "V1", chart: "D | G Am" }]);
   expect(updated?.numerator).toBe(6);
 });
+
+it("uses explicit chord counts and interpolates unassigned chords between them", async () => {
+  const { chordBeats } = await import("./barMarkers");
+  expect(chordBeats([{}, {}, { beat: 4 }], 4)).toEqual([1, 2.5, 4]);
+  expect(chordBeats([{}, { beat: 2.5 }], 4)).toEqual([1, 2.5]);
+  expect(() => chordBeats([{}, { beat: 4 }, { beat: 2 }], 4, true)).toThrow(/increasing/);
+  // A changed meter or moved boundary must never crash presentation rendering.
+  expect(chordBeats([{}, { beat: 4 }], 3)).toEqual([1, 2.5]);
+  const timed = chords.map(chord => chord.id === "g" ? { ...chord, beat: 4 } : chord);
+  const rhythm = placeBarMarker(null, timed, { section: "V1", lineIndex: 1, anchorIndex: 3 });
+  expect(rhythm.arrangements?.[0].chart).toBe("C@1 G@4 | Am");
+});

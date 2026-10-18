@@ -763,3 +763,5 @@ channel editing and relative touch faders for tablet use.
 Mixer live updates bypass proxy compression and reconnect automatically after
 stalls or returning to a backgrounded tab. Commands coalesce into bounded batches
 so slower mobile connections do not replay a backlog of fader movements.
+
+Lyric chords support an optional saved playback count independent of their text anchor. In the chord editor, select a chord and use **Play on** for whole or half counts, then **Loop bar** to audition it with the metronome. Bar markers are required; the first chord starts on count 1. Unassigned changes retain even spacing, or interpolate between assigned counts. Both generated charts and lyric playback use these counts, and the lyric cursor reaches each chord at its assigned count. Moving a chord within the bar preserves its timing. Counts use the meter’s written unit (eighth notes in 6/8).

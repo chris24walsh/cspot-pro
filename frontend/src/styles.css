@@ -14361,3 +14361,8 @@ button.musician-page {
 .shell.is-mobile-device .musician-live-toolbar .musician-live-controls { min-width: 0; }
 .shell.is-mobile-device .musician-key-picker { flex-basis: 88px; width: 88px; }
 .shell.is-mobile-device .musician-live-toolbar .musician-live-controls { overflow-x: auto; }
+
+.chord-beat-control { display: inline-flex; align-items: center; gap: 4px; font: 12px sans-serif; white-space: nowrap; margin: 0 4px; }
+.chord-beat-control select { padding: 2px; min-height: 24px; }
+.chord-beat-label { margin-left: 2px; font: 9px sans-serif; color: #526b59; vertical-align: super; }
+.musician-slot-editor { z-index: 5; }

@@ -11,6 +11,7 @@ export interface ChordAnnotation {
   lineIndex: number;
   anchorIndex: number;
   chord: string;
+  beat?: number;
 }
 
 export interface ResolvedChordAnnotation extends ChordAnnotation {
@@ -422,6 +423,7 @@ export function parseChordChart(raw: string | null, lyrics: string | null = null
                 ...position,
                 anchorIndex,
                 chord,
+                ...(typeof annotation.beat === "number" && Number.isFinite(annotation.beat) && annotation.beat >= 1 ? { beat: annotation.beat } : {}),
               };
             })
             .filter((annotation) => annotation.chord),
@@ -513,7 +515,7 @@ export function serializeChordChart(document: ChordChartDocument, legacyText: st
 
 export function upsertChordAnnotation(
   document: ChordChartDocument,
-  input: { chord: string; id?: string | null; section: string | null; lineIndex: number; anchorIndex: number },
+  input: { chord: string; id?: string | null; section: string | null; lineIndex: number; anchorIndex: number; beat?: number },
 ) {
   const next: ChordAnnotation = {
     id: input.id || makeId(input.section, input.lineIndex, input.anchorIndex, input.chord),
@@ -521,6 +523,7 @@ export function upsertChordAnnotation(
     lineIndex: input.lineIndex,
     anchorIndex: input.anchorIndex,
     chord: input.chord.trim(),
+    beat: input.beat,
   };
 
   const existingIndex = document.annotations.findIndex((annotation) => annotation.id === next.id);

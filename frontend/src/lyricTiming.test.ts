@@ -154,3 +154,21 @@ it('keeps the previous-bar trail outside the new bar accent', () => {
   expect(lyricBarHighlightFill(start, cursor, 1, 8)).toBe(1);
   expect(lyricBarHighlightFill(start, cursor, 0, 12)).toBe(0);
 });
+
+it('plays an offbeat chord independently of its lyric anchor and aligns the cursor to that count', () => {
+  const timed = chords.map(chord => chord.id === 'g' ? { ...chord, beat: 3.5 } : chord);
+  const bars = lyricBarLayout(lyrics, rhythm, timed);
+  expect(timedPracticeBars(lyrics, bars, timed, 4)[0].chords).toEqual([{ beat: 1, chord: 'C' }, { beat: 3.5, chord: 'G' }]);
+  const timeline = lyricPlaybackBars(lyrics, 'V1', bars);
+  expect(lyricCursorAt(lyrics, timeline, 0.625, 4, 4)?.anchorIndex).toBe(10);
+  const moved = timed.map(chord => chord.id === 'g' ? { ...chord, anchorIndex: 14 } : chord);
+  expect(timedPracticeBars(lyrics, lyricBarLayout(lyrics, rhythm, moved), moved, 4)[0].chords[1].beat).toBe(3.5);
+});
+
+it('starts a live entry on count one while preserving relative timing of remaining changes', () => {
+  const timed = chords.map(chord => chord.id === 'g' ? { ...chord, beat: 4 } : chord);
+  const timeline = lyricPlaybackBars(lyrics, 'V1', lyricBarLayout(lyrics, rhythm, timed));
+  const entry = timelineWithEntry(timeline, 0, 1);
+  expect(timedPracticeBars(lyrics, entry, timed, 4)[0].chords).toEqual([{ beat: 1, chord: 'G' }]);
+  expect(lyricCursorAt(lyrics, entry, 0, 4, 4)?.anchorIndex).toBe(10);
+});

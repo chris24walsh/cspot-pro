@@ -1,9 +1,10 @@
 import { LEADING_CHORD_ANCHORS, TRAILING_CHORD_ANCHORS, lyricLines, resolveChordAnnotations, type ChordAnnotation } from './chordSheet';
+import { chordBeats } from './barMarkers';
 import type { SongRhythm } from './songRhythm';
 import { worshipSequenceBlocks } from './worshipText';
 
 export interface LyricPosition { lineIndex: number; anchorIndex: number }
-export interface LyricBar { section: string; start: LyricPosition; end: LyricPosition; stops: LyricPosition[] }
+export interface LyricBar { beats?: number[]; beatEnd?: number; section: string; start: LyricPosition; end: LyricPosition; stops: LyricPosition[] }
 export interface LyricCursor extends LyricPosition { occurrence: number; pulse: number; barStartLine: number }
 const compare = (a: LyricPosition, b: LyricPosition) => a.lineIndex - b.lineIndex || a.anchorIndex - b.anchorIndex;
 
@@ -15,7 +16,7 @@ export function lyricBarLayout(lyrics: string | null | undefined, rhythm: SongRh
   const bars: LyricBar[] = [];
   for (const section of new Set(markers.map(marker => marker.section))) {
     const boundaries = markers.filter(marker => marker.section === section).map(marker => ({ lineIndex: marker.absoluteLineIndex, anchorIndex: marker.anchorIndex })).sort(compare);
-    const changes = chords.filter(chord => chord.section === section).map(chord => ({ lineIndex: chord.absoluteLineIndex, anchorIndex: chord.anchorIndex })).sort(compare);
+    const changes = chords.filter(chord => chord.section === section).map(chord => ({ lineIndex: chord.absoluteLineIndex, anchorIndex: chord.anchorIndex, beat: chord.beat })).sort(compare);
     const first = changes[0];
     if (first && compare(first, boundaries[0]) < 0) boundaries.unshift(first);
     const lastLine = (() => { let end = boundaries[boundaries.length - 1].lineIndex; while (end + 1 < lines.length && !/^\[.*\]$/.test(lines[end + 1].trim())) end++; return end; })();
@@ -24,7 +25,9 @@ export function lyricBarLayout(lyrics: string | null | undefined, rhythm: SongRh
       const finish = boundaries[index + 1] ?? end;
       if (compare(start, finish) >= 0) return;
       const inside = changes.filter(change => compare(change, start) > 0 && compare(change, finish) < 0);
-      bars.push({ section: section ?? 'Default', start, end: finish, stops: [start, ...inside, finish] });
+      const firstChord = changes.find(change => compare(change, start) === 0);
+      const beats = chordBeats([firstChord ?? {}, ...inside], rhythm?.numerator ?? 4);
+      bars.push({ section: section ?? 'Default', start, end: finish, stops: [start, ...inside, finish], beats, beatEnd: (rhythm?.numerator ?? 4) + 1 });
     });
   }
   return bars;
@@ -54,7 +57,11 @@ export function lyricCursorAt(lyrics: string | null | undefined, bars: Array<Lyr
   const bar = bars[Math.floor(barPosition)];
   if (!bar) return null;
   const starts = offsets(lyrics), lines = lyricLines(lyrics ?? null);
-  const fraction = barPosition % 1, interval = fraction * (bar.stops.length - 1);
+  const fraction = barPosition % 1;
+  const counts = [...(bar.beats ?? bar.stops.slice(0, -1).map((_, i) => 1 + i * numerator / (bar.stops.length - 1))), numerator + 1];
+  const beat = 1 + fraction * numerator;
+  const slot = Math.max(0, counts.findIndex((count, i) => i > 0 && count > beat) - 1);
+  const interval = slot + (beat - counts[slot]) / (counts[slot + 1] - counts[slot]);
   const index = Math.min(Math.floor(interval), bar.stops.length - 2);
   const from = bar.stops[index], to = bar.stops[index + 1];
   const scalar = starts[from.lineIndex] + from.anchorIndex + (starts[to.lineIndex] + to.anchorIndex - starts[from.lineIndex] - from.anchorIndex) * (interval - index);
@@ -83,7 +90,7 @@ export function timedPracticeBars(lyrics: string | null | undefined, bars: Lyric
     const candidates = resolved.filter(chord => musicalSectionKey(chord.section ?? 'Default') === musicalSectionKey(bar.section));
     const chord = candidates.filter(chord => chord.absoluteLineIndex === position.lineIndex && chord.anchorIndex === position.anchorIndex).slice(-1)[0];
     previousChord = chord?.chord || previousChord;
-    return { beat: 1 + index * numerator / stops.length, chord: previousChord };
+    return { beat: bar.beats?.[index] ?? 1 + index * numerator / stops.length, chord: previousChord };
   }) }));
 }
 
@@ -101,7 +108,13 @@ export function liveJumpStart(lyrics: string | null | undefined, timeline: Array
 
 export function timelineWithEntry<T extends LyricBar>(timeline: T[], index: number, stop: number): T[] {
   if (!stop || !timeline[index] || stop >= timeline[index].stops.length - 1) return timeline;
-  return timeline.map((bar, current) => current === index ? { ...bar, start: bar.stops[stop], stops: bar.stops.slice(stop) } : bar);
+  return timeline.map((bar, current) => {
+    if (current !== index) return bar;
+    const end = bar.beatEnd;
+    const start = bar.beats?.[stop];
+    const beats = end !== undefined && start !== undefined ? bar.beats!.slice(stop).map(beat => 1 + (beat - start) * (end - 1) / (end - start)) : undefined;
+    return { ...bar, start: bar.stops[stop], stops: bar.stops.slice(stop), ...(beats ? { beats } : {}) };
+  });
 }
 
 // Fill only the current bar, even when it crosses lines or begins inside a word.

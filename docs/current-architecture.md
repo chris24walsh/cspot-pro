@@ -1459,3 +1459,5 @@ If EventSource delivers no frames, the XR18 dashboard recovers through sequentia
 state requests at 250 ms intervals. Successful responses refresh the command
 freshness guard; polling stops while stream frames arrive normally. Hidden tabs
 stop recovery requests, and late responses cannot replace newer stream frames.
+
+Lyric chords support an optional saved playback count independent of their text anchor. In the chord editor, select a chord and use **Play on** for whole or half counts, then **Loop bar** to audition it with the metronome. Bar markers are required; the first chord starts on count 1. Unassigned changes retain even spacing, or interpolate between assigned counts. Both generated charts and lyric playback use these counts, and the lyric cursor reaches each chord at its assigned count. Moving a chord within the bar preserves its timing. Counts use the meter’s written unit (eighth notes in 6/8).

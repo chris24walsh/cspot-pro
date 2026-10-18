@@ -29,11 +29,11 @@ import {
   type ChordDisplayMode,
 } from "../chordSheet";
 import { normalizeSongRhythm } from "../songRhythm";
-import { parseBarChart, transposeBarCharts } from "../musicPractice";
+import { buildPracticePerformance, PracticeAudioPlayer, parseBarChart, transposeBarCharts } from "../musicPractice";
 import { canonicalizeWorshipLyrics, normalizeWorshipSequence } from "../worshipText";
 import { useConfirmationDialog } from "./ConfirmationDialog";
-import { placeBarMarker, removeBarMarker, rhythmWithBarMarkers } from "../barMarkers";
-import { lyricBarLayout, lyricColumnWidths, wrapTimedLine, lyricCursorAt, lyricPlaybackBars, musicalSectionKey, type LyricCursor } from "../lyricTiming";
+import { chordBeats, placeBarMarker, removeBarMarker, rhythmWithBarMarkers } from "../barMarkers";
+import { timedPracticeBars, lyricBarLayout, lyricColumnWidths, wrapTimedLine, lyricCursorAt, lyricPlaybackBars, musicalSectionKey, type LyricCursor } from "../lyricTiming";
 import { LyricMusicControls, TimingDot } from "./LyricMusicControls";
 import { CompactControlMenu } from "./CompactControlMenu";
 import { SongRhythmEditor } from "./SongRhythmEditor";
@@ -313,6 +313,10 @@ export function SongEditorDialog({
   const [editingAnnotationId, setEditingAnnotationId] = useState<string | null>(null);
   const [inlineChordEditorOpen, setInlineChordEditorOpen] = useState(false);
   const [chordInput, setChordInput] = useState("");
+  const [chordBeat, setChordBeat] = useState<number | undefined>();
+  const previewPlayer = useRef<PracticeAudioPlayer | null>(null);
+  const [previewingBar, setPreviewingBar] = useState(false);
+  useEffect(() => () => previewPlayer.current?.stop(), []);
   const [draggedBarId, setDraggedBarId] = useState<string | null>(null);
   const [draggedAnnotationId, setDraggedAnnotationId] = useState<string | null>(null);
   const [dropTarget, setDropTarget] = useState<{ lineIndex: number; slotIndex: number } | null>(null);
@@ -415,10 +419,13 @@ export function SongEditorDialog({
 
 
   function startInlineChordEdit(lineIndex: number, anchorIndex: number, annotation?: ChordAnnotation) {
+    previewPlayer.current?.stop();
+    setPreviewingBar(false);
     if (!chordChart.absoluteKey && !chordChart.capoKey) {
       setMessage("Set the song key before adding chords.");
       return;
     }
+    setChordBeat(annotation?.beat);
     setSelectedLineIndex(lineIndex);
     setSelectedAnchorIndex(anchorIndex);
     setEditingAnnotationId(annotation?.id ?? null);
@@ -427,11 +434,45 @@ export function SongEditorDialog({
   }
 
   function cancelInlineChordEdit() {
+    previewPlayer.current?.stop();
+    setPreviewingBar(false);
     setEditingAnnotationId(null);
     setInlineChordEditorOpen(false);
     setHoveredAnchor(null);
     setHoveredChordId(null);
     setChordInput("");
+  }
+
+  function draftChordTiming() {
+    const position = chordPositionForLine(chordLyrics, selectedLineIndex);
+    if (!position) throw new Error("Choose a lyric line first.");
+    const validation = validateChordSymbol(chordInput);
+    if (validation.error) throw new Error(validation.error);
+    const chord = transposeChordSymbol(validation.normalized, displayMode === "capo" ? chordChart.capo : 0);
+    const draft = upsertChordAnnotation(chordChart, { ...position, anchorIndex: selectedAnchorIndex, id: editingAnnotationId, chord, beat: chordBeat });
+    const bars = lyricBarLayout(chordLyrics, form.rhythm, draft.annotations);
+    const bar = bars.find(bar => bar.stops.some(stop => stop.lineIndex === selectedLineIndex && stop.anchorIndex === selectedAnchorIndex));
+    if (bar) {
+      const resolved = resolveChordAnnotations(draft.annotations, chordLyrics);
+      chordBeats(bar.stops.slice(0, -1).map(stop => resolved.find(chord => chord.absoluteLineIndex === stop.lineIndex && chord.anchorIndex === stop.anchorIndex) ?? {}), form.rhythm?.numerator ?? 4, true);
+    }
+    if (chordBeat !== undefined && bar) {
+      const stop = bar.stops.findIndex(stop => stop.lineIndex === selectedLineIndex && stop.anchorIndex === selectedAnchorIndex);
+      if (stop === 0 && chordBeat !== 1) throw new Error("The first chord starts on beat 1. Add a bar boundary before it to change its bar.");
+    }
+    return { draft, bar };
+  }
+
+  async function previewChordBar() {
+    if (previewingBar) { previewPlayer.current?.stop(); setPreviewingBar(false); return; }
+    try {
+      const { draft, bar } = draftChordTiming();
+      if (!bar || !effectiveRhythm) throw new Error("Add bar markers to set chord timing.");
+      const bars = timedPracticeBars(chordLyrics, [bar], draft.annotations, effectiveRhythm.numerator);
+      const player = new PracticeAudioPlayer(); previewPlayer.current = player;
+      setPreviewingBar(true);
+      await player.play(buildPracticePerformance(effectiveRhythm, { mode: "song", countIn: false, metronome: true, bars }), true, () => {}, () => setPreviewingBar(false));
+    } catch (error) { setPreviewingBar(false); setMessage(error instanceof Error ? error.message : "Could not preview bar."); }
   }
 
   function saveAnnotation() {
@@ -444,6 +485,7 @@ export function SongEditorDialog({
       setMessage(validation.error);
       return;
     }
+    try { draftChordTiming(); } catch (error) { setMessage(error instanceof Error ? error.message : "Invalid chord timing."); return; }
     const storedChord = transposeChordSymbol(validation.normalized, displayMode === "capo" ? chordChart.capo : 0, {
       detailMode: "advanced",
       preferFlats: chordChart.absoluteKey?.includes("b") || chordChart.capoKey?.includes("b"),
@@ -459,6 +501,7 @@ export function SongEditorDialog({
         id: editingAnnotationId,
         ...position,
         anchorIndex: selectedAnchorIndex,
+        beat: chordBeat,
       }),
     );
     setLegacyChords(null);
@@ -494,7 +537,7 @@ export function SongEditorDialog({
     const annotation = chordChart.annotations.find((candidate) => candidate.id === annotationId);
     const position = chordPositionForLine(chordLyrics, lineIndex);
     if (!annotation || !position) return;
-    setChordChart((current) => upsertChordAnnotation(current, { id: annotation.id, chord: annotation.chord, ...position, anchorIndex }));
+    setChordChart((current) => upsertChordAnnotation(current, { ...annotation, ...position, anchorIndex }));
     setLegacyChords(null);
   }
 
@@ -578,6 +621,7 @@ export function SongEditorDialog({
             ...position,
             anchorIndex: annotation.anchorIndex,
             chord: annotation.chord,
+            beat: annotation.beat,
           }];
         }),
       );
@@ -879,12 +923,11 @@ export function SongEditorDialog({
                           (editingAnnotationId === null ? !annotation : annotation != null && editingAnnotationId === annotation.id);
                         if (isEditing) {
                           return (
-                            <span className="musician-slot-editor" key={`editor-${lineIndex}-${slotIndex}`} style={{ gridColumn, gridRow: 1 }}>
+                            <span className="musician-slot-editor" onBlur={(event) => { if (!event.currentTarget.contains(event.relatedTarget)) saveOrCloseInlineEditor(); }} key={`editor-${lineIndex}-${slotIndex}`} style={{ gridColumn, gridRow: 1 }}>
                               <input
                                 autoFocus
                                 disabled={!canEdit}
-                                onBlur={() => saveOrCloseInlineEditor()}
-                                onChange={(event) => setChordInput(normalizeChordInput(event.target.value))}
+                                onChange={(event) => { setChordInput(normalizeChordInput(event.target.value)); previewPlayer.current?.stop(); setPreviewingBar(false); }}
                                 onKeyDown={(event) => {
                                   if (event.key === "Enter") {
                                     event.preventDefault();
@@ -904,6 +947,14 @@ export function SongEditorDialog({
                                 size={Math.min(8, Math.max(2, chordInput.length || 2))}
                                 value={chordInput}
                               />
+                              <label className="chord-beat-control">Play on
+                                <select aria-label="Chord playback beat" value={chordBeat ?? ""} disabled={!canEdit || !timingBars.length} onChange={event => { setChordBeat(event.target.value ? Number(event.target.value) : undefined); previewPlayer.current?.stop(); setPreviewingBar(false); }}>
+                                  <option value="">Auto</option>
+                                  {Array.from({ length: (form.rhythm?.numerator ?? 4) * 2 }, (_, i) => 1 + i / 2).map(beat => <option value={beat} key={beat}>{Number.isInteger(beat) ? beat : `& of ${Math.floor(beat)}`}</option>)}
+                                </select>
+                              </label>
+                              <button type="button" disabled={!timingBars.length || !chordInput.trim()} onClick={() => void previewChordBar()}>{previewingBar ? "Stop" : "Loop bar"}</button>
+                              <button type="button" onClick={saveOrCloseInlineEditor}>Done</button>
                               {annotation ? <button className="musician-delete-button" disabled={!canEdit} onMouseDown={(event) => event.preventDefault()} onClick={() => { setChordChart((current) => removeChordAnnotation(current, annotation.id)); setLegacyChords(null); cancelInlineChordEdit(); }} type="button">x</button> : null}
                             </span>
                           );
@@ -930,7 +981,7 @@ export function SongEditorDialog({
                             style={{ gridColumn, gridRow: 1 }}
                             type="button"
                           >
-                            <span className="musician-slot-chord">{(barEditing || combinedEditing) && bar ? "│ " : ""}{annotation ? displayChord(annotation.chord, { capo: chordChart.capo, detailMode, displayMode }) : barEditing && bar ? "" : "·"}</span>
+                            <span className="musician-slot-chord">{(barEditing || combinedEditing) && bar ? "│ " : ""}{annotation ? <>{displayChord(annotation.chord, { capo: chordChart.capo, detailMode, displayMode })}{annotation.beat !== undefined ? <small className="chord-beat-label">{Number.isInteger(annotation.beat) ? annotation.beat : `&${Math.floor(annotation.beat)}`}</small> : null}</> : barEditing && bar ? "" : "·"}</span>
                           </button>
                         );
                       };
