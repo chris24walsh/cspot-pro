@@ -44,7 +44,7 @@ it('follows repeated occurrences, crosses lines inside a bar, and changes page a
 
 it('bounces on the compound-meter pulse and supports unsectioned lyrics', () => {
   const simple = 'Sing now';
-  const bars = lyricBarLayout(simple, { ...rhythm, markers: [{ id: 'one', section: null, lineIndex: 0, anchorIndex: 3 }] }, []);
+  const bars = lyricBarLayout(simple, { ...rhythm, numerator: 6, denominator: 8, markers: [{ id: 'one', section: null, lineIndex: 0, anchorIndex: 3 }] }, []);
   const timeline = lyricPlaybackBars(simple, null, bars);
   expect(timeline).toHaveLength(1);
   expect(lyricCursorAt(simple, timeline, 0.25, 6, 8)?.pulse).toBe(0.5);
@@ -171,4 +171,19 @@ it('starts a live entry on count one while preserving relative timing of remaini
   const entry = timelineWithEntry(timeline, 0, 1);
   expect(timedPracticeBars(lyrics, entry, timed, 4)[0].chords).toEqual([{ beat: 1, chord: 'G' }]);
   expect(lyricCursorAt(lyrics, entry, 0, 4, 4)?.anchorIndex).toBe(10);
+});
+
+it('resolves continuing meter changes, temporary exceptions, and resets in source order', () => {
+  const text = '[V1]\none two three four\n[C]\nfive six';
+  const changes: SongRhythm = { numerator: 4, denominator: 4, notes: '', patterns: [], markers: [
+    { id: 'a', section: 'V1', lineIndex: 0, anchorIndex: 3, rhythm: { numerator: 3, denominator: 4, scope: 'continue' } },
+    { id: 'b', section: 'V1', lineIndex: 0, anchorIndex: 7, rhythm: { numerator: 2, denominator: 4, scope: 'bar' } },
+    { id: 'c', section: 'V1', lineIndex: 0, anchorIndex: 11 },
+    { id: 'd', section: 'C', lineIndex: 0, anchorIndex: 3 },
+    { id: 'e', section: 'C', lineIndex: 0, anchorIndex: 8, rhythm: { numerator: 4, denominator: 4, scope: 'continue' } },
+  ] };
+  const bars = lyricBarLayout(text, changes, []);
+  expect(bars.map(bar => bar.rhythm?.numerator)).toEqual([3, 2, 3, 3, 4]);
+  expect(lyricPlaybackBars(text, 'V1 C V1', bars).map(bar => bar.rhythm?.numerator)).toEqual([3, 2, 3, 3, 4, 3, 2, 3]);
+  expect(lyricCursorAt(text, lyricPlaybackBars(text, 'V1', bars), 1.5, 4, 4)?.pulse).toBe(0);
 });

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { strumGridColumns, resizeStrumPattern, STRUM_PRESETS, strumCounts, strumPatternForSection, type SongRhythm } from "./songRhythm";
+import { normalizeSongRhythm, strumGridColumns, resizeStrumPattern, STRUM_PRESETS, strumCounts, strumPatternForSection, type SongRhythm } from "./songRhythm";
 
 describe("song rhythm", () => {
   it("keeps every preset to one complete bar", () => {
@@ -49,4 +49,9 @@ it("splits dense bars into two rows while leaving eight-slot bars on one", () =>
   expect(strumGridColumns(4, 4)).toBe(8);
   expect(strumGridColumns(4, 2)).toBe(8);
   expect(strumGridColumns(3, 4)).toBe(6);
+});
+
+it('preserves bar rhythm overrides when normalizing song edits', () => {
+  const change = { numerator: 2, denominator: 4 as const, scope: 'bar' as const, pattern: { section: 'Default' as const, subdivision: 1 as const, strokes: ['D' as const, 'U' as const] } };
+  expect(normalizeSongRhythm({ numerator: 4, denominator: 4, notes: '', patterns: [], markers: [{ id: 'one', section: 'V1', lineIndex: 0, anchorIndex: 3, rhythm: change }] })?.markers?.[0].rhythm).toEqual({ ...change, pattern: { ...change.pattern, name: '', bars: 1 } });
 });

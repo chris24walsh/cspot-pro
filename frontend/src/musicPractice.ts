@@ -1,14 +1,39 @@
 import { guitarSampleFor, guitarSustainBuffer, loadGuitarSamples } from "./guitarSamples";
 import { transposeChordSymbol, validateChordSymbol, type ChordAnnotation } from "./chordSheet";
-import { strumPatternForSection, type SongRhythm, type StrumPattern } from "./songRhythm";
+import { resizeStrumPattern, strumPatternForSection, type SongRhythm, type StrumPattern } from "./songRhythm";
 import { lyricBarLayout, lyricPlaybackBars, musicalSectionKey, timedPracticeBars } from "./lyricTiming";
 import { worshipSequenceBlocks } from "./worshipText";
 
 export const MIDI_PPQ = 480;
 export interface BarChord { beat: number; chord: string }
-export interface PracticeBar { exactTiming?: boolean; patternBar?: number; section: string; chords: BarChord[] }
+export interface PracticeBar { numerator?: number; denominator?: SongRhythm["denominator"]; pattern?: StrumPattern | null; exactTiming?: boolean; patternBar?: number; section: string; chords: BarChord[] }
 export interface PracticeNote { tick: number; duration: number; pitch: number; velocity: number; channel: number; finishing?: boolean; soft?: boolean }
-export interface PracticePerformance { notes: PracticeNote[]; bars: PracticeBar[]; barTicks: number; countInTicks: number; totalTicks: number; quarterBpm: number; numerator: number; denominator: number }
+export interface PracticePerformance { barLengths?: number[]; barStarts?: number[]; notes: PracticeNote[]; bars: PracticeBar[]; barTicks: number; countInTicks: number; totalTicks: number; quarterBpm: number; numerator: number; denominator: number }
+export function performanceBarLength(music: PracticePerformance, index: number): number {
+  return music.barLengths?.[index] ?? music.barTicks;
+}
+export function performanceBarStart(music: PracticePerformance, index: number): number {
+  return music.barStarts?.[index] ?? index * music.barTicks;
+}
+export function performancePosition(music: PracticePerformance, tick: number): number {
+  const elapsed = tick - music.countInTicks;
+  if (elapsed < 0) return elapsed / music.barTicks;
+  for (let index = 0; index < music.bars.length; index++) {
+    const start = performanceBarStart(music, index), length = performanceBarLength(music, index);
+    if (elapsed < start + length) return index + (elapsed - start) / length;
+  }
+  const last = music.bars.length - 1;
+  return music.bars.length + (elapsed - performanceBarStart(music, last) - performanceBarLength(music, last)) / performanceBarLength(music, last);
+}
+export function nextPerformanceBoundary(music: PracticePerformance, tick: number): number {
+  if (tick < music.countInTicks) return music.countInTicks;
+  const position = performancePosition(music, tick);
+  const next = Math.floor(position) + 1;
+  if (next < music.bars.length) return music.countInTicks + performanceBarStart(music, next);
+  const end = performanceBarStart(music, music.bars.length - 1) + performanceBarLength(music, music.bars.length - 1);
+  return music.countInTicks + end + Math.max(0, next - music.bars.length) * performanceBarLength(music, music.bars.length - 1);
+}
+
 export type PracticeMode = "strum" | "part" | "song";
 
 export function parseBarChart(chart: string, numerator: number, section = "Default"): PracticeBar[] {
@@ -116,21 +141,24 @@ export function buildPracticePerformance(rhythm: SongRhythm, options: {
   if (!bars.length) throw new Error("Add chords to the bar chart before listening.");
   if (bars.length > 256) throw new Error("A practice arrangement can contain up to 256 bars.");
   const barTicks = rhythm.numerator * 4 / rhythm.denominator * MIDI_PPQ;
+  const barLengths = bars.map(bar => (bar.numerator ?? rhythm.numerator) * 4 / (bar.denominator ?? rhythm.denominator) * MIDI_PPQ);
+  let accumulated = 0;
+  const barStarts = barLengths.map(length => { const start = accumulated; accumulated += length; return start; });
   const firstChordBar = bars.findIndex(bar => bar.chords.some(change => Boolean(change.chord)));
   const firstChord = firstChordBar < 0 ? null : bars[firstChordBar].chords.find(change => Boolean(change.chord))!;
-  const firstChordTick = firstChord ? firstChordBar * barTicks + (firstChord.beat - 1) / rhythm.numerator * barTicks : null;
+  const firstChordTick = firstChord ? barStarts[firstChordBar] + (firstChord.beat - 1) / (bars[firstChordBar].numerator ?? rhythm.numerator) * barLengths[firstChordBar] : null;
   // Opening rests are part of the selected slide. Add only the missing lead-in.
   if (options.countInBars !== undefined && (!Number.isInteger(options.countInBars) || options.countInBars < 0 || options.countInBars > 16)) throw new Error("Choose an intro between 0 and 16 bars.");
   const countInTicks = options.countInBars !== undefined ? options.countInBars * barTicks : options.countIn ? Math.max(0, barTicks - (firstChordTick ?? 0)) : 0;
   const metronomeStart = options.countInBars !== undefined || options.metronomeDuringRests || firstChordTick === null ? 0 : Math.max(0, countInTicks + firstChordTick - barTicks);
-  let totalTicks = countInTicks + bars.length * barTicks;
+  let totalTicks = countInTicks + accumulated;
   const quarterBpm = rhythmQuarterBpm(rhythm);
   if (totalTicks / MIDI_PPQ * 60 / quarterBpm > 1200) throw new Error("Keep a practice preview under 20 minutes.");
   const notes: PracticeNote[] = [];
-  const pulseCount = rhythm.denominator === 8 && rhythm.numerator % 3 === 0 ? 3 : 1;
-  function clicks(start: number, end = start + barTicks) {
-    for (let count = 0; count < rhythm.numerator; count += pulseCount) {
-      const tick = start + count / rhythm.numerator * barTicks;
+  function clicks(start: number, end = start + barTicks, numerator = rhythm.numerator, denominator = rhythm.denominator, length = barTicks) {
+    const pulse = denominator === 8 && numerator % 3 === 0 ? 3 : 1;
+    for (let count = 0; count < numerator; count += pulse) {
+      const tick = start + count / numerator * length;
       if (tick < 0 || tick < metronomeStart || tick >= end) continue;
       notes.push({ tick, duration: 36, pitch: count === 0 ? 76 : 77, velocity: 65, channel: 9 });
     }
@@ -146,14 +174,18 @@ export function buildPracticePerformance(rhythm: SongRhythm, options: {
   bars.forEach((bar, barIndex) => {
     patternBar = bar.section === previousSection ? patternBar + 1 : 0;
     previousSection = bar.section;
-    const pattern: StrumPattern = strumPatternForSection(rhythm, bar.section) ?? {
-      section: "Default", subdivision: 1, strokes: Array.from({ length: rhythm.numerator }, (_, index) => index % pulseCount === 0 ? "D" : "-"),
+    const numerator = bar.numerator ?? rhythm.numerator, denominator = bar.denominator ?? rhythm.denominator;
+    const length = barLengths[barIndex];
+    const pulseCount = denominator === 8 && numerator % 3 === 0 ? 3 : 1;
+    const sourcePattern = bar.pattern ?? strumPatternForSection(rhythm, bar.section);
+    const pattern: StrumPattern = sourcePattern ? resizeStrumPattern(sourcePattern, numerator) : {
+      section: "Default", subdivision: 1, strokes: Array.from({ length: numerator }, (_, index) => index % pulseCount === 0 ? "D" : "-"),
     };
-    const start = countInTicks + barIndex * barTicks;
-    if (options.metronome) clicks(start);
-    else if (options.metronomeLeadIn && firstChordTick !== null) clicks(start, countInTicks + firstChordTick);
+    const start = countInTicks + barStarts[barIndex];
+    if (options.metronome) clicks(start, start + length, numerator, denominator, length);
+    else if (options.metronomeLeadIn && firstChordTick !== null) clicks(start, Math.min(start + length, countInTicks + firstChordTick), numerator, denominator, length);
     if (options.chords === false) return;
-    const slots = rhythm.numerator * pattern.subdivision;
+    const slots = numerator * pattern.subdivision;
     const phase = (bar.patternBar ?? patternBar) % (pattern.bars ?? 1);
     const strokes = pattern.strokes.slice(phase * slots, (phase + 1) * slots);
     const attacks = strokes.flatMap((stroke, index) => stroke !== "-" ? [{ stroke, beat: 1 + index / pattern.subdivision }] : []);
@@ -167,8 +199,8 @@ export function buildPracticePerformance(rhythm: SongRhythm, options: {
     });
     attacks.sort((a, b) => a.beat - b.beat).forEach(({ stroke, beat }) => {
       const index = (beat - 1) * pattern.subdivision;
-      const tick = start + (beat - 1) / rhythm.numerator * barTicks;
-      const stepTicks = barTicks / slots;
+      const tick = start + (beat - 1) / numerator * length;
+      const stepTicks = length / slots;
       const chord = bar.chords.slice().reverse().find((entry) => entry.beat <= beat)?.chord;
       if (!chord) return;
       if (stroke === "X") {
@@ -214,7 +246,7 @@ export function buildPracticePerformance(rhythm: SongRhythm, options: {
     totalTicks = Math.ceil(ending + sustain + (lastPlayedPitches.length * 0.012 + 0.04) / secondsPerTick);
   }
   notes.sort((a, b) => a.tick - b.tick);
-  return { notes, bars, barTicks, countInTicks, totalTicks, quarterBpm, numerator: rhythm.numerator, denominator: rhythm.denominator };
+  return { notes, bars, barLengths, barStarts, barTicks, countInTicks, totalTicks, quarterBpm, numerator: rhythm.numerator, denominator: rhythm.denominator };
 }
 
 function variableLength(value: number): number[] {
@@ -231,6 +263,13 @@ export function practiceMidi(performance: PracticePerformance): Uint8Array {
     { tick: 0, bytes: [0xc1, 28], order: 0 }, // General MIDI muted guitar for X strokes.
     { tick: 0, bytes: [0xc0, 25], order: 0 }, // General MIDI steel-string acoustic guitar.
   ];
+  let previousMeter = `${performance.numerator}/${performance.denominator}`;
+  performance.bars.forEach((bar, index) => {
+    const numerator = bar.numerator ?? performance.numerator, denominator = bar.denominator ?? performance.denominator;
+    const meter = `${numerator}/${denominator}`;
+    if (meter !== previousMeter) events.push({ tick: performance.countInTicks + performanceBarStart(performance, index), bytes: [0xff, 0x58, 4, numerator, Math.log2(denominator), Math.round(24 * (denominator === 8 && numerator % 3 === 0 ? 1.5 : 4 / denominator)), 8], order: 0 });
+    previousMeter = meter;
+  });
   for (const note of performance.notes) {
     events.push({ tick: Math.round(note.tick), bytes: [0x90 | note.channel, note.pitch, note.velocity], order: 2 });
     events.push({ tick: Math.round(note.tick + note.duration), bytes: [0x80 | note.channel, note.pitch, 0], order: 1 });
@@ -348,9 +387,7 @@ export class PracticeAudioPlayer {
       finally { if (version === this.queuedVersion) preparing = false; }
       if (this.cancelled || version !== this.queuedVersion) return;
       // Keep the existing audio clock and choose the next downbeat after loading.
-      const barSeconds = performance.barTicks * secondsPerTick;
-      const beginning = started + performance.countInTicks * secondsPerTick;
-      const at = beginning + Math.max(0, Math.floor((context.currentTime - beginning) / barSeconds) + 1) * barSeconds;
+      const at = started + nextPerformanceBoundary(performance, (context.currentTime - started) / secondsPerTick) * secondsPerTick;
       for (const voice of voices) {
         if (voice.queued) voice.source.stop(context.currentTime);
         else cut(voice, at);
@@ -381,7 +418,7 @@ export class PracticeAudioPlayer {
         nextNote = 0;
         elapsed = now - started;
       }
-      const position = Math.min(performance.bars.length - 0.00001, (elapsed / secondsPerTick - performance.countInTicks) / performance.barTicks);
+      const position = Math.min(performance.bars.length - 0.00001, performancePosition(performance, elapsed / secondsPerTick));
       onProgress(Math.floor(position));
       onPosition?.(position);
       while (nextNote < performance.notes.length && performance.notes[nextNote].tick * secondsPerTick < elapsed + 0.16) {
@@ -429,8 +466,7 @@ export class PracticeSilentPlayer {
     let pending: { music: PracticePerformance; position: (position: number) => void; commit: () => void; at: number } | null = null;
     this.queue = (next, position, commit) => {
       const elapsedTicks = (performance.now() - started) / msPerTick;
-      const nextBar = Math.floor((elapsedTicks - music.countInTicks) / music.barTicks) + 1;
-      pending = { music: next, position, commit, at: started + (music.countInTicks + nextBar * music.barTicks) * msPerTick };
+      pending = { music: next, position, commit, at: started + nextPerformanceBoundary(music, elapsedTicks) * msPerTick };
     };
     const tick = () => {
       if (pending && performance.now() >= pending.at) {
@@ -445,7 +481,7 @@ export class PracticeSilentPlayer {
         if (!loop) { this.stop(); return; }
         started += Math.floor(elapsed / duration) * duration; elapsed = performance.now() - started;
       }
-      const position = (elapsed / msPerTick - music.countInTicks) / music.barTicks;
+      const position = performancePosition(music, elapsed / msPerTick);
       onProgress(Math.floor(position)); onPosition?.(position);
     };
     this.timer = setInterval(tick, 25); tick();

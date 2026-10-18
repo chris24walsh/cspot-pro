@@ -1,5 +1,5 @@
 import type { ChordAnnotation } from "./chordSheet";
-import type { BarMarker, SongRhythm } from "./songRhythm";
+import { effectiveBarRhythms, type BarMarker, type SongRhythm } from "./songRhythm";
 
 function comparePosition(a: { lineIndex: number; anchorIndex: number }, b: { lineIndex: number; anchorIndex: number }) {
   return a.lineIndex - b.lineIndex || a.anchorIndex - b.anchorIndex;
@@ -40,11 +40,12 @@ export function rhythmWithBarMarkers(rhythm: SongRhythm | null | undefined, anno
       const index = boundaries.filter((marker) => comparePosition(marker, chord) <= 0).length;
       buckets[index].push(chord);
     }
+    const settings = effectiveBarRhythms(current, [{}, ...boundaries]);
     const bars: string[] = [];
     let previous: string | null = null;
     buckets.forEach((bucket, index) => {
       if (!bucket.length && index === 0) return;
-      if (bucket.length) { const beats = chordBeats(bucket, current.numerator); bars.push(bucket.map((chord, i) => `${chord.chord}${bucket.some(entry => entry.beat !== undefined) ? `@${beats[i]}` : ""}`).join(" ")); previous = bucket[bucket.length - 1].chord; }
+      if (bucket.length) { const beats = chordBeats(bucket, settings[index].numerator); bars.push(bucket.map((chord, i) => `${chord.chord}${bucket.some(entry => entry.beat !== undefined) ? `@${beats[i]}` : ""}`).join(" ")); previous = bucket[bucket.length - 1].chord; }
       else if (previous) bars.push(previous);
     });
     if (bars.length) arrangements.push({ section: section ?? "Default", chart: bars.join(" | ") });
@@ -54,7 +55,8 @@ export function rhythmWithBarMarkers(rhythm: SongRhythm | null | undefined, anno
 
 export function placeBarMarker(rhythm: SongRhythm | null | undefined, annotations: ChordAnnotation[], position: Omit<BarMarker, "id">, id = `bar-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`) {
   const markers = (rhythm?.markers ?? []).filter((marker) => marker.id !== id && !(marker.section === position.section && marker.lineIndex === position.lineIndex && marker.anchorIndex === position.anchorIndex));
-  return rhythmWithBarMarkers(rhythm, annotations, [...markers, { id, ...position }])!;
+  const existing = rhythm?.markers?.find(marker => marker.id === id);
+  return rhythmWithBarMarkers(rhythm, annotations, [...markers, { ...existing, id, ...position }])!;
 }
 
 export function removeBarMarker(rhythm: SongRhythm, annotations: ChordAnnotation[], id: string) {

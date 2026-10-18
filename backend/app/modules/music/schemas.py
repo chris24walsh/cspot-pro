@@ -50,7 +50,24 @@ class RhythmPresetRead(RhythmPresetCreate):
     id: str
 
 
+class BarRhythmChange(BaseModel):
+    numerator: int = Field(ge=1, le=12)
+    denominator: Literal[2, 4, 8, 16]
+    scope: Literal["bar", "continue"] = "bar"
+    pattern: StrumPattern | None = None
+
+    @model_validator(mode="after")
+    def validate_pattern(self) -> "BarRhythmChange":
+        if self.pattern and (
+            len(self.pattern.strokes)
+            != self.numerator * self.pattern.subdivision * self.pattern.bars
+        ):
+            raise ValueError("Bar pattern must fill its selected meter")
+        return self
+
+
 class BarMarker(BaseModel):
+    rhythm: BarRhythmChange | None = None
     id: str = Field(min_length=1, max_length=80)
     section: str | None = Field(default=None, max_length=80)
     lineIndex: int = Field(ge=0)

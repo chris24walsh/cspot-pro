@@ -24,7 +24,10 @@ def rhythm_value() -> dict:
         "bpm": 90,
         "visual_beats": 4,
         "intro_bars": 4,
-        "markers": [{"id": "bar-one", "section": "V1", "lineIndex": 0, "anchorIndex": 8}],
+        "markers": [{
+            "id": "bar-one", "section": "V1", "lineIndex": 0,
+            "anchorIndex": 8, "rhythm": None,
+        }],
         "arrangements": [],
         "patterns": [
             {
@@ -156,3 +159,19 @@ def test_two_bar_strums_validate_and_legacy_patterns_default_to_one_bar():
     legacy = rhythm_value()
     legacy["patterns"][0].pop("bars")
     assert SongRhythm.model_validate(legacy).patterns[0].bars == 1
+
+
+def test_bar_meter_pattern_and_scope_round_trip() -> None:
+    change = {
+        "numerator": 2, "denominator": 4, "scope": "continue",
+        "pattern": {"name": "Short bar", "section": "Default", "bars": 1,
+                    "subdivision": 1, "strokes": ["D", "U"]},
+    }
+    value = rhythm_value()
+    value["markers"][0]["rhythm"] = change
+    assert SongRhythm.model_validate(value).model_dump() == value
+    value["markers"][0]["rhythm"]["scope"] = "bar"
+    assert SongRhythm.model_validate(value).markers[0].rhythm.scope == "bar"
+    value["markers"][0]["rhythm"]["pattern"]["strokes"] = ["D"]
+    with pytest.raises(ValidationError):
+        SongRhythm.model_validate(value)

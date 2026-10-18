@@ -1,6 +1,7 @@
 import json
 from datetime import UTC, datetime
 from threading import Lock, Timer
+from typing import Annotated
 from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -25,7 +26,11 @@ from app.modules.identity.models import User
 from app.modules.planning.models import DefaultItem, Plan, PlanItem, PlanType
 from app.modules.planning.service_scaffold import ensure_welcome_stage_items
 from app.modules.presentation.models import PresentationPosition, PresentationSession
-from app.modules.presentation.timing import pre_service_start_for_plan, service_start_for_plan, welcome_advance_deadline
+from app.modules.presentation.timing import (
+    pre_service_start_for_plan,
+    service_start_for_plan,
+    welcome_advance_deadline,
+)
 
 router = APIRouter()
 
@@ -219,7 +224,10 @@ class WorshipMusicTiming(BaseModel):
     first_bar_stop: int = Field(default=0, ge=0, le=256)
     # One count-in bar plus up to sixteen intro bars, including scheduler lead time.
     position: float = Field(default=-1, ge=-18, le=256, allow_inf_nan=False)
-    bar_duration_ms: float = Field(ge=100, le=64000, allow_inf_nan=False)
+    bar_durations_ms: list[
+        Annotated[float, Field(ge=10, le=64000, allow_inf_nan=False)]
+    ] | None = Field(default=None, max_length=256)
+    bar_duration_ms: float = Field(ge=10, le=64000, allow_inf_nan=False)
     total_bars: int = Field(ge=1, le=256)
     updated_at: int = 0
 

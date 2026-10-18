@@ -1,7 +1,7 @@
 import { Footprints, Guitar, Play, Square, Timer, Volume2, VolumeX } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { transposeChordSymbol, type ChordAnnotation } from '../chordSheet';
-import { buildPracticePerformance, PracticeAudioPlayer, PracticeSilentPlayer, MIDI_PPQ, type PracticeBar } from '../musicPractice';
+import { performanceBarLength, buildPracticePerformance, PracticeAudioPlayer, PracticeSilentPlayer, MIDI_PPQ, type PracticeBar } from '../musicPractice';
 import { liveJumpStart, timelineWithEntry, lyricCursorAt, lyricPlaybackBars, timedPracticeBars, type LyricBar, type LyricCursor } from '../lyricTiming';
 import { worshipSequenceBlocks } from '../worshipText';
 import { usePedalKeyboard } from '../usePedalKeyboard';
@@ -11,7 +11,7 @@ import type { SongRhythm } from '../songRhythm';
 type PlayMode = "metronome" | "midi" | "midi-only" | "silent";
 type StartPosition = { occurrence: number; lineStart: number; lineEnd: number };
 
-export interface MusicTimingProgress { startIndex: number; position: number; barDurationMs: number; totalBars: number; introBars?: number; introChord?: string; introCountIn?: boolean; firstBarStop?: number }
+export interface MusicTimingProgress { barDurationsMs?: number[]; startIndex: number; position: number; barDurationMs: number; totalBars: number; introBars?: number; introChord?: string; introCountIn?: boolean; firstBarStop?: number }
 
 export function LyricMusicControls({ rhythm, lyrics, sequence, annotations, bars, transpose = 0, onCursor, onStarted, canPractice = true, backing, startAt, onTiming, jumpRevision = 0, onJumpPending, onJumpCommitted, onPedalNavigate, onSaveIntroBars, onRestoreKeyboardCapture, rootChord }: {
   rootChord?: string;
@@ -150,7 +150,7 @@ export function LyricMusicControls({ rhythm, lyrics, sequence, annotations, bars
           trackPosition(index + position);
           activeBars.current = { bars: practiceBars, position, transpose };
           callback.current(lyricCursorAt(lyrics, jumpTimeline, index + position, rhythm.numerator, rhythm.denominator));
-          timingCallback.current?.({ startIndex: index, position, barDurationMs: music.barTicks / MIDI_PPQ * 60_000 / music.quarterBpm, totalBars: practiceBars.length, firstBarStop });
+          timingCallback.current?.({ startIndex: index, position, barDurationMs: performanceBarLength(music, Math.max(0, Math.floor(position))) / MIDI_PPQ * 60_000 / music.quarterBpm, barDurationsMs: practiceBars.map((_, i) => performanceBarLength(music, i) / MIDI_PPQ * 60_000 / music.quarterBpm), totalBars: practiceBars.length, firstBarStop });
         }, () => { if (playerRef.current === requested && handledToken.current === revision) { committed?.(); setJumpPending(false); pendingCallback.current?.(false); } });
       } catch (cause) {
         if (playerRef.current !== requested || handledToken.current !== revision) return;
@@ -193,7 +193,7 @@ export function LyricMusicControls({ rhythm, lyrics, sequence, annotations, bars
           trackPosition(lyricPosition < 0 ? -1 : lyricPosition + startIndex);
           activeBars.current = { bars: performanceBars, position, transpose };
           callback.current(lyricPosition < 0 ? null : lyricCursorAt(lyrics, timeline, lyricPosition + startIndex, rhythm.numerator, rhythm.denominator));
-          timingCallback.current?.({ startIndex, position: lyricPosition, barDurationMs: performance.barTicks / MIDI_PPQ * 60_000 / performance.quarterBpm, totalBars: practiceBars.length, introBars: pedalEnabled ? introBars : undefined, introChord: openingChord ? transposeChordSymbol(openingChord, transpose) : undefined, introCountIn: pedalEnabled });
+          timingCallback.current?.({ startIndex, position: lyricPosition, barDurationMs: (lyricPosition < 0 ? performance.barTicks : performanceBarLength(performance, Math.floor(position))) / MIDI_PPQ * 60_000 / performance.quarterBpm, barDurationsMs: practiceBars.map((_, i) => performanceBarLength(performance, i + introBars) / MIDI_PPQ * 60_000 / performance.quarterBpm), totalBars: practiceBars.length, introBars: pedalEnabled ? introBars : undefined, introChord: openingChord ? transposeChordSymbol(openingChord, transpose) : undefined, introCountIn: pedalEnabled });
         }
       });
       await readyRef.current;

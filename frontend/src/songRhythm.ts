@@ -7,7 +7,14 @@ export interface StrumPattern {
   subdivision: 1 | 2 | 4;
   strokes: StrumStroke[];
 }
+export interface BarRhythmChange {
+  numerator: number;
+  denominator: SongRhythm["denominator"];
+  pattern?: StrumPattern | null;
+  scope: "bar" | "continue";
+}
 export interface BarMarker {
+  rhythm?: BarRhythmChange;
   id: string;
   section: string | null;
   lineIndex: number;
@@ -94,7 +101,7 @@ export function normalizeSongRhythm(rhythm: SongRhythm | null | undefined): Song
     ...(rhythm.intro_bars !== undefined ? { intro_bars: rhythm.intro_bars } : {}),
     patterns: rhythm.patterns.map((pattern) => ({ name: pattern.name ?? "", section: pattern.section, bars: pattern.bars ?? 1, subdivision: pattern.subdivision, strokes: [...pattern.strokes] })),
     notes: rhythm.notes ?? "", bpm: rhythm.bpm ?? 90, visual_beats: rhythm.visual_beats ?? null,
-    markers: (rhythm.markers ?? []).map((marker) => ({ id: marker.id, section: marker.section, lineIndex: marker.lineIndex, anchorIndex: marker.anchorIndex }))
+    markers: (rhythm.markers ?? []).map((marker) => ({ id: marker.id, section: marker.section, lineIndex: marker.lineIndex, anchorIndex: marker.anchorIndex, ...(marker.rhythm ? { rhythm: { ...marker.rhythm, pattern: marker.rhythm.pattern ? { ...marker.rhythm.pattern, name: marker.rhythm.pattern.name ?? "", bars: marker.rhythm.pattern.bars ?? 1 } : null } } : {}) }))
       .sort((a, b) => (a.section ?? "").localeCompare(b.section ?? "") || a.lineIndex - b.lineIndex || a.anchorIndex - b.anchorIndex),
     arrangements: (rhythm.arrangements ?? []).map((entry) => ({ section: entry.section, chart: entry.chart })),
   } : null;
@@ -103,4 +110,13 @@ export function normalizeSongRhythm(rhythm: SongRhythm | null | undefined): Song
 export function strumGridColumns(numerator: number, subdivision: number) {
   const slots = numerator * subdivision;
   return slots > 8 ? Math.ceil(slots / 2) : slots;
+}
+
+// A one-bar exception temporarily overrides the continuing settings.
+export function effectiveBarRhythms(rhythm: SongRhythm, markers: Array<{ rhythm?: BarRhythmChange }>): BarRhythmChange[] {
+  let continuing: BarRhythmChange = { numerator: rhythm.numerator, denominator: rhythm.denominator, scope: "continue" };
+  return markers.map(marker => {
+    if (marker.rhythm?.scope === "continue") continuing = marker.rhythm;
+    return marker.rhythm ?? continuing;
+  });
 }

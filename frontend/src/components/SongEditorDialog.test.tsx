@@ -102,7 +102,7 @@ it("places and drags bar boundaries in the lyric grid without opening a chord ed
     Object.defineProperty(start, "dataTransfer", { value: { setData: vi.fn() } });
     act(() => container.querySelector<HTMLButtonElement>(".musician-slot.has-bar")!.dispatchEvent(start));
     act(() => container.querySelector<HTMLButtonElement>('[aria-label="Add bar at line 2, position 8"]')!.dispatchEvent(new Event("drop", { bubbles: true })));
-    expect(container.querySelector('[aria-label="Remove bar at line 2, position 8"]')).not.toBeNull();
+    expect(container.querySelector('[aria-label="Settings for bar at line 2, position 8"]')).not.toBeNull();
     expect(container.querySelectorAll(".musician-slot.has-bar")).toHaveLength(1);
     act(() => toggle.click());
     expect(container.querySelectorAll(".musician-slot")).toHaveLength(slotCount);
@@ -195,5 +195,28 @@ it("saves a chord playback count separately from its lyric position", async () =
     const payload = vi.mocked(updateSong).mock.calls[vi.mocked(updateSong).mock.calls.length - 1][1];
     expect(parseChordChart(payload.chords ?? null).document.annotations[1]).toMatchObject({ anchorIndex: 8, chord: "G", beat: 3.5 });
     expect(payload.rhythm?.arrangements?.[0].chart).toBe("C@1 G@3.5");
+  } finally { act(() => root.unmount()); vi.resetAllMocks(); }
+});
+
+it('edits an existing bar meter and pattern, saves its scope, and preserves the change when dragged', async () => {
+  const chart = { ...createEmptyChordChart(), absoluteKey: 'C', annotations: [{ id: 'c', section: 'V1', lineIndex: 0, anchorIndex: 3, chord: 'C' }] };
+  const song = { id: 'song', title: 'Mixed meter', lyrics: '[V1]\nSing a song', sequence: 'V1', chords: serializeChordChart(chart), rhythm: { numerator: 4, denominator: 4, patterns: [], notes: '', markers: [{ id: 'bar', section: 'V1', lineIndex: 0, anchorIndex: 3 }] } } as unknown as Song;
+  vi.mocked(updateSong).mockImplementation(async (_id, payload) => ({ ...song, ...payload }));
+  const container = document.createElement('div'); const root = createRoot(container);
+  function select(label: string, value: string) { const input = container.querySelector<HTMLSelectElement>(`[aria-label="${label}"]`)!; act(() => { input.value = value; input.dispatchEvent(new Event('change', { bubbles: true })); }); }
+  try {
+    await act(async () => root.render(<SongEditorDialog song={song} canEdit onClose={() => {}} onSaved={() => {}} />));
+    act(() => Array.from(container.querySelectorAll('button')).find(button => button.textContent === 'Chords')!.click());
+    act(() => container.querySelector<HTMLButtonElement>('[aria-label="Switch between chord and bar editing"]')!.click());
+    act(() => container.querySelector<HTMLButtonElement>('[aria-label="Settings for bar at line 2, position 3"]')!.click());
+    expect(container.querySelector<HTMLSelectElement>('[aria-label="Bar change duration"]')!.value).toBe('bar');
+    select('Bar beats', '2'); select('Bar strumming pattern', 'two-march'); select('Bar change duration', 'continue');
+    act(() => Array.from(container.querySelectorAll('.bar-rhythm-dialog button')).find(button => button.textContent === 'Apply')!.dispatchEvent(new MouseEvent('click', { bubbles: true })));
+    expect(container.querySelector('.bar-rhythm-dialog')).toBeNull();
+    const drag = new Event('dragstart', { bubbles: true }); Object.defineProperty(drag, 'dataTransfer', { value: { setData: vi.fn() } });
+    act(() => container.querySelector<HTMLButtonElement>('.musician-slot.has-bar')!.dispatchEvent(drag));
+    act(() => container.querySelector<HTMLButtonElement>('[aria-label="Add bar at line 2, position 8"]')!.dispatchEvent(new Event('drop', { bubbles: true })));
+    await act(async () => container.querySelector<HTMLButtonElement>('[aria-label="Save song"]')!.click());
+    expect(vi.mocked(updateSong).mock.calls[0][1].rhythm?.markers?.[0]).toMatchObject({ anchorIndex: 8, rhythm: { numerator: 2, denominator: 4, scope: 'continue', pattern: { subdivision: 2, strokes: ['D', 'U', 'D', 'U'] } } });
   } finally { act(() => root.unmount()); vi.resetAllMocks(); }
 });

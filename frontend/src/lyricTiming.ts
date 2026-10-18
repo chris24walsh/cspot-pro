@@ -1,10 +1,10 @@
 import { LEADING_CHORD_ANCHORS, TRAILING_CHORD_ANCHORS, lyricLines, resolveChordAnnotations, type ChordAnnotation } from './chordSheet';
 import { chordBeats } from './barMarkers';
-import type { SongRhythm } from './songRhythm';
+import { effectiveBarRhythms, type BarRhythmChange, type SongRhythm } from './songRhythm';
 import { worshipSequenceBlocks } from './worshipText';
 
 export interface LyricPosition { lineIndex: number; anchorIndex: number }
-export interface LyricBar { beats?: number[]; beatEnd?: number; section: string; start: LyricPosition; end: LyricPosition; stops: LyricPosition[] }
+export interface LyricBar { patternBar?: number; rhythm?: BarRhythmChange; beats?: number[]; beatEnd?: number; section: string; start: LyricPosition; end: LyricPosition; stops: LyricPosition[] }
 export interface LyricCursor extends LyricPosition { occurrence: number; pulse: number; barStartLine: number }
 const compare = (a: LyricPosition, b: LyricPosition) => a.lineIndex - b.lineIndex || a.anchorIndex - b.anchorIndex;
 
@@ -14,7 +14,10 @@ export function lyricBarLayout(lyrics: string | null | undefined, rhythm: SongRh
   const markers = resolveChordAnnotations(rhythm?.markers ?? [], lyrics ?? null);
   const chords = resolveChordAnnotations(annotations, lyrics ?? null);
   const bars: LyricBar[] = [];
-  for (const section of new Set(markers.map(marker => marker.section))) {
+  const sourceMarkers = [...markers].sort((a, b) => a.absoluteLineIndex - b.absoluteLineIndex || a.anchorIndex - b.anchorIndex);
+  const settings = effectiveBarRhythms(rhythm ?? { numerator: 4, denominator: 4, patterns: [], notes: "" }, sourceMarkers);
+
+  for (const section of new Set([...markers].sort((a, b) => a.absoluteLineIndex - b.absoluteLineIndex || a.anchorIndex - b.anchorIndex).map(marker => marker.section))) {
     const boundaries = markers.filter(marker => marker.section === section).map(marker => ({ lineIndex: marker.absoluteLineIndex, anchorIndex: marker.anchorIndex })).sort(compare);
     const changes = chords.filter(chord => chord.section === section).map(chord => ({ lineIndex: chord.absoluteLineIndex, anchorIndex: chord.anchorIndex, beat: chord.beat })).sort(compare);
     const first = changes[0];
@@ -26,8 +29,14 @@ export function lyricBarLayout(lyrics: string | null | undefined, rhythm: SongRh
       if (compare(start, finish) >= 0) return;
       const inside = changes.filter(change => compare(change, start) > 0 && compare(change, finish) < 0);
       const firstChord = changes.find(change => compare(change, start) === 0);
-      const beats = chordBeats([firstChord ?? {}, ...inside], rhythm?.numerator ?? 4);
-      bars.push({ section: section ?? 'Default', start, end: finish, stops: [start, ...inside, finish], beats, beatEnd: (rhythm?.numerator ?? 4) + 1 });
+      const markerIndex = sourceMarkers.findIndex(marker => marker.absoluteLineIndex === start.lineIndex && marker.anchorIndex === start.anchorIndex);
+      // An implicit opening bar inherits the last continuing source change.
+      const prior = sourceMarkers.map((marker, i) => ({ marker, i })).filter(({ marker }) => compare({ lineIndex: marker.absoluteLineIndex, anchorIndex: marker.anchorIndex }, start) < 0 && marker.rhythm?.scope === "continue").pop();
+      const effective = markerIndex >= 0 ? settings[markerIndex] : prior ? settings[prior.i] : { numerator: rhythm?.numerator ?? 4, denominator: rhythm?.denominator ?? 4, scope: "continue" as const };
+      const activeChangeIndex = markerIndex >= 0 && sourceMarkers[markerIndex].rhythm ? markerIndex : prior?.i;
+      const patternBar = activeChangeIndex !== undefined ? Math.max(0, markerIndex - activeChangeIndex) : undefined;
+      const beats = chordBeats([firstChord ?? {}, ...inside], effective.numerator);
+      bars.push({ section: section ?? 'Default', start, end: finish, stops: [start, ...inside, finish], beats, beatEnd: effective.numerator + 1, rhythm: effective, ...(patternBar !== undefined ? { patternBar } : {}) });
     });
   }
   return bars;
@@ -49,13 +58,15 @@ export function musicalSectionKey(section: string) {
 }
 
 export function lyricPlaybackBars(lyrics: string | null | undefined, sequence: string | null | undefined, bars: LyricBar[]): Array<LyricBar & { occurrence: number; patternBar: number }> {
-  return worshipSequenceBlocks(lyrics, sequence).flatMap((block, occurrence) => bars.filter(bar => musicalSectionKey(bar.section) === musicalSectionKey(block.label) || bar.section === 'Default' && !/^\[.*\]$/m.test(lyrics ?? '')).map((bar, patternBar) => ({ ...bar, occurrence, patternBar })));
+  return worshipSequenceBlocks(lyrics, sequence).flatMap((block, occurrence) => bars.filter(bar => musicalSectionKey(bar.section) === musicalSectionKey(block.label) || bar.section === 'Default' && !/^\[.*\]$/m.test(lyrics ?? '')).map((bar, patternBar) => ({ ...bar, occurrence, patternBar: bar.patternBar ?? patternBar })));
 }
 
 export function lyricCursorAt(lyrics: string | null | undefined, bars: Array<LyricBar & { occurrence: number }>, barPosition: number, numerator: number, denominator: number): LyricCursor | null {
   if (barPosition < 0) return null;
   const bar = bars[Math.floor(barPosition)];
   if (!bar) return null;
+  numerator = bar.rhythm?.numerator ?? numerator;
+  denominator = bar.rhythm?.denominator ?? denominator;
   const starts = offsets(lyrics), lines = lyricLines(lyrics ?? null);
   const fraction = barPosition % 1;
   const counts = [...(bar.beats ?? bar.stops.slice(0, -1).map((_, i) => 1 + i * numerator / (bar.stops.length - 1))), numerator + 1];
@@ -86,11 +97,11 @@ export function wrapTimedLine(line: string, maxWidth: number, widths: number[]):
 export function timedPracticeBars(lyrics: string | null | undefined, bars: LyricBar[], annotations: ChordAnnotation[], numerator: number, initialChord = "") {
   const resolved = resolveChordAnnotations(annotations, lyrics ?? null).sort((a, b) => a.absoluteLineIndex - b.absoluteLineIndex || a.anchorIndex - b.anchorIndex);
   let previousChord = initialChord;
-  return bars.map(bar => ({ section: bar.section, ...(resolved.some(chord => chord.beat !== undefined && musicalSectionKey(chord.section ?? 'Default') === musicalSectionKey(bar.section) && bar.stops.slice(0, -1).some(stop => chord.absoluteLineIndex === stop.lineIndex && chord.anchorIndex === stop.anchorIndex)) ? { exactTiming: true } : {}), ...('patternBar' in bar ? { patternBar: bar.patternBar as number } : {}), chords: bar.stops.slice(0, -1).map((position, index, stops) => {
+  return bars.map(bar => ({ section: bar.section, ...(bar.rhythm ? { numerator: bar.rhythm.numerator, denominator: bar.rhythm.denominator, pattern: bar.rhythm.pattern } : {}), ...(resolved.some(chord => chord.beat !== undefined && musicalSectionKey(chord.section ?? 'Default') === musicalSectionKey(bar.section) && bar.stops.slice(0, -1).some(stop => chord.absoluteLineIndex === stop.lineIndex && chord.anchorIndex === stop.anchorIndex)) ? { exactTiming: true } : {}), ...('patternBar' in bar ? { patternBar: bar.patternBar as number } : {}), chords: bar.stops.slice(0, -1).map((position, index, stops) => {
     const candidates = resolved.filter(chord => musicalSectionKey(chord.section ?? 'Default') === musicalSectionKey(bar.section));
     const chord = candidates.filter(chord => chord.absoluteLineIndex === position.lineIndex && chord.anchorIndex === position.anchorIndex).slice(-1)[0];
     previousChord = chord?.chord || previousChord;
-    return { beat: bar.beats?.[index] ?? 1 + index * numerator / stops.length, chord: previousChord };
+    return { beat: bar.beats?.[index] ?? 1 + index * (bar.rhythm?.numerator ?? numerator) / stops.length, chord: previousChord };
   }) }));
 }
 

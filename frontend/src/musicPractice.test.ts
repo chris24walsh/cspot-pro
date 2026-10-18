@@ -266,3 +266,22 @@ it('sounds an explicitly timed offbeat change even when the strum grid has no st
   expect(attack.map(note => note.pitch)).toEqual(chordMidiNotes('G'));
   expect(Math.min(...attack.map(note => note.tick))).toBe(2.5 * MIDI_PPQ);
 });
+
+it('uses actual bar lengths for mixed-meter notes, clicks, cursor clocks, live jumps and MIDI signatures', async () => {
+  const { performancePosition, nextPerformanceBoundary } = await import('./musicPractice');
+  const music = buildPracticePerformance({ ...rhythm, patterns: [] }, { mode: 'song', countIn: false, metronome: true, bars: [
+    { section: 'V1', numerator: 4, denominator: 4, chords: [{ chord: 'C', beat: 1 }] },
+    { section: 'V1', numerator: 2, denominator: 4, pattern: { section: 'Default', subdivision: 1, strokes: ['U', '-'] }, chords: [{ chord: 'G', beat: 1 }] },
+    { section: 'V1', numerator: 6, denominator: 8, chords: [{ chord: 'Am', beat: 1 }] },
+    { section: 'V1', chords: [{ chord: 'F', beat: 1 }] },
+  ] });
+  expect(music.barStarts).toEqual([0, 1920, 2880, 4320]);
+  expect(music.barLengths).toEqual([1920, 960, 1440, 1920]);
+  expect(music.totalTicks).toBe(6240);
+  expect(performancePosition(music, 2400)).toBe(1.5);
+  expect(performancePosition(music, 3600)).toBe(2.5);
+  expect(nextPerformanceBoundary(music, 2400)).toBe(2880);
+  expect(music.notes.filter(note => note.channel === 9).map(note => note.tick)).toEqual([0, 480, 960, 1440, 1920, 2400, 2880, 3600, 4320, 4800, 5280, 5760]);
+  const signatures = readMidi(practiceMidi(music)).events.filter(event => event.status === 0x58);
+  expect(signatures.map(event => event.data.slice(0, 2))).toEqual([[4, 2], [2, 2], [6, 3], [4, 2]]);
+});

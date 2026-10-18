@@ -170,3 +170,21 @@ def test_timing_accepts_full_intro_and_count_in_window(timing_context):
     assert WorshipMusicTiming.model_validate({**payload, "position": -17.05}).position == -17.05
     with pytest.raises(ValidationError):
         WorshipMusicTiming.model_validate({**payload, "position": -19})
+
+
+def test_shared_timing_preserves_mixed_meter_durations(timing_context):
+    session, plan, _position, payload = timing_context
+    payload.bar_durations_ms = [2000, 1000, 1500, 2000, 2000, 2000, 2000, 2000]
+    with patch("app.modules.presentation.routes.list_authorization_role_names", return_value=["administrator"]):
+        update_worship_music_timing(plan.id, payload, SimpleNamespace(id="admin"), session)
+    assert get_worship_music_timing(plan.id, None, session).timing.bar_durations_ms == payload.bar_durations_ms
+
+
+@pytest.mark.parametrize("duration", [0, -1, float("inf"), float("nan")])
+def test_shared_timing_rejects_invalid_bar_durations(timing_context, duration):
+    from pydantic import ValidationError
+
+    value = timing_context[3].model_dump()
+    value["bar_durations_ms"] = [duration]
+    with pytest.raises(ValidationError):
+        WorshipMusicTiming.model_validate(value)

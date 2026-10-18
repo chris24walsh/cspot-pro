@@ -8,7 +8,14 @@ export function remoteMusicPosition(snapshot: WorshipMusicTimingRead, receivedAt
   if (!timing?.active) return null;
   const elapsed = Math.max(0, snapshot.server_now - timing.updated_at) + Math.max(0, now - receivedAt) + roundTrip / 2;
   if (elapsed >= 12000) return null;
-  const position = timing.position + elapsed / timing.bar_duration_ms;
+  let remaining = elapsed, position = timing.position;
+  while (remaining > 0 && position < timing.total_bars) {
+    const index = Math.floor(position);
+    const duration = index < 0 ? timing.bar_duration_ms : timing.bar_durations_ms?.[index] ?? timing.bar_duration_ms;
+    const untilNext = (index + 1 - position) * duration;
+    if (remaining < untilNext) { position += remaining / duration; break; }
+    remaining -= untilNext; position = index + 1;
+  }
   return position >= timing.total_bars ? null : position;
 }
 
@@ -32,7 +39,7 @@ export function useSharedMusicTiming({ planId, songId, itemId, share, follow }: 
     if (!active && !old) return;
     const request = active ? { planId: current.planId!, timing: {
       owner_id: owner.current, active: true, song_id: current.songId!, plan_item_id: current.itemId!, start_index: progress!.startIndex, first_bar_stop: progress!.firstBarStop ?? 0,
-      position: progress!.position, bar_duration_ms: progress!.barDurationMs, total_bars: progress!.totalBars, updated_at: 0,
+      position: progress!.position, bar_duration_ms: progress!.barDurationMs, ...(progress!.barDurationsMs ? { bar_durations_ms: progress!.barDurationsMs } : {}), total_bars: progress!.totalBars, updated_at: 0,
     } } : { planId: old!.planId, timing: { ...old!.timing, active: false } };
     const revision = sourceRevision.current;
     pending.current = true;

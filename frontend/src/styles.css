@@ -14366,3 +14366,9 @@ button.musician-page {
 .chord-beat-control select { padding: 2px; min-height: 24px; }
 .chord-beat-label { margin-left: 2px; font: 9px sans-serif; color: #526b59; vertical-align: super; }
 .musician-slot-editor { z-index: 5; }
+
+.bar-rhythm-dialog { max-width: min(540px, calc(100vw - 24px)); padding: 16px; display: grid; gap: 12px; }
+.bar-rhythm-strokes { display: flex; flex-wrap: wrap; gap: 4px; }
+.bar-rhythm-strokes button { display: grid; min-width: 28px; }
+.bar-rhythm-strokes small { font-size: 10px; }
+.musician-slot.has-rhythm-change { color: #885e18; }

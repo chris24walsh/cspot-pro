@@ -1339,7 +1339,9 @@ export function MusicianLiveView({ canUseMusic = false, canShareTiming = canUseM
     const bar = remoteTimeline[barIndex];
     const entryStop = (localPlaybackActive ? localTiming?.firstBarStop : sharedTiming.remote?.timing.first_bar_stop) ?? 0;
     const barStart = bar ? bar.stops[barIndex === startedAt ? entryStop : 0] ?? bar.start : null;
-    return { barStart, pulseStrength: lyricHighlightPulse(beatPosition, beatCount), lyrics: liveSong?.lyrics ?? '', bars: timingBars, sourceLine: offset < 0 ? -1 : offset + lineIndex, segmentStart, lastSegment, showBars: musicMode, showDot: showTimingDot, highlight: lyricHighlight, downbeat: beatPosition !== null && ((beatPosition % 1 + 1) % 1) * beatCount < Math.min(beatCount, 1.5), cursor: displayCursor?.occurrence === occurrence ? displayCursor : null };
+    const meter = bar?.rhythm;
+    const currentBeatCount = meter && (meter.numerator !== beatRhythm?.numerator || meter.denominator !== beatRhythm?.denominator) ? meter.denominator === 8 && meter.numerator % 3 === 0 ? meter.numerator / 3 : meter.numerator : beatCount;
+    return { barStart, pulseStrength: lyricHighlightPulse(beatPosition, currentBeatCount), lyrics: liveSong?.lyrics ?? '', bars: timingBars, sourceLine: offset < 0 ? -1 : offset + lineIndex, segmentStart, lastSegment, showBars: musicMode, showDot: showTimingDot, highlight: lyricHighlight, downbeat: beatPosition !== null && ((beatPosition % 1 + 1) % 1) * currentBeatCount < Math.min(currentBeatCount, 1.5), cursor: displayCursor?.occurrence === occurrence ? displayCursor : null };
   }
 
   function navigateToSequenceBlock(blockIndex: number, partIndex = 0) {

@@ -28,7 +28,7 @@ import {
   type ChordDetailMode,
   type ChordDisplayMode,
 } from "../chordSheet";
-import { normalizeSongRhythm } from "../songRhythm";
+import { normalizeSongRhythm, type BarMarker, type BarRhythmChange } from "../songRhythm";
 import { buildPracticePerformance, PracticeAudioPlayer, parseBarChart, transposeBarCharts } from "../musicPractice";
 import { canonicalizeWorshipLyrics, normalizeWorshipSequence } from "../worshipText";
 import { useConfirmationDialog } from "./ConfirmationDialog";
@@ -36,6 +36,7 @@ import { chordBeats, placeBarMarker, removeBarMarker, rhythmWithBarMarkers } fro
 import { timedPracticeBars, lyricBarLayout, lyricColumnWidths, wrapTimedLine, lyricCursorAt, lyricPlaybackBars, musicalSectionKey, type LyricCursor } from "../lyricTiming";
 import { LyricMusicControls, TimingDot } from "./LyricMusicControls";
 import { CompactControlMenu } from "./CompactControlMenu";
+import { BarRhythmEditor } from "./BarRhythmEditor";
 import { SongRhythmEditor } from "./SongRhythmEditor";
 import { SongYouTubeSearch } from "./SongYouTubeSearch";
 import { useEscapeClose } from "./useEscapeClose";
@@ -313,6 +314,7 @@ export function SongEditorDialog({
   const [editingAnnotationId, setEditingAnnotationId] = useState<string | null>(null);
   const [inlineChordEditorOpen, setInlineChordEditorOpen] = useState(false);
   const [chordInput, setChordInput] = useState("");
+  const [editingBarId, setEditingBarId] = useState<string | null>(null);
   const [chordBeat, setChordBeat] = useState<number | undefined>();
   const previewPlayer = useRef<PracticeAudioPlayer | null>(null);
   const [previewingBar, setPreviewingBar] = useState(false);
@@ -454,7 +456,7 @@ export function SongEditorDialog({
     const bar = bars.find(bar => bar.stops.some(stop => stop.lineIndex === selectedLineIndex && stop.anchorIndex === selectedAnchorIndex));
     if (bar) {
       const resolved = resolveChordAnnotations(draft.annotations, chordLyrics);
-      chordBeats(bar.stops.slice(0, -1).map(stop => resolved.find(chord => chord.absoluteLineIndex === stop.lineIndex && chord.anchorIndex === stop.anchorIndex) ?? {}), form.rhythm?.numerator ?? 4, true);
+      chordBeats(bar.stops.slice(0, -1).map(stop => resolved.find(chord => chord.absoluteLineIndex === stop.lineIndex && chord.anchorIndex === stop.anchorIndex) ?? {}), bar.rhythm?.numerator ?? form.rhythm?.numerator ?? 4, true);
     }
     if (chordBeat !== undefined && bar) {
       const stop = bar.stops.findIndex(stop => stop.lineIndex === selectedLineIndex && stop.anchorIndex === selectedAnchorIndex);
@@ -520,10 +522,30 @@ export function SongEditorDialog({
     }
   }
 
+  function openBarSettings(marker: BarMarker) {
+    cancelInlineChordEdit();
+    setEditingBarId(marker.id);
+  }
+
+  function saveBarSettings(change: BarRhythmChange | undefined) {
+    if (!form.rhythm) return;
+    const next = { ...form.rhythm, markers: form.rhythm.markers?.map(marker => marker.id === editingBarId ? { ...marker, rhythm: change } : marker) };
+    const resolved = resolveChordAnnotations(chordChart.annotations, chordLyrics);
+    try {
+      for (const bar of lyricBarLayout(chordLyrics, next, chordChart.annotations)) {
+        chordBeats(bar.stops.slice(0, -1).map(stop => resolved.find(chord => chord.absoluteLineIndex === stop.lineIndex && chord.anchorIndex === stop.anchorIndex) ?? {}), bar.rhythm?.numerator ?? next.numerator, true);
+      }
+    } catch { return "An assigned chord beat falls outside this meter or overlaps another change. Adjust the chord timing before shortening this bar."; }
+    setForm(current => ({ ...current, rhythm: next }));
+    setEditingBarId(null);
+  }
+
   function editBarAt(lineIndex: number, anchorIndex: number, movingId?: string) {
     if (!canEdit) return;
     const position = chordPositionForLine(chordLyrics, lineIndex);
     if (!position) return;
+    const clicked = form.rhythm?.markers?.find(marker => marker.section === position.section && marker.lineIndex === position.lineIndex && marker.anchorIndex === anchorIndex);
+    if (clicked && !movingId) { openBarSettings(clicked); return; }
     setForm((current) => {
       const existing = current.rhythm?.markers?.find((marker) => marker.section === position.section && marker.lineIndex === position.lineIndex && marker.anchorIndex === anchorIndex);
       const rhythm = !movingId && existing && current.rhythm
@@ -656,7 +678,10 @@ export function SongEditorDialog({
     setSaving(true);
     setMessage(null);
     try {
-      for (const chart of form.rhythm?.arrangements ?? []) parseBarChart(chart.chart, form.rhythm!.numerator, chart.section);
+      for (const chart of form.rhythm?.arrangements ?? []) {
+        const managed = form.rhythm?.markers?.some(marker => (marker.section ?? "Default") === chart.section);
+        if (!managed) parseBarChart(chart.chart, form.rhythm!.numerator, chart.section);
+      }
       const payload = normalizeForm(form, serializeChordChart(chordChart, legacyChords));
       const saved = persistedSongId ? await updateSong(persistedSongId, payload) : await createSong(payload);
       setPersistedSongId(saved.id);
@@ -954,7 +979,7 @@ export function SongEditorDialog({
                               <label className="chord-beat-control">Play on
                                 <select aria-label="Chord playback beat" value={chordBeat ?? ""} disabled={!canEdit || !timingBars.length} onChange={event => { setChordBeat(event.target.value ? Number(event.target.value) : undefined); previewPlayer.current?.stop(); setPreviewingBar(false); }}>
                                   <option value="">Auto</option>
-                                  {Array.from({ length: (form.rhythm?.numerator ?? 4) * 2 }, (_, i) => 1 + i / 2).map(beat => <option value={beat} key={beat}>{Number.isInteger(beat) ? beat : `& of ${Math.floor(beat)}`}</option>)}
+                                  {Array.from({ length: (timingBars.find(bar => bar.stops.some(stop => stop.lineIndex === lineIndex && stop.anchorIndex === slotIndex))?.rhythm?.numerator ?? form.rhythm?.numerator ?? 4) * 2 }, (_, i) => 1 + i / 2).map(beat => <option value={beat} key={beat}>{Number.isInteger(beat) ? beat : `& of ${Math.floor(beat)}`}</option>)}
                                 </select>
                               </label>
                               <button type="button" disabled={!timingBars.length || !chordInput.trim()} onClick={() => void previewChordBar()}>{previewingBar ? "Stop" : "Loop bar"}</button>
@@ -966,12 +991,13 @@ export function SongEditorDialog({
                         }
                         return (
                           <button
-                            className={`musician-slot ${annotation ? "has-chord" : ""} ${bar ? "has-bar" : ""} ${barEditing ? "is-bar-editing" : ""} ${dropTarget?.lineIndex === lineIndex && dropTarget.slotIndex === slotIndex ? "is-drop-target" : ""}`}
-                            aria-label={barEditing ? `${bar ? "Remove" : "Add"} bar at line ${lineIndex + 1}, position ${slotIndex}` : undefined}
-                            title={barEditing ? bar ? "Drag to move bar; click to remove" : "Click to add bar" : undefined}
+                            className={`musician-slot ${annotation ? "has-chord" : ""} ${bar ? "has-bar" : ""} ${bar?.rhythm ? "has-rhythm-change" : ""} ${barEditing ? "is-bar-editing" : ""} ${dropTarget?.lineIndex === lineIndex && dropTarget.slotIndex === slotIndex ? "is-drop-target" : ""}`}
+                            aria-label={barEditing ? `${bar ? "Settings for" : "Add"} bar at line ${lineIndex + 1}, position ${slotIndex}` : undefined}
+                            title={bar ? `Bar settings${bar.rhythm ? ` · ${bar.rhythm.numerator}/${bar.rhythm.denominator} · ${bar.rhythm.scope === "bar" ? "this bar" : "continues"}` : ""}. Right-click to edit; drag to move.` : barEditing ? "Click to add bar" : undefined}
                             disabled={!canEdit}
                             draggable={Boolean(combinedEditing ? bar || annotation : barEditing ? bar : annotation) && canEdit}
                             key={`slot-${lineIndex}-${slotIndex}`}
+                            onContextMenu={event => { if (bar) { event.preventDefault(); openBarSettings(bar); } }}
                             onClick={() => barEditing ? editBarAt(lineIndex, slotIndex) : startInlineChordEdit(lineIndex, slotIndex, annotation)}
                             onDragEnd={() => { setDraggedAnnotationId(null); setDraggedBarId(null); setDropTarget(null); }}
                             onDragOver={(event) => { if (combinedEditing ? draggedBarId || draggedAnnotationId : barEditing ? draggedBarId : draggedAnnotationId) { event.preventDefault(); event.dataTransfer.dropEffect = "move"; setDropTarget({ lineIndex, slotIndex }); } }}
@@ -986,7 +1012,7 @@ export function SongEditorDialog({
                             style={{ gridColumn, gridRow: 1 }}
                             type="button"
                           >
-                            <span className="musician-slot-chord">{(barEditing || combinedEditing) && bar ? "│ " : ""}{annotation ? <>{displayChord(annotation.chord, { capo: chordChart.capo, detailMode, displayMode })}{annotation.beat !== undefined ? <small className="chord-beat-label">{Number.isInteger(annotation.beat) ? annotation.beat : `&${Math.floor(annotation.beat)}`}</small> : null}</> : barEditing && bar ? "" : "·"}</span>
+                            <span className="musician-slot-chord">{bar?.rhythm ? <small className="chord-beat-label">{bar.rhythm.numerator}/{bar.rhythm.denominator}{bar.rhythm.scope === "continue" ? "→" : ""} </small> : null}{(barEditing || combinedEditing) && bar ? "│ " : ""}{annotation ? <>{displayChord(annotation.chord, { capo: chordChart.capo, detailMode, displayMode })}{annotation.beat !== undefined ? <small className="chord-beat-label">{Number.isInteger(annotation.beat) ? annotation.beat : `&${Math.floor(annotation.beat)}`}</small> : null}</> : barEditing && bar ? "" : "·"}</span>
                           </button>
                         );
                       };
@@ -1045,6 +1071,13 @@ export function SongEditorDialog({
         </div>
       </section>
     </div>
+    {editingBarId && form.rhythm ? (() => {
+      const marker = form.rhythm.markers?.find(marker => marker.id === editingBarId);
+      if (!marker) return null;
+      const layout = timingBars.find(bar => bar.start.lineIndex === resolveChordAnnotations([marker], chordLyrics)[0]?.absoluteLineIndex && bar.start.anchorIndex === marker.anchorIndex);
+      const value: BarRhythmChange = marker.rhythm ?? { numerator: layout?.rhythm?.numerator ?? form.rhythm.numerator, denominator: layout?.rhythm?.denominator ?? form.rhythm.denominator, pattern: layout?.rhythm?.pattern, scope: "bar" };
+      return <BarRhythmEditor value={value} songRhythm={form.rhythm} onClose={() => setEditingBarId(null)} onSave={saveBarSettings} onRemove={() => { setForm(current => ({ ...current, rhythm: removeBarMarker(current.rhythm!, chordChart.annotations, editingBarId) })); setEditingBarId(null); }} />;
+    })() : null}
     {confirmationDialog}
     </>
   );

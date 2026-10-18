@@ -7,6 +7,7 @@ import {
   strumGridColumns, strumCounts, type RhythmPreset, type SongRhythm, type StrumPattern, type StrumSection,
 } from "../songRhythm";
 import { createRhythmPreset, getRhythmPresets, updateRhythmPreset } from "../api";
+import { lyricBarLayout, musicalSectionKey, timedPracticeBars } from "../lyricTiming";
 import { parseBarChart, songPracticeParts } from "../musicPractice";
 import type { ChordAnnotation } from "../chordSheet";
 import type { PracticeMode } from "../musicPractice";
@@ -60,7 +61,10 @@ export function SongRhythmEditor({ value, canEdit, onChange, lyrics, sequence, p
   const chart = rhythm.arrangements?.find((entry) => entry.section === barPart)?.chart ?? "";
   let chartError: string | null = null;
   let barLabels: string[] = [];
-  try { barLabels = parseBarChart(chart, rhythm.numerator, barPart).map((bar) => bar.chords.map((chord) => `${chord.chord}@${Number(chord.beat.toFixed(2))}`).join(" ")); }
+  try {
+    const bars = linkedBars && annotations ? timedPracticeBars(lyrics, lyricBarLayout(lyrics, rhythm, annotations).filter(bar => musicalSectionKey(bar.section) === musicalSectionKey(barPart)), annotations, rhythm.numerator) : parseBarChart(chart, rhythm.numerator, barPart);
+    barLabels = bars.map(bar => `${'numerator' in bar ? `${bar.numerator}/${bar.denominator} · ` : ''}${bar.chords.map(chord => `${chord.chord}@${Number(chord.beat.toFixed(2))}`).join(" ")}`);
+  }
   catch (error) { chartError = error instanceof Error ? error.message : "Check the bar chart."; }
   const selectedPreset = presets.find((preset) => preset.subdivision === pattern.subdivision && preset.strokes.join() === pattern.strokes.join());
 
