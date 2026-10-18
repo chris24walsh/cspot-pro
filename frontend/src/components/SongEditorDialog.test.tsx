@@ -176,6 +176,17 @@ it("saves a chord playback count separately from its lyric position", async () =
   try {
     await act(async () => root.render(<SongEditorDialog song={song} canEdit onClose={() => {}} onSaved={() => {}} />));
     act(() => Array.from(container.querySelectorAll("button")).find(button => button.textContent === "Chords")!.click());
+    // First-time entry stays compact, even at an interior position.
+    act(() => container.querySelectorAll<HTMLButtonElement>(".musician-slot")[6].click());
+    expect(container.querySelector('[aria-label="Chord playback beat"]')).toBeNull();
+    expect(container.textContent).not.toContain("Loop bar");
+    expect(container.querySelector(".musician-slot-editor")?.textContent).not.toContain("Done");
+    act(() => container.querySelector<HTMLInputElement>(".musician-slot-editor input")!.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })));
+    // Editing an existing chord at the explicit bar start also stays compact.
+    act(() => Array.from(container.querySelectorAll<HTMLButtonElement>(".musician-slot.has-chord")).find(button => button.textContent === "C")!.click());
+    expect(container.querySelector('[aria-label="Chord playback beat"]')).toBeNull();
+    expect(container.textContent).not.toContain("Loop bar");
+    act(() => container.querySelector<HTMLInputElement>(".musician-slot-editor input")!.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })));
     act(() => Array.from(container.querySelectorAll<HTMLButtonElement>(".musician-slot.has-chord")).find(button => button.textContent === "G")!.click());
     const beat = container.querySelector<HTMLSelectElement>('[aria-label="Chord playback beat"]')!;
     act(() => { beat.value = "3.5"; beat.dispatchEvent(new Event("change", { bubbles: true })); });

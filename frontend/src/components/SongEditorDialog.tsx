@@ -922,6 +922,9 @@ export function SongEditorDialog({
                           selectedAnchorIndex === slotIndex &&
                           (editingAnnotationId === null ? !annotation : annotation != null && editingAnnotationId === annotation.id);
                         if (isEditing) {
+                          const showTimingControls = Boolean(annotation && timingBars.some(timingBar =>
+                            timingBar.stops.slice(1, -1).some(stop => stop.lineIndex === lineIndex && stop.anchorIndex === slotIndex),
+                          ));
                           return (
                             <span className="musician-slot-editor" onBlur={(event) => { if (!event.currentTarget.contains(event.relatedTarget)) saveOrCloseInlineEditor(); }} key={`editor-${lineIndex}-${slotIndex}`} style={{ gridColumn, gridRow: 1 }}>
                               <input
@@ -947,6 +950,7 @@ export function SongEditorDialog({
                                 size={Math.min(8, Math.max(2, chordInput.length || 2))}
                                 value={chordInput}
                               />
+                              {showTimingControls ? <>
                               <label className="chord-beat-control">Play on
                                 <select aria-label="Chord playback beat" value={chordBeat ?? ""} disabled={!canEdit || !timingBars.length} onChange={event => { setChordBeat(event.target.value ? Number(event.target.value) : undefined); previewPlayer.current?.stop(); setPreviewingBar(false); }}>
                                   <option value="">Auto</option>
@@ -955,6 +959,7 @@ export function SongEditorDialog({
                               </label>
                               <button type="button" disabled={!timingBars.length || !chordInput.trim()} onClick={() => void previewChordBar()}>{previewingBar ? "Stop" : "Loop bar"}</button>
                               <button type="button" onClick={saveOrCloseInlineEditor}>Done</button>
+                              </> : null}
                               {annotation ? <button className="musician-delete-button" disabled={!canEdit} onMouseDown={(event) => event.preventDefault()} onClick={() => { setChordChart((current) => removeChordAnnotation(current, annotation.id)); setLegacyChords(null); cancelInlineChordEdit(); }} type="button">x</button> : null}
                             </span>
                           );
