@@ -220,3 +220,33 @@ it('edits an existing bar meter and pattern, saves its scope, and preserves the 
     expect(vi.mocked(updateSong).mock.calls[0][1].rhythm?.markers?.[0]).toMatchObject({ anchorIndex: 8, rhythm: { numerator: 2, denominator: 4, scope: 'continue', pattern: { subdivision: 2, strokes: ['D', 'U', 'D', 'U'] } } });
   } finally { act(() => root.unmount()); vi.resetAllMocks(); }
 });
+
+it('saves bar changes directly, retains edits after a save failure, and disables duplicate saves', async () => {
+  const chart = { ...createEmptyChordChart(), absoluteKey: 'C', annotations: [{ id: 'c', section: 'V1', lineIndex: 0, anchorIndex: 3, chord: 'C' }] };
+  const song = { id: 'song', title: 'Save bar', lyrics: '[V1]\nSing a song', sequence: 'V1', chords: serializeChordChart(chart), rhythm: { numerator: 4, denominator: 4, patterns: [], notes: '', markers: [{ id: 'bar', section: 'V1', lineIndex: 0, anchorIndex: 3 }] } } as unknown as Song;
+  const onSaved = vi.fn();
+  vi.mocked(updateSong).mockRejectedValueOnce(new Error('Save failed; try again.'));
+  const container = document.createElement('div'); const root = createRoot(container);
+  try {
+    await act(async () => root.render(<SongEditorDialog song={song} canEdit onClose={() => {}} onSaved={onSaved} />));
+    act(() => Array.from(container.querySelectorAll('button')).find(button => button.textContent === 'Chords')!.click());
+    act(() => container.querySelector<HTMLButtonElement>('[aria-label="Switch between chord and bar editing"]')!.click());
+    act(() => container.querySelector<HTMLButtonElement>('[aria-label="Settings for bar at line 2, position 3"]')!.click());
+    const beats = container.querySelector<HTMLSelectElement>('[aria-label="Bar beats"]')!;
+    act(() => { beats.value = '2'; beats.dispatchEvent(new Event('change', { bubbles: true })); });
+    await act(async () => container.querySelector<HTMLButtonElement>('[aria-label="Save bar changes"]')!.click());
+    expect(container.querySelector('.bar-rhythm-dialog [role="alert"]')?.textContent).toBe('Save failed; try again.');
+    expect(beats.value).toBe('2');
+    expect(onSaved).not.toHaveBeenCalled();
+    let complete!: () => void;
+    vi.mocked(updateSong).mockImplementationOnce((_id, payload) => new Promise(resolve => { complete = () => resolve({ ...song, ...payload }); }));
+    await act(async () => container.querySelector<HTMLButtonElement>('[aria-label="Save bar changes"]')!.click());
+    expect(container.querySelector<HTMLFieldSetElement>('.bar-rhythm-fields')!.disabled).toBe(true);
+    expect(container.querySelector('.bar-rhythm-dialog')?.textContent).toContain('Saving…');
+    await act(async () => complete());
+    expect(container.querySelector('.bar-rhythm-dialog')).toBeNull();
+    expect(onSaved).toHaveBeenCalledOnce();
+    expect(vi.mocked(updateSong).mock.calls[1][1].rhythm?.markers?.[0].rhythm).toMatchObject({ numerator: 2, denominator: 4, scope: 'bar' });
+    expect(container.querySelector('.song-editor-save-status')?.textContent).toBe('Saved');
+  } finally { act(() => root.unmount()); vi.resetAllMocks(); }
+});

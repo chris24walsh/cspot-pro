@@ -4,14 +4,17 @@ import { getRhythmPresets } from '../api';
 import { resizeStrumPattern, STRUM_PRESETS, STROKE_CYCLE, STROKE_NAMES, STROKE_SYMBOLS, strumCounts, type BarRhythmChange, type RhythmPreset, type SongRhythm, type StrumPattern } from '../songRhythm';
 import { useEscapeClose } from './useEscapeClose';
 
-export function BarRhythmEditor({ value, songRhythm, onSave, onRemove, onClose }: {
+export function BarRhythmEditor({ value, songRhythm, onSave, onPersist, onRemove, onClose }: {
   value: BarRhythmChange; songRhythm: SongRhythm;
+  onPersist: (change: BarRhythmChange | undefined) => Promise<string | void>;
   onSave: (change: BarRhythmChange | undefined) => string | void; onRemove: () => void; onClose: () => void;
 }) {
+  const [saving, setSaving] = useState(false);
+  const close = () => { if (!saving) onClose(); };
   const [draft, setDraft] = useState(value);
   const [error, setError] = useState<string | null>(null);
   const [library, setLibrary] = useState<RhythmPreset[]>([]);
-  useEscapeClose(true, onClose, 10);
+  useEscapeClose(true, close, 10);
   useEffect(() => { let active = true; void getRhythmPresets().then(presets => { if (active) setLibrary(presets); }).catch(() => {}); return () => { active = false; }; }, []);
   function meter(numerator: number, denominator: SongRhythm['denominator']) {
     setDraft(current => ({ ...current, numerator, denominator, pattern: current.pattern ? resizeStrumPattern(current.pattern, numerator) : null }));
@@ -23,10 +26,17 @@ export function BarRhythmEditor({ value, songRhythm, onSave, onRemove, onClose }
       : saved?.strokes && saved.subdivision ? { name: saved.name, section: 'Default', subdivision: saved.subdivision, bars: saved.strokes.length / (saved.numerator * saved.subdivision) as 1 | 2, strokes: [...saved.strokes] } : null;
     setDraft(current => ({ ...current, pattern: chosen }));
   }
+  async function save() {
+    setSaving(true); setError(null);
+    try { setError(await onPersist(draft) || null); }
+    catch (error) { setError(error instanceof Error ? error.message : "Could not save bar settings."); }
+    finally { setSaving(false); }
+  }
   const counts = draft.pattern ? strumCounts({ ...songRhythm, ...draft }, draft.pattern) : [];
-  return <div className="app-dialog-backdrop" role="presentation" onMouseDown={onClose}>
+  return <div className="app-dialog-backdrop" role="presentation" onMouseDown={close}>
     <section className="app-dialog bar-rhythm-dialog" role="dialog" aria-modal="true" aria-labelledby="bar-rhythm-title" onMouseDown={event => event.stopPropagation()}>
-      <div className="section-heading"><h2 id="bar-rhythm-title">Bar settings</h2><button type="button" aria-label="Close bar settings" title="Close" onClick={onClose}><X size={16} /></button></div>
+      <div className="section-heading"><h2 id="bar-rhythm-title">Bar settings</h2><button type="button" aria-label="Close bar settings" title="Close" disabled={saving} onClick={close}><X size={16} /></button></div>
+      <fieldset disabled={saving} className="bar-rhythm-fields">
       <div className="action-row">
         <label className="compact-field">Beats<select aria-label="Bar beats" value={draft.numerator} onChange={event => meter(Number(event.target.value), draft.denominator)}>{Array.from({ length: 12 }, (_, i) => <option key={i + 1}>{i + 1}</option>)}</select></label>
         <label className="compact-field">Unit<select aria-label="Bar beat unit" value={draft.denominator} onChange={event => meter(draft.numerator, Number(event.target.value) as SongRhythm['denominator'])}>{[2, 4, 8, 16].map(unit => <option key={unit}>{unit}</option>)}</select></label>
@@ -45,10 +55,13 @@ export function BarRhythmEditor({ value, songRhythm, onSave, onRemove, onClose }
       <p className="field-help">A one-bar change returns to the previous settings. Continuing changes follow the lyric chart; repeated sections use their saved bar settings. The quarter-note tempo stays steady.</p>
       {error ? <p role="alert">{error}</p> : null}
       <div className="action-row">
-        <button type="button" onClick={() => setError(onSave(draft) || null)}><Save size={14} aria-hidden="true" />Apply</button>
+        <button type="button" aria-label="Save bar changes" onClick={() => void save()}><Save size={14} aria-hidden="true" />{saving ? 'Saving…' : 'Save changes'}</button>
+        <button type="button" onClick={() => setError(onSave(draft) || null)}>Apply</button>
         <button type="button" onClick={() => setError(onSave(undefined) || null)}>Clear change</button>
         <button type="button" onClick={onRemove}><Trash2 size={14} aria-hidden="true" />Remove bar</button>
       </div>
+      <small className="field-help">Save changes saves these settings and other unsaved song edits. Apply keeps them in the draft for preview.</small>
+      </fieldset>
     </section>
   </div>;
 }

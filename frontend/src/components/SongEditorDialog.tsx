@@ -527,17 +527,32 @@ export function SongEditorDialog({
     setEditingBarId(marker.id);
   }
 
-  function saveBarSettings(change: BarRhythmChange | undefined) {
-    if (!form.rhythm) return;
+  function formWithBarSettings(change: BarRhythmChange | undefined): SongForm {
+    if (!canEdit || !form.rhythm) throw new Error("Bar settings cannot be edited.");
     const next = { ...form.rhythm, markers: form.rhythm.markers?.map(marker => marker.id === editingBarId ? { ...marker, rhythm: change } : marker) };
     const resolved = resolveChordAnnotations(chordChart.annotations, chordLyrics);
     try {
       for (const bar of lyricBarLayout(chordLyrics, next, chordChart.annotations)) {
         chordBeats(bar.stops.slice(0, -1).map(stop => resolved.find(chord => chord.absoluteLineIndex === stop.lineIndex && chord.anchorIndex === stop.anchorIndex) ?? {}), bar.rhythm?.numerator ?? next.numerator, true);
       }
-    } catch { return "An assigned chord beat falls outside this meter or overlaps another change. Adjust the chord timing before shortening this bar."; }
-    setForm(current => ({ ...current, rhythm: next }));
-    setEditingBarId(null);
+    } catch { throw new Error("An assigned chord beat falls outside this meter or overlaps another change. Adjust the chord timing before shortening this bar."); }
+    return { ...form, rhythm: next };
+  }
+
+  function saveBarSettings(change: BarRhythmChange | undefined) {
+    try {
+      setForm(formWithBarSettings(change));
+      setEditingBarId(null);
+    } catch (error) { return error instanceof Error ? error.message : "Could not apply bar settings."; }
+  }
+
+  async function persistBarSettings(change: BarRhythmChange | undefined) {
+    try {
+      const next = formWithBarSettings(change);
+      await persistSongForm(next);
+      setForm(next);
+      setEditingBarId(null);
+    } catch (error) { return error instanceof Error ? error.message : "Could not save bar settings."; }
   }
 
   function editBarAt(lineIndex: number, anchorIndex: number, movingId?: string) {
@@ -668,32 +683,34 @@ export function SongEditorDialog({
     setMessage("All chords cleared. Save the song to keep this change.");
   }
 
-  async function saveSong() {
-    if (!canEdit) return;
+  async function persistSongForm(nextForm: SongForm) {
+    if (!canEdit) throw new Error("Song changes cannot be saved.");
     if (chordChart.annotations.length && !chordChart.absoluteKey && !chordChart.capoKey) {
       setTab("chords");
-      setMessage("Set the song key before saving chord annotations.");
-      return;
+      throw new Error("Set the song key before saving chord annotations.");
     }
     setSaving(true);
     setMessage(null);
     try {
-      for (const chart of form.rhythm?.arrangements ?? []) {
-        const managed = form.rhythm?.markers?.some(marker => (marker.section ?? "Default") === chart.section);
-        if (!managed) parseBarChart(chart.chart, form.rhythm!.numerator, chart.section);
+      for (const chart of nextForm.rhythm?.arrangements ?? []) {
+        const managed = nextForm.rhythm?.markers?.some(marker => (marker.section ?? "Default") === chart.section);
+        if (!managed) parseBarChart(chart.chart, nextForm.rhythm!.numerator, chart.section);
       }
-      const payload = normalizeForm(form, serializeChordChart(chordChart, legacyChords));
+      const payload = normalizeForm(nextForm, serializeChordChart(chordChart, legacyChords));
       const saved = persistedSongId ? await updateSong(persistedSongId, payload) : await createSong(payload);
       setPersistedSongId(saved.id);
       setLastSavedSong(saved);
       setSavedSignature(savedSongSignature(saved));
       await onSaved(saved);
       setMessage("Saved.");
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Could not save song.");
     } finally {
       setSaving(false);
     }
+  }
+
+  async function saveSong() {
+    try { await persistSongForm(form); }
+    catch (error) { setMessage(error instanceof Error ? error.message : "Could not save song."); }
   }
 
   async function formatLyricsAndSequence() {
@@ -1076,7 +1093,7 @@ export function SongEditorDialog({
       if (!marker) return null;
       const layout = timingBars.find(bar => bar.start.lineIndex === resolveChordAnnotations([marker], chordLyrics)[0]?.absoluteLineIndex && bar.start.anchorIndex === marker.anchorIndex);
       const value: BarRhythmChange = marker.rhythm ?? { numerator: layout?.rhythm?.numerator ?? form.rhythm.numerator, denominator: layout?.rhythm?.denominator ?? form.rhythm.denominator, pattern: layout?.rhythm?.pattern, scope: "bar" };
-      return <BarRhythmEditor value={value} songRhythm={form.rhythm} onClose={() => setEditingBarId(null)} onSave={saveBarSettings} onRemove={() => { setForm(current => ({ ...current, rhythm: removeBarMarker(current.rhythm!, chordChart.annotations, editingBarId) })); setEditingBarId(null); }} />;
+      return <BarRhythmEditor value={value} songRhythm={form.rhythm} onClose={() => setEditingBarId(null)} onSave={saveBarSettings} onPersist={persistBarSettings} onRemove={() => { setForm(current => ({ ...current, rhythm: removeBarMarker(current.rhythm!, chordChart.annotations, editingBarId) })); setEditingBarId(null); }} />;
     })() : null}
     {confirmationDialog}
     </>

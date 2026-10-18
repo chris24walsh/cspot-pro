@@ -14372,3 +14372,4 @@ button.musician-page {
 .bar-rhythm-strokes button { display: grid; min-width: 28px; }
 .bar-rhythm-strokes small { font-size: 10px; }
 .musician-slot.has-rhythm-change { color: #885e18; }
+.bar-rhythm-fields { border: 0; margin: 0; padding: 0; min-width: 0; display: grid; gap: 12px; }
