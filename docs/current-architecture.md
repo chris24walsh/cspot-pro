@@ -1472,3 +1472,28 @@ Explicitly timed changes after the initial chord add a sounding attack when the 
 Existing bar markers support meter and strumming-pattern changes: switch to Bars and click a marker (or right-click it in Chords). Choose **This bar only** to restore the preceding settings afterwards, or **Continue until next change** to affect following bars in lyric-chart order. Repeated sections reuse their resolved source-bar settings. **Song defaults** with a continuing scope returns to the song meter and section patterns; **Clear change** removes the override. Moving a marker preserves its settings. Custom strokes and shared strum presets are available. Playback, metronome, chord count selectors, lyric guidance, shared follower timing, and MIDI exports use variable bar lengths while keeping the quarter-note tempo steady. Bar changes are stored in the existing rhythm JSON; no database migration is needed.
 
 Bar settings include **Save changes** to persist the edited bar and all current song edits immediately. **Apply** keeps the bar settings in the song draft for preview. Failed saves leave the dialog and its edits available for retry.
+
+## Account and serving management authorization
+
+`identity.permissions` defines `registration_approver` (`users:approve`) and
+`user_administrator` (`users:admin`, `users:approve`, `serving:manage`). Existing
+`users:manage` remains the full-administrator capability so unrelated existing
+infrastructure routes do not become accessible to delegated account managers.
+`identity.management` validates role grants and protects all accounts with a
+management role or serving management scope against delegated account edits,
+credential resets, invitation issuance and deactivation. Unknown role names are
+rejected on account writes.
+
+Migration 0073 adds `serving_area_managers`, uniquely keyed by user and serving
+area, with cascading foreign keys. Its grants add `serving:manage` to effective
+permissions, independently of volunteer membership. Every volunteer mutation
+checks its serving area on the server, and the volunteer list is filtered by the
+same scope. User administrators and full administrators manage all active serving
+areas. Full administrators alone edit scope grants. Existing session JWTs store
+identity rather than authorization: revocation applies on the next request.
+
+`GET /identity/registrations` exposes only pending ordinary accounts to approval
+roles. `GET /identity/serving/management` supplies managed areas and a minimal
+member picker; it does not expose account credentials or global user records.
+The React shell exposes Admin to all management capabilities while retaining
+system settings and service template controls exclusively for full admins.

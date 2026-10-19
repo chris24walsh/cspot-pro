@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.core.database import Base
-from app.modules.identity.models import AuthToken, Role, User, UserRole
+from app.modules.identity.models import AuthToken, Role, ServingAreaManager, User, UserRole
 from app.modules.identity.permissions import permissions_for_roles
 from app.modules.identity.routes import (
     approve_registration,
@@ -24,7 +24,7 @@ def test_self_registration_stays_inactive_until_admin_approval() -> None:
         tables=[
             User.__table__,
             Role.__table__,
-            UserRole.__table__,
+            UserRole.__table__, ServingAreaManager.__table__,
             AuthToken.__table__,
             SiteContentBlock.__table__,
         ],
@@ -95,7 +95,7 @@ def test_registration_emails_include_review_and_sign_in_links(monkeypatch) -> No
     engine = create_engine("sqlite://")
     Base.metadata.create_all(
         engine,
-        tables=[User.__table__, Role.__table__, UserRole.__table__],
+        tables=[User.__table__, Role.__table__, UserRole.__table__, ServingAreaManager.__table__],
     )
     sent: list[dict[str, str]] = []
     monkeypatch.setattr(

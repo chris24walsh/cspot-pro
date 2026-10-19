@@ -741,3 +741,14 @@ Lyric chords support an optional saved playback count independent of their text 
 Existing bar markers support meter and strumming-pattern changes: switch to Bars and click a marker (or right-click it in Chords). Choose **This bar only** to restore the preceding settings afterwards, or **Continue until next change** to affect following bars in lyric-chart order. Repeated sections reuse their resolved source-bar settings. **Song defaults** with a continuing scope returns to the song meter and section patterns; **Clear change** removes the override. Moving a marker preserves its settings. Custom strokes and shared strum presets are available. Playback, metronome, chord count selectors, lyric guidance, shared follower timing, and MIDI exports use variable bar lengths while keeping the quarter-note tempo steady. Bar changes are stored in the existing rhythm JSON; no database migration is needed.
 
 Bar settings include **Save changes** to persist the edited bar and all current song edits immediately. **Apply** keeps the bar settings in the song draft for preview. Failed saves leave the dialog and its edits available for retry.
+
+## Delegated management
+
+Account approval, ordinary account administration and serving-team management
+are separate responsibilities. Full administrators delegate these powers through
+explicit management roles or individual serving-role scopes. User administrators
+can grant standard workspace roles but cannot delegate management or modify
+accounts with management powers. A role such as Chores uses the existing serving
+role/category model; its manager needs no presentation or system privileges.
+Team managers invite existing members and review their own team's serving
+relationships; membership and management grants remain independent.

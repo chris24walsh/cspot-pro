@@ -9,6 +9,7 @@ from app.modules.identity.auth import list_authorization_role_names, list_role_n
 from app.modules.identity.models import (
     Role,
     ServingArea,
+    ServingAreaManager,
     ServingRoleCategory,
     User,
     UserRole,
@@ -45,7 +46,7 @@ def test_member_directory_exposes_team_fields_without_admin_fields() -> None:
         tables=[
             User.__table__,
             Role.__table__,
-            UserRole.__table__,
+            UserRole.__table__, ServingAreaManager.__table__,
             ServingArea.__table__,
             VolunteerPreference.__table__,
             VolunteerUnavailability.__table__,
@@ -135,6 +136,7 @@ def test_admin_role_management_blocks_deleting_assigned_roles_and_nonempty_categ
         tables=[
             User.__table__,
             ServingRoleCategory.__table__,
+            ServingAreaManager.__table__,
             ServingArea.__table__,
             VolunteerPreference.__table__,
         ],
@@ -205,7 +207,7 @@ def test_serving_rotation_mode_is_exposed_without_changing_access() -> None:
         tables=[
             User.__table__,
             Role.__table__,
-            UserRole.__table__,
+            UserRole.__table__, ServingAreaManager.__table__,
             ServingArea.__table__,
             VolunteerPreference.__table__,
             VolunteerUnavailability.__table__,
@@ -244,7 +246,7 @@ def test_user_and_admin_suspension_controls_scheduling_and_resume_authority() ->
         tables=[
             User.__table__,
             Role.__table__,
-            UserRole.__table__,
+            UserRole.__table__, ServingAreaManager.__table__,
             ServingArea.__table__,
             VolunteerPreference.__table__,
             VolunteerUnavailability.__table__,
@@ -258,6 +260,10 @@ def test_user_and_admin_suspension_controls_scheduling_and_resume_authority() ->
         )
         session.add_all([admin, volunteer, area])
         session.flush()
+        admin_role = Role(name="administrator", system_role=True)
+        session.add(admin_role)
+        session.flush()
+        session.add(UserRole(user_id=admin.id, role_id=admin_role.id))
         preference = VolunteerPreference(
             user_id=volunteer.id,
             serving_area_id=area.id,
@@ -306,7 +312,7 @@ def test_approved_serving_area_provides_matching_workspace_role() -> None:
         tables=[
             User.__table__,
             Role.__table__,
-            UserRole.__table__,
+            UserRole.__table__, ServingAreaManager.__table__,
             ServingArea.__table__,
             VolunteerPreference.__table__,
         ],
@@ -372,7 +378,7 @@ def test_live_worship_and_teacher_service_permissions_match_role_workflows() -> 
 
 def test_non_viewer_role_can_be_assigned_without_broadcast_viewer_access() -> None:
     engine = create_engine("sqlite://")
-    Base.metadata.create_all(engine, tables=[User.__table__, Role.__table__, UserRole.__table__])
+    Base.metadata.create_all(engine, tables=[User.__table__, Role.__table__, UserRole.__table__, ServingAreaManager.__table__])
 
     with Session(engine) as session:
         user = User(

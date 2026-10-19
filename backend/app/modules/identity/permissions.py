@@ -70,6 +70,9 @@ BROADCAST_VIEW_PERMISSIONS: set[PermissionName] = {
 ADMIN_PERMISSIONS: set[PermissionName] = {
     "users:manage",
     "site:edit",
+    "users:admin",
+    "users:approve",
+    "serving:manage",
 }
 
 WEBSITE_EDIT_PERMISSIONS: set[PermissionName] = {"website:edit"}
@@ -144,6 +147,14 @@ ROLE_DEFINITIONS: dict[str, RoleDefinition] = {
         "description": "Edit and publish website content and media.",
         "permissions": WEBSITE_PUBLISH_PERMISSIONS,
     },
+    "registration_approver": {
+        "description": "Approve or reject new account registrations without managing existing accounts.",
+        "permissions": {"users:approve"},
+    },
+    "user_administrator": {
+        "description": "Approve registrations, manage ordinary accounts, and grant standard workspace roles.",
+        "permissions": {"users:admin", "users:approve", "serving:manage"},
+    },
     "administrator": {
         "description": "Full access across users, planning, worship, Sunday school, broadcast, and site settings.",
         "permissions": ALL_PERMISSIONS,
@@ -200,3 +211,7 @@ def permissions_for_roles(role_names: Iterable[str]) -> set[PermissionName]:
     for role_name in role_names:
         granted.update(ROLE_PERMISSIONS.get(normalize_role_name(role_name), set()))
     return granted
+
+
+# Delegation remains reserved for full administrators.
+MANAGEMENT_ROLES = {"administrator", "user_administrator", "registration_approver"}

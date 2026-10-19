@@ -12,6 +12,7 @@ from app.modules.identity.models import (
     AuthToken,
     Role,
     ServingArea,
+    ServingAreaManager,
     User,
     UserRole,
     VolunteerPreference,
@@ -32,7 +33,7 @@ def _session(*, active: bool = True, role_name: str = "website_editor") -> tuple
         tables=[
             User.__table__,
             Role.__table__,
-            UserRole.__table__,
+            UserRole.__table__, ServingAreaManager.__table__,
             AuthToken.__table__,
             ServingArea.__table__,
             VolunteerPreference.__table__,

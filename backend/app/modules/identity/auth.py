@@ -11,7 +11,14 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.core.database import SessionLocal, get_session
-from app.modules.identity.models import Role, ServingArea, User, UserRole, VolunteerPreference
+from app.modules.identity.models import (
+    Role,
+    ServingArea,
+    ServingAreaManager,
+    User,
+    UserRole,
+    VolunteerPreference,
+)
 from app.modules.identity.permissions import (
     SERVING_AREA_ROLES,
     canonical_role_names,
@@ -35,7 +42,10 @@ def list_role_names(session: Session, user_id: str) -> list[str]:
 
 
 def list_permissions(session: Session, user_id: str) -> list[str]:
-    return sorted(permissions_for_roles(list_authorization_role_names(session, user_id)))
+    permissions = permissions_for_roles(list_authorization_role_names(session, user_id))
+    if managed_serving_area_ids(session, user_id):
+        permissions.add("serving:manage")
+    return sorted(permissions)
 
 
 def list_authorization_role_names(session: Session, user_id: str) -> list[str]:
@@ -132,7 +142,7 @@ def require_permission(permission_name: str) -> Callable[[User, Session], User]:
         current_user: CurrentUser,
         session: Session = Depends(get_session),
     ) -> User:
-        permissions = permissions_for_roles(list_authorization_role_names(session, current_user.id))
+        permissions = set(list_permissions(session, current_user.id))
         if permission_name not in permissions:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
@@ -148,7 +158,7 @@ def require_any_permission(*permission_names: str) -> Callable[[User, Session], 
         current_user: CurrentUser,
         session: Session = Depends(get_session),
     ) -> User:
-        permissions = permissions_for_roles(list_authorization_role_names(session, current_user.id))
+        permissions = set(list_permissions(session, current_user.id))
         if permissions.intersection(permission_names):
             return current_user
         needed = " or ".join(permission_names)
@@ -158,3 +168,19 @@ def require_any_permission(*permission_names: str) -> Callable[[User, Session], 
         )
 
     return dependency
+
+
+def managed_serving_area_ids(session: Session, user_id: str) -> set[str]:
+    permissions = permissions_for_roles(list_role_names(session, user_id))
+    if permissions.intersection({"users:manage", "users:admin"}):
+        return set(session.scalars(select(ServingArea.id).where(ServingArea.active.is_(True))))
+    return set(session.scalars(
+        select(ServingAreaManager.serving_area_id)
+        .join(ServingArea, ServingArea.id == ServingAreaManager.serving_area_id)
+        .where(ServingAreaManager.user_id == user_id, ServingArea.active.is_(True))
+    ))
+
+
+def require_serving_area_manager(session: Session, current_user: User, area_id: str) -> None:
+    if area_id not in managed_serving_area_ids(session, current_user.id):
+        raise HTTPException(status_code=403, detail="You cannot manage this serving role")

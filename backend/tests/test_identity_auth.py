@@ -4,7 +4,14 @@ from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session
 
 from app.core.database import Base
-from app.modules.identity.models import Role, ServingArea, User, UserRole, VolunteerPreference
+from app.modules.identity.models import (
+    Role,
+    ServingArea,
+    ServingAreaManager,
+    User,
+    UserRole,
+    VolunteerPreference,
+)
 from app.modules.identity.routes import login, resolve_username
 from app.modules.identity.schemas import LoginRequest
 from app.modules.identity.security import hash_password
@@ -17,7 +24,7 @@ def _identity_session() -> Session:
         tables=[
             User.__table__,
             Role.__table__,
-            UserRole.__table__,
+            UserRole.__table__, ServingAreaManager.__table__,
             ServingArea.__table__,
             VolunteerPreference.__table__,
         ],

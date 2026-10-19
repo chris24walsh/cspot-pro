@@ -27,7 +27,7 @@ import {
   getPlans,
   getSessionUser,
   getSongs,
-  getUsers,
+  getPendingRegistrations,
   getServingProfile,
   getVolunteerAdminRecords,
   logout,
@@ -46,6 +46,7 @@ import { PublicRecordingView } from "./components/PublicRecordingView";
 import { ServiceBroadcastView } from "./components/ServiceBroadcastView";
 import { SundaySchoolView } from "./components/SundaySchoolView";
 import { SundaySchoolDisplay } from "./components/SundaySchoolDisplay";
+import { DelegatedManagement } from "./components/DelegatedManagement";
 import { UserManager } from "./components/UserManager";
 import { MyProfile } from "./components/MyProfile";
 import { WorshipBuilderView } from "./components/WorshipBuilderView";
@@ -130,8 +131,11 @@ function App() {
   const isSundaySchoolLeader = roleNames.has("sunday_school_leader");
   const isTeacher = roleNames.has("teacher");
   const isPresenter = roleNames.has("presenter");
-  const isViewerOnly = isViewer && roleNames.size === 1;
   const canManageUsers = permissions.has("users:manage");
+  const canApproveRegistrations = permissions.has("users:approve");
+  const canManageServing = permissions.has("serving:manage");
+  const canAccessManagement = canManageUsers || permissions.has("users:admin") || permissions.has("users:approve") || permissions.has("serving:manage");
+  const isViewerOnly = isViewer && roleNames.size === 1 && !canAccessManagement;
   const canCreatePlans = permissions.has("plans:create");
   const canDeletePlans = permissions.has("plans:delete");
   const canEditPlans = canCreatePlans || permissions.has("plans:edit");
@@ -244,14 +248,14 @@ function App() {
           return canWatchBroadcast;
         }
         if (module.id === "admin") {
-          return canManageUsers;
+          return canAccessManagement;
         }
         if (module.id === "profile") {
           return canAccessProfile;
         }
         return true;
       }).sort((left, right) => Number(left.id === "profile") - Number(right.id === "profile")),
-    [canAccessProfile, canManageUsers, canUseServiceOperator, canUseSundaySchool, canUseWorshipTools, canWatchBroadcast, workspace],
+    [canAccessProfile, canAccessManagement, canUseServiceOperator, canUseSundaySchool, canUseWorshipTools, canWatchBroadcast, workspace],
   );
 
   const activeModule = useMemo(
@@ -300,12 +304,12 @@ function App() {
   }, [activeModule]);
 
   const loadAdminAttention = useCallback(async () => {
-    if (!canManageUsers) { setAdminAttentionCount(0); return; }
+    if (!canAccessManagement) { setAdminAttentionCount(0); return; }
     try {
-      const [requests, users] = await Promise.all([getVolunteerAdminRecords(), getUsers()]);
+      const [requests, users] = await Promise.all([canManageServing ? getVolunteerAdminRecords() : Promise.resolve([]), canApproveRegistrations ? getPendingRegistrations() : Promise.resolve([])]);
       setAdminAttentionCount(requests.filter((row) => row.preference.admin_attention_pending).length + users.filter((user) => user.registration_pending).length);
     } catch { setAdminAttentionCount(0); }
-  }, [canManageUsers]);
+  }, [canAccessManagement, canManageServing, canApproveRegistrations]);
 
   useEffect(() => { void loadAdminAttention(); }, [loadAdminAttention]);
 
@@ -330,7 +334,7 @@ function App() {
   }, [canWatchBroadcast, isViewerOnly, modules, sessionUser]);
 
   useEffect(() => {
-    if (!sessionUser || !canManageUsers || !modules.some((module) => module.id === "admin")) {
+    if (!sessionUser || !canAccessManagement || !modules.some((module) => module.id === "admin")) {
       return;
     }
 
@@ -339,7 +343,7 @@ function App() {
       setActiveModuleId("admin");
       setAdminSection("users");
     }
-  }, [adminUserRequested, canManageUsers, modules, sessionUser]);
+  }, [adminUserRequested, canAccessManagement, modules, sessionUser]);
 
   useEffect(() => {
     function updateFullscreenState() {
@@ -500,7 +504,7 @@ function App() {
             <h1>{activeModule.label}</h1>
           </div>
           <div className="topbar-context-slot" id="workspace-topbar-slot">
-            {activeModule.id === "admin" ? <div className="tab-row admin-topbar-tabs flat-admin-tabs" role="tablist" aria-label="Admin sections"><button className={adminSection === "users" ? "active" : ""} onClick={() => setAdminSection("users")} type="button">Manage users{adminAttentionCount ? <span>{adminAttentionCount}</span> : null}</button><button className={adminSection === "templates" ? "active" : ""} onClick={() => setAdminSection("templates")} type="button">Service templates</button><button className={adminSection === "settings" ? "active" : ""} onClick={() => setAdminSection("settings")} type="button">Settings</button></div> : null}
+            {activeModule.id === "admin" && canManageUsers ? <div className="tab-row admin-topbar-tabs flat-admin-tabs" role="tablist" aria-label="Admin sections"><button className={adminSection === "users" ? "active" : ""} onClick={() => setAdminSection("users")} type="button">Manage users{adminAttentionCount ? <span>{adminAttentionCount}</span> : null}</button><button className={adminSection === "templates" ? "active" : ""} onClick={() => setAdminSection("templates")} type="button">Service templates</button><button className={adminSection === "settings" ? "active" : ""} onClick={() => setAdminSection("settings")} type="button">Settings</button></div> : null}
             {activeModule.id === "broadcast" && canWatchBroadcast ? (
               <div className="broadcast-mode-switch segmented-control" role="tablist" aria-label="Broadcast mode">
                 <button
@@ -615,7 +619,7 @@ function App() {
           )
         ) : null}
         {mountedModuleIds.has("admin") ? <div className="workspace-panel" hidden={activeModule.id !== "admin"}>
-          <UserManager adminSection={adminSection} initialUserId={adminUserRequested} onAdminSectionChange={setAdminSection} onAttentionChanged={loadAdminAttention} />
+          {canManageUsers ? <UserManager adminSection={adminSection} initialUserId={adminUserRequested} onAdminSectionChange={setAdminSection} onAttentionChanged={loadAdminAttention} /> : sessionUser ? <DelegatedManagement sessionUser={sessionUser} /> : null}
         </div> : null}
         {mountedModuleIds.has("profile") ? <div className="workspace-panel" hidden={activeModule.id !== "profile"}>
           <MyProfile onProfileChanged={() => { void loadAuth(); void loadProfileAttention(); }} onServingChanged={() => { void loadProfileAttention(); }} />

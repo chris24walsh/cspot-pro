@@ -769,3 +769,24 @@ Lyric chords support an optional saved playback count independent of their text 
 Existing bar markers support meter and strumming-pattern changes: switch to Bars and click a marker (or right-click it in Chords). Choose **This bar only** to restore the preceding settings afterwards, or **Continue until next change** to affect following bars in lyric-chart order. Repeated sections reuse their resolved source-bar settings. **Song defaults** with a continuing scope returns to the song meter and section patterns; **Clear change** removes the override. Moving a marker preserves its settings. Custom strokes and shared strum presets are available. Playback, metronome, chord count selectors, lyric guidance, shared follower timing, and MIDI exports use variable bar lengths while keeping the quarter-note tempo steady. Bar changes are stored in the existing rhythm JSON; no database migration is needed.
 
 Bar settings include **Save changes** to persist the edited bar and all current song edits immediately. **Apply** keeps the bar settings in the song draft for preview. Failed saves leave the dialog and its edits available for retry.
+
+## Delegated user and team management
+
+In **Admin → Manage users → Roles & serving**, a full administrator can grant
+**Registration approver** (approve/reject registrations) or **User administrator**
+(also manage ordinary accounts and grant standard workspace roles). These roles
+open a focused management view without system settings, integrations or service
+template administration. Registration review emails reach all three account
+approval roles.
+
+The **Team management** selections on the same user form delegate individual
+serving roles. For example, create a Chores serving role in Settings, then select
+it for the person managing that team. They can review requests, invite existing
+members, change serving frequency, suspend/resume and remove assignments for that
+role. Invitations still require acceptance. Delegating a team does not enroll the
+manager as a volunteer or grant that team's service workspace access.
+
+Only full administrators can delegate management roles/scopes or change accounts
+that already hold those powers. Team managers cannot edit accounts, reset
+passwords or approve account registrations. Existing standard roles continue to
+control workspace access, including access inherited from approved serving roles.

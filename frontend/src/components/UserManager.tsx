@@ -33,6 +33,7 @@ import { AdminAvailabilityPanel } from "./AdminAvailabilityPanel";
 import { AudioSceneManager } from "./AudioSceneManager";
 import { ServingRoleManager } from "./ServingRoleManager";
 import { PlanTypeManager } from "./PlanTypeManager";
+import { ServingManagementGrants } from "./ServingManagementGrants";
 import { VolunteerReview } from "./VolunteerReview";
 
 interface UserFormState {
@@ -156,9 +157,9 @@ export function UserManager({ adminSection, initialUserId, onAdminSectionChange,
   const formDirty = mode === "create" || Boolean(selectedUser && JSON.stringify(form) !== JSON.stringify(formFromUser(selectedUser)));
   const roleGroups: Array<{ label: string; roles: string[] }> = [
     ...Array.from(new Set(servingAreas.map((area) => area.category))).sort().map((label) => ({ label, roles: [] })),
-    { label: "General", roles: ["viewer"] },
+    { label: "Workspace access", roles: ["viewer", "musician", "worship_leader", "teacher", "presenter", "sunday_school_teacher", "sunday_school_leader"] },
     { label: "Website", roles: ["website_editor", "website_publisher"] },
-    { label: "Administration", roles: ["administrator"] },
+    { label: "Administration", roles: ["registration_approver", "user_administrator", "administrator"] },
   ];
 
   const pendingUserIds = new Set([...users.filter((user) => user.registration_pending).map((user) => user.id), ...volunteerRows.filter((row) => row.preference.admin_attention_pending).map((row) => row.user_id)]);
@@ -610,6 +611,8 @@ export function UserManager({ adminSection, initialUserId, onAdminSectionChange,
               {roleGroups.map((group) => { const groupRequests = volunteerRows.filter((row) => row.user_id === selectedUser?.id && row.preference.area.category === group.label); const groupAreas = servingAreas.filter((area) => area.category === group.label); if (!group.roles.length && !groupRequests.length && !groupAreas.length) return null; const groupOpen = openRoleGroup === group.label; const activeCount = group.roles.filter((roleName) => form.role_names.includes(roleName)).length + groupRequests.filter((row) => row.preference.status === "approved" || row.preference.status === "pending").length; return <section className={`role-group role-category ${groupOpen ? "is-open" : ""}`} key={group.label}><button className="role-category-heading" onClick={() => setOpenRoleGroup(groupOpen ? null : group.label)} type="button"><span>{group.label}</span><small>{activeCount} active</small><span aria-hidden="true">{groupOpen ? "−" : "+"}</span></button>{groupOpen ? <div className="role-category-items">{group.roles.length ? <div className="admin-role-list">{group.roles.map((roleName) => { const role = roles.find((candidate) => candidate.name === roleName); const selected = Boolean(role && form.role_names.includes(role.name)); const limit = roleName === "worship_leader" ? form.worship_max_sundays_per_month : roleName === "sunday_school_teacher" ? form.sunday_school_max_sundays_per_month : null; return role ? <div className={`admin-role-row ${selected ? "selected" : ""}`} key={role.id}><label className="admin-role-toggle"><input checked={selected}  onChange={() => void toggleRole(role.name)} type="checkbox" /><span><strong>{formatRoleName(role.name)}</strong><small>{role.description ?? "Workspace access"}</small></span></label>{selected && limit !== null ? <label className="inline-role-limit"><span>Sundays</span><select onChange={(event) => { const value = event.target.value; void persistServingAccess(roleName === "worship_leader" ? { worship_max_sundays_per_month: value } : { sunday_school_max_sundays_per_month: value }).catch((error) => setMessage(error instanceof Error ? error.message : "Could not update rotation limit.")); }} value={limit}><option value="">Unlimited</option><option value="0">Never</option>{[1, 2, 3, 4, 5].map((value) => <option key={value} value={value}>{value}/month</option>)}</select></label> : null}</div> : null; })}</div> : null}{mode === "edit" && selectedUser && (groupRequests.length || groupAreas.length) ? <VolunteerReview areas={groupAreas} compact directRoleNames={selectedUser.roles} onChanged={refreshVolunteerRows} rows={groupRequests} userId={selectedUser.id} /> : null}</div> : null}</section>; })}
             </div>
           </fieldset>
+
+          {mode === "edit" && selectedUser ? <ServingManagementGrants key={selectedUser.id} userId={selectedUser.id} areas={servingAreas} /> : null}
 
           {mode === "edit" && selectedUser ? <AdminAvailabilityPanel onMessage={setMessage} roleOptions={servingAreas.filter((area) => volunteerRows.some((row) => row.user_id === selectedUser.id && row.preference.area.key === area.key && row.preference.status === "approved") || Boolean(area.legacy_role_name && selectedUser.roles.includes(area.legacy_role_name))).map((area) => ({ key: area.key, name: area.name }))} userId={selectedUser.id} /> : null}
 

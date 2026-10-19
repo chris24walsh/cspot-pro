@@ -19,13 +19,23 @@ from app.modules.identity.auth import (
     list_authorization_role_names,
     list_permissions,
     list_role_names,
+    managed_serving_area_ids,
+    require_any_permission,
     require_permission,
+    require_serving_area_manager,
     set_session_cookie,
+)
+from app.modules.identity.management import (
+    is_full_administrator,
+    is_protected_account,
+    require_account_management,
+    validate_role_grant,
 )
 from app.modules.identity.models import (
     AuthToken,
     Role,
     ServingArea,
+    ServingAreaManager,
     ServingRoleCategory,
     User,
     UserRole,
@@ -33,6 +43,7 @@ from app.modules.identity.models import (
     VolunteerUnavailability,
 )
 from app.modules.identity.permissions import (
+    MANAGEMENT_ROLES,
     ROLE_DEFINITIONS,
     SERVING_AREA_LEGACY_ROLES,
     canonical_role_names,
@@ -56,6 +67,9 @@ from app.modules.identity.schemas import (
     SelfRegistrationStatusRead,
     ServingAreaRead,
     ServingAreaWrite,
+    ServingManagementMember,
+    ServingManagementRead,
+    ServingManagementUpdate,
     ServingProfileRead,
     ServingRoleCategoryRead,
     ServingRoleCategoryWrite,
@@ -429,7 +443,7 @@ def send_registration_review_emails(session: Session, *, user: User) -> None:
         select(User.email)
         .join(UserRole, UserRole.user_id == User.id)
         .join(Role, Role.id == UserRole.role_id)
-        .where(User.active.is_(True), Role.name == "administrator")
+        .where(User.active.is_(True), Role.name.in_(MANAGEMENT_ROLES))
         .distinct()
     ).all()
     subject = f"New {settings.app_name} registration needs review"
@@ -1048,6 +1062,7 @@ def delete_serving_role(
     session.execute(
         delete(VolunteerPreference).where(VolunteerPreference.serving_area_id == area.id)
     )
+    session.execute(delete(ServingAreaManager).where(ServingAreaManager.serving_area_id == area.id))
     session.delete(area)
     session.commit()
     return Response(status_code=204)
@@ -1290,12 +1305,13 @@ def remove_user_unavailability(
 
 @router.get("/serving/admin/volunteers", response_model=list[VolunteerAdminRead])
 def list_volunteer_requests(
-    _current_user: User = Depends(require_permission("users:manage")),
+    _current_user: User = Depends(require_any_permission("users:manage", "serving:manage")),
     session: Session = Depends(get_session),
 ) -> list[VolunteerAdminRead]:
     rows = session.execute(
         select(VolunteerPreference, User)
         .join(User, User.id == VolunteerPreference.user_id)
+        .where(VolunteerPreference.serving_area_id.in_(managed_serving_area_ids(session, _current_user.id)))
         .order_by(VolunteerPreference.status.desc(), User.name)
     ).all()
     rows = [
@@ -1316,6 +1332,9 @@ def list_volunteer_requests(
                         VolunteerUnavailability.user_id == user.id
                     )
                 ).all()
+                if is_full_administrator(session, _current_user)
+                or not item.role_keys
+                or session.get(ServingArea, preference.serving_area_id).key in item.role_keys
             ],
         )
         for preference, user in rows
@@ -1327,12 +1346,13 @@ def review_volunteer(
     preference_id: str,
     payload: VolunteerReviewUpdate,
     current_user: CurrentUser,
-    _permission_user: User = Depends(require_permission("users:manage")),
+    _permission_user: User = Depends(require_any_permission("users:manage", "serving:manage")),
     session: Session = Depends(get_session),
 ) -> VolunteerPreferenceRead:
     preference = session.get(VolunteerPreference, preference_id)
     if preference is None:
         raise HTTPException(status_code=404, detail="Volunteer request not found")
+    require_serving_area_manager(session, current_user, preference.serving_area_id)
     if (
         preference.initiated_by == "admin"
         and preference.status == "pending"
@@ -1367,12 +1387,13 @@ def review_volunteer(
 def update_admin_serving_suspension(
     preference_id: str,
     payload: VolunteerSuspensionUpdate,
-    _current_user: User = Depends(require_permission("users:manage")),
+    _current_user: User = Depends(require_any_permission("users:manage", "serving:manage")),
     session: Session = Depends(get_session),
 ) -> VolunteerPreferenceRead:
     preference = session.get(VolunteerPreference, preference_id)
     if preference is None:
         raise HTTPException(status_code=404, detail="Volunteer role not found")
+    require_serving_area_manager(session, _current_user, preference.serving_area_id)
     if preference.status != "approved":
         raise HTTPException(status_code=409, detail="Only an active serving role can be suspended")
     preference.suspended_by = "admin" if payload.suspended else None
@@ -1389,7 +1410,7 @@ def invite_volunteer(
     user_id: str,
     area_key: str,
     payload: VolunteerPreferenceUpdate,
-    _current_user: User = Depends(require_permission("users:manage")),
+    _current_user: User = Depends(require_any_permission("users:manage", "serving:manage")),
     session: Session = Depends(get_session),
 ) -> VolunteerPreferenceRead:
     get_user_or_404(session, user_id)
@@ -1398,6 +1419,7 @@ def invite_volunteer(
     )
     if area is None:
         raise HTTPException(status_code=404, detail="Serving area not found")
+    require_serving_area_manager(session, _current_user, area.id)
     equivalent_role = SERVING_AREA_LEGACY_ROLES.get(area.key)
     if equivalent_role and equivalent_role in list_role_names(session, user_id):
         raise HTTPException(status_code=409, detail="This role is already assigned directly")
@@ -1435,12 +1457,13 @@ def invite_volunteer(
 @router.post("/serving/admin/users/{user_id}/attention/read")
 def acknowledge_volunteer_attention(
     user_id: str,
-    _current_user: User = Depends(require_permission("users:manage")),
+    _current_user: User = Depends(require_any_permission("users:manage", "serving:manage")),
     session: Session = Depends(get_session),
 ) -> dict[str, bool]:
     preferences = session.scalars(
         select(VolunteerPreference).where(
             VolunteerPreference.user_id == user_id,
+            VolunteerPreference.serving_area_id.in_(managed_serving_area_ids(session, _current_user.id)),
             VolunteerPreference.initiated_by == "admin",
             VolunteerPreference.status != "pending",
             VolunteerPreference.admin_attention_pending.is_(True),
@@ -1455,12 +1478,13 @@ def acknowledge_volunteer_attention(
 @router.delete("/serving/admin/volunteers/{preference_id}", status_code=204)
 def remove_volunteer(
     preference_id: str,
-    _current_user: User = Depends(require_permission("users:manage")),
+    _current_user: User = Depends(require_any_permission("users:manage", "serving:manage")),
     session: Session = Depends(get_session),
 ) -> Response:
     preference = session.get(VolunteerPreference, preference_id)
     if preference is None:
         raise HTTPException(status_code=404, detail="Volunteer assignment not found")
+    require_serving_area_manager(session, _current_user, preference.serving_area_id)
     session.delete(preference)
     session.commit()
     return Response(status_code=204)
@@ -1468,13 +1492,14 @@ def remove_volunteer(
 
 @router.get("/roles", response_model=list[RoleRead])
 def list_roles(
-    _current_user: User = Depends(require_permission("users:manage")),
+    _current_user: User = Depends(require_any_permission("users:manage", "users:admin")),
     session: Session = Depends(get_session),
 ) -> list[RoleRead]:
     ensure_system_roles(session)
     session.flush()
     role_names = tuple(ROLE_DEFINITIONS.keys())
     roles = session.scalars(select(Role).where(Role.name.in_(role_names))).all()
+    session.commit()
     role_lookup = {role.name: role for role in roles}
     return [
         RoleRead(
@@ -1485,6 +1510,7 @@ def list_roles(
         )
         for role_name in ROLE_DEFINITIONS
         if role_name in role_lookup
+        and (is_full_administrator(session, _current_user) or role_name not in MANAGEMENT_ROLES)
     ]
 
 
@@ -1515,10 +1541,12 @@ def send_test_email(
 
 @router.get("/users", response_model=list[UserRead])
 def list_users(
-    _current_user: User = Depends(require_permission("users:manage")),
+    _current_user: User = Depends(require_any_permission("users:manage", "users:admin")),
     session: Session = Depends(get_session),
 ) -> list[UserRead]:
     users = session.scalars(select(User).order_by(User.name)).all()
+    if not is_full_administrator(session, _current_user):
+        users = [user for user in users if not is_protected_account(session, user.id)]
     return [user_to_read(session, user) for user in users]
 
 
@@ -1534,9 +1562,10 @@ def list_members(
 @router.post("/users", response_model=UserRead, status_code=status.HTTP_201_CREATED)
 def create_user(
     payload: UserCreate,
-    _current_user: User = Depends(require_permission("users:manage")),
+    _current_user: User = Depends(require_any_permission("users:manage", "users:admin")),
     session: Session = Depends(get_session),
 ) -> UserRead:
+    validate_role_grant(session, _current_user, payload.role_names)
     if payload.password:
         try:
             validate_password_strength(payload.password)
@@ -1581,9 +1610,10 @@ def create_user(
 def invite_user(
     payload: UserInviteRequest,
     current_user: CurrentUser,
-    _permission_user: User = Depends(require_permission("users:manage")),
+    _permission_user: User = Depends(require_any_permission("users:manage", "users:admin")),
     session: Session = Depends(get_session),
 ) -> UserInviteRead:
+    validate_role_grant(session, current_user, payload.role_names)
     try:
         user = User(
             email=payload.email,
@@ -1635,22 +1665,30 @@ def invite_user(
 @router.get("/users/{user_id}", response_model=UserRead)
 def get_user(
     user_id: str,
-    _current_user: User = Depends(require_permission("users:manage")),
+    _current_user: User = Depends(require_any_permission("users:manage", "users:admin")),
     session: Session = Depends(get_session),
 ) -> UserRead:
-    return user_to_read(session, get_user_or_404(session, user_id))
+    user = get_user_or_404(session, user_id)
+    require_account_management(session, _current_user, user)
+    return user_to_read(session, user)
 
 
 @router.patch("/users/{user_id}", response_model=UserRead)
 def update_user(
     user_id: str,
     payload: UserUpdate,
-    _current_user: User = Depends(require_permission("users:manage")),
+    _current_user: User = Depends(require_any_permission("users:manage", "users:admin")),
     session: Session = Depends(get_session),
 ) -> UserRead:
     user = get_user_or_404(session, user_id)
+    require_account_management(session, _current_user, user)
+    if payload.role_names is not None:
+        validate_role_grant(session, _current_user, payload.role_names)
     values = payload.model_dump(exclude_unset=True)
     role_names = values.pop("role_names", None)
+    if user.registration_pending and not is_full_administrator(session, _current_user):
+        if values.get("active") is True or values.get("email_confirmed") is True:
+            raise HTTPException(status_code=403, detail="Use registration approval to activate this account")
     password = values.pop("password", None)
     username = values.pop("username", None) if "username" in values else user.username
 
@@ -1694,10 +1732,11 @@ def update_user(
 @router.delete("/users/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
 def deactivate_user(
     user_id: str,
-    _current_user: User = Depends(require_permission("users:manage")),
+    _current_user: User = Depends(require_any_permission("users:manage", "users:admin")),
     session: Session = Depends(get_session),
 ) -> Response:
     user = get_user_or_404(session, user_id)
+    require_account_management(session, _current_user, user)
     user.active = False
     session.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
@@ -1706,10 +1745,11 @@ def deactivate_user(
 @router.post("/users/{user_id}/registration/approve", response_model=UserRead)
 def approve_registration(
     user_id: str,
-    _current_user: User = Depends(require_permission("users:manage")),
+    _current_user: User = Depends(require_any_permission("users:manage", "users:approve")),
     session: Session = Depends(get_session),
 ) -> UserRead:
     user = get_user_or_404(session, user_id)
+    require_account_management(session, _current_user, user)
     if not user.registration_pending:
         raise HTTPException(
             status_code=409, detail="This account is not awaiting registration approval."
@@ -1736,10 +1776,11 @@ def approve_registration(
 @router.delete("/users/{user_id}/registration", status_code=status.HTTP_204_NO_CONTENT)
 def reject_registration(
     user_id: str,
-    _current_user: User = Depends(require_permission("users:manage")),
+    _current_user: User = Depends(require_any_permission("users:manage", "users:approve")),
     session: Session = Depends(get_session),
 ) -> Response:
     user = get_user_or_404(session, user_id)
+    require_account_management(session, _current_user, user)
     if not user.registration_pending:
         raise HTTPException(
             status_code=409, detail="This account is not awaiting registration approval."
@@ -1754,10 +1795,11 @@ def reject_registration(
 def resend_invite(
     user_id: str,
     current_user: CurrentUser,
-    _permission_user: User = Depends(require_permission("users:manage")),
+    _permission_user: User = Depends(require_any_permission("users:manage", "users:admin")),
     session: Session = Depends(get_session),
 ) -> UserInviteRead:
     user = get_user_or_404(session, user_id)
+    require_account_management(session, current_user, user)
     auth_token, raw_token = issue_auth_token(
         session,
         user=user,
@@ -1782,10 +1824,11 @@ def resend_invite(
 def admin_password_reset(
     user_id: str,
     current_user: CurrentUser,
-    _permission_user: User = Depends(require_permission("users:manage")),
+    _permission_user: User = Depends(require_any_permission("users:manage", "users:admin")),
     session: Session = Depends(get_session),
 ) -> PasswordResetAdminRead:
     user = get_user_or_404(session, user_id)
+    require_account_management(session, current_user, user)
     auth_token, raw_token = issue_auth_token(
         session,
         user=user,
@@ -1803,3 +1846,107 @@ def admin_password_reset(
         email_sent=email_sent,
         expires_at=auth_token.expires_at,
     )
+
+
+@router.get("/registrations", response_model=list[UserRead])
+def list_pending_registrations(
+    _current_user: User = Depends(
+        require_any_permission("users:manage", "users:approve")
+    ),
+    session: Session = Depends(get_session),
+) -> list[UserRead]:
+    users = session.scalars(
+        select(User).where(User.registration_pending.is_(True)).order_by(User.name)
+    ).all()
+    return [
+        user_to_read(session, user)
+        for user in users
+        if not is_protected_account(session, user.id)
+    ]
+
+
+@router.get("/serving/management", response_model=ServingManagementRead)
+def serving_management(
+    current_user: User = Depends(
+        require_any_permission("users:manage", "serving:manage")
+    ),
+    session: Session = Depends(get_session),
+) -> ServingManagementRead:
+    area_ids = managed_serving_area_ids(session, current_user.id)
+    areas = session.scalars(
+        select(ServingArea)
+        .where(ServingArea.id.in_(area_ids))
+        .order_by(ServingArea.category, ServingArea.name)
+    ).all()
+    # Managers can invite existing members, without access to account details or credentials.
+    members = session.scalars(
+        select(User)
+        .where(User.active.is_(True), User.registration_pending.is_(False))
+        .order_by(User.name)
+    ).all()
+    direct_assignments: dict[str, set[str]] = {}
+    scoped_role_areas = {
+        SERVING_AREA_LEGACY_ROLES[area.key]: area.key
+        for area in areas
+        if area.key in SERVING_AREA_LEGACY_ROLES
+    }
+    for user_id, role_name in session.execute(
+        select(UserRole.user_id, Role.name)
+        .join(Role, Role.id == UserRole.role_id)
+        .where(Role.name.in_(scoped_role_areas))
+    ):
+        direct_assignments.setdefault(user_id, set()).add(scoped_role_areas[role_name])
+    return ServingManagementRead(
+        areas=[area_to_read(area) for area in areas],
+        members=[
+            ServingManagementMember(
+                id=user.id,
+                name=user.name,
+                direct_area_keys=sorted(direct_assignments.get(user.id, set())),
+            )
+            for user in members
+        ],
+    )
+
+
+@router.get("/users/{user_id}/managed-serving-areas", response_model=list[str])
+def get_managed_serving_areas(
+    user_id: str,
+    _current_user: User = Depends(require_permission("users:manage")),
+    session: Session = Depends(get_session),
+) -> list[str]:
+    get_user_or_404(session, user_id)
+    return sorted(
+        session.scalars(
+            select(ServingAreaManager.serving_area_id).where(
+                ServingAreaManager.user_id == user_id
+            )
+        )
+    )
+
+
+@router.put("/users/{user_id}/managed-serving-areas", response_model=list[str])
+def set_managed_serving_areas(
+    user_id: str,
+    payload: ServingManagementUpdate,
+    _current_user: User = Depends(require_permission("users:manage")),
+    session: Session = Depends(get_session),
+) -> list[str]:
+    get_user_or_404(session, user_id)
+    area_ids = set(payload.area_ids)
+    valid_ids = set(
+        session.scalars(
+            select(ServingArea.id).where(
+                ServingArea.id.in_(area_ids), ServingArea.active.is_(True)
+            )
+        )
+    )
+    if valid_ids != area_ids:
+        raise HTTPException(status_code=422, detail="Unknown or inactive serving role")
+    session.execute(
+        delete(ServingAreaManager).where(ServingAreaManager.user_id == user_id)
+    )
+    for area_id in sorted(area_ids):
+        session.add(ServingAreaManager(user_id=user_id, serving_area_id=area_id))
+    session.commit()
+    return sorted(area_ids)

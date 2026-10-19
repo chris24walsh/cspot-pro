@@ -260,3 +260,18 @@ class AuthActionTokenRead(BaseModel):
 class AuthActionCompleteRequest(BaseModel):
     token: str
     password: str
+
+
+class ServingManagementUpdate(BaseModel):
+    area_ids: list[str]
+
+
+class ServingManagementMember(BaseModel):
+    id: str
+    name: str
+    direct_area_keys: list[str] = []
+
+
+class ServingManagementRead(BaseModel):
+    areas: list[ServingAreaRead]
+    members: list[ServingManagementMember]

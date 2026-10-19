@@ -109,3 +109,15 @@ class VolunteerUnavailability(IdMixin, TimestampMixin, Base):
     ends_on: Mapped[date] = mapped_column(Date, index=True)
     note: Mapped[str | None] = mapped_column(String(300))
     role_keys: Mapped[list[str] | None] = mapped_column(JSON)
+
+
+class ServingAreaManager(IdMixin, TimestampMixin, Base):
+    __tablename__ = "serving_area_managers"
+    __table_args__ = (
+        UniqueConstraint("user_id", "serving_area_id", name="uq_serving_manager_user_area"),
+    )
+
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    serving_area_id: Mapped[str] = mapped_column(
+        ForeignKey("serving_areas.id", ondelete="CASCADE"), index=True
+    )

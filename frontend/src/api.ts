@@ -1997,3 +1997,9 @@ export function updateBandSelection(planId: string, slideId: string): Promise<{ 
 export function updateRhythmPreset(id: string, payload: Omit<RhythmPreset, "id">): Promise<RhythmPreset> {
   return sendJson(`/api/v1/music/rhythm-presets/${encodeURIComponent(id)}`, "PATCH", payload);
 }
+
+export interface ServingManagement { areas: ServingArea[]; members: Array<{ id: string; name: string; direct_area_keys: string[] }>; }
+export function getServingManagement(): Promise<ServingManagement> { return getJson<ServingManagement>("/api/v1/identity/serving/management"); }
+export function getPendingRegistrations(): Promise<User[]> { return getJson<User[]>("/api/v1/identity/registrations"); }
+export function getManagedServingAreas(userId: string): Promise<string[]> { return getJson<string[]>(`/api/v1/identity/users/${userId}/managed-serving-areas`); }
+export function setManagedServingAreas(userId: string, areaIds: string[]): Promise<string[]> { return sendJson<string[]>(`/api/v1/identity/users/${userId}/managed-serving-areas`, "PUT", { area_ids: areaIds }); }
