@@ -61,6 +61,8 @@ BROADCAST_CONTROL_PERMISSIONS: set[PermissionName] = {
     "broadcast:use",
 }
 
+MIXER_CONTROL_PERMISSIONS: set[PermissionName] = {"mixer:use"}
+
 BROADCAST_VIEW_PERMISSIONS: set[PermissionName] = {
     "plans:read",
     "songs:read",
@@ -90,6 +92,7 @@ ALL_PERMISSIONS: set[PermissionName] = (
     | PRESENTATION_CONTROL_PERMISSIONS
     | SCHOOL_PRESENTATION_PERMISSIONS
     | BROADCAST_CONTROL_PERMISSIONS
+    | MIXER_CONTROL_PERMISSIONS
     | WEBSITE_PUBLISH_PERMISSIONS
     | ADMIN_PERMISSIONS
 )
@@ -104,7 +107,7 @@ ROLE_DEFINITIONS: dict[str, RoleDefinition] = {
         "permissions": READ_PERMISSIONS | TEAM_READ_PERMISSIONS,
     },
     "worship_leader": {
-        "description": "Manage worship songs, files, and worship set planning.",
+        "description": "Manage worship songs, files, worship set planning, and the hardware mixer.",
         "permissions": READ_PERMISSIONS
         | TEAM_READ_PERMISSIONS
         | SERVICE_PLANNING_PERMISSIONS
@@ -113,7 +116,14 @@ ROLE_DEFINITIONS: dict[str, RoleDefinition] = {
         | LIBRARY_EDIT_PERMISSIONS
         | TEAM_EDIT_PERMISSIONS
         | COMMUNICATION_EDIT_PERMISSIONS
-        | PRESENTATION_CONTROL_PERMISSIONS,
+        | PRESENTATION_CONTROL_PERMISSIONS
+        | MIXER_CONTROL_PERMISSIONS,
+    },
+    "broadcast_operator": {
+        "description": "Operate livestreams, manage recordings, and control the hardware mixer.",
+        "permissions": BROADCAST_VIEW_PERMISSIONS
+        | BROADCAST_CONTROL_PERMISSIONS
+        | MIXER_CONTROL_PERMISSIONS,
     },
     "sunday_school_teacher": {
         "description": "Read Sunday school lessons and control the Sunday School room display.",

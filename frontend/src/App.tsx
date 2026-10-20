@@ -39,6 +39,7 @@ import {
 import { isMediaOutputLocation, isNetworkDisplayLocation } from "./browserRouting";
 import { useDurableChange, useDurableChangePolling } from "./changePolling";
 import { AuthScreen } from "./components/AuthScreen";
+import { Xr18MixerPanel } from "./components/Xr18MixerPanel";
 import { BroadcastManager } from "./components/BroadcastManager";
 import { PresentationOutput } from "./components/PresentationOutput";
 import { PresentationView } from "./components/PresentationView";
@@ -106,7 +107,7 @@ function App() {
     selectedPlan: null,
     songs: [],
   });
-  const [broadcastWorkspace, setBroadcastWorkspace] = useState<"viewer" | "recordings" | "livestream" | "mixer">("viewer");
+  const [requestedBroadcastWorkspace, setBroadcastWorkspace] = useState<"viewer" | "recordings" | "livestream" | "mixer">("viewer");
   const [mobileImmersive, setMobileImmersive] = useState(false);
   const [websiteMenuOpen, setWebsiteMenuOpen] = useState(false);
   const [adminAttentionCount, setAdminAttentionCount] = useState(0);
@@ -145,7 +146,10 @@ function App() {
   const canEditSongs = canCreateSongs || permissions.has("songs:edit");
   const canUsePresentation = permissions.has("presentation:use");
   const canUseBroadcast = permissions.has("broadcast:use");
+  const canUseMixer = permissions.has("mixer:use");
   const canWatchBroadcast = isViewer || isAdmin || canUseBroadcast;
+  const canAccessBroadcast = canWatchBroadcast || canUseMixer;
+  const broadcastWorkspace = !canWatchBroadcast && canUseMixer ? "mixer" : requestedBroadcastWorkspace;
   const canCreateLibrary = permissions.has("library:create");
   const canEditWebsite = permissions.has("website:edit");
   const canUseServiceOperator = canUsePresentation && (isAdmin || isTeacher || isPresenter);
@@ -245,7 +249,7 @@ function App() {
           return canUseServiceOperator;
         }
         if (module.id === "broadcast") {
-          return canWatchBroadcast;
+          return canAccessBroadcast;
         }
         if (module.id === "admin") {
           return canAccessManagement;
@@ -255,7 +259,7 @@ function App() {
         }
         return true;
       }).sort((left, right) => Number(left.id === "profile") - Number(right.id === "profile")),
-    [canAccessProfile, canAccessManagement, canUseServiceOperator, canUseSundaySchool, canUseWorshipTools, canWatchBroadcast, workspace],
+    [canAccessProfile, canAccessManagement, canUseServiceOperator, canUseSundaySchool, canUseWorshipTools, canAccessBroadcast, workspace],
   );
 
   const activeModule = useMemo(
@@ -505,26 +509,28 @@ function App() {
           </div>
           <div className="topbar-context-slot" id="workspace-topbar-slot">
             {activeModule.id === "admin" && canManageUsers ? <div className="tab-row admin-topbar-tabs flat-admin-tabs" role="tablist" aria-label="Admin sections"><button className={adminSection === "users" ? "active" : ""} onClick={() => setAdminSection("users")} type="button">Manage users{adminAttentionCount ? <span>{adminAttentionCount}</span> : null}</button><button className={adminSection === "templates" ? "active" : ""} onClick={() => setAdminSection("templates")} type="button">Service templates</button><button className={adminSection === "settings" ? "active" : ""} onClick={() => setAdminSection("settings")} type="button">Settings</button></div> : null}
-            {activeModule.id === "broadcast" && canWatchBroadcast ? (
+            {activeModule.id === "broadcast" && canAccessBroadcast ? (
               <div className="broadcast-mode-switch segmented-control" role="tablist" aria-label="Broadcast mode">
-                <button
-                  aria-selected={broadcastWorkspace === "viewer"}
-                  className={broadcastWorkspace === "viewer" ? "is-active" : ""}
-                  onClick={() => setBroadcastWorkspace("viewer")}
-                  role="tab"
-                  type="button"
-                >
-                  Viewer
-                </button>
-                <button
-                  aria-selected={broadcastWorkspace === "recordings"}
-                  className={broadcastWorkspace === "recordings" ? "is-active" : ""}
-                  onClick={() => setBroadcastWorkspace("recordings")}
-                  role="tab"
-                  type="button"
-                >
-                  Recordings
-                </button>
+                {canWatchBroadcast ? <>
+                  <button
+                    aria-selected={broadcastWorkspace === "viewer"}
+                    className={broadcastWorkspace === "viewer" ? "is-active" : ""}
+                    onClick={() => setBroadcastWorkspace("viewer")}
+                    role="tab"
+                    type="button"
+                  >
+                    Viewer
+                  </button>
+                  <button
+                    aria-selected={broadcastWorkspace === "recordings"}
+                    className={broadcastWorkspace === "recordings" ? "is-active" : ""}
+                    onClick={() => setBroadcastWorkspace("recordings")}
+                    role="tab"
+                    type="button"
+                  >
+                    Recordings
+                  </button>
+                </> : null}
                 {canUseBroadcast ? <>
                   <button
                     aria-selected={broadcastWorkspace === "livestream"}
@@ -535,6 +541,8 @@ function App() {
                   >
                     Livestream
                   </button>
+                </> : null}
+                {canUseMixer ? <>
                   <button
                     aria-selected={broadcastWorkspace === "mixer"}
                     className={broadcastWorkspace === "mixer" ? "is-active" : ""}
@@ -602,7 +610,9 @@ function App() {
           />
         </div> : null}
         {activeModule.id === "broadcast" ? (
-          broadcastWorkspace !== "viewer" && (broadcastWorkspace === "recordings" || canUseBroadcast) ? (
+          broadcastWorkspace === "mixer" && canUseMixer && !canUseBroadcast ? (
+            <section className="broadcast-mixer broadcast-tab-panel" aria-label="Hardware mixer" role="tabpanel"><Xr18MixerPanel /></section>
+          ) : broadcastWorkspace !== "viewer" && ((broadcastWorkspace === "recordings" && canWatchBroadcast) || canUseBroadcast) ? (
             <BroadcastManager activeTab={broadcastWorkspace} canManage={canUseBroadcast} onSelectTab={setBroadcastWorkspace} />
           ) : canWatchBroadcast ? (
             <ServiceBroadcastView

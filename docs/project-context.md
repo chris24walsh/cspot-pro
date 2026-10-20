@@ -752,3 +752,12 @@ accounts with management powers. A role such as Chores uses the existing serving
 role/category model; its manager needs no presentation or system privileges.
 Team managers invite existing members and review their own team's serving
 relationships; membership and management grants remain independent.
+
+
+Hardware mixer access uses `mixer:use`, independently of livestream and recording
+management (`broadcast:use`). Worship leaders receive hardware mixer access without
+broadcast management. Assign the **Broadcast operator** (`broadcast_operator`) role
+to livestream and recording operators; it also includes hardware mixer control.
+Administrators retain both permissions. Mixer-only accounts open the XR18 panel
+without loading broadcast settings, recording lists, or the software livestream
+mix. Published recording playback remains available through existing viewer access.

@@ -790,3 +790,12 @@ Only full administrators can delegate management roles/scopes or change accounts
 that already hold those powers. Team managers cannot edit accounts, reset
 passwords or approve account registrations. Existing standard roles continue to
 control workspace access, including access inherited from approved serving roles.
+
+
+Hardware mixer access uses `mixer:use`, independently of livestream and recording
+management (`broadcast:use`). Worship leaders receive hardware mixer access without
+broadcast management. Assign the **Broadcast operator** (`broadcast_operator`) role
+to livestream and recording operators; it also includes hardware mixer control.
+Administrators retain both permissions. Mixer-only accounts open the XR18 panel
+without loading broadcast settings, recording lists, or the software livestream
+mix. Published recording playback remains available through existing viewer access.

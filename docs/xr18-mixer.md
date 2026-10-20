@@ -19,8 +19,10 @@ controller application in this control path. For LAN-only operation, open the
 LAN-hosted cspot instance; a public reverse proxy adds a network round trip.
 
 One API worker is required because the live transport and cache are in-process.
-The existing production Uvicorn configuration uses one worker. Broadcast control
-permission (`broadcast:use`) gates every endpoint, including discovery and events.
+The existing production Uvicorn configuration uses one worker. Hardware mixer
+permission (`mixer:use`) gates every endpoint, including discovery and events.
+Worship leaders, broadcast operators, and administrators receive this permission.
+Mixer-only access excludes broadcast settings and the software livestream mix.
 The mixer itself has no OSC authentication; keep UDP 10024 inside the trusted LAN.
 Docker bridge mode supports direct unicast control; subnet discovery works even
 where UDP broadcast does not cross the bridge. Discovery uses datagram transports

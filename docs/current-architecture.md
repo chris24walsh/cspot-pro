@@ -1497,3 +1497,12 @@ roles. `GET /identity/serving/management` supplies managed areas and a minimal
 member picker; it does not expose account credentials or global user records.
 The React shell exposes Admin to all management capabilities while retaining
 system settings and service template controls exclusively for full admins.
+
+
+Hardware mixer access uses `mixer:use`, independently of livestream and recording
+management (`broadcast:use`). Worship leaders receive hardware mixer access without
+broadcast management. Assign the **Broadcast operator** (`broadcast_operator`) role
+to livestream and recording operators; it also includes hardware mixer control.
+Administrators retain both permissions. Mixer-only accounts open the XR18 panel
+without loading broadcast settings, recording lists, or the software livestream
+mix. Published recording playback remains available through existing viewer access.

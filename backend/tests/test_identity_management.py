@@ -244,3 +244,30 @@ def test_managing_a_team_does_not_grant_its_workspace_role(management):
     assert "serving:manage" in permissions
     assert "plans:edit" not in permissions
     assert "users:approve" not in permissions
+
+
+@pytest.mark.parametrize(
+    ("role", "mixer_status"),
+    [("worship_leader", 200), ("broadcast_operator", 200),
+     ("administrator", 200), ("viewer", 403), ("musician", 403), ("presenter", 403)],
+)
+def test_mixer_access_is_independent_of_broadcast_management(management, role, mixer_status):
+    from app.modules.broadcast.routes import router as broadcast_router
+    from app.modules.identity.permissions import permissions_for_roles
+    from app.modules.mixer.routes import router as mixer_router
+
+    client, session, users, _, _, actor = management
+    set_user_roles(session, users["member"], [role])
+    session.commit()
+    actor[0] = users["member"]
+    client.app.include_router(mixer_router, prefix="/mixer")
+    client.app.include_router(broadcast_router, prefix="/broadcast")
+
+    assert client.get("/mixer/catalog").status_code == mixer_status
+    permissions = permissions_for_roles([role])
+    if role in {"administrator", "broadcast_operator"}:
+        assert "broadcast:use" in permissions
+    else:
+        assert "broadcast:use" not in permissions
+        assert client.patch("/broadcast/viewer-settings", json={}).status_code == 403
+        assert client.post("/broadcast/recordings/missing/publish").status_code == 403

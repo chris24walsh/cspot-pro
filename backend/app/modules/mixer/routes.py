@@ -16,7 +16,7 @@ from app.modules.mixer.catalog import PARAMETERS, STRIPS
 from app.modules.mixer.engine import discover, engine, validate_host
 from app.modules.mixer.models import MixerConfiguration
 
-router = APIRouter(dependencies=[Depends(require_permission("broadcast:use"))])
+router = APIRouter(dependencies=[Depends(require_permission("mixer:use"))])
 
 
 def config(session):
