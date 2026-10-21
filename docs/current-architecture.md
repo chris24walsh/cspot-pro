@@ -1506,3 +1506,6 @@ to livestream and recording operators; it also includes hardware mixer control.
 Administrators retain both permissions. Mixer-only accounts open the XR18 panel
 without loading broadcast settings, recording lists, or the software livestream
 mix. Published recording playback remains available through existing viewer access.
+
+XR18 faders, mutes, and send levels now recover missing UDP readbacks automatically
+through paced read-only retries; the desk shows “Reading level…” until a value arrives.

@@ -7,9 +7,24 @@ import struct
 import time
 from contextlib import suppress
 
-from app.modules.mixer.catalog import PARAMETERS
+from app.modules.mixer.catalog import PARAMETERS, STRIPS
 from app.modules.mixer.effects import parameter_spec
 from app.modules.mixer.osc import decode, encode, meters
+
+# Recover dropped UDP reads for the desk surface without repeatedly querying
+# unsupported optional DSP parameters or writing a default to live hardware.
+FADER_READBACK_PATHS = (
+    tuple(
+        path
+        for strip in sorted(STRIPS, key=lambda strip: strip["kind"] != "main")
+        for root in [strip["id"] if strip["kind"] == "dca" else strip["id"] + "/mix"]
+        for path in [root + "/fader", root + "/on"]
+    )
+    + tuple(
+        path for path, spec in PARAMETERS.items()
+        if spec["group"] == "Sends" and path.endswith("/level")
+    )
+)
 
 
 def validate_host(host: str) -> str:
@@ -55,6 +70,7 @@ class MixerEngine(asyncio.DatagramProtocol):
         self.transport = None
         self.task = None
         self.sync_task = None
+        self.readback_task = None
         self.values = {}
         self.levels = []
         self.identity = []
@@ -156,12 +172,12 @@ class MixerEngine(asyncio.DatagramProtocol):
                 self.task = asyncio.create_task(self.run())
 
     async def stop(self):
-        for task in (self.task, self.sync_task):
+        for task in (self.task, self.sync_task, self.readback_task):
             if task:
                 task.cancel()
                 with suppress(asyncio.CancelledError):
                     await task
-        self.task = self.sync_task = None
+        self.task = self.sync_task = self.readback_task = None
         self.syncing = False
         if self.transport:
             self.transport.close()
@@ -190,6 +206,15 @@ class MixerEngine(asyncio.DatagramProtocol):
         finally:
             self.syncing = False
 
+    async def refresh_missing_controls(self):
+        """Retry unanswered fader/mute/send queries; never change desk settings."""
+        for path in FADER_READBACK_PATHS:
+            if not self.connected or self.recalling:
+                return
+            if path not in self.values:
+                self.send(path)
+                await asyncio.sleep(0.01)
+
     async def run(self):
         ticks = 0
         was_connected = False
@@ -202,6 +227,14 @@ class MixerEngine(asyncio.DatagramProtocol):
             if self.connected and not was_connected:
                 if not self.sync_task or self.sync_task.done():
                     self.sync_task = asyncio.create_task(self.synchronize())
+            if (
+                ticks % 12 == 0
+                and self.connected
+                and not self.recalling
+                and (not self.sync_task or self.sync_task.done())
+                and (not self.readback_task or self.readback_task.done())
+            ):
+                self.readback_task = asyncio.create_task(self.refresh_missing_controls())
             if was_connected and not self.connected:
                 self.synchronized = False
                 self.values.clear()

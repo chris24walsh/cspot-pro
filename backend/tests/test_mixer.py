@@ -268,3 +268,72 @@ def test_discovery_reports_network_setup_failure(monkeypatch):
         asyncio.run(routes.discovery(routes.Discovery(subnet="192.168.1.0/24")))
     assert error.value.status_code == 503
     assert "server network" in error.value.detail
+
+
+def test_missing_main_output_and_dca_readbacks_recover_without_writes(monkeypatch):
+    from app.modules.mixer import engine as module
+
+    paths = ["/lr/mix/fader", "/fxsend/1/mix/fader", "/dca/1/fader"]
+    known = "/ch/01/mix/fader"
+    optional = "/ch/01/eq/on"
+    monkeypatch.setattr(module, "PARAMETERS", {
+        path: PARAMETERS[path] for path in [*paths, known, optional]
+    })
+    monkeypatch.setattr(module, "FADER_READBACK_PATHS", (*paths, known))
+
+    async def scenario():
+        queries = {}
+        writes = []
+
+        class Desk(asyncio.DatagramProtocol):
+            def connection_made(self, transport):
+                self.transport = transport
+
+            def datagram_received(self, data, addr):
+                path, args = decode(data)
+                if args and path in module.PARAMETERS:
+                    writes.append((path, args))
+                if path == "/xinfo":
+                    self.transport.sendto(encode(path, "127.0.0.1", "Test", "XR18V2", "1.19"), addr)
+                elif path in [*paths, known, optional]:
+                    queries[path] = queries.get(path, 0) + 1
+                    if path == known or path in paths and queries[path] > 1:
+                        self.transport.sendto(encode(path, 0.75), addr)
+
+        loop = asyncio.get_running_loop()
+        transport, _ = await loop.create_datagram_endpoint(Desk, local_addr=("127.0.0.1", 10024))
+        mixer = MixerEngine()
+        try:
+            await mixer.configure("127.0.0.1")
+            for _ in range(100):
+                if mixer.synchronized:
+                    break
+                await asyncio.sleep(0.02)
+            assert mixer.synchronized
+            assert all(path not in mixer.values for path in paths)
+            for _ in range(250):
+                if all(path in mixer.values for path in paths):
+                    break
+                await asyncio.sleep(0.02)
+            assert all(mixer.values.get(path) == pytest.approx(0.75) for path in paths)
+            assert queries[known] == 1, "Confirmed controls must not be polled again"
+            assert queries[optional] == 1, "Unsupported DSP values must not be retried"
+            assert not writes, "Readback recovery must never move a fader"
+        finally:
+            await mixer.stop()
+            transport.close()
+        assert mixer.readback_task is None
+
+    asyncio.run(scenario())
+
+
+def test_readback_recovery_covers_faders_mutes_and_sends():
+    from app.modules.mixer.catalog import STRIPS
+    from app.modules.mixer.engine import FADER_READBACK_PATHS
+
+    assert FADER_READBACK_PATHS[0] == "/lr/mix/fader"
+    for strip in STRIPS:
+        root = strip["id"] if strip["kind"] == "dca" else strip["id"] + "/mix"
+        assert root + "/fader" in FADER_READBACK_PATHS
+        assert root + "/on" in FADER_READBACK_PATHS
+    assert "/ch/01/mix/01/level" in FADER_READBACK_PATHS

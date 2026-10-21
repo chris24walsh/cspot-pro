@@ -336,7 +336,7 @@ export function Xr18MixerPanel() {
         setSelected(strip.id);
         setPage('desk');
       }}><small>{strip.name}</small><strong>{name}</strong></button>
-      <div className="xr-strip-status">{path in drafts || state.pending.includes(path) ? 'Sending…' : sends ? `→ ${Number(sendBus) <= 6 ? 'Bus ' + Number(sendBus) : 'FX ' + (Number(sendBus) - 6)}` : 'MAIN MIX'}</div>
+      <div className="xr-strip-status">{!enabled ? state.recalling ? 'Recalling snapshot…' : state.connected ? 'Reconnecting…' : 'Mixer offline' : fader === undefined ? 'Reading level…' : path in drafts || state.pending.includes(path) ? 'Sending…' : sends ? `→ ${Number(sendBus) <= 6 ? 'Bus ' + Number(sendBus) : 'FX ' + (Number(sendBus) - 6)}` : 'MAIN MIX'}</div>
       <div className="xr-fader-area"><div className="xr-meter" role="meter" aria-label={`${name} level`} aria-valuemin={-90} aria-valuemax={0} aria-valuenow={level ?? -90}><div style={{
             height: `${level === undefined ? 0 : Math.max(0, Math.min(100, (level + 90) / 90 * 100))}%`
           }} /></div><MixerFader label={`${name} ${sends ? 'send' : 'fader'}`} value={Number(drafts[path] ?? fader ?? 0)} valueText={spec ? displayValue(spec, drafts[path] ?? fader) : 'Unavailable'} disabled={!enabled || fader === undefined} onChange={value => change(path, value)} /><div className="xr-scale"><span>+10</span><span>0</span><span>−10</span><span>−30</span><span>−∞</span></div></div>

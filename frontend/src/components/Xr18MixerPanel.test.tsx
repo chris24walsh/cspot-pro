@@ -274,3 +274,20 @@ it('recovers controls through state requests when EventSource never delivers', a
   await act(async () => vi.advanceTimersByTimeAsync(500));
   expect(vi.mocked(mixerRequest).mock.calls.filter(([path]) => path === '/state')).toHaveLength(count);
 });
+
+it('enables Main LR when its delayed hardware readback arrives', () => {
+  emit({ ...emptyMixer, reset: true, connected: true, values: {
+    '/ch/01/mix/fader': .5, '/ch/01/mix/on': 1,
+  } });
+  const main = container.querySelector('[role=slider][aria-label="Main LR fader"]')!;
+  expect(main.getAttribute('aria-disabled')).toBe('true');
+  expect(main.closest('article')?.textContent).toContain('Reading level…');
+  expect(container.querySelector('[role=slider][aria-label="Ch 1 fader"]')?.getAttribute('aria-disabled')).toBe('false');
+  emit({ ...emptyMixer, reset: false, connected: true, values: {
+    '/lr/mix/fader': .75, '/lr/mix/on': 1,
+  } });
+  expect(main.getAttribute('aria-disabled')).toBe('false');
+  expect(main.getAttribute('aria-valuenow')).toBe('75');
+  expect(main.closest('article')?.textContent).not.toContain('Reading level…');
+  expect(vi.mocked(mixerRequest).mock.calls.every(([, method]) => method !== 'POST')).toBe(true);
+});

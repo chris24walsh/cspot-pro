@@ -152,3 +152,10 @@ control surface falls back to one state request at a time, every 250 ms, while
 continuing stream reconnection. Recovery latency includes network round-trip time;
 normal streaming remains 20 Hz. Touch controls do not use desktop hover colours,
 so mute/solo and selection colours appear immediately after a tap.
+
+
+Missing hardware fader, mute, and send-level readbacks are retried automatically
+with paced read-only queries after initial synchronization. Main LR is queried
+first. Confirmed values are not polled again, and optional unsupported DSP
+parameters are excluded from recovery. The desk shows “Reading level…” while a
+fader awaits its first hardware value; no default level is sent to the mixer.
