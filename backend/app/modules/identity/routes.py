@@ -437,25 +437,112 @@ def send_auth_email(*, user: User, purpose: str, action_url: str) -> bool:
     return send_email(to_email=user.email, subject=subject, text_body=body)
 
 
+def review_notification_recipients(
+    session: Session, *, permissions: set[str], area_id: str | None = None
+) -> list[User]:
+    role_names = [
+        name
+        for name, definition in ROLE_DEFINITIONS.items()
+        if definition["permissions"].intersection(permissions)
+    ]
+    authorized = User.id.in_(
+        select(UserRole.user_id)
+        .join(Role, Role.id == UserRole.role_id)
+        .where(Role.name.in_(role_names))
+    )
+    if area_id is not None:
+        authorized = or_(
+            authorized,
+            User.id.in_(
+                select(ServingAreaManager.user_id).where(
+                    ServingAreaManager.serving_area_id == area_id
+                )
+            ),
+        )
+    return list(
+        session.scalars(
+            select(User)
+            .where(
+                User.active.is_(True), User.registration_pending.is_(False), authorized
+            )
+            .order_by(User.email)
+        )
+    )
+
+
+def deliver_review_notifications(
+    recipients: list[User], *, subject: str, body: str
+) -> None:
+    for recipient in recipients:
+        try:
+            send_email(to_email=recipient.email, subject=subject, text_body=body)
+        except Exception:
+            # A bad destination must not prevent the other reviewers being notified.
+            logger.exception(
+                "Could not send review notification to user %s", recipient.id
+            )
+
+
 def send_registration_review_emails(session: Session, *, user: User) -> None:
     review_url = f"{build_public_app_url()}/?admin_user={user.id}"
-    admin_emails = session.scalars(
-        select(User.email)
-        .join(UserRole, UserRole.user_id == User.id)
-        .join(Role, Role.id == UserRole.role_id)
-        .where(User.active.is_(True), Role.name.in_(MANAGEMENT_ROLES))
-        .distinct()
-    ).all()
-    subject = f"New {settings.app_name} registration needs review"
-    body = (
-        "Hello,\n\n"
-        f"{user.name} <{user.email}> has verified their email address and is waiting "
-        "for account approval.\n\n"
-        f"Review this registration to approve or reject it:\n{review_url}"
+    recipients = review_notification_recipients(
+        session, permissions={"users:approve", "users:manage"}
     )
-    for admin_email in admin_emails:
-        send_email(to_email=admin_email, subject=subject, text_body=body)
+    deliver_review_notifications(
+        recipients,
+        subject=f"New {settings.app_name} registration needs review",
+        body=(
+            "Hello,\n\n"
+            f"{user.name} <{user.email}> has verified their email address and is waiting "
+            "for account approval.\n\n"
+            f"Review this registration to approve or reject it:\n{review_url}"
+        ),
+    )
 
+
+def send_serving_review_emails(
+    session: Session,
+    *,
+    user: User,
+    area: ServingArea,
+    invitation_decision: str | None = None,
+) -> None:
+    recipients = review_notification_recipients(
+        session, permissions={"users:admin", "users:manage"}, area_id=area.id
+    )
+    review_url = f"{build_public_app_url()}/?admin_user={user.id}&admin_area={area.key}"
+    detail = (
+        f"has {invitation_decision} the invitation to serve in"
+        if invitation_decision
+        else "has requested to serve in"
+    )
+    deliver_review_notifications(
+        recipients,
+        subject=f"{settings.app_name}: {area.name} "
+        + ("invitation response" if invitation_decision else "serving request"),
+        body=(
+            "Hello,\n\n"
+            f"{user.name} <{user.email}> {detail} {area.name} ({area.category}).\n\n"
+            f"Review this serving relationship:\n{review_url}"
+        ),
+    )
+
+
+def notify_serving_reviewers(
+    session: Session,
+    *,
+    user: User,
+    area: ServingArea,
+    invitation_decision: str | None = None,
+) -> None:
+    if smtp_enabled() and settings.public_app_url:
+        try:
+            send_serving_review_emails(
+                session, user=user, area=area, invitation_decision=invitation_decision
+            )
+        except Exception:
+            # The serving relationship has already been committed.
+            logger.exception("Could not notify serving reviewers for area %s", area.id)
 
 def send_registration_approved_email(*, user: User) -> bool:
     sign_in_url = build_public_app_url()
@@ -1089,6 +1176,7 @@ def volunteer_for_area(
             VolunteerPreference.serving_area_id == area.id,
         )
     )
+    new_request = preference is None or preference.status == "declined"
     if preference is None:
         preference = VolunteerPreference(
             user_id=current_user.id,
@@ -1104,12 +1192,15 @@ def volunteer_for_area(
     preference.rotation_mode = payload.rotation_mode
     preference.availability_notes = payload.availability_notes
     if preference.status == "declined":
+        preference.initiated_by = "volunteer"
         preference.status = "pending"
         preference.admin_attention_pending = True
         preference.reviewed_at = None
         preference.reviewed_by_user_id = None
     session.commit()
     session.refresh(preference)
+    if new_request:
+        notify_serving_reviewers(session, user=current_user, area=area)
     return preference_to_read(session, preference)
 
 
@@ -1133,6 +1224,11 @@ def decide_serving_invitation(
     preference.reviewed_by_user_id = current_user.id
     session.commit()
     session.refresh(preference)
+    area = session.get(ServingArea, preference.serving_area_id)
+    notify_serving_reviewers(
+        session, user=current_user, area=area,
+        invitation_decision="accepted" if payload.status == "approved" else "declined",
+    )
     return preference_to_read(session, preference)
 
 

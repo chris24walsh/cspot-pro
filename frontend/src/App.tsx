@@ -629,7 +629,7 @@ function App() {
           )
         ) : null}
         {mountedModuleIds.has("admin") ? <div className="workspace-panel" hidden={activeModule.id !== "admin"}>
-          {canManageUsers ? <UserManager adminSection={adminSection} initialUserId={adminUserRequested} onAdminSectionChange={setAdminSection} onAttentionChanged={loadAdminAttention} /> : sessionUser ? <DelegatedManagement sessionUser={sessionUser} /> : null}
+          {canManageUsers ? <UserManager adminSection={adminSection} initialUserId={adminUserRequested} onAdminSectionChange={setAdminSection} onAttentionChanged={loadAdminAttention} /> : sessionUser ? <DelegatedManagement sessionUser={sessionUser} initialUserId={adminUserRequested} initialAreaKey={initialParams.get("admin_area")} /> : null}
         </div> : null}
         {mountedModuleIds.has("profile") ? <div className="workspace-panel" hidden={activeModule.id !== "profile"}>
           <MyProfile onProfileChanged={() => { void loadAuth(); void loadProfileAttention(); }} onServingChanged={() => { void loadProfileAttention(); }} />

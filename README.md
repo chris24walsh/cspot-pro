@@ -811,3 +811,14 @@ correct hardware conversions. Held touch/pen gestures open a temporary full-scre
 control without jumping the initial value; release and connection/source changes
 close it. Physical gain follows the channel’s assigned input. See
 [XR18 controls](docs/xr18-mixer.md).
+
+Registration review emails go to active full administrators, user administrators,
+and registration approvers after the applicant verifies their email. New and
+resubmitted serving requests notify active managers assigned to that exact serving
+role, plus full and user administrators. Invitation accept/decline responses use
+the same serving recipients. Being a volunteer or a registration approver alone
+does not subscribe someone to team emails. Review links open the relevant member
+and serving role; routine preference edits do not resend request notifications.
+A delivery error for one reviewer is logged without skipping other recipients or
+undoing the saved request. These notifications require configured SMTP and
+`PUBLIC_APP_URL`; failed deliveries are not automatically retried.

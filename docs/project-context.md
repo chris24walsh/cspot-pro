@@ -773,3 +773,11 @@ touch/pen gestures use a temporary full-screen relative control and cancel on
 release, capture loss, offline state or routing changes. Gain follows physical
 input assignments; missing gain, source and pan readbacks retry automatically.
 See [XR18 controls](xr18-mixer.md).
+
+Review notifications follow delegated responsibilities: active registration
+approvers receive verified registration requests, while team managers receive
+requests only for their assigned serving roles. Full and user administrators
+receive serving requests across teams. New/resubmitted requests and invitation
+responses notify reviewers; routine edits do not produce duplicate emails.
+Emails link directly to the review context. Failure to deliver one email must
+not block other recipients or discard a saved request.

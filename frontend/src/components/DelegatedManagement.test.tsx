@@ -64,3 +64,14 @@ it("keeps management grant controls disabled when existing grants cannot be load
   expect(host.textContent).toContain("Cannot load grants");
   expect(setManagedServingAreas).not.toHaveBeenCalled();
 });
+
+it("opens an emailed serving link on the requested member and team", async () => {
+  vi.mocked(getServingManagement).mockResolvedValue({
+    areas: [area, { ...area, id: "welcome", key: "welcome", name: "Welcome" }],
+    members: [{ id: "member", name: "Member", direct_area_keys: [] }, { id: "other", name: "Other Member", direct_area_keys: [] }],
+  });
+  await act(async () => root.render(<DelegatedManagement initialUserId="other" initialAreaKey="welcome" sessionUser={{ permissions: ["users:admin", "users:approve", "serving:manage"] } as SessionUser} />));
+  expect(host.textContent).toContain("Team management");
+  expect(host.textContent).not.toContain("Registration approvals");
+  expect([...host.querySelectorAll("select")].map((select) => select.value)).toEqual(["welcome", "other"]);
+});

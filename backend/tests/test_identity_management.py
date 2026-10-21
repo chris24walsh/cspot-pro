@@ -248,8 +248,15 @@ def test_managing_a_team_does_not_grant_its_workspace_role(management):
 
 @pytest.mark.parametrize(
     ("role", "mixer_status"),
-    [("worship_leader", 403), ("mixer_operator", 200), ("broadcast_operator", 200),
-     ("administrator", 200), ("viewer", 403), ("musician", 403), ("presenter", 403)],
+    [
+        ("worship_leader", 403),
+        ("mixer_operator", 200),
+        ("broadcast_operator", 200),
+        ("administrator", 200),
+        ("viewer", 403),
+        ("musician", 403),
+        ("presenter", 403),
+    ],
 )
 def test_mixer_access_is_independent_of_broadcast_management(management, role, mixer_status):
     from app.modules.broadcast.routes import router as broadcast_router
@@ -271,7 +278,6 @@ def test_mixer_access_is_independent_of_broadcast_management(management, role, m
         assert "broadcast:use" not in permissions
         assert client.patch("/broadcast/viewer-settings", json={}).status_code == 403
         assert client.post("/broadcast/recordings/missing/publish").status_code == 403
-
 
 
 def test_mixer_and_worship_access_can_be_granted_independently(management):
@@ -302,3 +308,212 @@ def test_mixer_and_worship_access_can_be_granted_independently(management):
     session.commit()
     assert "songs:edit" in list_permissions(session, member.id)
     assert "mixer:use" in list_permissions(session, member.id)
+
+
+@pytest.fixture
+def notification_mail(monkeypatch):
+    from app.core.config import settings
+
+    sent = []
+    monkeypatch.setattr(settings, "public_app_url", "https://church.example/app/")
+    monkeypatch.setattr("app.modules.identity.routes.smtp_enabled", lambda: True)
+    monkeypatch.setattr(
+        "app.modules.identity.routes.send_email", lambda **message: sent.append(message) or True
+    )
+    return sent
+
+
+def test_verified_registration_notifies_all_approval_roles_once(management, notification_mail):
+    from app.modules.identity.routes import issue_auth_token
+
+    client, session, users, _, _, _ = management
+    # Multiple qualifying roles must not result in duplicate mail.
+    set_user_roles(session, users["accounts"], ["user_administrator", "registration_approver"])
+    # SQLite drops timezone information on reload; retain the issued UTC value.
+    session.expire_on_commit = False
+    auth_token, raw_token = issue_auth_token(
+        session,
+        user=users["pending"],
+        purpose="verify",
+        created_by_user_id=None,
+        lifetime_hours=24,
+    )
+    session.commit()
+    response = client.post("/identity/auth/email-verification/complete", json={"token": raw_token})
+    assert response.status_code == 200
+    assert auth_token.used_at is not None
+    assert {mail["to_email"] for mail in notification_mail} == {
+        users["admin"].email,
+        users["accounts"].email,
+        users["approver"].email,
+    }
+    assert len(notification_mail) == 3
+    assert all(
+        f"/app/?admin_user={users['pending'].id}" in mail["text_body"] for mail in notification_mail
+    )
+    assert (
+        client.post(
+            "/identity/auth/email-verification/complete", json={"token": raw_token}
+        ).status_code
+        >= 400
+    )
+    assert len(notification_mail) == 3
+
+
+def test_inactive_approvers_are_not_notified(management, notification_mail):
+    from app.modules.identity.routes import send_registration_review_emails
+
+    _, session, users, _, _, _ = management
+    users["accounts"].active = False
+    session.commit()
+    send_registration_review_emails(session, user=users["pending"])
+    assert {mail["to_email"] for mail in notification_mail} == {
+        users["admin"].email,
+        users["approver"].email,
+    }
+
+
+def test_new_serving_request_notifies_only_its_managers_and_global_admins(
+    management, notification_mail
+):
+    client, session, users, areas, _, actor = management
+    session.add_all(
+        [
+            ServingAreaManager(user_id=users["approver"].id, serving_area_id=areas[1].id),
+            ServingAreaManager(user_id=users["accounts"].id, serving_area_id=areas[0].id),
+        ]
+    )
+    session.commit()
+    actor[0] = users["viewer"]
+    response = client.put("/identity/serving/preferences/chores", json={})
+    assert response.status_code == 200
+    assert {mail["to_email"] for mail in notification_mail} == {
+        users["admin"].email,
+        users["accounts"].email,
+        users["manager"].email,
+    }
+    assert len(notification_mail) == 3
+    assert all("chores" in mail["subject"] for mail in notification_mail)
+    assert all(
+        f"/app/?admin_user={users['viewer'].id}&admin_area=chores" in mail["text_body"]
+        for mail in notification_mail
+    )
+    # Editing an outstanding request is not another request.
+    assert (
+        client.put(
+            "/identity/serving/preferences/chores", json={"availability_notes": "Updated"}
+        ).status_code
+        == 200
+    )
+    assert len(notification_mail) == 3
+    actor[0] = users["manager"]
+    assert (
+        client.patch(
+            f"/identity/serving/admin/volunteers/{response.json()['id']}",
+            json={"status": "declined"},
+        ).status_code
+        == 200
+    )
+    actor[0] = users["viewer"]
+    assert client.put("/identity/serving/preferences/chores", json={}).status_code == 200
+    assert len(notification_mail) == 6
+
+
+def test_inactive_team_manager_is_not_notified(management, notification_mail):
+    client, session, users, _, _, actor = management
+    users["manager"].active = False
+    session.commit()
+    actor[0] = users["viewer"]
+    assert client.put("/identity/serving/preferences/chores", json={}).status_code == 200
+    assert {mail["to_email"] for mail in notification_mail} == {
+        users["admin"].email,
+        users["accounts"].email,
+    }
+
+
+def test_registration_mail_failure_does_not_skip_remaining_approvers(
+    management, monkeypatch, notification_mail
+):
+    from app.modules.identity.routes import send_registration_review_emails
+
+    _, session, users, _, _, _ = management
+    attempted = []
+
+    def deliver(**message):
+        attempted.append(message["to_email"])
+        if message["to_email"] == users["accounts"].email:
+            raise RuntimeError("SMTP recipient failure")
+        return True
+
+    monkeypatch.setattr("app.modules.identity.routes.send_email", deliver)
+    send_registration_review_emails(session, user=users["pending"])
+    assert set(attempted) == {users[name].email for name in ("accounts", "admin", "approver")}
+
+
+def test_serving_request_is_saved_and_other_managers_notified_after_mail_failure(
+    management, monkeypatch, notification_mail
+):
+    client, _, users, _, _, actor = management
+    attempted = []
+
+    def deliver(**message):
+        attempted.append(message["to_email"])
+        if message["to_email"] == users["accounts"].email:
+            raise RuntimeError("SMTP recipient failure")
+        return True
+
+    monkeypatch.setattr("app.modules.identity.routes.send_email", deliver)
+    actor[0] = users["viewer"]
+    response = client.put("/identity/serving/preferences/chores", json={})
+    assert response.status_code == 200
+    assert response.json()["status"] == "pending"
+    assert set(attempted) == {users[name].email for name in ("accounts", "admin", "manager")}
+
+
+def test_serving_invitation_response_notifies_its_managers(management, notification_mail):
+    client, _, users, _, _, actor = management
+    actor[0] = users["manager"]
+    assert (
+        client.put(
+            f"/identity/serving/admin/users/{users['viewer'].id}/preferences/chores", json={}
+        ).status_code
+        == 200
+    )
+    assert notification_mail == []
+    actor[0] = users["viewer"]
+    assert (
+        client.patch(
+            "/identity/serving/preferences/chores/decision", json={"status": "approved"}
+        ).status_code
+        == 200
+    )
+    assert {mail["to_email"] for mail in notification_mail} == {
+        users["admin"].email,
+        users["accounts"].email,
+        users["manager"].email,
+    }
+    assert all("accepted" in mail["text_body"] for mail in notification_mail)
+
+
+def test_reapplying_after_declining_an_invitation_becomes_a_reviewable_request(
+    management, notification_mail
+):
+    client, _, users, _, _, actor = management
+    actor[0] = users["manager"]
+    response = client.put(
+        f"/identity/serving/admin/users/{users['viewer'].id}/preferences/chores", json={}
+    )
+    preference_id = response.json()["id"]
+    actor[0] = users["viewer"]
+    assert client.patch(
+        "/identity/serving/preferences/chores/decision", json={"status": "declined"}
+    ).status_code == 200
+    notification_mail.clear()
+    response = client.put("/identity/serving/preferences/chores", json={})
+    assert response.status_code == 200
+    assert response.json()["initiated_by"] == "volunteer"
+    assert len(notification_mail) == 3
+    actor[0] = users["manager"]
+    assert client.patch(
+        f"/identity/serving/admin/volunteers/{preference_id}", json={"status": "approved"}
+    ).status_code == 200

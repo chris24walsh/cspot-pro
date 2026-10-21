@@ -1518,3 +1518,21 @@ touch/pen gestures use a temporary full-screen relative control and cancel on
 release, capture loss, offline state or routing changes. Gain follows physical
 input assignments; missing gain, source and pan readbacks retry automatically.
 See [XR18 controls](xr18-mixer.md).
+
+## Review email recipients
+
+Identity review notifications derive their global recipients from the role
+permission definitions. Registration reviews use `users:approve`/`users:manage`;
+serving reviews use `users:admin`/`users:manage` plus matching
+`serving_area_managers` grants. Recipient queries include only active, approved
+accounts and deduplicate users across role and scope grants. Team membership does
+not imply notification subscription.
+
+Email verification triggers registration review mail. A newly created serving
+request or a declined request resubmitted by its volunteer triggers serving mail;
+editing pending/approved preferences does not. Invitation decisions notify the
+same serving reviewers. Serving notifications run after the database commit and
+isolate failures per destination. Delivery failures are logged, without automatic
+retry or rollback of the user's action. SMTP and `PUBLIC_APP_URL` are required.
+Links carry `admin_user` and, for serving reviews, `admin_area`; both administrator
+and delegated management views select the corresponding member and serving role.

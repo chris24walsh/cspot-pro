@@ -1,11 +1,12 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Check, UserPlus, X, Save } from "lucide-react";
 import { approveSelfRegistration, rejectSelfRegistration, getPendingRegistrations, getUsers, getRoles, getServingManagement, getVolunteerAdminRecords, updateUser, inviteUser, deactivateUser, resendInvite, sendPasswordReset, type User, type Role, type ServingManagement, type VolunteerAdminRecord, type SessionUser } from "../api";
 import { VolunteerReview } from "./VolunteerReview";
 import { useConfirmationDialog } from "./ConfirmationDialog";
 import { useDurableChange } from "../changePolling";
 
-export function DelegatedManagement({ sessionUser }: { sessionUser: SessionUser }) {
+export function DelegatedManagement({ sessionUser, initialUserId, initialAreaKey }: { sessionUser: SessionUser; initialUserId?: string | null; initialAreaKey?: string | null }) {
+  const initialLinkApplied = useRef(false);
   const permissions = new Set(sessionUser.permissions);
   const canApprove = permissions.has("users:approve");
   const canAdmin = permissions.has("users:admin");
@@ -30,6 +31,13 @@ export function DelegatedManagement({ sessionUser }: { sessionUser: SessionUser 
         canManageTeams ? getVolunteerAdminRecords() : Promise.resolve([]),
       ]);
       setUsers(nextUsers); setRegistrations(pending); setRoles(nextRoles); setTeams(nextTeams); setRows(nextRows);
+      if (!initialLinkApplied.current && initialAreaKey && canManageTeams) {
+        initialLinkApplied.current = true;
+        setTab("teams");
+        setSelectedId(nextTeams.members.find((member) => member.id === initialUserId)?.id ?? nextTeams.members[0]?.id ?? "");
+        setSelectedArea(nextTeams.areas.find((area) => area.key === initialAreaKey)?.key ?? nextTeams.areas[0]?.key ?? "");
+        return;
+      }
       setSelectedId((current) => nextTeams.members.some((member) => member.id === current) ? current : nextTeams.members[0]?.id ?? "");
       setSelectedArea((current) => nextTeams.areas.some((area) => area.key === current) ? current : nextTeams.areas[0]?.key ?? "");
     } catch (error) { setMessage(String(error)); }

@@ -201,8 +201,9 @@ export function UserManager({ adminSection, initialUserId, onAdminSectionChange,
         initialAttentionRouted.current = true;
         if (initialUserId || attentionUserId) {
           setMobileUserPane("detail");
-          setUserSettingsSection(initialUserId || registrationUser ? "profile" : "serving");
-          setOpenRoleGroup(attentionRow?.preference.area.category ?? null);
+          const linkedArea = nextServingAreas.find((area) => area.key === new URLSearchParams(window.location.search).get("admin_area"));
+          setUserSettingsSection(linkedArea ? "serving" : initialUserId || registrationUser ? "profile" : "serving");
+          setOpenRoleGroup(linkedArea?.category ?? attentionRow?.preference.area.category ?? null);
         }
       }
       if (target) {
