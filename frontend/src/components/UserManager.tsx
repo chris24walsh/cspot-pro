@@ -157,7 +157,7 @@ export function UserManager({ adminSection, initialUserId, onAdminSectionChange,
   const formDirty = mode === "create" || Boolean(selectedUser && JSON.stringify(form) !== JSON.stringify(formFromUser(selectedUser)));
   const roleGroups: Array<{ label: string; roles: string[] }> = [
     ...Array.from(new Set(servingAreas.map((area) => area.category))).sort().map((label) => ({ label, roles: [] })),
-    { label: "Workspace access", roles: ["viewer", "musician", "worship_leader", "teacher", "presenter", "broadcast_operator", "sunday_school_teacher", "sunday_school_leader"] },
+    { label: "Workspace access", roles: ["viewer", "musician", "worship_leader", "teacher", "presenter", "mixer_operator", "broadcast_operator", "sunday_school_teacher", "sunday_school_leader"] },
     { label: "Website", roles: ["website_editor", "website_publisher"] },
     { label: "Administration", roles: ["registration_approver", "user_administrator", "administrator"] },
   ];

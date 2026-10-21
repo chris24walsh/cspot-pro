@@ -1500,8 +1500,10 @@ system settings and service template controls exclusively for full admins.
 
 
 Hardware mixer access uses `mixer:use`, independently of livestream and recording
-management (`broadcast:use`). Worship leaders receive hardware mixer access without
-broadcast management. Assign the **Broadcast operator** (`broadcast_operator`) role
+management (`broadcast:use`). Assign **Mixer operator** (`mixer_operator`) to grant
+hardware mixer access independently of worship access. Worship leaders and approved
+worship volunteers do not receive mixer access automatically. Assign the
+**Broadcast operator** (`broadcast_operator`) role
 to livestream and recording operators; it also includes hardware mixer control.
 Administrators retain both permissions. Mixer-only accounts open the XR18 panel
 without loading broadcast settings, recording lists, or the software livestream

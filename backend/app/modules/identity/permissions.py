@@ -107,7 +107,7 @@ ROLE_DEFINITIONS: dict[str, RoleDefinition] = {
         "permissions": READ_PERMISSIONS | TEAM_READ_PERMISSIONS,
     },
     "worship_leader": {
-        "description": "Manage worship songs, files, worship set planning, and the hardware mixer.",
+        "description": "Manage worship songs, files, and worship set planning.",
         "permissions": READ_PERMISSIONS
         | TEAM_READ_PERMISSIONS
         | SERVICE_PLANNING_PERMISSIONS
@@ -116,8 +116,13 @@ ROLE_DEFINITIONS: dict[str, RoleDefinition] = {
         | LIBRARY_EDIT_PERMISSIONS
         | TEAM_EDIT_PERMISSIONS
         | COMMUNICATION_EDIT_PERMISSIONS
-        | PRESENTATION_CONTROL_PERMISSIONS
-        | MIXER_CONTROL_PERMISSIONS,
+        | PRESENTATION_CONTROL_PERMISSIONS,
+    },
+    "mixer_operator": {
+        "description": (
+            "Access and control the hardware mixer independently of worship and broadcast views."
+        ),
+        "permissions": MIXER_CONTROL_PERMISSIONS,
     },
     "broadcast_operator": {
         "description": "Operate livestreams, manage recordings, and control the hardware mixer.",

@@ -21,7 +21,9 @@ LAN-hosted cspot instance; a public reverse proxy adds a network round trip.
 One API worker is required because the live transport and cache are in-process.
 The existing production Uvicorn configuration uses one worker. Hardware mixer
 permission (`mixer:use`) gates every endpoint, including discovery and events.
-Worship leaders, broadcast operators, and administrators receive this permission.
+Mixer operators, broadcast operators, and administrators receive this permission.
+Worship access alone does not grant mixer access; assign the separate Mixer operator
+role when a worship leader also needs the desk controls.
 Mixer-only access excludes broadcast settings and the software livestream mix.
 The mixer itself has no OSC authentication; keep UDP 10024 inside the trusted LAN.
 Docker bridge mode supports direct unicast control; subnet discovery works even

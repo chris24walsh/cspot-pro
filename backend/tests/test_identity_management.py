@@ -248,7 +248,7 @@ def test_managing_a_team_does_not_grant_its_workspace_role(management):
 
 @pytest.mark.parametrize(
     ("role", "mixer_status"),
-    [("worship_leader", 200), ("broadcast_operator", 200),
+    [("worship_leader", 403), ("mixer_operator", 200), ("broadcast_operator", 200),
      ("administrator", 200), ("viewer", 403), ("musician", 403), ("presenter", 403)],
 )
 def test_mixer_access_is_independent_of_broadcast_management(management, role, mixer_status):
@@ -271,3 +271,34 @@ def test_mixer_access_is_independent_of_broadcast_management(management, role, m
         assert "broadcast:use" not in permissions
         assert client.patch("/broadcast/viewer-settings", json={}).status_code == 403
         assert client.post("/broadcast/recordings/missing/publish").status_code == 403
+
+
+
+def test_mixer_and_worship_access_can_be_granted_independently(management):
+    from app.modules.identity.auth import list_authorization_role_names, list_permissions
+
+    _, session, users, _, _, _ = management
+    member = users["member"]
+    set_user_roles(session, member, ["mixer_operator"])
+    session.commit()
+    assert list_authorization_role_names(session, member.id) == ["mixer_operator"]
+    assert list_permissions(session, member.id) == ["mixer:use"]
+
+    set_user_roles(session, member, ["worship_leader"])
+    session.commit()
+    assert "songs:edit" in list_permissions(session, member.id)
+    assert "mixer:use" not in list_permissions(session, member.id)
+
+    area = ServingArea(key="worship", name="Worship", category="Worship", active=True)
+    session.add(area)
+    session.flush()
+    set_user_roles(session, member, ["viewer"])
+    session.add(VolunteerPreference(user_id=member.id, serving_area_id=area.id, status="approved"))
+    session.commit()
+    assert "worship_leader" in list_authorization_role_names(session, member.id)
+    assert "mixer:use" not in list_permissions(session, member.id)
+
+    set_user_roles(session, member, ["mixer_operator"])
+    session.commit()
+    assert "songs:edit" in list_permissions(session, member.id)
+    assert "mixer:use" in list_permissions(session, member.id)
