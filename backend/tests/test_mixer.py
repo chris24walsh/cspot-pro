@@ -273,7 +273,8 @@ def test_discovery_reports_network_setup_failure(monkeypatch):
 def test_missing_main_output_and_dca_readbacks_recover_without_writes(monkeypatch):
     from app.modules.mixer import engine as module
 
-    paths = ["/lr/mix/fader", "/fxsend/1/mix/fader", "/dca/1/fader"]
+    paths = ["/lr/mix/fader", "/fxsend/1/mix/fader", "/dca/1/fader",
+             "/headamp/07/gain", "/ch/01/mix/pan"]
     known = "/ch/01/mix/fader"
     optional = "/ch/01/eq/on"
     monkeypatch.setattr(module, "PARAMETERS", {

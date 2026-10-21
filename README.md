@@ -802,3 +802,10 @@ mix. Published recording playback remains available through existing viewer acce
 
 XR18 faders, mutes, and send levels now recover missing UDP readbacks automatically
 through paced read-only retries; the desk shows “Reading level…” until a value arrives.
+
+The expanded XR18 desk now uses compact auto-closing selection menus and per-strip
+Level, Gain/USB trim, and Pan/balance sections. Unity and centre buttons use the
+correct hardware conversions. Held touch/pen gestures open a temporary full-screen
+control without jumping the initial value; release and connection/source changes
+close it. Physical gain follows the channel’s assigned input. See
+[XR18 controls](docs/xr18-mixer.md).

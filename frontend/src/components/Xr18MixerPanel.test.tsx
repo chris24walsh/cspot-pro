@@ -48,8 +48,14 @@ beforeEach(async () => {
     if (path === '/catalog') return {
       strips: [...Array.from({length:16},(_,i)=>({id:`/ch/${String(i+1).padStart(2,'0')}`,kind:'input',name:`Ch ${i+1}`,meter:i})),{id:'/lr',kind:'main',name:'Main LR',meter:36}],
       parameters: {
+        '/ch/01/mix/01/level': { ...parameter('/ch/01/mix/01/level', 'Bus 1 send'), scale: 'fader', min: -90, max: 10 },
+        '/lr/mix/fader': { ...parameter('/lr/mix/fader', 'Level'), scale: 'fader', min: -90, max: 10 },
+        '/lr/mix/pan': parameter('/lr/mix/pan', 'Balance'),
+        '/ch/01/mix/pan': parameter('/ch/01/mix/pan', 'Balance'),
+        '/headamp/07/gain': { ...parameter('/headamp/07/gain', 'Preamp gain'), min: -12, max: 60, unit: 'dB' },
+        '/ch/01/preamp/rtntrim': { ...parameter('/ch/01/preamp/rtntrim', 'USB trim'), min: -18, max: 18, unit: 'dB' },
         '/ch/01/config/name': parameter('/ch/01/config/name', 'Name', 'string'),
-        '/ch/01/mix/fader': parameter('/ch/01/mix/fader', 'Level'),
+        '/ch/01/mix/fader': { ...parameter('/ch/01/mix/fader', 'Level'), scale: 'fader', min: -90, max: 10 },
         '/ch/01/mix/on': parameter('/ch/01/mix/on', 'On', 'int')
       }
     };
@@ -188,7 +194,8 @@ it('keeps desk gestures and snapshot controls out of the surrounding Broadcast s
   const enter=new KeyboardEvent('keydown',{key:'Enter',bubbles:true,cancelable:true});
   act(()=>name.dispatchEvent(enter));
   expect(enter.defaultPrevented).toBe(true);
-  act(()=>Array.from(container.querySelectorAll<HTMLButtonElement>('button')).find(b=>b.textContent==='Snapshots')!.click());
+  const view = container.querySelector<HTMLSelectElement>('[aria-label="Mixer view"]')!;
+  act(() => { view.value = 'snapshots'; view.dispatchEvent(new Event('change', {bubbles:true})); });
   expect(container.querySelector('form')).toBeNull();
   parent.before(container);parent.remove();
 });
@@ -290,4 +297,101 @@ it('enables Main LR when its delayed hardware readback arrives', () => {
   expect(main.getAttribute('aria-valuenow')).toBe('75');
   expect(main.closest('article')?.textContent).not.toContain('Reading level…');
   expect(vi.mocked(mixerRequest).mock.calls.every(([, method]) => method !== 'POST')).toBe(true);
+});
+
+it('replaces expanded title and tab rows with a single set of native menus without writes', () => {
+  act(() => container.querySelector<HTMLButtonElement>('[aria-label="Expand desk"]')!.click());
+  expect(container.querySelector('.xr-header .xr-title')).toBeNull();
+  expect(container.querySelectorAll('[aria-label="Mixer view"]')).toHaveLength(1);
+  expect(container.querySelector('.xr-header select[aria-label="Channel bank"]')).not.toBeNull();
+  expect(container.querySelector('.xr-bank-bar')).toBeNull();
+  expect(container.querySelector('.xr-view-tabs')).toBeNull();
+  const bank = container.querySelector<HTMLSelectElement>('[aria-label="Channel bank"]')!;
+  act(() => { bank.value = 'outputs'; bank.dispatchEvent(new Event('change', {bubbles:true})); });
+  expect(vi.mocked(mixerRequest).mock.calls.every(([,method]) => method !== 'POST')).toBe(true);
+});
+
+it('opens only one control per strip and follows the assigned physical preamp', async () => {
+  emit({...emptyMixer, reset:true, connected:true, values:{
+    '/ch/01/mix/fader':.5, '/ch/01/mix/on':1, '/ch/01/config/insrc':6,
+    '/ch/01/preamp/rtnsw':0, '/headamp/07/gain':.5, '/ch/01/mix/pan':.5,
+  }});
+  act(() => container.querySelector<HTMLButtonElement>('[aria-label="Ch 1 gain controls"]')!.click());
+  const channel = container.querySelector<HTMLElement>('.xr-strip')!;
+  expect(channel.querySelectorAll('[role=slider]')).toHaveLength(1);
+  expect(channel.querySelector('[aria-label="Ch 1 fader"]')).toBeNull();
+  expect(channel.querySelector('[aria-label="Ch 1 gain"]')?.getAttribute('aria-valuetext')).toBe('24.0 dB');
+  expect(channel.textContent).toContain('INPUT 7 PREAMP');
+  expect(vi.mocked(mixerRequest).mock.calls.every(([,method]) => method !== 'POST')).toBe(true);
+  await act(async () => {
+    container.querySelector<HTMLButtonElement>('[aria-label="Ch 1 gain to 0 dB"]')!.click();
+    await new Promise(resolve => setTimeout(resolve, 60));
+  });
+  const commands = vi.mocked(mixerRequest).mock.calls.filter(([path]) => path === '/commands');
+  expect(commands).toHaveLength(1);
+  expect(commands[0][2]).toMatchObject({commands:[{path:'/headamp/07/gain',value:1/6}]});
+  expect(container.querySelector('[aria-label="Main LR fader"]')).not.toBeNull();
+});
+
+it('uses USB trim for USB inputs and provides the correct unity and pan resets', async () => {
+  emit({...emptyMixer, reset:true, connected:true, values:{
+    '/ch/01/mix/fader':.4, '/ch/01/mix/on':1, '/ch/01/config/insrc':6,
+    '/ch/01/preamp/rtnsw':1, '/ch/01/preamp/rtntrim':.7, '/ch/01/mix/pan':.8,
+  }});
+  await act(async () => {
+    container.querySelector<HTMLButtonElement>('[aria-label="Ch 1 level to 0 dB"]')!.click();
+    await new Promise(resolve => setTimeout(resolve, 60));
+  });
+  act(() => container.querySelector<HTMLButtonElement>('[aria-label="Ch 1 gain controls"]')!.click());
+  expect(container.querySelector('[aria-label="Ch 1 USB trim"]')).not.toBeNull();
+  await act(async () => {
+    container.querySelector<HTMLButtonElement>('[aria-label="Ch 1 gain to 0 dB"]')!.click();
+    await new Promise(resolve => setTimeout(resolve, 60));
+  });
+  act(() => container.querySelector<HTMLButtonElement>('[aria-label="Ch 1 balance controls"]')!.click());
+  await act(async () => {
+    container.querySelector<HTMLButtonElement>('[aria-label="Ch 1 centre balance"]')!.click();
+    await new Promise(resolve => setTimeout(resolve, 60));
+  });
+  const commands = vi.mocked(mixerRequest).mock.calls.filter(([path]) => path === '/commands').flatMap(([, , body]) => (body as {commands:{path:string;value:number}[]}).commands);
+  expect(commands.map(({path,value}) => [path,value])).toEqual([
+    ['/ch/01/mix/fader', .75], ['/ch/01/preamp/rtntrim', .5], ['/ch/01/mix/pan', .5],
+  ]);
+});
+
+it('keeps gain and reset controls disabled until their mapped hardware values arrive', () => {
+  emit({...emptyMixer,reset:true,connected:true,values:{'/ch/01/mix/fader':.4,'/ch/01/mix/on':1}});
+  act(() => container.querySelector<HTMLButtonElement>('[aria-label="Ch 1 gain controls"]')!.click());
+  expect(container.querySelector('[aria-label="Ch 1 gain"]')?.getAttribute('aria-disabled')).toBe('true');
+  expect(container.querySelector<HTMLButtonElement>('[aria-label="Ch 1 gain to 0 dB"]')?.disabled).toBe(true);
+  expect(vi.mocked(mixerRequest).mock.calls.every(([,method]) => method !== 'POST')).toBe(true);
+});
+
+it('resets the selected bus send to unity without changing the channel level', async () => {
+  emit({...emptyMixer,reset:true,connected:true,values:{'/ch/01/mix/fader':.4,'/ch/01/mix/01/level':.3,'/ch/01/mix/on':1}});
+  const sends = container.querySelector<HTMLSelectElement>('[aria-label="Sends on faders"]')!;
+  act(() => { sends.value = '01'; sends.dispatchEvent(new Event('change',{bubbles:true})); });
+  expect(container.querySelector('[aria-label="Ch 1 send"]')).not.toBeNull();
+  await act(async () => {
+    container.querySelector<HTMLButtonElement>('[aria-label="Ch 1 level to 0 dB"]')!.click();
+    await new Promise(resolve => setTimeout(resolve,60));
+  });
+  const commands = vi.mocked(mixerRequest).mock.calls.filter(([path])=>path==='/commands');
+  expect(commands[0][2]).toMatchObject({commands:[{path:'/ch/01/mix/01/level',value:.75}]});
+  expect(container.querySelector('[aria-label="Ch 1 send"]')?.getAttribute('aria-valuenow')).toBe('75');
+});
+
+it('ends a held gain gesture when its physical source switches to USB', () => {
+  emit({...emptyMixer,reset:true,connected:true,values:{'/ch/01/config/insrc':6,'/ch/01/preamp/rtnsw':0,'/headamp/07/gain':.5}});
+  act(() => container.querySelector<HTMLButtonElement>('[aria-label="Ch 1 gain controls"]')!.click());
+  const gain = container.querySelector<HTMLElement>('[aria-label="Ch 1 gain"]')!;
+  gain.setPointerCapture=vi.fn();gain.hasPointerCapture=()=>true;gain.releasePointerCapture=vi.fn();
+  const down = new MouseEvent('pointerdown',{bubbles:true,cancelable:true,clientY:100});
+  Object.defineProperties(down,{pointerId:{value:1},pointerType:{value:'touch'}});
+  act(() => gain.dispatchEvent(down));
+  expect(document.querySelector('.xr-touch-overlay')).not.toBeNull();
+  emit({...emptyMixer,reset:false,connected:true,values:{'/ch/01/preamp/rtnsw':1,'/ch/01/preamp/rtntrim':.5}});
+  expect(document.querySelector('.xr-touch-overlay')).toBeNull();
+  expect(container.querySelector('[aria-label="Ch 1 USB trim"]')?.getAttribute('aria-disabled')).toBe('false');
+  expect(vi.mocked(mixerRequest).mock.calls.every(([,method])=>method!=='POST')).toBe(true);
 });

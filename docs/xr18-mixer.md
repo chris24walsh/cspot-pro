@@ -159,3 +159,27 @@ with paced read-only queries after initial synchronization. Main LR is queried
 first. Confirmed values are not polled again, and optional unsupported DSP
 parameters are excluded from recovery. The desk shows “Reading level…” while a
 fader awaits its first hardware value; no default level is sent to the mixer.
+
+## Compact controls and touch adjustment
+
+Expanded mode replaces the title and firmware information with native View,
+Channel bank, and Sends menus. These close automatically after selection or an
+outside tap. Processing groups also use a selection menu; connection settings
+and the channel editor close when switching workspaces or banks.
+
+Each strip opens one control section at a time: Level (default), Gain where the
+input supports it, or Pan/balance. Gain follows the assigned physical preamp;
+USB inputs expose USB trim instead. Main LR and other output strips do not
+invent an input gain. Parametric EQ stays in the channel editor.
+
+The 0 dB buttons use the parameter conversion curve: unity for level/send faders
+is 0.75 on the wire, while gain uses its own physical range. Centre sets balance
+to 0.5. Moving through these points snaps gently; keyboard adjustment retains
+fine steps. Solo and whole-channel mute remain at the bottom of each strip.
+
+Touch or pen contact opens a temporary full-screen adjustment surface. Movement
+is relative to the starting value, with longer travel for fine control; initial
+contact never jumps the level. Release, cancellation, lost capture, Escape,
+backgrounding, loss of connection, or a source change ends the held gesture.
+The pointer remains captured on its original control. Missing source, preamp,
+USB-trim and pan readbacks recover through the same paced read-only retry loop.

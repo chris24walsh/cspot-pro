@@ -22,7 +22,9 @@ FADER_READBACK_PATHS = (
     )
     + tuple(
         path for path, spec in PARAMETERS.items()
-        if spec["group"] == "Sends" and path.endswith("/level")
+        if (spec["group"] == "Sends" and path.endswith("/level"))
+        or (spec["group"] == "Headamp" and path.endswith("/gain"))
+        or path.endswith(("/config/insrc", "/preamp/rtnsw", "/preamp/rtntrim", "/mix/pan"))
     )
 )
 
@@ -207,7 +209,7 @@ class MixerEngine(asyncio.DatagramProtocol):
             self.syncing = False
 
     async def refresh_missing_controls(self):
-        """Retry unanswered fader/mute/send queries; never change desk settings."""
+        """Retry unanswered strip controls; never change desk settings."""
         for path in FADER_READBACK_PATHS:
             if not self.connected or self.recalling:
                 return

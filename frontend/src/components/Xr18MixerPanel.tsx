@@ -16,6 +16,8 @@ type Snapshot = {
   created_at: string;
   values: Record<string, number | string>;
 };
+const mixerPages = [['desk', 'Faders'], ['routing', 'Routing'], ['effects', 'Effects'], ['system', 'Monitor'], ['snapshots', 'Snapshots']];
+type StripMode = 'level' | 'gain' | 'balance';
 const colors = ['#64748b', '#ef4444', '#22c55e', '#eab308', '#3b82f6', '#d946ef', '#06b6d4', '#e2e8f0'];
 export function Xr18MixerPanel() {
   const [catalog, setCatalog] = useState<Catalog>({
@@ -81,6 +83,7 @@ export function Xr18MixerPanel() {
   }
   const [selected, setSelected] = useState('/ch/01');
   const [sendBus, setSendBus] = useState('');
+  const [stripModes, setStripModes] = useState<Record<string, StripMode>>({});
   const [group, setGroup] = useState('Input');
   const [search, setSearch] = useState('');
   const [snapshots, setSnapshots] = useState<Snapshot[]>([]);
@@ -321,33 +324,60 @@ export function Xr18MixerPanel() {
   function renderStrip(strip: MixerStrip, master = false) {
     const mix = strip.kind === 'dca' ? strip.id : strip.id + '/mix';
     const sends = !!sendBus && ['input', 'aux', 'return'].includes(strip.kind);
-    const path = sends ? `${strip.id}/mix/${sendBus}/level` : `${mix}/fader`;
-    const spec = catalog.parameters[path];
+    const levelPath = sends ? `${strip.id}/mix/${sendBus}/level` : `${mix}/fader`;
+    const headamp = physicalHeadamp(state.values, strip.id);
+    const usb = state.values[strip.id + '/preamp/rtnsw'] === 1;
+    const gainPath = usb ? strip.id + '/preamp/rtntrim' : headamp ? headamp + '/gain' : null;
+    const panPath = strip.id + '/mix/pan';
+    const modes: StripMode[] = ['level'];
+    if (strip.kind === 'input' || usb && catalog.parameters[gainPath ?? '']) modes.push('gain');
+    if (catalog.parameters[panPath]) modes.push('balance');
+    const mode = modes.includes(stripModes[strip.id]) ? stripModes[strip.id] : 'level';
+    const path = mode === 'gain' ? gainPath : mode === 'balance' ? panPath : levelPath;
+    const spec = path ? catalog.parameters[path] : undefined;
+    const fader = path ? state.values[path] : undefined;
+    const value = Number((path ? drafts[path] : undefined) ?? fader ?? 0);
+    const disabled = !enabled || fader === undefined || !spec || !path;
     const on = controlValue(mix + '/on');
     const level = state.meters[strip.meter];
-    const fader = state.values[path];
     const name = String(state.values[strip.id + '/config/name'] || strip.name);
     const color = Number(state.values[strip.id + '/config/color'] || 0) % 8;
-    const pan = state.values[strip.id + '/mix/pan'];
-    return <article key={strip.id} className={`xr-strip ${selected === strip.id ? 'is-selected' : ''} ${master ? 'xr-master' : ''}`} style={{
-      borderTopColor: colors[color]
-    }}>
-      <button type="button" className="xr-strip-name" title={`Select ${name}`} aria-label={`Select ${name}`} aria-pressed={selected === strip.id} onClick={() => {
-        setSelected(strip.id);
-        setPage('desk');
-      }}><small>{strip.name}</small><strong>{name}</strong></button>
-      <div className="xr-strip-status">{!enabled ? state.recalling ? 'Recalling snapshot…' : state.connected ? 'Reconnecting…' : 'Mixer offline' : fader === undefined ? 'Reading level…' : path in drafts || state.pending.includes(path) ? 'Sending…' : sends ? `→ ${Number(sendBus) <= 6 ? 'Bus ' + Number(sendBus) : 'FX ' + (Number(sendBus) - 6)}` : 'MAIN MIX'}</div>
-      <div className="xr-fader-area"><div className="xr-meter" role="meter" aria-label={`${name} level`} aria-valuemin={-90} aria-valuemax={0} aria-valuenow={level ?? -90}><div style={{
-            height: `${level === undefined ? 0 : Math.max(0, Math.min(100, (level + 90) / 90 * 100))}%`
-          }} /></div><MixerFader label={`${name} ${sends ? 'send' : 'fader'}`} value={Number(drafts[path] ?? fader ?? 0)} valueText={spec ? displayValue(spec, drafts[path] ?? fader) : 'Unavailable'} disabled={!enabled || fader === undefined} onChange={value => change(path, value)} /><div className="xr-scale"><span>+10</span><span>0</span><span>−10</span><span>−30</span><span>−∞</span></div></div>
-      <output className="xr-db">{spec ? displayValue(spec, drafts[path] ?? fader) : '—'}</output>
+    const modeLabel = mode === 'gain' ? usb ? 'USB trim' : 'Gain' : mode === 'balance' ? 'Balance' : 'Level';
+    const resetValue = spec ? mode === 'balance' ? .5 : toWire(spec, 0) : undefined;
+    const resetLabel = mode === 'balance' ? 'Centre' : '0 dB';
+    const format = (wire: number) => mode === 'balance'
+      ? Math.abs(wire - .5) < .001 ? 'Centre' : `${wire < .5 ? 'L' : 'R'} ${Math.round(Math.abs(wire - .5) * 200)}%`
+      : spec ? displayValue(spec, wire) : '—';
+    const ticks = mode === 'balance' ? [[1, 'R'], [.5, 'C'], [0, 'L']] as const
+      : spec ? (mode === 'gain' ? [spec.max, (spec.max + spec.min) / 2, 0, spec.min] : [10, 0, -10, -30, -90])
+        .map(db => [toWire(spec, db), db === -90 ? '−∞' : db > 0 ? `+${db}` : String(db)] as const) : [];
+    return <article key={strip.id} className={`xr-strip ${selected === strip.id ? 'is-selected' : ''} ${master ? 'xr-master' : ''}`} style={{ borderTopColor: colors[color] }}>
+      <button type="button" className="xr-strip-name" title={`Select ${name}`} aria-label={`Select ${name}`} aria-pressed={selected === strip.id} onClick={() => { setSelected(strip.id); setPage('desk'); }}><small>{strip.name}</small><strong>{name}</strong></button>
+      <div className="xr-strip-status">{!enabled ? state.recalling ? 'Recalling snapshot…' : state.connected ? 'Reconnecting…' : 'Mixer offline' : mode === 'gain' && !usb && headamp === null && typeof state.values[strip.id + '/config/insrc'] === 'number' ? 'NO ANALOG INPUT' : fader === undefined ? 'Reading level…' : path && (path in drafts || state.pending.includes(path)) ? 'Sending…' : mode === 'gain' ? usb ? 'USB RETURN' : headamp ? `INPUT ${Number(headamp.split('/')[2])} PREAMP` : 'NO ANALOG INPUT' : sends && mode === 'level' ? `→ ${Number(sendBus) <= 6 ? 'Bus ' + Number(sendBus) : 'FX ' + (Number(sendBus) - 6)}` : mode === 'balance' ? 'LEFT / RIGHT' : 'MAIN MIX'}</div>
+      <div className="xr-strip-accordion">
+        {modes.map(section => <div key={section} className={`xr-strip-section ${mode === section ? 'is-open' : ''}`}>
+          <button type="button" className="xr-strip-section-toggle" aria-label={`${name} ${section === 'level' ? 'level' : section} controls`} aria-expanded={mode === section}
+            onClick={() => { setStripModes(previous => ({ ...previous, [strip.id]: section })); setEditorOpen(false); }}>
+            <span>{section === 'level' ? 'Level' : section === 'gain' ? usb ? 'USB trim' : 'Gain' : 'Pan'}</span>{mode === section ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+          </button>
+          {mode === section && <div className="xr-strip-control">
+            <div className="xr-fader-area"><div className="xr-meter" role="meter" aria-label={`${name} level`} aria-valuemin={-90} aria-valuemax={0} aria-valuenow={level ?? -90}><div style={{height: `${level === undefined ? 0 : Math.max(0, Math.min(100, (level + 90) / 90 * 100))}%`}} /></div>
+              <MixerFader key={path ?? mode} label={`${name} ${mode === 'level' ? sends ? 'send' : 'fader' : mode === 'gain' ? usb ? 'USB trim' : 'gain' : 'balance'}`} value={value} valueText={fader === undefined ? '—' : format(value)} disabled={disabled}
+                touchExpand resetValue={resetValue} resetLabel={resetLabel} formatValue={format} onChange={next => { if (path) change(path, next); }} />
+              <div className="xr-scale xr-positioned-scale">{ticks.map(([wire, label], index) => <span key={index} style={{top: `${(1 - wire) * 100}%`}}>{label}</span>)}</div>
+            </div>
+            <output className="xr-db" aria-label={`${name} ${modeLabel} value`}>{fader === undefined ? '—' : format(value)}</output>
+            <button type="button" className="xr-zero-button" aria-label={`${name} ${mode === 'balance' ? 'centre balance' : mode === 'gain' ? 'gain to 0 dB' : 'level to 0 dB'}`} disabled={disabled}
+              onClick={() => { if (path && resetValue !== undefined) change(path, resetValue); }}>{resetLabel}</button>
+          </div>}
+        </div>)}
+      </div>
       <div className="xr-strip-buttons">{strip.kind === 'input' && <button type="button" className={controlValue(`/-stat/solosw/${strip.id.split('/')[2]}`) === 1 ? 'xr-solo is-active' : 'xr-solo'} disabled={!enabled || state.values[`/-stat/solosw/${strip.id.split('/')[2]}`] === undefined} onClick={() => {
         const p = `/-stat/solosw/${strip.id.split('/')[2]}`;
         change(p, controlValue(p) === 1 ? 0 : 1);
       }}>Solo</button>}
       {strip.kind !== 'input' && <span className="xr-solo-spacer" aria-hidden="true" />}
       <button type="button" className={`xr-mute ${on === 0 ? 'is-muted' : ''}`} aria-pressed={on === 0} aria-busy={mix + '/on' in drafts || state.pending.includes(mix + '/on')} disabled={!enabled || on === undefined} onClick={() => change(mix + '/on', on === 1 ? 0 : 1)}>{on === 0 ? 'MUTED' : 'Mute'}</button></div>
-      {pan !== undefined ? <input className="xr-pan" title={`${name} pan`} aria-label={`${name} pan`} type="range" min="0" max="1" step="0.01" value={drafts[strip.id + '/mix/pan'] ?? pan} disabled={!enabled} onChange={e => change(strip.id + '/mix/pan', Number(e.target.value))} /> : <span className="xr-pan-spacer" />}
     </article>;
   }
   const strip = catalog.strips.find(s => s.id === selected);
@@ -359,6 +389,15 @@ export function Xr18MixerPanel() {
   const inspectorGroup = groups.includes(group) ? group : groups[0];
   const main = catalog.strips.find(s => s.kind === 'main');
   const shown = page === 'routing' ? parameters.filter(p => p.group === 'Routing') : page === 'effects' ? parameters.filter(p => p.path.startsWith('/fx/') && (!p.path.includes('/par/') || state.values[p.path] !== undefined)) : page === 'system' ? parameters.filter(p => ['Links', 'Mute groups', 'Monitor'].includes(p.group)) : selectedParameters.filter(p => p.group === inspectorGroup);
+  function renderMenus() {
+    return <nav className="xr-compact-menus" aria-label="Mixer menus">
+      <select aria-label="Mixer view" title="Mixer view" value={page} onChange={event => { setPage(event.target.value); setEditorOpen(false); setSetupOpen(false); }}>{mixerPages.map(([id, label]) => <option key={id} value={id}>{label}</option>)}</select>
+      {page === 'desk' && <>
+        <select aria-label="Channel bank" title="Channel bank" value={bank} onChange={event => { setBank(event.target.value); setEditorOpen(false); setSetupOpen(false); }}>{[['inputs', 'Inputs'], ['returns', 'Returns'], ['outputs', 'Outputs'], ['all', 'All']].map(([id, label]) => <option key={id} value={id}>{label}</option>)}</select>
+        <select aria-label="Sends on faders" title="Sends on faders" value={sendBus} onChange={event => { setSendBus(event.target.value); setStripModes({}); setEditorOpen(false); setSetupOpen(false); }}><option value="">Main mix</option>{Array.from({length:10}, (_, i) => <option key={i} value={String(i + 1).padStart(2, '0')}>{i < 6 ? `Bus ${i + 1}` : `FX ${i - 5}`}</option>)}</select>
+      </>}
+    </nav>;
+  }
   return <section ref={dashboardRef} className={`xr-dashboard ${focused ? 'is-focused' : ''}`} data-fit={page === 'desk' && !showEditor && !showSetup ? 'desk' : undefined} data-layout={compact ? 'compact' : 'wide'} aria-label="XR18 mixer dashboard" onKeyDown={event => {
     // The desk lives inside Broadcast settings: editing must not submit that form.
     if (event.key === 'Enter' && event.target instanceof HTMLInputElement) {
@@ -367,31 +406,29 @@ export function Xr18MixerPanel() {
       event.target.blur();
     }
   }}>
-    <header className="xr-header"><div><div className="xr-title"><SlidersHorizontal size={21} /><h2>XR18 <span>Live desk</span></h2></div><small>{state.identity.length ? `${state.identity[1]} · ${state.identity[2]} · Firmware ${state.identity[3]}` : 'Local Ethernet control · OSC / UDP'}</small></div><div className="xr-connection"><span className={`xr-led ${state.connected && streamOnline ? 'is-live' : ''}`} /><strong>{!streamOnline ? 'Dashboard reconnecting' : state.connected ? 'Connected' : state.host ? 'Mixer offline' : 'Not connected'}</strong>{state.connected && <small>{state.recalling ? 'Recalling snapshot…' : state.syncing ? 'Reading desk…' : `${Object.keys(state.values).length} parameters · ${state.age_ms ?? '—'} ms since reply`}</small>}</div><div className="xr-header-actions">
-      <button type="button" title={showSetup ? 'Hide connection settings' : 'Connection settings'} aria-label="Connection settings" aria-expanded={showSetup} aria-controls="xr-connection-settings" onClick={() => setSetupOpen(!showSetup)}><Settings2 size={18} /><span className="xr-action-label">Setup</span></button>
-      <button type="button" title={focused ? 'Exit expanded desk' : 'Expand desk to fill screen'} aria-label={focused ? 'Exit expanded desk' : 'Expand desk'} aria-pressed={focused} onClick={() => setFocused(!focused)}>{focused ? <Minimize2 size={18} /> : <Maximize2 size={18} />}<span className="xr-action-label">{focused ? 'Restore' : 'Expand'}</span></button>
+    <header className="xr-header">{focused ? renderMenus() : <div><div className="xr-title"><SlidersHorizontal size={21} /><h2>XR18 <span>Live desk</span></h2></div><small>{state.identity.length ? `${state.identity[1]} · ${state.identity[2]} · Firmware ${state.identity[3]}` : 'Local Ethernet control · OSC / UDP'}</small></div>}<div className="xr-connection" title={state.syncing ? 'Reading desk…' : state.recalling ? 'Recalling snapshot…' : state.connected ? streamOnline ? 'Connected' : 'Reconnecting' : 'Mixer offline'}><span className={`xr-led ${state.connected && streamOnline ? 'is-live' : ''}`} /><strong>{!streamOnline ? 'Reconnecting' : state.connected ? 'Connected' : state.host ? 'Mixer offline' : 'Not connected'}</strong></div><div className="xr-header-actions">
+      <button type="button" title={showSetup ? 'Hide connection settings' : 'Connection settings'} aria-label="Connection settings" aria-expanded={showSetup} aria-controls="xr-connection-settings" onClick={() => { setSetupOpen(!showSetup); setEditorOpen(false); }}><Settings2 size={18} /><span className="xr-action-label">Setup</span></button>
+      <button type="button" title={focused ? 'Exit expanded desk' : 'Expand desk to fill screen'} aria-label={focused ? 'Exit expanded desk' : 'Expand desk'} aria-pressed={focused} onClick={() => { setFocused(!focused); setSetupOpen(false); setEditorOpen(false); }}>{focused ? <Minimize2 size={18} /> : <Maximize2 size={18} />}<span className="xr-action-label">{focused ? 'Restore' : 'Expand'}</span></button>
     </div></header>
+    {!focused && renderMenus()}
     <div className="xr-connect-bar" id="xr-connection-settings" hidden={!showSetup}><label>Mixer IP<input aria-label="Mixer IP address" value={host} onChange={e => setHost(e.target.value)} placeholder="192.168.2.141" /></label><button type="button" disabled={busy || !host} onClick={() => void run(async () => {
         const s = await mixerRequest<MixerState>('/connection', 'PUT', {
           host
         });
         setState(s);
+        setSetupOpen(false);
       })}><Radio size={15} />Connect</button><button type="button" disabled={busy || !state.host} onClick={() => void run(async () => {
         setState(await mixerRequest('/connection', 'PUT', {
           host: null
         }));
-      })}><Unplug size={15} />Disconnect</button><button type="button" disabled={!enabled || state.syncing} onClick={() => void run(() => mixerRequest('/sync', 'POST'))}><RefreshCw size={15} />Sync</button><details><summary><Search size={14} />Find mixer</summary><div className="xr-discovery"><label>LAN subnet<input aria-label="Discovery subnet" value={subnet} onChange={e => setSubnet(e.target.value)} /></label><button type="button" disabled={busy} onClick={() => void run(async () => setFound(await mixerRequest('/discover', 'POST', {
+      })}><Unplug size={15} />Disconnect</button><button type="button" disabled={!enabled || state.syncing} onClick={() => void run(async () => { await mixerRequest('/sync', 'POST'); setSetupOpen(false); })}><RefreshCw size={15} />Sync</button><details><summary><Search size={14} />Find mixer</summary><div className="xr-discovery"><label>LAN subnet<input aria-label="Discovery subnet" value={subnet} onChange={e => setSubnet(e.target.value)} /></label><button type="button" disabled={busy} onClick={() => void run(async () => setFound(await mixerRequest('/discover', 'POST', {
             subnet
           })))}>Scan LAN</button>{found.map(f => <button type="button" key={f.host} onClick={() => setHost(f.host)}>{f.name} · {f.host} · {f.firmware}</button>)}<small>Discovery runs on the cspot server's LAN. Select an address, then Connect.</small></div></details></div>
     {(error || state.error) && <div className="xr-error" role="alert">{error || state.error}<button type="button" onClick={() => setError('')} aria-label="Dismiss error">×</button></div>}
     {Object.keys(state.failed).length > 0 && <p className="xr-error" role="alert">{Object.keys(state.failed).length} changes have no matching mixer readback. Sync to verify the desk.</p>}
     {state.connected && !streamOnline && <p className="xr-notice" role="status">Live updates interrupted. Reconnecting; controls are disabled until updates resume.</p>}
     {!state.connected && <p className="xr-notice">{state.host ? `Waiting for ${state.host}:10024. Check power, Ethernet mode and LAN routing.` : 'Connect your XR18 to read the desk. Controls become available as the mixer replies.'} {Object.keys(state.values).length > 0 ? 'Displayed values are cached; controls are disabled.' : ''}</p>}
-    <label className="xr-mobile-view">View<select aria-label="Mixer view" value={page} onChange={event => setPage(event.target.value)}>{[['desk', 'Faders & processing'], ['routing', 'Routing'], ['effects', 'Effects rack'], ['system', 'Links & monitor'], ['snapshots', 'Snapshots']].map(([id, label]) => <option key={id} value={id}>{label}</option>)}</select></label>
-    <nav className="xr-tabs xr-view-tabs" aria-label="Mixer views">{[['desk', 'Faders & processing'], ['routing', 'Routing'], ['effects', 'Effects rack'], ['system', 'Links & monitor'], ['snapshots', 'Snapshots']].map(([id, label]) => <button type="button" key={id} className={page === id ? 'is-active' : ''} onClick={() => setPage(id)}>{label}</button>)}</nav>
-    {page === 'desk' ? <><div className={`xr-bank-bar ${sendBus ? 'xr-sends-active' : ''}`}><div className="xr-tabs">{[['inputs', 'Inputs'], ['returns', 'Returns'], ['outputs', 'Outputs'], ['all', 'All']].map(([id, label]) => <button type="button" key={id} aria-pressed={bank === id} className={bank === id ? 'is-active' : ''} onClick={() => setBank(id)}>{label}</button>)}</div><label>Sends on faders<select aria-label="Sends on faders" value={sendBus} onChange={e => setSendBus(e.target.value)}><option value="">Main mix</option>{Array.from({
-              length: 10
-            }, (_, i) => <option key={i} value={String(i + 1).padStart(2, '0')}>{i < 6 ? `Bus ${i + 1}` : `FX ${i - 5}`}</option>)}</select></label></div>{sendBus && <p className="xr-notice">Faders now adjust sends to {Number(sendBus) <= 6 ? `Bus ${Number(sendBus)}` : `FX ${Number(sendBus) - 6}`}. Mute buttons still mute the whole channel.</p>}
+    {page === 'desk' ? <>{sendBus && <p className="xr-notice">Faders adjust {Number(sendBus) <= 6 ? `Bus ${Number(sendBus)}` : `FX ${Number(sendBus) - 6}`} sends. Mute still mutes the whole channel.</p>}
     <div className="xr-desk-toolbar">
       <div className="xr-bank-pager" role="group" aria-label="Browse channels">
         <button type="button" title="Previous channel bank" aria-label="Previous channel bank" disabled={scrollEdges.start} onClick={() => browseChannels(-1)}><ChevronLeft size={19} /></button>
@@ -400,11 +437,12 @@ export function Xr18MixerPanel() {
       </div>
       <button type="button" aria-expanded={showEditor} aria-controls="xr-channel-editor" onClick={() => {
         setEditorOpen(!showEditor);
+        setSetupOpen(false);
         if (!showEditor) requestAnimationFrame(() => editorRef.current?.scrollIntoView?.({ behavior: 'smooth', block: 'start' }));
       }}><SlidersHorizontal size={17} /><span>{showEditor ? 'Hide editor' : 'Edit channel'}</span>{showEditor ? <ChevronUp size={16} /> : <ChevronDown size={16} />}</button>
     </div>
     <div className="xr-desk"><div ref={stripScrollRef} className="xr-strip-scroll" onScroll={measureScroll} style={{ '--xr-visible-strips': bankSize } as CSSProperties} aria-label="Channel faders">{visible.filter(s => s.kind !== 'main').map(s => renderStrip(s))}</div>{main && renderStrip(main, true)}</div>
-    <div ref={editorRef} className="xr-inspector xr-channel-editor" id="xr-channel-editor" hidden={!showEditor}><header><h3>{String(state.values[selected + '/config/name'] || strip?.name || 'Channel')} <small>{selected}</small></h3><button type="button" aria-label="Collapse channel editor" onClick={() => setEditorOpen(false)}><ChevronUp size={16} /><span>Collapse</span></button></header><nav className="xr-tabs" aria-label="Channel processing">{groups.map(g => <button type="button" key={g} className={inspectorGroup === g ? 'is-active' : ''} onClick={() => setGroup(g)}>{g}</button>)}</nav>{inspectorGroup === 'Headamp' && headamp && <p className="xr-notice">Physical input {Number(headamp.split('/')[2])} · Gain and 48V follow the channel's analog input assignment.</p>}<div className="xr-control-grid">{shown.map(p => <div key={p.path}>{renderControl(p)}</div>)}</div></div></> : page === 'snapshots' ? <div className="xr-snapshots"><h3>Local desk snapshots</h3><p>Save the parameters read by cspot. Recalls preserve physical preamp gain and phantom power. These snapshots are separate from the mixer's internal scenes.</p><div className="xr-snapshot-save"><input aria-label="Snapshot name" placeholder="Snapshot name" maxLength={80} value={snapshotName} onChange={e => setSnapshotName(e.target.value)} /><button type="button" disabled={busy || !enabled || !state.synchronized || state.syncing || !!state.pending.length || !!Object.keys(drafts).length || !snapshotName.trim()} onClick={() => void run(async () => {
+    <div ref={editorRef} className="xr-inspector xr-channel-editor" id="xr-channel-editor" hidden={!showEditor}><header><h3>{String(state.values[selected + '/config/name'] || strip?.name || 'Channel')} <small>{selected}</small></h3><button type="button" aria-label="Collapse channel editor" onClick={() => setEditorOpen(false)}><ChevronUp size={16} /><span>Collapse</span></button></header><label className="xr-processing-menu">Processing<select aria-label="Channel processing" value={inspectorGroup ?? ''} onChange={event => setGroup(event.target.value)}>{groups.map(g => <option key={g} value={g}>{g}</option>)}</select></label>{inspectorGroup === 'Headamp' && headamp && <p className="xr-notice">Physical input {Number(headamp.split('/')[2])} · Gain and 48V follow the channel's analog input assignment.</p>}<div className="xr-control-grid">{shown.map(p => <div key={p.path}>{renderControl(p)}</div>)}</div></div></> : page === 'snapshots' ? <div className="xr-snapshots"><h3>Local desk snapshots</h3><p>Save the parameters read by cspot. Recalls preserve physical preamp gain and phantom power. These snapshots are separate from the mixer's internal scenes.</p><div className="xr-snapshot-save"><input aria-label="Snapshot name" placeholder="Snapshot name" maxLength={80} value={snapshotName} onChange={e => setSnapshotName(e.target.value)} /><button type="button" disabled={busy || !enabled || !state.synchronized || state.syncing || !!state.pending.length || !!Object.keys(drafts).length || !snapshotName.trim()} onClick={() => void run(async () => {
           await mixerRequest('/snapshots', 'POST', {
             name: snapshotName.trim()
           });

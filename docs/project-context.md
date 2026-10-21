@@ -764,3 +764,10 @@ mix. Published recording playback remains available through existing viewer acce
 
 XR18 faders, mutes, and send levels now recover missing UDP readbacks automatically
 through paced read-only retries; the desk shows “Reading level…” until a value arrives.
+
+The XR18 desk uses compact native menus in expanded mode, per-strip Level,
+Gain/USB trim and Pan/balance sections, and explicit unity/centre resets. Held
+touch/pen gestures use a temporary full-screen relative control and cancel on
+release, capture loss, offline state or routing changes. Gain follows physical
+input assignments; missing gain, source and pan readbacks retry automatically.
+See [XR18 controls](xr18-mixer.md).
