@@ -786,3 +786,8 @@ Presenter search adds content inside the current section, after the selected chi
 item (or at the end of an empty/unselected group). Explicit section insertion
 controls retain their chosen position. Songs added in Worship remain in the
 linked worship set; songs added elsewhere belong to that service section.
+
+The presenter section rail supports dragging section titles to reorder sections,
+and dragging child titles to reorder items within the same section. Drop markers
+show before/after placement. Changes support Undo; arrow buttons remain available
+for keyboard and touch users. Items remain in their existing section and plan.

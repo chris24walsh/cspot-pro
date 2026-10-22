@@ -14384,3 +14384,12 @@ button.musician-page {
 @media (max-width: 640px) {
   .delegated-management .admin-role-row { align-items: flex-start; flex-direction: column; }
 }
+
+.section-rail-jump[draggable="true"],
+.section-group-item > button[draggable="true"] { cursor: grab; }
+.section-rail-jump[draggable="true"]:active,
+.section-group-item > button[draggable="true"]:active { cursor: grabbing; }
+.section-rail-item.rail-drop-before,
+.section-group-item.rail-drop-before { border-top: 3px solid var(--accent, #2563eb); }
+.section-rail-item.rail-drop-after,
+.section-group-item.rail-drop-after { border-bottom: 3px solid var(--accent, #2563eb); }

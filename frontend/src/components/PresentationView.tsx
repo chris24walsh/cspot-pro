@@ -1,3 +1,4 @@
+import { reorderRailItems } from "../railOrdering";
 import { retryPresentationRefresh } from "../retryPresentationRefresh";
 import { PointerToggle, DEFAULT_MARKER_STYLE } from "./PointerToggle";
 import { SlideKeyCapture } from "./SlideKeyCapture";
@@ -714,6 +715,9 @@ export function PresentationView({
   const [bibleChapter, setBibleChapter] = useState("3");
   const [bibleVerseFrom, setBibleVerseFrom] = useState("16");
   const [bibleVerseTo, setBibleVerseTo] = useState("");
+  const [railDragId, setRailDragId] = useState<string | null>(null);
+  const [railDropTarget, setRailDropTarget] = useState<{ id: string; after: boolean } | null>(null);
+  const [railReordering, setRailReordering] = useState(false);
   const [searchOverlayOpen, setSearchOverlayOpen] = useState(false);
   const [groupInsertIndex, setGroupInsertIndex] = useState<number | null>(null);
   const [newTemplateName, setNewTemplateName] = useState("");
@@ -3677,8 +3681,94 @@ export function PresentationView({
     }
   }
 
+  function railSiblings(itemId: string) {
+    const item = sectionPlanItem(itemId);
+    const owner = sectionOwner(itemId);
+    if (!item || !owner) return [];
+    return (owner === "worship" ? orderedWorshipSetItems() : orderedPlanItems())
+      .filter((candidate) => (candidate.parent_item_id ?? null) === (item.parent_item_id ?? null));
+  }
+
+  async function dropRailItem(targetId: string, after: boolean) {
+    const sourceId = railDragId;
+    setRailDragId(null);
+    setRailDropTarget(null);
+    if (!plan || !canEditPlan || railReordering || !sourceId || sourceId === targetId) return;
+    const siblings = railSiblings(sourceId);
+    if (!siblings.some((item) => item.id === targetId)) return;
+    const reordered = reorderRailItems(siblings, sourceId, targetId, after);
+    if (reordered.every((item, index) => item.id === siblings[index].id)) return;
+    setRailReordering(true);
+    const item = siblings.find((candidate) => candidate.id === sourceId)!;
+    try {
+      // Renumber siblings so repeated drops cannot exhaust decimal sequence gaps.
+      for (const [index, sibling] of reordered.entries()) {
+        await updatePlanItem(sibling.id, { sequence: ((index + 1) * 10).toFixed(2) });
+      }
+      setUndoAction({
+        label: `moving "${item.title}"`,
+        run: async () => {
+          for (const sibling of siblings) {
+            await updatePlanItem(sibling.id, { sequence: sibling.sequence });
+          }
+          await reloadPreservingOperatorScroll();
+        },
+      });
+      void recordServiceHistory(`moving "${item.title}"`, sectionOwner(sourceId) === "worship" ? "Worship set" : "Service", item.item_type);
+      await reloadPreservingOperatorScroll();
+    } catch (error) {
+      const restored = await Promise.allSettled(siblings.map((sibling) =>
+        updatePlanItem(sibling.id, { sequence: sibling.sequence }),
+      ));
+      const restoreFailed = restored.some((result) => result.status === "rejected");
+      setMessage(`${error instanceof Error ? error.message : "Could not reorder rail items."}${restoreFailed ? " Some positions could not be restored; check the running order." : " Original order restored."}`);
+      await reloadPreservingOperatorScroll();
+    } finally {
+      setRailReordering(false);
+    }
+  }
+
+  function railDropProps(itemId: string) {
+    return {
+      onDragOver: (event: React.DragEvent<HTMLElement>) => {
+        event.stopPropagation();
+        if (!railDragId || railReordering || !railSiblings(railDragId).some((item) => item.id === itemId) || railDragId === itemId) {
+          setRailDropTarget(null);
+          return;
+        }
+        event.preventDefault();
+        event.dataTransfer.dropEffect = "move";
+        const bounds = event.currentTarget.getBoundingClientRect();
+        setRailDropTarget({ id: itemId, after: event.clientY >= bounds.top + bounds.height / 2 });
+      },
+      onDrop: (event: React.DragEvent<HTMLElement>) => {
+        event.preventDefault();
+        event.stopPropagation();
+        const bounds = event.currentTarget.getBoundingClientRect();
+        void dropRailItem(itemId, event.clientY >= bounds.top + bounds.height / 2);
+      },
+    };
+  }
+
+  function railDragProps(itemId: string) {
+    return {
+      draggable: canEditPlan && !railReordering && Boolean(sectionPlanItem(itemId)),
+      onDragStart: (event: React.DragEvent<HTMLElement>) => {
+        event.stopPropagation();
+        event.dataTransfer.effectAllowed = "move";
+        event.dataTransfer.setData("text/plain", itemId);
+        setRailDragId(itemId);
+      },
+      onDragEnd: () => { setRailDragId(null); setRailDropTarget(null); },
+    };
+  }
+
+  function railDropClass(itemId: string) {
+    return railDropTarget?.id === itemId ? ` rail-drop-${railDropTarget.after ? "after" : "before"}` : "";
+  }
+
   async function moveSection(sectionId: string, delta: -1 | 1) {
-    if (!plan || !canEditPlan) {
+    if (!plan || !canEditPlan || railReordering) {
       return;
     }
 
@@ -5351,17 +5441,19 @@ export function PresentationView({
                   }}
                 >
                   <div
-                    className={`section-rail-item ${presentationTypeClass(section.itemType)} ${
+                    {...railDropProps(section.id)}
+                    className={`section-rail-item${railDropClass(section.id)} ${presentationTypeClass(section.itemType)} ${
                       liveSlide?.planItemId === section.id ? "active" : ""
                     }`}
                   >
                     <button
+                      {...railDragProps(section.id)}
                       className="section-rail-jump"
                       onClick={() => {
                         selectSlideFromOperator(sectionStart);
                       }}
                       type="button"
-                      title={section.title}
+                      title={canEditPlan ? `${section.title} — drag to reorder section` : section.title}
                     >
                       <span>{(sectionIndex + 1).toString().padStart(2, "0")}</span>
                       <strong>{section.title}</strong>
@@ -5404,8 +5496,8 @@ export function PresentationView({
                           const itemAudioPlaying = playingAudioSectionId === itemAudioOwner.id;
                           return (
                             <Fragment key={item.id}>
-                            <div className={`section-group-item ${liveSlide?.planItemId === item.id ? "active" : ""}`} ref={(element) => { sectionRailRefs.current[item.id] = element; }}>
-                              <button onClick={() => itemSlideIndex >= 0 && selectSlideFromOperator(itemSlideIndex)} type="button">
+                            <div {...railDropProps(item.id)} className={`section-group-item${railDropClass(item.id)} ${liveSlide?.planItemId === item.id ? "active" : ""}`} ref={(element) => { sectionRailRefs.current[item.id] = element; }}>
+                              <button {...railDragProps(item.id)} title={canEditPlan ? `${item.title} — drag to reorder within section` : item.title} onClick={() => itemSlideIndex >= 0 && selectSlideFromOperator(itemSlideIndex)} type="button">
                                 <span>{itemIndex + 1}</span><strong>{item.title}</strong>
                               </button>
                               {canEditPlan || item.song_id ? <div className={`section-group-item-actions ${canEditPlan ? "" : "audio-only"}`}>
