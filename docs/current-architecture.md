@@ -1547,3 +1547,11 @@ nested or transferred. The presenter supplies the original parent and preceding
 sibling for Undo. `presentation_options.service_placement` keeps explicitly placed
 service songs out of legacy worship migration/placeholder replacement. Empty
 Worship anchors remain visible as drop targets.
+
+Presenter rail moves and arrow reorders apply the endpoint's destination ordering
+locally before saving, with rollback on failure and silent reconciliation after
+confirmation. Pending moves invalidate older loads and defer polling reloads for
+the affected service; Undo applies against current state to retain newer content.
+Service, live state and linked worship detail requests run concurrently. Planning
+revision refreshes retain the song catalog unless music also changed. Item
+settings open from loaded plan detail; an uncached owner is fetched on demand.

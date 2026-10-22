@@ -69,7 +69,7 @@ export function useDurableChangePolling(enabled: boolean) {
 }
 
 export function useDurableChange(
-  callback: () => void,
+  callback: (domains: ChangeDomain[]) => void,
   enabled = true,
   domains: ChangeDomain[] = ["planning", "music", "identity"],
 ) {
@@ -80,7 +80,7 @@ export function useDurableChange(
     if (!enabled) return undefined;
     const handleChange = (event: Event) => {
       const changed = (event as CustomEvent<{ domains: ChangeDomain[] }>).detail.domains;
-      if (changed.some((domain) => domains.includes(domain))) callbackRef.current();
+      if (changed.some((domain) => domains.includes(domain))) callbackRef.current(changed);
     };
     window.addEventListener(DURABLE_CHANGE_EVENT, handleChange);
     return () => window.removeEventListener(DURABLE_CHANGE_EVENT, handleChange);

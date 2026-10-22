@@ -1,3 +1,4 @@
+import { optimisticRailMove } from "../optimisticRailMove";
 import { railMovePosition, type RailPlacement } from "../railOrdering";
 import { retryPresentationRefresh } from "../retryPresentationRefresh";
 import { PointerToggle, DEFAULT_MARKER_STYLE } from "./PointerToggle";
@@ -77,6 +78,7 @@ import {
   type PlanHistoryEntry,
   type PlanHistorySnapshotItem,
   type PlanItem,
+  type PlanItemMove,
   type PresentationOptions,
   type PlanSummary,
   type PlanType,
@@ -202,6 +204,7 @@ type LoadOptions = {
   };
   publishPreservedLocation?: boolean;
   refreshCatalogs?: boolean;
+  refreshSongs?: boolean;
   silent?: boolean;
 };
 type SlideNotesPayload = {
@@ -840,6 +843,10 @@ export function PresentationView({
   const livePollInFlightRef = useRef(false);
   const liveNavigationGenerationRef = useRef(0);
   const loadRequestIdRef = useRef(0);
+  const localRailEditPlanIdRef = useRef<string | null>(null);
+  const deferredMusicRefreshRef = useRef(false);
+  const railPlansRef = useRef({ service: plan, worship: worshipSetPlan });
+  railPlansRef.current = { service: plan, worship: worshipSetPlan };
   const selectedPlanIdRef = useRef("");
   const suppressPublishRef = useRef(false);
   const suppressNextOperatorScrollRef = useRef(false);
@@ -1104,7 +1111,8 @@ export function PresentationView({
     setSaveItemTemplate(false);
     setAudioSearchOpen(false);
     try {
-      const freshPlan = await getPlan(item.plan_id);
+      const cachedPlan = item.plan_id === plan?.id ? plan : item.plan_id === worshipSetPlan?.id ? worshipSetPlan : null;
+      const freshPlan = cachedPlan ?? await getPlan(item.plan_id);
       const freshItem = freshPlan.items.find((candidate) => candidate.id === item.id) ?? item;
       const requestedSection = sectionItem ?? (!item.parent_item_id
         ? item
@@ -1361,9 +1369,13 @@ export function PresentationView({
   }
 
   async function load(planId?: string, options?: LoadOptions) {
+    // Remember music changes even if this refresh is deferred or invalidated.
+    if (options?.refreshCatalogs && options.refreshSongs !== false) deferredMusicRefreshRef.current = true;
+    // Polling must not overwrite a move which is still being saved locally.
+    if (localRailEditPlanIdRef.current && (!planId || planId === localRailEditPlanIdRef.current)) return false;
     const requestId = ++loadRequestIdRef.current;
-    setMessage(null);
     if (!options?.silent) {
+      setMessage(null);
       setLoading(true);
     }
 
@@ -1372,7 +1384,14 @@ export function PresentationView({
       let nextPlanTypes = planTypes;
       let nextSongs = songs;
       if (options?.refreshCatalogs || !plans.length || !songs.length || !planTypes.length) {
-        [nextPlans, nextSongs, nextPlanTypes] = await Promise.all([getPlans(), getSongs(), getPlanTypes()]);
+        const refreshSongs = options?.refreshSongs !== false || deferredMusicRefreshRef.current || !songs.length;
+        [nextPlans, nextSongs, nextPlanTypes] = await Promise.all([
+          getPlans(),
+          refreshSongs ? getSongs() : Promise.resolve(songs),
+          getPlanTypes(),
+        ]);
+        if (requestId !== loadRequestIdRef.current) return false;
+        if (refreshSongs) deferredMusicRefreshRef.current = false;
         setPlans(nextPlans);
         setSongs(nextSongs);
         setPlanTypes(nextPlanTypes);
@@ -1393,12 +1412,13 @@ export function PresentationView({
       const targetPlanId = requestedPlan && requestedPlanIsUsable
         ? requestedPlanId
         : defaultServicePlanId;
-      const [targetPlan, liveState] = await Promise.all([
+      const targetSummary = nextServicePlans.find((candidate) => candidate.id === targetPlanId) ?? null;
+      const matchingWorshipSet = matchingWorshipSetForService(targetSummary, nextWorshipSetPlans);
+      const [targetPlan, liveState, nextWorshipSetPlan] = await Promise.all([
         targetPlanId ? getPlan(targetPlanId) : Promise.resolve(null),
         targetPlanId ? getPresentationLiveState(targetPlanId) : Promise.resolve(null),
+        matchingWorshipSet ? getPlan(matchingWorshipSet.id) : Promise.resolve(null),
       ]);
-      const matchingWorshipSet = matchingWorshipSetForService(targetPlan, nextWorshipSetPlans);
-      const nextWorshipSetPlan = matchingWorshipSet ? await getPlan(matchingWorshipSet.id) : null;
       if (requestId !== loadRequestIdRef.current) return;
       selectedPlanIdRef.current = targetPlanId;
       setSelectedPlanId(targetPlanId);
@@ -1412,7 +1432,7 @@ export function PresentationView({
       setEmptyServiceDate(targetPlan ? "" : defaultServiceDate);
       const nextEffectiveItems = mergeWorshipSetIntoService(targetPlan?.items ?? [], nextWorshipSetPlan?.items ?? []);
       const nextSlides = buildPresentationSlides(nextEffectiveItems, nextSongs, renderedSlidesByFileId);
-      const preservedState = liveState
+      const remotePreservedState = liveState
         ? {
             planId: liveState.plan_id,
             index: liveState.index,
@@ -1430,6 +1450,12 @@ export function PresentationView({
             autoStarted: Boolean(liveState.auto_started),
           }
         : null;
+      // A user can navigate while a background refresh is in flight. Keep
+      // their newer local selection rather than applying an older response.
+      const localState = currentLiveStateRef.current;
+      const preservedState = localState?.planId === targetPlanId
+        && localState.updatedAt > (remotePreservedState?.updatedAt ?? 0)
+        ? localState : remotePreservedState;
       const preservedIndex = options?.preserveLocation
         ? (() => {
             const matchingSlides = nextSlides.filter(
@@ -2184,16 +2210,16 @@ export function PresentationView({
     );
   }
 
-  async function recordServiceHistory(label: string, affected: string, changeType: string) {
+  async function recordServiceHistory(label: string, affected: string, changeType: string, afterItems?: PlanItem[]) {
     if (!plan?.id) {
       return;
     }
     try {
-      const current = await getPlan(plan.id);
+      const currentItems = afterItems ?? (await getPlan(plan.id)).items;
       const entry = await createPlanHistoryEntry(plan.id, {
         label,
         before: snapshotServiceItems(plan.items),
-        after: snapshotServiceItems(current.items),
+        after: snapshotServiceItems(currentItems),
         affected,
         change_type: changeType,
         restorable: true,
@@ -2847,7 +2873,7 @@ export function PresentationView({
     });
   }
 
-  async function reloadPreservingOperatorScroll(options?: { refreshCatalogs?: boolean; silent?: boolean }) {
+  async function reloadPreservingOperatorScroll(options?: { refreshCatalogs?: boolean; refreshSongs?: boolean; silent?: boolean }) {
     const scrollPosition = captureOperatorScrollPositions();
     suppressNextOperatorScrollRef.current = true;
     // The selected plan may have just been archived on another device. Always
@@ -2855,13 +2881,14 @@ export function PresentationView({
     // requiring the old detail here leaves this device stuck after a 404.
     await load(selectedPlanIdRef.current || undefined, {
       refreshCatalogs: options?.refreshCatalogs,
+      refreshSongs: options?.refreshSongs,
       silent: options?.silent,
     });
     restoreOperatorScrollPositions(scrollPosition);
   }
 
-  useDurableChange(() => {
-    void reloadPreservingOperatorScroll({ refreshCatalogs: true, silent: true });
+  useDurableChange((domains) => {
+    void reloadPreservingOperatorScroll({ refreshCatalogs: true, refreshSongs: domains.includes("music"), silent: true });
   }, active, ["planning", "music"]);
 
   async function reloadAfterInsertedItem(createdItem: PlanItem | null | undefined, options?: { refreshCatalogs?: boolean }) {
@@ -3682,14 +3709,70 @@ export function PresentationView({
     }
   }
 
+  function applyLocalRailPlans(service: PlanDetail, worship: PlanDetail | null) {
+    if (selectedPlanIdRef.current !== service.id) return;
+    const scrollPosition = captureOperatorScrollPositions();
+    railPlansRef.current = { service, worship };
+    setPlan(service);
+    setWorshipSetPlan(worship);
+    restoreOperatorScrollPositions(scrollPosition);
+  }
+
+  async function saveLocalRailMove(item: PlanItem, position: PlanItemMove, service: PlanDetail, worship: PlanDetail | null) {
+    const originalItems = item.plan_id === service.id ? service.items : worship?.items ?? [];
+    const originalSiblings = originalItems
+      .filter((candidate) => (candidate.parent_item_id ?? null) === (item.parent_item_id ?? null))
+      .sort((left, right) => Number(left.sequence) - Number(right.sequence));
+    const originalIndex = originalSiblings.findIndex((candidate) => candidate.id === item.id);
+    const originalPosition = { plan_id: item.plan_id, parent_item_id: item.parent_item_id ?? null, after_item_id: originalSiblings[originalIndex - 1]?.id ?? null };
+    const next = optimisticRailMove(service, worship, item, position);
+    applyLocalRailPlans(next.service, next.worship);
+    try {
+      await movePlanItem(item.id, position);
+    } catch (error) {
+      applyLocalRailPlans(service, worship);
+      throw error;
+    }
+    setUndoAction({
+      label: `moving "${item.title}"`,
+      run: async () => {
+        if (localRailEditPlanIdRef.current) return;
+        const current = railPlansRef.current;
+        if (!current.service || current.service.id !== service.id) return;
+        const currentItem = [...current.service.items, ...(current.worship?.items ?? [])].find((candidate) => candidate.id === item.id);
+        if (!currentItem) return;
+        const restored = optimisticRailMove(current.service, current.worship, currentItem, originalPosition);
+        localRailEditPlanIdRef.current = service.id;
+        loadRequestIdRef.current += 1;
+        setLoading(false);
+        setRailReordering(true);
+        applyLocalRailPlans(restored.service, restored.worship);
+        try {
+          await movePlanItem(item.id, originalPosition);
+        } catch (error) {
+          applyLocalRailPlans(current.service, current.worship);
+          throw error;
+        } finally {
+          localRailEditPlanIdRef.current = null;
+          setRailReordering(false);
+          void reloadPreservingOperatorScroll({ refreshCatalogs: true, refreshSongs: deferredMusicRefreshRef.current, silent: true });
+        }
+      },
+    });
+    void recordServiceHistory(`moving "${item.title}"`, "Service", item.item_type, next.service.items);
+  }
+
   async function dropRailItem(targetId: string, placement: RailPlacement) {
     const sourceId = railDragId;
     setRailDragId(null);
     setRailDropTarget(null);
-    if (!plan || !canEditPlan || railReordering || !sourceId) return;
+    if (!plan || !canEditPlan || localRailEditPlanIdRef.current || !sourceId) return;
     const position = railMovePosition(effectivePlanItems, sourceId, targetId, placement);
     const item = sectionPlanItem(sourceId);
     if (!position || !item) return;
+    localRailEditPlanIdRef.current = plan.id;
+    loadRequestIdRef.current += 1;
+    setLoading(false);
     setRailReordering(true);
     try {
       const parent = effectivePlanItems.find((candidate) => candidate.id === position.parent_item_id);
@@ -3719,28 +3802,18 @@ export function PresentationView({
           .sort((left, right) => Number(left.sequence) - Number(right.sequence));
         afterId = siblings[siblings.length - 1]?.id ?? null;
       }
-      const originalItems = item.plan_id === plan.id ? orderedPlanItems() : orderedWorshipSetItems();
-      const originalSiblings = originalItems.filter((candidate) => (candidate.parent_item_id ?? null) === (item.parent_item_id ?? null));
-      const originalIndex = originalSiblings.findIndex((candidate) => candidate.id === item.id);
-      const originalPosition = { plan_id: item.plan_id, parent_item_id: item.parent_item_id ?? null, after_item_id: originalSiblings[originalIndex - 1]?.id ?? null };
-      await movePlanItem(item.id, { plan_id: targetPlan.id, parent_item_id: parentId, after_item_id: afterId });
-      setUndoAction({
-        label: `moving "${item.title}"`,
-        run: async () => {
-          await movePlanItem(item.id, originalPosition);
-          await reloadPreservingOperatorScroll();
-        },
-      });
+      const service = ensuredAnchor && !plan.items.some((candidate) => candidate.id === ensuredAnchor.id)
+        ? { ...plan, items: [...plan.items, ensuredAnchor] } : plan;
       if (position.parent_item_id) {
         setExpandedRailGroupIds((current) => new Set([...current, position.parent_item_id!]));
       }
-      void recordServiceHistory(`moving "${item.title}"`, "Service", item.item_type);
-      await reloadPreservingOperatorScroll();
+      await saveLocalRailMove(item, { plan_id: targetPlan.id, parent_item_id: parentId, after_item_id: afterId }, service, toWorship ? targetPlan : worshipSetPlan);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Could not move rail item.");
-      await reloadPreservingOperatorScroll();
     } finally {
+      localRailEditPlanIdRef.current = null;
       setRailReordering(false);
+      void reloadPreservingOperatorScroll({ refreshCatalogs: true, refreshSongs: deferredMusicRefreshRef.current, silent: true });
     }
   }
 
@@ -3764,7 +3837,7 @@ export function PresentationView({
         }
         event.preventDefault();
         event.dataTransfer.dropEffect = "move";
-        setRailDropTarget({ id: itemId, placement });
+        setRailDropTarget((current) => current?.id === itemId && current.placement === placement ? current : { id: itemId, placement });
       },
       onDrop: (event: React.DragEvent<HTMLElement>) => {
         event.preventDefault();
@@ -3792,65 +3865,41 @@ export function PresentationView({
   }
 
   async function moveSection(sectionId: string, delta: -1 | 1) {
-    if (!plan || !canEditPlan || railReordering) {
-      return;
-    }
-
+    if (!plan || !canEditPlan || localRailEditPlanIdRef.current) return;
+    const item = sectionPlanItem(sectionId);
     const owner = sectionOwner(sectionId);
-    if (!owner) {
-      return;
-    }
-
-    const movingItem = sectionPlanItem(sectionId);
-    let orderedItems = owner === "worship" ? orderedWorshipSetItems() : orderedPlanItems();
-    if (movingItem?.parent_item_id) {
-      orderedItems = orderedItems.filter((candidate) => candidate.parent_item_id === movingItem.parent_item_id);
-    } else {
-      orderedItems = orderedItems.filter((candidate) => !candidate.parent_item_id);
-    }
-    if (!movingItem?.parent_item_id && owner === "service" && worshipSetPlan?.items.some((item) => item.item_type === "song" && item.song_id)) {
-      const anchor = await ensureWorshipAnchor();
-      if (anchor && !orderedItems.some((item) => item.id === anchor.id)) {
-        orderedItems = [...orderedItems, anchor].sort((first, second) => {
-          const firstSequence = Number.parseFloat(first.sequence) || 0;
-          const secondSequence = Number.parseFloat(second.sequence) || 0;
-          return firstSequence - secondSequence;
-        });
-      }
-    }
-    const itemIndex = orderedItems.findIndex((item) => item.id === sectionId);
-    const target = orderedItems[itemIndex + delta];
-    const item = orderedItems[itemIndex];
-    if (!item || !target) {
-      return;
-    }
-
+    if (!item || !owner) return;
+    localRailEditPlanIdRef.current = plan.id;
+    loadRequestIdRef.current += 1;
+    setLoading(false);
+    setRailReordering(true);
     try {
-      const originalItemSequence = item.sequence;
-      const originalTargetSequence = target.sequence;
-      await Promise.all([
-        updatePlanItem(item.id, { sequence: target.sequence }),
-        updatePlanItem(target.id, { sequence: item.sequence }),
-      ]);
-      setUndoAction({
-        label: `moving "${item.title}"`,
-        run: async () => {
-          await Promise.all([
-            updatePlanItem(item.id, { sequence: originalItemSequence }),
-            updatePlanItem(target.id, { sequence: originalTargetSequence }),
-          ]);
-          await reloadPreservingOperatorScroll();
-        },
-      });
-      void recordServiceHistory(`moving "${item.title}"`, owner === "worship" ? "Worship set" : "Service", item.item_type);
-      await reloadPreservingOperatorScroll();
+      let service = plan;
+      if (!item.parent_item_id && owner === "service" && worshipSetPlan?.items.some((candidate) => candidate.item_type === "song" && candidate.song_id)) {
+        const anchor = await ensureWorshipAnchor();
+        if (anchor && !service.items.some((candidate) => candidate.id === anchor.id)) service = { ...service, items: [...service.items, anchor] };
+      }
+      const siblings = (owner === "service" ? service.items : worshipSetPlan?.items ?? [])
+        .filter((candidate) => (candidate.parent_item_id ?? null) === (item.parent_item_id ?? null))
+        .sort((left, right) => Number(left.sequence) - Number(right.sequence));
+      const index = siblings.findIndex((candidate) => candidate.id === item.id);
+      if (!siblings[index + delta]) return;
+      await saveLocalRailMove(item, {
+        plan_id: item.plan_id,
+        parent_item_id: item.parent_item_id ?? null,
+        after_item_id: delta === 1 ? siblings[index + 1].id : siblings[index - 2]?.id ?? null,
+      }, service, worshipSetPlan);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Could not reorder section.");
+    } finally {
+      localRailEditPlanIdRef.current = null;
+      setRailReordering(false);
+      void reloadPreservingOperatorScroll({ refreshCatalogs: true, refreshSongs: deferredMusicRefreshRef.current, silent: true });
     }
   }
 
   async function runUndoAction() {
-    if (!undoAction) {
+    if (!undoAction || localRailEditPlanIdRef.current) {
       return;
     }
 

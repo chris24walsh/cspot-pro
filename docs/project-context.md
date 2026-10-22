@@ -795,3 +795,8 @@ sections remain available as destinations. Moves preserve attachments and notes,
 support Undo, and transfer songs between the service and its linked worship set
 when needed. Groups with children stay at the top level. Arrow buttons remain
 available for keyboard and touch users.
+
+Rail moves should appear locally as soon as dropped, including destination group
+expansion. Saving and confirmation must not block a visible reorder; failures
+restore the previous state and report an error. Item settings reuse loaded data
+and routine service refreshes avoid reloading the song library.

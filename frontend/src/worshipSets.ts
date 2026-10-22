@@ -34,7 +34,7 @@ export function dateKey(value: string | null | undefined) {
   return `${year}-${month}-${day}`;
 }
 
-export function matchingWorshipSetForService(service: PlanDetail | null, sets: PlanSummary[]) {
+export function matchingWorshipSetForService(service: Pick<PlanDetail, "service_date"> | null, sets: PlanSummary[]) {
   const serviceDate = dateKey(service?.service_date);
   if (!serviceDate) {
     return null;
