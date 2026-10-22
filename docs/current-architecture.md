@@ -1513,10 +1513,10 @@ XR18 faders, mutes, and send levels now recover missing UDP readbacks automatica
 through paced read-only retries; the desk shows “Reading level…” until a value arrives.
 
 The XR18 desk uses compact native menus in expanded mode, per-strip Level,
-Gain/USB trim and Pan/balance sections, and explicit unity/centre resets. Held
-touch/pen gestures use a temporary full-screen relative control and cancel on
-release, capture loss, offline state or routing changes. Gain follows physical
-input assignments; missing gain, source and pan readbacks retry automatically.
+Gain/USB trim and Pan/balance sections, and explicit unity/centre resets. Tapping with
+touch/pen opens a persistent full-screen relative control. Release and capture
+loss end only the drag; × or Escape closes the control. Offline state or routing
+changes also close it. Gain follows physical input assignments; missing gain, source and pan readbacks retry automatically.
 See [XR18 controls](xr18-mixer.md).
 
 ## Review email recipients

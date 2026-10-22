@@ -75,44 +75,78 @@ it('keeps simultaneous drags on separate channel faders independent', () => {
   expect(secondChange).toHaveBeenLastCalledWith(.6);
 });
 
-it('expands only while a touch is held, uses the full screen for fine motion, and never jumps on touch', () => {
-  act(() => root.render(<MixerFader label="Vocal fader" value={.4} valueText="−18 dB" disabled={false} onChange={change} touchExpand resetValue={.75} resetLabel="0 dB"/>));
-  const slider = fader();
-  pointer(slider,'pointerdown',100);
-  expect(document.querySelector('[aria-label="Vocal fader touch control"]')).not.toBeNull();
+function expandedFader() {
+  const slider = document.querySelector<HTMLElement>('.xr-touch-track')!;
+  slider.setPointerCapture=vi.fn(); slider.releasePointerCapture=vi.fn(); slider.hasPointerCapture=()=>true;
+  slider.getBoundingClientRect=()=>({height:600}) as DOMRect;
+  return slider;
+}
+
+it('opens on a tap without changing the level and stays open until the close button is pressed', () => {
+  act(() => root.render(<MixerFader label="Vocal fader" value={.4} valueText="−18 dB" disabled={false} onChange={change} touchExpand/>));
+  const slider=fader();
+  pointer(slider,'pointerdown',100); pointer(slider,'pointerup',100);
+  expect(document.querySelector('[role=dialog]')).not.toBeNull();
   expect(document.body.style.overflow).toBe('hidden');
   expect(change).not.toHaveBeenCalled();
-  pointer(slider,'pointermove',80);
-  expect(change.mock.lastCall![0]).toBeGreaterThan(.4);
-  expect(change.mock.lastCall![0]).toBeLessThan(.5);
-  pointer(slider,'pointerup',80);
+  act(()=>document.querySelector<HTMLButtonElement>('[aria-label="Close Vocal fader control"]')!.click());
   expect(document.querySelector('.xr-touch-overlay')).toBeNull();
   expect(document.body.style.overflow).toBe('');
+  expect(document.activeElement).toBe(slider);
 });
 
-it('snaps a held touch to the correct unity point, and rebases after an explicit reset', () => {
-  act(() => root.render(<MixerFader label="Vocal fader" value={.74} valueText="−0.4 dB" disabled={false} onChange={change} touchExpand resetValue={.75} resetLabel="0 dB"/>));
-  const slider = fader();
-  pointer(slider,'pointerdown',100);
-  pointer(slider,'pointermove',96);
-  expect(change).toHaveBeenLastCalledWith(.75);
-  act(() => document.querySelector<HTMLButtonElement>('.xr-touch-overlay button')!.click());
-  expect(change).toHaveBeenLastCalledWith(.75);
-  pointer(slider,'pointercancel',96);
-  expect(document.querySelector('.xr-touch-overlay')).toBeNull();
-});
-
-it('dismisses held controls on Escape, loss of capture, and offline state without sending a reset', () => {
+it('supports repeated drags on the expanded fader without jumping or closing on release', () => {
   act(() => root.render(<MixerFader label="Vocal fader" value={.4} valueText="−18 dB" disabled={false} onChange={change} touchExpand/>));
-  const slider = fader();
-  pointer(slider,'pointerdown',100);
-  act(() => document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true})));
+  pointer(fader(),'pointerdown',100); pointer(fader(),'pointerup',100);
+  const slider=expandedFader();
+  pointer(slider,'pointerdown',500);
+  expect(change).not.toHaveBeenCalled();
+  pointer(slider,'pointermove',440); pointer(slider,'pointerup',440);
+  expect(change).toHaveBeenLastCalledWith(.5);
+  expect(document.querySelector('.xr-touch-overlay')).not.toBeNull();
+  pointer(slider,'pointerdown',300); pointer(slider,'pointermove',240); pointer(slider,'pointerup',240);
+  expect(change).toHaveBeenLastCalledWith(.6);
+  pointer(slider,'pointermove',0);
+  expect(change).toHaveBeenCalledTimes(2);
+});
+
+it('snaps to unity and keeps the dialog open after resetting or cancelling a drag', () => {
+  act(() => root.render(<MixerFader label="Vocal fader" value={.74} valueText="−0.4 dB" disabled={false} onChange={change} touchExpand resetValue={.75} resetLabel="0 dB"/>));
+  pointer(fader(),'pointerdown',100); pointer(fader(),'pointerup',100);
+  const slider=expandedFader();
+  pointer(slider,'pointerdown',300); pointer(slider,'pointermove',296);
+  expect(change).toHaveBeenLastCalledWith(.75);
+  act(()=>document.querySelector<HTMLButtonElement>('.xr-touch-reset')!.click());
+  expect(change).toHaveBeenLastCalledWith(.75);
+  pointer(slider,'pointercancel',296);
+  expect(document.querySelector('.xr-touch-overlay')).not.toBeNull();
+  pointer(slider,'lostpointercapture',296);
+  expect(document.querySelector('.xr-touch-overlay')).not.toBeNull();
+});
+
+it('closes on Escape or offline state and traps keyboard focus without sending a reset', () => {
+  act(() => root.render(<MixerFader label="Vocal fader" value={.4} valueText="−18 dB" disabled={false} onChange={change} touchExpand resetValue={.75} resetLabel="0 dB"/>));
+  pointer(fader(),'pointerdown',100); pointer(fader(),'pointerup',100);
+  const close=document.querySelector<HTMLButtonElement>('.xr-touch-close')!;
+  const reset=document.querySelector<HTMLButtonElement>('.xr-touch-reset')!;
+  expect(document.activeElement).toBe(close);
+  act(()=>close.dispatchEvent(new KeyboardEvent('keydown',{key:'Tab',shiftKey:true,bubbles:true,cancelable:true})));
+  expect(document.activeElement).toBe(reset);
+  act(()=>reset.dispatchEvent(new KeyboardEvent('keydown',{key:'Tab',bubbles:true,cancelable:true})));
+  expect(document.activeElement).toBe(close);
+  act(()=>document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true})));
   expect(document.querySelector('.xr-touch-overlay')).toBeNull();
-  pointer(slider,'pointerdown',100);
-  pointer(slider,'lostpointercapture',100);
+  pointer(fader(),'pointerdown',100);
+  act(()=>root.render(<MixerFader label="Vocal fader" value={.4} valueText="−18 dB" disabled onChange={change} touchExpand/>));
   expect(document.querySelector('.xr-touch-overlay')).toBeNull();
-  pointer(slider,'pointerdown',100);
-  act(() => root.render(<MixerFader label="Vocal fader" value={.4} valueText="−18 dB" disabled onChange={change} touchExpand/>));
-  expect(document.querySelector('.xr-touch-overlay')).toBeNull();
+  expect(change).not.toHaveBeenCalled();
+});
+
+it('reflects hardware updates while the expanded fader is idle', () => {
+  act(()=>root.render(<MixerFader label="Vocal fader" value={.4} valueText="−18 dB" disabled={false} onChange={change} touchExpand/>));
+  pointer(fader(),'pointerdown',100); pointer(fader(),'pointerup',100);
+  act(()=>root.render(<MixerFader label="Vocal fader" value={.7} valueText="−2 dB" disabled={false} onChange={change} touchExpand/>));
+  expect(document.querySelector('.xr-touch-track')?.getAttribute('aria-valuenow')).toBe('70');
+  expect(document.querySelector('.xr-touch-track')?.getAttribute('aria-valuetext')).toBe('−2 dB');
   expect(change).not.toHaveBeenCalled();
 });

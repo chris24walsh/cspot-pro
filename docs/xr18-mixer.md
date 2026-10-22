@@ -179,9 +179,11 @@ is 0.75 on the wire, while gain uses its own physical range. Centre sets balance
 to 0.5. Moving through these points snaps gently; keyboard adjustment retains
 fine steps. Solo and whole-channel mute remain at the bottom of each strip.
 
-Touch or pen contact opens a temporary full-screen adjustment surface. Movement
-is relative to the starting value, with longer travel for fine control; initial
-contact never jumps the level. Release, cancellation, lost capture, Escape,
-backgrounding, loss of connection, or a source change ends the held gesture.
-The pointer remains captured on its original control. Missing source, preamp,
-USB-trim and pan readbacks recover through the same paced read-only retry loop.
+Tapping a fader with touch or pen opens that control in a persistent full-screen
+dialog. The opening tap never changes the value. Drag the enlarged slider as many
+times as needed; releasing, cancelling, or losing pointer capture ends only the
+current drag. The × button or Escape closes the dialog and restores focus to the
+original fader. Keyboard focus stays inside the dialog while open. Idle controls
+follow hardware readbacks. Loss of connection or a source change closes the
+control. Missing source, preamp, USB-trim and pan readbacks recover through the
+same paced read-only retry loop.

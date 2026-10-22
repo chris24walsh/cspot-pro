@@ -874,7 +874,7 @@
   .xr-dashboard.is-focused .xr-compact-menus select { min-height: 32px; }
 }
 
-/* The pointer stays captured by the original slider throughout the held gesture. */
+/* Expanded single-fader control, portalled above the desk. */
 .xr-touch-overlay { position: fixed; inset: 0; z-index: 2000; display: flex; flex-direction: column; align-items: center; box-sizing: border-box; padding: max(16px, env(safe-area-inset-top)) 24px max(16px, env(safe-area-inset-bottom)); background: #0b1420f8; color: #e2e8f0; touch-action: none; user-select: none; font: 16px system-ui, sans-serif; }
 .xr-touch-overlay header { display: grid; gap: 5px; text-align: center; }
 .xr-touch-overlay header strong { font-size: 20px; }
@@ -892,3 +892,10 @@
   .xr-dashboard.is-focused .xr-header .xr-connection > strong { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 }
 .xr-dashboard.is-focused .xr-header { align-items: center; }
+
+/* Tap opens a persistent single-control dialog; each drag captures its own pointer. */
+.xr-touch-overlay .xr-touch-close { position: absolute; top: max(8px, env(safe-area-inset-top)); right: max(8px, env(safe-area-inset-right)); min-width: 44px; width: 44px; min-height: 44px; padding: 0; font-size: 27px; background: transparent; border-color: #526b83; }
+.xr-touch-overlay header { padding: 0 38px; }
+.xr-touch-track { touch-action: none; cursor: ns-resize; outline-offset: 8px; border-radius: 6px; }
+.xr-touch-track > span { pointer-events: none; }
+.xr-touch-overlay :focus-visible { outline: 2px solid #7dd3fc; }
