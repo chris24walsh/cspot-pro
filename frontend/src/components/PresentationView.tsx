@@ -2804,22 +2804,19 @@ export function PresentationView({
     return sections.findIndex((section) => section.id === liveSlide.sectionId);
   }
 
-  function activeSermonSearchTarget() {
-    const sermonSection = currentPlanItem?.item_type === "sermon"
-      ? currentPlanItem
-      : currentParentPlanItem?.item_type === "sermon"
-        ? currentParentPlanItem
-        : null;
-    if (!sermonSection) return null;
+  function sectionSearchTarget(sectionIndex: number) {
+    const section = sections[sectionIndex];
+    const parent = section ? serviceItemsById.get(section.id) : null;
+    if (!parent) return null;
 
-    const siblings = (plan?.items ?? [])
-      .filter((item) => item.parent_item_id === sermonSection.id)
+    const siblings = effectivePlanItems
+      .filter((item) => item.parent_item_id === parent.id)
       .sort((left, right) => Number(left.sequence) - Number(right.sequence));
-    const currentSiblingIndex = currentPlanItem?.parent_item_id === sermonSection.id
+    const currentSiblingIndex = currentPlanItem?.parent_item_id === parent.id
       ? siblings.findIndex((item) => item.id === currentPlanItem.id)
       : siblings.length - 1;
     return {
-      parentItemId: sermonSection.id,
+      parentItemId: parent.id,
       parentInsertIndex: currentSiblingIndex,
     };
   }
@@ -2890,10 +2887,11 @@ export function PresentationView({
       setMessage("You can present this plan, but your role cannot add items to the running order.");
       return;
     }
+    const target = options?.parentItemId ? options : sectionSearchTarget(afterIndex);
     setSearchInsertIndex(afterIndex);
     setDeckTargetPlanItemId(options?.deckTargetPlanItemId ?? null);
-    setSearchParentItemId(options?.parentItemId ?? null);
-    setSearchParentInsertIndex(options?.parentInsertIndex ?? null);
+    setSearchParentItemId(target?.parentItemId ?? null);
+    setSearchParentInsertIndex(target?.parentInsertIndex ?? null);
     setSearchMode(mode);
     setSearchSelectInserted(options?.selectInserted ?? mode === "bible");
     setSearchOverlayOpen(true);
@@ -3015,6 +3013,28 @@ export function PresentationView({
     if (!song && !fallbackTitle) {
       setMessage("Choose a song first.");
       return;
+    }
+
+    const parent = searchParentItemId ? sectionPlanItem(searchParentItemId) : null;
+    if (parent && parent.item_type !== WORSHIP_SET_ANCHOR_ITEM_TYPE) {
+      const createdItem = await createPlanItem(plan.id, {
+        parent_item_id: parent.id,
+        item_type: "song",
+        sequence: sequenceForSearchInsert(afterIndex),
+        title: song?.title ?? fallbackTitle ?? "Song",
+        comment: null,
+        key_signature: null,
+        song_id: songId,
+      });
+      setUndoAction({
+        label: `adding "${createdItem.title}"`,
+        run: async () => {
+          await deletePlanItem(createdItem.id);
+          await load(plan.id);
+        },
+      });
+      void recordServiceHistory(`adding "${createdItem.title}"`, "Service", "song");
+      return createdItem;
     }
 
     const target = await songInsertTarget(afterIndex);
@@ -3499,7 +3519,7 @@ export function PresentationView({
         return;
       }
       const item = await createPlanItem(plan.id, {
-        parent_item_id: targetItem?.id ?? searchParentItemId,
+        parent_item_id: searchParentItemId ?? targetItem?.id,
         item_type: "sermon",
         sequence: sequenceForSearchInsert(searchInsertIndex ?? sections.length - 1),
         title: resolvedDeckTitle,
@@ -4207,7 +4227,6 @@ export function PresentationView({
       if ((event.key === "s" || event.key === "S") && !editing) {
         event.preventDefault();
         openSearchOverlay(activeSectionInsertIndex(), "bible", {
-          ...activeSermonSearchTarget(),
           selectInserted: true,
         });
         return;

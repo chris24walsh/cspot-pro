@@ -781,3 +781,8 @@ receive serving requests across teams. New/resubmitted requests and invitation
 responses notify reviewers; routine edits do not produce duplicate emails.
 Emails link directly to the review context. Failure to deliver one email must
 not block other recipients or discard a saved request.
+
+Presenter search adds content inside the current section, after the selected child
+item (or at the end of an empty/unselected group). Explicit section insertion
+controls retain their chosen position. Songs added in Worship remain in the
+linked worship set; songs added elsewhere belong to that service section.
