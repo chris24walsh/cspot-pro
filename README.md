@@ -830,3 +830,7 @@ preserve item files and notes, including songs moved to/from the linked worship 
 Rail moves and arrow reorders update locally before saving, with rollback if the
 save fails. Item settings open from loaded service data; routine planning refreshes
 reuse the song catalog and fetch service/worship details concurrently.
+
+On touchscreens, drag the grip handle on a rail section or item. Normal title
+taps and scrolling remain available; dragging near the rail edge scrolls to
+further destinations. Touch moves share desktop drop markers and Undo.

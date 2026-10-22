@@ -800,3 +800,9 @@ Rail moves should appear locally as soon as dropped, including destination group
 expansion. Saving and confirmation must not block a visible reorder; failures
 restore the previous state and report an error. Item settings reuse loaded data
 and routine service refreshes avoid reloading the song library.
+
+Mobile rail dragging uses a dedicated grip handle with Pointer Events, so users
+can scroll normally elsewhere. A short movement threshold prevents taps from
+moving items. Touch, pen and mouse handles share section drop targets and
+autoscroll; cancellation and release outside a valid destination never save a
+move. Desktop title dragging and the arrow buttons remain available.

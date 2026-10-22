@@ -1555,3 +1555,9 @@ the affected service; Undo applies against current state to retain newer content
 Service, live state and linked worship detail requests run concurrently. Planning
 revision refreshes retain the song catalog unless music also changed. Item
 settings open from loaded plan detail; an uncached owner is fetched on demand.
+
+`useRailPointerDrag` captures pointers on dedicated rail handles, hit-tests the
+existing section/item/gap drop zones, and scrolls the rail at its edges. Native
+desktop dragging and pointer dragging share placement calculation and the same
+move endpoint. Pointer cancellation, lost capture, Escape and unmount clean up
+the gesture. Only handles disable browser touch scrolling.

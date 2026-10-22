@@ -1,3 +1,4 @@
+import { railPlacementAt, useRailPointerDrag } from "./useRailPointerDrag";
 import { optimisticRailMove } from "../optimisticRailMove";
 import { railMovePosition, type RailPlacement } from "../railOrdering";
 import { retryPresentationRefresh } from "../retryPresentationRefresh";
@@ -6,7 +7,7 @@ import { SlideKeyCapture } from "./SlideKeyCapture";
 import { LivePointer } from "./LivePointer";
 import { countdownStartsForSelection, withCountdownTiming } from "../countdown";
 import { shiftClock, templateServiceStart, welcomeLeadSeconds } from "../serviceTiming";
-import { Archive, CircleStop, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Clock, EyeOff, Layers3, Mic, MonitorUp, Pause, Pencil, Play, Plus, RotateCcw, Search, Trash2, Volume2, WandSparkles, X } from "lucide-react";
+import { GripVertical, Archive, CircleStop, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Clock, EyeOff, Layers3, Mic, MonitorUp, Pause, Pencil, Play, Plus, RotateCcw, Search, Trash2, Volume2, WandSparkles, X } from "lucide-react";
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
@@ -3762,8 +3763,8 @@ export function PresentationView({
     void recordServiceHistory(`moving "${item.title}"`, "Service", item.item_type, next.service.items);
   }
 
-  async function dropRailItem(targetId: string, placement: RailPlacement) {
-    const sourceId = railDragId;
+  async function dropRailItem(targetId: string, placement: RailPlacement, sourceOverride?: string) {
+    const sourceId = sourceOverride ?? railDragId;
     setRailDragId(null);
     setRailDropTarget(null);
     if (!plan || !canEditPlan || localRailEditPlanIdRef.current || !sourceId) return;
@@ -3819,15 +3820,12 @@ export function PresentationView({
 
   function railDropProps(itemId: string, fixedPlacement?: RailPlacement) {
     function placementFor(event: React.DragEvent<HTMLElement>): RailPlacement {
-      if (fixedPlacement) return fixedPlacement;
-      const element = event.currentTarget.querySelector(".section-rail-jump") ?? event.currentTarget;
-      const bounds = element.getBoundingClientRect();
-      const fraction = (event.clientY - bounds.top) / bounds.height;
-      const target = effectivePlanItems.find((item) => item.id === itemId);
-      if (!target?.parent_item_id && fraction >= 0.25 && fraction <= 0.75) return "inside";
-      return fraction >= 0.5 ? "after" : "before";
+      return fixedPlacement ?? railPlacementAt(event.currentTarget, event.clientY);
     }
     return {
+      "data-rail-drop-id": itemId,
+      "data-rail-section": !effectivePlanItems.find((item) => item.id === itemId)?.parent_item_id,
+      "data-rail-placement": fixedPlacement,
       onDragOver: (event: React.DragEvent<HTMLElement>) => {
         event.stopPropagation();
         const placement = placementFor(event);
@@ -3847,6 +3845,24 @@ export function PresentationView({
     };
   }
 
+  const railPointerProps = useRailPointerDrag({
+    enabled: canEditPlan && !railReordering,
+    scrollRef: sectionRailListRef,
+    canDrop: (source, target) => Boolean(railMovePosition(effectivePlanItems, source, target.id, target.placement)),
+    onStart: (source) => setRailDragId(source),
+    onTarget: (target) => setRailDropTarget((current) => current?.id === target?.id && current?.placement === target?.placement ? current : target),
+    onFinish: (source, target) => {
+      setRailDragId(null);
+      setRailDropTarget(null);
+      if (target) void dropRailItem(target.id, target.placement, source);
+    },
+  });
+
+  function railDragHandle(itemId: string, title: string) {
+    if (!canEditPlan || !sectionPlanItem(itemId)) return null;
+    return <button {...railPointerProps(itemId)} aria-label={`Drag ${title}`} className="section-icon-button rail-drag-handle" disabled={railReordering} title={`Drag ${title} to move`} type="button"><GripVertical size={18} aria-hidden="true" /></button>;
+  }
+
   function railDragProps(itemId: string) {
     return {
       draggable: canEditPlan && !railReordering && Boolean(sectionPlanItem(itemId)),
@@ -3861,7 +3877,8 @@ export function PresentationView({
   }
 
   function railDropClass(itemId: string) {
-    return railDropTarget?.id === itemId ? ` rail-drop-${railDropTarget.placement}` : "";
+    const sourceClass = railDragId === itemId ? " rail-drag-source" : "";
+    return sourceClass + (railDropTarget?.id === itemId ? ` rail-drop-${railDropTarget.placement}` : "");
   }
 
   async function moveSection(sectionId: string, delta: -1 | 1) {
@@ -5458,7 +5475,7 @@ export function PresentationView({
               </button>
             ) : null}
           </div>
-          {railDragId ? <p className="rail-drag-hint" role="status">Drop in a section’s centre to add inside, or in a gap to move outside.</p> : null}
+          {railDragId ? <p className="rail-drag-hint" role="status">Drag the grip; drop in a section’s centre to add inside, or in a gap to move outside.</p> : null}
           <div
             className="section-rail-list"
             onScroll={() => {
@@ -5585,6 +5602,7 @@ export function PresentationView({
                                   type="button"
                                 >{itemAudioPlaying ? <Pause size={14} aria-hidden="true" /> : <Play size={14} aria-hidden="true" />}</button> : <button aria-label={`Edit ${item.title}`} className="section-icon-button" title="Item settings" onClick={() => void openPlanItemEditor(item, sectionItem)} type="button"><Pencil size={14} /></button>}
                                 {canEditPlan ? <>
+                                  {railDragHandle(item.id, item.title)}
                                   <button aria-label={`Move ${item.title} up`} className="section-icon-button" disabled={itemIndex === 0} onClick={() => void moveSection(item.id, -1)} title="Move item up" type="button"><ChevronUp size={15} /></button>
                                   <button aria-label={`Move ${item.title} down`} className="section-icon-button" disabled={itemIndex === groupItems.length - 1} onClick={() => void moveSection(item.id, 1)} title="Move item down" type="button"><ChevronDown size={15} /></button>
                                   <button aria-label={`Remove ${item.title}`} className="section-icon-button section-remove-button" onClick={() => void removeSection(item.id)} title="Remove item" type="button"><Trash2 size={15} /></button>
@@ -5638,6 +5656,7 @@ export function PresentationView({
                         ) : null}
                         {canEditPlan ? (
                           <>
+                            {railDragHandle(section.id, section.title)}
                             {sectionItem ? <button aria-label={`Edit ${section.title}`} className="section-icon-button" title="Section settings" onClick={() => void openPlanItemEditor(sectionItem)} type="button"><Pencil size={14} /></button> : null}
                             {sermonDeckAttached && sectionItem ? (
                               <button

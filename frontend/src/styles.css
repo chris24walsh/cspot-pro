@@ -14396,3 +14396,25 @@ button.musician-page {
 .section-rail-item.rail-drop-inside { outline: 3px solid var(--accent, #2563eb); outline-offset: -3px; }
 .section-insert-button.rail-drop-gap { min-height: 22px; border: 1px dashed currentColor; opacity: .8; }
 .rail-drag-hint { margin: 0; padding: 4px 6px; font-size: 11px; line-height: 1.25; }
+.section-rail .rail-drag-handle {
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  cursor: grab;
+  min-height: 44px;
+}
+.section-rail .rail-drag-handle:active { cursor: grabbing; }
+.section-rail-item.rail-drag-source,
+.section-group-item.rail-drag-source { opacity: .65; }
+.rail-drag-hint {
+  position: absolute;
+  bottom: 4px;
+  left: 4px;
+  right: 4px;
+  z-index: 3;
+  pointer-events: none;
+  background: #fffefa;
+  border: 1px solid #e3dcc8;
+  border-radius: 5px;
+}
