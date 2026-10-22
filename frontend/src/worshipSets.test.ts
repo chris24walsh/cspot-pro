@@ -156,3 +156,11 @@ describe("worship set merge", () => {
     expect(merged.map((entry) => entry.id)).toEqual(["welcome"]);
   });
 });
+
+it("preserves songs added inside service sections when a worship set is linked", () => {
+  const section = item("response", "60", "custom");
+  const song = { ...item("response-song", "10", "song", "song-1"), parent_item_id: section.id };
+  const merged = mergeWorshipSetIntoService([section, song], [item("worship-song", "10", "song", "song-2")]);
+  expect(merged.find((entry) => entry.id === song.id)).toEqual(song);
+  expect(merged.some((entry) => entry.id === "worship-song")).toBe(true);
+});
