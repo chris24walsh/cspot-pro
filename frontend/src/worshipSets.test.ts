@@ -147,13 +147,13 @@ describe("worship set merge", () => {
     ]);
   });
 
-  it("falls back to service items without anchors when no worship songs exist", () => {
+  it("keeps empty Worship available as a drop target when no worship songs exist", () => {
     const merged = mergeWorshipSetIntoService(
       [item("welcome", "10.00", "welcome"), item("anchor", "20.00", WORSHIP_SET_ANCHOR_ITEM_TYPE)],
       [item("note", "10.00", "custom")],
     );
 
-    expect(merged.map((entry) => entry.id)).toEqual(["welcome"]);
+    expect(merged.map((entry) => entry.id)).toEqual(["welcome", "anchor"]);
   });
 });
 
@@ -163,4 +163,10 @@ it("preserves songs added inside service sections when a worship set is linked",
   const merged = mergeWorshipSetIntoService([section, song], [item("worship-song", "10", "song", "song-2")]);
   expect(merged.find((entry) => entry.id === song.id)).toEqual(song);
   expect(merged.some((entry) => entry.id === "worship-song")).toBe(true);
+});
+
+it("keeps songs moved out of Worship at the service level", () => {
+  const moved = { ...item("moved", "60", "song", "song-1"), presentation_options: { service_placement: true } };
+  const merged = mergeWorshipSetIntoService([moved], [item("remaining", "10", "song", "song-2")]);
+  expect(merged.find((entry) => entry.id === moved.id)).toEqual(moved);
 });

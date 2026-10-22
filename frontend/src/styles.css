@@ -14393,3 +14393,6 @@ button.musician-page {
 .section-group-item.rail-drop-before { border-top: 3px solid var(--accent, #2563eb); }
 .section-rail-item.rail-drop-after,
 .section-group-item.rail-drop-after { border-bottom: 3px solid var(--accent, #2563eb); }
+.section-rail-item.rail-drop-inside { outline: 3px solid var(--accent, #2563eb); outline-offset: -3px; }
+.section-insert-button.rail-drop-gap { min-height: 22px; border: 1px dashed currentColor; opacity: .8; }
+.rail-drag-hint { margin: 0; padding: 4px 6px; font-size: 11px; line-height: 1.25; }

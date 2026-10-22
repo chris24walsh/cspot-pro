@@ -822,3 +822,8 @@ and serving role; routine preference edits do not resend request notifications.
 A delivery error for one reviewer is logged without skipping other recipients or
 undoing the saved request. These notifications require configured SMTP and
 `PUBLIC_APP_URL`; failed deliveries are not automatically retried.
+
+The presenter rail supports dragging items into, out of, and between sections,
+including empty sections. Drop on the middle of a section header to add inside,
+or between sections to move into the main running order. Moves support Undo and
+preserve item files and notes, including songs moved to/from the linked worship set.

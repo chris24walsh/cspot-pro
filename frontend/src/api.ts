@@ -105,6 +105,7 @@ export interface PlanItem {
 }
 
 export interface PresentationOptions {
+  service_placement?: boolean;
   template_id?: string;
   scheduled_start?: string;
   backing_audio_id?: string;
@@ -1309,6 +1310,12 @@ export async function updatePlanItem(
   payload: Partial<PlanItemPayload>,
 ): Promise<PlanItem> {
   return sendJson<PlanItem>(`/api/v1/planning/items/${itemId}`, "PATCH", payload);
+}
+
+export type PlanItemMove = { plan_id: string; parent_item_id: string | null; after_item_id: string | null };
+
+export async function movePlanItem(itemId: string, payload: PlanItemMove): Promise<PlanItem> {
+  return sendJson<PlanItem>(`/api/v1/planning/items/${itemId}/move`, "POST", payload);
 }
 
 export async function deletePlanItem(itemId: string): Promise<void> {

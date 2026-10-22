@@ -71,6 +71,12 @@ class PlanItemCreate(PlanItemBase):
     pass
 
 
+class PlanItemMove(BaseModel):
+    plan_id: str
+    parent_item_id: str | None = None
+    after_item_id: str | None = None
+
+
 class PlanItemUpdate(BaseModel):
     parent_item_id: str | None = None
     item_type: str | None = None

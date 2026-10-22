@@ -1,4 +1,4 @@
-import { reorderRailItems } from "../railOrdering";
+import { railMovePosition, type RailPlacement } from "../railOrdering";
 import { retryPresentationRefresh } from "../retryPresentationRefresh";
 import { PointerToggle, DEFAULT_MARKER_STYLE } from "./PointerToggle";
 import { SlideKeyCapture } from "./SlideKeyCapture";
@@ -58,6 +58,7 @@ import {
   updatePresentationOutputStatus,
   updatePresentationLiveState,
   updatePlanItem,
+  movePlanItem,
   type BibleBook,
   type BibleSearchHit,
   type BibleVersion,
@@ -138,7 +139,7 @@ const FILLER_MEDIA_ITEM_TYPES = new Set(["open_time", "sermon", "announcements"]
 const FIXED_WELCOME_STAGE_TYPES = new Set(["welcome_montage", "welcome_countdown", "welcome_seated"]);
 const INLINE_EDIT_ITEM_TYPES = new Set([...FILLER_MEDIA_ITEM_TYPES, ...FIXED_WELCOME_STAGE_TYPES, "reading", "pre_service", "worship_set", "post_service", "custom"]);
 
-const EMPTY_ITEM_EDIT_DRAFT: { title: string; comment: string; planned_start: string; auto_collapse_items: boolean } & Required<PresentationOptions> = {
+const EMPTY_ITEM_EDIT_DRAFT: { title: string; comment: string; planned_start: string; auto_collapse_items: boolean } & Required<Omit<PresentationOptions, "service_placement">> = {
   title: "", comment: "", planned_start: "", auto_collapse_items: false,
   template_id: "", scheduled_start: "", backing_audio_id: "", stop_backing_audio: false,
   dwell_seconds: 8, auto_advance_seconds: 8, transition: "fade", fit_mode: "contain", overlay_text: "",
@@ -716,7 +717,7 @@ export function PresentationView({
   const [bibleVerseFrom, setBibleVerseFrom] = useState("16");
   const [bibleVerseTo, setBibleVerseTo] = useState("");
   const [railDragId, setRailDragId] = useState<string | null>(null);
-  const [railDropTarget, setRailDropTarget] = useState<{ id: string; after: boolean } | null>(null);
+  const [railDropTarget, setRailDropTarget] = useState<{ id: string; placement: RailPlacement } | null>(null);
   const [railReordering, setRailReordering] = useState(false);
   const [searchOverlayOpen, setSearchOverlayOpen] = useState(false);
   const [groupInsertIndex, setGroupInsertIndex] = useState<number | null>(null);
@@ -2672,7 +2673,7 @@ export function PresentationView({
     return `Worship Set ${serviceLongDateForInput(dateInputFromIso(servicePlan.service_date))}`;
   }
 
-  async function ensureWorshipSetForCurrentService() {
+  async function ensureWorshipSetForCurrentService(options?: { migrateLegacySongs?: boolean }) {
     if (!plan) {
       return null;
     }
@@ -2701,8 +2702,8 @@ export function PresentationView({
       }
     }
 
-    const serviceSongItems = orderedPlanItems().filter((item) => item.item_type === "song" && item.song_id);
-    if (serviceSongItems.length) {
+    const serviceSongItems = orderedPlanItems().filter((item) => item.item_type === "song" && item.song_id && !item.parent_item_id && !item.presentation_options?.service_placement);
+    if (serviceSongItems.length && options?.migrateLegacySongs !== false) {
       const existingSongIds = new Set(targetSet.items.map((item) => item.song_id).filter(Boolean));
       for (const item of serviceSongItems) {
         if (!existingSongIds.has(item.song_id)) {
@@ -2734,7 +2735,7 @@ export function PresentationView({
       return existing;
     }
 
-    const serviceSongItems = orderedPlanItems().filter((item) => item.item_type === "song" && item.song_id);
+    const serviceSongItems = orderedPlanItems().filter((item) => item.item_type === "song" && item.song_id && !item.parent_item_id && !item.presentation_options?.service_placement);
     const syntheticAnchor = syntheticWorshipAnchor();
     const sequence =
       sequenceOverride ??
@@ -3681,71 +3682,94 @@ export function PresentationView({
     }
   }
 
-  function railSiblings(itemId: string) {
-    const item = sectionPlanItem(itemId);
-    const owner = sectionOwner(itemId);
-    if (!item || !owner) return [];
-    return (owner === "worship" ? orderedWorshipSetItems() : orderedPlanItems())
-      .filter((candidate) => (candidate.parent_item_id ?? null) === (item.parent_item_id ?? null));
-  }
-
-  async function dropRailItem(targetId: string, after: boolean) {
+  async function dropRailItem(targetId: string, placement: RailPlacement) {
     const sourceId = railDragId;
     setRailDragId(null);
     setRailDropTarget(null);
-    if (!plan || !canEditPlan || railReordering || !sourceId || sourceId === targetId) return;
-    const siblings = railSiblings(sourceId);
-    if (!siblings.some((item) => item.id === targetId)) return;
-    const reordered = reorderRailItems(siblings, sourceId, targetId, after);
-    if (reordered.every((item, index) => item.id === siblings[index].id)) return;
+    if (!plan || !canEditPlan || railReordering || !sourceId) return;
+    const position = railMovePosition(effectivePlanItems, sourceId, targetId, placement);
+    const item = sectionPlanItem(sourceId);
+    if (!position || !item) return;
     setRailReordering(true);
-    const item = siblings.find((candidate) => candidate.id === sourceId)!;
     try {
-      // Renumber siblings so repeated drops cannot exhaust decimal sequence gaps.
-      for (const [index, sibling] of reordered.entries()) {
-        await updatePlanItem(sibling.id, { sequence: ((index + 1) * 10).toFixed(2) });
+      const parent = effectivePlanItems.find((candidate) => candidate.id === position.parent_item_id);
+      let ensuredAnchor: PlanItem | null = null;
+      if (parent?.item_type === WORSHIP_SET_ANCHOR_ITEM_TYPE || sectionOwner(sourceId) === "worship") {
+        ensuredAnchor = await ensureWorshipAnchor();
       }
+      const toWorship = parent?.item_type === WORSHIP_SET_ANCHOR_ITEM_TYPE && item.item_type === "song";
+      const targetPlan = toWorship ? await ensureWorshipSetForCurrentService({ migrateLegacySongs: false }) : plan;
+      if (!targetPlan) throw new Error("Could not find the destination plan.");
+      // The effective rail groups linked worship songs beneath a service anchor;
+      // their stored parent is null in the separate worship plan.
+      let parentId = toWorship ? null : position.parent_item_id;
+      let afterId = position.after_item_id;
+      const needsAnchor = parentId === "__worship_anchor__" || afterId === "__worship_anchor__";
+      if (needsAnchor) {
+        const anchor = ensuredAnchor ?? await ensureWorshipAnchor();
+        if (!anchor) throw new Error("Could not find the Worship section.");
+        if (parentId === "__worship_anchor__") parentId = anchor.id;
+        if (afterId === "__worship_anchor__") afterId = anchor.id;
+      }
+      const destinationItems = toWorship ? targetPlan.items : plan.items;
+      // Other media in Worship belongs to the service anchor, while songs
+      // belong to the linked set; choose the nearest stored sibling.
+      if (afterId && !destinationItems.some((candidate) => candidate.id === afterId) && !needsAnchor) {
+        const siblings = destinationItems.filter((candidate) => candidate.id !== sourceId && (candidate.parent_item_id ?? null) === parentId)
+          .sort((left, right) => Number(left.sequence) - Number(right.sequence));
+        afterId = siblings[siblings.length - 1]?.id ?? null;
+      }
+      const originalItems = item.plan_id === plan.id ? orderedPlanItems() : orderedWorshipSetItems();
+      const originalSiblings = originalItems.filter((candidate) => (candidate.parent_item_id ?? null) === (item.parent_item_id ?? null));
+      const originalIndex = originalSiblings.findIndex((candidate) => candidate.id === item.id);
+      const originalPosition = { plan_id: item.plan_id, parent_item_id: item.parent_item_id ?? null, after_item_id: originalSiblings[originalIndex - 1]?.id ?? null };
+      await movePlanItem(item.id, { plan_id: targetPlan.id, parent_item_id: parentId, after_item_id: afterId });
       setUndoAction({
         label: `moving "${item.title}"`,
         run: async () => {
-          for (const sibling of siblings) {
-            await updatePlanItem(sibling.id, { sequence: sibling.sequence });
-          }
+          await movePlanItem(item.id, originalPosition);
           await reloadPreservingOperatorScroll();
         },
       });
-      void recordServiceHistory(`moving "${item.title}"`, sectionOwner(sourceId) === "worship" ? "Worship set" : "Service", item.item_type);
+      if (position.parent_item_id) {
+        setExpandedRailGroupIds((current) => new Set([...current, position.parent_item_id!]));
+      }
+      void recordServiceHistory(`moving "${item.title}"`, "Service", item.item_type);
       await reloadPreservingOperatorScroll();
     } catch (error) {
-      const restored = await Promise.allSettled(siblings.map((sibling) =>
-        updatePlanItem(sibling.id, { sequence: sibling.sequence }),
-      ));
-      const restoreFailed = restored.some((result) => result.status === "rejected");
-      setMessage(`${error instanceof Error ? error.message : "Could not reorder rail items."}${restoreFailed ? " Some positions could not be restored; check the running order." : " Original order restored."}`);
+      setMessage(error instanceof Error ? error.message : "Could not move rail item.");
       await reloadPreservingOperatorScroll();
     } finally {
       setRailReordering(false);
     }
   }
 
-  function railDropProps(itemId: string) {
+  function railDropProps(itemId: string, fixedPlacement?: RailPlacement) {
+    function placementFor(event: React.DragEvent<HTMLElement>): RailPlacement {
+      if (fixedPlacement) return fixedPlacement;
+      const element = event.currentTarget.querySelector(".section-rail-jump") ?? event.currentTarget;
+      const bounds = element.getBoundingClientRect();
+      const fraction = (event.clientY - bounds.top) / bounds.height;
+      const target = effectivePlanItems.find((item) => item.id === itemId);
+      if (!target?.parent_item_id && fraction >= 0.25 && fraction <= 0.75) return "inside";
+      return fraction >= 0.5 ? "after" : "before";
+    }
     return {
       onDragOver: (event: React.DragEvent<HTMLElement>) => {
         event.stopPropagation();
-        if (!railDragId || railReordering || !railSiblings(railDragId).some((item) => item.id === itemId) || railDragId === itemId) {
+        const placement = placementFor(event);
+        if (!canEditPlan || !railDragId || railReordering || !railMovePosition(effectivePlanItems, railDragId, itemId, placement)) {
           setRailDropTarget(null);
           return;
         }
         event.preventDefault();
         event.dataTransfer.dropEffect = "move";
-        const bounds = event.currentTarget.getBoundingClientRect();
-        setRailDropTarget({ id: itemId, after: event.clientY >= bounds.top + bounds.height / 2 });
+        setRailDropTarget({ id: itemId, placement });
       },
       onDrop: (event: React.DragEvent<HTMLElement>) => {
         event.preventDefault();
         event.stopPropagation();
-        const bounds = event.currentTarget.getBoundingClientRect();
-        void dropRailItem(itemId, event.clientY >= bounds.top + bounds.height / 2);
+        void dropRailItem(itemId, placementFor(event));
       },
     };
   }
@@ -3764,7 +3788,7 @@ export function PresentationView({
   }
 
   function railDropClass(itemId: string) {
-    return railDropTarget?.id === itemId ? ` rail-drop-${railDropTarget.after ? "after" : "before"}` : "";
+    return railDropTarget?.id === itemId ? ` rail-drop-${railDropTarget.placement}` : "";
   }
 
   async function moveSection(sectionId: string, delta: -1 | 1) {
@@ -5385,6 +5409,7 @@ export function PresentationView({
               </button>
             ) : null}
           </div>
+          {railDragId ? <p className="rail-drag-hint" role="status">Drop in a section’s centre to add inside, or in a gap to move outside.</p> : null}
           <div
             className="section-rail-list"
             onScroll={() => {
@@ -5453,7 +5478,7 @@ export function PresentationView({
                         selectSlideFromOperator(sectionStart);
                       }}
                       type="button"
-                      title={canEditPlan ? `${section.title} — drag to reorder section` : section.title}
+                      title={canEditPlan ? `${section.title} — drag to move; drop in the middle to add inside` : section.title}
                     >
                       <span>{(sectionIndex + 1).toString().padStart(2, "0")}</span>
                       <strong>{section.title}</strong>
@@ -5497,7 +5522,7 @@ export function PresentationView({
                           return (
                             <Fragment key={item.id}>
                             <div {...railDropProps(item.id)} className={`section-group-item${railDropClass(item.id)} ${liveSlide?.planItemId === item.id ? "active" : ""}`} ref={(element) => { sectionRailRefs.current[item.id] = element; }}>
-                              <button {...railDragProps(item.id)} title={canEditPlan ? `${item.title} — drag to reorder within section` : item.title} onClick={() => itemSlideIndex >= 0 && selectSlideFromOperator(itemSlideIndex)} type="button">
+                              <button {...railDragProps(item.id)} title={canEditPlan ? `${item.title} — drag to move within or between sections` : item.title} onClick={() => itemSlideIndex >= 0 && selectSlideFromOperator(itemSlideIndex)} type="button">
                                 <span>{itemIndex + 1}</span><strong>{item.title}</strong>
                               </button>
                               {canEditPlan || item.song_id ? <div className={`section-group-item-actions ${canEditPlan ? "" : "audio-only"}`}>
@@ -5613,8 +5638,10 @@ export function PresentationView({
                   </div>
                   {canEditPlan ? (
                     <button
+                      {...railDropProps(section.id, "after")}
                       aria-label={`Search or add after ${section.title}`}
-                      className="section-insert-button"
+                      className={`section-insert-button${railDragId ? " rail-drop-gap" : ""}`}
+                      title={railDragId ? "Drop here outside sections" : undefined}
                       onClick={() => setGroupInsertIndex(sectionIndex)}
                       type="button"
                     >

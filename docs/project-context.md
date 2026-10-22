@@ -787,7 +787,11 @@ item (or at the end of an empty/unselected group). Explicit section insertion
 controls retain their chosen position. Songs added in Worship remain in the
 linked worship set; songs added elsewhere belong to that service section.
 
-The presenter section rail supports dragging section titles to reorder sections,
-and dragging child titles to reorder items within the same section. Drop markers
-show before/after placement. Changes support Undo; arrow buttons remain available
-for keyboard and touch users. Items remain in their existing section and plan.
+The presenter section rail supports dragging titles to reorder sections and items,
+move items between sections, or move them out into the main running order.
+Drop in the middle of a section header to append inside it, beside another item
+to insert before/after it, or on a gap between sections to move outside. Empty
+sections remain available as destinations. Moves preserve attachments and notes,
+support Undo, and transfer songs between the service and its linked worship set
+when needed. Groups with children stay at the top level. Arrow buttons remain
+available for keyboard and touch users.

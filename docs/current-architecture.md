@@ -1536,3 +1536,14 @@ isolate failures per destination. Delivery failures are logged, without automati
 retry or rollback of the user's action. SMTP and `PUBLIC_APP_URL` are required.
 Links carry `admin_user` and, for serving reviews, `admin_area`; both administrator
 and delegated management views select the corresponding member and serving role.
+
+## Presenter rail moves
+
+`POST /planning/items/{id}/move` moves an existing item and renumbers destination
+siblings in one transaction. It validates destination parent/position and edit
+access to both plans. Song transfers between a service and its same-day worship
+set retain item IDs, attachment links and notes. Sections with children cannot be
+nested or transferred. The presenter supplies the original parent and preceding
+sibling for Undo. `presentation_options.service_placement` keeps explicitly placed
+service songs out of legacy worship migration/placeholder replacement. Empty
+Worship anchors remain visible as drop targets.

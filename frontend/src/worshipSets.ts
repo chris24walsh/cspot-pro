@@ -96,7 +96,7 @@ export function worshipSongItems(items: PlanItem[]) {
 export function mergeWorshipSetIntoService(serviceItems: PlanItem[], worshipSetItems: PlanItem[]) {
   const songs = worshipSongItems(worshipSetItems);
   if (!songs.length) {
-    return sortedItems(serviceItems.filter((item) => item.item_type !== WORSHIP_SET_ANCHOR_ITEM_TYPE));
+    return sortedItems(serviceItems);
   }
 
   const sortedServiceItems = sortedItems(serviceItems);
@@ -108,7 +108,7 @@ export function mergeWorshipSetIntoService(serviceItems: PlanItem[], worshipSetI
     .filter((item) => item.item_type === "song" && !item.parent_item_id)
     .map((item) => Number.parseFloat(item.sequence))
     .find((sequence) => Number.isFinite(sequence));
-  const serviceWithoutSongs = sortedServiceItems.filter((item) => (item.item_type !== "song" || Boolean(item.parent_item_id)) && item.item_type !== WORSHIP_SET_ANCHOR_ITEM_TYPE);
+  const serviceWithoutSongs = sortedServiceItems.filter((item) => (item.item_type !== "song" || Boolean(item.parent_item_id) || item.presentation_options?.service_placement === true) && item.item_type !== WORSHIP_SET_ANCHOR_ITEM_TYPE);
   const welcomeIndex = serviceWithoutSongs.findIndex((item) => ["welcome", "opening"].includes(normalized(item.item_type)));
   const welcomeSequence = welcomeIndex >= 0
     ? Number.parseFloat(serviceWithoutSongs[welcomeIndex]?.sequence ?? "")

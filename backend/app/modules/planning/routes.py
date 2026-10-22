@@ -1,5 +1,6 @@
 import json
 from datetime import UTC, date, datetime
+from decimal import Decimal
 from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, HTTPException, Response, status
@@ -36,6 +37,7 @@ from app.modules.planning.schemas import (
     PlanHistoryCreate,
     PlanHistoryRead,
     PlanItemCreate,
+    PlanItemMove,
     SectionTemplateInsert,
     PlanItemRead,
     PlanItemUpdate,
@@ -983,6 +985,105 @@ def insert_section_template(
         restore_template_files(session, added)
         if payload.save_template:
             save_item_template(session, plan, added, added.title)
+    session.commit()
+    session.refresh(item)
+    return plan_item_to_read(session, item)
+
+
+@router.post("/items/{item_id}/move", response_model=PlanItemRead)
+def move_plan_item(
+    item_id: str,
+    payload: PlanItemMove,
+    current_user: User = Depends(require_any_permission("plans:edit", "plans:create")),
+    session: Session = Depends(get_session),
+) -> PlanItemRead:
+    item = get_item_or_404(session, item_id)
+    source_plan = get_plan_or_404(session, item.plan_id)
+    target_plan = get_plan_or_404(session, payload.plan_id)
+    require_plan_editable(session, source_plan, current_user)
+    require_plan_editable(session, target_plan, current_user)
+    transferring = source_plan.id != target_plan.id
+    if transferring and (
+        source_plan.service_date.date() != target_plan.service_date.date()
+        or item.item_type != "song"
+        or "Worship Set"
+        not in {
+            session.get(PlanType, source_plan.plan_type_id).name,
+            session.get(PlanType, target_plan.plan_type_id).name,
+        }
+    ):
+        raise HTTPException(
+            status_code=422,
+            detail="Only songs can move between a service and its worship set",
+        )
+    if (
+        transferring or payload.parent_item_id != item.parent_item_id
+    ) and presenter_cannot_change_outline(session, current_user, item):
+        raise HTTPException(
+            status_code=403,
+            detail="Presenters cannot move outline sections into other sections",
+        )
+    if payload.parent_item_id:
+        parent = get_item_or_404(session, payload.parent_item_id)
+        if (
+            parent.id == item.id
+            or parent.plan_id != target_plan.id
+            or parent.parent_item_id
+        ):
+            raise HTTPException(
+                status_code=422,
+                detail="Choose a top-level section in the destination plan",
+            )
+    has_children = session.scalar(
+        select(PlanItem.id)
+        .where(PlanItem.parent_item_id == item.id, PlanItem.deleted_at.is_(None))
+        .limit(1)
+    )
+    if has_children and (payload.parent_item_id or transferring):
+        raise HTTPException(
+            status_code=422,
+            detail="Sections with items cannot be nested or transferred",
+        )
+    siblings = list(
+        session.scalars(
+            select(PlanItem)
+            .where(
+                PlanItem.plan_id == target_plan.id,
+                PlanItem.parent_item_id == payload.parent_item_id,
+                PlanItem.deleted_at.is_(None),
+                PlanItem.id != item.id,
+            )
+            .order_by(PlanItem.sequence, PlanItem.id)
+        ).all()
+    )
+    index = 0
+    if payload.after_item_id:
+        previous = next(
+            (
+                i
+                for i, sibling in enumerate(siblings)
+                if sibling.id == payload.after_item_id
+            ),
+            None,
+        )
+        if previous is None:
+            raise HTTPException(
+                status_code=422, detail="The drop position has changed; try again"
+            )
+        index = previous + 1
+    siblings.insert(index, item)
+    item.plan_id = target_plan.id
+    item.parent_item_id = payload.parent_item_id
+    if (
+        item.item_type == "song"
+        and session.get(PlanType, target_plan.plan_type_id).name != "Worship Set"
+    ):
+        item.presentation_options = {
+            **(item.presentation_options or {}),
+            "service_placement": True,
+        }
+    for index, sibling in enumerate(siblings):
+        sibling.sequence = Decimal((index + 1) * 10)
     session.commit()
     session.refresh(item)
     return plan_item_to_read(session, item)
