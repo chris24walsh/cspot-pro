@@ -39,8 +39,8 @@ def unregister_live_audio_control(control: LiveAudioControl) -> None:
 
 
 def _same_sources(left: tuple[AudioMixInput, ...], right: list[AudioMixInput]) -> bool:
-    return [(item.source_id, item.url) for item in left] == [
-        (item.source_id, item.url) for item in right
+    return [(item.source_id, item.url, item.channels) for item in left] == [
+        (item.source_id, item.url, item.channels) for item in right
     ]
 
 

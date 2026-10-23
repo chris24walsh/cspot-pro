@@ -24,7 +24,11 @@ FADER_READBACK_PATHS = (
         path for path, spec in PARAMETERS.items()
         if (spec["group"] == "Sends" and path.endswith("/level"))
         or (spec["group"] == "Headamp" and path.endswith("/gain"))
-        or path.endswith(("/config/insrc", "/preamp/rtnsw", "/preamp/rtntrim", "/mix/pan"))
+        or path.startswith("/config/buslink/")
+        or path.endswith((
+            "/config/insrc", "/preamp/rtnsw", "/preamp/rtntrim",
+            "/mix/pan", "/mix/lr", "/tap", "/grpon",
+        ))
     )
 )
 
@@ -79,6 +83,7 @@ class MixerEngine(asyncio.DatagramProtocol):
         self.last_seen = 0
         self.last_meter = 0
         self.pending = {}
+        self.pending_origins = {}
         self.failed = {}
         self.fx_specs = {}
         self.revision = 0
@@ -128,6 +133,7 @@ class MixerEngine(asyncio.DatagramProtocol):
                         self.values.pop(old, None)
                         self.fx_specs.pop(old, None)
                         self.pending.pop(old, None)
+                        self.pending_origins.pop(old, None)
                     asyncio.create_task(self.refresh_fx(root))
                 if is_fx:
                     algorithm = self.values.get(path.split("/par/")[0] + "/type", -1)
@@ -141,6 +147,7 @@ class MixerEngine(asyncio.DatagramProtocol):
                     and abs(args[0] - pending[0]) < 0.002
                 ):
                     self.pending.pop(path, None)
+                    self.pending_origins.pop(path, None)
                 self.failed.pop(path, None)
             else:
                 return
@@ -162,6 +169,7 @@ class MixerEngine(asyncio.DatagramProtocol):
             await self.stop()
             self.host = host
             self.values, self.pending, self.failed, self.levels, self.identity = {}, {}, {}, [], []
+            self.pending_origins = {}
             self.last_seen = self.last_meter = 0
             self.error = None
             self.synchronized = False
@@ -245,12 +253,14 @@ class MixerEngine(asyncio.DatagramProtocol):
                 for path in self.pending:
                     self.failed[path] = "Connection lost before confirmation"
                 self.pending.clear()
+                self.pending_origins.clear()
             was_connected = self.connected
             now = time.monotonic()
             for path, (value, started, retries) in list(self.pending.items()):
                 if now - started > 1:
                     if retries >= 2 or not self.connected:
                         self.pending.pop(path, None)
+                        self.pending_origins.pop(path, None)
                         self.failed[path] = "No matching readback from mixer"
                     else:
                         self.send(path, value)
@@ -277,9 +287,10 @@ class MixerEngine(asyncio.DatagramProtocol):
             raise ValueError("Parameter has not been read from this mixer")
         return value
 
-    async def write(self, path, value):
+    async def write(self, path, value, *, origin="manual"):
         value = self.command_value(path, value)
         self.pending[path] = (value, time.monotonic(), 0)
+        self.pending_origins[path] = origin
         self.failed.pop(path, None)
         self.send(path, value)
         self.send(path)

@@ -88,6 +88,7 @@ public sealed class AudioSourceOptions
     public string Backend { get; set; } = OperatingSystem.IsWindows() ? "dshow" : "alsa";
     public string Device { get; set; } = "default";
     public int Channels { get; set; } = 1;
+    public int OutputChannels { get; set; } = 1;
     public int BitrateKbps { get; set; } = 64;
     public double GainDb { get; set; }
 }
@@ -458,7 +459,7 @@ public sealed class SharedCapture : IDisposable
         }
         yield return "-vn";
         yield return "-ac";
-        yield return "1";
+        yield return Math.Clamp(source.OutputChannels, 1, 2).ToString(CultureInfo.InvariantCulture);
         yield return "-ar";
         yield return "48000";
         if (Math.Abs(source.GainDb) > 0.01)

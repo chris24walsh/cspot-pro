@@ -218,6 +218,9 @@ def effective_audio_source(
     configured = settings.live_audio_source or ""
     if configured == "none":
         return "none"
+    if getattr(settings, "audio_mix_mode", "software") == "mixer":
+        program_id = getattr(settings, "mixer_program_source_id", None)
+        return program_id if program_id in {source.id for source in independent_sources} else "none"
     if configured == "mix" and independent_sources:
         return "mix"
     if configured in source_ids:

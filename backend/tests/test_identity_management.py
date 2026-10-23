@@ -517,3 +517,32 @@ def test_reapplying_after_declining_an_invitation_becomes_a_reviewable_request(
     assert client.patch(
         f"/identity/serving/admin/volunteers/{preference_id}", json={"status": "approved"}
     ).status_code == 200
+
+
+@pytest.mark.parametrize("role, expected", [("mixer_operator", 200), ("viewer", 403)])
+def test_hardware_scene_configuration_has_separate_mixer_permission(management, role, expected):
+    from app.modules.broadcast.models import BroadcastViewerSettings
+    from app.modules.broadcast.routes import router as broadcast_router
+    from app.modules.mixer.models import MixerConfiguration
+    from app.modules.mixer.routes import router as mixer_router
+
+    client, session, users, _, _, actor = management
+    Base.metadata.create_all(session.get_bind(), tables=[
+        MixerConfiguration.__table__, BroadcastViewerSettings.__table__,
+    ])
+    set_user_roles(session, users["member"], [role])
+    session.commit()
+    actor[0] = users["member"]
+    client.app.include_router(mixer_router, prefix="/mixer")
+    client.app.include_router(broadcast_router, prefix="/broadcast")
+    response = client.get("/mixer/automation")
+    assert response.status_code == expected
+    draft = {"roles": {"/ch/01": "pastor"}, "enabled": False}
+    assert client.post("/mixer/automation/suggestions", json=draft).status_code == expected
+    assert client.put("/mixer/automation", json=draft).status_code == expected
+    if expected == 200:
+        stored = client.get("/mixer/automation").json()["configuration"]
+        assert stored["enabled"] is False
+        assert stored["roles"] == {"/ch/01": "pastor"}
+        assert client.post("/mixer/automation/apply/pastor").status_code == 409
+    assert client.patch("/broadcast/viewer-settings", json={"audio_mix_mode": "mixer"}).status_code == 403

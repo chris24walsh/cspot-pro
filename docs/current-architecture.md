@@ -1561,3 +1561,29 @@ existing section/item/gap drop zones, and scrolls the rail at its edges. Native
 desktop dragging and pointer dragging share placement calculation and the same
 move endpoint. Pointer cancellation, lost capture, Escape and unmount clean up
 the gesture. Only handles disable browser touch scrolling.
+
+### Service-driven hardware audio scenes
+
+`mixer.automation.SceneAutomation` runs in the API lifespan using the shared UDP
+engine. Persisted `MixerConfiguration.automation_json` defaults disabled. It
+reads committed broadcast scene state, the global automation switch and a recent
+presentation session. Ended services qualify only for Post-service within two
+hours. Notifications wake it on scene/configuration changes, with a one-second
+poll fallback. It validates every command and stereo bus linking/pre-fader taps
+before writing; pending retries carry an origin so pausing or superseding a
+scene cancels only automation-owned retries. Reconnect applies only the current
+cue. Changes apply once per cue/configuration; operator adjustments are retained.
+
+Mixer-permitted accounts can map inputs, save/draft/capture presets, apply a
+manual hold and pause/resume service following. Scenes control channel Main L/R
+assignment/fader and linked bus send levels only. Master levels, preamps,
+phantom, Mute/Solo and processing remain manual. Broadcast-permitted accounts
+separately choose `audio_mix_mode` (`software` by default, or `mixer`) and a
+`mixer_program_source_id`. Mixer mode pins the program source with unity gain,
+keeps existing software scene metadata intact, and preserves stereo through
+live encoding and recording. Explicit source `none` still mutes audio.
+
+The Windows bridge's `OutputChannels` defaults to one; the XR18 example opts
+into two channels. FFmpeg capture/encoding remains necessary. Hardware routing
+and stereo capture have not been commissioned remotely. See
+[on-site setup](xr18-audio-scenes.md). Migration 0075 adds these optional settings.

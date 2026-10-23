@@ -682,6 +682,8 @@ export interface ServiceScheduleRule {
 }
 
 export interface BroadcastViewerSettings {
+  audio_mix_mode?: "software" | "mixer";
+  mixer_program_source_id?: string | null;
   stream_title: string;
   stream_description: string | null;
   camera_url: string | null;

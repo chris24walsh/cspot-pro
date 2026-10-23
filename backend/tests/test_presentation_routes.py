@@ -666,7 +666,7 @@ def test_remote_release_prevents_the_closed_output_from_reclaiming() -> None:
     assert '"service_stage": "post_service"' in released_payload
     assert '"blanked": false' in released_payload
     activate_scene.assert_called_once()
-    assert activate_scene.call_args.args[2] == "pre_service"
+    assert activate_scene.call_args.args[2] == "post_service"
 
 
 def test_scheduled_sermon_navigation_records_without_output_window() -> None:
@@ -1207,3 +1207,57 @@ def test_historical_manual_replay_remains_discoverable_to_displays(scheduled: bo
         assert result[0].output_active is True
         assert result[0].service_stage == "service"
         assert live.status == "live"
+
+
+def test_section_scene_is_inherited_with_item_and_service_stage_precedence():
+    parent = SimpleNamespace(id="section", plan_id="plan", parent_item_id=None,
+                             presentation_options={"audio_scene_id": "quiet_worship"})
+    child = SimpleNamespace(id="song", plan_id="plan", parent_item_id="section",
+                            item_type="song", presentation_options={})
+    session = SimpleNamespace(get=lambda model, item_id: parent)
+    assert _scene_for_item(child, None, "service", session) == "quiet_worship"
+    child.presentation_options = {"audio_scene_id": "media"}
+    assert _scene_for_item(child, None, "service", session) == "media"
+    assert _scene_for_item(child, None, "post_service", session) == "post_service"
+    child.presentation_options = {}
+    parent.plan_id = "different-plan"
+    assert _scene_for_item(child, None, "service", session) == "worship"
+
+
+def test_hardware_scene_worker_follows_only_recent_live_or_post_service_sessions(monkeypatch):
+    from datetime import timedelta
+    from app.modules.mixer import automation as module
+    from app.modules.mixer.models import MixerConfiguration
+
+    db = create_engine("sqlite://")
+    Base.metadata.create_all(db)
+    monkeypatch.setattr(module, "SessionLocal", lambda: Session(db))
+    now = datetime.now(UTC)
+    with Session(db) as session:
+        plan_type = PlanType(name="Hardware rehearsal", active=True)
+        session.add(plan_type)
+        session.flush()
+        plan = Plan(title="Hardware rehearsal", plan_type_id=plan_type.id, service_date=now)
+        session.add(plan)
+        session.flush()
+        settings = BroadcastViewerSettings(active_audio_scene="worship", audio_scene_automation=True)
+        live = PresentationSession(plan_id=plan.id, status="live", started_at=now)
+        session.add_all([settings, live, MixerConfiguration(id="xr18", host="192.168.4.106")])
+        session.commit()
+        assert module.load_state().service_id == live.id
+        assert not module.load_state().config.enabled
+        live.status = "ended"
+        live.ended_at = now
+        session.commit()
+        assert module.load_state().service_id is None
+        settings.active_audio_scene = "post_service"
+        session.commit()
+        assert module.load_state().service_id == "post:" + live.id
+        live.ended_at = now - timedelta(hours=3)
+        session.commit()
+        assert module.load_state().service_id is None
+        live.status = "live"
+        live.ended_at = None
+        live.started_at = now - timedelta(days=2)
+        session.commit()
+        assert module.load_state().service_id is None

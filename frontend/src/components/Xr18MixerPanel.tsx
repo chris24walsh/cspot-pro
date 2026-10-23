@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import { RefreshCw, Search, SlidersHorizontal, Save, Unplug, Radio, Settings2, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Maximize2, Minimize2 } from 'lucide-react';
 import { buildAbsoluteApiUrl } from '../api';
 import { displayValue, emptyMixer, fromWire, mixerRequest, physicalHeadamp, toWire, type MixerParameter, type MixerState, type MixerStrip } from '../xr18';
+import { MixerAutomationPanel } from './MixerAutomationPanel';
 import { MixerFader } from './MixerFader';
 import { MixerCommandQueue } from '../mixerCommands';
 import { mixerBankSize } from '../mixerLayout';
@@ -16,7 +17,7 @@ type Snapshot = {
   created_at: string;
   values: Record<string, number | string>;
 };
-const mixerPages = [['desk', 'Faders'], ['routing', 'Routing'], ['effects', 'Effects'], ['system', 'Monitor'], ['snapshots', 'Snapshots']];
+const mixerPages = [['desk', 'Faders'], ['routing', 'Routing'], ['effects', 'Effects'], ['system', 'Monitor'], ['snapshots', 'Snapshots'], ['scenes', 'Audio scenes']];
 type StripMode = 'level' | 'gain' | 'balance';
 const colors = ['#64748b', '#ef4444', '#22c55e', '#eab308', '#3b82f6', '#d946ef', '#06b6d4', '#e2e8f0'];
 export function Xr18MixerPanel() {
@@ -442,7 +443,7 @@ export function Xr18MixerPanel() {
       }}><SlidersHorizontal size={17} /><span>{showEditor ? 'Hide editor' : 'Edit channel'}</span>{showEditor ? <ChevronUp size={16} /> : <ChevronDown size={16} />}</button>
     </div>
     <div className="xr-desk"><div ref={stripScrollRef} className="xr-strip-scroll" onScroll={measureScroll} style={{ '--xr-visible-strips': bankSize } as CSSProperties} aria-label="Channel faders">{visible.filter(s => s.kind !== 'main').map(s => renderStrip(s))}</div>{main && renderStrip(main, true)}</div>
-    <div ref={editorRef} className="xr-inspector xr-channel-editor" id="xr-channel-editor" hidden={!showEditor}><header><h3>{String(state.values[selected + '/config/name'] || strip?.name || 'Channel')} <small>{selected}</small></h3><button type="button" aria-label="Collapse channel editor" onClick={() => setEditorOpen(false)}><ChevronUp size={16} /><span>Collapse</span></button></header><label className="xr-processing-menu">Processing<select aria-label="Channel processing" value={inspectorGroup ?? ''} onChange={event => setGroup(event.target.value)}>{groups.map(g => <option key={g} value={g}>{g}</option>)}</select></label>{inspectorGroup === 'Headamp' && headamp && <p className="xr-notice">Physical input {Number(headamp.split('/')[2])} · Gain and 48V follow the channel's analog input assignment.</p>}<div className="xr-control-grid">{shown.map(p => <div key={p.path}>{renderControl(p)}</div>)}</div></div></> : page === 'snapshots' ? <div className="xr-snapshots"><h3>Local desk snapshots</h3><p>Save the parameters read by cspot. Recalls preserve physical preamp gain and phantom power. These snapshots are separate from the mixer's internal scenes.</p><div className="xr-snapshot-save"><input aria-label="Snapshot name" placeholder="Snapshot name" maxLength={80} value={snapshotName} onChange={e => setSnapshotName(e.target.value)} /><button type="button" disabled={busy || !enabled || !state.synchronized || state.syncing || !!state.pending.length || !!Object.keys(drafts).length || !snapshotName.trim()} onClick={() => void run(async () => {
+    <div ref={editorRef} className="xr-inspector xr-channel-editor" id="xr-channel-editor" hidden={!showEditor}><header><h3>{String(state.values[selected + '/config/name'] || strip?.name || 'Channel')} <small>{selected}</small></h3><button type="button" aria-label="Collapse channel editor" onClick={() => setEditorOpen(false)}><ChevronUp size={16} /><span>Collapse</span></button></header><label className="xr-processing-menu">Processing<select aria-label="Channel processing" value={inspectorGroup ?? ''} onChange={event => setGroup(event.target.value)}>{groups.map(g => <option key={g} value={g}>{g}</option>)}</select></label>{inspectorGroup === 'Headamp' && headamp && <p className="xr-notice">Physical input {Number(headamp.split('/')[2])} · Gain and 48V follow the channel's analog input assignment.</p>}<div className="xr-control-grid">{shown.map(p => <div key={p.path}>{renderControl(p)}</div>)}</div></div></> : page === 'scenes' ? <MixerAutomationPanel strips={catalog.strips} state={state} /> : page === 'snapshots' ? <div className="xr-snapshots"><h3>Local desk snapshots</h3><p>Save the parameters read by cspot. Recalls preserve physical preamp gain and phantom power. These snapshots are separate from the mixer's internal scenes.</p><div className="xr-snapshot-save"><input aria-label="Snapshot name" placeholder="Snapshot name" maxLength={80} value={snapshotName} onChange={e => setSnapshotName(e.target.value)} /><button type="button" disabled={busy || !enabled || !state.synchronized || state.syncing || !!state.pending.length || !!Object.keys(drafts).length || !snapshotName.trim()} onClick={() => void run(async () => {
           await mixerRequest('/snapshots', 'POST', {
             name: snapshotName.trim()
           });

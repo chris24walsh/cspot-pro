@@ -45,3 +45,10 @@ presentation parity. Broadcast → Mixer exposes the local hardware desk as well
 as the existing software broadcast audio mix for broadcast operators. Worship
 leaders receive the hardware panel independently through `mixer:use`; see
 [XR18 details](xr18-mixer.md).
+
+XR18 hardware audio scene automation extends the software scene model: one
+section cue can now drive separate room and stereo livestream levels, while
+software-only churches keep the existing path. Section scene overrides inherit
+to children; item overrides take precedence, and service stop now selects
+Post-service. Hardware control is opt-in and requires verified bus/USB routing.
+See [audio scene setup](xr18-audio-scenes.md).

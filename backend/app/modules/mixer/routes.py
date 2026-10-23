@@ -7,11 +7,13 @@ from datetime import UTC, datetime
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
+from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.database import get_session
 from app.modules.identity.auth import require_permission
+from app.modules.mixer.automation import AutomationConfiguration
 from app.modules.mixer.catalog import PARAMETERS, STRIPS
 from app.modules.mixer.engine import discover, engine, validate_host
 from app.modules.mixer.models import MixerConfiguration
@@ -267,3 +269,97 @@ def delete_snapshot(snapshot_id: str, session: Session = Depends(get_session)):
     )
     session.commit()
     return {"status": "deleted"}
+
+
+@router.get("/automation")
+def get_automation(session: Session = Depends(get_session)):
+    from app.modules.mixer.automation import automation, configuration
+    from app.modules.broadcast.models import BroadcastViewerSettings
+    from app.modules.broadcast.settings import audio_scenes
+    settings = session.scalar(select(BroadcastViewerSettings).limit(1))
+    available = [{"id": scene.id, "label": scene.label} for scene in audio_scenes(settings)] if settings else []
+    return {"configuration": configuration(config(session)), "status": automation.status,
+            "available_scenes": available}
+
+
+@router.put("/automation")
+def save_automation(payload: AutomationConfiguration, session: Session = Depends(get_session)):
+    from app.modules.mixer.automation import automation
+    item = config(session)
+    item.automation_json = payload.model_dump_json()
+    session.commit()
+    automation.notify()
+    return {"configuration": payload, "status": automation.status}
+
+
+@router.post("/automation/suggestions")
+def draft_automation(payload: AutomationConfiguration):
+    from app.modules.mixer.automation import suggested_scenes
+    drafted = suggested_scenes(payload.roles)
+    defaults = {scene.id for scene in drafted}
+    return payload.model_copy(update={"scenes": drafted + [
+        scene for scene in payload.scenes if scene.id not in defaults
+    ]})
+
+
+@router.post("/automation/apply/{scene_id}")
+def hold_automation_scene(scene_id: str, session: Session = Depends(get_session)):
+    from app.modules.mixer.automation import automation, configuration
+    item = config(session)
+    cfg = configuration(item)
+    if not cfg.enabled:
+        raise HTTPException(409, "Enable hardware automation before applying a scene")
+    if scene_id not in {scene.id for scene in cfg.scenes}:
+        raise HTTPException(404, "Hardware scene not found")
+    cfg.follow_service = False
+    cfg.manual_scene_id = scene_id
+    cfg.manual_revision += 1
+    item.automation_json = cfg.model_dump_json()
+    session.commit()
+    automation.notify()
+    return {"configuration": cfg, "status": automation.status}
+
+
+@router.post("/automation/capture/{scene_id}")
+def capture_automation_scene(scene_id: str, session: Session = Depends(get_session)):
+    from app.modules.mixer.automation import SceneChannel, SceneLevel, automation, configuration
+    item = config(session)
+    cfg = configuration(item)
+    scene = next((scene for scene in cfg.scenes if scene.id == scene_id), None)
+    if scene is None:
+        raise HTTPException(404, "Hardware scene not found")
+    if not engine.connected or engine.syncing or engine.recalling:
+        raise HTTPException(409, "Wait for a connected, synchronized mixer")
+    values = engine.values.copy()
+
+    def level(path):
+        if path not in values:
+            raise HTTPException(409, "Wait for all mapped channel levels to be read")
+        wire = values[path]
+        return wire, (wire * 40 - 30 if wire >= .5 else wire * 80 - 50 if wire >= .25
+                      else wire * 160 - 70 if wire >= .0625 else wire * 480 - 90)
+
+    channels = {}
+    for strip_id, role in cfg.roles.items():
+        if role == "other":
+            continue
+        previous = scene.channels.get(strip_id, SceneChannel())
+        channel = previous.model_copy(deep=True)
+        if cfg.room_enabled:
+            if strip_id + "/mix/lr" not in values:
+                raise HTTPException(409, "Wait for mapped Main LR assignments to be read")
+            _, room_db = level(strip_id + "/mix/fader")
+            channel.room = SceneLevel(
+                enabled=values[strip_id + "/mix/lr"] == 1, level_db=round(room_db, 2)
+            )
+        if cfg.livestream_enabled:
+            wire, stream_db = level(f"{strip_id}/mix/{cfg.livestream_bus:02}/level")
+            channel.livestream = SceneLevel(enabled=wire > 0, level_db=round(stream_db, 2))
+        channels[strip_id] = channel
+    if not channels:
+        raise HTTPException(409, "Map inputs before capturing a hardware scene")
+    scene.channels = channels
+    item.automation_json = cfg.model_dump_json()
+    session.commit()
+    automation.notify()
+    return {"configuration": cfg, "status": automation.status}

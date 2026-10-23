@@ -421,3 +421,52 @@ def test_pc_media_source_can_replace_the_desk_feed() -> None:
     assert result.live_audio_source == "pc-media"
     assert result.live_audio_url == "http://audio/pc-media"
     assert [source.role for source in result.audio_sources] == ["desk", "media"]
+
+
+def test_hardware_program_mode_stays_on_stereo_feed_across_scenes(monkeypatch):
+    from app.modules.broadcast.audio_mix import audio_mix_inputs, ffmpeg_recording_mix_command
+    from app.modules.broadcast.audio_scenes import activate_audio_scene
+    from app.modules.broadcast.settings import effective_audio_source
+    from pathlib import Path
+
+    engine = create_engine("sqlite://")
+    Base.metadata.create_all(engine, tables=[BroadcastViewerSettings.__table__])
+    with Session(engine) as session:
+        settings = BroadcastViewerSettings(
+            stream_title="Service", audio_mix_mode="mixer", mixer_program_source_id="program",
+            live_audio_source="program", audio_sources_json=json.dumps([
+                {"id":"program", "label":"XR18 program", "url":"http://bridge/audio/program.mp3", "gain_db":-12,"mix_enabled":False},
+                {"id":"pc", "label":"PC media", "url":"http://bridge/audio/pc.mp3", "role":"media"},
+            ]),
+        )
+        session.add(settings)
+        session.commit()
+        monkeypatch.setattr("app.modules.broadcast.audio_scenes.reconfigure_active_recording", lambda session: None)
+        original = settings.audio_sources_json
+        for scene in ("pastor", "media", "worship", "pre_service", "post_service"):
+            assert activate_audio_scene(session, settings, scene)
+            assert effective_audio_source(settings) == "program"
+            inputs = audio_mix_inputs(settings)
+            assert len(inputs) == 1
+            assert inputs[0].source_id == "program"
+            assert inputs[0].gain_db == 0
+            assert inputs[0].channels == 2
+            assert settings.audio_sources_json == original
+        command = ffmpeg_recording_mix_command(inputs, Path("recording.ogg"))
+        assert command[command.index("-ac")+1] == "2"
+        assert command[command.index("-b:a")+1] == "96k"
+        settings.live_audio_source = "none"
+        assert effective_audio_source(settings) == "none"
+
+
+def test_hardware_program_mode_rejects_missing_source():
+    engine = create_engine("sqlite://")
+    Base.metadata.create_all(engine, tables=[BroadcastViewerSettings.__table__])
+    with Session(engine) as session:
+        from fastapi import HTTPException
+        with pytest.raises(HTTPException) as error:
+            update_viewer_settings(
+                BroadcastViewerSettingsUpdate(audio_mix_mode="mixer", mixer_program_source_id="missing"),
+                SimpleNamespace(id="operator"), session,
+            )
+        assert error.value.status_code == 422

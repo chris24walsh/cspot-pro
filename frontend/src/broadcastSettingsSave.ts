@@ -5,6 +5,8 @@ import type {
 } from "./api";
 
 type EditableScalarKey =
+  | "audio_mix_mode"
+  | "mixer_program_source_id"
   | "stream_title"
   | "stream_description"
   | "camera_cycle_seconds"
@@ -21,6 +23,8 @@ type EditableScalarKey =
   | "offline_message";
 
 const EDITABLE_SCALAR_KEYS: EditableScalarKey[] = [
+  "audio_mix_mode",
+  "mixer_program_source_id",
   "stream_title",
   "stream_description",
   "camera_cycle_seconds",

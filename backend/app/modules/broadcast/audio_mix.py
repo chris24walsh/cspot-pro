@@ -15,13 +15,18 @@ class AudioMixInput:
     source_id: str
     url: str
     gain_db: float = 0
+    channels: int = 1
 
 
 def audio_mix_inputs(settings: BroadcastViewerSettings) -> list[AudioMixInput]:
     independent = selected_independent_audio_sources(settings)
     if independent:
         return [
-            AudioMixInput(source_id=source.id, url=source.url.strip(), gain_db=source.gain_db)
+            AudioMixInput(
+                source_id=source.id, url=source.url.strip(),
+                gain_db=0 if getattr(settings, "audio_mix_mode", "software") == "mixer" else source.gain_db,
+                channels=2 if getattr(settings, "audio_mix_mode", "software") == "mixer" else 1,
+            )
             for source in independent
             if source.url.strip().startswith(("http://", "https://"))
         ]
@@ -41,8 +46,8 @@ def live_audio_mix_inputs(settings: BroadcastViewerSettings) -> list[AudioMixInp
     return audio_mix_inputs(settings)
 
 
-def audio_mix_signature(inputs: list[AudioMixInput]) -> tuple[tuple[str, str, float], ...]:
-    return tuple((source.source_id, source.url, source.gain_db) for source in inputs)
+def audio_mix_signature(inputs: list[AudioMixInput]) -> tuple[tuple[str, str, float, int], ...]:
+    return tuple((source.source_id, source.url, source.gain_db, source.channels) for source in inputs)
 
 
 def ffmpeg_audio_input_args(inputs: list[AudioMixInput]) -> list[str]:
@@ -111,13 +116,13 @@ def ffmpeg_live_mix_command(
         "-vn",
         *ffmpeg_audio_filter_args(inputs, control_port=control_port),
         "-ac",
-        "1",
+        str(max(source.channels for source in inputs)),
         "-ar",
         "48000",
         "-c:a",
         "libmp3lame",
         "-b:a",
-        "96k",
+        "192k" if any(source.channels == 2 for source in inputs) else "96k",
         "-reservoir",
         "0",
         "-flush_packets",
@@ -143,7 +148,7 @@ def ffmpeg_live_mix_fmp4_command(
         "-vn",
         *ffmpeg_audio_filter_args(inputs, control_port=control_port),
         "-ac",
-        "1",
+        str(max(source.channels for source in inputs)),
         "-ar",
         "48000",
         "-c:a",
@@ -151,7 +156,7 @@ def ffmpeg_live_mix_fmp4_command(
         "-profile:a",
         "aac_low",
         "-b:a",
-        "96k",
+        "192k" if any(source.channels == 2 for source in inputs) else "96k",
         # An empty movie header lets MediaSource start before FFmpeg exits.
         # Keeping fragments near 200 ms gives the browser enough packet depth
         # to decode without letting the transport build seconds of latency.
@@ -178,10 +183,10 @@ def ffmpeg_recording_mix_command(inputs: list[AudioMixInput], file_path: Path) -
         "-vn",
         *ffmpeg_audio_filter_args(inputs, reset_timestamps=True),
         "-ac",
-        "1",
+        str(max(source.channels for source in inputs)),
         "-c:a",
         "libopus",
         "-b:a",
-        "48k",
+        "96k" if any(source.channels == 2 for source in inputs) else "48k",
         str(file_path),
     ]

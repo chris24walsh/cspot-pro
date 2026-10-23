@@ -899,3 +899,21 @@
 .xr-touch-track { touch-action: none; cursor: ns-resize; outline-offset: 8px; border-radius: 6px; }
 .xr-touch-track > span { pointer-events: none; }
 .xr-touch-overlay :focus-visible { outline: 2px solid #7dd3fc; }
+
+.xr-automation { padding: 12px; }
+.xr-automation > header { display: flex; justify-content: space-between; align-items: start; flex-wrap: wrap; gap: 10px; }
+.xr-automation h3 { margin: 0 0 6px; }
+.xr-automation p { color: #b5c6d8; font-size: 12px; line-height: 1.5; }
+.xr-automation-actions, .xr-automation-options { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin: 10px 0; }
+.xr-automation-options label, .xr-automation-actions label { display: flex; align-items: center; gap: 6px; }
+.xr-dashboard .xr-automation select { width: auto; max-width: 100%; }
+.xr-automation details { border: 1px solid #425269; border-radius: 5px; padding: 10px; margin: 12px 0; }
+.xr-automation summary { cursor: pointer; min-height: 32px; }
+.xr-role-grid { display: grid; grid-template-columns: repeat(auto-fit,minmax(200px,1fr)); gap: 8px; margin: 8px 0; }
+.xr-role-grid label { display: grid; gap: 4px; }
+.xr-dashboard .xr-role-grid select { width: 100%; }
+.xr-scene-table-wrap { overflow-x: auto; }
+.xr-scene-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.xr-scene-table th, .xr-scene-table td { border-bottom: 1px solid #344257; padding: 7px; text-align: left; }
+.xr-scene-table input[type=number] { max-width: 95px; }
+.xr-automation input[type=checkbox] { width: 20px; height: 20px; accent-color: #7dd3fc; }

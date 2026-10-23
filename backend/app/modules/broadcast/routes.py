@@ -758,6 +758,8 @@ def settings_read(
             else None
         )
     return BroadcastViewerSettingsRead(
+        audio_mix_mode=settings.audio_mix_mode or "software",
+        mixer_program_source_id=settings.mixer_program_source_id,
         stream_title=settings.stream_title,
         stream_description=settings.stream_description,
         camera_url=settings.camera_url,
@@ -1540,6 +1542,7 @@ def update_viewer_settings(
         if (
             field
             in {
+                "audio_mix_mode",
                 "auto_record_sermons",
                 "recording_grace_seconds",
                 "stream_title",
@@ -1561,6 +1564,14 @@ def update_viewer_settings(
                 )
             value = value or None
         setattr(settings, field, value)
+
+    if settings.audio_mix_mode == "mixer":
+        program = next((source for source in audio_sources(settings)
+                        if source.id == settings.mixer_program_source_id), None)
+        if program is None or not program.url.strip().lower().startswith(("http://", "https://")):
+            raise HTTPException(422, "Select a configured HTTP stereo program source for mixer audio mode")
+        if "audio_mix_mode" in updates or "mixer_program_source_id" in updates:
+            settings.live_audio_source = program.id
 
     if sources and settings.active_camera_id not in source_ids:
         settings.active_camera_id = sources[0].id

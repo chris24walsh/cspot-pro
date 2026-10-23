@@ -806,3 +806,11 @@ can scroll normally elsewhere. A short movement threshold prevents taps from
 moving items. Touch, pen and mouse handles share section drop targets and
 autoscroll; cancellation and release outside a valid destination never save a
 move. Desktop title dragging and the arrow buttons remain available.
+
+XR18 audio scenes can now follow service sections on the server, independently
+of open mixer browsers. Presets hold separate room Main L/R assignments/faders
+and pre-fader stereo bus sends. The existing broadcast scene selection is the
+single cue source; section overrides are inherited by children, and stopping a
+service selects Post-service. Defaults remain hardware automation off and
+software audio mixing. Stereo USB program capture requires on-site validation;
+see [setup and operating behavior](xr18-audio-scenes.md).

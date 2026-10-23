@@ -355,10 +355,26 @@ _audio_scene_fade_lock = Lock()
 _audio_scene_fade_timers: dict[str, tuple[object, Timer]] = {}
 
 
-def _scene_for_item(item: PlanItem | None, video_action: str | None, service_stage: str | None) -> str:
-    configured = (getattr(item, "presentation_options", None) or {}).get("audio_scene_id") if item else None
-    if isinstance(configured, str) and configured.strip():
-        return configured.strip()
+def _scene_for_item(
+    item: PlanItem | None, video_action: str | None, service_stage: str | None,
+    session: Session | None = None,
+) -> str:
+    if service_stage in {"pre_service", "post_service"}:
+        return automatic_scene_for_item(item.item_type if item else None, video_action, service_stage)
+    current = item
+    visited = set()
+    while current is not None:
+        configured = (getattr(current, "presentation_options", None) or {}).get("audio_scene_id")
+        if isinstance(configured, str) and configured.strip():
+            return configured.strip()
+        parent_id = getattr(current, "parent_item_id", None)
+        if session is None or not parent_id or parent_id in visited:
+            break
+        visited.add(parent_id)
+        parent = session.get(PlanItem, parent_id)
+        if parent is None or parent.plan_id != item.plan_id:
+            break
+        current = parent
     return automatic_scene_for_item(item.item_type if item else None, video_action, service_stage)
 
 
@@ -387,7 +403,7 @@ def _activate_current_audio_scene(plan_id: str) -> None:
         activate_audio_scene(
             session,
             settings,
-            _scene_for_item(item, video_action if isinstance(video_action, str) else None, service_stage if isinstance(service_stage, str) else None),
+            _scene_for_item(item, video_action if isinstance(video_action, str) else None, service_stage if isinstance(service_stage, str) else None, session=session),
         )
 
 
@@ -705,6 +721,9 @@ def ensure_scheduled_pre_service(session: Session) -> None:
             latest.status = "ended"
             latest.ended_at = datetime.now(UTC)
             session.commit()
+        if broadcast_settings and broadcast_settings.audio_scene_automation:
+            if broadcast_settings.active_audio_scene != "post_service":
+                activate_audio_scene(session, broadcast_settings, "post_service")
         return
     if latest and latest.status == "live" and latest.ended_at is None:
         position = latest_position
@@ -723,7 +742,7 @@ def ensure_scheduled_pre_service(session: Session) -> None:
             ):
                 return
             if broadcast_settings and broadcast_settings.audio_scene_automation:
-                desired_scene = _scene_for_item(desired_item, None, desired_stage)
+                desired_scene = _scene_for_item(desired_item, None, desired_stage, session=session)
                 if broadcast_settings.active_audio_scene != desired_scene:
                     activate_audio_scene(session, broadcast_settings, desired_scene)
             position_changed = payload.get("scheduled_run_id") != scheduled_run_id
@@ -816,7 +835,7 @@ def ensure_scheduled_pre_service(session: Session) -> None:
     )
     session.commit()
     if broadcast_settings and broadcast_settings.audio_scene_automation:
-        activate_audio_scene(session, broadcast_settings, _scene_for_item(first_item, None, desired_stage))
+        activate_audio_scene(session, broadcast_settings, _scene_for_item(first_item, None, desired_stage, session=session))
 
 
 def _position_payload(position: PresentationPosition | None) -> dict[str, object]:
@@ -994,6 +1013,9 @@ def advance_expired_auto_slide(
         position.payload_json = json.dumps(payload)
         session.commit()
         session.refresh(position)
+        settings = session.scalar(select(BroadcastViewerSettings).limit(1))
+        if settings and settings.audio_scene_automation:
+            activate_audio_scene(session, settings, "post_service")
         return position
     if next_item is None:
         payload.pop("auto_advance_started_at", None)
@@ -1021,7 +1043,7 @@ def advance_expired_auto_slide(
         activate_audio_scene(
             session,
             settings,
-            _scene_for_item(next_item, None, str(payload.get("service_stage", "service"))),
+            _scene_for_item(next_item, None, str(payload.get("service_stage", "service")), session=session),
         )
     session.refresh(position)
     return position
@@ -1292,7 +1314,7 @@ def update_presentation_live_state(
                 activate_audio_scene(
                     session,
                     broadcast_settings,
-                    _scene_for_item(item, payload.video_action, payload.service_stage),
+                    _scene_for_item(item, payload.video_action, payload.service_stage, session=session),
                 )
     return _serialize_live_state(presentation_session, position, plan_id)
 
@@ -1399,7 +1421,7 @@ def update_presentation_output_status(
     if payload.release:
         broadcast_settings = session.scalar(select(BroadcastViewerSettings).limit(1))
         if broadcast_settings and broadcast_settings.audio_scene_automation:
-            activate_audio_scene(session, broadcast_settings, "pre_service")
+            activate_audio_scene(session, broadcast_settings, "post_service")
         release_slide_offset = next_payload.get("slide_offset", 0)
         schedule_sermon_recording(
             plan_id,
@@ -1420,7 +1442,7 @@ def update_presentation_output_status(
             activate_audio_scene(
                 session,
                 broadcast_settings,
-                _scene_for_item(item, video_action if isinstance(video_action, str) else None, service_stage if isinstance(service_stage, str) else None),
+                _scene_for_item(item, video_action if isinstance(video_action, str) else None, service_stage if isinstance(service_stage, str) else None, session=session),
             )
         current_item_id = next_payload.get("plan_item_id")
         slide_offset = next_payload.get("slide_offset", 0)

@@ -457,6 +457,12 @@ export function BroadcastManager({
       {message ? <p className="form-message">{message}</p> : null}
 
       {canManage && activeTab === "livestream" ? <>
+      <section className="broadcast-source-settings"><h3>Audio mixing</h3>
+        <label><input type="checkbox" checked={form.audio_scene_automation} disabled={loading || saving} onChange={event=>void (async()=>{try {const settings=await updateBroadcastViewerSettings({audio_scene_automation:event.target.checked});setForm(current=>({...current,audio_scene_automation:settings.audio_scene_automation}));}catch(error){setMessage(error instanceof Error?error.message:'Could not change audio scene automation');}})()}/>Follow presentation audio scenes</label>
+        <label>Mixing mode<select aria-label="Audio mixing mode" value={form.audio_mix_mode || 'software'} onChange={event=>setForm({...form,audio_mix_mode:event.target.value as 'software'|'mixer'})}><option value="software">Software source mix (existing)</option><option value="mixer">Digital mixer · stereo program feed</option></select></label>
+        {form.audio_mix_mode === 'mixer' && <><label>Stereo program source<select aria-label="Mixer stereo program source" value={form.mixer_program_source_id || ''} onChange={event=>setForm({...form,mixer_program_source_id:event.target.value || null})}><option value="">Choose a verified mixer feed</option>{form.audio_sources.map(source=><option key={source.id} value={source.id}>{source.label}</option>)}</select></label><p>The XR18 mixes audio locally. Scenes change desk sends; cspot captures one stereo feed at unity gain. Configure USB capture on the church PC before selecting this mode.</p></>}
+      </section>
+
       <div className="broadcast-settings-grid" role="tabpanel" aria-label="Livestream settings">
         <section className={`wide-field broadcast-live-launch ${form.manual_live_audience !== "off" ? "is-live" : ""}`} aria-label="Livestream controls">
           <div>
@@ -903,7 +909,7 @@ export function BroadcastManager({
       {canManage && activeTab === "mixer" ? (
         <section className="broadcast-mixer broadcast-tab-panel" aria-label="Musician audio mixer" role="tabpanel">
           <Xr18MixerPanel />
-          <AudioMixerPanel
+          {form.audio_mix_mode !== "mixer" && <AudioMixerPanel
             activeScene={form.active_audio_scene}
             automation={form.audio_scene_automation}
             disabled={loading || saving}
@@ -920,7 +926,7 @@ export function BroadcastManager({
             }}
             scenes={form.audio_scenes}
             sources={form.audio_sources}
-          />
+          />}
           <div className="broadcast-mixer-heading">
             <div>
               <p className="eyebrow">Musician audio</p>

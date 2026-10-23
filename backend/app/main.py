@@ -27,9 +27,12 @@ async def lifespan(_app: FastAPI):
         viewer_settings = session.scalar(select(BroadcastViewerSettings).limit(1))
         configured_audio_sources = audio_sources(viewer_settings) if viewer_settings else []
     reconcile_audio_sources(configured_audio_sources)
+    from app.modules.mixer.automation import automation
+    automation.start()
     try:
         yield
     finally:
+        await automation.stop()
         from app.modules.broadcast.ptz import stop_cruises
         stop_cruises()
         from app.modules.mixer.engine import engine as mixer_engine

@@ -835,3 +835,9 @@ reuse the song catalog and fetch service/worship details concurrently.
 On touchscreens, drag the grip handle on a rail section or item. Normal title
 taps and scrolling remain available; dragging near the rail edge scrolls to
 further destinations. Touch moves share desktop drop markers and Undo.
+
+Service-driven XR18 presets now support separate room levels and stereo stream
+sends. Mixer → Audio scenes provides input mapping, draft presets, capture,
+manual hold, pause and section following. Hardware control defaults off; the
+legacy software audio path remains the default. See the
+[Sunday setup and audio scene guide](docs/xr18-audio-scenes.md).

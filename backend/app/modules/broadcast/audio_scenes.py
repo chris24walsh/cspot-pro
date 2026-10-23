@@ -17,14 +17,21 @@ def activate_audio_scene(
     )
     if scene is None:
         return False
-    sources = apply_scene_to_sources(audio_sources(settings), scene)
-    settings.audio_sources_json = json.dumps(
-        [source.model_dump() for source in sources], separators=(",", ":")
-    )
+    if getattr(settings, "audio_mix_mode", "software") == "mixer":
+        # The desk supplies one finished stereo program. Scene changes must never
+        # switch back to room/PC feeds or apply software trims on top of it.
+        settings.live_audio_source = settings.mixer_program_source_id or "none"
+    else:
+        sources = apply_scene_to_sources(audio_sources(settings), scene)
+        settings.audio_sources_json = json.dumps(
+            [source.model_dump() for source in sources], separators=(",", ":")
+        )
+        settings.live_audio_source = "mix" if any(source.mix_enabled for source in sources) else "none"
     settings.active_audio_scene = scene.id
-    settings.live_audio_source = "mix" if any(source.mix_enabled for source in sources) else "none"
     session.commit()
     session.refresh(settings)
+    from app.modules.mixer.automation import automation
+    automation.notify()
     update_live_audio_controls(live_audio_mix_inputs(settings))
     reconfigure_active_recording(session)
     return True
