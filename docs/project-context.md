@@ -852,3 +852,10 @@ keeping room-only and stream-only inputs independent. Startup still waits for
 all mute acknowledgements and explicit operator release before scene audio
 can open. Input mapping and nonempty saved presets remain necessary; the
 application does not infer physical microphone assignments.
+
+Input mapping distinguishes a service leader/opening mic (`leader`) from the
+pastor/message mic. Draft generation adds a separate `service_leader` preset
+when a leader input is mapped; installations without one retain the standard
+six drafts. Use a matching named broadcast scene to expose it in source buttons
+and section Audio scene overrides. Generating drafts still requires review and
+does not enable hardware control.

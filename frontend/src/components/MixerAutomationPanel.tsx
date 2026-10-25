@@ -13,7 +13,7 @@ export type MixerAutomationConfiguration = {
 };
 type Status = {state: string; scene_id: string | null; detail: string};
 type Response = {configuration: MixerAutomationConfiguration; status: Status; available_scenes?: {id:string;label:string}[]};
-const roles = [['', 'Leave untouched'], ['pastor','Pastor / reader mic'], ['congregation','Congregation mic'], ['worship','Worship voice / instrument'], ['media','PC media / backing tracks'], ['ambience','Room ambience'], ['other','Other · leave untouched']];
+const roles = [['', 'Leave untouched'], ['pastor','Pastor / message mic'], ['leader','Service leader / opening mic'], ['congregation','Congregation mic'], ['worship','Worship voice / instrument'], ['media','PC media / backing tracks'], ['ambience','Room ambience'], ['other','Other · leave untouched']];
 
 export function MixerAutomationPanel({strips, state}: {strips: MixerStrip[]; state: MixerState}) {
   const [form,setForm] = useState<MixerAutomationConfiguration | null>(null);
@@ -87,7 +87,7 @@ export function MixerAutomationPanel({strips, state}: {strips: MixerStrip[]; sta
         const next={...form.roles};if(event.target.value)next[strip.id]=event.target.value;else delete next[strip.id];patch({roles:next,...(!event.target.value || event.target.value==='other'?{scenes:form.scenes.map(scene=>{const channels={...scene.channels};delete channels[strip.id];return {...scene,channels};})}:{})});
       }}>{roles.map(([value,label])=><option key={value} value={value}>{label}</option>)}</select></label>)}</div>
       <button type="button" disabled={busy || !Object.keys(form.roles).length} onClick={()=>void action(async()=>{
-        if(!(await confirm({title:'Generate suggested presets?',confirmLabel:'Generate draft',message:'Replace the six standard scene presets using the mapped input roles. This edits your draft only; review levels and save afterward.'})))return;
+        if(!(await confirm({title:'Generate suggested presets?',confirmLabel:'Generate draft',message:'Replace standard scene presets using the mapped input roles, including Service leader when mapped. This edits your draft only; review levels and save afterward.'})))return;
         const draft=await mixerRequest<MixerAutomationConfiguration>('/automation/suggestions','POST',form);if(alive.current)setForm(draft);
       })}><WandSparkles size={16}/>Generate suggested presets</button>
     </details>

@@ -268,3 +268,21 @@ def test_startup_hold_requires_operator_release_before_scene_can_open_audio():
         assert worker.status["state"] == "adjusted"
 
     asyncio.run(scenario())
+
+
+def test_service_leader_role_has_an_independent_scene_and_preserves_existing_defaults():
+    scenes = {
+        scene.id: scene
+        for scene in suggested_scenes(
+            {"/ch/07": "pastor", "/ch/08": "leader", "/ch/03": "congregation", "/ch/01": "worship"}
+        )
+    }
+    assert scenes["service_leader"].channels["/ch/08"].room.enabled
+    assert scenes["service_leader"].channels["/ch/08"].livestream.enabled
+    assert not scenes["service_leader"].channels["/ch/07"].room.enabled
+    assert not scenes["pastor"].channels["/ch/08"].room.enabled
+    assert not scenes["congregation"].channels["/ch/07"].room.enabled
+    assert scenes["congregation"].channels["/ch/03"].room.enabled
+    assert scenes["worship"].channels["/ch/01"].room.enabled
+    assert "service_leader" not in {scene.id for scene in suggested_scenes({"/ch/07": "pastor"})}
+    assert AutomationConfiguration(roles={"/ch/08": "leader"}).roles["/ch/08"] == "leader"

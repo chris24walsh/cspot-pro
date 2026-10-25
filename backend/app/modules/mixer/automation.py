@@ -28,7 +28,7 @@ SCENES = {
     "pre_service": "Pre-service",
     "post_service": "Post-service",
 }
-Role = Literal["pastor", "congregation", "worship", "media", "ambience", "other"]
+Role = Literal["pastor", "leader", "congregation", "worship", "media", "ambience", "other"]
 
 
 class SceneLevel(BaseModel):
@@ -93,14 +93,19 @@ def configuration(item: MixerConfiguration | None) -> AutomationConfiguration:
 def suggested_scenes(roles: dict[str, Role]) -> list[MixerScene]:
     """Draft levels for explicitly mapped channels; unmapped inputs stay untouched."""
     profiles = []
-    for scene_id, label in SCENES.items():
+    profiles_by_id = dict(SCENES)
+    if "leader" in roles.values():
+        profiles_by_id["service_leader"] = "Service leader"
+    for scene_id, label in profiles_by_id.items():
         channels = {}
         for strip_id, role in roles.items():
             if role == "other":
                 continue
             on = (
                 role == "pastor"
-                and scene_id in {"pastor", "congregation"}
+                and scene_id == "pastor"
+                or role == "leader"
+                and scene_id == "service_leader"
                 or role == "congregation"
                 and scene_id == "congregation"
                 or role == "worship"
