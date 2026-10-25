@@ -3,6 +3,7 @@ import { RefreshCw, Search, SlidersHorizontal, Save, Unplug, Radio, Settings2, C
 import { buildAbsoluteApiUrl } from '../api';
 import { displayValue, emptyMixer, fromWire, mixerRequest, physicalHeadamp, toWire, type MixerParameter, type MixerState, type MixerStrip } from '../xr18';
 import { MixerAutomationPanel } from './MixerAutomationPanel';
+import { MixerSceneControls } from './MixerSceneControls';
 import { MixerFader } from './MixerFader';
 import { MixerCommandQueue } from '../mixerCommands';
 import { mixerBankSize } from '../mixerLayout';
@@ -417,6 +418,7 @@ export function Xr18MixerPanel() {
       <button type="button" title={showSetup ? 'Hide connection settings' : 'Connection settings'} aria-label="Connection settings" aria-expanded={showSetup} aria-controls="xr-connection-settings" onClick={() => { setSetupOpen(!showSetup); setEditorOpen(false); }}><Settings2 size={18} /><span className="xr-action-label">Setup</span></button>
       <button type="button" title={focused ? 'Exit expanded desk' : 'Expand desk to fill screen'} aria-label={focused ? 'Exit expanded desk' : 'Expand desk'} aria-pressed={focused} onClick={() => { setFocused(!focused); setSetupOpen(false); setEditorOpen(false); }}>{focused ? <Minimize2 size={18} /> : <Maximize2 size={18} />}<span className="xr-action-label">{focused ? 'Restore' : 'Expand'}</span></button>
     </div></header>
+    <MixerSceneControls connected={enabled && !state.syncing} />
     {!focused && renderMenus()}
     <div className="xr-connect-bar" id="xr-connection-settings" hidden={!showSetup}><label>Mixer IP<input aria-label="Mixer IP address" value={host} onChange={e => setHost(e.target.value)} placeholder="192.168.2.141" /></label><button type="button" disabled={busy || !host} onClick={() => void run(async () => {
         const s = await mixerRequest<MixerState>('/connection', 'PUT', {

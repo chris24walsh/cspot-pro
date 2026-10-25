@@ -26,6 +26,10 @@ export function MixerAutomationPanel({strips, state}: {strips: MixerStrip[]; sta
   const [message,setMessage] = useState('');
   const alive=useRef(true);
   const loaded=useRef(false);
+  const currentForm=useRef(form);
+  const currentBaseline=useRef(baseline);
+  currentForm.current=form;
+  currentBaseline.current=baseline;
   const {confirm,confirmationDialog}=useConfirmationDialog();
   useEffect(()=>{
     alive.current=true;
@@ -38,7 +42,7 @@ export function MixerAutomationPanel({strips, state}: {strips: MixerStrip[]; sta
         if(!alive.current)return;
         setStatus(response.status);
         setAvailable(response.available_scenes || []);
-        if(initial || !loaded.current){loaded.current=true;setForm(response.configuration);setBaseline(JSON.stringify(response.configuration));setMessage('');}
+        if(initial || !loaded.current || JSON.stringify(currentForm.current)===currentBaseline.current){loaded.current=true;setForm(response.configuration);setBaseline(JSON.stringify(response.configuration));setMessage('');}
       }catch(error){if(alive.current)setMessage(error instanceof Error?error.message:'Could not read scene automation');}
       finally{inFlight=false;}
     }

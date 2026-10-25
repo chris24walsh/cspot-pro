@@ -273,9 +273,9 @@ def delete_snapshot(snapshot_id: str, session: Session = Depends(get_session)):
 
 @router.get("/automation")
 def get_automation(session: Session = Depends(get_session)):
-    from app.modules.mixer.automation import automation, configuration
     from app.modules.broadcast.models import BroadcastViewerSettings
     from app.modules.broadcast.settings import audio_scenes
+    from app.modules.mixer.automation import automation, configuration
     settings = session.scalar(select(BroadcastViewerSettings).limit(1))
     available = [{"id": scene.id, "label": scene.label} for scene in audio_scenes(settings)] if settings else []
     return {"configuration": configuration(config(session)), "status": automation.status,
@@ -305,6 +305,42 @@ def draft_automation(payload: AutomationConfiguration):
     return payload.model_copy(update={"scenes": drafted + [
         scene for scene in payload.scenes if scene.id not in defaults
     ]})
+
+
+class SceneControl(BaseModel):
+    scene_id: str | None = Field(default=None, min_length=1, max_length=80)
+    follow_service: bool | None = None
+
+
+@router.patch("/automation/control")
+def control_automation(payload: SceneControl, session: Session = Depends(get_session)):
+    from app.modules.broadcast.models import BroadcastViewerSettings
+    from app.modules.mixer.automation import automation, configuration, hold_manual_scene
+
+    item = config(session)
+    cfg = configuration(item)
+    if not cfg.enabled:
+        raise HTTPException(409, "Enable hardware automation before selecting scenes")
+    if payload.follow_service is not None:
+        cfg.follow_service = payload.follow_service
+        if cfg.follow_service:
+            cfg.manual_scene_id = None
+        elif not cfg.manual_scene_id:
+            viewer = session.scalar(select(BroadcastViewerSettings).limit(1))
+            current = automation.status.get("scene_id") or (viewer.active_audio_scene if viewer else None)
+            cfg.manual_scene_id = current if current in {s.id for s in cfg.scenes} else None
+    item.automation_json = cfg.model_dump_json()
+    if payload.scene_id:
+        try:
+            hold_manual_scene(session, payload.scene_id, hold=not cfg.follow_service)
+        except ValueError as exc:
+            session.rollback()
+            raise HTTPException(409, str(exc)) from exc
+    session.commit()
+    if payload.scene_id or payload.follow_service is True:
+        engine.startup_scene_hold = False
+    automation.notify()
+    return {"configuration": configuration(item), "status": automation.status}
 
 
 @router.post("/automation/apply/{scene_id}")

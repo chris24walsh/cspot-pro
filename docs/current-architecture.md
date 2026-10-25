@@ -1,5 +1,13 @@
 # Development environments
 
+The main mixer dashboard includes a Scene dropdown and an Auto scenes switch.
+Manual selection applies the saved preset immediately. With Auto scenes on,
+the next automatic presentation cue replaces that choice. Switching Auto scenes
+off holds the current scene while allowing manual selections; switching it on
+clears the manual override and resumes service cues. These controls update only
+scene selection/following, preserve saved preset edits and do not enable disabled
+hardware control. The Audio scenes editor retains Apply & hold for explicit holds.
+
 Pre-service opens mapped band (`worship`) inputs in the room at their saved
 Worship levels while disabling their livestream bus sends. Pre-service media
 remains stream-only in suggested presets. Migration 0077 updates existing band

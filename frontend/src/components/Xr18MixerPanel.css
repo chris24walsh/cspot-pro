@@ -919,3 +919,20 @@
 .xr-automation input[type=checkbox] { width: 20px; height: 20px; accent-color: #7dd3fc; }
 
 .xr-bulk-mute { display: flex; gap: 6px; }
+
+.xr-scene-controls {
+  display:flex;
+  align-items:center;
+  flex-wrap:wrap;
+  gap:8px 16px;
+  padding:6px 10px;
+  border-bottom:1px solid #334155;
+}
+.xr-scene-controls label {
+  display:flex;
+  align-items:center;
+  gap:6px;
+}
+.xr-scene-controls select { max-width:190px; min-height:32px; }
+.xr-scene-controls .xr-auto-scenes { white-space:nowrap; }
+.xr-scene-controls [role="alert"] { color:#fca5a5; }
