@@ -26,6 +26,13 @@ async def lifespan(_app: FastAPI):
         ensure_worship_set_plan_type(session)
         viewer_settings = session.scalar(select(BroadcastViewerSettings).limit(1))
         configured_audio_sources = audio_sources(viewer_settings) if viewer_settings else []
+    from app.modules.mixer.models import MixerConfiguration
+    from app.modules.mixer.engine import engine as mixer_engine
+    with SessionLocal() as session:
+        mixer_config = session.get(MixerConfiguration, "xr18")
+        mixer_host = mixer_config.host if mixer_config else None
+    mixer_engine.arm_startup_mute()
+    await mixer_engine.configure(mixer_host)
     reconcile_audio_sources(configured_audio_sources)
     from app.modules.mixer.automation import automation
     automation.start()

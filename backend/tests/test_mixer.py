@@ -338,3 +338,45 @@ def test_readback_recovery_covers_faders_mutes_and_sends():
         assert root + "/fader" in FADER_READBACK_PATHS
         assert root + "/on" in FADER_READBACK_PATHS
     assert "/ch/01/mix/01/level" in FADER_READBACK_PATHS
+
+
+def test_startup_mute_requires_all_readbacks_and_does_not_repeat_after_release():
+    from app.modules.mixer.engine import STARTUP_MUTE_PATHS
+
+    async def scenario():
+        sent = []
+        class Transport:
+            def sendto(self, packet, address):
+                sent.append(decode(packet))
+        mixer = MixerEngine()
+        mixer.host = "192.168.4.106"
+        mixer.transport = Transport()
+        mixer.identity = ["ip", "desk", "XR18V2", "1.19"]
+        mixer.last_seen = time.monotonic()
+        mixer.arm_startup_mute()
+        assert len(STARTUP_MUTE_PATHS) == 21
+        assert mixer.startup_muting
+        await mixer.apply_startup_mute()
+        assert len(sent) == 21
+        assert all(not args for path, args in sent), "Missing values must be queried first"
+        mixer.values = dict.fromkeys(STARTUP_MUTE_PATHS, 1)
+        with pytest.raises(ValueError, match="Startup mute"):
+            await mixer.write("/ch/01/mix/on", 1)
+        await mixer.apply_startup_mute()
+        writes = [(path, args) for path, args in sent if args]
+        assert len(writes) == 21
+        assert all(path in STARTUP_MUTE_PATHS and args == [0] for path, args in writes)
+        assert mixer.startup_muting, "Sending is not hardware confirmation"
+        for path in STARTUP_MUTE_PATHS[:-1]:
+            mixer.datagram_received(encode(path, 0), (mixer.host, 10024))
+        assert mixer.startup_muting
+        mixer.datagram_received(encode(STARTUP_MUTE_PATHS[-1], 0), (mixer.host, 10024))
+        assert not mixer.startup_muting
+        assert not mixer.pending
+        await mixer.write("/ch/01/mix/on", 1)
+        mixer.datagram_received(encode("/ch/01/mix/on", 1), (mixer.host, 10024))
+        sent.clear()
+        await mixer.apply_startup_mute()
+        assert not sent
+        assert mixer.values["/ch/01/mix/on"] == 1
+    asyncio.run(scenario())

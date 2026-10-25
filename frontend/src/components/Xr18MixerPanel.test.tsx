@@ -419,3 +419,12 @@ it('disables bulk mute when offline or any input mute readback is missing', () =
   emit({...emptyMixer,reset:true,connected:true,values:{'/ch/01/mix/on':1}});
   expect(button().disabled).toBe(true);
 });
+
+it('blocks controls until startup mute confirmation arrives', () => {
+  const values=Object.fromEntries(Array.from({length:16},(_,i)=>[`/ch/${String(i+1).padStart(2,'0')}/mix/on`,0]));
+  emit({...emptyMixer,reset:true,connected:true,startup_muting:true,values});
+  expect(container.textContent).toContain('Startup: muting all inputs and returns');
+  expect(container.querySelector<HTMLButtonElement>('[aria-label="Unmute all input channels and returns"]')!.disabled).toBe(true);
+  emit({...emptyMixer,connected:true,startup_muting:false,values});
+  expect(container.querySelector<HTMLButtonElement>('[aria-label="Unmute all input channels and returns"]')!.disabled).toBe(false);
+});

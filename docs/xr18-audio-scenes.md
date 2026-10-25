@@ -85,3 +85,18 @@ Mixing moves into the XR18 DSP. USB capture, compression, streaming and recordin
 still need the bridge/FFmpeg transport and encoding; this does not eliminate all
 latency. The physical USB, stereo routing and end-to-end listening checks must
 be completed on site before this mode is ready for Sunday use.
+
+On every cspot API startup, the saved mixer connection starts without requiring
+an open browser. All 16 inputs, stereo aux and four FX returns are muted as their
+readbacks arrive. Controls and automatic scenes wait until all 21 mute states
+are confirmed; no automatic unmute follows. Use individual Unmute or Unmute all
+when ready. This also silences an ongoing service if the API restarts. Ordinary
+network reconnects do not reapply a completed startup mute. If startup muting
+was incomplete when the connection dropped, all channels are verified again.
+
+For XR18 power-on protection before cspot connects, enable **X AIR Edit → Setup
+→ Audio/MIDI → Safe Levels → Mute outputs at power cycle** on the desk. This
+native output setting must be enabled and power-cycle tested locally; cspot has
+not changed it remotely. Output muting and channel muting are separate: release
+any native output mute separately when ready. Hardware startup protection cannot
+be guaranteed by cspot while the mixer is unreachable.

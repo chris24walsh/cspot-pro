@@ -213,3 +213,17 @@ def test_suggestions_keep_ambience_out_of_house_and_preserve_unmapped_inputs():
     assert all("/ch/02" not in scene.channels for scene in scenes.values())
     assert fader_wire(0) == 0.75
     assert fader_wire(-90) == 0
+
+
+def test_service_scene_waits_for_startup_mutes():
+    async def scenario():
+        desk = Desk()
+        desk.startup_muting = True
+        worker = SceneAutomation(desk)
+        await worker.tick(cue(config()))
+        assert not desk.writes
+        assert worker.status['detail'] == 'Waiting for startup mute confirmation'
+        desk.startup_muting = False
+        await worker.tick(cue(config()))
+        assert desk.writes
+    asyncio.run(scenario())

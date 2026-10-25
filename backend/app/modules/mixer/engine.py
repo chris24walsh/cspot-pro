@@ -70,8 +70,15 @@ def validate_value(path, value):
     return float(value)
 
 
+STARTUP_MUTE_PATHS = tuple(
+    strip["id"] + "/mix/on" for strip in STRIPS
+    if strip["kind"] in {"input", "aux", "return"}
+)
+
+
 class MixerEngine(asyncio.DatagramProtocol):
     def __init__(self):
+        self.startup_mute_remaining = set()
         self.host = None
         self.transport = None
         self.task = None
@@ -92,6 +99,24 @@ class MixerEngine(asyncio.DatagramProtocol):
         self.recalling = False
         self.error = None
         self.lock = asyncio.Lock()
+
+    @property
+    def startup_muting(self):
+        return bool(self.startup_mute_remaining)
+
+    def arm_startup_mute(self):
+        self.startup_mute_remaining = set(STARTUP_MUTE_PATHS)
+
+    async def apply_startup_mute(self):
+        if not self.startup_muting or not self.connected:
+            return
+        for path in tuple(self.startup_mute_remaining):
+            if path not in self.values:
+                self.send(path)
+            elif self.values[path] == 0:
+                self.startup_mute_remaining.discard(path)
+            elif path not in self.pending:
+                await self.write(path, 0, origin="startup")
 
     @property
     def connected(self):
@@ -139,6 +164,10 @@ class MixerEngine(asyncio.DatagramProtocol):
                     algorithm = self.values.get(path.split("/par/")[0] + "/type", -1)
                     self.fx_specs[path] = parameter_spec(PARAMETERS[path], algorithm, args[0])
                 self.values[path] = args[0]
+                if args[0] == 0:
+                    self.startup_mute_remaining.discard(path)
+                elif self.startup_muting and path in STARTUP_MUTE_PATHS:
+                    self.startup_mute_remaining.add(path)
                 self.last_seen = time.monotonic()
                 pending = self.pending.get(path)
                 if pending and (
@@ -168,6 +197,8 @@ class MixerEngine(asyncio.DatagramProtocol):
                 return
             await self.stop()
             self.host = host
+            if self.startup_muting:
+                self.arm_startup_mute()
             self.values, self.pending, self.failed, self.levels, self.identity = {}, {}, {}, [], []
             self.pending_origins = {}
             self.last_seen = self.last_meter = 0
@@ -247,6 +278,8 @@ class MixerEngine(asyncio.DatagramProtocol):
                 self.readback_task = asyncio.create_task(self.refresh_missing_controls())
             if was_connected and not self.connected:
                 self.synchronized = False
+                if self.startup_muting:
+                    self.arm_startup_mute()
                 self.values.clear()
                 self.fx_specs.clear()
                 self.levels = []
@@ -254,6 +287,8 @@ class MixerEngine(asyncio.DatagramProtocol):
                     self.failed[path] = "Connection lost before confirmation"
                 self.pending.clear()
                 self.pending_origins.clear()
+            if ticks % 4 == 0:
+                await self.apply_startup_mute()
             was_connected = self.connected
             now = time.monotonic()
             for path, (value, started, retries) in list(self.pending.items()):
@@ -270,6 +305,8 @@ class MixerEngine(asyncio.DatagramProtocol):
             await asyncio.sleep(0.25)
 
     def command_value(self, path, value):
+        if self.startup_muting and not (path in STARTUP_MUTE_PATHS and value == 0):
+            raise ValueError("Startup mute is awaiting confirmation for all input channels")
         if path in self.fx_specs and self.fx_specs[path]["kind"] == "int":
             if (
                 not isinstance(value, (int, float))
@@ -297,6 +334,7 @@ class MixerEngine(asyncio.DatagramProtocol):
 
     def snapshot(self):
         return dict(
+            startup_muting=self.startup_muting,
             host=self.host,
             connected=self.connected,
             identity=self.identity,

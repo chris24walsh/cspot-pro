@@ -260,6 +260,11 @@ class SceneAutomation:
             )
             return
         await self.mixer.configure(state.host)
+        if getattr(self.mixer, "startup_muting", False):
+            self.cancel_pending()
+            self.applied_key = None
+            self.status.update(state="waiting", detail="Waiting for startup mute confirmation")
+            return
         if not self.mixer.connected or self.mixer.syncing or self.mixer.recalling:
             self.cancel_pending()
             self.applied_key = None

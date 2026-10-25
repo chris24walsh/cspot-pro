@@ -276,7 +276,7 @@ export function Xr18MixerPanel() {
       document.removeEventListener('visibilitychange', visibility);
     };
   }, []);
-  const enabled = state.connected && streamOnline && !state.recalling;
+  const enabled = state.connected && streamOnline && !state.recalling && !state.startup_muting;
   const controlValue = (path: string) => drafts[path] ?? state.values[path];
   async function write(path: string, value: number | string, confirmed = false, immediate?: boolean) {
     const next = ++sequence.current;
@@ -432,6 +432,7 @@ export function Xr18MixerPanel() {
             subnet
           })))}>Scan LAN</button>{found.map(f => <button type="button" key={f.host} onClick={() => setHost(f.host)}>{f.name} · {f.host} · {f.firmware}</button>)}<small>Discovery runs on the cspot server's LAN. Select an address, then Connect.</small></div></details></div>
     {(error || state.error) && <div className="xr-error" role="alert">{error || state.error}<button type="button" onClick={() => setError('')} aria-label="Dismiss error">×</button></div>}
+    {state.startup_muting && <p className="xr-notice" role="status">Startup: muting all inputs and returns. Waiting for mixer confirmation before enabling controls. Unmute channels when ready; scenes preserve these mutes.</p>}
     {Object.keys(state.failed).length > 0 && <p className="xr-error" role="alert">{Object.keys(state.failed).length} changes have no matching mixer readback. Sync to verify the desk.</p>}
     {state.connected && !streamOnline && <p className="xr-notice" role="status">Live updates interrupted. Reconnecting; controls are disabled until updates resume.</p>}
     {!state.connected && <p className="xr-notice">{state.host ? `Waiting for ${state.host}:10024. Check power, Ethernet mode and LAN routing.` : 'Connect your XR18 to read the desk. Controls become available as the mixer replies.'} {Object.keys(state.values).length > 0 ? 'Displayed values are cached; controls are disabled.' : ''}</p>}

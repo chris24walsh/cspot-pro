@@ -17,6 +17,7 @@ export interface MixerStrip {
   meter: number;
 }
 export interface MixerState {
+  startup_muting?: boolean;
   fx_specs: Record<string, MixerParameter>;
   host: string | null;
   connected: boolean;

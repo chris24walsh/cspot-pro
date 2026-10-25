@@ -847,3 +847,18 @@ aux and FX-return channels across banks. Masters, buses and DCAs are excluded.
 Both actions require live complete channel mute readbacks and affect room and
 livestream together. Service scenes preserve these manual channel mutes; scene
 on/off instead controls Main L/R assignment and independent stream sends.
+
+On every cspot API startup, the saved mixer connection starts without requiring
+an open browser. All 16 inputs, stereo aux and four FX returns are muted as their
+readbacks arrive. Controls and automatic scenes wait until all 21 mute states
+are confirmed; no automatic unmute follows. Use individual Unmute or Unmute all
+when ready. This also silences an ongoing service if the API restarts. Ordinary
+network reconnects do not reapply a completed startup mute. If startup muting
+was incomplete when the connection dropped, all channels are verified again.
+
+For XR18 power-on protection before cspot connects, enable **X AIR Edit → Setup
+→ Audio/MIDI → Safe Levels → Mute outputs at power cycle** on the desk. This
+native output setting must be enabled and power-cycle tested locally; cspot has
+not changed it remotely. Output muting and channel muting are separate: release
+any native output mute separately when ready. Hardware startup protection cannot
+be guaranteed by cspot while the mixer is unreachable.
