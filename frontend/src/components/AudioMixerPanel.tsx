@@ -58,7 +58,7 @@ export function AudioMixerPanel({
       <header>
         <div>
           <strong>Source mix</strong>
-          {!compact ? <small>Set each feed’s digital input trim, then combine the enabled feeds for livestream and recording.</small> : null}
+          {!compact ? <small>Set source trims for livestream and recording. Scene buttons also apply and hold matching XR18 presets when hardware control is enabled; resume section following in Mixer → Audio scenes.</small> : null}
         </div>
         <button
           aria-pressed={liveAudioSource === "mix"}

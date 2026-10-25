@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.core.database import Base
 from app.modules.broadcast.audio_scenes import automatic_scene_for_item
+from app.modules.mixer.models import MixerConfiguration
 from app.modules.broadcast.models import BroadcastViewerSettings
 from app.modules.broadcast.routes import update_viewer_settings
 from app.modules.broadcast.schemas import (
@@ -34,7 +35,7 @@ def test_presentation_state_selects_expected_scene() -> None:
 
 def test_media_and_pre_service_scenes_use_only_pc_media() -> None:
     engine = create_engine("sqlite://")
-    Base.metadata.create_all(engine, tables=[BroadcastViewerSettings.__table__])
+    Base.metadata.create_all(engine, tables=[BroadcastViewerSettings.__table__, MixerConfiguration.__table__])
     with Session(engine) as session:
         update_viewer_settings(
             BroadcastViewerSettingsUpdate(
@@ -260,7 +261,7 @@ def test_adding_first_media_source_applies_the_safe_active_scene(
     media_enabled: bool,
 ) -> None:
     engine = create_engine("sqlite://")
-    Base.metadata.create_all(engine, tables=[BroadcastViewerSettings.__table__])
+    Base.metadata.create_all(engine, tables=[BroadcastViewerSettings.__table__, MixerConfiguration.__table__])
     with Session(engine) as session:
         session.add(
             BroadcastViewerSettings(
@@ -342,7 +343,7 @@ def test_missing_scene_channel_is_applied_as_muted() -> None:
 
 def test_settings_update_persists_normalized_five_scene_configuration() -> None:
     engine = create_engine("sqlite://")
-    Base.metadata.create_all(engine, tables=[BroadcastViewerSettings.__table__])
+    Base.metadata.create_all(engine, tables=[BroadcastViewerSettings.__table__, MixerConfiguration.__table__])
     with Session(engine) as session:
         result = update_viewer_settings(
             BroadcastViewerSettingsUpdate(
@@ -394,7 +395,7 @@ def test_settings_update_persists_normalized_five_scene_configuration() -> None:
 
 def test_pc_media_source_can_replace_the_desk_feed() -> None:
     engine = create_engine("sqlite://")
-    Base.metadata.create_all(engine, tables=[BroadcastViewerSettings.__table__])
+    Base.metadata.create_all(engine, tables=[BroadcastViewerSettings.__table__, MixerConfiguration.__table__])
     with Session(engine) as session:
         result = update_viewer_settings(
             BroadcastViewerSettingsUpdate(
@@ -430,7 +431,7 @@ def test_hardware_program_mode_stays_on_stereo_feed_across_scenes(monkeypatch):
     from pathlib import Path
 
     engine = create_engine("sqlite://")
-    Base.metadata.create_all(engine, tables=[BroadcastViewerSettings.__table__])
+    Base.metadata.create_all(engine, tables=[BroadcastViewerSettings.__table__, MixerConfiguration.__table__])
     with Session(engine) as session:
         settings = BroadcastViewerSettings(
             stream_title="Service", audio_mix_mode="mixer", mixer_program_source_id="program",
@@ -461,7 +462,7 @@ def test_hardware_program_mode_stays_on_stereo_feed_across_scenes(monkeypatch):
 
 def test_hardware_program_mode_rejects_missing_source():
     engine = create_engine("sqlite://")
-    Base.metadata.create_all(engine, tables=[BroadcastViewerSettings.__table__])
+    Base.metadata.create_all(engine, tables=[BroadcastViewerSettings.__table__, MixerConfiguration.__table__])
     with Session(engine) as session:
         from fastapi import HTTPException
         with pytest.raises(HTTPException) as error:
@@ -470,3 +471,51 @@ def test_hardware_program_mode_rejects_missing_source():
                 SimpleNamespace(id="operator"), session,
             )
         assert error.value.status_code == 422
+
+
+def test_source_scene_button_holds_matching_hardware_scene_without_a_live_service():
+    from app.modules.mixer.automation import AutomationConfiguration, MixerScene, SceneChannel, SceneLevel, configuration
+    from app.modules.mixer.models import MixerConfiguration
+    from app.modules.mixer.engine import engine as desk
+
+    db = create_engine('sqlite://')
+    Base.metadata.create_all(db)
+    cfg = AutomationConfiguration(enabled=True, scenes=[MixerScene(
+        id='worship', label='Worship', channels={'/ch/01': SceneChannel(
+            room=SceneLevel(enabled=True), livestream=SceneLevel(enabled=True))})])
+    old_hold = desk.startup_scene_hold
+    try:
+        desk.startup_scene_hold = True
+        with Session(db) as session:
+            item = MixerConfiguration(id='xr18', automation_json=cfg.model_dump_json())
+            session.add_all([item, BroadcastViewerSettings()])
+            session.commit()
+            result = update_viewer_settings(BroadcastViewerSettingsUpdate(active_audio_scene='worship'), SimpleNamespace(id='operator'), session)
+            saved = configuration(item)
+            assert result.active_audio_scene == 'worship'
+            assert saved.manual_scene_id == 'worship'
+            assert not saved.follow_service
+            assert saved.manual_revision == 1
+            from app.modules.mixer.routes import hold_automation_scene
+            response = hold_automation_scene("worship", session)
+            assert response["configuration"].manual_revision == 2
+            assert not response["configuration"].follow_service
+            assert not desk.startup_scene_hold
+    finally:
+        desk.startup_scene_hold = old_hold
+
+
+def test_source_scene_button_rejects_empty_enabled_hardware_preset():
+    from fastapi import HTTPException
+    from app.modules.mixer.automation import AutomationConfiguration, configuration
+    db = create_engine('sqlite://')
+    Base.metadata.create_all(db)
+    with Session(db) as session:
+        item = MixerConfiguration(id='xr18', automation_json=AutomationConfiguration(enabled=True).model_dump_json())
+        session.add_all([item, BroadcastViewerSettings()])
+        session.commit()
+        with pytest.raises(HTTPException) as error:
+            update_viewer_settings(BroadcastViewerSettingsUpdate(active_audio_scene='worship'), SimpleNamespace(id='operator'), session)
+        assert error.value.status_code == 409
+        assert 'Map inputs' in error.value.detail
+        assert configuration(item).follow_service

@@ -78,6 +78,7 @@ STARTUP_MUTE_PATHS = tuple(
 
 class MixerEngine(asyncio.DatagramProtocol):
     def __init__(self):
+        self.startup_scene_hold = False
         self.startup_mute_remaining = set()
         self.host = None
         self.transport = None
@@ -105,6 +106,7 @@ class MixerEngine(asyncio.DatagramProtocol):
         return bool(self.startup_mute_remaining)
 
     def arm_startup_mute(self):
+        self.startup_scene_hold = True
         self.startup_mute_remaining = set(STARTUP_MUTE_PATHS)
 
     async def apply_startup_mute(self):
@@ -326,6 +328,8 @@ class MixerEngine(asyncio.DatagramProtocol):
 
     async def write(self, path, value, *, origin="manual"):
         value = self.command_value(path, value)
+        if origin == "manual" and path in STARTUP_MUTE_PATHS and value == 1:
+            self.startup_scene_hold = False
         self.pending[path] = (value, time.monotonic(), 0)
         self.pending_origins[path] = origin
         self.failed.pop(path, None)
@@ -335,6 +339,7 @@ class MixerEngine(asyncio.DatagramProtocol):
     def snapshot(self):
         return dict(
             startup_muting=self.startup_muting,
+            startup_scene_hold=self.startup_scene_hold,
             host=self.host,
             connected=self.connected,
             identity=self.identity,

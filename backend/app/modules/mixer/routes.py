@@ -284,10 +284,15 @@ def get_automation(session: Session = Depends(get_session)):
 
 @router.put("/automation")
 def save_automation(payload: AutomationConfiguration, session: Session = Depends(get_session)):
-    from app.modules.mixer.automation import automation
+    from app.modules.mixer.automation import automation, configuration
     item = config(session)
+    previous = configuration(item)
     item.automation_json = payload.model_dump_json()
     session.commit()
+    if payload.enabled and (
+        not previous.enabled or not previous.follow_service and payload.follow_service
+    ):
+        engine.startup_scene_hold = False
     automation.notify()
     return {"configuration": payload, "status": automation.status}
 
@@ -311,13 +316,15 @@ def hold_automation_scene(scene_id: str, session: Session = Depends(get_session)
         raise HTTPException(409, "Enable hardware automation before applying a scene")
     if scene_id not in {scene.id for scene in cfg.scenes}:
         raise HTTPException(404, "Hardware scene not found")
-    cfg.follow_service = False
-    cfg.manual_scene_id = scene_id
-    cfg.manual_revision += 1
-    item.automation_json = cfg.model_dump_json()
+    from app.modules.mixer.automation import hold_manual_scene
+    try:
+        hold_manual_scene(session, scene_id)
+    except ValueError as exc:
+        raise HTTPException(409, str(exc)) from exc
     session.commit()
+    engine.startup_scene_hold = False
     automation.notify()
-    return {"configuration": cfg, "status": automation.status}
+    return {"configuration": configuration(item), "status": automation.status}
 
 
 @router.post("/automation/capture/{scene_id}")

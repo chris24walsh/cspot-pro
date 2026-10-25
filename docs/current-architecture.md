@@ -1577,7 +1577,7 @@ cue. Changes apply once per cue/configuration; operator adjustments are retained
 Mixer-permitted accounts can map inputs, save/draft/capture presets, apply a
 manual hold and pause/resume service following. Scenes control channel Main L/R
 assignment/fader and linked bus send levels only. Master levels, preamps,
-phantom, Mute/Solo and processing remain manual. Broadcast-permitted accounts
+phantom, Solo and processing remain manual. Broadcast-permitted accounts
 separately choose `audio_mix_mode` (`software` by default, or `mixer`) and a
 `mixer_program_source_id`. Mixer mode pins the program source with unity gain,
 keeps existing software scene metadata intact, and preserves stereo through
@@ -1591,14 +1591,14 @@ and stereo capture have not been commissioned remotely. See
 The XR18 fader toolbar provides Mute all and confirmed Unmute all for all input,
 aux and FX-return channels across banks. Masters, buses and DCAs are excluded.
 Both actions require live complete channel mute readbacks and affect room and
-livestream together. Service scenes preserve these manual channel mutes; scene
-on/off instead controls Main L/R assignment and independent stream sends.
+livestream together. Service scenes now set mapped channel mutes as well as Main L/R assignments
+and independent stream sends. Manual mute changes last until the next scene.
 
 On every cspot API startup, the saved mixer connection starts without requiring
 an open browser. All 16 inputs, stereo aux and four FX returns are muted as their
 readbacks arrive. Controls and automatic scenes wait until all 21 mute states
-are confirmed; no automatic unmute follows. Use individual Unmute or Unmute all
-when ready. This also silences an ongoing service if the API restarts. Ordinary
+are confirmed. Startup also holds scene following until an operator explicitly
+applies a scene, enables/resumes hardware control, or unmutes a channel. This also silences an ongoing service if the API restarts. Ordinary
 network reconnects do not reapply a completed startup mute. If startup muting
 was incomplete when the connection dropped, all channels are verified again.
 
@@ -1608,3 +1608,20 @@ native output setting must be enabled and power-cycle tested locally; cspot has
 not changed it remotely. Output muting and channel muting are separate: release
 any native output mute separately when ready. Hardware startup protection cannot
 be guaranteed by cspot while the mixer is unreachable.
+
+Explicit source-mixer scene buttons also apply and hold the matching configured
+XR18 preset when hardware control is enabled, including outside a live service.
+Disabled hardware keeps the original software-only behavior. Missing or empty
+hardware presets show an error rather than claiming to apply a desk mix. Resume
+section following with **Mixer → Audio scenes → Resume service cues**. The
+hardware preset dropdown is labelled **Edit preset**; selecting it edits the
+preset, while **Apply & hold** sends it.
+
+Scenes open a mapped channel if either controlled mix needs it, after setting
+routing and levels. They globally mute it only when both controlled mixes have
+explicit settings excluding it. A mix outside scene control is not globally
+muted. This allows scene application to release startup channel mutes while
+keeping room-only and stream-only inputs independent. Startup still waits for
+all mute acknowledgements and explicit operator release before scene audio
+can open. Input mapping and nonempty saved presets remain necessary; the
+application does not infer physical microphone assignments.

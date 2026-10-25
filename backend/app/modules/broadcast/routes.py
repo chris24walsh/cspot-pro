@@ -1577,9 +1577,18 @@ def update_viewer_settings(
         settings.active_camera_id = sources[0].id
     if not sources:
         settings.active_camera_id = None
+    requested_scene = payload.active_audio_scene
+    hardware_hold = False
+    if requested_scene:
+        if requested_scene not in {scene.id for scene in audio_scenes(settings)}:
+            raise HTTPException(422, "The selected audio scene is not configured")
+        from app.modules.mixer.automation import hold_manual_scene
+        try:
+            hardware_hold = hold_manual_scene(session, requested_scene)
+        except ValueError as exc:
+            raise HTTPException(409, str(exc)) from exc
     session.commit()
     session.refresh(settings)
-    requested_scene = payload.active_audio_scene
     if requested_scene and not activate_audio_scene(session, settings, requested_scene):
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
@@ -1588,6 +1597,11 @@ def update_viewer_settings(
     else:
         update_live_audio_controls(live_audio_mix_inputs(settings))
         reconfigure_active_recording(session)
+    if hardware_hold:
+        from app.modules.mixer.engine import engine as mixer_engine
+        from app.modules.mixer.automation import automation
+        mixer_engine.startup_scene_hold = False
+        automation.notify()
     result = settings_read(settings)
     reconcile_audio_sources(independent_sources)
     return result

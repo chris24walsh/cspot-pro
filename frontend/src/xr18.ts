@@ -18,6 +18,7 @@ export interface MixerStrip {
 }
 export interface MixerState {
   startup_muting?: boolean;
+  startup_scene_hold?: boolean;
   fx_specs: Record<string, MixerParameter>;
   host: string | null;
   connected: boolean;

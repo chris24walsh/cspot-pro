@@ -45,7 +45,7 @@ Route PC media playback into a chosen mixer input/USB return and include that
 input in the scene mapping. Check both channels with a left/right test signal.
 Keep capture monitoring out of that playback return to avoid a feedback loop.
 Confirm room changes do not change livestream levels, and vice versa. Channel
-Mute remains a manual override affecting both mixes.
+Mute affects both mixes; a manual mute lasts until the next applied scene.
 
 Copy settings from [the stereo bridge example](../audio-bridge/appsettings.XR18.example.json)
 into the church PC bridge configuration, retaining its real token, URLs and
@@ -70,7 +70,7 @@ Each scene applies once; manual fader adjustments remain until the next scene.
 Room on/off controls the channel's Main L/R assignment rather than global Mute,
 so room exclusion does not remove that channel from the independent stream bus.
 Stream on/off controls bus send levels. Scenes do not touch preamps, phantom
-power, channel Mute/Solo, EQ, dynamics, bus masters or Main L/R master. Existing
+power, Solo, EQ, dynamics, bus masters or Main L/R master. Existing
 channel and bus processing remains available in the normal mixer view.
 
 Service cues require a recent live presentation and the existing global audio
@@ -89,8 +89,8 @@ be completed on site before this mode is ready for Sunday use.
 On every cspot API startup, the saved mixer connection starts without requiring
 an open browser. All 16 inputs, stereo aux and four FX returns are muted as their
 readbacks arrive. Controls and automatic scenes wait until all 21 mute states
-are confirmed; no automatic unmute follows. Use individual Unmute or Unmute all
-when ready. This also silences an ongoing service if the API restarts. Ordinary
+are confirmed. Startup also holds scene following until an operator explicitly
+applies a scene, enables/resumes hardware control, or unmutes a channel. This also silences an ongoing service if the API restarts. Ordinary
 network reconnects do not reapply a completed startup mute. If startup muting
 was incomplete when the connection dropped, all channels are verified again.
 
@@ -100,3 +100,20 @@ native output setting must be enabled and power-cycle tested locally; cspot has
 not changed it remotely. Output muting and channel muting are separate: release
 any native output mute separately when ready. Hardware startup protection cannot
 be guaranteed by cspot while the mixer is unreachable.
+
+Explicit source-mixer scene buttons also apply and hold the matching configured
+XR18 preset when hardware control is enabled, including outside a live service.
+Disabled hardware keeps the original software-only behavior. Missing or empty
+hardware presets show an error rather than claiming to apply a desk mix. Resume
+section following with **Mixer → Audio scenes → Resume service cues**. The
+hardware preset dropdown is labelled **Edit preset**; selecting it edits the
+preset, while **Apply & hold** sends it.
+
+Scenes open a mapped channel if either controlled mix needs it, after setting
+routing and levels. They globally mute it only when both controlled mixes have
+explicit settings excluding it. A mix outside scene control is not globally
+muted. This allows scene application to release startup channel mutes while
+keeping room-only and stream-only inputs independent. Startup still waits for
+all mute acknowledgements and explicit operator release before scene audio
+can open. Input mapping and nonempty saved presets remain necessary; the
+application does not infer physical microphone assignments.

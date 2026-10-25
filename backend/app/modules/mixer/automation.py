@@ -120,6 +120,22 @@ def suggested_scenes(roles: dict[str, Role]) -> list[MixerScene]:
     return profiles
 
 
+def hold_manual_scene(session, scene_id: str) -> bool:
+    """An explicit scene-button click can audition a configured desk without a service."""
+    item = session.get(MixerConfiguration, "xr18")
+    cfg = configuration(item)
+    if not cfg.enabled:
+        return False
+    scene = next((scene for scene in cfg.scenes if scene.id == scene_id), None)
+    if scene is None or not scene_commands(cfg, scene):
+        raise ValueError("Map inputs and save a hardware preset for this scene before applying it")
+    cfg.follow_service = False
+    cfg.manual_scene_id = scene_id
+    cfg.manual_revision += 1
+    item.automation_json = cfg.model_dump_json()
+    return True
+
+
 def fader_wire(db: float) -> float:
     if db <= -90:
         return 0.0
@@ -134,7 +150,14 @@ def fader_wire(db: float) -> float:
 
 def scene_commands(cfg: AutomationConfiguration, scene: MixerScene) -> dict[str, float | int]:
     commands = {}
+    opens = {}
     for strip_id, channel in scene.channels.items():
+        room = channel.room if cfg.room_enabled else None
+        stream = channel.livestream if cfg.livestream_enabled else None
+        if (room and room.enabled) or (stream and stream.enabled):
+            opens[strip_id + "/mix/on"] = 1
+        elif room is not None and stream is not None:
+            commands[strip_id + "/mix/on"] = 0
         if cfg.room_enabled and channel.room is not None:
             commands[strip_id + "/mix/lr"] = int(channel.room.enabled)
             if channel.room.enabled:
@@ -143,6 +166,8 @@ def scene_commands(cfg: AutomationConfiguration, scene: MixerScene) -> dict[str,
             level = fader_wire(channel.livestream.level_db) if channel.livestream.enabled else 0.0
             for bus in (cfg.livestream_bus, cfg.livestream_bus + 1):
                 commands[f"{strip_id}/mix/{bus:02}/level"] = level
+    # Route and set levels before opening microphones.
+    commands.update(opens)
     return commands
 
 
@@ -270,6 +295,13 @@ class SceneAutomation:
             self.applied_key = None
             self.status.update(
                 state="waiting", detail="Waiting for connected, synchronized mixer readbacks"
+            )
+            return
+        if getattr(self.mixer, "startup_scene_hold", False):
+            self.cancel_pending()
+            self.applied_key = None
+            self.status.update(
+                state="waiting", detail="Startup muted: apply a scene or unmute when ready"
             )
             return
         key = (

@@ -372,8 +372,10 @@ def test_startup_mute_requires_all_readbacks_and_does_not_repeat_after_release()
         assert mixer.startup_muting
         mixer.datagram_received(encode(STARTUP_MUTE_PATHS[-1], 0), (mixer.host, 10024))
         assert not mixer.startup_muting
+        assert mixer.startup_scene_hold
         assert not mixer.pending
         await mixer.write("/ch/01/mix/on", 1)
+        assert not mixer.startup_scene_hold
         mixer.datagram_received(encode("/ch/01/mix/on", 1), (mixer.host, 10024))
         sent.clear()
         await mixer.apply_startup_mute()

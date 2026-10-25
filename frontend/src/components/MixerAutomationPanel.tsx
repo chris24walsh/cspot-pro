@@ -54,7 +54,7 @@ export function MixerAutomationPanel({strips, state}: {strips: MixerStrip[]; sta
   const patch=(changes: Partial<MixerAutomationConfiguration>)=>setForm({...form,...changes});
   async function action(work:()=>Promise<void>){setBusy(true);setMessage('');try{await work();}catch(error){if(alive.current)setMessage(error instanceof Error?error.message:'Scene action failed');}finally{if(alive.current)setBusy(false);}}
   async function save(next=form!){
-    if(next.enabled && !(await confirm({title:'Enable hardware scene control?',confirmLabel:'Enable and save',message:'Saved scene presets can change live room levels and livestream sends. Confirm the bus routing and review each preset first. Physical gain, phantom power and channel Mute remain manual.'})))return;
+    if(next.enabled && !(await confirm({title:'Enable hardware scene control?',confirmLabel:'Enable and save',message:'Saved scene presets can change live room levels and livestream sends. Confirm the bus routing and review each preset first. Scenes open channels needed by either mix and mute channels excluded from both. Gain and phantom power remain manual.'})))return;
     await action(async()=>{const response=await mixerRequest<Response>('/automation','PUT',next);if(alive.current){setForm(response.configuration);setBaseline(JSON.stringify(response.configuration));setStatus(response.status);setMessage(next.enabled?'Saved. Following the selected scene mode.':'Saved for setup. Hardware automation is off.');}});
   }
   function channelLevel(strip: string, output:'room'|'livestream', update:Partial<Level>){
@@ -81,7 +81,7 @@ export function MixerAutomationPanel({strips, state}: {strips: MixerStrip[]; sta
       <label><input type="checkbox" checked={form.livestream_enabled} onChange={event=>patch({livestream_enabled:event.target.checked})}/>Control livestream mix</label>
       <label>Livestream stereo buses<select value={form.livestream_bus} onChange={event=>patch({livestream_bus:Number(event.target.value)})}>{[1,3,5].map(bus=><option key={bus} value={bus}>{bus} / {bus+1}</option>)}</select></label>
     </div>
-    <p className="xr-notice">Sunday setup: choose two free buses, link them, and set mapped sends to Pre fader with subgroup off. Route that bus pair to USB capture. The room uses Main L/R assignment and channel levels; livestream sends remain independent. Channel Mute and Solo stay manual. Unmapped channels stay as they are.</p>
+    <p className="xr-notice">Sunday setup: choose two free buses, link them, and set mapped sends to Pre fader with subgroup off. Route that bus pair to USB capture. The room uses Main L/R assignment and channel levels; livestream sends remain independent. Scenes open mapped channels needed by either mix; channels excluded from both controlled mixes are muted. Manual mute changes last until the next scene. Solo stays manual. Unmapped channels stay as they are.</p>
     <details><summary>Map service inputs ({Object.values(form.roles).filter(role=>role!=='other').length})</summary>
       <div className="xr-role-grid">{inputs.map(strip=><label key={strip.id}>{name(strip)}<select aria-label={`${name(strip)} audio role`} value={form.roles[strip.id] || ''} onChange={event=>{
         const next={...form.roles};if(event.target.value)next[strip.id]=event.target.value;else delete next[strip.id];patch({roles:next,...(!event.target.value || event.target.value==='other'?{scenes:form.scenes.map(scene=>{const channels={...scene.channels};delete channels[strip.id];return {...scene,channels};})}:{})});
@@ -92,7 +92,7 @@ export function MixerAutomationPanel({strips, state}: {strips: MixerStrip[]; sta
       })}><WandSparkles size={16}/>Generate suggested presets</button>
     </details>
     <div className="xr-automation-actions">
-      <label>Scene<select aria-label="Hardware scene preset" value={selected} onChange={event=>setSelected(event.target.value)}>{form.scenes.map(scene=><option key={scene.id} value={scene.id}>{scene.label}</option>)}</select></label>
+      <label>Edit preset<select aria-label="Hardware scene preset" value={selected} onChange={event=>setSelected(event.target.value)}>{form.scenes.map(scene=><option key={scene.id} value={scene.id}>{scene.label}</option>)}</select></label>
       {available.some(candidate=>!form.scenes.some(scene=>scene.id===candidate.id)) && <>
         <select aria-label="Add section scene preset" value={newScene} onChange={event=>setNewScene(event.target.value)}><option value="">Add section scene…</option>{available.filter(candidate=>!form.scenes.some(scene=>scene.id===candidate.id)).map(candidate=><option key={candidate.id} value={candidate.id}>{candidate.label}</option>)}</select>
         <button type="button" disabled={!newScene} onClick={()=>{const candidate=available.find(scene=>scene.id===newScene);if(candidate){patch({scenes:[...form.scenes,{...candidate,channels:{}}]});setSelected(candidate.id);setNewScene('');}}}><Plus size={16}/>Add preset</button>

@@ -52,3 +52,8 @@ software-only churches keep the existing path. Section scene overrides inherit
 to children; item overrides take precedence, and service stop now selects
 Post-service. Hardware control is opt-in and requires verified bus/USB routing.
 See [audio scene setup](xr18-audio-scenes.md).
+
+Manual source-mixer scene buttons now apply matching enabled XR18 presets as a
+manual hold, even outside a live service. Hardware scenes set mapped channel
+mutes along with routing/sends; startup holds audio until explicit operator
+release. Software-only mode remains available without a hardware configuration.

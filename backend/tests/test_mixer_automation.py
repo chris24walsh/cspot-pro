@@ -30,6 +30,7 @@ class Desk:
         self.values = {
             "/config/buslink/5-6": 1,
             "/ch/01/mix/lr": 1,
+            "/ch/01/mix/on": 1,
             "/ch/01/mix/fader": 0.5,
             "/ch/01/mix/05/level": 0.1,
             "/ch/01/mix/06/level": 0.1,
@@ -94,10 +95,8 @@ def test_configuration_is_inert_and_protects_hardware_scope():
     commands = scene_commands(cfg, cfg.scenes[0])
     assert commands["/ch/01/mix/fader"] == pytest.approx(0.6)
     assert commands["/ch/01/mix/05/level"] == pytest.approx(0.475)
-    assert all(path.endswith(("/lr", "/fader", "/level")) for path in commands)
-    assert not any(
-        path.endswith("/on") or "headamp" in path or "phantom" in path for path in commands
-    )
+    assert all(path.endswith(("/lr", "/fader", "/level", "/on")) for path in commands)
+    assert not any("headamp" in path or "phantom" in path for path in commands)
 
 
 def test_disabled_drafts_do_not_connect_or_write():
@@ -160,6 +159,7 @@ def test_offline_recovery_applies_only_the_latest_section():
         desk.connected = True
         await controller.tick(cue(cfg, "worship"))
         assert set(desk.writes) == {
+            ("/ch/01/mix/on", 0),
             ("/ch/01/mix/lr", 0),
             ("/ch/01/mix/05/level", 0),
             ("/ch/01/mix/06/level", 0),
@@ -180,9 +180,14 @@ def test_pause_discards_automation_retries_but_preserves_manual_commands():
 
 def test_room_only_and_stream_only_have_independent_scope():
     room = config(livestream_enabled=False)
-    assert set(scene_commands(room, room.scenes[0])) == {"/ch/01/mix/lr", "/ch/01/mix/fader"}
+    assert set(scene_commands(room, room.scenes[0])) == {
+        "/ch/01/mix/lr",
+        "/ch/01/mix/fader",
+        "/ch/01/mix/on",
+    }
     stream = config(room_enabled=False)
     assert set(scene_commands(stream, stream.scenes[0])) == {
+        "/ch/01/mix/on",
         "/ch/01/mix/05/level",
         "/ch/01/mix/06/level",
     }
@@ -222,8 +227,44 @@ def test_service_scene_waits_for_startup_mutes():
         worker = SceneAutomation(desk)
         await worker.tick(cue(config()))
         assert not desk.writes
-        assert worker.status['detail'] == 'Waiting for startup mute confirmation'
+        assert worker.status["detail"] == "Waiting for startup mute confirmation"
         desk.startup_muting = False
         await worker.tick(cue(config()))
         assert desk.writes
+
+    asyncio.run(scenario())
+
+
+def test_scene_opens_needed_inputs_after_levels_and_closes_unused_inputs():
+    cfg = config()
+    scene = cfg.scenes[0]
+    commands = scene_commands(cfg, scene)
+    assert commands["/ch/01/mix/on"] == 1
+    assert list(commands)[-1] == "/ch/01/mix/on"
+    assert scene_commands(cfg, cfg.scenes[1])["/ch/01/mix/on"] == 0
+    scene.channels["/ch/01"].room.enabled = False
+    assert scene_commands(cfg, scene)["/ch/01/mix/on"] == 1, "Stream-only input must remain open"
+    cfg.livestream_enabled = False
+    assert "/ch/01/mix/on" not in scene_commands(cfg, scene), "Do not mute an uncontrolled mix"
+
+
+def test_startup_hold_requires_operator_release_before_scene_can_open_audio():
+    async def scenario():
+        desk = Desk()
+        desk.startup_scene_hold = True
+        desk.values["/ch/01/mix/on"] = 0
+        worker = SceneAutomation(desk)
+        await worker.tick(cue(config()))
+        assert not desk.writes
+        assert "Startup muted" in worker.status["detail"]
+        desk.startup_scene_hold = False
+        await worker.tick(cue(config()))
+        assert desk.values["/ch/01/mix/on"] == 1
+        assert desk.writes[-1] == ("/ch/01/mix/on", 1)
+        desk.values["/ch/01/mix/on"] = 0
+        count = len(desk.writes)
+        await worker.tick(cue(config()))
+        assert len(desk.writes) == count
+        assert worker.status["state"] == "adjusted"
+
     asyncio.run(scenario())

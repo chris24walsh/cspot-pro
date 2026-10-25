@@ -921,8 +921,10 @@ export function BroadcastManager({
               setForm((current) => ({ ...current, ...settings }));
             }}
             onSceneChange={async (active_audio_scene) => {
-              const settings = await updateBroadcastViewerSettings({ active_audio_scene });
-              setForm((current) => ({ ...current, ...settings }));
+              try {
+                const settings = await updateBroadcastViewerSettings({ active_audio_scene });
+                setForm((current) => ({ ...current, ...settings }));
+              } catch (error) { setMessage(error instanceof Error ? error.message : "Could not apply audio scene"); }
             }}
             scenes={form.audio_scenes}
             sources={form.audio_sources}
