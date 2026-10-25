@@ -318,3 +318,18 @@ def test_temporary_source_scene_works_without_service_then_section_selection_tak
         assert worker.status["scene_id"] == "pastor"
 
     asyncio.run(scenario())
+
+
+def test_preservice_band_opens_in_room_with_stream_sends_off():
+    roles = {"/ch/01": "worship", "/ch/02": "worship", "/ch/07": "pastor", "/rtn/aux": "media"}
+    scene = next(scene for scene in suggested_scenes(roles) if scene.id == "pre_service")
+    cfg = AutomationConfiguration(enabled=True)
+    commands = scene_commands(cfg, scene)
+    for strip in ("/ch/01", "/ch/02"):
+        assert commands[f"{strip}/mix/on"] == 1
+        assert commands[f"{strip}/mix/lr"] == 1
+        assert commands[f"{strip}/mix/05/level"] == 0
+        assert commands[f"{strip}/mix/06/level"] == 0
+    assert commands["/ch/07/mix/on"] == 0
+    assert commands["/rtn/aux/mix/lr"] == 0
+    assert commands["/rtn/aux/mix/05/level"] > 0

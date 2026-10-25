@@ -1,5 +1,12 @@
 # Project Context
 
+Pre-service opens mapped band (`worship`) inputs in the room at their saved
+Worship levels while disabling their livestream bus sends. Pre-service media
+remains stream-only in suggested presets. Migration 0077 updates existing band
+presets without enabling livestream bus control or changing USB routing. Until
+the isolated bus feed is connected and capture is verified, the legacy desk
+feed cannot be assumed to exclude room rehearsal audio.
+
 ## Audio mixing retirement — 25 October 2026
 
 Software source mixing is retired. The XR18 mixes locally and supplies one stereo

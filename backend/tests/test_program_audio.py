@@ -142,3 +142,48 @@ def test_migration_preserves_desks_mutes_and_ambiguous_sources(monkeypatch):
         assert rows["muted"].live_audio_source == "none"
         assert all(row.audio_mix_mode == "mixer" for row in rows.values())
         assert json.loads(rows["legacy"].audio_sources_json)[1]["id"] == "pc"
+
+
+def test_preservice_migration_preserves_levels_and_stages_stream_routing(monkeypatch):
+    path = Path(__file__).parents[1] / "migrations/versions/0077_preservice_band_room.py"
+    spec = importlib.util.spec_from_file_location("preservice_band", path)
+    migration = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(migration)
+    cfg = {
+        "enabled": True,
+        "livestream_enabled": False,
+        "roles": {"/ch/01": "worship", "/ch/07": "pastor"},
+        "scenes": [
+            {
+                "id": "worship",
+                "channels": {"/ch/01": {"room": {"enabled": True, "level_db": -6.46}}},
+            },
+            {
+                "id": "pre_service",
+                "channels": {
+                    "/ch/01": {
+                        "room": {"enabled": False, "level_db": -12},
+                        "livestream": {"enabled": True, "level_db": -7},
+                    },
+                    "/ch/07": {"room": {"enabled": False, "level_db": -9}},
+                },
+            },
+        ],
+    }
+    db = create_engine("sqlite://")
+    Base.metadata.create_all(db, tables=[MixerConfiguration.__table__])
+    with db.begin() as connection:
+        connection.execute(
+            MixerConfiguration.__table__.insert().values(id="xr18", automation_json=json.dumps(cfg))
+        )
+        monkeypatch.setattr(migration.op, "get_bind", lambda: connection)
+        migration.upgrade()
+        saved = json.loads(
+            connection.execute(text("SELECT automation_json FROM mixer_configuration")).scalar()
+        )
+        band = saved["scenes"][1]["channels"]["/ch/01"]
+        assert band["room"] == {"enabled": True, "level_db": -6.46}
+        assert band["livestream"] == {"enabled": False, "level_db": -7}
+        assert saved["scenes"][0] == cfg["scenes"][0]
+        assert saved["scenes"][1]["channels"]["/ch/07"] == cfg["scenes"][1]["channels"]["/ch/07"]
+        assert saved["livestream_enabled"] is False

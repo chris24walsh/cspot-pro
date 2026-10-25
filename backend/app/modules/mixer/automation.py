@@ -115,7 +115,9 @@ def suggested_scenes(roles: dict[str, Role]) -> list[MixerScene]:
             )
             ambient_db = {"pastor": -18, "congregation": -6, "worship": -12}.get(scene_id)
             channels[strip_id] = SceneChannel(
-                room=SceneLevel(enabled=bool(on and scene_id != "pre_service")),
+                room=SceneLevel(
+                    enabled=(role == "worship" if scene_id == "pre_service" else bool(on))
+                ),
                 livestream=SceneLevel(
                     enabled=on or role == "ambience" and ambient_db is not None,
                     level_db=ambient_db if role == "ambience" and ambient_db is not None else 0,
