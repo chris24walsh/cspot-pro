@@ -668,7 +668,12 @@ Viewer settings are stored in the database and edited from Broadcast Settings.
 Camera sources are kept warm in layered players so switching uses an opacity
 cross-fade instead of reconnecting. The camera gateway uses MSE over a proxied
 WebSocket for low-latency playback, with native/HLS/MJPEG compatibility paths,
-a stall watchdog, and automatic reconnection. Slide state is polled separately
+a stall watchdog, and automatic reconnection. On iPhones without standard
+MediaSource, camera and program-audio WebSocket playback use ManagedMediaSource when available, disable
+remote playback so WebKit opens the source, and append queued fragments when
+the browser requests streaming. Older or unsupported devices retain HLS fallback.
+This reduces browser buffering; actual end-to-end delay still needs device testing.
+Slide state is polled separately
 at 500 ms and passes through a configurable delay so it can be aligned with the
 camera pipeline.
 

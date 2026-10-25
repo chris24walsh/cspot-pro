@@ -432,3 +432,77 @@ describe("LowLatencyCamera on older Safari", () => {
     act(() => root.unmount());
   });
 });
+
+describe("Livestream playback on modern iPhone", () => {
+  it.each(["camera", "audio"])("uses managed MSE for %s, respects streaming demand, and retains HLS recovery", async (kind) => {
+    const { FakeMediaSource } = installHttpMseSupport();
+    class ManagedSource extends FakeMediaSource {
+      streaming = false;
+    }
+    class Socket extends EventTarget {
+      static instances: Socket[] = [];
+      binaryType = "";
+      send = vi.fn();
+      close = vi.fn();
+      constructor() { super(); Socket.instances.push(this); }
+    }
+    vi.stubGlobal("MediaSource", undefined);
+    vi.stubGlobal("ManagedMediaSource", ManagedSource);
+    vi.stubGlobal("WebSocket", Socket);
+    vi.spyOn(HTMLMediaElement.prototype, "play").mockResolvedValue(undefined);
+    vi.spyOn(HTMLMediaElement.prototype, "load").mockImplementation(() => undefined);
+    vi.spyOn(HTMLMediaElement.prototype, "canPlayType").mockReturnValue("probably");
+    const container = document.createElement("div");
+    const root = createRoot(container);
+    cleanups.push(() => { act(() => root.unmount()); container.remove(); });
+    const url = "https://example.com/app/camera/api/stream.m3u8?src=lectern";
+    await act(async () => root.render(kind === "camera"
+      ? <LowLatencyCamera label="Lectern" url={url} />
+      : <LiveStreamAudio label="Live audio" soundEnabled={true} url={url} />));
+    const video = container.querySelector(kind === "camera" ? "video" : "audio")!;
+    expect(video.src).toMatch(/^blob:/);
+    expect(video.disableRemotePlayback).toBe(true);
+    const source = FakeMediaSource.instances[0] as ManagedSource;
+    const socket = Socket.instances[0];
+    act(() => {
+      source.dispatchEvent(new Event("sourceopen"));
+      socket.dispatchEvent(new Event("open"));
+    });
+    expect(socket.send).not.toHaveBeenCalled();
+    act(() => {
+      source.streaming = true;
+      source.dispatchEvent(new Event("startstreaming"));
+    });
+    expect(socket.send).toHaveBeenCalledWith(expect.stringContaining('"type":"mse"'));
+    source.streaming = false;
+    act(() => socket.dispatchEvent(new MessageEvent("message", { data: JSON.stringify({ type: "mse", value: 'video/mp4; codecs="avc1.640029"' }) })));
+    await act(async () => socket.dispatchEvent(new MessageEvent("message", { data: new ArrayBuffer(16) })));
+    expect(source.sourceBuffer.appendBuffer).not.toHaveBeenCalled();
+    await act(async () => {
+      source.streaming = true;
+      source.dispatchEvent(new Event("startstreaming"));
+    });
+    expect(source.sourceBuffer.appendBuffer).toHaveBeenCalledTimes(1);
+    expect(socket.send).toHaveBeenCalledTimes(1);
+    await act(async () => socket.dispatchEvent(new MessageEvent("message", { data: JSON.stringify({ type: "error", value: "test failure" }) })));
+    expect(container.querySelector(kind === "camera" ? "video" : "audio")!.src).toBe(kind === "camera" ? `${url}&video=h264` : url);
+    if (kind === "audio") expect(container.querySelector('button[aria-label="Mute sound"]')).not.toBeNull();
+    expect(socket.close).toHaveBeenCalled();
+  });
+});
+
+it("keeps standard MSE camera playback when both source APIs are available", async () => {
+  const { FakeMediaSource } = installHttpMseSupport();
+  const managed = vi.fn();
+  vi.stubGlobal("ManagedMediaSource", managed);
+  vi.stubGlobal("WebSocket", class extends EventTarget { close = vi.fn(); });
+  vi.spyOn(HTMLMediaElement.prototype, "play").mockResolvedValue(undefined);
+  vi.spyOn(HTMLMediaElement.prototype, "load").mockImplementation(() => undefined);
+  const container = document.createElement("div");
+  const root = createRoot(container);
+  cleanups.push(() => { act(() => root.unmount()); container.remove(); });
+  await act(async () => root.render(<LowLatencyCamera label="Lectern" url="https://example.com/app/camera/api/stream.m3u8?src=lectern" />));
+  expect(FakeMediaSource.instances).toHaveLength(1);
+  expect(managed).not.toHaveBeenCalled();
+  expect(container.querySelector("video")!.disableRemotePlayback).toBe(false);
+});
