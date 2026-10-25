@@ -56,6 +56,26 @@ to **off**, and existing installations retain the software audio mixer.
 
 ## Sunday connection and listening checks
 
+### Church USB setup — 25 October 2026
+
+The church PC uses the Music Tribe-signed BEHRINGER X-AIR driver 5.72.0.21015.
+The generic Microsoft USB audio drivers failed with Code 10; installing the
+manufacturer's driver restored the XR18 recording endpoints without a reboot.
+
+Linked buses 5/6 supply the dedicated stereo livestream mix. Mapped scene
+channels use pre-fader sends with subgroup off. USB outputs 1/2 take Bus5/Bus6
+at the post-fader tap, and the saved scene configuration enables livestream
+control alongside the existing room control.
+
+The headless Windows bridge's existing `desk` source captures
+`IN 1-2 (BEHRINGER X-AIR)`, with `OutputChannels: 2`, 48 kHz output, 192 kbps MP3
+and unity gain. Its existing URL and access token are retained, so CSpot's
+selected Desk feed continues to identify this source. The old USB Audio CODEC
+device is no longer the capture source. Use a stereo-capable bridge executable:
+older installations ignore `OutputChannels` and always encode mono.
+
+### General setup
+
 Connect the XR18 USB-B port to the church PC using the USB A–B cable. Verify the
 Windows driver and the actual stereo recording endpoint before changing the
 bridge configuration. The provided DirectShow example requires an endpoint that
