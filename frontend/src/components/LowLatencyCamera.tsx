@@ -25,12 +25,6 @@ function cameraKind(url: string) {
   return "frame";
 }
 
-function streamMediaSource() {
-  if (typeof MediaSource !== "undefined") return MediaSource;
-  // iPhone exposes the MSE-compatible managed API instead of MediaSource.
-  return (globalThis as typeof globalThis & { ManagedMediaSource?: typeof MediaSource }).ManagedMediaSource;
-}
-
 function LowLatencyMseVideo({ label, onFallback, url }: { label: string; onFallback: () => void; url: string }) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const [retryToken, setRetryToken] = useState(0);
@@ -39,8 +33,7 @@ function LowLatencyMseVideo({ label, onFallback, url }: { label: string; onFallb
 
   useEffect(() => {
     const video = videoRef.current;
-    const Source = streamMediaSource();
-    if (!video || !websocketUrl || !Source) return undefined;
+    if (!video || !websocketUrl) return undefined;
     let disposed = false;
     let socket: WebSocket | null = null;
     let reconnectTimer = 0;
@@ -63,7 +56,6 @@ function LowLatencyMseVideo({ label, onFallback, url }: { label: string; onFallb
 
     const appendNext = () => {
       if (!sourceBuffer || sourceBuffer.updating || !queue.length) return;
-      if (mediaSource && "streaming" in mediaSource && !mediaSource.streaming) return;
       try {
         sourceBuffer.appendBuffer(queue.shift()!);
       } catch {
@@ -83,18 +75,10 @@ function LowLatencyMseVideo({ label, onFallback, url }: { label: string; onFallb
       setStatus((current) => current === "connecting" ? current : "recovering");
       queue.length = 0;
       sourceBuffer = null;
-      try {
-        mediaSource = new Source();
-      } catch {
-        fallBack("media source unavailable");
-        return;
-      }
+      mediaSource = new MediaSource();
       sourceOpen = false;
       socketOpen = false;
       video.srcObject = null;
-      // WebKit requires this (or an AirPlay alternative) before MMS opens.
-      video.disableRemotePlayback = typeof MediaSource === "undefined";
-      if (video.src.startsWith("blob:")) URL.revokeObjectURL(video.src);
       video.src = URL.createObjectURL(mediaSource);
       video.muted = true;
       video.defaultMuted = true;
@@ -104,22 +88,15 @@ function LowLatencyMseVideo({ label, onFallback, url }: { label: string; onFallb
       socket = new WebSocket(websocketUrl);
       socket.binaryType = "arraybuffer";
 
-      let mseRequested = false;
       const requestMse = () => {
-        if (!sourceOpen || !socketOpen || !socket || mseRequested) return;
-        if (mediaSource && "streaming" in mediaSource && !mediaSource.streaming) return;
-        const codecs = MSE_CODECS.filter((codec) => Source.isTypeSupported(`video/mp4; codecs="${codec}"`)).join();
-        mseRequested = true;
+        if (!sourceOpen || !socketOpen || !socket) return;
+        const codecs = MSE_CODECS.filter((codec) => MediaSource.isTypeSupported(`video/mp4; codecs="${codec}"`)).join();
         socket.send(JSON.stringify({ type: "mse", value: codecs }));
       };
       mediaSource.addEventListener("sourceopen", () => {
         sourceOpen = true;
         requestMse();
       }, { once: true });
-      mediaSource.addEventListener("startstreaming", () => {
-        requestMse();
-        appendNext();
-      });
       socket.addEventListener("open", () => {
         socketOpen = true;
         requestMse();
@@ -135,7 +112,7 @@ function LowLatencyMseVideo({ label, onFallback, url }: { label: string; onFallb
             return;
           }
           if (message.type === "mse" && message.value && mediaSource?.readyState === "open" && !sourceBuffer) {
-            if (!Source.isTypeSupported(message.value)) {
+            if (!MediaSource.isTypeSupported(message.value)) {
               fallBack(`unsupported codec ${message.value}`);
               return;
             }
@@ -312,7 +289,7 @@ export function LowLatencyCamera({ label, url }: { label: string; url: string })
   const [failedMseUrl, setFailedMseUrl] = useState<string | null>(null);
   const fallBack = useCallback(() => setFailedMseUrl(url), [url]);
   const kind = cameraKind(url);
-  if (websocketUrl && failedMseUrl !== url && streamMediaSource()) {
+  if (websocketUrl && failedMseUrl !== url && typeof MediaSource !== "undefined") {
     return <LowLatencyMseVideo label={label} onFallback={fallBack} url={url} />;
   }
   const nativeStreamUrl = go2RtcVideoStreamUrl(url);
@@ -366,15 +343,13 @@ function LowLatencyMseAudio({
 
   useEffect(() => {
     const audio = audioRef.current;
-    const Source = streamMediaSource();
-    if (!audio || !websocketUrl || !Source) return undefined;
+    if (!audio || !websocketUrl) return undefined;
     audio.muted = !soundEnabled;
     audio.defaultMuted = !soundEnabled;
     let disposed = false;
     let fallbackTriggered = false;
     let socket: WebSocket | null = null;
     let sourceBuffer: SourceBuffer | null = null;
-    let activeMediaSource: MediaSource | null = null;
     let reconnectTimer = 0;
     let watchdogTimer = 0;
     let startupTimer = 0;
@@ -405,7 +380,6 @@ function LowLatencyMseAudio({
 
     const appendNext = () => {
       if (!sourceBuffer || sourceBuffer.updating || !queue.length) return;
-      if (activeMediaSource && "streaming" in activeMediaSource && !activeMediaSource.streaming) return;
       try {
         sourceBuffer.appendBuffer(queue.shift()!);
       } catch {
@@ -418,15 +392,7 @@ function LowLatencyMseAudio({
       reconnectTimer = 0;
       sourceBuffer = null;
       queue.length = 0;
-      let mediaSource: MediaSource;
-      try {
-        mediaSource = new Source();
-      } catch {
-        fallBack("media source unavailable");
-        return;
-      }
-      activeMediaSource = mediaSource;
-      audio.disableRemotePlayback = typeof MediaSource === "undefined";
+      const mediaSource = new MediaSource();
       let sourceOpen = false;
       let socketOpen = false;
       const previousObjectUrl = objectUrl;
@@ -436,27 +402,20 @@ function LowLatencyMseAudio({
       lastDataAt = Date.now();
       socket = new WebSocket(websocketUrl);
       socket.binaryType = "arraybuffer";
-      let mseRequested = false;
       const requestMse = () => {
-        if (!sourceOpen || !socketOpen || !socket || mseRequested) return;
-        if ("streaming" in mediaSource && !mediaSource.streaming) return;
+        if (!sourceOpen || !socketOpen || !socket) return;
         const codecs = ["mp4a.40.2", "mp4a.40.5", "flac", "opus"]
-          .filter((codec) => Source.isTypeSupported(`video/mp4; codecs="${codec}"`)).join();
+          .filter((codec) => MediaSource.isTypeSupported(`video/mp4; codecs="${codec}"`)).join();
         if (!codecs) {
           fallBack("no supported audio codec");
           return;
         }
-        mseRequested = true;
         socket.send(JSON.stringify({ type: "mse", value: codecs }));
       };
       mediaSource.addEventListener("sourceopen", () => {
         sourceOpen = true;
         requestMse();
       }, { once: true });
-      mediaSource.addEventListener("startstreaming", () => {
-        requestMse();
-        appendNext();
-      });
       socket.addEventListener("open", () => {
         socketOpen = true;
         requestMse();
@@ -471,7 +430,7 @@ function LowLatencyMseAudio({
             return;
           }
           if (message.type === "mse" && message.value && mediaSource.readyState === "open" && !sourceBuffer) {
-            if (!Source.isTypeSupported(message.value)) {
+            if (!MediaSource.isTypeSupported(message.value)) {
               fallBack(`unsupported codec ${message.value}`);
               return;
             }
@@ -761,7 +720,7 @@ export function LiveStreamAudio({
   ) {
     return <HttpLiveAudioMse label={label} onFallback={fallBack} onSoundEnabledChange={changeSoundEnabled} preserveSoundOnPlaybackFailure={preserveSoundOnPlaybackFailure} soundEnabled={soundEnabled} url={url} />;
   }
-  if (websocketUrl && failedMseUrl !== url && streamMediaSource()) {
+  if (websocketUrl && failedMseUrl !== url && typeof MediaSource !== "undefined") {
     return <LowLatencyMseAudio label={label} onFallback={fallBack} onSoundEnabledChange={changeSoundEnabled} preserveSoundOnPlaybackFailure={preserveSoundOnPlaybackFailure} soundEnabled={soundEnabled} url={activeUrl} />;
   }
   return <FallbackLiveStreamAudio label={label} onSoundEnabledChange={changeSoundEnabled} preserveSoundOnPlaybackFailure={preserveSoundOnPlaybackFailure} soundEnabled={soundEnabled} url={activeUrl} />;
