@@ -10,6 +10,7 @@ from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session
 
 from app.core.database import Base
+from app.modules.mixer.models import MixerConfiguration
 from app.modules.broadcast.models import BroadcastViewerSettings
 from app.modules.broadcast.schemas import ServiceScheduleRule
 from app.modules.music.models import Song  # noqa: F401 - registers the PlanItem FK target
@@ -208,7 +209,7 @@ def test_item_scene_override_wins_over_type_inference() -> None:
 def test_cleanup_live_sessions_keeps_only_selected_service_live() -> None:
     engine = create_engine("sqlite://")
     Base.metadata.create_all(
-        engine, tables=[PresentationSession.__table__, PresentationPosition.__table__]
+        engine, tables=[MixerConfiguration.__table__,PresentationSession.__table__, PresentationPosition.__table__]
     )
     with Session(engine) as session:
         selected = PresentationSession(plan_id="plan-2", status="live")
@@ -257,7 +258,7 @@ def test_cleanup_live_sessions_keeps_only_selected_service_live() -> None:
 def test_selecting_a_slide_on_another_date_does_not_end_the_active_output() -> None:
     engine = create_engine("sqlite://")
     Base.metadata.create_all(
-        engine, tables=[PresentationSession.__table__, PresentationPosition.__table__]
+        engine, tables=[MixerConfiguration.__table__,PresentationSession.__table__, PresentationPosition.__table__]
     )
     with Session(engine) as session:
         active = PresentationSession(plan_id="preceding-plan", status="live")
@@ -291,7 +292,7 @@ def test_selecting_a_slide_on_another_date_does_not_end_the_active_output() -> N
 def test_stale_live_slide_update_does_not_replace_newer_selection() -> None:
     engine = create_engine("sqlite://")
     Base.metadata.create_all(
-        engine, tables=[PresentationSession.__table__, PresentationPosition.__table__]
+        engine, tables=[MixerConfiguration.__table__,PresentationSession.__table__, PresentationPosition.__table__]
     )
     with Session(engine) as session:
         presentation_session = PresentationSession(plan_id="plan-1", status="live")
@@ -335,7 +336,7 @@ def test_cleanup_live_sessions_ends_past_service_by_next_day() -> None:
     engine = create_engine("sqlite://")
     Base.metadata.create_all(
         engine,
-        tables=[
+        tables=[MixerConfiguration.__table__,
             PlanType.__table__,
             Plan.__table__,
             PresentationSession.__table__,
@@ -377,7 +378,7 @@ def test_cleanup_historical_service_respects_explicit_output_state(
     engine = create_engine("sqlite://")
     Base.metadata.create_all(
         engine,
-        tables=[
+        tables=[MixerConfiguration.__table__,
             PlanType.__table__,
             Plan.__table__,
             PresentationSession.__table__,
@@ -613,7 +614,7 @@ def test_remote_release_prevents_the_closed_output_from_reclaiming() -> None:
     engine = create_engine("sqlite://")
     Base.metadata.create_all(
         engine,
-        tables=[
+        tables=[MixerConfiguration.__table__,
             PresentationSession.__table__,
             PresentationPosition.__table__,
             BroadcastViewerSettings.__table__,
@@ -736,7 +737,7 @@ def test_stopping_scheduled_session_prevents_immediate_restart() -> None:
     engine = create_engine("sqlite://")
     Base.metadata.create_all(
         engine,
-        tables=[
+        tables=[MixerConfiguration.__table__,
             PresentationSession.__table__,
             PresentationPosition.__table__,
             BroadcastViewerSettings.__table__,
@@ -777,7 +778,7 @@ def test_routine_output_heartbeat_does_not_schedule_recording(monkeypatch) -> No
     engine = create_engine("sqlite://")
     Base.metadata.create_all(
         engine,
-        tables=[
+        tables=[MixerConfiguration.__table__,
             PresentationSession.__table__,
             PresentationPosition.__table__,
             BroadcastViewerSettings.__table__,
@@ -824,7 +825,7 @@ def test_new_output_on_sermon_schedules_one_recording_start(monkeypatch) -> None
     engine = create_engine("sqlite://")
     Base.metadata.create_all(
         engine,
-        tables=[
+        tables=[MixerConfiguration.__table__,
             PresentationSession.__table__,
             PresentationPosition.__table__,
             BroadcastViewerSettings.__table__,
@@ -895,7 +896,7 @@ def test_new_output_derives_scene_from_current_presentation_state(
     engine = create_engine("sqlite://")
     Base.metadata.create_all(
         engine,
-        tables=[
+        tables=[MixerConfiguration.__table__,
             PresentationSession.__table__,
             PresentationPosition.__table__,
             BroadcastViewerSettings.__table__,
@@ -947,7 +948,7 @@ def test_starting_service_defers_audio_scene_change_for_the_program_fade() -> No
     engine = create_engine("sqlite://")
     Base.metadata.create_all(
         engine,
-        tables=[
+        tables=[MixerConfiguration.__table__,
             PresentationSession.__table__,
             PresentationPosition.__table__,
             BroadcastViewerSettings.__table__,
@@ -1000,7 +1001,7 @@ def test_live_state_only_schedules_real_sermon_slide_changes(monkeypatch) -> Non
     engine = create_engine("sqlite://")
     Base.metadata.create_all(
         engine,
-        tables=[
+        tables=[MixerConfiguration.__table__,
             PresentationSession.__table__,
             PresentationPosition.__table__,
             BroadcastViewerSettings.__table__,
@@ -1261,3 +1262,49 @@ def test_hardware_scene_worker_follows_only_recent_live_or_post_service_sessions
         live.started_at = now - timedelta(days=2)
         session.commit()
         assert module.load_state().service_id is None
+        live.status = "ready"
+        live.updated_at = now
+        session.commit()
+        assert module.load_state().service_id == "preview:" + live.id
+        live.updated_at = now - timedelta(hours=1)
+        session.commit()
+        assert module.load_state().service_id is None
+
+
+@pytest.mark.parametrize('persistent_hold', [False, True])
+def test_selected_section_drives_hardware_audio_without_slideshow(monkeypatch, persistent_hold):
+    from app.modules.mixer import automation as module
+    from app.modules.mixer.engine import engine as desk
+    db = create_engine('sqlite://')
+    Base.metadata.create_all(db)
+    monkeypatch.setattr(module, 'SessionLocal', lambda: Session(db))
+    old_hold = desk.startup_scene_hold
+    try:
+        desk.startup_scene_hold = True
+        with Session(db) as session:
+            plan_type = PlanType(name='Preview audio', active=True)
+            session.add(plan_type)
+            session.flush()
+            plan = Plan(title='Preview audio', plan_type_id=plan_type.id, service_date=datetime.now(UTC))
+            session.add(plan)
+            session.flush()
+            section = PlanItem(plan_id=plan.id,title='Worship',item_type='worship_set',sequence=1,presentation_options={'audio_scene_id':'worship'})
+            session.add(section)
+            session.flush()
+            child = PlanItem(plan_id=plan.id,parent_item_id=section.id,title='Song',item_type='song',sequence=1)
+            cfg = module.AutomationConfiguration(enabled=True,follow_service=not persistent_hold,manual_scene_id='pastor')
+            mixer = MixerConfiguration(id='xr18',automation_json=cfg.model_dump_json())
+            settings = BroadcastViewerSettings(audio_scene_automation=True,active_audio_scene='pastor')
+            session.add_all([child,mixer,settings])
+            session.commit()
+            result = update_presentation_live_state(plan.id,PresentationLiveStateWrite(plan_id=plan.id,plan_item_id=child.id,updated_at=1000),SimpleNamespace(id='presenter'),session)
+            assert result.status == 'ready'
+            assert settings.active_audio_scene == ('pastor' if persistent_hold else 'worship')
+            saved = module.configuration(mixer)
+            assert saved.manual_scene_id == ('pastor' if persistent_hold else None)
+            state = module.load_state()
+            assert state.service_id.startswith('preview:')
+            assert state.service_scene == settings.active_audio_scene
+            assert desk.startup_scene_hold == persistent_hold
+    finally:
+        desk.startup_scene_hold = old_hold

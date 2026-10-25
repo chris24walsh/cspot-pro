@@ -303,3 +303,18 @@ def test_single_output_scene_mutes_channels_left_open_by_previous_scene(output):
         assert desk.writes[-1] == ("/ch/01/mix/on", 1)
 
     asyncio.run(scenario())
+
+
+def test_temporary_source_scene_works_without_service_then_section_selection_takes_over():
+    async def scenario():
+        desk = Desk()
+        worker = SceneAutomation(desk)
+        cfg = config(manual_scene_id="worship", follow_service=True)
+        await worker.tick(cue(cfg, "pastor", service=None))
+        assert desk.values["/ch/01/mix/on"] == 0
+        cfg.manual_scene_id = None
+        await worker.tick(cue(cfg, "pastor", service="preview:service-1"))
+        assert desk.values["/ch/01/mix/on"] == 1
+        assert worker.status["scene_id"] == "pastor"
+
+    asyncio.run(scenario())

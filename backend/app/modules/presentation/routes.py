@@ -1251,6 +1251,7 @@ def update_presentation_live_state(
         next_payload["manual_control"] = True
         next_payload.pop("auto_started", None)
     if selection_changed:
+        presentation_session.updated_at = datetime.now(UTC)
         # A deliberate presenter selection takes ownership from the scheduled
         # template timeline; any new auto-advance clock starts from this move.
         next_payload.pop("auto_started", None)
@@ -1299,11 +1300,24 @@ def update_presentation_live_state(
         )
     media_state_changed = previous_video_action != payload.video_action
     service_stage_changed = previous_service_stage != payload.service_stage
-    if output_active and (
-        previous_item_id != payload.plan_item_id or media_state_changed or service_stage_changed
-    ):
+    cue_changed = (
+        existing_payload.get("plan_item_id") != payload.plan_item_id
+        or media_state_changed or service_stage_changed
+    )
+    follow_preview = False
+    if not output_active and cue_changed and payload.plan_item_id:
+        from app.modules.mixer.models import MixerConfiguration
+        from app.modules.mixer.automation import configuration
+        cfg = configuration(session.get(MixerConfiguration, "xr18"))
+        follow_preview = cfg.enabled and cfg.follow_service
+    if (output_active or follow_preview) and cue_changed:
         broadcast_settings = session.scalar(select(BroadcastViewerSettings).limit(1))
         if broadcast_settings and broadcast_settings.audio_scene_automation:
+            # Presenter navigation is an explicit request to start the selected
+            # section's audio, including after startup muting.
+            if selection_changed or service_stage_changed:
+                from app.modules.mixer.engine import engine as mixer_engine
+                mixer_engine.startup_scene_hold = False
             starting_service_from_pre_service = (
                 previous_service_stage == "pre_service" and payload.service_stage == "service"
             )

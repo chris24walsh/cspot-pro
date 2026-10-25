@@ -494,7 +494,7 @@ def test_source_scene_button_holds_matching_hardware_scene_without_a_live_servic
             saved = configuration(item)
             assert result.active_audio_scene == 'worship'
             assert saved.manual_scene_id == 'worship'
-            assert not saved.follow_service
+            assert saved.follow_service
             assert saved.manual_revision == 1
             from app.modules.mixer.routes import hold_automation_scene
             response = hold_automation_scene("worship", session)

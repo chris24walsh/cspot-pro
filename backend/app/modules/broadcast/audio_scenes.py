@@ -10,7 +10,7 @@ from app.modules.broadcast.settings import apply_scene_to_sources, audio_scenes,
 
 
 def activate_audio_scene(
-    session: Session, settings: BroadcastViewerSettings, scene_id: str
+    session: Session, settings: BroadcastViewerSettings, scene_id: str, *, manual: bool = False
 ) -> bool:
     scene = next(
         (candidate for candidate in audio_scenes(settings) if candidate.id == scene_id), None
@@ -27,6 +27,14 @@ def activate_audio_scene(
             [source.model_dump() for source in sources], separators=(",", ":")
         )
         settings.live_audio_source = "mix" if any(source.mix_enabled for source in sources) else "none"
+    if not manual:
+        from app.modules.mixer.models import MixerConfiguration
+        from app.modules.mixer.automation import configuration
+        mixer = session.get(MixerConfiguration, "xr18")
+        cfg = configuration(mixer)
+        if mixer and cfg.follow_service and cfg.manual_scene_id:
+            cfg.manual_scene_id = None
+            mixer.automation_json = cfg.model_dump_json()
     settings.active_audio_scene = scene.id
     session.commit()
     session.refresh(settings)

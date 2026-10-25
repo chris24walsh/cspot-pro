@@ -1584,12 +1584,12 @@ def update_viewer_settings(
             raise HTTPException(422, "The selected audio scene is not configured")
         from app.modules.mixer.automation import hold_manual_scene
         try:
-            hardware_hold = hold_manual_scene(session, requested_scene)
+            hardware_hold = hold_manual_scene(session, requested_scene, hold=False)
         except ValueError as exc:
             raise HTTPException(409, str(exc)) from exc
     session.commit()
     session.refresh(settings)
-    if requested_scene and not activate_audio_scene(session, settings, requested_scene):
+    if requested_scene and not activate_audio_scene(session, settings, requested_scene, manual=True):
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="The selected audio scene is not configured",

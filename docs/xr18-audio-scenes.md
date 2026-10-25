@@ -101,11 +101,12 @@ not changed it remotely. Output muting and channel muting are separate: release
 any native output mute separately when ready. Hardware startup protection cannot
 be guaranteed by cspot while the mixer is unreachable.
 
-Explicit source-mixer scene buttons also apply and hold the matching configured
+Explicit source-mixer scene buttons temporarily apply the matching configured
 XR18 preset when hardware control is enabled, including outside a live service.
+The next presenter item/section cue restores following; only Apply & hold
+creates a persistent hold.
 Disabled hardware keeps the original software-only behavior. Missing or empty
-hardware presets show an error rather than claiming to apply a desk mix. Resume
-section following with **Mixer → Audio scenes → Resume service cues**. The
+hardware presets show an error rather than claiming to apply a desk mix. An explicit persistent hold can be released with **Resume service cues**. The
 hardware preset dropdown is labelled **Edit preset**; selecting it edits the
 preset, while **Apply & hold** sends it.
 
@@ -124,3 +125,12 @@ when a leader input is mapped; installations without one retain the standard
 six drafts. Use a matching named broadcast scene to expose it in source buttons
 and section Audio scene overrides. Generating drafts still requires review and
 does not enable hardware control.
+
+Presenter selection drives enabled hardware scene following even without an
+active slideshow output. Ready presentation selections qualify for 30 minutes
+from the latest item navigation; ended sessions remain excluded except recent
+Post-service. Software-only scene following keeps its existing live-output
+behavior. Startup scene hold is released by an explicit presenter navigation,
+not by simply loading the saved selection. Item and inherited section Audio
+scene overrides take precedence over type inference. Source buttons provide a
+temporary override until the next cue, while Apply & hold remains persistent.

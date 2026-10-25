@@ -57,3 +57,8 @@ Manual source-mixer scene buttons now apply matching enabled XR18 presets as a
 manual hold, even outside a live service. Hardware scenes set mapped channel
 mutes along with routing/sends; startup holds audio until explicit operator
 release. Software-only mode remains available without a hardware configuration.
+
+Enabled XR18 automation follows presenter item/section selection without needing
+a slideshow output. Source-button overrides last until the next presentation
+cue; explicit Apply & hold remains persistent. Software-only output gating stays
+unchanged. Recent ready sessions are eligible for hardware following.

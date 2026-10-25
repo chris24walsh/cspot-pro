@@ -125,7 +125,7 @@ def suggested_scenes(roles: dict[str, Role]) -> list[MixerScene]:
     return profiles
 
 
-def hold_manual_scene(session, scene_id: str) -> bool:
+def hold_manual_scene(session, scene_id: str, *, hold: bool = True) -> bool:
     """An explicit scene-button click can audition a configured desk without a service."""
     item = session.get(MixerConfiguration, "xr18")
     cfg = configuration(item)
@@ -134,7 +134,7 @@ def hold_manual_scene(session, scene_id: str) -> bool:
     scene = next((scene for scene in cfg.scenes if scene.id == scene_id), None)
     if scene is None or not scene_commands(cfg, scene):
         raise ValueError("Map inputs and save a hardware preset for this scene before applying it")
-    cfg.follow_service = False
+    cfg.follow_service = not hold
     cfg.manual_scene_id = scene_id
     cfg.manual_revision += 1
     item.automation_json = cfg.model_dump_json()
@@ -212,19 +212,27 @@ def load_state() -> AutomationState:
         recent = session.scalar(
             select(PresentationSession)
             .where(
-                PresentationSession.started_at >= now - timedelta(hours=24),
                 or_(
-                    (PresentationSession.status == "live") & PresentationSession.ended_at.is_(None),
-                    (PresentationSession.status == "ended")
-                    & (PresentationSession.ended_at >= now - timedelta(hours=2)),
+                    (PresentationSession.status == "ready")
+                    & PresentationSession.ended_at.is_(None)
+                    & (PresentationSession.updated_at >= now - timedelta(minutes=30)),
+                    (PresentationSession.started_at >= now - timedelta(hours=24))
+                    & or_(
+                        (PresentationSession.status == "live")
+                        & PresentationSession.ended_at.is_(None),
+                        (PresentationSession.status == "ended")
+                        & (PresentationSession.ended_at >= now - timedelta(hours=2)),
+                    ),
                 ),
             )
-            .order_by(PresentationSession.started_at.desc())
+            .order_by(PresentationSession.updated_at.desc())
             .limit(1)
         )
         live_id = None
         if recent is not None:
-            if recent.status == "live":
+            if recent.status == "ready":
+                live_id = "preview:" + recent.id
+            elif recent.status == "live":
                 live_id = recent.id
             elif settings and settings.active_audio_scene == "post_service":
                 live_id = "post:" + recent.id
@@ -259,17 +267,27 @@ class SceneAutomation:
 
     async def tick(self, state: AutomationState):
         cfg = state.config
-        scene_id = state.service_scene if cfg.follow_service else cfg.manual_scene_id
+        scene_id = (
+            cfg.manual_scene_id or state.service_scene
+            if cfg.follow_service
+            else cfg.manual_scene_id
+        )
         self.status = {"state": "paused", "scene_id": scene_id, "detail": "Automation paused"}
         if not cfg.enabled or not (cfg.room_enabled or cfg.livestream_enabled):
             self.cancel_pending()
             self.applied_key = None
             self.status.update(state="disabled", detail="Hardware automation is off")
             return
-        if cfg.follow_service and (not state.service_id or not state.service_automation):
+        if (
+            cfg.follow_service
+            and not cfg.manual_scene_id
+            and (not state.service_id or not state.service_automation)
+        ):
             self.cancel_pending()
             self.applied_key = None
-            self.status["detail"] = "Waiting for a live service with audio scene automation enabled"
+            self.status["detail"] = (
+                "Waiting for a selected service with audio scene automation enabled"
+            )
             return
         if not cfg.follow_service and not scene_id:
             self.cancel_pending()

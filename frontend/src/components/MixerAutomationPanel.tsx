@@ -115,7 +115,7 @@ export function MixerAutomationPanel({strips, state}: {strips: MixerStrip[]; sta
         <td><input aria-label={`${name(strip)} ${output} dB`} type="number" min={-90} max={10} step={.5} value={row?.[output]?.level_db ?? 0} onChange={event=>{const value=event.target.valueAsNumber;if(Number.isFinite(value))channelLevel(strip.id,output,{level_db:Math.max(-90,Math.min(10,value))});}}/></td>
       </ReactFragment>)}</tr>;
     })}</tbody></table>{!mapped.length && <p>Map inputs above, generate draft presets, then review or capture levels before enabling.</p>}</div>}
-    <p>Sections already select Pastor, Congregation, Worship, Media, Pre-service and Post-service. A section’s Audio scene override takes priority. Service cues require a live presentation and its audio scene automation enabled. Changes apply once per scene; operator adjustments are retained until the next scene.</p>
+    <p>Sections already select Pastor, Congregation, Worship, Media, Pre-service and Post-service. A section’s Audio scene override takes priority. Service cues follow the presenter’s selected item, even without a slideshow window, while audio scene automation is enabled. Source scene buttons override until the next selection; Apply & hold pauses following. Changes apply once per scene; operator adjustments are retained until the next scene.</p>
     {confirmationDialog}
   </section>;
 }
