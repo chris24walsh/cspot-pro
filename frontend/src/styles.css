@@ -14418,3 +14418,28 @@ button.musician-page {
   border: 1px solid #e3dcc8;
   border-radius: 5px;
 }
+
+/* History belongs to the date controls in every workflow. Keep it outside header
+   clipping and use the shared viewport anchor instead of legacy stage offsets. */
+.date-navigator-history-layer {
+  position: fixed;
+  width: min(680px, calc(100vw - 24px));
+  z-index: 100;
+}
+
+.date-navigator-history-layer > .worship-history-popover {
+  position: static;
+  inset: auto;
+  transform: none;
+  width: 100%;
+  min-width: 0;
+  max-width: none;
+  height: auto;
+  max-height: inherit;
+}
+
+@media (max-width: 900px) {
+  .date-navigator-history-layer {
+    width: min(420px, calc(100vw - 24px));
+  }
+}
