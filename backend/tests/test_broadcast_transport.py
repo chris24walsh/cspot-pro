@@ -2,6 +2,7 @@ import asyncio
 import json
 from contextlib import nullcontext
 from types import SimpleNamespace
+from unittest.mock import AsyncMock
 
 import pytest
 import requests
@@ -117,38 +118,6 @@ def test_settings_read_uses_raw_fallback_without_configured_gateway(
     assert settings_read(settings).live_audio_stream_name is None
 
 
-def test_settings_read_uses_normalized_stream_for_unity_gain_single_source_mix(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setattr(
-        "app.modules.broadcast.transport.settings.camera_proxy_upstream",
-        "http://go2rtc:1984/",
-    )
-    media = BroadcastAudioSource(
-        id="pc-media",
-        label="Church PC media",
-        url="http://audio/pc-media.mp3?token=secret",
-        gain_db=0,
-        mix_enabled=True,
-        role="media",
-    )
-    settings = BroadcastViewerSettings(
-        stream_title="Service",
-        auto_record_sermons=True,
-        audio_sources_json=json.dumps([media.model_dump()]),
-        live_audio_source="mix",
-        pre_service_minutes=60,
-        starting_soon_message="Soon",
-        offline_message="Offline",
-    )
-
-    result = settings_read(settings, include_audio_source_urls=False)
-
-    assert result.live_audio_stream_name == audio_stream_name(media)
-    assert result.live_audio_stream_name is not None
-    assert "secret" not in result.live_audio_stream_name
-    assert result.audio_sources[0].url is None
-    assert result.audio_sources[0].stream_name is None
 
 
 @pytest.mark.parametrize(
@@ -324,15 +293,24 @@ def test_application_startup_reconciles_stored_audio_sources(
         starting_soon_message="Soon",
         offline_message="Offline",
     )
-    fake_session = SimpleNamespace(scalar=lambda _query: viewer)
+    fake_session = SimpleNamespace(scalar=lambda _query: viewer, get=lambda *_args: None)
 
     class FakeSessionLocal:
+        def __call__(self):
+            return nullcontext(fake_session)
+
         def begin(self):
             return nullcontext(fake_session)
 
     reconciled: list[list[BroadcastAudioSource]] = []
     monkeypatch.setattr(main, "SessionLocal", FakeSessionLocal())
     monkeypatch.setattr(main, "ensure_worship_set_plan_type", lambda _session: None)
+    monkeypatch.setattr("app.modules.broadcast.routes.purge_expired_recordings", lambda s: None)
+    monkeypatch.setattr("app.modules.broadcast.recording.recover_orphaned_recordings", lambda s: None)
+    monkeypatch.setattr("app.modules.mixer.engine.engine.configure", AsyncMock())
+    monkeypatch.setattr("app.modules.mixer.engine.engine.stop", AsyncMock())
+    monkeypatch.setattr("app.modules.mixer.automation.automation.start", lambda: None)
+    monkeypatch.setattr("app.modules.mixer.automation.automation.stop", AsyncMock())
     monkeypatch.setattr(
         main,
         "reconcile_audio_sources",
@@ -444,32 +422,6 @@ def test_playback_authorization_rejects_unconfigured_dynamic_source(
     assert caught.value.status_code == status.HTTP_403_FORBIDDEN
 
 
-def test_playback_authorization_allows_enabled_source_in_selected_mix(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    source = audio_source()
-    viewer = BroadcastViewerSettings(
-        stream_title="Service",
-        manual_live_audience="public",
-        live_audio_source="mix",
-        audio_sources_json=json.dumps([source.model_dump()]),
-        pre_service_minutes=60,
-        starting_soon_message="Soon",
-        offline_message="Offline",
-    )
-    session = SimpleNamespace(scalar=lambda _query: viewer)
-    monkeypatch.setattr(
-        "app.modules.broadcast.routes.list_permissions",
-        lambda *_args: ["plans:read"],
-    )
-
-    response = playback_authorized(
-        SimpleNamespace(id="viewer"),
-        session,
-        audio_stream_name(source),
-    )
-
-    assert response.status_code == status.HTTP_204_NO_CONTENT
 
 
 def test_playback_authorization_allows_hls_session_for_visible_stream(

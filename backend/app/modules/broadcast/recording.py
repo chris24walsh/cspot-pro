@@ -320,7 +320,7 @@ def _assemble_recording_segments(active: ActiveRecording) -> bool:
 
 
 def reconfigure_active_recording(session: Session) -> bool:
-    """Apply current source, mix, and gain settings to an active recorder."""
+    """Apply a changed program source to an active recorder."""
     inputs = _audio_inputs(session)
     if not inputs:
         return False

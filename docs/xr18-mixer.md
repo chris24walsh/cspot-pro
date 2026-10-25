@@ -1,6 +1,6 @@
 # XR18 local mixer control
 
-Open **Broadcast → Mixer** for the XR18 desk. The existing broadcast audio mixer
+Open **Broadcast → Mixer** for the XR18 desk. The retired software broadcast audio mixer (see `archive/software-audio-mixer`)
 continues below it and controls cspot's recording/listening mix separately.
 
 The installed XR18V2 was discovered on 17 October 2026 at `192.168.2.141`, firmware

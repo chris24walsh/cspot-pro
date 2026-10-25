@@ -13,11 +13,7 @@ from app.core.config import settings
 from app.core.database import Base
 from app.modules.broadcast.audio_mix import (
     AudioMixInput,
-    audio_mix_inputs,
-    ffmpeg_live_mix_command,
     ffmpeg_live_mix_fmp4_command,
-    ffmpeg_recording_mix_command,
-    live_audio_mix_inputs,
 )
 from app.modules.broadcast.models import BroadcastRecording, BroadcastViewerSettings
 from app.modules.broadcast.recording import (
@@ -251,103 +247,19 @@ def test_independent_audio_sources_are_grouped_and_selected() -> None:
         assert _source_url(session) == "http://audio/desk.mp3"
 
 
-def test_enabled_independent_sources_are_combined_with_saved_gain() -> None:
-    settings_row = BroadcastViewerSettings(
-        stream_title="Service",
-        audio_sources_json=json.dumps(
-            [
-                {
-                    "id": "room-mic",
-                    "label": "Room mic",
-                    "url": "http://audio/room.mp3",
-                    "gain_db": -15,
-                    "mix_enabled": True,
-                },
-                {
-                    "id": "desk",
-                    "label": "Desk",
-                    "url": "http://audio/desk.mp3",
-                    "gain_db": 4,
-                    "mix_enabled": True,
-                },
-                {
-                    "id": "spare",
-                    "label": "Spare",
-                    "url": "http://audio/spare.mp3",
-                    "mix_enabled": False,
-                },
-            ]
-        ),
-        live_audio_source="mix",
-    )
-
-    inputs = audio_mix_inputs(settings_row)
-    command = ffmpeg_live_mix_command(inputs)
-
-    assert [(source.source_id, source.gain_db) for source in inputs] == [
-        ("room-mic", -15),
-        ("desk", 4),
-    ]
-    assert command.count("-i") == 2
-    filter_graph = command[command.index("-filter_complex") + 1]
-    assert "volume@input0=-15dB" in filter_graph
-    assert "volume@input1=4dB" in filter_graph
-    assert "amix=inputs=2" in filter_graph
-    assert "alimiter=limit=0.95" in filter_graph
 
 
-def test_live_audio_excludes_off_air_inputs_and_keeps_runtime_gain_control() -> None:
-    settings_row = BroadcastViewerSettings(
-        stream_title="Service",
-        audio_sources_json=json.dumps(
-            [
-                {"id": "room", "label": "Room", "url": "http://audio/room", "gain_db": -12},
-                {"id": "desk", "label": "Desk", "url": "http://audio/desk", "gain_db": 3},
-            ]
-        ),
-        live_audio_source="desk",
-    )
-
-    inputs = live_audio_mix_inputs(settings_row)
-    command = ffmpeg_live_mix_command(inputs, control_port=23456)
-    filter_graph = command[command.index("-filter_complex") + 1]
-
-    assert [(item.source_id, item.gain_db) for item in inputs] == [("desk", 3)]
-    assert "http://audio/room" not in command
-    assert "volume@input0=3dB" in filter_graph
-    assert "azmq=b=tcp\\\\://127.0.0.1\\\\:23456" in filter_graph
 
 
-def test_live_audio_mix_excludes_disabled_feeds() -> None:
-    settings_row = BroadcastViewerSettings(
-        stream_title="Service",
-        audio_sources_json=json.dumps([
-            {"id": "desk", "label": "Desk", "url": "http://audio/desk", "mix_enabled": True},
-            {"id": "offline", "label": "Offline", "url": "http://offline/feed", "mix_enabled": False},
-        ]),
-        live_audio_source="mix",
-    )
-    assert [item.source_id for item in live_audio_mix_inputs(settings_row)] == ["desk"]
 
 
 def test_live_audio_declares_low_latency_mp3_inputs() -> None:
-    inputs = [
-        AudioMixInput("room", "http://audio/room.mp3", -12),
-        AudioMixInput("desk", "http://audio/desk.mp3", 0),
-    ]
-
-    command = ffmpeg_live_mix_fmp4_command(inputs)
-
-    first_input = command[: command.index("-i") + 2]
-    assert first_input[-2:] == ["-i", "http://audio/room.mp3"]
-    assert first_input[first_input.index("-fflags") + 1] == "+nobuffer"
-    assert first_input[first_input.index("-analyzeduration") + 1] == "0"
-    assert first_input[first_input.index("-probesize") + 1] == "32"
-    assert first_input[first_input.index("-f") + 1] == "mp3"
-    assert command.count("+nobuffer") == 2
-    assert command.count("mp3") == 2
-    filter_graph = command[command.index("-filter_complex") + 1]
-    assert filter_graph.count("aresample=48000:async=1:first_pts=0,asetpts=N/SR/TB") == 2
+    command = ffmpeg_live_mix_fmp4_command([AudioMixInput("desk", "http://audio/desk.mp3", 0)])
+    assert command[command.index("-fflags") + 1] == "+nobuffer"
+    assert command[command.index("-analyzeduration") + 1] == "0"
+    assert command[command.index("-probesize") + 1] == "32"
+    assert command.count("-i") == 1
+    assert "-filter_complex" not in command
 
 
 def test_camera_audio_input_keeps_automatic_format_detection() -> None:
@@ -371,9 +283,9 @@ def test_camera_audio_input_keeps_automatic_format_detection() -> None:
 
 
 def test_low_latency_live_audio_uses_short_fragmented_aac_output() -> None:
-    inputs = [AudioMixInput("desk", "http://audio/desk.mp3", -3)]
+    inputs = [AudioMixInput("desk", "http://audio/desk.mp3", 0)]
 
-    command = ffmpeg_live_mix_fmp4_command(inputs, control_port=23456)
+    command = ffmpeg_live_mix_fmp4_command(inputs)
 
     assert command[command.index("-c:a") + 1] == "aac"
     assert command[command.index("-profile:a") + 1] == "aac_low"
@@ -382,9 +294,7 @@ def test_low_latency_live_audio_uses_short_fragmented_aac_output() -> None:
         "+empty_moov+default_base_moof+frag_keyframe"
     )
     assert command[-3:] == ["-f", "mp4", "pipe:1"]
-    filter_graph = command[command.index("-filter_complex") + 1]
-    assert "volume@input0=-3dB" in filter_graph
-    assert "azmq=b=tcp\\\\://127.0.0.1\\\\:23456" in filter_graph
+    assert "-filter_complex" not in command
 
 
 def test_legacy_independent_audio_url_is_returned_as_a_source() -> None:
@@ -438,16 +348,6 @@ def test_recorder_generates_timestamps_from_audio_samples() -> None:
     assert command[command.index("-af") + 1] == "asetpts=N/SR/TB"
 
 
-def test_mixed_recorder_resets_timestamps_inside_filter_graph() -> None:
-    command = ffmpeg_recording_mix_command(
-        [
-            AudioMixInput("room", "http://audio/room.mp3", -15),
-            AudioMixInput("desk", "http://audio/desk.mp3", 0),
-        ],
-        Path("sermon.webm"),
-    )
-
-    assert "asetpts=N/SR/TB" in command[command.index("-filter_complex") + 1]
 
 
 def test_active_recording_restarts_into_a_new_segment_when_mix_changes(
@@ -480,7 +380,7 @@ def test_active_recording_restarts_into_a_new_segment_when_mix_changes(
     monkeypatch.setattr("app.modules.broadcast.recording._active", active)
     monkeypatch.setattr(
         "app.modules.broadcast.recording._audio_inputs",
-        lambda _session: [AudioMixInput("desk", "http://audio/desk.mp3", 3)],
+        lambda _session: [AudioMixInput("desk", "http://audio/desk.mp3", 0)],
     )
     monkeypatch.setattr("app.modules.broadcast.recording._source_has_audio", lambda _url: True)
     monkeypatch.setattr(
@@ -491,7 +391,7 @@ def test_active_recording_restarts_into_a_new_segment_when_mix_changes(
     assert reconfigure_active_recording(SimpleNamespace()) is True  # type: ignore[arg-type]
     assert old_process.signals == [signal.SIGINT]
     assert active.process is new_process
-    assert active.inputs == [AudioMixInput("desk", "http://audio/desk.mp3", 3)]
+    assert active.inputs == [AudioMixInput("desk", "http://audio/desk.mp3", 0)]
     assert active.segment_paths[-1].name == "sermon.part-001.webm"
 
 

@@ -1,5 +1,19 @@
 # cspot-pro
 
+## Audio mixing retirement — 25 October 2026
+
+Software source mixing is retired. The XR18 mixes locally and supplies one stereo
+program feed at unity gain to livestream and recording. Broadcast → Mixer keeps
+hardware controls and scene automation; software source faders and software scene
+routing are archived in `archive/software-audio-mixer`. Existing source/scene JSON
+is retained for recovery. Migration 0076 replaces a legacy mix with its unique
+`desk` source; ambiguous mixes require operator selection. Viewers use the shared
+go2rtc audio transport when configured, with single-feed API relay compatibility.
+FFmpeg remains for capture, transport and recording encoding, without multi-input
+mixing, software trims, limiting or ZMQ gain control. Room sound should use direct
+desk outputs. Streaming/browser delay remains and requires on-site measurement.
+This supersedes earlier software-mixer descriptions below.
+
 Website visual-editor sign-in is specified in
 [`docs/website-editor-sso.md`](docs/website-editor-sso.md).
 
@@ -286,7 +300,7 @@ back to the static wireframe data when it is not.
 - Edit history uses the same interaction in Service, Worship, and Sunday School: selecting the body of a version restores that complete point in time after confirmation, while the separate Undo change action reverses only that entry and preserves unrelated later edits. Song edits store field-level snapshots for per-change undo. Worship history also keeps reusable stashed sets: stashing archives the current list and leaves its date empty, while applying first stashes the current list and then copies the selected stash into that date.
 - Worship and Sunday School: Sunday cards show compact plan/lesson summaries and use capacity-aware leader rotations for current and future dates, while historical assignments remain unchanged; assignment and upcoming-Sunday swaps stay behind the compact Leader control, and the `cspot_tablet` account remains available for manual worship assignment but is excluded from automatic rotation
 - Songs: create/edit/archive songs, import and clean lyrics, edit details/chords, and prepare song slides
-- Broadcast: viewer-first remote service page plus admin tabs for sermon recordings, low-latency multi-camera livestream settings, and shared mixer-desk integration; admins can blend independent audio sources with per-feed trim/mute controls and presentation-aware Pastor, Congregation, Worship, Media, and Pre-service scenes shared by livestream and recording, start a public or admin-only test livestream, and operate synchronized slides, per-camera service-aware dwell timing, automatic stream recovery, holding messages, and pre-service audio. The Livestream tab shows signed-in viewers who are watching now and per-user watch time for current and previous streams. An open TV or livestream viewer activates scheduled pre-service at 10:30 without starting the main slideshow; starting or stopping the slideshow keeps the currently selected slide visible rather than blanking the output.
+- Broadcast: viewer-first remote service page plus admin tabs for sermon recordings, low-latency multi-camera livestream settings, and shared mixer-desk integration; admins use one stereo program feed from the digital desk with presentation-aware hardware scenes shared by livestream and recording, start a public or admin-only test livestream, and operate synchronized slides, per-camera service-aware dwell timing, automatic stream recovery, holding messages, and pre-service audio. The Livestream tab shows signed-in viewers who are watching now and per-user watch time for current and previous streams. An open TV or livestream viewer activates scheduled pre-service at 10:30 without starting the main slideshow; starting or stopping the slideshow keeps the currently selected slide visible rather than blanking the output.
 - Admin: share an optional self-registration link/QR code, approve or reject inactive registration requests, invite users, send password resets, manage grouped roles and rotation eligibility, configure Google Drive, and test SMTP email
 
 ## Access Control

@@ -682,7 +682,7 @@ export interface ServiceScheduleRule {
 }
 
 export interface BroadcastViewerSettings {
-  audio_mix_mode?: "software" | "mixer";
+  audio_mix_mode?: "mixer";
   mixer_program_source_id?: string | null;
   stream_title: string;
   stream_description: string | null;

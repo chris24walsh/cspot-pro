@@ -24,13 +24,6 @@ from app.modules.broadcast.audio_mix import (
     live_audio_mix_inputs,
 )
 from app.modules.broadcast.audio_scenes import activate_audio_scene
-from app.modules.broadcast.live_audio import (
-    LiveAudioControl,
-    allocate_control_port,
-    register_live_audio_control,
-    unregister_live_audio_control,
-    update_live_audio_controls,
-)
 from app.modules.broadcast.models import (
     BroadcastRecording,
     BroadcastViewerSettings,
@@ -54,7 +47,6 @@ from app.modules.broadcast.recording_video import (
     video_status,
 )
 from app.modules.broadcast.schemas import (
-    BroadcastAudioSceneChannel,
     BroadcastAudioSourceRead,
     BroadcastRecordingRead,
     BroadcastRecordingRename,
@@ -69,9 +61,7 @@ from app.modules.broadcast.schemas import (
     PublicRecordingRead,
 )
 from app.modules.broadcast.settings import (
-    apply_scene_to_sources,
     audio_scenes,
-    audio_source_kind,
     audio_sources,
     camera_sources,
     effective_audio_source,
@@ -745,20 +735,8 @@ def settings_read(
         (source for source in independent_sources if source.id == selected_audio_source_id),
         None,
     )
-    # A mix with one enabled, unity-gain input needs no server-side mixing. Let
-    # viewers use that source's normalized go2rtc/MSE transport directly: it
-    # stays close to the camera live edge and avoids an extra MP3 buffer. Keep
-    # multi-input or gain-adjusted mixes on /live-audio so their mix semantics
-    # remain unchanged.
-    if selected_audio_source_id == "mix":
-        enabled_mix_sources = [source for source in independent_sources if source.mix_enabled]
-        selected_independent_audio = (
-            enabled_mix_sources[0]
-            if len(enabled_mix_sources) == 1 and abs(enabled_mix_sources[0].gain_db) < 0.01
-            else None
-        )
     return BroadcastViewerSettingsRead(
-        audio_mix_mode=settings.audio_mix_mode or "software",
+        audio_mix_mode="mixer",
         mixer_program_source_id=settings.mixer_program_source_id,
         stream_title=settings.stream_title,
         stream_description=settings.stream_description,
@@ -1201,19 +1179,16 @@ def live_audio(
     # not occupy one connection for the lifetime of the stream.
     session.close()
     try:
-        control_port = allocate_control_port()
         process = subprocess.Popen(
-            ffmpeg_live_mix_command(inputs, control_port),
+            ffmpeg_live_mix_command(inputs),
             stdout=subprocess.PIPE,
             stderr=subprocess.DEVNULL,
         )
     except OSError as error:
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
-            detail="The live audio mixer is unavailable",
+            detail="The program audio relay is unavailable",
         ) from error
-
-    control = register_live_audio_control(control_port, inputs)
 
     def audio_chunks():
         try:
@@ -1222,7 +1197,6 @@ def live_audio(
             while chunk := process.stdout.read(2 * 1024):
                 yield chunk
         finally:
-            unregister_live_audio_control(control)
             if process.stdout:
                 process.stdout.close()
             if process.poll() is None:
@@ -1241,9 +1215,7 @@ def live_audio(
 
 def _stop_live_audio_process(
     process: subprocess.Popen[bytes],
-    control: LiveAudioControl,
 ) -> None:
-    unregister_live_audio_control(control)
     if process.poll() is None:
         process.terminate()
         try:
@@ -1260,7 +1232,6 @@ def _stop_live_audio_process(
 
 async def _live_audio_fmp4_chunks(
     process: subprocess.Popen[bytes],
-    control: LiveAudioControl,
 ) -> AsyncIterator[bytes]:
     """Read promptly from FFmpeg and always reap it when the client disconnects."""
     try:
@@ -1278,9 +1249,9 @@ async def _live_audio_fmp4_chunks(
     finally:
         # Disconnect cleanup may wait briefly for FFmpeg to exit. Keep that
         # wait off the event loop, and shield it so request cancellation still
-        # unregisters the control and reaps the child process.
+        # reaps the child process.
         with anyio.CancelScope(shield=True):
-            await anyio.to_thread.run_sync(_stop_live_audio_process, process, control)
+            await anyio.to_thread.run_sync(_stop_live_audio_process, process)
 
 
 def _authorized_live_audio_inputs(
@@ -1316,9 +1287,8 @@ def live_audio_fmp4(
 ) -> StreamingResponse:
     inputs = _authorized_live_audio_inputs(current_user, session)
     try:
-        control_port = allocate_control_port()
         process = subprocess.Popen(
-            ffmpeg_live_mix_fmp4_command(inputs, control_port),
+            ffmpeg_live_mix_fmp4_command(inputs),
             stdout=subprocess.PIPE,
             stderr=subprocess.DEVNULL,
             bufsize=0,
@@ -1326,12 +1296,11 @@ def live_audio_fmp4(
     except OSError as error:
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
-            detail="The low-latency live audio mixer is unavailable",
+            detail="The program audio relay is unavailable",
         ) from error
 
-    control = register_live_audio_control(control_port, inputs)
     return StreamingResponse(
-        _live_audio_fmp4_chunks(process, control),
+        _live_audio_fmp4_chunks(process),
         media_type="audio/mp4",
         headers={
             "Cache-Control": "no-store, no-transform",
@@ -1387,9 +1356,6 @@ def update_viewer_settings(
     session: Session = Depends(get_session),
 ) -> BroadcastViewerSettingsRead:
     settings = viewer_settings(session)
-    had_media_source = any(
-        audio_source_kind(source) == "media" for source in audio_sources(settings)
-    )
     updates = payload.model_dump(exclude_unset=True)
     camera_source_payload = updates.pop("camera_sources", ...)
     audio_source_payload = updates.pop("audio_sources", ...)
@@ -1456,37 +1422,8 @@ def update_viewer_settings(
         )
 
     if audio_source_payload is not ... or audio_scene_payload is not ...:
-        scenes = audio_scenes(settings)
-        first_media_source_added = bool(
-            audio_source_payload is not ...
-            and not had_media_source
-            and any(audio_source_kind(source) == "media" for source in audio_sources(settings))
-        )
-        if audio_source_payload is not ... and audio_scene_payload is ...:
-            current_scene = settings.active_audio_scene or "pastor"
-            for scene in scenes:
-                if scene.id != current_scene:
-                    continue
-                if first_media_source_added:
-                    # Apply the normalized active scene instead of stale form
-                    # flags when the direct-media route first appears. Routine
-                    # scenes keep the new media leg off; Media and Pre-service
-                    # turn it on while excluding the delayed desk return.
-                    applied_sources = apply_scene_to_sources(audio_sources(settings), scene)
-                    audio_source_payload = [source.model_dump() for source in applied_sources]
-                    settings.audio_sources_json = json.dumps(
-                        audio_source_payload, separators=(",", ":")
-                    )
-                    break
-                scene.channels = {
-                    source["id"]: BroadcastAudioSceneChannel(
-                        gain_db=source.get("gain_db", 0),
-                        enabled=source.get("mix_enabled", True),
-                    )
-                    for source in audio_source_payload
-                }
         settings.audio_scenes_json = json.dumps(
-            [scene.model_dump() for scene in scenes], separators=(",", ":")
+            [scene.model_dump() for scene in audio_scenes(settings)], separators=(",", ":")
         )
 
     sources = camera_sources(settings)
@@ -1508,21 +1445,23 @@ def update_viewer_settings(
         "live_audio_source",
         effective_audio_source(settings, sources, independent_sources),
     )
-    if requested_audio_source not in {"none", "mix", *source_ids, *audio_ids}:
+    if requested_audio_source not in {"none", *source_ids, *audio_ids}:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="The selected live audio source is not configured",
         )
-    if requested_audio_source == "mix" and not any(
-        source.mix_enabled for source in independent_sources
-    ):
-        requested_audio_source = "none"
     updates["live_audio_source"] = requested_audio_source
     selected_independent = next(
         (source for source in independent_sources if source.id == requested_audio_source),
         None,
     )
     updates["live_audio_url"] = selected_independent.url if selected_independent else None
+    if "live_audio_source" in payload.model_fields_set and "mixer_program_source_id" not in updates:
+        if requested_audio_source != "none":
+            updates["mixer_program_source_id"] = (
+                selected_independent.id if selected_independent else None
+            )
+
     requested_mixer_protocol = updates.get("mixer_protocol", settings.mixer_protocol or "none")
     if requested_mixer_protocol not in {"none", "web", "bridge", "audio-only"}:
         raise HTTPException(
@@ -1565,13 +1504,14 @@ def update_viewer_settings(
             value = value or None
         setattr(settings, field, value)
 
-    if settings.audio_mix_mode == "mixer":
+    if settings.mixer_program_source_id:
         program = next((source for source in audio_sources(settings)
                         if source.id == settings.mixer_program_source_id), None)
         if program is None or not program.url.strip().lower().startswith(("http://", "https://")):
             raise HTTPException(422, "Select a configured HTTP stereo program source for mixer audio mode")
-        if "audio_mix_mode" in updates or "mixer_program_source_id" in updates:
+        if "mixer_program_source_id" in updates and payload.live_audio_source != "none":
             settings.live_audio_source = program.id
+            settings.live_audio_url = program.url
 
     if sources and settings.active_camera_id not in source_ids:
         settings.active_camera_id = sources[0].id
@@ -1595,11 +1535,10 @@ def update_viewer_settings(
             detail="The selected audio scene is not configured",
         )
     else:
-        update_live_audio_controls(live_audio_mix_inputs(settings))
         reconfigure_active_recording(session)
     if hardware_hold:
-        from app.modules.mixer.engine import engine as mixer_engine
         from app.modules.mixer.automation import automation
+        from app.modules.mixer.engine import engine as mixer_engine
         mixer_engine.startup_scene_hold = False
         automation.notify()
     result = settings_read(settings)

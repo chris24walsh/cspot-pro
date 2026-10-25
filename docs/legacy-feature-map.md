@@ -42,7 +42,8 @@ behavioural reference, while cspot-pro uses clearer module boundaries.
 
 XR18 hardware mixer control is a new cspot-pro feature, independent of legacy
 presentation parity. Broadcast → Mixer exposes the local hardware desk as well
-as the existing software broadcast audio mix for broadcast operators. Worship
+with one stereo program feed for broadcast operators; the software source mixer
+is archived in `archive/software-audio-mixer`. Worship
 leaders receive the hardware panel independently through `mixer:use`; see
 [XR18 details](xr18-mixer.md).
 

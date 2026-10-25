@@ -33,55 +33,6 @@ def test_presentation_state_selects_expected_scene() -> None:
     assert automatic_scene_for_item("video", "stop") == "pastor"
 
 
-def test_media_and_pre_service_scenes_use_only_pc_media() -> None:
-    engine = create_engine("sqlite://")
-    Base.metadata.create_all(engine, tables=[BroadcastViewerSettings.__table__, MixerConfiguration.__table__])
-    with Session(engine) as session:
-        update_viewer_settings(
-            BroadcastViewerSettingsUpdate(
-                audio_sources=[
-                    {
-                        "id": "room",
-                        "label": "Room mic",
-                        "url": "http://audio/room",
-                        "role": "room",
-                    },
-                    {
-                        "id": "desk",
-                        "label": "Desk feed",
-                        "url": "http://audio/desk",
-                        "role": "desk",
-                    },
-                    {
-                        "id": "pc-media",
-                        "label": "Church PC media",
-                        "url": "http://audio/pc-media",
-                        "role": "media",
-                    },
-                ],
-                live_audio_source="mix",
-            ),
-            SimpleNamespace(id="operator"),
-            session,
-        )
-        result = update_viewer_settings(
-            BroadcastViewerSettingsUpdate(active_audio_scene="media"),
-            SimpleNamespace(id="operator"),
-            session,
-        )
-
-    room, desk, media = result.audio_sources
-    assert result.active_audio_scene == "media"
-    assert room.mix_enabled is False
-    assert desk.mix_enabled is False
-    assert desk.gain_db == 0
-    assert media.mix_enabled is True
-
-    pre_service = next(scene for scene in result.audio_scenes if scene.id == "pre_service")
-    assert pre_service.label == "Pre-service"
-    assert pre_service.channels["room"].enabled is False
-    assert pre_service.channels["desk"].enabled is False
-    assert pre_service.channels["pc-media"].enabled is True
 
 
 def test_legacy_unclassified_source_remains_live_in_routine_scenes_only() -> None:
@@ -246,83 +197,6 @@ def test_existing_media_mix_preserves_operator_scene_edits() -> None:
     assert media.channels["pc-media"].gain_db == -3
 
 
-@pytest.mark.parametrize(
-    ("active_scene", "desk_enabled", "media_enabled"),
-    [
-        ("pastor", True, False),
-        ("worship", True, False),
-        ("media", False, True),
-        ("pre_service", False, True),
-    ],
-)
-def test_adding_first_media_source_applies_the_safe_active_scene(
-    active_scene: str,
-    desk_enabled: bool,
-    media_enabled: bool,
-) -> None:
-    engine = create_engine("sqlite://")
-    Base.metadata.create_all(engine, tables=[BroadcastViewerSettings.__table__, MixerConfiguration.__table__])
-    with Session(engine) as session:
-        session.add(
-            BroadcastViewerSettings(
-                active_audio_scene=active_scene,
-                live_audio_source="mix",
-                audio_sources_json=json.dumps(
-                    [
-                        {
-                            "id": "desk",
-                            "label": "Desk feed",
-                            "url": "http://audio/desk",
-                            "role": "desk",
-                            "mix_enabled": True,
-                        }
-                    ]
-                ),
-                audio_scenes_json=json.dumps(
-                    [
-                        {
-                            "id": "media",
-                            "label": "Media",
-                            "channels": {
-                                "desk": {"gain_db": 0, "enabled": True},
-                            },
-                        }
-                    ]
-                ),
-            )
-        )
-        session.commit()
-
-        result = update_viewer_settings(
-            BroadcastViewerSettingsUpdate(
-                audio_sources=[
-                    {
-                        "id": "desk",
-                        "label": "Desk feed",
-                        "url": "http://audio/desk",
-                        "role": "desk",
-                        "mix_enabled": True,
-                    },
-                    {
-                        "id": "pc-media",
-                        "label": "Church PC media",
-                        "url": "http://audio/pc-media",
-                        "role": "media",
-                        "mix_enabled": True,
-                    },
-                ]
-            ),
-            SimpleNamespace(id="operator"),
-            session,
-        )
-
-    sources = {source.id: source for source in result.audio_sources}
-    active = next(scene for scene in result.audio_scenes if scene.id == active_scene)
-    assert result.active_audio_scene == active_scene
-    assert sources["desk"].mix_enabled is desk_enabled
-    assert sources["pc-media"].mix_enabled is media_enabled
-    assert active.channels["desk"].enabled is desk_enabled
-    assert active.channels["pc-media"].enabled is media_enabled
 
 
 def test_missing_scene_channel_is_applied_as_muted() -> None:
@@ -371,7 +245,7 @@ def test_settings_update_persists_normalized_five_scene_configuration() -> None:
                         },
                     }
                 ],
-                live_audio_source="mix",
+                live_audio_source="desk",
             ),
             SimpleNamespace(id="operator"),
             session,

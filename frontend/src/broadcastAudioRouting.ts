@@ -10,13 +10,7 @@ export function rehearsalDeskIsIsolated({
   liveAudioSource,
   sources,
 }: BroadcastAudioRouteState) {
-  const selectedSource = sources.find((source) => source.id === liveAudioSource);
-  if (selectedSource?.role === "media") return true;
-  if (liveAudioSource !== "mix") return false;
-
-  const enabledSources = sources.filter((source) => source.mix_enabled);
-  return enabledSources.some((source) => source.role === "media")
-    && !enabledSources.some((source) => source.role === "desk" || source.role === "room");
+  return sources.find((source) => source.id === liveAudioSource)?.role === "media";
 }
 
 export function resolveBroadcastLiveAudioUrl({
@@ -30,12 +24,10 @@ export function resolveBroadcastLiveAudioUrl({
   liveAudioSource: string;
   liveAudioStreamName: string | null;
 }) {
-  if (liveAudioSource === "mix" || audioSources.some((source) => source.id === liveAudioSource)) {
-    const selectedIds = audioSources
-      .filter((source) => liveAudioSource === "mix" ? source.mix_enabled : source.id === liveAudioSource)
-      .map((source) => source.id);
-    // Reconnect when upstream feeds change. Gains remain live controls.
-    return `${broadcastLiveAudioMseUrl()}?sources=${encodeURIComponent(JSON.stringify(selectedIds))}`;
+  if (audioSources.some((source) => source.id === liveAudioSource)) {
+    if (liveAudioStreamName) return go2RtcAudioStreamUrl(liveAudioStreamName);
+    // Compatibility relay when the shared camera gateway is unavailable.
+    return `${broadcastLiveAudioMseUrl()}?sources=${encodeURIComponent(JSON.stringify([liveAudioSource]))}`;
   }
 
   const camera = cameraSources.find((source) => source.id === liveAudioSource);

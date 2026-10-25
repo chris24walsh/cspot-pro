@@ -54,7 +54,7 @@ class BroadcastViewerSettings(IdMixin, TimestampMixin, Base):
     stream_description: Mapped[str | None] = mapped_column(Text)
     camera_url: Mapped[str | None] = mapped_column(Text)
     camera_sources_json: Mapped[str | None] = mapped_column(Text)
-    audio_mix_mode: Mapped[str] = mapped_column(String(20), default="software")
+    audio_mix_mode: Mapped[str] = mapped_column(String(20), default="mixer")
     mixer_program_source_id: Mapped[str | None] = mapped_column(String(80))
     audio_sources_json: Mapped[str | None] = mapped_column(Text)
     audio_scenes_json: Mapped[str | None] = mapped_column(Text)

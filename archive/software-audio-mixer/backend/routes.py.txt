@@ -1,0 +1,1679 @@
+import json
+import re
+import secrets
+import subprocess
+from collections.abc import AsyncIterator
+from datetime import UTC, datetime, timedelta
+from pathlib import Path
+from typing import Annotated, Literal
+from urllib.parse import parse_qs, urlsplit
+
+import anyio
+import requests
+from fastapi import APIRouter, Depends, Header, HTTPException, Response, status
+from fastapi.responses import FileResponse, StreamingResponse
+from pydantic import BaseModel, Field
+from sqlalchemy import select
+from sqlalchemy.orm import Session
+
+from app.core.database import get_session
+from app.modules.broadcast.audio_mix import (
+    AudioMixInput,
+    ffmpeg_live_mix_command,
+    ffmpeg_live_mix_fmp4_command,
+    live_audio_mix_inputs,
+)
+from app.modules.broadcast.audio_scenes import activate_audio_scene
+from app.modules.broadcast.live_audio import (
+    LiveAudioControl,
+    allocate_control_port,
+    register_live_audio_control,
+    unregister_live_audio_control,
+    update_live_audio_controls,
+)
+from app.modules.broadcast.models import (
+    BroadcastRecording,
+    BroadcastViewerSettings,
+    LivestreamEvent,
+    LivestreamViewerVisit,
+)
+from app.modules.broadcast.recording import (
+    finish_expired_recordings,
+    pause_recording,
+    reconfigure_active_recording,
+    resume_recording,
+    start_recording,
+    stop_recording,
+)
+from app.modules.broadcast.recording_audio import delete_mp3, prepare_mp3
+from app.modules.broadcast.recording_trim import create_trimmed_recording
+from app.modules.broadcast.recording_video import (
+    delete_video,
+    start_video,
+    video_path,
+    video_status,
+)
+from app.modules.broadcast.schemas import (
+    BroadcastAudioSceneChannel,
+    BroadcastAudioSourceRead,
+    BroadcastRecordingRead,
+    BroadcastRecordingRename,
+    BroadcastRecordingStart,
+    BroadcastRecordingTrim,
+    BroadcastViewerSettingsRead,
+    BroadcastViewerSettingsUpdate,
+    LivestreamEventRead,
+    LivestreamHeartbeat,
+    LivestreamViewerRead,
+    ManualLivestreamUpdate,
+    PublicRecordingRead,
+)
+from app.modules.broadcast.settings import (
+    apply_scene_to_sources,
+    audio_scenes,
+    audio_source_kind,
+    audio_sources,
+    camera_sources,
+    effective_audio_source,
+    service_schedules,
+)
+from app.modules.broadcast.transport import (
+    audio_stream_name,
+    audio_transport_available,
+    camera_stream_name,
+    reconcile_audio_sources,
+)
+from app.modules.identity.auth import (
+    CurrentUser,
+    list_permissions,
+    require_any_permission,
+    require_permission,
+)
+from app.modules.identity.models import User
+from app.modules.library.models import ItemFile, StoredFile
+from app.modules.library.routes import _render_slides
+from app.modules.planning.models import Plan, PlanItem
+from app.modules.presentation.models import PresentationPosition, PresentationSession
+
+router = APIRouter()
+RECORDING_RETENTION_DAYS = 365
+_last_recording_cleanup: datetime | None = None
+
+
+def clean_recording_title(recording: BroadcastRecording, timeline: list[dict]) -> str:
+    custom_title = (recording.custom_title or "").strip()
+    if custom_title:
+        return custom_title
+    names = [
+        file.get("display_name", "")
+        for event in timeline
+        for file in event.get("files", [])
+        if isinstance(file, dict)
+    ]
+    deck_names = [
+        name for name in names if re.search(r"\.(pptx?|pdf|odp|key)$", name, re.IGNORECASE)
+    ]
+    title = (
+        (deck_names or names)[0]
+        if names
+        else next(
+            (str(event.get("item_title")) for event in timeline if event.get("item_title")),
+            recording.title,
+        )
+    )
+    title = re.sub(r"\.(pptx?|pdf|odp|key|png|jpe?g)$", "", title, flags=re.IGNORECASE)
+    title = re.sub(r"_+", " ", title)
+    title = re.sub(r"\s*[-–—]\s*", " ", title)
+    title = re.sub(r"\s+", " ", title).strip()
+    title = re.sub(r"\s+(final|slides?|sermon deck|copy)\s*$", "", title, flags=re.IGNORECASE)
+    return title or "Sermon recording"
+
+
+def _is_slide_deck_file(file: dict[str, object]) -> bool:
+    content_type = str(file.get("content_type") or "").lower()
+    display_name = str(file.get("display_name") or "")
+    return "presentation" in content_type or bool(
+        re.search(r"\.(pptx?|pdf|odp|key)$", display_name, re.IGNORECASE)
+    )
+
+
+def _apply_legacy_deck_candidates(
+    timeline: list[dict[str, object]],
+    candidates: list[dict[str, object]],
+) -> None:
+    """Recover deck links for timelines recorded before file snapshots existed."""
+    if not candidates:
+        return
+    candidate_index = 0
+    highest_offset = -1
+    for event in timeline:
+        files = event.get("files")
+        if isinstance(files, list) and any(
+            _is_slide_deck_file(file) for file in files if isinstance(file, dict)
+        ):
+            continue
+        offset = event.get("slide_offset")
+        if (
+            isinstance(offset, int)
+            and offset == 0
+            and highest_offset >= 2
+            and candidate_index < len(candidates) - 1
+        ):
+            candidate_index += 1
+            highest_offset = -1
+        event.update(candidates[candidate_index])
+        if isinstance(offset, int):
+            highest_offset = max(highest_offset, offset)
+
+
+def recording_read(session: Session, recording: BroadcastRecording) -> BroadcastRecordingRead:
+    try:
+        timeline = json.loads(recording.timeline_json or "[]")
+    except json.JSONDecodeError:
+        timeline = []
+    if isinstance(timeline, list):
+        # Older recordings predate embedded slide-source snapshots. Plan items are
+        # soft-deleted, so enrich those events on read and make them usable again.
+        snapshots: dict[str, dict[str, object]] = {}
+        unresolved_item_ids: set[str] = set()
+        for event in timeline:
+            if not isinstance(event, dict):
+                continue
+            embedded_files = event.get("files")
+            if isinstance(embedded_files, list) and any(
+                _is_slide_deck_file(file) for file in embedded_files if isinstance(file, dict)
+            ):
+                continue
+            item_id = event.get("plan_item_id")
+            if not isinstance(item_id, str):
+                continue
+            if item_id not in snapshots:
+                item = session.get(PlanItem, item_id)
+                links = session.scalars(
+                    select(ItemFile)
+                    .where(ItemFile.plan_item_id == item_id)
+                    .order_by(ItemFile.sort_order, ItemFile.created_at)
+                ).all()
+                files = []
+                for link in links:
+                    stored = session.get(StoredFile, link.file_id)
+                    if stored is not None:
+                        files.append(
+                            {
+                                "file_id": stored.id,
+                                "display_name": stored.display_name,
+                                "content_type": stored.content_type,
+                                "sort_order": link.sort_order,
+                            }
+                        )
+                snapshots[item_id] = {
+                    "item_title": item.title if item else "Recorded slides",
+                    "item_comment": item.comment if item else None,
+                    "item_type": item.item_type if item else "sermon",
+                    "files": files,
+                }
+            event.update(snapshots[item_id])
+            item_files = snapshots[item_id]["files"]
+            item = session.get(PlanItem, item_id)
+            if not any(
+                _is_slide_deck_file(file) for file in item_files if isinstance(file, dict)
+            ) and (item is None or item.deleted_at is not None or not item_files):
+                unresolved_item_ids.add(item_id)
+
+        if unresolved_item_ids and recording.plan_id:
+            candidate_items = session.scalars(
+                select(PlanItem)
+                .where(
+                    PlanItem.plan_id == recording.plan_id,
+                    PlanItem.deleted_at.is_(None),
+                    PlanItem.item_type == "sermon",
+                )
+                .order_by(PlanItem.sequence, PlanItem.created_at)
+            ).all()
+            candidates: list[dict[str, object]] = []
+            for item in candidate_items:
+                links = session.scalars(
+                    select(ItemFile)
+                    .where(ItemFile.plan_item_id == item.id)
+                    .order_by(ItemFile.sort_order, ItemFile.created_at)
+                ).all()
+                files = []
+                for link in links:
+                    stored = session.get(StoredFile, link.file_id)
+                    if stored is not None:
+                        files.append(
+                            {
+                                "file_id": stored.id,
+                                "display_name": stored.display_name,
+                                "content_type": stored.content_type,
+                                "sort_order": link.sort_order,
+                            }
+                        )
+                deck_files = [file for file in files if _is_slide_deck_file(file)]
+                if deck_files:
+                    candidates.append(
+                        {
+                            "plan_item_id": item.id,
+                            "item_title": item.title,
+                            "item_comment": item.comment,
+                            "item_type": item.item_type,
+                            "files": deck_files,
+                        }
+                    )
+            unresolved_events = [
+                event
+                for event in timeline
+                if isinstance(event, dict) and event.get("plan_item_id") in unresolved_item_ids
+            ]
+            event_titles = {
+                str(event.get("item_title") or "").strip().casefold()
+                for event in unresolved_events
+                if str(event.get("item_title") or "").strip().casefold() not in {"", "sermon"}
+            }
+            title_matches = [
+                candidate
+                for candidate in candidates
+                if str(candidate.get("item_title") or "").strip().casefold() in event_titles
+            ]
+            _apply_legacy_deck_candidates(unresolved_events, title_matches or candidates)
+    return BroadcastRecordingRead(
+        id=recording.id,
+        file_name=recording.file_name,
+        source=recording.source,
+        plan_id=recording.plan_id,
+        plan_item_id=recording.plan_item_id,
+        title=clean_recording_title(recording, timeline if isinstance(timeline, list) else []),
+        custom_title=recording.custom_title,
+        status=recording.status,
+        media_kind=recording.media_kind,
+        content_type=recording.content_type,
+        size_bytes=recording.size_bytes,
+        duration_seconds=recording.duration_seconds,
+        recorded_at=recording.recorded_at,
+        started_at=recording.started_at,
+        ended_at=recording.ended_at,
+        pending_stop_at=recording.pending_stop_at,
+        pending_stop_reason=recording.pending_stop_reason,
+        end_reason=recording.end_reason,
+        visible_at=recording.visible_at,
+        public_token=recording.public_token,
+        published_at=recording.published_at,
+        archived_at=recording.archived_at,
+        timeline=timeline if isinstance(timeline, list) else [],
+    )
+
+
+def purge_expired_recordings(
+    session: Session,
+    *,
+    now: datetime | None = None,
+    retention_days: int = RECORDING_RETENTION_DAYS,
+) -> int:
+    cutoff = (now or datetime.now(UTC)) - timedelta(days=retention_days)
+    recordings = session.scalars(
+        select(BroadcastRecording).where(BroadcastRecording.archived_at <= cutoff)
+    ).all()
+    source_paths: set[Path] = set()
+    deleted = 0
+    for recording in recordings:
+        try:
+            delete_video(recording)
+            delete_mp3(recording)
+        except ValueError:
+            continue
+        source_paths.update(
+            Path(value) for value in {recording.file_path, recording.audio_file_path} if value
+        )
+        session.delete(recording)
+        deleted += 1
+    session.commit()
+    for path in source_paths:
+        path.unlink(missing_ok=True)
+    return deleted
+
+
+@router.get("/recordings", response_model=list[BroadcastRecordingRead])
+def list_recordings(
+    include_archived: bool = False,
+    current_user: User = Depends(
+        require_any_permission("plans:read", "broadcast:use", "presentation:use")
+    ),
+    session: Session = Depends(get_session),
+) -> list[BroadcastRecordingRead]:
+    global _last_recording_cleanup
+    now = datetime.now(UTC)
+    if _last_recording_cleanup is None or now - _last_recording_cleanup >= timedelta(days=1):
+        purge_expired_recordings(session, now=now)
+        _last_recording_cleanup = now
+    if include_archived and "broadcast:use" not in set(list_permissions(session, current_user.id)):
+        raise HTTPException(status_code=403, detail="Broadcast permission required")
+    finish_expired_recordings(session)
+    archive_filter = (
+        BroadcastRecording.archived_at.is_not(None)
+        if include_archived
+        else BroadcastRecording.archived_at.is_(None)
+    )
+    query = select(BroadcastRecording).where(archive_filter)
+    if "broadcast:use" not in set(list_permissions(session, current_user.id)):
+        query = query.where(
+            BroadcastRecording.visible_at.is_not(None), BroadcastRecording.status == "ready"
+        )
+    recordings = session.scalars(
+        query
+        .order_by(BroadcastRecording.recorded_at.desc())
+    ).all()
+    return [recording_read(session, recording) for recording in recordings]
+
+
+@router.post("/recordings/start", response_model=BroadcastRecordingRead)
+def manually_start_recording(
+    payload: BroadcastRecordingStart,
+    current_user: User = Depends(require_any_permission("broadcast:use", "presentation:use")),
+    session: Session = Depends(get_session),
+) -> BroadcastRecordingRead:
+    try:
+        recording = start_recording(session, payload.plan_id, payload.plan_item_id, current_user.id)
+    except RuntimeError as error:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(error)) from error
+    return recording_read(session, recording)
+
+
+@router.post("/recordings/stop", response_model=BroadcastRecordingRead | None)
+def manually_stop_recording(
+    _current_user: User = Depends(require_any_permission("broadcast:use", "presentation:use")),
+    session: Session = Depends(get_session),
+) -> BroadcastRecordingRead | None:
+    recording = stop_recording(session)
+    return recording_read(session, recording) if recording else None
+
+
+@router.post("/recordings/pause", response_model=BroadcastRecordingRead | None)
+def manually_pause_recording(
+    _current_user: User = Depends(require_any_permission("broadcast:use", "presentation:use")),
+    session: Session = Depends(get_session),
+) -> BroadcastRecordingRead | None:
+    recording = pause_recording(session)
+    return recording_read(session, recording) if recording else None
+
+
+@router.post("/recordings/resume", response_model=BroadcastRecordingRead | None)
+def manually_resume_recording(
+    _current_user: User = Depends(require_any_permission("broadcast:use", "presentation:use")),
+    session: Session = Depends(get_session),
+) -> BroadcastRecordingRead | None:
+    recording = resume_recording(session)
+    return recording_read(session, recording) if recording else None
+
+
+@router.post("/recordings/{recording_id}/archive", response_model=BroadcastRecordingRead)
+def archive_recording(
+    recording_id: str,
+    _current_user: User = Depends(require_permission("broadcast:use")),
+    session: Session = Depends(get_session),
+) -> BroadcastRecordingRead:
+    recording = session.get(BroadcastRecording, recording_id)
+    if not recording:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Recording not found")
+    if recording.status in {"recording", "paused"}:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Stop recording first")
+    recording.archived_at = datetime.now(UTC)
+    recording.public_token = None
+    recording.published_at = None
+    recording.visible_at = None
+    session.commit()
+    session.refresh(recording)
+    return recording_read(session, recording)
+
+
+@router.delete("/recordings/{recording_id}/archive", response_model=BroadcastRecordingRead)
+def restore_recording(
+    recording_id: str,
+    _current_user: User = Depends(require_permission("broadcast:use")),
+    session: Session = Depends(get_session),
+) -> BroadcastRecordingRead:
+    recording = session.get(BroadcastRecording, recording_id)
+    if recording is None:
+        raise HTTPException(status_code=404, detail="Recording not found")
+    recording.archived_at = None
+    session.commit()
+    session.refresh(recording)
+    return recording_read(session, recording)
+
+
+@router.post("/recordings/{recording_id}/trim", response_model=BroadcastRecordingRead)
+def trim_recording(
+    recording_id: str,
+    payload: BroadcastRecordingTrim,
+    current_user: User = Depends(require_permission("broadcast:use")),
+    session: Session = Depends(get_session),
+) -> BroadcastRecordingRead:
+    recording = session.get(BroadcastRecording, recording_id)
+    if not recording:
+        raise HTTPException(status_code=404, detail="Recording not found")
+    if recording.status != "ready":
+        raise HTTPException(status_code=409, detail="Stop recording before trimming")
+    try:
+        if payload.replace_original:
+            delete_video(recording)
+            delete_mp3(recording)
+        copy = create_trimmed_recording(
+            session,
+            recording,
+            payload.start_seconds,
+            payload.end_seconds,
+            recording_read(session, recording).timeline,
+            current_user.id,
+            replace_original=payload.replace_original,
+        )
+    except ValueError as error:
+        raise HTTPException(status_code=422, detail=str(error)) from error
+    except FileNotFoundError as error:
+        raise HTTPException(
+            status_code=404, detail="Recording audio or media tools unavailable"
+        ) from error
+    except (RuntimeError, OSError, subprocess.TimeoutExpired) as error:
+        raise HTTPException(
+            status_code=503, detail="Could not trim audio. Please try again."
+        ) from error
+    return recording_read(session, copy)
+
+
+@router.patch("/recordings/{recording_id}/title", response_model=BroadcastRecordingRead)
+def rename_recording(
+    recording_id: str,
+    payload: BroadcastRecordingRename,
+    _current_user: User = Depends(require_permission("broadcast:use")),
+    session: Session = Depends(get_session),
+) -> BroadcastRecordingRead:
+    recording = session.get(BroadcastRecording, recording_id)
+    if recording is None:
+        raise HTTPException(status_code=404, detail="Recording not found")
+    recording.custom_title = (payload.title or "").strip() or None
+    session.commit()
+    session.refresh(recording)
+    return recording_read(session, recording)
+
+
+@router.post("/recordings/{recording_id}/visibility", response_model=BroadcastRecordingRead)
+def show_recording(
+    recording_id: str,
+    current_user: User = Depends(require_permission("broadcast:use")),
+    session: Session = Depends(get_session),
+) -> BroadcastRecordingRead:
+    recording = ready_recording(session, recording_id)
+    if recording.archived_at is not None:
+        raise HTTPException(status_code=409, detail="Restore the recording before publishing it")
+    recording.visible_at = recording.visible_at or datetime.now(UTC)
+    session.commit()
+    session.refresh(recording)
+    return recording_read(session, recording)
+
+
+@router.delete("/recordings/{recording_id}/visibility", response_model=BroadcastRecordingRead)
+def hide_recording(
+    recording_id: str,
+    current_user: User = Depends(require_permission("broadcast:use")),
+    session: Session = Depends(get_session),
+) -> BroadcastRecordingRead:
+    recording = ready_recording(session, recording_id)
+    recording.visible_at = None
+    recording.public_token = None
+    recording.published_at = None
+    session.commit()
+    session.refresh(recording)
+    return recording_read(session, recording)
+
+
+@router.post("/recordings/{recording_id}/publish", response_model=BroadcastRecordingRead)
+def publish_recording(
+    recording_id: str,
+    current_user: User = Depends(require_permission("broadcast:use")),
+    session: Session = Depends(get_session),
+) -> BroadcastRecordingRead:
+    recording = ready_recording(session, recording_id)
+    if recording.archived_at is not None:
+        raise HTTPException(status_code=409, detail="Restore the recording before sharing it")
+    recording.visible_at = recording.visible_at or datetime.now(UTC)
+    if recording.public_token is None:
+        recording.public_token = secrets.token_urlsafe(24)
+        recording.published_at = datetime.now(UTC)
+    session.commit()
+    session.refresh(recording)
+    return recording_read(session, recording)
+
+
+@router.delete("/recordings/{recording_id}/publish", response_model=BroadcastRecordingRead)
+def unpublish_recording(
+    recording_id: str,
+    current_user: User = Depends(require_permission("broadcast:use")),
+    session: Session = Depends(get_session),
+) -> BroadcastRecordingRead:
+    recording = ready_recording(session, recording_id)
+    recording.public_token = None
+    recording.published_at = None
+    session.commit()
+    session.refresh(recording)
+    return recording_read(session, recording)
+
+
+def public_recording(session: Session, token: str) -> BroadcastRecording:
+    recording = session.scalar(
+        select(BroadcastRecording).where(BroadcastRecording.public_token == token)
+    )
+    if recording is None or recording.status != "ready" or recording.archived_at is not None:
+        raise HTTPException(status_code=404, detail="Public recording not found")
+    return recording
+
+
+@router.get("/public-recordings/{token}", response_model=PublicRecordingRead)
+def get_public_recording(
+    token: str, session: Session = Depends(get_session)
+) -> PublicRecordingRead:
+    recording = public_recording(session, token)
+    details = recording_read(session, recording)
+    delay = 0 if recording.source == "trimmed-sermon" else 1.5
+    slides = [
+        {
+            "at": 0 if index == 0 else max(0, float(event.get("at", 0)) + delay),
+            "image_url": f"/api/v1/broadcast/public-recordings/{token}/slides/{index}.png",
+        }
+        for index, event in enumerate(details.timeline)
+    ]
+    return PublicRecordingRead(
+        title=details.title,
+        recorded_at=details.recorded_at,
+        duration_seconds=details.duration_seconds,
+        audio_url=f"/api/v1/broadcast/public-recordings/{token}/audio",
+        slides=slides,
+    )
+
+
+@router.get("/public-recordings/{token}/audio")
+def public_recording_audio(token: str, session: Session = Depends(get_session)) -> FileResponse:
+    recording = public_recording(session, token)
+    path = Path(recording.audio_file_path or recording.file_path)
+    if not path.is_file():
+        raise HTTPException(status_code=404, detail="Recording audio not found")
+    session.close()
+    return FileResponse(path, media_type=recording.content_type or "audio/webm")
+
+
+@router.get("/public-recordings/{token}/slides/{event_index}.png")
+def public_recording_slide(
+    token: str, event_index: int, session: Session = Depends(get_session)
+) -> FileResponse:
+    recording = public_recording(session, token)
+    details = recording_read(session, recording)
+    if event_index < 0 or event_index >= len(details.timeline):
+        raise HTTPException(status_code=404, detail="Recorded slide not found")
+    event = details.timeline[event_index]
+    images: list[Path] = []
+    for file in event.get("files", []):
+        stored = session.get(StoredFile, file.get("file_id"))
+        if stored is not None:
+            images.extend(_render_slides(stored))
+    offset = int(event.get("slide_offset", 0))
+    if not images or offset < 0 or offset >= len(images):
+        raise HTTPException(status_code=404, detail="Recorded slide image not found")
+    session.close()
+    return FileResponse(images[offset], media_type="image/png")
+
+
+def ready_recording(session: Session, recording_id: str) -> BroadcastRecording:
+    recording = session.get(BroadcastRecording, recording_id)
+    if recording is None:
+        raise HTTPException(status_code=404, detail="Recording not found")
+    if recording.status != "ready":
+        raise HTTPException(status_code=409, detail="Recording is not ready")
+    return recording
+
+
+def viewable_recording(session: Session, recording_id: str, user: User) -> BroadcastRecording:
+    recording = session.get(BroadcastRecording, recording_id)
+    can_manage = "broadcast:use" in set(list_permissions(session, user.id))
+    if recording is None or (not can_manage and (
+        recording.visible_at is None or recording.archived_at is not None
+    )):
+        raise HTTPException(status_code=404, detail="Recording not found")
+    return ready_recording(session, recording_id)
+
+
+@router.get("/recordings/{recording_id}/video-export")
+def recording_video_status(
+    recording_id: str,
+    _current_user: User = Depends(require_permission("plans:read")),
+    session: Session = Depends(get_session),
+) -> dict[str, str]:
+    return video_status(viewable_recording(session, recording_id, _current_user))
+
+
+@router.post("/recordings/{recording_id}/video-export")
+def prepare_recording_video(
+    recording_id: str,
+    _current_user: User = Depends(require_permission("plans:read")),
+    session: Session = Depends(get_session),
+) -> dict[str, str]:
+    return start_video(viewable_recording(session, recording_id, _current_user))
+
+
+@router.get("/recordings/{recording_id}/video")
+def recording_video(
+    recording_id: str,
+    _current_user: User = Depends(require_permission("plans:read")),
+    session: Session = Depends(get_session),
+) -> FileResponse:
+    recording = viewable_recording(session, recording_id, _current_user)
+    path = video_path(recording)
+    if not path.is_file():
+        raise HTTPException(status_code=409, detail="Prepare the video before downloading")
+    filename = f"{Path(recording.file_name).stem}-with-slides.mp4"
+    session.close()
+    return FileResponse(path, media_type="video/mp4", filename=filename)
+
+
+@router.get("/recordings/{recording_id}/audio")
+def recording_audio(
+    recording_id: str,
+    _current_user: User = Depends(require_permission("plans:read")),
+    session: Session = Depends(get_session),
+) -> FileResponse:
+    recording = viewable_recording(session, recording_id, _current_user)
+    path = Path(recording.audio_file_path or recording.file_path) if recording else None
+    if not recording or not path or not path.is_file() or recording.status != "ready":
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Recording not found")
+    content_type = recording.content_type or "audio/webm"
+    file_name = recording.file_name
+    session.close()
+    return FileResponse(path, media_type=content_type, filename=file_name)
+
+
+@router.get("/recordings/{recording_id}/audio.mp3")
+def recording_audio_download(
+    recording_id: str,
+    _current_user: User = Depends(require_permission("plans:read")),
+    session: Session = Depends(get_session),
+) -> FileResponse:
+    recording = viewable_recording(session, recording_id, _current_user)
+    source = Path(recording.audio_file_path or recording.file_path)
+    if not source.is_file():
+        raise HTTPException(status_code=404, detail="Recording audio not found")
+    title = recording_read(session, recording).title
+    filename = re.sub(r"[^\w .()-]+", "", title, flags=re.UNICODE).strip() or "Sermon recording"
+    try:
+        path = prepare_mp3(recording)
+    except (OSError, RuntimeError, subprocess.TimeoutExpired) as error:
+        raise HTTPException(status_code=503, detail="Could not prepare MP3 download") from error
+    session.close()
+    return FileResponse(path, media_type="audio/mpeg", filename=f"{filename}.mp3")
+
+
+def viewer_settings(session: Session) -> BroadcastViewerSettings:
+    settings = session.scalar(select(BroadcastViewerSettings).limit(1))
+    if settings is None:
+        settings = BroadcastViewerSettings(
+            stream_title="Sunday Service",
+            stream_description="Join us online for worship, prayer, Scripture, and teaching.",
+            pre_service_minutes=60,
+            starting_soon_message="Our service will begin shortly",
+            offline_message="No service is streaming right now",
+        )
+        session.add(settings)
+        session.commit()
+        session.refresh(settings)
+    return settings
+
+
+def settings_read(
+    settings: BroadcastViewerSettings,
+    *,
+    can_view_admin_test: bool = True,
+    include_audio_source_urls: bool = True,
+) -> BroadcastViewerSettingsRead:
+    sources = camera_sources(settings)
+    independent_sources = audio_sources(settings)
+    source_ids = {source.id for source in sources}
+    active_camera_id = (
+        settings.active_camera_id
+        if settings.active_camera_id in source_ids
+        else (sources[0].id if sources else None)
+    )
+    manual_live_audience = settings.manual_live_audience or "off"
+    if manual_live_audience == "admins" and not can_view_admin_test:
+        manual_live_audience = "off"
+    selected_audio_source_id = effective_audio_source(settings, sources, independent_sources)
+    selected_independent_audio = next(
+        (source for source in independent_sources if source.id == selected_audio_source_id),
+        None,
+    )
+    # A mix with one enabled, unity-gain input needs no server-side mixing. Let
+    # viewers use that source's normalized go2rtc/MSE transport directly: it
+    # stays close to the camera live edge and avoids an extra MP3 buffer. Keep
+    # multi-input or gain-adjusted mixes on /live-audio so their mix semantics
+    # remain unchanged.
+    if selected_audio_source_id == "mix":
+        enabled_mix_sources = [source for source in independent_sources if source.mix_enabled]
+        selected_independent_audio = (
+            enabled_mix_sources[0]
+            if len(enabled_mix_sources) == 1 and abs(enabled_mix_sources[0].gain_db) < 0.01
+            else None
+        )
+    return BroadcastViewerSettingsRead(
+        audio_mix_mode=settings.audio_mix_mode or "software",
+        mixer_program_source_id=settings.mixer_program_source_id,
+        stream_title=settings.stream_title,
+        stream_description=settings.stream_description,
+        camera_url=settings.camera_url,
+        camera_sources=sources,
+        audio_sources=[
+            BroadcastAudioSourceRead(
+                id=source.id,
+                label=source.label,
+                url=source.url if include_audio_source_urls else None,
+                stream_name=(
+                    audio_stream_name(source)
+                    if include_audio_source_urls and audio_transport_available()
+                    else None
+                ),
+                gain_db=source.gain_db,
+                mix_enabled=source.mix_enabled,
+                role=source.role,
+            )
+            for source in independent_sources
+        ],
+        audio_scenes=audio_scenes(settings),
+        active_audio_scene=settings.active_audio_scene or "pastor",
+        audio_scene_automation=settings.audio_scene_automation is not False,
+        active_camera_id=active_camera_id,
+        camera_cycle_seconds=settings.camera_cycle_seconds or 0,
+        camera_cycle_started_at=settings.camera_cycle_started_at,
+        camera_fade_ms=settings.camera_fade_ms or 0,
+        live_audio_url=settings.live_audio_url if include_audio_source_urls else None,
+        live_audio_source=effective_audio_source(settings, sources, independent_sources),
+        live_audio_stream_name=(
+            audio_stream_name(selected_independent_audio)
+            if selected_independent_audio is not None and audio_transport_available()
+            else None
+        ),
+        manual_live_audience=manual_live_audience,
+        mixer_name=settings.mixer_name,
+        mixer_protocol=settings.mixer_protocol or "none",
+        mixer_control_url=settings.mixer_control_url,
+        mixer_notes=settings.mixer_notes,
+        slide_delay_ms=settings.slide_delay_ms or 0,
+        auto_record_sermons=settings.auto_record_sermons,
+        recording_grace_seconds=settings.recording_grace_seconds or 0,
+        pre_service_audio_url=settings.pre_service_audio_url,
+        pre_service_room_audio_enabled=settings.pre_service_room_audio_enabled is not False,
+        pre_service_minutes=settings.pre_service_minutes,
+        service_schedules=service_schedules(settings),
+        starting_soon_message=settings.starting_soon_message,
+        offline_message=settings.offline_message,
+    )
+
+
+def live_output_exists(session: Session) -> bool:
+    now = int(datetime.now(UTC).timestamp() * 1000)
+    positions = session.scalars(
+        select(PresentationPosition)
+        .join(PresentationSession, PresentationSession.id == PresentationPosition.session_id)
+        .where(
+            PresentationSession.status == "live",
+            PresentationSession.ended_at.is_(None),
+        )
+        .order_by(PresentationPosition.updated_at.desc())
+    ).all()
+    for position in positions:
+        try:
+            payload = json.loads(position.payload_json or "{}")
+        except json.JSONDecodeError:
+            continue
+        heartbeat = payload.get("output_heartbeat_at") if isinstance(payload, dict) else None
+        owner_id = payload.get("output_owner_id") if isinstance(payload, dict) else None
+        explicitly_active = payload.get("output_active") is True
+        legacy_heartbeat_active = bool(
+            "output_active" not in payload and isinstance(heartbeat, int) and now - heartbeat < 7000
+        )
+        if isinstance(owner_id, str) and (explicitly_active or legacy_heartbeat_active):
+            return True
+        # Scheduled pre-service is intentionally visible before a human opens
+        # PresentationOutput. Treat that auto-started service window as live for
+        # camera/audio authorization too; otherwise ordinary viewers can see
+        # the stream but only administrators can turn its sound on.
+        if payload.get("auto_started") is True or payload.get("schedule_id"):
+            presentation_session = session.get(
+                PresentationSession,
+                position.session_id,
+            )
+            plan = (
+                session.get(Plan, presentation_session.plan_id)
+                if presentation_session is not None
+                else None
+            )
+            if plan is not None:
+                # Local import avoids coupling presentation route registration
+                # to broadcast route import order.
+                from app.modules.presentation.routes import scheduled_service_window_active
+
+                if scheduled_service_window_active(plan, payload=payload):
+                    return True
+    return False
+
+
+VIEWER_ACTIVE_SECONDS = 35
+VIEWER_HEARTBEAT_MAX_SECONDS = 30
+
+
+def _utc(value: datetime) -> datetime:
+    return value if value.tzinfo is not None else value.replace(tzinfo=UTC)
+
+
+def _live_presentation_session(
+    session: Session, plan_id: str | None = None
+) -> PresentationSession | None:
+    statement = (
+        select(PresentationSession)
+        .where(PresentationSession.status == "live", PresentationSession.ended_at.is_(None))
+        .order_by(PresentationSession.started_at.desc(), PresentationSession.updated_at.desc())
+    )
+    if plan_id:
+        statement = statement.where(PresentationSession.plan_id == plan_id)
+    for candidate in session.scalars(statement).all():
+        if live_output_exists_for_session(session, candidate.id):
+            return candidate
+    return None
+
+
+def live_output_exists_for_session(session: Session, session_id: str) -> bool:
+    """The event tracker needs the same output-presence rules, scoped to one service."""
+    now = int(datetime.now(UTC).timestamp() * 1000)
+    position = session.scalar(
+        select(PresentationPosition).where(PresentationPosition.session_id == session_id)
+    )
+    if position is None:
+        return False
+    try:
+        payload = json.loads(position.payload_json or "{}")
+    except json.JSONDecodeError:
+        return False
+    heartbeat = payload.get("output_heartbeat_at") if isinstance(payload, dict) else None
+    active = payload.get("output_active") is True or bool(
+        "output_active" not in payload and isinstance(heartbeat, int) and now - heartbeat < 7000
+    )
+    if active and isinstance(payload.get("output_owner_id"), str):
+        return True
+    if payload.get("auto_started") is True or payload.get("schedule_id"):
+        presentation = session.get(PresentationSession, session_id)
+        plan = session.get(Plan, presentation.plan_id) if presentation else None
+        if plan:
+            from app.modules.presentation.routes import scheduled_service_window_active
+
+            return scheduled_service_window_active(plan, payload=payload)
+    return False
+
+
+def _current_livestream_event(
+    session: Session, settings: BroadcastViewerSettings, plan_id: str | None
+) -> LivestreamEvent | None:
+    now = datetime.now(UTC)
+    presentation = _live_presentation_session(session, plan_id)
+    if presentation:
+        event = session.scalar(
+            select(LivestreamEvent).where(
+                LivestreamEvent.presentation_session_id == presentation.id
+            )
+        )
+        if event is None:
+            plan = session.get(Plan, presentation.plan_id)
+            event = LivestreamEvent(
+                presentation_session_id=presentation.id,
+                plan_id=presentation.plan_id,
+                title=plan.title if plan else settings.stream_title,
+                audience="public",
+                started_at=presentation.started_at or now,
+            )
+            session.add(event)
+            session.flush()
+        return event
+    if settings.manual_live_audience != "off":
+        event = session.scalar(
+            select(LivestreamEvent)
+            .where(
+                LivestreamEvent.presentation_session_id.is_(None),
+                LivestreamEvent.ended_at.is_(None),
+            )
+            .order_by(LivestreamEvent.started_at.desc())
+        )
+        if event is None:
+            event = LivestreamEvent(
+                title=settings.stream_title,
+                audience=settings.manual_live_audience,
+                started_at=now,
+            )
+            session.add(event)
+            session.flush()
+        return event
+    return None
+
+
+@router.post("/viewer-heartbeat", status_code=status.HTTP_204_NO_CONTENT)
+def record_viewer_heartbeat(
+    payload: LivestreamHeartbeat,
+    current_user: CurrentUser,
+    session: Session = Depends(get_session),
+) -> Response:
+    now = datetime.now(UTC)
+    event = _current_livestream_event(session, viewer_settings(session), payload.plan_id)
+    if event is None:
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
+    visit = session.scalar(
+        select(LivestreamViewerVisit).where(
+            LivestreamViewerVisit.livestream_event_id == event.id,
+            LivestreamViewerVisit.user_id == current_user.id,
+            LivestreamViewerVisit.client_session_id == payload.client_session_id,
+        )
+    )
+    if visit is None:
+        visit = LivestreamViewerVisit(
+            livestream_event_id=event.id,
+            user_id=current_user.id,
+            client_session_id=payload.client_session_id,
+            started_at=now,
+            last_seen_at=now,
+            ended_at=None if payload.viewing else now,
+            duration_seconds=0,
+            playback_active=payload.playback_active,
+        )
+        session.add(visit)
+    else:
+        elapsed = (
+            0
+            if visit.ended_at is not None
+            else max(0, int((now - _utc(visit.last_seen_at)).total_seconds()))
+        )
+        visit.duration_seconds += (
+            elapsed if visit.playback_active else min(elapsed, VIEWER_HEARTBEAT_MAX_SECONDS)
+        )
+        visit.last_seen_at = now
+        visit.ended_at = None if payload.viewing else now
+        visit.playback_active = payload.playback_active
+    session.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.get("/viewership", response_model=list[LivestreamEventRead])
+def livestream_viewership(
+    _current_user: User = Depends(require_permission("users:manage")),
+    session: Session = Depends(get_session),
+) -> list[LivestreamEventRead]:
+    now = datetime.now(UTC)
+    active_cutoff = now - timedelta(seconds=VIEWER_ACTIVE_SECONDS)
+    settings = viewer_settings(session)
+    _current_livestream_event(session, settings, None)
+    events = session.scalars(
+        select(LivestreamEvent).order_by(LivestreamEvent.started_at.desc()).limit(50)
+    ).all()
+    result: list[LivestreamEventRead] = []
+    for event in events:
+        if event.ended_at is None and event.presentation_session_id:
+            presentation = session.get(PresentationSession, event.presentation_session_id)
+            if presentation is None or presentation.ended_at or presentation.status != "live":
+                event.ended_at = presentation.ended_at if presentation else now
+        visits = session.scalars(
+            select(LivestreamViewerVisit).where(
+                LivestreamViewerVisit.livestream_event_id == event.id
+            )
+        ).all()
+        viewers: dict[str, LivestreamViewerRead] = {}
+        for visit in visits:
+            user = session.get(User, visit.user_id)
+            if user is None:
+                continue
+            is_watching = (
+                event.ended_at is None
+                and visit.ended_at is None
+                and (visit.playback_active or _utc(visit.last_seen_at) >= active_cutoff)
+            )
+            existing = viewers.get(user.id)
+            if existing is None:
+                viewers[user.id] = LivestreamViewerRead(
+                    user_id=user.id,
+                    name=user.name,
+                    email=user.email,
+                    started_at=visit.started_at,
+                    last_seen_at=visit.last_seen_at,
+                    duration_seconds=visit.duration_seconds,
+                    watching_now=is_watching,
+                )
+            else:
+                existing.started_at = min(existing.started_at, visit.started_at)
+                existing.last_seen_at = max(existing.last_seen_at, visit.last_seen_at)
+                existing.duration_seconds += visit.duration_seconds
+                existing.watching_now = existing.watching_now or is_watching
+        ordered = sorted(
+            viewers.values(), key=lambda item: (not item.watching_now, item.name.lower())
+        )
+        result.append(
+            LivestreamEventRead(
+                id=event.id,
+                title=event.title,
+                audience=event.audience,
+                plan_id=event.plan_id,
+                started_at=event.started_at,
+                ended_at=event.ended_at,
+                watching_now=sum(item.watching_now for item in ordered),
+                unique_viewers=len(ordered),
+                total_watch_seconds=sum(item.duration_seconds for item in ordered),
+                viewers=ordered,
+            )
+        )
+    session.commit()
+    return result
+
+
+@router.get("/viewer-settings", response_model=BroadcastViewerSettingsRead)
+def get_viewer_settings(
+    current_user: CurrentUser,
+    session: Session = Depends(get_session),
+) -> BroadcastViewerSettingsRead:
+    permissions = set(list_permissions(session, current_user.id))
+    can_view_admin_test = "users:manage" in permissions
+    can_manage_broadcast = bool(permissions.intersection({"broadcast:use", "users:manage"}))
+    return settings_read(
+        viewer_settings(session),
+        can_view_admin_test=can_view_admin_test,
+        include_audio_source_urls=can_manage_broadcast,
+    )
+
+
+@router.get("/playback-authorized", status_code=status.HTTP_204_NO_CONTENT)
+def playback_authorized(
+    current_user: CurrentUser,
+    session: Session = Depends(get_session),
+    playback_source: Annotated[str | None, Header(alias="X-CSpot-Playback-Source")] = None,
+    playback_uri: Annotated[str | None, Header(alias="X-CSpot-Playback-URI")] = None,
+) -> Response:
+    permissions = set(list_permissions(session, current_user.id))
+    settings = viewer_settings(session)
+    can_manage = bool(permissions.intersection({"broadcast:use", "users:manage"}))
+    manual_audience = settings.manual_live_audience or "off"
+    manually_visible = manual_audience == "public" or (
+        manual_audience == "admins" and "users:manage" in permissions
+    )
+    if not can_manage and not manually_visible and not live_output_exists(session):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Livestream playback is not currently available",
+        )
+
+    # HLS child playlists and segments carry a short-lived session ID instead
+    # of the source name. Their session can only be created by an authorized
+    # request to a source-checked top-level playlist.
+    is_hls_session_request = bool(
+        playback_uri and "/camera/api/hls/" in playback_uri.split("?", 1)[0]
+    )
+    if not is_hls_session_request:
+        requested_source = playback_source
+        if not requested_source and playback_uri:
+            requested_source = (parse_qs(urlsplit(playback_uri).query).get("src") or [None])[0]
+        allowed_sources = {
+            name
+            for source in camera_sources(settings)
+            if (name := camera_stream_name(source)) is not None
+        }
+        independent_sources = audio_sources(settings)
+        if can_manage:
+            allowed_sources.update(
+                name
+                for source in independent_sources
+                if (name := audio_stream_name(source)) is not None
+            )
+        else:
+            selected_source_id = effective_audio_source(
+                settings,
+                camera_sources(settings),
+                independent_sources,
+            )
+            selected_sources = (
+                [source for source in independent_sources if source.mix_enabled]
+                if selected_source_id == "mix"
+                else [source for source in independent_sources if source.id == selected_source_id]
+            )
+            allowed_sources.update(
+                name
+                for source in selected_sources
+                if (name := audio_stream_name(source)) is not None
+            )
+        if requested_source not in allowed_sources:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Livestream source is not configured",
+            )
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.patch("/manual-live", response_model=BroadcastViewerSettingsRead)
+def update_manual_livestream(
+    payload: ManualLivestreamUpdate,
+    _current_user: User = Depends(require_permission("users:manage")),
+    session: Session = Depends(get_session),
+) -> BroadcastViewerSettingsRead:
+    settings = viewer_settings(session)
+    previous_audience = settings.manual_live_audience or "off"
+    settings.manual_live_audience = payload.audience
+    now = datetime.now(UTC)
+    if payload.audience == "off" and previous_audience != "off":
+        open_manual_events = session.scalars(
+            select(LivestreamEvent).where(
+                LivestreamEvent.presentation_session_id.is_(None),
+                LivestreamEvent.ended_at.is_(None),
+            )
+        ).all()
+        for event in open_manual_events:
+            event.ended_at = now
+    session.commit()
+    session.refresh(settings)
+    return settings_read(settings)
+
+
+@router.get("/live-audio")
+def live_audio(
+    current_user: CurrentUser,
+    session: Session = Depends(get_session, scope="function"),
+) -> StreamingResponse:
+    settings = viewer_settings(session)
+    manual_audience = settings.manual_live_audience or "off"
+    manual_live_visible = manual_audience == "public" or (
+        manual_audience == "admins" and "users:manage" in list_permissions(session, current_user.id)
+    )
+    if not live_output_exists(session) and not manual_live_visible:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Live audio is available only while the livestream is running",
+        )
+    inputs = live_audio_mix_inputs(settings)
+    if not inputs:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Live audio is not configured",
+        )
+    # Streaming responses can remain open for hours. Release the request's
+    # pooled database connection before starting FFmpeg so every listener does
+    # not occupy one connection for the lifetime of the stream.
+    session.close()
+    try:
+        control_port = allocate_control_port()
+        process = subprocess.Popen(
+            ffmpeg_live_mix_command(inputs, control_port),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+        )
+    except OSError as error:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="The live audio mixer is unavailable",
+        ) from error
+
+    control = register_live_audio_control(control_port, inputs)
+
+    def audio_chunks():
+        try:
+            if process.stdout is None:
+                return
+            while chunk := process.stdout.read(2 * 1024):
+                yield chunk
+        finally:
+            unregister_live_audio_control(control)
+            if process.stdout:
+                process.stdout.close()
+            if process.poll() is None:
+                process.terminate()
+                try:
+                    process.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    process.kill()
+
+    return StreamingResponse(
+        audio_chunks(),
+        media_type="audio/mpeg",
+        headers={"Cache-Control": "no-store", "X-Accel-Buffering": "no"},
+    )
+
+
+def _stop_live_audio_process(
+    process: subprocess.Popen[bytes],
+    control: LiveAudioControl,
+) -> None:
+    unregister_live_audio_control(control)
+    if process.poll() is None:
+        process.terminate()
+        try:
+            process.wait(timeout=1)
+        except subprocess.TimeoutExpired:
+            process.kill()
+            try:
+                process.wait(timeout=1)
+            except subprocess.TimeoutExpired:
+                pass
+    if process.stdout:
+        process.stdout.close()
+
+
+async def _live_audio_fmp4_chunks(
+    process: subprocess.Popen[bytes],
+    control: LiveAudioControl,
+) -> AsyncIterator[bytes]:
+    """Read promptly from FFmpeg and always reap it when the client disconnects."""
+    try:
+        if process.stdout is None:
+            return
+        while True:
+            chunk = await anyio.to_thread.run_sync(
+                process.stdout.read,
+                16 * 1024,
+                abandon_on_cancel=True,
+            )
+            if not chunk:
+                return
+            yield chunk
+    finally:
+        # Disconnect cleanup may wait briefly for FFmpeg to exit. Keep that
+        # wait off the event loop, and shield it so request cancellation still
+        # unregisters the control and reaps the child process.
+        with anyio.CancelScope(shield=True):
+            await anyio.to_thread.run_sync(_stop_live_audio_process, process, control)
+
+
+def _authorized_live_audio_inputs(
+    current_user: User,
+    session: Session,
+) -> list[AudioMixInput]:
+    settings = viewer_settings(session)
+    manual_audience = settings.manual_live_audience or "off"
+    manual_live_visible = manual_audience == "public" or (
+        manual_audience == "admins" and "users:manage" in list_permissions(session, current_user.id)
+    )
+    if not live_output_exists(session) and not manual_live_visible:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Live audio is available only while the livestream is running",
+        )
+    inputs = live_audio_mix_inputs(settings)
+    if not inputs:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Live audio is not configured",
+        )
+    # This response can remain open for hours. Do not retain a pooled database
+    # connection for the lifetime of a browser's media stream.
+    session.close()
+    return inputs
+
+
+@router.get("/live-audio.mp4")
+def live_audio_fmp4(
+    current_user: CurrentUser,
+    session: Session = Depends(get_session, scope="function"),
+) -> StreamingResponse:
+    inputs = _authorized_live_audio_inputs(current_user, session)
+    try:
+        control_port = allocate_control_port()
+        process = subprocess.Popen(
+            ffmpeg_live_mix_fmp4_command(inputs, control_port),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            bufsize=0,
+        )
+    except OSError as error:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="The low-latency live audio mixer is unavailable",
+        ) from error
+
+    control = register_live_audio_control(control_port, inputs)
+    return StreamingResponse(
+        _live_audio_fmp4_chunks(process, control),
+        media_type="audio/mp4",
+        headers={
+            "Cache-Control": "no-store, no-transform",
+            "X-Accel-Buffering": "no",
+            "X-Content-Type-Options": "nosniff",
+        },
+    )
+
+
+@router.get("/audio-sources/{source_id}/test")
+def test_audio_source(
+    source_id: str,
+    _current_user: User = Depends(require_permission("broadcast:use")),
+    session: Session = Depends(get_session),
+) -> StreamingResponse:
+    source = next(
+        (
+            candidate
+            for candidate in audio_sources(viewer_settings(session))
+            if candidate.id == source_id
+        ),
+        None,
+    )
+    if source is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Audio source not found")
+    session.close()
+    try:
+        upstream = requests.get(source.url, stream=True, timeout=(5, None))
+        upstream.raise_for_status()
+    except requests.RequestException as error:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="The audio source is unavailable",
+        ) from error
+
+    def audio_chunks():
+        try:
+            yield from upstream.iter_content(chunk_size=2 * 1024)
+        finally:
+            upstream.close()
+
+    return StreamingResponse(
+        audio_chunks(),
+        media_type=upstream.headers.get("content-type", "audio/mpeg").split(";", 1)[0],
+        headers={"Cache-Control": "no-store"},
+    )
+
+
+@router.patch("/viewer-settings", response_model=BroadcastViewerSettingsRead)
+def update_viewer_settings(
+    payload: BroadcastViewerSettingsUpdate,
+    _current_user: User = Depends(require_permission("broadcast:use")),
+    session: Session = Depends(get_session),
+) -> BroadcastViewerSettingsRead:
+    settings = viewer_settings(session)
+    had_media_source = any(
+        audio_source_kind(source) == "media" for source in audio_sources(settings)
+    )
+    updates = payload.model_dump(exclude_unset=True)
+    camera_source_payload = updates.pop("camera_sources", ...)
+    audio_source_payload = updates.pop("audio_sources", ...)
+    audio_scene_payload = updates.pop("audio_scenes", ...)
+    service_schedule_payload = updates.pop("service_schedules", ...)
+    if camera_source_payload is None:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="camera_sources cannot be empty",
+        )
+    if camera_source_payload is not ...:
+        updates.pop("camera_url", None)
+        source_ids = [source["id"] for source in camera_source_payload]
+        if len(source_ids) != len(set(source_ids)):
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="Camera source IDs must be unique",
+            )
+        settings.camera_sources_json = json.dumps(camera_source_payload, separators=(",", ":"))
+        settings.camera_url = camera_source_payload[0]["url"] if camera_source_payload else None
+
+    if audio_source_payload is None:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="audio_sources cannot be empty",
+        )
+    if audio_source_payload is not ...:
+        audio_ids = [source["id"] for source in audio_source_payload]
+        if len(audio_ids) != len(set(audio_ids)):
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="Audio source IDs must be unique",
+            )
+        settings.audio_sources_json = json.dumps(audio_source_payload, separators=(",", ":"))
+
+    if audio_scene_payload is None:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="audio_scenes cannot be empty",
+        )
+    if audio_scene_payload is not ...:
+        scene_ids = [scene["id"] for scene in audio_scene_payload]
+        if len(scene_ids) != len(set(scene_ids)):
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="Audio scene IDs must be unique",
+            )
+        settings.audio_scenes_json = json.dumps(audio_scene_payload, separators=(",", ":"))
+
+    if service_schedule_payload is None:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="service_schedules cannot be empty",
+        )
+    if service_schedule_payload is not ...:
+        schedule_ids = [rule["id"] for rule in service_schedule_payload]
+        if len(schedule_ids) != len(set(schedule_ids)):
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="Service schedule IDs must be unique",
+            )
+        settings.service_schedules_json = json.dumps(
+            service_schedule_payload, separators=(",", ":")
+        )
+
+    if audio_source_payload is not ... or audio_scene_payload is not ...:
+        scenes = audio_scenes(settings)
+        first_media_source_added = bool(
+            audio_source_payload is not ...
+            and not had_media_source
+            and any(audio_source_kind(source) == "media" for source in audio_sources(settings))
+        )
+        if audio_source_payload is not ... and audio_scene_payload is ...:
+            current_scene = settings.active_audio_scene or "pastor"
+            for scene in scenes:
+                if scene.id != current_scene:
+                    continue
+                if first_media_source_added:
+                    # Apply the normalized active scene instead of stale form
+                    # flags when the direct-media route first appears. Routine
+                    # scenes keep the new media leg off; Media and Pre-service
+                    # turn it on while excluding the delayed desk return.
+                    applied_sources = apply_scene_to_sources(audio_sources(settings), scene)
+                    audio_source_payload = [source.model_dump() for source in applied_sources]
+                    settings.audio_sources_json = json.dumps(
+                        audio_source_payload, separators=(",", ":")
+                    )
+                    break
+                scene.channels = {
+                    source["id"]: BroadcastAudioSceneChannel(
+                        gain_db=source.get("gain_db", 0),
+                        enabled=source.get("mix_enabled", True),
+                    )
+                    for source in audio_source_payload
+                }
+        settings.audio_scenes_json = json.dumps(
+            [scene.model_dump() for scene in scenes], separators=(",", ":")
+        )
+
+    sources = camera_sources(settings)
+    independent_sources = audio_sources(settings)
+    source_ids = {source.id for source in sources}
+    audio_ids = {source.id for source in independent_sources}
+    if source_ids & audio_ids:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Camera and audio source IDs must be unique",
+        )
+    requested_camera_id = updates.get("active_camera_id", settings.active_camera_id)
+    if requested_camera_id and requested_camera_id not in source_ids:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="The selected camera is not configured",
+        )
+    requested_audio_source = updates.get(
+        "live_audio_source",
+        effective_audio_source(settings, sources, independent_sources),
+    )
+    if requested_audio_source not in {"none", "mix", *source_ids, *audio_ids}:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="The selected live audio source is not configured",
+        )
+    if requested_audio_source == "mix" and not any(
+        source.mix_enabled for source in independent_sources
+    ):
+        requested_audio_source = "none"
+    updates["live_audio_source"] = requested_audio_source
+    selected_independent = next(
+        (source for source in independent_sources if source.id == requested_audio_source),
+        None,
+    )
+    updates["live_audio_url"] = selected_independent.url if selected_independent else None
+    requested_mixer_protocol = updates.get("mixer_protocol", settings.mixer_protocol or "none")
+    if requested_mixer_protocol not in {"none", "web", "bridge", "audio-only"}:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="The selected mixer integration type is not supported",
+        )
+
+    camera_cycle_changed = (
+        "active_camera_id" in updates
+        or "camera_cycle_seconds" in updates
+        or camera_source_payload is not ...
+    )
+    if camera_cycle_changed:
+        settings.camera_cycle_started_at = datetime.now(UTC)
+
+    for field, value in updates.items():
+        if (
+            field
+            in {
+                "audio_mix_mode",
+                "auto_record_sermons",
+                "recording_grace_seconds",
+                "stream_title",
+                "pre_service_minutes",
+                "starting_soon_message",
+                "offline_message",
+            }
+            and value is None
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=f"{field} cannot be empty"
+            )
+        if isinstance(value, str):
+            value = value.strip()
+            if not value and field in {"stream_title", "starting_soon_message", "offline_message"}:
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail=f"{field} cannot be empty",
+                )
+            value = value or None
+        setattr(settings, field, value)
+
+    if settings.audio_mix_mode == "mixer":
+        program = next((source for source in audio_sources(settings)
+                        if source.id == settings.mixer_program_source_id), None)
+        if program is None or not program.url.strip().lower().startswith(("http://", "https://")):
+            raise HTTPException(422, "Select a configured HTTP stereo program source for mixer audio mode")
+        if "audio_mix_mode" in updates or "mixer_program_source_id" in updates:
+            settings.live_audio_source = program.id
+
+    if sources and settings.active_camera_id not in source_ids:
+        settings.active_camera_id = sources[0].id
+    if not sources:
+        settings.active_camera_id = None
+    requested_scene = payload.active_audio_scene
+    hardware_hold = False
+    if requested_scene:
+        if requested_scene not in {scene.id for scene in audio_scenes(settings)}:
+            raise HTTPException(422, "The selected audio scene is not configured")
+        from app.modules.mixer.automation import hold_manual_scene
+        try:
+            hardware_hold = hold_manual_scene(session, requested_scene, hold=False)
+        except ValueError as exc:
+            raise HTTPException(409, str(exc)) from exc
+    session.commit()
+    session.refresh(settings)
+    if requested_scene and not activate_audio_scene(session, settings, requested_scene, manual=True):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="The selected audio scene is not configured",
+        )
+    else:
+        update_live_audio_controls(live_audio_mix_inputs(settings))
+        reconfigure_active_recording(session)
+    if hardware_hold:
+        from app.modules.mixer.engine import engine as mixer_engine
+        from app.modules.mixer.automation import automation
+        mixer_engine.startup_scene_hold = False
+        automation.notify()
+    result = settings_read(settings)
+    reconcile_audio_sources(independent_sources)
+    return result
+
+
+class PTZCruiseRequest(BaseModel):
+    camera_id: str = Field(default="default", min_length=1, max_length=80)
+    enabled: bool
+    speed: float = Field(default=0.13, ge=0.005, le=0.2)
+    sweep_seconds: int = Field(default=5, ge=5, le=120)
+
+
+@router.get("/ptz/cruise")
+def ptz_cruise_status(
+    camera_id: str = "default",
+    _user: User = Depends(require_permission("broadcast:use")),
+):
+    from app.modules.broadcast.ptz import ptz_devices
+    return {**resolve_ptz_cruise(camera_id).status(), "devices": ptz_devices()}
+
+
+def resolve_ptz_cruise(camera_id):
+    from app.modules.broadcast.ptz import get_cruise
+    try:
+        return get_cruise(camera_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+@router.post("/ptz/cruise")
+def control_ptz_cruise(
+    payload: PTZCruiseRequest,
+    _user: User = Depends(require_permission("broadcast:use")),
+):
+    cruise = resolve_ptz_cruise(payload.camera_id)
+    with cruise.lock:
+        try:
+            if payload.enabled:
+                cruise.start(payload.speed, payload.sweep_seconds)
+            else:
+                cruise.stop()
+        except Exception as exc:
+            detail = (str(exc) if isinstance(exc, ValueError)
+                      else "Could not communicate with ONVIF camera")
+            raise HTTPException(status_code=422, detail=detail) from exc
+    return cruise.status()
+
+
+class PTZSampleRequest(BaseModel):
+    camera_id: str = Field(default="default", min_length=1, max_length=80)
+    direction: Literal["left", "right"]
+
+
+@router.post("/ptz/sample")
+def sample_ptz_angle(
+    payload: PTZSampleRequest,
+    _user: User = Depends(require_permission("broadcast:use")),
+    session: Session = Depends(get_session),
+):
+    import time
+    cruise = resolve_ptz_cruise(payload.camera_id)
+
+    settings = viewer_settings(session)
+    if settings.manual_live_audience != "off" or live_output_exists(session):
+        raise HTTPException(status_code=409, detail="Stop broadcasting before sampling a new angle")
+    with cruise.lock:
+        try:
+            try:
+                cruise.start(-0.13 if payload.direction == "left" else 0.13, 30)
+                time.sleep(0.75)
+            finally:
+                cruise.stop()
+        except Exception as exc:
+            raise HTTPException(status_code=422, detail="Could not sample ONVIF camera angle") from exc
+    return cruise.status()

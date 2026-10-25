@@ -30,7 +30,6 @@ import {
 import { useDurableChange } from "../changePolling";
 import { useConfirmationDialog } from "./ConfirmationDialog";
 import { AdminAvailabilityPanel } from "./AdminAvailabilityPanel";
-import { AudioSceneManager } from "./AudioSceneManager";
 import { ServingRoleManager } from "./ServingRoleManager";
 import { PlanTypeManager } from "./PlanTypeManager";
 import { ServingManagementGrants } from "./ServingManagementGrants";
@@ -627,7 +626,6 @@ export function UserManager({ adminSection, initialUserId, onAdminSectionChange,
 
         <ServingRoleManager onChanged={(areas) => { setServingAreas(areas); void refreshVolunteerRows(); }} />
 
-        <AudioSceneManager onMessage={setMessage} />
 
         <section className="subsection-panel admin-settings-panel">
           <div className="section-heading">

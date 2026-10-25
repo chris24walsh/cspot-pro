@@ -1,12 +1,8 @@
-import json
-
 from sqlalchemy.orm import Session
 
-from app.modules.broadcast.audio_mix import live_audio_mix_inputs
-from app.modules.broadcast.live_audio import update_live_audio_controls
 from app.modules.broadcast.models import BroadcastViewerSettings
 from app.modules.broadcast.recording import reconfigure_active_recording
-from app.modules.broadcast.settings import apply_scene_to_sources, audio_scenes, audio_sources
+from app.modules.broadcast.settings import audio_scenes
 
 
 def activate_audio_scene(
@@ -17,19 +13,10 @@ def activate_audio_scene(
     )
     if scene is None:
         return False
-    if getattr(settings, "audio_mix_mode", "software") == "mixer":
-        # The desk supplies one finished stereo program. Scene changes must never
-        # switch back to room/PC feeds or apply software trims on top of it.
-        settings.live_audio_source = settings.mixer_program_source_id or "none"
-    else:
-        sources = apply_scene_to_sources(audio_sources(settings), scene)
-        settings.audio_sources_json = json.dumps(
-            [source.model_dump() for source in sources], separators=(",", ":")
-        )
-        settings.live_audio_source = "mix" if any(source.mix_enabled for source in sources) else "none"
+    # Scenes control desk sends. The finished program feed stays at unity gain.
     if not manual:
-        from app.modules.mixer.models import MixerConfiguration
         from app.modules.mixer.automation import configuration
+        from app.modules.mixer.models import MixerConfiguration
         mixer = session.get(MixerConfiguration, "xr18")
         cfg = configuration(mixer)
         if mixer and cfg.follow_service and cfg.manual_scene_id:
@@ -40,7 +27,6 @@ def activate_audio_scene(
     session.refresh(settings)
     from app.modules.mixer.automation import automation
     automation.notify()
-    update_live_audio_controls(live_audio_mix_inputs(settings))
     reconfigure_active_recording(session)
     return True
 

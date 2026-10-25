@@ -30,7 +30,6 @@ import {
 import { recordingTimestamp, recordingTimestampTitle, SermonRecordingPlayer } from "./SermonRecordingPlayer";
 import { RecordingActions } from "./RecordingActions";
 import { Xr18MixerPanel } from "./Xr18MixerPanel";
-import { AudioMixerPanel } from "./AudioMixerPanel";
 import { useConfirmationDialog } from "./ConfirmationDialog";
 import { LiveStreamAudio, LowLatencyCamera } from "./LowLatencyCamera";
 
@@ -407,26 +406,6 @@ export function BroadcastManager({
     }
   }
 
-  async function commitAudioMix(
-    audioSources: BroadcastViewerSettings["audio_sources"],
-    liveAudioSource: string,
-  ) {
-    setSaving(true);
-    setMessage(null);
-    try {
-      const settings = await updateBroadcastViewerSettings({
-        audio_sources: audioSources,
-        live_audio_source: liveAudioSource,
-      });
-      applyServerState(settings);
-      setMessage(liveAudioSource === "mix" ? "The source mix is now live." : "Audio mix updated.");
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Could not update the source mix.");
-    } finally {
-      setSaving(false);
-    }
-  }
-
   async function putCameraOnAir(cameraId: string) {
     setMessage(null);
     try {
@@ -457,10 +436,10 @@ export function BroadcastManager({
       {message ? <p className="form-message">{message}</p> : null}
 
       {canManage && activeTab === "livestream" ? <>
-      <section className="broadcast-source-settings"><h3>Audio mixing</h3>
+      <section className="broadcast-source-settings"><h3>Program audio</h3>
         <label><input type="checkbox" checked={form.audio_scene_automation} disabled={loading || saving} onChange={event=>void (async()=>{try {const settings=await updateBroadcastViewerSettings({audio_scene_automation:event.target.checked});setForm(current=>({...current,audio_scene_automation:settings.audio_scene_automation}));}catch(error){setMessage(error instanceof Error?error.message:'Could not change audio scene automation');}})()}/>Follow presentation audio scenes</label>
-        <label>Mixing mode<select aria-label="Audio mixing mode" value={form.audio_mix_mode || 'software'} onChange={event=>setForm({...form,audio_mix_mode:event.target.value as 'software'|'mixer'})}><option value="software">Software source mix (existing)</option><option value="mixer">Digital mixer · stereo program feed</option></select></label>
-        {form.audio_mix_mode === 'mixer' && <><label>Stereo program source<select aria-label="Mixer stereo program source" value={form.mixer_program_source_id || ''} onChange={event=>setForm({...form,mixer_program_source_id:event.target.value || null})}><option value="">Choose a verified mixer feed</option>{form.audio_sources.map(source=><option key={source.id} value={source.id}>{source.label}</option>)}</select></label><p>The XR18 mixes audio locally. Scenes change desk sends; cspot captures one stereo feed at unity gain. Configure USB capture on the church PC before selecting this mode.</p></>}
+
+        <label>Stereo program source<select aria-label="Mixer stereo program source" value={form.mixer_program_source_id || ''} onChange={event=>setForm({...form,mixer_program_source_id:event.target.value || null})}><option value="">Choose a verified mixer feed</option>{form.audio_sources.map(source=><option key={source.id} value={source.id}>{source.label}</option>)}</select></label><p>The XR18 mixes audio locally. Scenes change desk sends; cspot captures one stereo feed at unity gain. Use the desk’s direct output for room sound. Streaming and browser playback still add delay.</p>
       </section>
 
       <div className="broadcast-settings-grid" role="tabpanel" aria-label="Livestream settings">
@@ -745,7 +724,6 @@ export function BroadcastManager({
           Live audio source
           <select disabled={loading || saving} onChange={(event) => void useAudioSource(event.target.value)} value={form.live_audio_source}>
             <option value="none">No live audio</option>
-            {form.audio_sources.some((source) => source.mix_enabled) ? <option value="mix">Source mix</option> : null}
             {form.audio_sources.length ? <optgroup label="Independent audio">
               {form.audio_sources.map((source) => <option key={source.id} value={source.id}>{source.label}</option>)}
             </optgroup> : null}
@@ -909,26 +887,6 @@ export function BroadcastManager({
       {canManage && activeTab === "mixer" ? (
         <section className="broadcast-mixer broadcast-tab-panel" aria-label="Musician audio mixer" role="tabpanel">
           <Xr18MixerPanel />
-          {form.audio_mix_mode !== "mixer" && <AudioMixerPanel
-            activeScene={form.active_audio_scene}
-            automation={form.audio_scene_automation}
-            disabled={loading || saving}
-            liveAudioSource={form.live_audio_source}
-            onChange={(audio_sources) => setForm((current) => ({ ...current, audio_sources }))}
-            onCommit={commitAudioMix}
-            onAutomationChange={async (audio_scene_automation) => {
-              const settings = await updateBroadcastViewerSettings({ audio_scene_automation });
-              setForm((current) => ({ ...current, ...settings }));
-            }}
-            onSceneChange={async (active_audio_scene) => {
-              try {
-                const settings = await updateBroadcastViewerSettings({ active_audio_scene });
-                setForm((current) => ({ ...current, ...settings }));
-              } catch (error) { setMessage(error instanceof Error ? error.message : "Could not apply audio scene"); }
-            }}
-            scenes={form.audio_scenes}
-            sources={form.audio_sources}
-          />}
           <div className="broadcast-mixer-heading">
             <div>
               <p className="eyebrow">Musician audio</p>
@@ -985,8 +943,6 @@ export function BroadcastManager({
             <span>Current broadcast audio</span>
             <strong>{form.live_audio_source === "none"
               ? "No live audio"
-              : form.live_audio_source === "mix"
-                ? "Source mix"
               : form.audio_sources.find((source) => source.id === form.live_audio_source)?.label
                 ?? `${form.camera_sources.find((source) => source.id === form.live_audio_source)?.label ?? form.live_audio_source} camera`}</strong>
             <button className="text-button" onClick={() => onSelectTab("livestream")} type="button">Change audio routing</button>

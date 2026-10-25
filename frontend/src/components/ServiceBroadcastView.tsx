@@ -35,7 +35,6 @@ import { isBroadcastStartingSoon } from "../broadcastTiming";
 import { isFirefoxDevice, isMobileOrTabletDevice } from "../presentationDevice";
 import { isWorshipSetPlan, matchingWorshipSetForService, mergeWorshipSetIntoService } from "../worshipSets";
 import { AutoFitSlideText } from "./AutoFitSlideText";
-import { AudioMixerPanel } from "./AudioMixerPanel";
 import { CountdownSlide } from "./CountdownSlide";
 import { PreServiceSlide, serviceScheduleForPlan } from "./PreServiceSlide";
 import { LiveStreamAudio, LowLatencyCamera } from "./LowLatencyCamera";
@@ -237,13 +236,6 @@ export function ServiceBroadcastView({ canControl = false, onOpenSettings }: { c
 
   function putAudioOnAir(sourceId: string) {
     void updateLiveControls({ live_audio_source: sourceId });
-  }
-
-  function commitAudioMix(
-    audioSources: BroadcastViewerSettings["audio_sources"],
-    liveAudioSource: string,
-  ) {
-    return updateLiveControls({ audio_sources: audioSources, live_audio_source: liveAudioSource });
   }
 
   function setCameraCycleMode(mode: "manual" | "automatic") {
@@ -503,21 +495,6 @@ export function ServiceBroadcastView({ canControl = false, onOpenSettings }: { c
               <LiveStreamAudio label={selectedAudioCamera ? `${selectedAudioCamera.label} audio` : selectedIndependentAudio?.label ?? "Live service audio"} onSoundEnabledChange={setLivestreamSound} preserveSoundOnPlaybackFailure={false} soundEnabled={viewerSoundEnabled} url={liveAudioUrl} />
             ) : null}
           </div>
-          {canControl && settings.audio_sources.length ? (
-            <AudioMixerPanel
-              activeScene={settings.active_audio_scene}
-              automation={settings.audio_scene_automation}
-              compact
-              disabled={controlBusy}
-              liveAudioSource={settings.live_audio_source}
-              onChange={(audio_sources) => setSettings((current) => ({ ...current, audio_sources }))}
-              onCommit={commitAudioMix}
-              onAutomationChange={(audio_scene_automation) => updateLiveControls({ audio_scene_automation })}
-              onSceneChange={(active_audio_scene) => updateLiveControls({ active_audio_scene })}
-              scenes={settings.audio_scenes}
-              sources={settings.audio_sources}
-            />
-          ) : null}
         </section>
       </div>
 
@@ -546,7 +523,6 @@ export function ServiceBroadcastView({ canControl = false, onOpenSettings }: { c
                   value={settings.live_audio_source}
                 >
                   <option value="none">No audio</option>
-                  {settings.audio_sources.some((source) => source.mix_enabled) ? <option value="mix">Source mix</option> : null}
                   {settings.audio_sources.length ? <optgroup label="Independent audio">
                     {settings.audio_sources.map((source) => <option key={source.id} value={source.id}>{source.label}</option>)}
                   </optgroup> : null}

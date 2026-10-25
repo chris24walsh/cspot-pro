@@ -75,7 +75,7 @@ class ServiceScheduleRule(BaseModel):
 
 
 class BroadcastViewerSettingsRead(BaseModel):
-    audio_mix_mode: Literal["software", "mixer"] = "software"
+    audio_mix_mode: Literal["mixer"] = "mixer"
     mixer_program_source_id: str | None = None
     stream_title: str
     stream_description: str | None = None
@@ -109,7 +109,7 @@ class BroadcastViewerSettingsRead(BaseModel):
 
 
 class BroadcastViewerSettingsUpdate(BaseModel):
-    audio_mix_mode: Literal["software", "mixer"] | None = None
+    audio_mix_mode: Literal["mixer"] | None = None
     mixer_program_source_id: str | None = Field(default=None, max_length=80)
     stream_title: str | None = Field(default=None, max_length=180)
     stream_description: str | None = None

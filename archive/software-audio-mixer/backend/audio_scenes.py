@@ -1,0 +1,79 @@
+import json
+
+from sqlalchemy.orm import Session
+
+from app.modules.broadcast.audio_mix import live_audio_mix_inputs
+from app.modules.broadcast.live_audio import update_live_audio_controls
+from app.modules.broadcast.models import BroadcastViewerSettings
+from app.modules.broadcast.recording import reconfigure_active_recording
+from app.modules.broadcast.settings import apply_scene_to_sources, audio_scenes, audio_sources
+
+
+def activate_audio_scene(
+    session: Session, settings: BroadcastViewerSettings, scene_id: str, *, manual: bool = False
+) -> bool:
+    scene = next(
+        (candidate for candidate in audio_scenes(settings) if candidate.id == scene_id), None
+    )
+    if scene is None:
+        return False
+    if getattr(settings, "audio_mix_mode", "software") == "mixer":
+        # The desk supplies one finished stereo program. Scene changes must never
+        # switch back to room/PC feeds or apply software trims on top of it.
+        settings.live_audio_source = settings.mixer_program_source_id or "none"
+    else:
+        sources = apply_scene_to_sources(audio_sources(settings), scene)
+        settings.audio_sources_json = json.dumps(
+            [source.model_dump() for source in sources], separators=(",", ":")
+        )
+        settings.live_audio_source = "mix" if any(source.mix_enabled for source in sources) else "none"
+    if not manual:
+        from app.modules.mixer.models import MixerConfiguration
+        from app.modules.mixer.automation import configuration
+        mixer = session.get(MixerConfiguration, "xr18")
+        cfg = configuration(mixer)
+        if mixer and cfg.follow_service and cfg.manual_scene_id:
+            cfg.manual_scene_id = None
+            mixer.automation_json = cfg.model_dump_json()
+    settings.active_audio_scene = scene.id
+    session.commit()
+    session.refresh(settings)
+    from app.modules.mixer.automation import automation
+    automation.notify()
+    update_live_audio_controls(live_audio_mix_inputs(settings))
+    reconfigure_active_recording(session)
+    return True
+
+
+def automatic_scene_for_item(
+    item_type: str | None,
+    video_action: str | None,
+    service_stage: str | None = None,
+) -> str:
+    if service_stage == "post_service":
+        return "post_service"
+    if service_stage == "pre_service":
+        return "pre_service"
+    if item_type in {"welcome_montage", "welcome_countdown"}:
+        return "pre_service"
+    if item_type in {"pre_service", "welcome_seated"} and service_stage != "service":
+        return "pre_service"
+    # A song backing track is deliberately carried through the sound desk so
+    # the livestream retains the live musicians and vocals alongside it.  The
+    # direct PC-media route is reserved for standalone media, where muting the
+    # desk return removes the duplicated PC playback cleanly.
+    if item_type == "song":
+        return "worship"
+    if video_action == "play":
+        return "media"
+    if item_type in {
+        "seating",
+        "testimony",
+        "sharing",
+        "community",
+        "open_time",
+        "end",
+        "post_service",
+    }:
+        return "congregation"
+    return "pastor"

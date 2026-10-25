@@ -1,5 +1,19 @@
 # Development environments
 
+## Audio mixing retirement — 25 October 2026
+
+Software source mixing is retired. The XR18 mixes locally and supplies one stereo
+program feed at unity gain to livestream and recording. Broadcast → Mixer keeps
+hardware controls and scene automation; software source faders and software scene
+routing are archived in `archive/software-audio-mixer`. Existing source/scene JSON
+is retained for recovery. Migration 0076 replaces a legacy mix with its unique
+`desk` source; ambiguous mixes require operator selection. Viewers use the shared
+go2rtc audio transport when configured, with single-feed API relay compatibility.
+FFmpeg remains for capture, transport and recording encoding, without multi-input
+mixing, software trims, limiting or ZMQ gain control. Room sound should use direct
+desk outputs. Streaming/browser delay remains and requires on-site measurement.
+This supersedes earlier software-mixer descriptions below.
+
 ## Service template persistence
 
 `POST /planning/plans/{id}/sections` copies a default section and its children in
@@ -643,32 +657,19 @@ a stall watchdog, and automatic reconnection. Slide state is polled separately
 at 500 ms and passes through a configurable delay so it can be aligned with the
 camera pipeline.
 
-Independent room-microphone, sound-desk return, and church-PC media feeds can
-remain private HTTP MP3 inputs. The normal physical media path is PC line-out to
-the sound desk, followed by the desk's USB return into CSpot. A parallel PC-media
-capture exposes the original playback directly. Because the desk return already
-contains that playback, enabling both the desk return and direct media at full
-level would create a doubled or delayed echo. Media routing is therefore an
-explicit mix-minus: speaking/worship scenes exclude the direct media capture,
-while media scenes exclude both the desk return and room microphone.
+The XR18 supplies one finished stereo program feed. PC playback returns through
+the desk and its sends are controlled by hardware scenes. CSpot applies no
+multi-input graph, gain, software limiter, or scene-dependent source switching.
 
-CSpot keeps source URLs and listener tokens server-side. Camera audio uses the go2rtc transport, while independent and mixed sources use CSpot's authenticated server relay so a gateway on another subnet does not need direct access to a private source. The raw API relay at `/api/v1/broadcast/live-audio` remains available for compatibility and recording. Browsers use
-the authenticated `/api/v1/broadcast/live-audio.mp4` variant: FFmpeg emits
-roughly 200 ms AAC fragments, the client retains only complete recent
-fragments, trims its decoded buffer, and targets about 250 ms behind the live
-edge. Known MP3 bridge inputs use explicit demuxing and minimal input probing;
-without that, FFmpeg opens and analyzes live inputs sequentially and can add
-several seconds of latency for every source in a mix. Camera MSE playback uses
-the same live-edge correction policy. Both
-routes open only the selected on-air inputs so an unavailable off-air feed cannot
-block a healthy desk feed. Viewer audio reconnects when the selected input IDs
-change; gain changes use runtime commands without reconnecting the stream. Cancelling the fragmented stream aborts the request and reaps its FFmpeg
-process, and the database connection is released before streaming begins. The
-same raw upstream remains available to the sermon-recording pipeline. The
-administrator's per-source Listen preview uses the normalized transport as well
-when the gateway is available.
+Source URLs and listener tokens stay server-side. Viewers use the shared,
+normalized go2rtc audio transport, avoiding a per-listener encoding process. With
+no configured gateway, `/api/v1/broadcast/live-audio.mp4` relays one feed as short
+AAC fragments; `/api/v1/broadcast/live-audio` retains MP3 compatibility. Both
+release their database connection before streaming and reap their FFmpeg process
+on disconnect. Recording separately encodes the same unity-gain stereo feed.
+The former mixing implementation and tests are under `archive/software-audio-mixer`.
 
-Camera and mixed audio still originate in separate transport timelines. Keeping
+Camera and program audio still originate in separate transport timelines. Keeping
 both close to the same bounded live edge prevents accumulating drift, but this
 is not sample-accurate A/V synchronization; that would require muxing them into
 one timed media stream.
@@ -677,7 +678,7 @@ Standalone video on the remote viewer is a visual-only follower: it exposes no
 independent controls, is always muted, and follows the presentation's delayed
 play, pause, stop, and fade-stop state. The action timestamp is used to seek a
 late or newly joined player toward the program-audio position, while all audible
-media continues to come from the selected source-mix route. This bounds the
+media continues to come from the selected program-feed route. This bounds the
 common delayed-start error, although the separate browser video and captured
 audio clocks can still require site-specific delay calibration.
 
@@ -1442,7 +1443,7 @@ The `mixer` module provides an authenticated local OSC/UDP transport, parameter
 catalog, 20 Hz SSE updates, command readback/retries and PostgreSQL-backed
 connection/snapshot configuration. It shares one desk session among browser
 clients within the single API worker. The Broadcast Mixer surface includes the
-XR18 desk alongside the existing software audio mixer. See [XR18 details](xr18-mixer.md).
+XR18 desk with the software source mixer archived. See [XR18 details](xr18-mixer.md).
 
 XR18 layout uses the measured panel width rather than device detection, adapting
 strip widths as app navigation or orientation changes. Every bank renders one
@@ -1578,10 +1579,10 @@ Mixer-permitted accounts can map inputs, save/draft/capture presets, apply a
 manual hold and pause/resume service following. Scenes control channel Main L/R
 assignment/fader and linked bus send levels only. Master levels, preamps,
 phantom, Solo and processing remain manual. Broadcast-permitted accounts
-separately choose `audio_mix_mode` (`software` by default, or `mixer`) and a
-`mixer_program_source_id`. Mixer mode pins the program source with unity gain,
-keeps existing software scene metadata intact, and preserves stereo through
-live encoding and recording. Explicit source `none` still mutes audio.
+choose a `mixer_program_source_id`. The only active `audio_mix_mode` is `mixer`.
+The program feed remains stereo at unity gain across all hardware scenes;
+software gain/mute metadata is preserved for recovery. FFmpeg capture and encoding
+remain necessary. Hardware routing and end-to-end latency need on-site checks.
 
 The Windows bridge's `OutputChannels` defaults to one; the XR18 example opts
 into two channels. FFmpeg capture/encoding remains necessary. Hardware routing

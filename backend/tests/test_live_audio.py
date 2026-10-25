@@ -1,20 +1,10 @@
 import asyncio
-import shutil
-import subprocess
 import threading
-import time
 from types import SimpleNamespace
 
 import pytest
 
 from app.modules.broadcast.audio_mix import AudioMixInput
-from app.modules.broadcast.live_audio import (
-    LiveAudioControl,
-    allocate_control_port,
-    register_live_audio_control,
-    unregister_live_audio_control,
-    update_live_audio_controls,
-)
 from app.modules.broadcast.models import BroadcastViewerSettings
 from app.modules.broadcast.routes import _live_audio_fmp4_chunks, live_audio_fmp4
 
@@ -54,46 +44,6 @@ class FakeProcess:
         return 0
 
 
-@pytest.mark.skipif(shutil.which("ffmpeg") is None, reason="ffmpeg is not installed")
-def test_running_ffmpeg_volume_can_be_updated_without_restart() -> None:
-    port = allocate_control_port()
-    initial = [AudioMixInput(source_id="desk", url="test://desk", gain_db=0)]
-    process = subprocess.Popen(
-        [
-            "ffmpeg",
-            "-hide_banner",
-            "-loglevel",
-            "error",
-            "-re",
-            "-f",
-            "lavfi",
-            "-i",
-            "sine=frequency=1000:sample_rate=48000",
-            "-filter_complex",
-            f"[0:a]volume@input0=0dB,azmq=b=tcp\\\\://127.0.0.1\\\\:{port}[audio]",
-            "-map",
-            "[audio]",
-            "-f",
-            "null",
-            "-",
-        ],
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-    )
-    control = register_live_audio_control(port, initial)
-    try:
-        time.sleep(0.5)
-        assert (
-            update_live_audio_controls(
-                [AudioMixInput(source_id="desk", url="test://desk", gain_db=-12)]
-            )
-            == 1
-        )
-        assert process.poll() is None
-    finally:
-        unregister_live_audio_control(control)
-        process.terminate()
-        process.wait(timeout=5)
 
 
 def test_fmp4_stream_cancellation_reaps_ffmpeg_immediately() -> None:
@@ -103,7 +53,6 @@ def test_fmp4_stream_cancellation_reaps_ffmpeg_immediately() -> None:
     async def cancel_after_first_chunk() -> None:
         chunks = _live_audio_fmp4_chunks(
             process,  # type: ignore[arg-type]
-            LiveAudioControl(port=12345, inputs=()),
         )
         assert await anext(chunks) == b"init"
         await chunks.aclose()
@@ -141,7 +90,6 @@ def test_fmp4_route_closes_database_session_before_starting_ffmpeg(
     monkeypatch.setattr(
         "app.modules.broadcast.routes.live_audio_mix_inputs", lambda _settings: inputs
     )
-    monkeypatch.setattr("app.modules.broadcast.routes.allocate_control_port", lambda: 23456)
 
     def popen(command: list[str], **_kwargs: object) -> FakeProcess:
         assert session.closed is True

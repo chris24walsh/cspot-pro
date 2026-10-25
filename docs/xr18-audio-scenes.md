@@ -1,5 +1,19 @@
 # Service-driven room and livestream audio
 
+## Audio mixing retirement — 25 October 2026
+
+Software source mixing is retired. The XR18 mixes locally and supplies one stereo
+program feed at unity gain to livestream and recording. Broadcast → Mixer keeps
+hardware controls and scene automation; software source faders and software scene
+routing are archived in `archive/software-audio-mixer`. Existing source/scene JSON
+is retained for recovery. Migration 0076 replaces a legacy mix with its unique
+`desk` source; ambiguous mixes require operator selection. Viewers use the shared
+go2rtc audio transport when configured, with single-feed API relay compatibility.
+FFmpeg remains for capture, transport and recording encoding, without multi-input
+mixing, software trims, limiting or ZMQ gain control. Room sound should use direct
+desk outputs. Streaming/browser delay remains and requires on-site measurement.
+This supersedes earlier software-mixer descriptions below.
+
 The XR18 **Audio scenes** tab can follow the current service section and apply
 separate channel levels for the room and livestream. It runs on the server;
 leaving the mixer browser closed does not stop it. Hardware automation defaults
