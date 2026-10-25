@@ -814,3 +814,9 @@ single cue source; section overrides are inherited by children, and stopping a
 service selects Post-service. Defaults remain hardware automation off and
 software audio mixing. Stereo USB program capture requires on-site validation;
 see [setup and operating behavior](xr18-audio-scenes.md).
+
+The XR18 fader toolbar provides Mute all and confirmed Unmute all for all input,
+aux and FX-return channels across banks. Masters, buses and DCAs are excluded.
+Both actions require live complete channel mute readbacks and affect room and
+livestream together. Service scenes preserve these manual channel mutes; scene
+on/off instead controls Main L/R assignment and independent stream sends.

@@ -395,3 +395,27 @@ it('ends a held gain gesture when its physical source switches to USB', () => {
   expect(container.querySelector('[aria-label="Ch 1 USB trim"]')?.getAttribute('aria-disabled')).toBe('false');
   expect(vi.mocked(mixerRequest).mock.calls.every(([,method])=>method!=='POST')).toBe(true);
 });
+
+
+it('mutes every input across banks, excludes masters and requires confirmation to unmute', async () => {
+  const values = Object.fromEntries(Array.from({length:16},(_,i)=>[`/ch/${String(i+1).padStart(2,'0')}/mix/on`,1]));
+  emit({...emptyMixer,reset:true,connected:true,values:{...values,'/lr/mix/on':1}});
+  const mute=container.querySelector<HTMLButtonElement>('[aria-label="Mute all input channels and returns"]')!;
+  expect(mute.disabled).toBe(false);
+  await act(async()=>{mute.click();await new Promise(resolve=>setTimeout(resolve,60));});
+  const batch=vi.mocked(mixerRequest).mock.calls.find(([path])=>path==='/commands')!;
+  expect((batch[2] as any).commands).toHaveLength(16);
+  expect((batch[2] as any).commands.every((c:any)=>c.path.startsWith('/ch/') && c.value===0)).toBe(true);
+  vi.mocked(mixerRequest).mockClear();
+  act(()=>container.querySelector<HTMLButtonElement>('[aria-label="Unmute all input channels and returns"]')!.click());
+  expect(vi.mocked(mixerRequest).mock.calls.some(([path])=>path==='/commands')).toBe(false);
+  await act(async()=>{[...container.querySelectorAll('button')].find(b=>b.textContent==='Confirm')!.click();await new Promise(resolve=>setTimeout(resolve,60));});
+  expect((vi.mocked(mixerRequest).mock.calls.find(([path])=>path==='/commands')![2] as any).commands.every((c:any)=>c.value===1)).toBe(true);
+});
+
+it('disables bulk mute when offline or any input mute readback is missing', () => {
+  const button=()=>container.querySelector<HTMLButtonElement>('[aria-label="Mute all input channels and returns"]')!;
+  expect(button().disabled).toBe(true);
+  emit({...emptyMixer,reset:true,connected:true,values:{'/ch/01/mix/on':1}});
+  expect(button().disabled).toBe(true);
+});

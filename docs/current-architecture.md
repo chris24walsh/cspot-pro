@@ -1587,3 +1587,9 @@ The Windows bridge's `OutputChannels` defaults to one; the XR18 example opts
 into two channels. FFmpeg capture/encoding remains necessary. Hardware routing
 and stereo capture have not been commissioned remotely. See
 [on-site setup](xr18-audio-scenes.md). Migration 0075 adds these optional settings.
+
+The XR18 fader toolbar provides Mute all and confirmed Unmute all for all input,
+aux and FX-return channels across banks. Masters, buses and DCAs are excluded.
+Both actions require live complete channel mute readbacks and affect room and
+livestream together. Service scenes preserve these manual channel mutes; scene
+on/off instead controls Main L/R assignment and independent stream sends.

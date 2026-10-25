@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
-import { RefreshCw, Search, SlidersHorizontal, Save, Unplug, Radio, Settings2, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Maximize2, Minimize2 } from 'lucide-react';
+import { RefreshCw, Search, SlidersHorizontal, Save, Unplug, Radio, Settings2, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Maximize2, Minimize2, VolumeX, Volume2 } from 'lucide-react';
 import { buildAbsoluteApiUrl } from '../api';
 import { displayValue, emptyMixer, fromWire, mixerRequest, physicalHeadamp, toWire, type MixerParameter, type MixerState, type MixerStrip } from '../xr18';
 import { MixerAutomationPanel } from './MixerAutomationPanel';
@@ -278,7 +278,7 @@ export function Xr18MixerPanel() {
   }, []);
   const enabled = state.connected && streamOnline && !state.recalling;
   const controlValue = (path: string) => drafts[path] ?? state.values[path];
-  async function write(path: string, value: number | string, confirmed = false) {
+  async function write(path: string, value: number | string, confirmed = false, immediate?: boolean) {
     const next = ++sequence.current;
     latestSequence.current.set(path, next);
     setDrafts(previous => ({
@@ -290,7 +290,13 @@ export function Xr18MixerPanel() {
       value,
       confirm_phantom: confirmed,
       sequence: next
-    }, (state.fx_specs[path] || catalog.parameters[path])?.kind !== 'float');
+    }, immediate ?? (state.fx_specs[path] || catalog.parameters[path])?.kind !== 'float');
+  }
+  const mutePaths = catalog.strips.filter(strip => ['input', 'aux', 'return'].includes(strip.kind)).map(strip => strip.id + '/mix/on');
+  const bulkMuteReady = enabled && !state.syncing && !busy && mutePaths.length > 0 && mutePaths.every(path => state.values[path] === 0 || state.values[path] === 1);
+  async function muteAll(value: number) {
+    if (!bulkMuteReady) return;
+    for (const path of mutePaths) void write(path, value, false, false);
   }
   function change(path: string, value: number | string) {
     if (path.endsWith('/phantom') && value === 1) {
@@ -431,6 +437,10 @@ export function Xr18MixerPanel() {
     {!state.connected && <p className="xr-notice">{state.host ? `Waiting for ${state.host}:10024. Check power, Ethernet mode and LAN routing.` : 'Connect your XR18 to read the desk. Controls become available as the mixer replies.'} {Object.keys(state.values).length > 0 ? 'Displayed values are cached; controls are disabled.' : ''}</p>}
     {page === 'desk' ? <>{sendBus && <p className="xr-notice">Faders adjust {Number(sendBus) <= 6 ? `Bus ${Number(sendBus)}` : `FX ${Number(sendBus) - 6}`} sends. Mute still mutes the whole channel.</p>}
     <div className="xr-desk-toolbar">
+      <div className="xr-bulk-mute" role="group" aria-label="All input channel mutes">
+        <button type="button" aria-label="Mute all input channels and returns" title="Mute every input and return in both room and livestream, across all banks" disabled={!bulkMuteReady} onClick={() => void muteAll(0)}><VolumeX size={17}/><span className="xr-action-label">Mute all</span></button>
+        <button type="button" aria-label="Unmute all input channels and returns" title="Unmute every input and return; confirm before opening all microphones" disabled={!bulkMuteReady} onClick={() => setDialog({title:'Unmute all channels?',body:'Unmute every input and FX return across all banks, including microphones. This affects both room and livestream; scene routing and levels still apply. Master, bus and DCA mutes remain unchanged.',action:()=>muteAll(1)})}><Volume2 size={17}/><span className="xr-action-label">Unmute all</span></button>
+      </div>
       <div className="xr-bank-pager" role="group" aria-label="Browse channels">
         <button type="button" title="Previous channel bank" aria-label="Previous channel bank" disabled={scrollEdges.start} onClick={() => browseChannels(-1)}><ChevronLeft size={19} /></button>
         <span aria-live="polite">{visible.filter(s => s.kind !== 'main').length} channels · scroll</span>

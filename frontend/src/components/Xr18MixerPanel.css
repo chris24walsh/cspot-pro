@@ -917,3 +917,5 @@
 .xr-scene-table th, .xr-scene-table td { border-bottom: 1px solid #344257; padding: 7px; text-align: left; }
 .xr-scene-table input[type=number] { max-width: 95px; }
 .xr-automation input[type=checkbox] { width: 20px; height: 20px; accent-color: #7dd3fc; }
+
+.xr-bulk-mute { display: flex; gap: 6px; }
