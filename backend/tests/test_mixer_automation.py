@@ -245,7 +245,7 @@ def test_scene_opens_needed_inputs_after_levels_and_closes_unused_inputs():
     scene.channels["/ch/01"].room.enabled = False
     assert scene_commands(cfg, scene)["/ch/01/mix/on"] == 1, "Stream-only input must remain open"
     cfg.livestream_enabled = False
-    assert "/ch/01/mix/on" not in scene_commands(cfg, scene), "Do not mute an uncontrolled mix"
+    assert scene_commands(cfg, scene)["/ch/01/mix/on"] == 0
 
 
 def test_startup_hold_requires_operator_release_before_scene_can_open_audio():
@@ -286,3 +286,20 @@ def test_service_leader_role_has_an_independent_scene_and_preserves_existing_def
     assert scenes["worship"].channels["/ch/01"].room.enabled
     assert "service_leader" not in {scene.id for scene in suggested_scenes({"/ch/07": "pastor"})}
     assert AutomationConfiguration(roles={"/ch/08": "leader"}).roles["/ch/08"] == "leader"
+
+
+@pytest.mark.parametrize("output", ["room", "livestream"])
+def test_single_output_scene_mutes_channels_left_open_by_previous_scene(output):
+    async def scenario():
+        desk = Desk()
+        cfg = config(room_enabled=output == "room", livestream_enabled=output == "livestream")
+        worker = SceneAutomation(desk)
+        await worker.tick(cue(cfg, "pastor"))
+        assert desk.values["/ch/01/mix/on"] == 1
+        await worker.tick(cue(cfg, "worship"))
+        assert desk.values["/ch/01/mix/on"] == 0
+        await worker.tick(cue(cfg, "pastor"))
+        assert desk.values["/ch/01/mix/on"] == 1
+        assert desk.writes[-1] == ("/ch/01/mix/on", 1)
+
+    asyncio.run(scenario())

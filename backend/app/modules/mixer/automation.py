@@ -161,7 +161,7 @@ def scene_commands(cfg: AutomationConfiguration, scene: MixerScene) -> dict[str,
         stream = channel.livestream if cfg.livestream_enabled else None
         if (room and room.enabled) or (stream and stream.enabled):
             opens[strip_id + "/mix/on"] = 1
-        elif room is not None and stream is not None:
+        elif room is not None or stream is not None:
             commands[strip_id + "/mix/on"] = 0
         if cfg.room_enabled and channel.room is not None:
             commands[strip_id + "/mix/lr"] = int(channel.room.enabled)

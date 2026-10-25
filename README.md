@@ -872,9 +872,9 @@ hardware preset dropdown is labelled **Edit preset**; selecting it edits the
 preset, while **Apply & hold** sends it.
 
 Scenes open a mapped channel if either controlled mix needs it, after setting
-routing and levels. They globally mute it only when both controlled mixes have
-explicit settings excluding it. A mix outside scene control is not globally
-muted. This allows scene application to release startup channel mutes while
+routing and levels. They globally mute a mapped channel when none of the enabled, configured
+mixes needs it. Room-only scenes therefore mute unused microphones too.
+Channel mute affects every output, including any monitor sends. This allows scene application to release startup channel mutes while
 keeping room-only and stream-only inputs independent. Startup still waits for
 all mute acknowledgements and explicit operator release before scene audio
 can open. Input mapping and nonempty saved presets remain necessary; the
