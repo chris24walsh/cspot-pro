@@ -320,6 +320,10 @@ class MixerEngine(asyncio.DatagramProtocol):
             value = int(value)
         else:
             value = validate_value(path, value)
+        if path.startswith("/headamp/") and path.endswith("/gain"):
+            # Physical preamps have 145 positions (-12 to +60 dB in 0.5 dB
+            # steps). Confirm the representable value, not the continuous drag.
+            value = math.floor(value * 144 + 0.5) / 144
         if not self.connected:
             raise ValueError("Mixer is offline; reconnect before changing controls")
         if path not in self.values:

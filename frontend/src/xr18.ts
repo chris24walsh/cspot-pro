@@ -50,6 +50,10 @@ export const emptyMixer: MixerState = {
   age_ms: null,
   error: null
 };
+export function mixerCommandValue(path: string, value: number | string) {
+  return typeof value === 'number' && /^\/headamp\/\d{2}\/gain$/.test(path)
+    ? Math.round(value * 144) / 144 : value;
+}
 export function fromWire(spec: MixerParameter, value: number) {
   if (spec.kind === 'int') return value;
   if (spec.scale === 'fader') return value >= .5 ? value * 40 - 30 : value >= .25 ? value * 80 - 50 : value >= .0625 ? value * 160 - 70 : value * 480 - 90;

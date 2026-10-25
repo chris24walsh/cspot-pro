@@ -187,3 +187,8 @@ original fader. Keyboard focus stays inside the dialog while open. Idle controls
 follow hardware readbacks. Loss of connection or a source change closes the
 control. Missing source, preamp, USB-trim and pan readbacks recover through the
 same paced read-only retry loop.
+
+Physical preamp gain commands snap to the XR18's 0.5 dB steps before sending
+and displaying the pending value. Hardware readback confirms that representable
+value, preventing false failures when a continuous drag falls between gain steps.
+Unconfirmed changes identify the affected control in the dashboard warning.

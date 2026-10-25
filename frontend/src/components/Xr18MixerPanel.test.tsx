@@ -428,3 +428,8 @@ it('blocks controls until startup mute confirmation arrives', () => {
   emit({...emptyMixer,connected:true,startup_muting:false,values});
   expect(container.querySelector<HTMLButtonElement>('[aria-label="Unmute all input channels and returns"]')!.disabled).toBe(false);
 });
+
+it('identifies the physical preamp in a single unconfirmed-change warning', () => {
+  emit({ ...emptyMixer, failed: { '/headamp/07/gain': 'No matching readback from mixer' }, reset: true });
+  expect(container.querySelector('[role="alert"]')?.textContent).toContain('1 change has no matching mixer readback: Input 7 Preamp gain');
+});

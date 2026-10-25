@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import { RefreshCw, Search, SlidersHorizontal, Save, Unplug, Radio, Settings2, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Maximize2, Minimize2, VolumeX, Volume2 } from 'lucide-react';
 import { buildAbsoluteApiUrl } from '../api';
-import { displayValue, emptyMixer, fromWire, mixerRequest, physicalHeadamp, toWire, type MixerParameter, type MixerState, type MixerStrip } from '../xr18';
+import { displayValue, emptyMixer, fromWire, mixerCommandValue, mixerRequest, physicalHeadamp, toWire, type MixerParameter, type MixerState, type MixerStrip } from '../xr18';
 import { MixerAutomationPanel } from './MixerAutomationPanel';
 import { MixerSceneControls } from './MixerSceneControls';
 import { MixerFader } from './MixerFader';
@@ -280,6 +280,7 @@ export function Xr18MixerPanel() {
   const enabled = state.connected && streamOnline && !state.recalling && !state.startup_muting;
   const controlValue = (path: string) => drafts[path] ?? state.values[path];
   async function write(path: string, value: number | string, confirmed = false, immediate?: boolean) {
+    value = mixerCommandValue(path, value);
     const next = ++sequence.current;
     latestSequence.current.set(path, next);
     setDrafts(previous => ({
@@ -436,7 +437,7 @@ export function Xr18MixerPanel() {
     {(error || state.error) && <div className="xr-error" role="alert">{error || state.error}<button type="button" onClick={() => setError('')} aria-label="Dismiss error">×</button></div>}
     {state.startup_muting && <p className="xr-notice" role="status">Startup: muting all inputs and returns. Waiting for mixer confirmation before enabling controls. Apply a configured scene or unmute channels when ready.</p>}
     {state.startup_scene_hold && !state.startup_muting && <p className="xr-notice" role="status">Startup muted. Apply a configured audio scene or unmute channels to start audio.</p>}
-    {Object.keys(state.failed).length > 0 && <p className="xr-error" role="alert">{Object.keys(state.failed).length} changes have no matching mixer readback. Sync to verify the desk.</p>}
+    {Object.keys(state.failed).length > 0 && <p className="xr-error" role="alert">{Object.keys(state.failed).length === 1 ? '1 change has' : `${Object.keys(state.failed).length} changes have`} no matching mixer readback: {Object.keys(state.failed).map(path => path.startsWith('/headamp/') ? `Input ${Number(path.split('/')[2])} ${catalog.parameters[path]?.label ?? path}` : `${path} (${catalog.parameters[path]?.label ?? 'control'})`).join(', ')}. Sync to verify the desk.</p>}
     {state.connected && !streamOnline && <p className="xr-notice" role="status">Live updates interrupted. Reconnecting; controls are disabled until updates resume.</p>}
     {!state.connected && <p className="xr-notice">{state.host ? `Waiting for ${state.host}:10024. Check power, Ethernet mode and LAN routing.` : 'Connect your XR18 to read the desk. Controls become available as the mixer replies.'} {Object.keys(state.values).length > 0 ? 'Displayed values are cached; controls are disabled.' : ''}</p>}
     {page === 'desk' ? <>{sendBus && <p className="xr-notice">Faders adjust {Number(sendBus) <= 6 ? `Bus ${Number(sendBus)}` : `FX ${Number(sendBus) - 6}`} sends. Mute still mutes the whole channel.</p>}

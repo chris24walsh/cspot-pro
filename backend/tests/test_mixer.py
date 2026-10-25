@@ -382,3 +382,33 @@ def test_startup_mute_requires_all_readbacks_and_does_not_repeat_after_release()
         assert not sent
         assert mixer.values["/ch/01/mix/on"] == 1
     asyncio.run(scenario())
+
+
+def test_preamp_gain_command_confirms_the_hardware_half_db_step():
+    async def scenario():
+        class Transport:
+            def __init__(self):
+                self.sent = []
+
+            def sendto(self, packet, addr):
+                self.sent.append(decode(packet))
+
+        mixer = MixerEngine()
+        mixer.host = "192.168.4.106"
+        mixer.transport = Transport()
+        mixer.identity = [mixer.host, "Desk", "XR18V2", "1.19"]
+        mixer.last_seen = time.monotonic()
+        path = "/headamp/01/gain"
+        mixer.values[path] = 0.5
+        await mixer.write(path, 0.4)
+        # 16.8 dB is rounded by the physical preamp to 17 dB.
+        expected = 58 / 144
+        assert mixer.transport.sent[0][1][0] == pytest.approx(expected)
+        assert mixer.pending[path][0] == pytest.approx(expected)
+        mixer.datagram_received(encode(path, expected), (mixer.host, 10024))
+        assert not mixer.pending
+        assert not mixer.failed
+        mixer.values['/ch/01/mix/fader'] = 0.5
+        assert mixer.command_value('/ch/01/mix/fader', 0.4) == 0.4
+
+    asyncio.run(scenario())

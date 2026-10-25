@@ -45,3 +45,12 @@ it('selects the physical preamp assigned to a channel, including repatched input
   expect(physicalHeadamp({'/ch/01/config/insrc':16}, '/ch/01')).toBeNull();
   expect(physicalHeadamp({}, '/ch/01')).toBeNull();
 });
+
+it('quantizes physical preamp commands to the hardware half-dB steps', async () => {
+  const { mixerCommandValue } = await import('./xr18');
+  expect(mixerCommandValue('/headamp/01/gain', .4)).toBeCloseTo(58 / 144);
+  expect(mixerCommandValue('/headamp/16/gain', 0)).toBe(0);
+  expect(mixerCommandValue('/headamp/16/gain', 1)).toBe(1);
+  expect(mixerCommandValue('/ch/01/mix/fader', .4)).toBe(.4);
+  expect(mixerCommandValue('/ch/01/preamp/rtntrim', .4)).toBe(.4);
+});
