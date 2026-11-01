@@ -30,7 +30,7 @@ function SwipeEdge({ target, onSwitch }: { target: "worship" | "mixer"; onSwitch
 
 export function WorshipLiveWorkspace({ canUseMixer, children }: {
   canUseMixer: boolean;
-  children: (worshipVisible: boolean, menu?: WorkspaceMenu) => ReactNode;
+  children: (worshipVisible: boolean, menu: WorkspaceMenu | undefined, split: boolean) => ReactNode;
 }) {
   const [view, setView] = useState<View>("worship");
   const [wide, setWide] = useState(() => window.matchMedia("(min-width: 1100px)").matches);
@@ -62,7 +62,7 @@ export function WorshipLiveWorkspace({ canUseMixer, children }: {
   return <section className={`worship-live-shell worship-workspace view-${effectiveView}`} aria-label="Musician live worship">
     <div className="worship-workspace-panes">
       <div className="worship-workspace-song" hidden={!worshipVisible}>
-        {children(worshipVisible, canUseMixer ? menu : undefined)}
+        {children(worshipVisible, canUseMixer ? menu : undefined, effectiveView === "split")}
         {canUseMixer && effectiveView === "worship" ? <SwipeEdge target="mixer" onSwitch={() => select("mixer")} /> : null}
       </div>
       {canUseMixer && mixerOpened ? <div className="worship-live-mixer" hidden={effectiveView === "worship"} aria-label="Worship mixer">

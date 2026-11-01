@@ -18,7 +18,7 @@ beforeEach(() => {
 });
 afterEach(() => { act(() => root.unmount()); container.remove(); vi.unstubAllGlobals(); });
 function render(canUseMixer = true) {
-  act(() => root.render(<WorshipLiveWorkspace canUseMixer={canUseMixer}>{(visible, menu) => <div data-visible={visible}><input defaultValue="Verse 2" />{menu?.(() => {})}</div>}</WorshipLiveWorkspace>));
+  act(() => root.render(<WorshipLiveWorkspace canUseMixer={canUseMixer}>{(visible, menu, split) => <div data-visible={visible} data-split={split}><input defaultValue="Verse 2" />{menu?.(() => {})}</div>}</WorshipLiveWorkspace>));
 }
 function click(label: string) { act(() => container.querySelector<HTMLButtonElement>(`button[aria-label="${label}"]`)!.click()); }
 it('keeps worship and mixer state while switching and splitting', () => {
@@ -27,7 +27,10 @@ it('keeps worship and mixer state while switching and splitting', () => {
   click('Mixer');
   expect(container.querySelector('[data-visible]')!.getAttribute('data-visible')).toBe('false');
   act(() => container.querySelector<HTMLButtonElement>('.worship-live-mixer button')!.click());
-  click('Worship'); click('Split');
+  click('Worship');
+  expect(container.querySelector('[data-split]')!.getAttribute('data-split')).toBe('false');
+  click('Split');
+  expect(container.querySelector('[data-split]')!.getAttribute('data-split')).toBe('true');
   expect(container.querySelector('input')).toBe(song);
   expect(container.querySelector('.worship-live-mixer')!.textContent).toBe('Bank 1');
   expect(container.querySelector('[data-visible]')!.getAttribute('data-visible')).toBe('true');

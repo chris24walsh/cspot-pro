@@ -53,6 +53,7 @@ import { SongRhythmDisplay } from "./SongRhythmDisplay";
 
 interface MusicianLiveViewProps {
   keyboardActive?: boolean;
+  singlePage?: boolean;
   workspaceMenu?: (close: () => void) => import("react").ReactNode;
   canControlAudio?: boolean;
   canUseMusic?: boolean;
@@ -432,7 +433,7 @@ function chordAnnotationsBySlideLine(
   return grouped;
 }
 
-export function MusicianLiveView({ keyboardActive = true, workspaceMenu, canUseMusic = false, canShareTiming = canUseMusic, canControlAudio = false, controlPlanId, onEditSong, onSaveRhythm, onExit, plan, servicePlan, songs, topbarSlot }: MusicianLiveViewProps) {
+export function MusicianLiveView({ keyboardActive = true, singlePage = false, workspaceMenu, canUseMusic = false, canShareTiming = canUseMusic, canControlAudio = false, controlPlanId, onEditSong, onSaveRhythm, onExit, plan, servicePlan, songs, topbarSlot }: MusicianLiveViewProps) {
   const [liveState, setLiveState] = useState<PresentationLiveState | null>(null);
   const [chordDisplay, setChordDisplay] = useState(() => readMusicianDisplayMode("worship-chords-display"));
   const [capo, setCapo] = useState(0);
@@ -651,7 +652,7 @@ export function MusicianLiveView({ keyboardActive = true, workspaceMenu, canUseM
   function wrapMusicLine(line: string, limit: number, offset: number, lineIndex: number) {
     return timingBars.length && offset >= 0 ? wrapTimedLine(line, limit, lyricColumnWidths(liveSong?.lyrics, timingBars, offset + lineIndex, LEADING_CHORD_ANCHORS, line.length)) : wrapLyricLine(line, limit);
   }
-  const pageColumnWidth = stageSize.width >= 700 ? stageSize.width / 2 : stageSize.width;
+  const pageColumnWidth = !singlePage && stageSize.width >= 700 ? stageSize.width / 2 : stageSize.width;
   const pageContentWidth = pageColumnWidth;
   const pageContentHeight = stageSize.height;
   const pageFontSizesByPlanItem = useMemo(() => {
@@ -1482,7 +1483,7 @@ export function MusicianLiveView({ keyboardActive = true, workspaceMenu, canUseM
   return (
     <SlideKeyboardCaptureContext.Provider value={restoreKeyboardCapture}>
     <section
-      className={`musician-live-view musician-reader-mode-${readerMode} ${isLastSongSlide ? "is-song-end" : ""}`}
+      className={`musician-live-view ${singlePage ? "is-single-page" : ""} musician-reader-mode-${readerMode} ${isLastSongSlide ? "is-song-end" : ""}`}
       aria-label="Musician live view"
       onClick={event => {
         // All action controls (including the rail and portalled toolbar) return

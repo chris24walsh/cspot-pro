@@ -14347,3 +14347,12 @@ button.musician-page {
 .worship-workspace-swipe.edge-worship { left: 0; }
 .worship-workspace-swipe span { border-radius: 6px; background: #64748b40; color: #94a3b8; font-size: 20px; }
 @media (any-pointer: coarse) { .worship-workspace-swipe { display: flex; } }
+
+/* Split worship uses its whole pane for the current page. */
+.musician-live-view.is-single-page .musician-page-spread {
+  grid-template-columns: minmax(0, 1fr);
+  padding-left: 0;
+  width: 100%;
+}
+.musician-live-view.is-single-page .musician-page.is-next,
+.musician-live-view.is-single-page .musician-previous-page-leaf { display: none; }

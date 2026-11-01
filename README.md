@@ -914,7 +914,8 @@ temporary override until the next cue, while Apply & hold remains persistent.
 ### Worship Live and mixer workspace
 
 Users with `mixer:use` can open Mixer from Worship Live's existing **Musician**
-menu; screens at least 1100px wide also offer **Split**. No extra toolbar row
+menu; screens at least 1100px wide also offer **Split**. In Split, page mode
+shows one lyric page using the full worship pane; scroll view remains available. No extra toolbar row
 is added. On touch devices, swipe inward from the right edge of Worship to
 open Mixer, or from the left edge of Mixer to return. Normal lyric page
 swipes and mixer faders keep their existing gestures. The mixer's **Workspace**
