@@ -901,9 +901,14 @@ temporary override until the next cue, while Apply & hold remains persistent.
 
 ### Worship Live and mixer workspace
 
-Users with `mixer:use` can switch between **Worship** and **Mixer** inside
-Worship Live. Screens at least 1100px wide also offer **Split** to show both
-side by side. Each view stays mounted when switching, preserving the selected
-song and mixer bank. Narrowing a split workspace shows Worship; Mixer remains
-one tap away. Worship slide keyboard shortcuts pause while Mixer fills the
-workspace and ignore keyboard events from mixer controls in Split view.
+Users with `mixer:use` can open Mixer from Worship Live's existing **Musician**
+menu; screens at least 1100px wide also offer **Split**. No extra toolbar row
+is added. On touch devices, swipe inward from the right edge of Worship to
+open Mixer, or from the left edge of Mixer to return. Normal lyric page
+swipes and mixer faders keep their existing gestures. The mixer's **Workspace**
+menu in its existing header also switches views. Each view stays mounted,
+preserving the selected song and mixer bank. The mixer opens expanded and
+fits the fixed workspace pane; faders use the remaining height without page
+scrolling. Setup and other mixer pages scroll within that pane when needed.
+Narrowing a split workspace shows Worship. Worship slide shortcuts pause
+while Mixer fills the workspace and ignore mixer controls in Split view.

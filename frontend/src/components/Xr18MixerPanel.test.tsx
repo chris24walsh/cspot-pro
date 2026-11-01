@@ -433,3 +433,13 @@ it('identifies the physical preamp in a single unconfirmed-change warning', () =
   emit({ ...emptyMixer, failed: { '/headamp/07/gain': 'No matching readback from mixer' }, reset: true });
   expect(container.querySelector('[role="alert"]')?.textContent).toContain('1 change has no matching mixer readback: Input 7 Preamp gain');
 });
+it('keeps the embedded desk expanded inside its pane without locking the page', () => {
+  act(() => root.render(<Xr18MixerPanel embeddedExpanded headerControls={<button>Workspace</button>} />));
+  expect(container.querySelector('.xr-dashboard.is-focused.is-embedded-expanded')).not.toBeNull();
+  expect(container.querySelector('[aria-label="Expand desk"]')).toBeNull();
+  expect(container.querySelector('[aria-label="Exit expanded desk"]')).toBeNull();
+  expect(container.querySelector('.xr-header-actions')?.textContent).toContain('Workspace');
+  expect(document.body.style.overflow).toBe('');
+  act(() => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' })));
+  expect(container.querySelector('.xr-dashboard.is-focused')).not.toBeNull();
+});

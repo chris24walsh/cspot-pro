@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type CSSProperties } from 'react';
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { RefreshCw, Search, SlidersHorizontal, Save, Unplug, Radio, Settings2, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Maximize2, Minimize2, VolumeX, Volume2 } from 'lucide-react';
 import { buildAbsoluteApiUrl } from '../api';
 import { displayValue, emptyMixer, fromWire, mixerCommandValue, mixerRequest, physicalHeadamp, toWire, type MixerParameter, type MixerState, type MixerStrip } from '../xr18';
@@ -21,7 +21,7 @@ type Snapshot = {
 const mixerPages = [['desk', 'Faders'], ['routing', 'Routing'], ['effects', 'Effects'], ['system', 'Monitor'], ['snapshots', 'Snapshots'], ['scenes', 'Audio scenes']];
 type StripMode = 'level' | 'gain' | 'balance';
 const colors = ['#64748b', '#ef4444', '#22c55e', '#eab308', '#3b82f6', '#d946ef', '#06b6d4', '#e2e8f0'];
-export function Xr18MixerPanel() {
+export function Xr18MixerPanel({ embeddedExpanded = false, headerControls }: { embeddedExpanded?: boolean; headerControls?: ReactNode } = {}) {
   const [catalog, setCatalog] = useState<Catalog>({
     strips: [],
     parameters: {}
@@ -43,9 +43,10 @@ export function Xr18MixerPanel() {
   const [scrollEdges, setScrollEdges] = useState({ start: true, end: false });
   const stripScrollRef = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(1200);
-  const [setupOpen, setSetupOpen] = useState<boolean | null>(null);
+  const [setupOpen, setSetupOpen] = useState<boolean | null>(embeddedExpanded ? false : null);
   const [editorOpen, setEditorOpen] = useState(false);
-  const [focused, setFocused] = useState(false);
+  const [requestedFocus, setFocused] = useState(false);
+  const focused = embeddedExpanded || requestedFocus;
   const dashboardRef = useRef<HTMLElement>(null);
   const editorRef = useRef<HTMLDivElement>(null);
   const compact = width < 1100;
@@ -96,7 +97,7 @@ export function Xr18MixerPanel() {
     action: () => Promise<void>;
   } | null>(null);
   useEffect(() => {
-    if (!focused) return;
+    if (!focused || embeddedExpanded) return;
     const previous = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
     const escape = (event: KeyboardEvent) => {
@@ -107,7 +108,7 @@ export function Xr18MixerPanel() {
       document.body.style.overflow = previous;
       window.removeEventListener('keydown', escape);
     };
-  }, [focused, dialog]);
+  }, [focused, dialog, embeddedExpanded]);
   const commandQueue = useRef<MixerCommandQueue | null>(null);
   const sequence = useRef(0);
   const latestSequence = useRef(new Map<string, number>());
@@ -407,7 +408,7 @@ export function Xr18MixerPanel() {
       </>}
     </nav>;
   }
-  return <section ref={dashboardRef} className={`xr-dashboard ${focused ? 'is-focused' : ''}`} data-fit={page === 'desk' && !showEditor && !showSetup ? 'desk' : undefined} data-layout={compact ? 'compact' : 'wide'} aria-label="XR18 mixer dashboard" onKeyDown={event => {
+  return <section ref={dashboardRef} className={`xr-dashboard ${focused ? 'is-focused' : ''} ${embeddedExpanded ? 'is-embedded-expanded' : ''}`} data-fit={page === 'desk' && !showEditor && !showSetup ? 'desk' : undefined} data-layout={compact ? 'compact' : 'wide'} aria-label="XR18 mixer dashboard" onKeyDown={event => {
     // The desk lives inside Broadcast settings: editing must not submit that form.
     if (event.key === 'Enter' && event.target instanceof HTMLInputElement) {
       event.preventDefault();
@@ -415,9 +416,9 @@ export function Xr18MixerPanel() {
       event.target.blur();
     }
   }}>
-    <header className="xr-header">{focused ? renderMenus() : <div><div className="xr-title"><SlidersHorizontal size={21} /><h2>XR18 <span>Live desk</span></h2></div><small>{state.identity.length ? `${state.identity[1]} · ${state.identity[2]} · Firmware ${state.identity[3]}` : 'Local Ethernet control · OSC / UDP'}</small></div>}<div className="xr-connection" title={state.syncing ? 'Reading desk…' : state.recalling ? 'Recalling snapshot…' : state.connected ? streamOnline ? 'Connected' : 'Reconnecting' : 'Mixer offline'}><span className={`xr-led ${state.connected && streamOnline ? 'is-live' : ''}`} /><strong>{!streamOnline ? 'Reconnecting' : state.connected ? 'Connected' : state.host ? 'Mixer offline' : 'Not connected'}</strong></div><div className="xr-header-actions">
+    <header className="xr-header">{focused ? renderMenus() : <div><div className="xr-title"><SlidersHorizontal size={21} /><h2>XR18 <span>Live desk</span></h2></div><small>{state.identity.length ? `${state.identity[1]} · ${state.identity[2]} · Firmware ${state.identity[3]}` : 'Local Ethernet control · OSC / UDP'}</small></div>}<div className="xr-connection" title={state.syncing ? 'Reading desk…' : state.recalling ? 'Recalling snapshot…' : state.connected ? streamOnline ? 'Connected' : 'Reconnecting' : 'Mixer offline'}><span className={`xr-led ${state.connected && streamOnline ? 'is-live' : ''}`} /><strong>{!streamOnline ? 'Reconnecting' : state.connected ? 'Connected' : state.host ? 'Mixer offline' : 'Not connected'}</strong></div><div className="xr-header-actions">{headerControls}
       <button type="button" title={showSetup ? 'Hide connection settings' : 'Connection settings'} aria-label="Connection settings" aria-expanded={showSetup} aria-controls="xr-connection-settings" onClick={() => { setSetupOpen(!showSetup); setEditorOpen(false); }}><Settings2 size={18} /><span className="xr-action-label">Setup</span></button>
-      <button type="button" title={focused ? 'Exit expanded desk' : 'Expand desk to fill screen'} aria-label={focused ? 'Exit expanded desk' : 'Expand desk'} aria-pressed={focused} onClick={() => { setFocused(!focused); setSetupOpen(false); setEditorOpen(false); }}>{focused ? <Minimize2 size={18} /> : <Maximize2 size={18} />}<span className="xr-action-label">{focused ? 'Restore' : 'Expand'}</span></button>
+      {!embeddedExpanded && <button type="button" title={focused ? 'Exit expanded desk' : 'Expand desk to fill screen'} aria-label={focused ? 'Exit expanded desk' : 'Expand desk'} aria-pressed={focused} onClick={() => { setFocused(!focused); setSetupOpen(false); setEditorOpen(false); }}>{focused ? <Minimize2 size={18} /> : <Maximize2 size={18} />}<span className="xr-action-label">{focused ? 'Restore' : 'Expand'}</span></button>}
     </div></header>
     <MixerSceneControls connected={enabled && !state.syncing} />
     {!focused && renderMenus()}

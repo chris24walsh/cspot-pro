@@ -1973,7 +1973,8 @@ export function WorshipBuilderView({ active = true, canUseMixer = false, isAdmin
     return (
       <>
         <WorshipLiveWorkspace canUseMixer={canUseMixer}>
-          {(worshipVisible) => <MusicianLiveView
+          {(worshipVisible, workspaceMenu) => <MusicianLiveView
+            workspaceMenu={workspaceMenu}
             keyboardActive={active && worshipVisible}
             canControlAudio={canAccessAdminTools}
             canUseMusic
