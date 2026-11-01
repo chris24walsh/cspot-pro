@@ -108,7 +108,7 @@ function App() {
     songs: [],
   });
   const [requestedBroadcastWorkspace, setBroadcastWorkspace] = useState<"viewer" | "recordings" | "livestream" | "mixer">("viewer");
-  const [mobileImmersive, setMobileImmersive] = useState(false);
+  const [appImmersive, setAppImmersive] = useState(false);
   const [websiteMenuOpen, setWebsiteMenuOpen] = useState(false);
   const [adminAttentionCount, setAdminAttentionCount] = useState(0);
   const [profileAttentionCount, setProfileAttentionCount] = useState(0);
@@ -352,7 +352,7 @@ function App() {
   useEffect(() => {
     function updateFullscreenState() {
       const webkitDocument = document as Document & { webkitFullscreenElement?: Element | null };
-      setMobileImmersive(Boolean(document.fullscreenElement ?? webkitDocument.webkitFullscreenElement));
+      setAppImmersive(Boolean(document.fullscreenElement ?? webkitDocument.webkitFullscreenElement));
     }
 
     document.addEventListener("fullscreenchange", updateFullscreenState);
@@ -397,7 +397,7 @@ function App() {
     }
   }
 
-  async function toggleMobileImmersive() {
+  async function toggleAppImmersive() {
     const webkitDocument = document as Document & {
       webkitExitFullscreen?: () => Promise<void> | void;
       webkitFullscreenElement?: Element | null;
@@ -407,8 +407,8 @@ function App() {
     };
     const fullscreenElement = document.fullscreenElement ?? webkitDocument.webkitFullscreenElement;
 
-    if (mobileImmersive || fullscreenElement) {
-      setMobileImmersive(false);
+    if (appImmersive || fullscreenElement) {
+      setAppImmersive(false);
       try {
         if (document.exitFullscreen) {
           await document.exitFullscreen();
@@ -424,7 +424,7 @@ function App() {
     // Always enter the compact app layout. Browsers with the Fullscreen API also
     // hide their own navigation chrome; iOS Safari keeps its chrome but yields the
     // application's primary navigation row.
-    setMobileImmersive(true);
+    setAppImmersive(true);
     try {
       if (root.requestFullscreen) {
         await root.requestFullscreen({ navigationUI: "hide" });
@@ -437,7 +437,7 @@ function App() {
   }
 
   return (
-    <main className={`shell ${mobileOrTabletDevice ? "is-mobile-device" : ""} ${tabletDevice ? "is-tablet-device" : ""} ${mobileImmersive ? "is-mobile-immersive" : ""}`}>
+    <main className={`shell ${mobileOrTabletDevice ? "is-mobile-device" : ""} ${tabletDevice ? "is-tablet-device" : ""} ${appImmersive ? "is-app-immersive" : ""}`}>
       <ToastViewport />
       <aside
         className="sidebar"
@@ -564,18 +564,17 @@ function App() {
               </div>
             ))}
           </div>
-          {mobileOrTabletDevice ? (
-            <button
-              aria-label={mobileImmersive ? "Exit immersive view" : "Enter immersive view"}
-              aria-pressed={mobileImmersive}
-              className="section-icon-button mobile-immersive-button"
-              onClick={() => void toggleMobileImmersive()}
-              title={mobileImmersive ? "Show app navigation" : "Use more screen space"}
-              type="button"
-            >
-              {mobileImmersive ? <Minimize2 size={16} aria-hidden="true" /> : <Maximize2 size={16} aria-hidden="true" />}
-            </button>
-          ) : null}
+          <button
+            aria-label={appImmersive ? "Exit fullscreen" : "Enter fullscreen"}
+            aria-pressed={appImmersive}
+            className="section-icon-button app-fullscreen-button"
+            onClick={() => void toggleAppImmersive()}
+            title={appImmersive ? "Exit fullscreen and show navigation" : "Fullscreen — hide navigation and maximise the workspace"}
+            type="button"
+          >
+            {appImmersive ? <Minimize2 size={16} aria-hidden="true" /> : <Maximize2 size={16} aria-hidden="true" />}
+            <span>{appImmersive ? "Exit fullscreen" : "Fullscreen"}</span>
+          </button>
         </header>
 
         {mountedModuleIds.has("worship") ? <div className="workspace-panel" hidden={activeModule.id !== "worship"}>

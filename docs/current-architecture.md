@@ -419,8 +419,9 @@ The presenter is built around:
 - current live slide index
 - a separate output window synchronized through local browser messaging
 
-On phones and tablets, every module uses the same compact context toolbar with
-an immersive-view toggle at its right edge. Entering immersive view always hides
+Every module has a shared fullscreen toggle at the right edge of its top bar,
+with an icon and short label on desktop and an icon on phones and tablets.
+It expands the whole workspace, including livestream controls and camera views. Entering immersive view always hides
 the application's primary navigation row. Supporting browsers are additionally
 asked to enter native fullscreen and hide their own navigation UI; iPhone and
 iPad Safari keep their browser chrome but still gain the space occupied by the

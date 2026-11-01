@@ -924,3 +924,8 @@ fits the fixed workspace pane; faders use the remaining height without page
 scrolling. Setup and other mixer pages scroll within that pane when needed.
 Narrowing a split workspace shows Worship. Worship slide shortcuts pause
 while Mixer fills the workspace and ignore mixer controls in Split view.
+
+The shared top-bar Fullscreen button is available on desktop, laptop, tablet,
+and phone. It hides app navigation and requests browser fullscreen to maximise
+the workspace, including livestream views. Use Exit fullscreen to restore
+navigation; leaving native fullscreen with Escape also restores the app layout.

@@ -224,7 +224,7 @@ button {
   border-bottom: 1px solid #ddd9ca;
   display: grid;
   gap: 12px;
-  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr) auto;
   min-height: 72px;
   padding: 14px 24px;
 }
@@ -12108,10 +12108,25 @@ button.musician-page {
   }
 }
 
-/* Shared mobile context bar and immersive layout. Keep this block last so all
-   feature-specific responsive rules resolve to the same compact geometry. */
-.mobile-immersive-button {
+/* Shared fullscreen control and immersive layout, with compact device toolbars. */
+.app-fullscreen-button {
+  display: inline-flex;
+  gap: 6px;
+  padding: 0 8px;
+  font-size: 12px;
+  font-weight: 700;
+  justify-self: end;
+  white-space: nowrap;
+}
+
+.shell.is-mobile-device .app-fullscreen-button span {
   display: none;
+}
+
+@media (max-width: 900px) {
+  .app-fullscreen-button span {
+    display: none;
+  }
 }
 
 .shell.is-mobile-device .topbar {
@@ -12135,7 +12150,7 @@ button.musician-page {
   width: 100%;
 }
 
-.shell.is-mobile-device .mobile-immersive-button {
+.shell.is-mobile-device .app-fullscreen-button {
   align-self: center;
   display: inline-flex;
   grid-column: 2;
@@ -12147,16 +12162,16 @@ button.musician-page {
   width: 32px;
 }
 
-.shell.is-mobile-device.is-mobile-immersive {
+.shell.is-app-immersive {
   grid-template-columns: minmax(0, 1fr);
   grid-template-rows: minmax(0, 1fr);
 }
 
-.shell.is-mobile-device.is-mobile-immersive .sidebar {
+.shell.is-app-immersive .sidebar {
   display: none;
 }
 
-.shell.is-mobile-device.is-mobile-immersive .workspace {
+.shell.is-app-immersive .workspace {
   grid-column: 1;
   grid-row: 1;
 }
@@ -12478,7 +12493,7 @@ button.musician-page {
   padding: 5px 8px;
 }
 
-.shell.is-tablet-device .mobile-immersive-button {
+.shell.is-tablet-device .app-fullscreen-button {
   height: 42px;
   min-height: 42px;
   min-width: 42px;
@@ -12515,7 +12530,7 @@ button.musician-page {
 }
 
 .shell.is-tablet-device .topbar-context-slot button svg,
-.shell.is-tablet-device .mobile-immersive-button svg {
+.shell.is-tablet-device .app-fullscreen-button svg {
   height: 18px;
   width: 18px;
 }
@@ -12628,17 +12643,17 @@ button.musician-page {
     display: none;
   }
 
-  .shell.is-mobile-device:not(.is-mobile-immersive) {
+  .shell.is-mobile-device:not(.is-app-immersive) {
     --device-side-nav-width: 50px;
     grid-template-columns: var(--device-side-nav-width) minmax(0, 1fr);
     grid-template-rows: minmax(0, 1fr);
   }
 
-  .shell.is-tablet-device:not(.is-mobile-immersive) {
+  .shell.is-tablet-device:not(.is-app-immersive) {
     --device-side-nav-width: 64px;
   }
 
-  .shell.is-mobile-device:not(.is-mobile-immersive) .sidebar {
+  .shell.is-mobile-device:not(.is-app-immersive) .sidebar {
     align-items: stretch;
     flex-direction: column;
     gap: 6px;
@@ -12650,27 +12665,27 @@ button.musician-page {
     width: var(--device-side-nav-width);
   }
 
-  .shell.is-mobile-device:not(.is-mobile-immersive) .sidebar:hover {
+  .shell.is-mobile-device:not(.is-app-immersive) .sidebar:hover {
     box-shadow: none;
     overflow-x: hidden;
     overflow-y: auto;
     width: var(--device-side-nav-width);
   }
 
-  .shell.is-mobile-device:not(.is-mobile-immersive) .brand {
+  .shell.is-mobile-device:not(.is-app-immersive) .brand {
     justify-content: center;
     min-height: 36px;
     padding: 0;
   }
 
-  .shell.is-mobile-device:not(.is-mobile-immersive) .nav-list {
+  .shell.is-mobile-device:not(.is-app-immersive) .nav-list {
     display: grid;
     gap: 5px;
     min-width: 0;
     width: 100%;
   }
 
-  .shell.is-mobile-device:not(.is-mobile-immersive) .nav-item {
+  .shell.is-mobile-device:not(.is-app-immersive) .nav-item {
     min-height: 42px;
     width: 100%;
   }
@@ -12709,7 +12724,7 @@ button.musician-page {
     width: 100%;
   }
 
-  .shell.is-mobile-device .workspace:has(> .worship-live-shell .musician-reader-mode-pages) > .topbar > .mobile-immersive-button {
+  .shell.is-mobile-device .workspace:has(> .worship-live-shell .musician-reader-mode-pages) > .topbar > .app-fullscreen-button {
     grid-column: 1;
     grid-row: 2;
     width: 100%;
@@ -13389,7 +13404,7 @@ button.musician-page {
   .shell.is-mobile-device .topbar { display: flex; flex: 0 0 auto; height: 38px; }
   .shell.is-tablet-device .topbar { height: 50px; }
   .shell.is-mobile-device .topbar-context-slot { flex: 1 1 0%; align-self: center; }
-  .shell.is-mobile-device .mobile-immersive-button { flex: 0 0 auto; margin-left: 6px; }
+  .shell.is-mobile-device .app-fullscreen-button { flex: 0 0 auto; margin-left: 6px; }
   .shell.is-mobile-device .worship-topbar-tools { align-self: center; }
 }
 
