@@ -52,6 +52,7 @@ import { SlideKeyCapture, SlideKeyboardCaptureContext, shouldRestoreSlideKeyCapt
 import { SongRhythmDisplay } from "./SongRhythmDisplay";
 
 interface MusicianLiveViewProps {
+  keyboardActive?: boolean;
   canControlAudio?: boolean;
   canUseMusic?: boolean;
   canShareTiming?: boolean;
@@ -430,7 +431,7 @@ function chordAnnotationsBySlideLine(
   return grouped;
 }
 
-export function MusicianLiveView({ canUseMusic = false, canShareTiming = canUseMusic, canControlAudio = false, controlPlanId, onEditSong, onSaveRhythm, onExit, plan, servicePlan, songs, topbarSlot }: MusicianLiveViewProps) {
+export function MusicianLiveView({ keyboardActive = true, canUseMusic = false, canShareTiming = canUseMusic, canControlAudio = false, controlPlanId, onEditSong, onSaveRhythm, onExit, plan, servicePlan, songs, topbarSlot }: MusicianLiveViewProps) {
   const [liveState, setLiveState] = useState<PresentationLiveState | null>(null);
   const [chordDisplay, setChordDisplay] = useState(() => readMusicianDisplayMode("worship-chords-display"));
   const [capo, setCapo] = useState(0);
@@ -1124,7 +1125,7 @@ export function MusicianLiveView({ canUseMusic = false, canShareTiming = canUseM
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
-      if (event.type !== "keydown" || event.repeat) {
+      if (!keyboardActive || (event.target instanceof Element && event.target.closest(".worship-live-mixer")) || event.type !== "keydown" || event.repeat) {
         return;
       }
       if (handledKeyboardEventsRef.current.has(event)) {
@@ -1163,6 +1164,7 @@ export function MusicianLiveView({ canUseMusic = false, canShareTiming = canUseM
       document.removeEventListener("keydown", onKeyDown, { capture: true });
     };
   }, [
+    keyboardActive,
     liveIndex,
     liveState,
     liveSyncPlanId,

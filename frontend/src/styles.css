@@ -14296,3 +14296,38 @@ button.musician-page {
     width: min(420px, calc(100vw - 24px));
   }
 }
+
+/* Keep live worship and audio controls together without losing either view's state. */
+.worship-live-shell.worship-workspace {
+  grid-template-rows: auto minmax(0, 1fr);
+}
+.worship-workspace-controls {
+  display: flex;
+  gap: 4px;
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--border);
+}
+.worship-workspace-controls button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 34px;
+}
+.worship-workspace-panes {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  grid-row: 2;
+}
+.worship-workspace-song { min-width: 0; min-height: 0; overflow: hidden; }
+.worship-live-mixer { min-width: 0; min-height: 0; overflow: auto; padding: 6px; }
+.worship-workspace-panes > [hidden] { display: none; }
+.worship-workspace.view-split .worship-workspace-panes {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+}
+.worship-workspace.view-split .worship-live-mixer { border-left: 1px solid var(--border); }
+@media (max-width: 600px) {
+  .worship-workspace-controls button span { display: none; }
+}

@@ -70,6 +70,7 @@ import { DateNavigator, formatNavigatorDate } from "./DateNavigator";
 import { adjacentPlanningDate, defaultPlanningDate, mergePlannedDatesWithSundays } from "../planningDates";
 import { LeaderAssignmentDialog } from "./LeaderAssignmentDialog";
 import { MusicianLiveView } from "./MusicianLiveView";
+import { WorshipLiveWorkspace } from "./WorshipLiveWorkspace";
 import { SongEditorDialog } from "./SongEditorDialog";
 import { useEscapeClose } from "./useEscapeClose";
 
@@ -100,6 +101,7 @@ interface WorshipBuilderViewProps {
   active?: boolean;
   isAdmin?: boolean;
   canShareMusicTiming?: boolean;
+  canUseMixer?: boolean;
   canAccessAdminTools: boolean;
   canArchiveSong: boolean;
   canCreateSong: boolean;
@@ -340,7 +342,7 @@ function detectMissingSongsInDeck(deck: ParsedSlideDeck, songs: Song[]) {
   return missing;
 }
 
-export function WorshipBuilderView({ active = true, isAdmin = false, canShareMusicTiming = isAdmin, canAccessAdminTools, canArchiveSong, canCreateSong, canDeletePlan, canEditSong, canEditPlan: hasPlanEditPermission }: WorshipBuilderViewProps) {
+export function WorshipBuilderView({ active = true, canUseMixer = false, isAdmin = false, canShareMusicTiming = isAdmin, canAccessAdminTools, canArchiveSong, canCreateSong, canDeletePlan, canEditSong, canEditPlan: hasPlanEditPermission }: WorshipBuilderViewProps) {
   const { confirm, confirmationDialog } = useConfirmationDialog();
   const [plans, setPlans] = useState<PlanSummary[]>([]);
   const [planTypes, setPlanTypes] = useState<PlanType[]>([]);
@@ -1970,8 +1972,9 @@ export function WorshipBuilderView({ active = true, isAdmin = false, canShareMus
     const liveControlPlanId = plan ? servicePlansByDate.get(dateInputFromIso(plan.service_date))?.id ?? plan.id : null;
     return (
       <>
-        <section className="worship-live-shell" aria-label="Musician live worship">
-          <MusicianLiveView
+        <WorshipLiveWorkspace canUseMixer={canUseMixer}>
+          {(worshipVisible) => <MusicianLiveView
+            keyboardActive={active && worshipVisible}
             canControlAudio={canAccessAdminTools}
             canUseMusic
             canShareTiming={canShareMusicTiming}
@@ -1982,9 +1985,9 @@ export function WorshipBuilderView({ active = true, isAdmin = false, canShareMus
             plan={plan}
             servicePlan={linkedServicePlan}
             songs={songs}
-            topbarSlot={active ? topbarSlot : null}
-          />
-        </section>
+            topbarSlot={active && worshipVisible ? topbarSlot : null}
+          />}
+        </WorshipLiveWorkspace>
 
         {editingSong ? (
           <SongEditorDialog
