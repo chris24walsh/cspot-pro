@@ -861,8 +861,7 @@ export function MusicianLiveView({ keyboardActive = true, workspaceMenu, canUseM
   }
 
   function moveSong(delta: -1 | 1) {
-    const currentItemIndex = worshipItems.findIndex((item) => item.id === liveSlide?.planItemId);
-    const nextItem = worshipItems[currentItemIndex + delta];
+    const nextItem = worshipItems[currentSongIndex + delta];
     const nextIndex = slides.findIndex((slide) => slide.planItemId === nextItem?.id);
     if (nextIndex >= 0) {
       navigationGenerationRef.current += 1;
@@ -1400,7 +1399,8 @@ export function MusicianLiveView({ keyboardActive = true, workspaceMenu, canUseM
       window.cancelAnimationFrame(secondFrame);
     };
   }, [currentSequenceBlockIndex, currentSequencePartIndex, liveSlide?.id, readerMode, showChords, autoScroll, Boolean(playbackMotion)]);
-  const currentSongIndex = worshipItems.findIndex((item) => item.id === liveSlide?.planItemId);
+  // The end cue sits after the last song, so Previous can return to the set.
+  const currentSongIndex = isWorshipEndSlide ? worshipItems.length : worshipItems.findIndex((item) => item.id === liveSlide?.planItemId);
   const isLastSongSlide = liveSlide?.itemType === "song" && currentSongSlideIndex >= 0 && currentSongSlideIndex === currentSongSlides.length - 1;
   const toolbar = (
     <div className="musician-live-toolbar">

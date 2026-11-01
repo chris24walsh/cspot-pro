@@ -513,3 +513,40 @@ it('restores mobile capture after enabling pedal mode and selecting playback', a
     expect(document.activeElement).toBe(capture);
   } finally { act(() => root.unmount()); container.remove(); userAgent.mockRestore(); vi.clearAllMocks(); }
 });
+
+it.each([false, true])('returns from end worship to songs without changing service output after ending (%s)', async coupled => {
+  vi.stubGlobal('matchMedia', () => ({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() }));
+  vi.mocked(getPresentationLiveState).mockResolvedValue({ plan_id: 'service', index: 0, updated_at: 1, worship_coupled: coupled, plan_item_id: 'item', slide_offset: 0 } as Awaited<ReturnType<typeof getPresentationLiveState>>);
+  vi.mocked(updatePresentationLiveState).mockImplementation(async (_id, state) => state as Awaited<ReturnType<typeof updatePresentationLiveState>>);
+  const song = { id: 'song', title: 'Last song', lyrics: '[V1]\nSing together', sequence: 'V1', chords: '' } as Song;
+  const plan = { id: 'plan', items: [{ id: 'item', item_type: 'song', song_id: 'song', sequence: '1', title: song.title }] } as PlanDetail;
+  const servicePlan = { id: 'service', items: [
+    { id: 'worship', item_type: 'worship_set', title: 'Worship', sequence: '1' },
+    { id: 'open', item_type: 'custom', title: 'Open time', sequence: '2', text: 'Open time' },
+  ] } as unknown as PlanDetail;
+  const container = document.createElement('div'), toolbar = document.createElement('div');
+  document.body.append(container, toolbar);
+  const root = createRoot(container);
+  try {
+    await act(async () => root.render(<MusicianLiveView plan={plan} servicePlan={servicePlan} controlPlanId="service" songs={[song]} topbarSlot={toolbar} onEditSong={() => {}} onExit={() => {}} />));
+    // Title -> lyrics -> end cue, independent of reader mode.
+    await act(async () => container.querySelector<HTMLButtonElement>('[aria-label="Next slide"]')!.click());
+    await act(async () => container.querySelector<HTMLButtonElement>('[aria-label="Next slide"]')!.click());
+    expect(container.querySelector('.musician-worship-end')?.textContent).toContain('Open time');
+    const writesAfterEnd = vi.mocked(updatePresentationLiveState).mock.calls.length;
+    const previous = container.querySelector<HTMLButtonElement>('[aria-label="Previous song"]')!;
+    expect(previous.disabled).toBe(false);
+    await act(async () => previous.click());
+    expect(container.querySelector('.musician-worship-end')).toBeNull();
+    expect(toolbar.textContent).toContain('Last song');
+    expect(container.querySelector<HTMLButtonElement>('[aria-label="Previous song"]')!.disabled).toBe(true);
+    expect(updatePresentationLiveState).toHaveBeenCalledTimes(writesAfterEnd);
+    // The normal slide-back path works too, including after finishing again.
+    await act(async () => container.querySelector<HTMLButtonElement>('[aria-label="Next slide"]')!.click());
+    await act(async () => container.querySelector<HTMLButtonElement>('[aria-label="Next slide"]')!.click());
+    await act(async () => container.querySelector<HTMLButtonElement>('[aria-label="Previous slide"]')!.click());
+    expect(container.querySelector('.musician-worship-end')).toBeNull();
+  } finally {
+    act(() => root.unmount()); container.remove(); toolbar.remove(); vi.unstubAllGlobals(); vi.clearAllMocks();
+  }
+});
