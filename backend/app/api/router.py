@@ -3,6 +3,7 @@ from fastapi import APIRouter
 from app.api.capabilities import router as capabilities_router
 from app.core.change_revision import change_revision
 from app.modules.broadcast.routes import router as broadcast_router
+from app.modules.broadcast.contributions import router as contribution_router
 from app.modules.communication.routes import router as communication_router
 from app.modules.identity.routes import router as identity_router
 from app.modules.imports.routes import router as imports_router
@@ -59,6 +60,7 @@ api_router.include_router(music_router, prefix="/api/v1/music", tags=["music"])
 api_router.include_router(people_router, prefix="/api/v1/people", tags=["people"])
 api_router.include_router(library_router, prefix="/api/v1/library", tags=["library"])
 api_router.include_router(presentation_router, prefix="/api/v1/presentation", tags=["presentation"])
+api_router.include_router(contribution_router, prefix="/api/v1/broadcast/contributions", tags=["broadcast"])
 api_router.include_router(broadcast_router, prefix="/api/v1/broadcast", tags=["broadcast"])
 api_router.include_router(
     communication_router,

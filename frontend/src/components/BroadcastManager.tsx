@@ -1,3 +1,4 @@
+import { RemoteContributionPanel } from "./RemoteContributionPanel";
 import { CameraFraming } from "./CameraFraming";
 import { controlPtzCruise, getPtzCruiseStatus, samplePtzAngle } from "../api";
 import { Archive, CircleStop, ExternalLink, Headphones, Mic, MicOff, MonitorPlay, Play, Plus, Radio, RotateCcw, Save, X } from "lucide-react";
@@ -436,6 +437,7 @@ export function BroadcastManager({
       {message ? <p className="form-message">{message}</p> : null}
 
       {canManage && activeTab === "livestream" ? <>
+      <RemoteContributionPanel sources={form.audio_sources} />
       <section className="broadcast-source-settings"><h3>Program audio</h3>
         <label><input type="checkbox" checked={form.audio_scene_automation} disabled={loading || saving} onChange={event=>void (async()=>{try {const settings=await updateBroadcastViewerSettings({audio_scene_automation:event.target.checked});setForm(current=>({...current,audio_scene_automation:settings.audio_scene_automation}));}catch(error){setMessage(error instanceof Error?error.message:'Could not change audio scene automation');}})()}/>Follow presentation audio scenes</label>
 

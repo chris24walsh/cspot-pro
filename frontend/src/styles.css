@@ -14356,3 +14356,28 @@ button.musician-page {
 }
 .musician-live-view.is-single-page .musician-page.is-next,
 .musician-live-view.is-single-page .musician-previous-page-leaf { display: none; }
+
+.remote-guest-page { max-width: 960px; margin: 0 auto; padding: 20px; }
+.remote-guest-page h1 { margin: 0 0 8px; }
+.remote-guest-page h2 { font-size: 1.1rem; margin: 12px 0 8px; }
+.remote-guest-video { width: 100%; max-height: 55vh; background: #111; border-radius: 6px; object-fit: contain; }
+.remote-guest-status { display: flex; align-items: center; gap: 8px; padding: 10px; margin-bottom: 12px; border: 1px solid var(--border-color, #778); border-radius: 6px; }
+.remote-guest-status.is-live, .remote-contribution-card.is-live { border: 2px solid #c43b48; }
+.remote-guest-actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0; }
+.remote-guest-actions button { min-height: 40px; }
+.remote-guest-return audio { width: 100%; max-width: 480px; }
+.remote-invite-fields { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.remote-invite-fields label, .remote-invitation-link label { display: grid; gap: 4px; }
+.remote-invitation-link { display: flex; align-items: end; gap: 8px; margin-top: 10px; }
+.remote-invitation-link label { flex: 1; min-width: 0; }
+.remote-invitation-link input { width: 100%; }
+.remote-contribution-card { border: 1px solid var(--border-color, #778); border-radius: 6px; padding: 10px; margin-top: 10px; }
+.remote-contribution-card small { display: block; margin-top: 4px; }
+.remote-operator-preview { width: 100%; max-height: 360px; background: #111; object-fit: contain; }
+@media (max-width: 640px) {
+  .remote-guest-page { padding: 12px; }
+  .remote-invite-fields { grid-template-columns: 1fr; }
+  .remote-invitation-link { flex-wrap: wrap; }
+}
+.remote-service-slide { aspect-ratio: 16 / 9; position: relative; overflow: hidden; background: #10141c; color: white; display: flex; align-items: center; justify-content: center; padding: 12px; border-radius: 6px; }
+.remote-service-slide .fit-slide-box { width: 100%; height: 100%; }

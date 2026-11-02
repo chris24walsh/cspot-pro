@@ -50,6 +50,7 @@ class BroadcastRecording(IdMixin, TimestampMixin, Base):
 class BroadcastViewerSettings(IdMixin, TimestampMixin, Base):
     __tablename__ = "broadcast_viewer_settings"
 
+    remote_contribution_id: Mapped[str | None] = mapped_column(String(36))
     stream_title: Mapped[str] = mapped_column(String(180), default="Sunday Service")
     stream_description: Mapped[str | None] = mapped_column(Text)
     camera_url: Mapped[str | None] = mapped_column(Text)
@@ -122,3 +123,15 @@ class LivestreamViewerVisit(IdMixin, TimestampMixin, Base):
     ended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     duration_seconds: Mapped[int] = mapped_column(Integer, default=0)
     playback_active: Mapped[bool] = mapped_column(Boolean, default=False)
+
+
+class BroadcastContribution(IdMixin, TimestampMixin, Base):
+    __tablename__ = "broadcast_contributions"
+
+    label: Mapped[str] = mapped_column(String(120))
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_seen_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    return_source_id: Mapped[str | None] = mapped_column(String(80))
+    publisher_session: Mapped[str | None] = mapped_column(String(160))

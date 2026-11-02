@@ -20,6 +20,11 @@ class AudioMixInput:
 
 
 def audio_mix_inputs(settings: BroadcastViewerSettings) -> list[AudioMixInput]:
+    from app.modules.broadcast.contribution_state import active_contribution, audio_source
+    guest = active_contribution(settings)
+    if guest:
+        source = audio_source(guest)
+        return [AudioMixInput(source_id=source.id, url=source.url, channels=2)]
     independent = selected_independent_audio_sources(settings)
     if independent:
         return [

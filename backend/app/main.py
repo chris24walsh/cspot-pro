@@ -1,3 +1,5 @@
+import asyncio
+import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
@@ -26,8 +28,8 @@ async def lifespan(_app: FastAPI):
         ensure_worship_set_plan_type(session)
         viewer_settings = session.scalar(select(BroadcastViewerSettings).limit(1))
         configured_audio_sources = audio_sources(viewer_settings) if viewer_settings else []
-    from app.modules.mixer.models import MixerConfiguration
     from app.modules.mixer.engine import engine as mixer_engine
+    from app.modules.mixer.models import MixerConfiguration
     with SessionLocal() as session:
         mixer_config = session.get(MixerConfiguration, "xr18")
         mixer_host = mixer_config.host if mixer_config else None
@@ -36,9 +38,32 @@ async def lifespan(_app: FastAPI):
     reconcile_audio_sources(configured_audio_sources)
     from app.modules.mixer.automation import automation
     automation.start()
+
+    async def maintain_contributions():
+        from app.modules.broadcast.contributions import cleanup_contributions
+
+        def maintain():
+            with SessionLocal() as session:
+                cleanup_contributions(session)
+
+        while True:
+            try:
+                await asyncio.to_thread(maintain)
+            except Exception as error:
+                logging.getLogger(__name__).warning(
+                    "Remote contribution maintenance failed (%s)", type(error).__name__,
+                )
+            await asyncio.sleep(10)
+
+    contribution_task = asyncio.create_task(maintain_contributions())
     try:
         yield
     finally:
+        contribution_task.cancel()
+        try:
+            await contribution_task
+        except asyncio.CancelledError:
+            pass
         await automation.stop()
         from app.modules.broadcast.ptz import stop_cruises
         stop_cruises()

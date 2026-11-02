@@ -721,6 +721,8 @@ def settings_read(
 ) -> BroadcastViewerSettingsRead:
     sources = camera_sources(settings)
     independent_sources = audio_sources(settings)
+    from app.modules.broadcast.contribution_state import active_contribution, stream_name
+    remote_guest = active_contribution(settings)
     source_ids = {source.id for source in sources}
     active_camera_id = (
         settings.active_camera_id
@@ -736,6 +738,11 @@ def settings_read(
         None,
     )
     return BroadcastViewerSettingsRead(
+        remote_contribution=(
+            {"id": remote_guest.id, "label": remote_guest.label,
+             "stream_name": stream_name(remote_guest)}
+            if remote_guest else None
+        ),
         audio_mix_mode="mixer",
         mixer_program_source_id=settings.mixer_program_source_id,
         stream_title=settings.stream_title,
@@ -1121,6 +1128,10 @@ def playback_authorized(
                 for source in selected_sources
                 if (name := audio_stream_name(source)) is not None
             )
+        from app.modules.broadcast.contribution_state import active_contribution, stream_name
+        remote_guest = active_contribution(settings)
+        if remote_guest:
+            allowed_sources.add(stream_name(remote_guest))
         if requested_source not in allowed_sources:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,

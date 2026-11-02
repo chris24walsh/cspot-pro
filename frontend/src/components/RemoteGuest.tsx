@@ -1,0 +1,205 @@
+import { useCallback, useEffect, useRef, useState } from "react";
+import { RemoteServiceSlide } from "./RemoteServiceSlide";
+import { Camera, CameraOff, LogOut, Mic, MicOff, Radio, RefreshCw } from "lucide-react";
+import {
+  completeOffer, ContributionError, contributionRequest, receiveContribution, type GuestStatus,
+} from "../remoteContribution";
+
+export function RemoteGuest() {
+  const [token] = useState(() => {
+    try { return decodeURIComponent(window.location.hash.slice(1)); } catch { return ""; }
+  });
+  const [status, setStatus] = useState<GuestStatus | null>(null);
+  const [error, setError] = useState("");
+  const [connection, setConnection] = useState("Not connected");
+  const [joining, setJoining] = useState(false);
+  const [joined, setJoined] = useState(false);
+  const [mic, setMic] = useState(true);
+  const [camera, setCamera] = useState(true);
+  const [facing, setFacing] = useState<"user" | "environment">("user");
+  const [returnError, setReturnError] = useState("");
+  const localVideo = useRef<HTMLVideoElement>(null);
+  const returnAudio = useRef<HTMLAudioElement>(null);
+  const localStream = useRef<MediaStream | null>(null);
+  const peer = useRef<RTCPeerConnection | null>(null);
+  const returnPeer = useRef<RTCPeerConnection | null>(null);
+  const publisher = useRef<string | null>(null);
+  const wanted = useRef(false);
+  const busy = useRef(false);
+  const generation = useRef(0);
+  const alive = useRef(true);
+  const reconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const micEnabled = useRef(true);
+  const cameraEnabled = useRef(true);
+
+  const closePeers = useCallback(() => {
+    peer.current?.close(); peer.current = null;
+    returnPeer.current?.close(); returnPeer.current = null;
+    if (returnAudio.current) returnAudio.current.srcObject = null;
+  }, []);
+
+  const leave = useCallback(() => {
+    wanted.current = false; generation.current += 1;
+    if (reconnectTimer.current) clearTimeout(reconnectTimer.current);
+    const session = publisher.current; publisher.current = null;
+    closePeers();
+    localStream.current?.getTracks().forEach(track => track.stop()); localStream.current = null;
+    if (localVideo.current) localVideo.current.srcObject = null;
+    if (session) void contributionRequest("/guest/leave", "POST", { publisher_session: session }, token).catch(() => {});
+    setJoined(false); setConnection("Not connected");
+  }, [closePeers, token]);
+
+  const connect = useCallback(async function connectDevice(direction: "user" | "environment") {
+    if (busy.current || !wanted.current) return;
+    busy.current = true;
+    const run = generation.current;
+    setJoining(true); setError(""); setReturnError(""); setConnection("Connecting…");
+    closePeers();
+    let connectionPeer: RTCPeerConnection | null = null;
+    try {
+      const current = await contributionRequest<GuestStatus>("/guest", "GET", undefined, token);
+      if (!wanted.current || run !== generation.current) return;
+      setStatus(current);
+      if (!navigator.mediaDevices?.getUserMedia) throw new Error("Open this invitation over HTTPS in Safari or Chrome to use your camera and microphone.");
+      if (!localStream.current) {
+        const capture = await navigator.mediaDevices.getUserMedia({
+          audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+          video: { facingMode: direction, width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 24, max: 30 } },
+        });
+        if (!wanted.current || run !== generation.current) { capture.getTracks().forEach(t => t.stop()); return; }
+        localStream.current = capture;
+      }
+      localStream.current.getAudioTracks().forEach(track => { track.enabled = micEnabled.current; });
+      localStream.current.getVideoTracks().forEach(track => { track.enabled = cameraEnabled.current; });
+      if (localVideo.current) localVideo.current.srcObject = localStream.current;
+      connectionPeer = new RTCPeerConnection({ iceServers: current.ice_servers });
+      peer.current = connectionPeer;
+      const pc = connectionPeer;
+      localStream.current.getTracks().forEach(track => pc.addTrack(track, localStream.current!));
+      // Prefer H.264 so iPads and the church playback pipeline share a codec.
+      const codecs = RTCRtpSender.getCapabilities?.("video")?.codecs;
+      const videoTransceiver = pc.getTransceivers().find(t => t.sender.track?.kind === "video");
+      if (codecs && videoTransceiver?.setCodecPreferences) {
+        videoTransceiver.setCodecPreferences([...codecs.filter(c => c.mimeType.toLowerCase() === "video/h264"), ...codecs.filter(c => c.mimeType.toLowerCase() !== "video/h264")]);
+      }
+      const sdp = await completeOffer(pc);
+      const answer = await contributionRequest<{ sdp: string; publisher_session: string }>("/guest/publish", "POST", { sdp }, token);
+      if (!wanted.current || run !== generation.current) {
+        void contributionRequest("/guest/leave", "POST", { publisher_session: answer.publisher_session }, token).catch(() => {});
+        pc.close(); return;
+      }
+      publisher.current = answer.publisher_session;
+      const reportConnection = () => {
+        if (peer.current !== pc || !wanted.current) return;
+        const good = pc.connectionState === "connected";
+        setConnection(good ? "Connected — waiting for the church operator" : `Connection: ${pc.connectionState}`);
+        if (good && publisher.current) void contributionRequest("/guest/heartbeat", "POST", {
+          publisher_session: publisher.current, connected: true,
+        }, token).catch(() => {});
+        if (["failed", "disconnected"].includes(pc.connectionState)) {
+          if (publisher.current) void contributionRequest("/guest/heartbeat", "POST", { publisher_session: publisher.current, connected: false }, token).catch(() => {});
+          if (!reconnectTimer.current) reconnectTimer.current = setTimeout(() => {
+            reconnectTimer.current = null;
+            if (wanted.current && peer.current === pc && pc.connectionState !== "connected") void connectDevice(direction);
+          }, 5000);
+        }
+      };
+      pc.onconnectionstatechange = reportConnection;
+      await pc.setRemoteDescription({ type: "answer", sdp: answer.sdp });
+      setJoined(true);
+      reportConnection();
+      // Some networks never emit failed promptly; bound the initial handshake.
+      reconnectTimer.current = setTimeout(() => {
+        reconnectTimer.current = null;
+        if (wanted.current && peer.current === pc && pc.connectionState !== "connected") void connectDevice(direction);
+      }, 20000);
+      if (current.return_available) {
+        try {
+          const returned = await receiveContribution("/guest/return", current.ice_servers, stream => {
+            if (returnAudio.current && wanted.current && run === generation.current) {
+              returnAudio.current.srcObject = stream;
+              void returnAudio.current.play().catch(() => setReturnError("Tap Play church audio below to hear the church."));
+            }
+          }, token, false);
+          if (!wanted.current || run !== generation.current) returned.close();
+          else returnPeer.current = returned;
+        } catch (e) { if (wanted.current) setReturnError(e instanceof Error ? e.message : "Church audio is unavailable. Tap Retry church audio."); }
+      }
+    } catch (e) {
+      connectionPeer?.close();
+      if (!alive.current || !wanted.current || run !== generation.current) return;
+      setError(e instanceof Error ? e.message : "Could not connect");
+      setConnection("Connection interrupted");
+      if (e instanceof ContributionError && [401, 409].includes(e.status)) { leave(); return; }
+      // Permission errors need a deliberate retry, rather than repeated prompts.
+      if (e instanceof DOMException && ["NotAllowedError", "NotFoundError"].includes(e.name)) { wanted.current = false; return; }
+      reconnectTimer.current = setTimeout(() => { reconnectTimer.current = null; void connectDevice(direction); }, 8000);
+    } finally { busy.current = false; if (alive.current) setJoining(false); }
+  }, [closePeers, leave, token]);
+
+  useEffect(() => {
+    alive.current = true;
+    const meta = document.createElement("meta"); meta.name = "referrer"; meta.content = "no-referrer"; document.head.append(meta);
+    const poll = async () => {
+      try {
+        const next = await contributionRequest<GuestStatus>("/guest", "GET", undefined, token);
+        if (alive.current) setStatus(next);
+        if (publisher.current && peer.current?.connectionState === "connected") {
+          await contributionRequest("/guest/heartbeat", "POST", { publisher_session: publisher.current, connected: true }, token);
+        }
+      } catch (e) {
+        if (!alive.current) return;
+        setError(e instanceof Error ? e.message : "Could not contact church");
+        if (e instanceof ContributionError && [401, 409].includes(e.status)) leave();
+      }
+    };
+    void poll();
+    const interval = setInterval(() => void poll(), 5000);
+    const pagehide = () => leave();
+    window.addEventListener("pagehide", pagehide);
+    return () => { alive.current = false; clearInterval(interval); window.removeEventListener("pagehide", pagehide); meta.remove(); leave(); };
+  }, [leave, token]);
+
+  async function switchCamera() {
+    if (joining) return;
+    const next = facing === "user" ? "environment" : "user";
+    setFacing(next);
+    if (!wanted.current) return;
+    generation.current += 1;
+    localStream.current?.getTracks().forEach(t => t.stop()); localStream.current = null;
+    if (reconnectTimer.current) clearTimeout(reconnectTimer.current);
+    reconnectTimer.current = null;
+    await connect(next);
+  }
+
+  return <main className="remote-guest-page">
+    <header><h1>{status?.label || "Join the church service"}</h1>
+      <p>Use headphones. Keep this page open and your device powered while contributing.</p></header>
+    <div className={`remote-guest-status ${status?.live ? "is-live" : ""}`} role="status">
+      <Radio size={18} aria-hidden="true" /> {status?.live ? "You are LIVE on the church broadcast" : connection}
+    </div>
+    {error && <p role="alert" className="form-message">{error}</p>}
+    <video ref={localVideo} className="remote-guest-video" autoPlay muted playsInline aria-label="Your camera preview" />
+    <div className="remote-guest-actions">
+      {!joined ? <button type="button" className="primary-button icon-text-button" disabled={joining || !status} onClick={() => { wanted.current = true; void connect(facing); }}><Camera size={18} />{joining ? "Connecting…" : "Join with camera and microphone"}</button> : <>
+        <button type="button" className="secondary-button icon-text-button" aria-pressed={!mic} onClick={() => { const value = !mic; setMic(value); micEnabled.current = value; localStream.current?.getAudioTracks().forEach(t => { t.enabled = value; }); }}>{mic ? <Mic size={18} /> : <MicOff size={18} />}{mic ? "Mute microphone" : "Unmute microphone"}</button>
+        <button type="button" className="secondary-button icon-text-button" aria-pressed={!camera} onClick={() => { const value = !camera; setCamera(value); cameraEnabled.current = value; localStream.current?.getVideoTracks().forEach(t => { t.enabled = value; }); }}>{camera ? <Camera size={18} /> : <CameraOff size={18} />}{camera ? "Camera off" : "Camera on"}</button>
+        <button type="button" className="secondary-button icon-text-button" disabled={joining} onClick={() => void switchCamera()}><RefreshCw size={18} />Switch camera</button>
+        <button type="button" className="secondary-button icon-text-button" onClick={leave}><LogOut size={18} />Leave</button>
+      </>}
+    </div>
+    <section className="remote-guest-return"><h2>Church audio</h2>
+      <audio ref={returnAudio} controls autoPlay aria-label="Church return audio" />
+      {!status?.return_available && <p>The church operator has not assigned a return audio feed.</p>}
+      {returnError && <p role="status">{returnError}</p>}
+      {joined && status?.return_available && <button type="button" className="secondary-button" onClick={() => {
+        returnPeer.current?.close(); setReturnError("");
+        void receiveContribution("/guest/return", status.ice_servers, stream => {
+          if (returnAudio.current) { returnAudio.current.srcObject = stream; void returnAudio.current.play().catch(() => setReturnError("Tap Play on church audio.")); }
+        }, token, false).then(pc => { if (wanted.current) returnPeer.current = pc; else pc.close(); }).catch(e => setReturnError(e.message));
+      }}>Retry church audio</button>}
+    </section>
+    <RemoteServiceSlide token={token} cue={status?.cue || null} />
+    <p className="muted">Invitation expires {status ? new Date(status.expires_at).toLocaleString() : "…"}. Only the church operator can put you on air.</p>
+  </main>;
+}

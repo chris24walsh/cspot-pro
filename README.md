@@ -934,3 +934,11 @@ The shared top-bar Fullscreen button is available on desktop, laptop, tablet,
 and phone. It hides app navigation and requests browser fullscreen to maximise
 the workspace, including livestream views. Use Exit fullscreen to restore
 navigation; leaving native fullscreen with Escape also restores the app layout.
+
+Remote pastors can join from a tablet or laptop using **Broadcast → Livestream →
+Remote speaker**. Expiring invitation links support backstage preview, operator
+on-air selection, camera/microphone controls, church return audio, and the current
+service slide. The temporary remote feed replaces broadcast video/audio and
+sermon-recording audio while selected; saved church sources resume on disconnect
+or Take off air. Travelling connections should use a configured TURN relay. See
+[remote contribution setup and operation](docs/remote-contributions.md).

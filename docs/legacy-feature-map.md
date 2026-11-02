@@ -63,3 +63,9 @@ Enabled XR18 automation follows presenter item/section selection without needing
 a slideshow output. Source-button overrides last until the next presentation
 cue; explicit Apply & hold remains persistent. Software-only output gating stays
 unchanged. Recent ready sessions are eligible for hardware following.
+
+Remote speaker contribution is a new capability beyond legacy parity: expiring
+guest links, tablet/browser camera and microphone publishing, operator backstage
+preview/on-air controls, church audio return, and current-slide confidence
+previews. It uses the existing livestream gateway, with optional TURN relay
+configuration for travelling speakers. See [remote contributions](remote-contributions.md).

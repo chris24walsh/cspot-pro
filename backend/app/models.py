@@ -1,6 +1,7 @@
 """Import all ORM models so metadata/migrations see the full domain."""
 
 from app.modules.broadcast.models import (
+    BroadcastContribution,
     BroadcastRecording,
     BroadcastViewerSettings,
     LivestreamEvent,
@@ -42,6 +43,7 @@ __all__ = [
     "BibleBook",
     "BibleVerse",
     "BibleVersion",
+    "BroadcastContribution",
     "BroadcastRecording",
     "BroadcastViewerSettings",
     "LivestreamEvent",

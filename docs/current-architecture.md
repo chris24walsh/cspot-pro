@@ -1692,3 +1692,18 @@ fits the fixed workspace pane; faders use the remaining height without page
 scrolling. Setup and other mixer pages scroll within that pane when needed.
 Narrowing a split workspace shows Worship. Worship slide shortcuts pause
 while Mixer fills the workspace and ignore mixer controls in Split view.
+
+## Remote speaker contributions
+
+The broadcast module owns expiring, hashed guest invitations and scoped WHIP/WHEP
+signaling through the existing go2rtc gateway. A durable remote-contribution
+selector overrides viewer camera/audio playback and server recording input without
+rewriting saved church sources or hardware mixer scenes. Connected heartbeats,
+expiry/revocation checks, source allowlists, and a maintenance worker bound access
+and restore church feeds after a dropped connection. Guest confidence previews
+share only the current service item's slide content and assets. Return audio uses
+an explicitly selected original church input, excluding the software remote
+program override; physical desk routing still requires mix-minus. TURN credentials
+are supplied through API environment configuration. See
+[remote contributions](remote-contributions.md) for transport, lifecycle,
+network requirements, and go2rtc WHEP revocation limitations.

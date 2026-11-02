@@ -74,7 +74,14 @@ class ServiceScheduleRule(BaseModel):
         return self
 
 
+class RemoteContributionRead(BaseModel):
+    id: str
+    label: str
+    stream_name: str
+
+
 class BroadcastViewerSettingsRead(BaseModel):
+    remote_contribution: RemoteContributionRead | None = None
     audio_mix_mode: Literal["mixer"] = "mixer"
     mixer_program_source_id: str | None = None
     stream_title: str

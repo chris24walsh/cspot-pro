@@ -1,3 +1,4 @@
+import { withRemoteContribution } from "../remoteContribution";
 import { CameraFraming } from "./CameraFraming";
 import { withCountdownTiming } from "../countdown";
 import { Maximize2, Radio, Settings2 } from "lucide-react";
@@ -110,7 +111,8 @@ function HoldingPane({ message, startingSoon }: { message: string; startingSoon:
 export function ServiceBroadcastView({ canControl = false, onOpenSettings }: { canControl?: boolean; onOpenSettings?: () => void }) {
   const shellRef = useRef<HTMLElement | null>(null);
   const pollInFlightRef = useRef(false);
-  const [settings, setSettings] = useState(DEFAULT_SETTINGS);
+  const [baseSettings, setSettings] = useState(DEFAULT_SETTINGS);
+  const settings = useMemo(() => withRemoteContribution(baseSettings), [baseSettings]);
   const [liveServices, setLiveServices] = useState<PresentationLiveService[]>([]);
   const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null);
   const [nextService, setNextService] = useState<PlanSummary | null>(null);
@@ -502,11 +504,12 @@ export function ServiceBroadcastView({ canControl = false, onOpenSettings }: { c
         <div className={`service-broadcast-viewer-controls ${canControl ? "has-admin-controls" : ""}`}>
           {canControl ? (
             <div className="service-broadcast-admin-live-controls" aria-label="Quick livestream controls">
+              {settings.remote_contribution && <button type="button" className="secondary-button" onClick={onOpenSettings}>Remote speaker: {settings.remote_contribution.label} · Manage</button>}
               <label className="service-broadcast-live-select">
                 <span><Radio size={13} aria-hidden="true" /> Camera</span>
                 <select
                   aria-label="Camera on air"
-                  disabled={controlBusy || !settings.camera_sources.length}
+                  disabled={controlBusy || Boolean(settings.remote_contribution) || !settings.camera_sources.length}
                   onChange={(event) => putCameraOnAir(event.target.value)}
                   value={activeCameraId ?? ""}
                 >
@@ -518,7 +521,7 @@ export function ServiceBroadcastView({ canControl = false, onOpenSettings }: { c
                 <span>Audio</span>
                 <select
                   aria-label="Live audio source"
-                  disabled={controlBusy}
+                  disabled={controlBusy || Boolean(settings.remote_contribution)}
                   onChange={(event) => putAudioOnAir(event.target.value)}
                   value={settings.live_audio_source}
                 >

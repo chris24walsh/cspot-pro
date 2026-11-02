@@ -682,6 +682,7 @@ export interface ServiceScheduleRule {
 }
 
 export interface BroadcastViewerSettings {
+  remote_contribution?: { id: string; label: string; stream_name: string } | null;
   audio_mix_mode?: "mixer";
   mixer_program_source_id?: string | null;
   stream_title: string;
