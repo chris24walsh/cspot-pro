@@ -51,6 +51,15 @@ listener failures, including stale IPv6 interfaces. Fix the listener configurati
 with an explicit appropriate private interface, following the host’s change
 approval process, before inviting a speaker.
 
+On Frigate-managed gateways, put this setting in the durable Frigate configuration
+(e.g. `/config/config.yml`), under `go2rtc.webrtc.listen`. The gateway at
+`192.168.2.208` uses `192.168.2.208:8555`. Its supervisor regenerates
+`/dev/shm/go2rtc.yaml` and strips non-HomeKit settings from
+`/config/go2rtc_homekit.yml` on restart, so editing either generated file does not
+persist the listener. Restart only the go2rtc service after an approved change.
+Reconcile CSpot audio sources and restore any needed dynamic gateway registrations
+that the supervisor clears; retain existing configured camera sources.
+
 The gateway must have FFmpeg with H.264, AAC, and Opus encoders. Its WebRTC ICE
 candidates must be reachable from the guest, directly or through a TURN relay.
 Only CSpot's scoped signaling routes are public: do not expose go2rtc management
