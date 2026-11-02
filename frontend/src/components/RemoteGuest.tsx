@@ -1,3 +1,4 @@
+import { remoteCameraConstraints, switchRemoteCamera } from "../switchRemoteCamera";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { RemoteServiceSlide } from "./RemoteServiceSlide";
 import { Camera, CameraOff, LogOut, Mic, MicOff, Radio, RefreshCw } from "lucide-react";
@@ -16,6 +17,7 @@ export function RemoteGuest({ token: suppliedToken, embedded = false, autoJoin =
   const [error, setError] = useState("");
   const [connection, setConnection] = useState("Not connected");
   const [joining, setJoining] = useState(false);
+  const [switching, setSwitching] = useState(false);
   const [joined, setJoined] = useState(false);
   const [mic, setMic] = useState(true);
   const [camera, setCamera] = useState(true);
@@ -67,7 +69,7 @@ export function RemoteGuest({ token: suppliedToken, embedded = false, autoJoin =
       if (!localStream.current) {
         const capture = await navigator.mediaDevices.getUserMedia({
           audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
-          video: { facingMode: direction, width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 24, max: 30 } },
+          video: remoteCameraConstraints(direction),
         });
         if (!wanted.current || run !== generation.current) { capture.getTracks().forEach(t => t.stop()); return; }
         localStream.current = capture;
@@ -174,15 +176,29 @@ export function RemoteGuest({ token: suppliedToken, embedded = false, autoJoin =
   }, [autoJoin, connect]);
 
   async function switchCamera() {
-    if (joining) return;
-    const next = facing === "user" ? "environment" : "user";
-    setFacing(next);
-    if (!wanted.current) return;
-    generation.current += 1;
-    localStream.current?.getTracks().forEach(t => t.stop()); localStream.current = null;
-    if (reconnectTimer.current) clearTimeout(reconnectTimer.current);
-    reconnectTimer.current = null;
-    await connect(next);
+    if (busy.current || !wanted.current || !localStream.current || !peer.current) return;
+    const pc = peer.current;
+    const stream = localStream.current;
+    const run = generation.current;
+    const isCurrent = () => alive.current && wanted.current && generation.current === run && peer.current === pc && pc.signalingState !== "closed";
+    busy.current = true; setSwitching(true); setError("");
+    try {
+      const selected = await switchRemoteCamera({
+        peer: pc, stream, from: facing, to: facing === "user" ? "environment" : "user",
+        enabled: () => cameraEnabled.current, isCurrent,
+      });
+      if (selected && isCurrent()) {
+        setFacing(selected);
+      }
+    } catch (e) {
+      if (isCurrent()) setError(e instanceof Error ? e.message : "Could not switch camera");
+    } finally {
+      busy.current = false;
+      if (isCurrent() && localVideo.current) {
+        localVideo.current.srcObject = null; localVideo.current.srcObject = stream;
+      }
+      if (alive.current) setSwitching(false);
+    }
   }
 
   const Container = embedded ? "section" : "main";
@@ -198,7 +214,7 @@ export function RemoteGuest({ token: suppliedToken, embedded = false, autoJoin =
       {!joined ? <button type="button" className="primary-button icon-text-button" disabled={joining || !status} onClick={() => { wanted.current = true; void connect(facing); }}><Camera size={18} />{joining ? "Connecting…" : "Join with camera and microphone"}</button> : <>
         <button type="button" className="secondary-button icon-text-button" aria-pressed={!mic} onClick={() => { const value = !mic; setMic(value); micEnabled.current = value; localStream.current?.getAudioTracks().forEach(t => { t.enabled = value; }); }}>{mic ? <Mic size={18} /> : <MicOff size={18} />}{mic ? "Mute microphone" : "Unmute microphone"}</button>
         <button type="button" className="secondary-button icon-text-button" aria-pressed={!camera} onClick={() => { const value = !camera; setCamera(value); cameraEnabled.current = value; localStream.current?.getVideoTracks().forEach(t => { t.enabled = value; }); }}>{camera ? <Camera size={18} /> : <CameraOff size={18} />}{camera ? "Camera off" : "Camera on"}</button>
-        <button type="button" className="secondary-button icon-text-button" disabled={joining} onClick={() => void switchCamera()}><RefreshCw size={18} />Switch camera</button>
+        <button type="button" className="secondary-button icon-text-button" disabled={joining || switching} onClick={() => void switchCamera()}><RefreshCw size={18} />{switching ? "Switching…" : "Switch camera"}</button>
         <button type="button" className="secondary-button icon-text-button" onClick={() => { leave(); onLeave?.(); }}><LogOut size={18} />Leave</button>
       </>}
     </div>

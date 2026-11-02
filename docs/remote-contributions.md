@@ -13,6 +13,10 @@ A signed-in Teacher can use **Service → Camera & mic** in the top toolbar.
 One click opens a compact camera panel and requests camera/microphone access;
 the service preview, slide sorter, section rail, and slide controls stay available.
 The preview can be minimized while streaming and reopened from the toolbar.
+Switch camera replaces only the video track on the existing connection. The
+microphone, church return audio, and publishing lease remain active. If the other
+camera cannot be opened or attached, CSpot attempts to restore the previous
+camera and reports the result without disconnecting the microphone.
 No invitation link or Broadcast-admin access is needed. The panel includes local
 preview, mute, camera switching, and church return audio. Use headphones.
 
