@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act } from "react";
+import { act, StrictMode } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { RemoteGuest } from "./RemoteGuest";
@@ -65,6 +65,16 @@ describe("remote tablet capture", () => {
     expect(captures[0].video.stop).toHaveBeenCalled();
     expect(peers[0].close).toHaveBeenCalled();
     expect(request).toHaveBeenCalledWith("/guest/leave", "POST", { publisher_session: "device-session" }, "invitation-secret");
+  });
+  it("starts embedded camera capture once after the Service button is clicked", async () => {
+    await act(async () => root.render(<StrictMode><RemoteGuest token="account-camera-token" embedded autoJoin /></StrictMode>));
+    await act(async () => { await new Promise(resolve => setTimeout(resolve, 10)); });
+    expect(getUserMedia).toHaveBeenCalledTimes(1);
+    expect(request).toHaveBeenCalledWith("/guest", "GET", undefined, "account-camera-token");
+    expect(host.querySelector("main")).toBeNull();
+    expect(host.textContent).not.toContain("Invitation expires");
+    expect(host.textContent).not.toContain("Church confidence slide");
+    expect(document.head.querySelector('meta[name="referrer"]')).toBeNull();
   });
   it("preserves microphone mute when switching cameras", async () => {
     await act(async () => root.render(<RemoteGuest />));

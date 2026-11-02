@@ -607,6 +607,7 @@ function App() {
             canCreateSong={canCreateSongs}
             canEditSong={canEditSongs}
             canEditSlideNotes={canEditSlideNotes}
+            canContributeCamera={permissions.has("broadcast:contribute") || canUseBroadcast}
           />
         </div> : null}
         {activeModule.id === "broadcast" ? (

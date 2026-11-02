@@ -1,3 +1,4 @@
+import { ServiceCameraControl } from "./ServiceCameraControl";
 import { railPlacementAt, useRailPointerDrag } from "./useRailPointerDrag";
 import { optimisticRailMove } from "../optimisticRailMove";
 import { railMovePosition, type RailPlacement } from "../railOrdering";
@@ -666,6 +667,7 @@ export function PresentationView({
   canAddItemsToRunningPlan,
   canManagePreServiceMedia,
   canEditSlideNotes,
+  canContributeCamera = false,
   canCreateSong,
   canEditSong,
 }: {
@@ -678,6 +680,7 @@ export function PresentationView({
   canAddItemsToRunningPlan: boolean;
   canManagePreServiceMedia: boolean;
   canEditSlideNotes: boolean;
+  canContributeCamera?: boolean;
   canCreateSong: boolean;
   canEditSong: boolean;
 }) {
@@ -4763,6 +4766,7 @@ export function PresentationView({
       {active && topbarSlot
         ? createPortal(
             <div className="presentation-topbar-tools">
+              {canContributeCamera && <ServiceCameraControl />}
               <DateNavigator
                 historyContent={serviceHistoryContent()}
                 historyDisabled={(!plan && !archivedServiceUndo) || serviceHistoryLoading}

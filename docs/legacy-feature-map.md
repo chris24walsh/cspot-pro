@@ -69,3 +69,7 @@ guest links, tablet/browser camera and microphone publishing, operator backstage
 preview/on-air controls, church audio return, and current-slide confidence
 previews. It uses the existing livestream gateway, with optional TURN relay
 configuration for travelling speakers. See [remote contributions](remote-contributions.md).
+
+Teachers can also publish their own camera/mic directly inside the Service
+workspace, without invitation links or broadcast-control permissions. This is a
+new account-owned contribution workflow; going on air still requires an operator.

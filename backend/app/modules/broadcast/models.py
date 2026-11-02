@@ -128,6 +128,9 @@ class LivestreamViewerVisit(IdMixin, TimestampMixin, Base):
 class BroadcastContribution(IdMixin, TimestampMixin, Base):
     __tablename__ = "broadcast_contributions"
 
+    owner_user_id: Mapped[str | None] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), index=True
+    )
     label: Mapped[str] = mapped_column(String(120))
     token_hash: Mapped[str] = mapped_column(String(64), unique=True, index=True)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))

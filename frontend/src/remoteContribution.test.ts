@@ -65,17 +65,61 @@ describe("remote signaling", () => {
     expect(await offer).toBe("complete-offer-with-relay");
     expect(listeners.size).toBe(0);
   });
-  it("times out gathering instead of sending an offer without relay candidates", async () => {
+  it("reports missing network addresses when discovery has no candidates", async () => {
     vi.useFakeTimers();
     const peer = {
       createOffer: async () => ({}), setLocalDescription: vi.fn(), iceGatheringState: "gathering",
       addEventListener: vi.fn(), removeEventListener: vi.fn(),
     };
     const offer = completeOffer(peer as unknown as RTCPeerConnection);
-    const rejection = expect(offer).rejects.toThrow("Connection discovery timed out");
+    const rejection = expect(offer).rejects.toThrow("Connection discovery found no network addresses");
     await vi.advanceTimersByTimeAsync(15001);
     await rejection;
     expect(peer.removeEventListener).toHaveBeenCalled();
+  });
+  it("tries gathered addresses when an unreachable STUN lookup stays pending", async () => {
+    vi.useFakeTimers();
+    const sdp = "v=0\r\na=candidate:1 1 udp 2122260223 192.168.1.20 50000 typ host\r\n";
+    const peer = {
+      createOffer: async () => ({}), setLocalDescription: vi.fn(),
+      iceGatheringState: "gathering", signalingState: "have-local-offer",
+      localDescription: { sdp }, addEventListener: vi.fn(), removeEventListener: vi.fn(),
+    };
+    const offer = completeOffer(peer as unknown as RTCPeerConnection);
+    await vi.advanceTimersByTimeAsync(15001);
+    expect(await offer).toBe(sdp);
+    expect(peer.removeEventListener).toHaveBeenCalledWith("icegatheringstatechange", expect.any(Function));
+    expect(peer.removeEventListener).toHaveBeenCalledWith("signalingstatechange", expect.any(Function));
+    expect(vi.getTimerCount()).toBe(0);
+  });
+  it("keeps discovered relay candidates when a different ICE server stays pending", async () => {
+    vi.useFakeTimers();
+    const sdp = "v=0\r\na=candidate:2 1 udp 16777215 203.0.113.10 53000 typ relay raddr 0.0.0.0 rport 0\r\n";
+    const peer = {
+      createOffer: async () => ({}), setLocalDescription: vi.fn(),
+      iceGatheringState: "gathering", signalingState: "have-local-offer",
+      localDescription: { sdp }, addEventListener: vi.fn(), removeEventListener: vi.fn(),
+    };
+    const offer = completeOffer(peer as unknown as RTCPeerConnection);
+    await vi.advanceTimersByTimeAsync(15001);
+    expect(await offer).toBe(sdp);
+  });
+  it("cancels discovery promptly when the guest leaves", async () => {
+    vi.useFakeTimers();
+    const events = new EventTarget();
+    const peer = {
+      createOffer: async () => ({}), setLocalDescription: vi.fn(),
+      iceGatheringState: "gathering", signalingState: "have-local-offer",
+      addEventListener: events.addEventListener.bind(events),
+      removeEventListener: events.removeEventListener.bind(events),
+    };
+    const offer = completeOffer(peer as unknown as RTCPeerConnection);
+    const rejected = expect(offer).rejects.toThrow("Connection was closed");
+    await Promise.resolve(); await Promise.resolve();
+    peer.signalingState = "closed";
+    events.dispatchEvent(new Event("signalingstatechange"));
+    await rejected;
+    expect(vi.getTimerCount()).toBe(0);
   });
   it("closes a failed receive peer and never requests a camera for return audio", async () => {
     const peer = {

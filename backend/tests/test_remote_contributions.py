@@ -437,3 +437,78 @@ def test_invitation_creation_reports_unavailable_webrtc_module(setup, monkeypatc
     response = client.post("/remote", json={"label": "Pastor"})
     assert response.status_code == 503
     assert "WebRTC listener" in response.json()["detail"]
+
+
+def signed_in_teacher(session, client, *, name="Teacher", role="teacher"):
+    from app.modules.identity.auth import get_current_user
+    from app.modules.identity.models import Role, User, UserRole
+
+    user = User(name=name, email=f"{name.lower()}@example.com", username=name.lower(), active=True)
+    access = session.scalar(select(Role).where(Role.name == role))
+    if not access:
+        access = Role(name=role)
+        session.add(access)
+    session.add(user)
+    session.flush()
+    session.add(UserRole(user_id=user.id, role_id=access.id))
+    session.commit()
+    client.app.dependency_overrides[get_current_user] = lambda: user
+    return user
+
+
+def test_teacher_can_enable_own_camera_without_broadcast_admin_access(setup):
+    session, settings, client = setup
+    teacher = signed_in_teacher(session, client)
+    client.app.dependency_overrides.pop(remote.operator)
+    result = client.post(
+        "/remote/self", json={"label": "Impersonated", "return_source_id": "private"}
+    )
+    assert result.status_code == 201, result.text
+    contribution = result.json()
+    guest = session.get(BroadcastContribution, contribution["id"])
+    assert guest.owner_user_id == teacher.id
+    assert guest.label == teacher.name
+    assert guest.return_source_id == "desk"
+    assert settings.remote_contribution_id is None
+    assert client.get("/remote/guest", headers=authorization(contribution)).status_code == 200
+    assert client.post("/remote", json={"label": "Someone else"}).status_code == 403
+    assert client.post(f"/remote/{guest.id}/on-air", json={"live": True}).status_code == 403
+    assert client.delete(f"/remote/self/{guest.id}").status_code == 200
+    assert client.get("/remote/guest", headers=authorization(contribution)).status_code == 401
+
+
+def test_viewer_cannot_enable_camera_or_microphone(setup):
+    session, _, client = setup
+    signed_in_teacher(session, client, role="viewer")
+    assert client.post("/remote/self").status_code == 403
+
+
+def test_teacher_can_end_only_their_own_camera_session(setup):
+    session, _, client = setup
+    signed_in_teacher(session, client, name="First")
+    own = client.post("/remote/self").json()
+    signed_in_teacher(session, client, name="Second")
+    assert client.delete(f"/remote/self/{own['id']}").status_code == 404
+    assert session.get(BroadcastContribution, own["id"]).revoked_at is None
+    invitation = invite(client)
+    assert client.delete(f"/remote/self/{invitation['id']}").status_code == 404
+
+
+def test_teacher_contribution_permission_does_not_grant_broadcast_control():
+    from app.modules.identity.permissions import permissions_for_roles
+
+    teacher = permissions_for_roles(["teacher"])
+    assert "broadcast:contribute" in teacher
+    assert "broadcast:use" not in teacher
+    assert "broadcast:contribute" not in permissions_for_roles(["viewer"])
+    assert "broadcast:contribute" in permissions_for_roles(["administrator"])
+
+
+def test_teacher_return_uses_saved_desk_even_when_broadcast_audio_is_muted(setup):
+    session, settings, client = setup
+    signed_in_teacher(session, client)
+    settings.live_audio_source = "none"
+    session.commit()
+    result = client.post("/remote/self")
+    assert result.status_code == 201
+    assert result.json()["return_source_id"] == "desk"

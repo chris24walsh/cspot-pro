@@ -5,8 +5,11 @@ import {
   completeOffer, ContributionError, contributionRequest, receiveContribution, type GuestStatus,
 } from "../remoteContribution";
 
-export function RemoteGuest() {
+export function RemoteGuest({ token: suppliedToken, embedded = false, autoJoin = false, onLeave }: {
+  token?: string; embedded?: boolean; autoJoin?: boolean; onLeave?: () => void;
+} = {}) {
   const [token] = useState(() => {
+    if (suppliedToken !== undefined) return suppliedToken;
     try { return decodeURIComponent(window.location.hash.slice(1)); } catch { return ""; }
   });
   const [status, setStatus] = useState<GuestStatus | null>(null);
@@ -139,7 +142,10 @@ export function RemoteGuest() {
 
   useEffect(() => {
     alive.current = true;
-    const meta = document.createElement("meta"); meta.name = "referrer"; meta.content = "no-referrer"; document.head.append(meta);
+    const meta = document.createElement("meta"); meta.name = "referrer"; meta.content = "no-referrer";
+    // Embedded capture has no invitation in its URL. Preserve the Service
+    // page's policy so its existing third-party media keeps working.
+    if (!embedded) document.head.append(meta);
     const poll = async () => {
       try {
         const next = await contributionRequest<GuestStatus>("/guest", "GET", undefined, token);
@@ -158,7 +164,14 @@ export function RemoteGuest() {
     const pagehide = () => leave();
     window.addEventListener("pagehide", pagehide);
     return () => { alive.current = false; clearInterval(interval); window.removeEventListener("pagehide", pagehide); meta.remove(); leave(); };
-  }, [leave, token]);
+  }, [leave, token, embedded]);
+
+  useEffect(() => {
+    if (!autoJoin) return;
+    // Deferring one tick makes StrictMode's setup/cleanup pass cancel cleanly.
+    const timer = setTimeout(() => { wanted.current = true; void connect("user"); }, 0);
+    return () => clearTimeout(timer);
+  }, [autoJoin, connect]);
 
   async function switchCamera() {
     if (joining) return;
@@ -172,9 +185,10 @@ export function RemoteGuest() {
     await connect(next);
   }
 
-  return <main className="remote-guest-page">
-    <header><h1>{status?.label || "Join the church service"}</h1>
-      <p>Use headphones. Keep this page open and your device powered while contributing.</p></header>
+  const Container = embedded ? "section" : "main";
+  return <Container className={embedded ? "remote-guest-embedded" : "remote-guest-page"}>
+    {!embedded && <header><h1>{status?.label || "Join the church service"}</h1>
+      <p>Use headphones. Keep this page open and your device powered while contributing.</p></header>}
     <div className={`remote-guest-status ${status?.live ? "is-live" : ""}`} role="status">
       <Radio size={18} aria-hidden="true" /> {status?.live ? "You are LIVE on the church broadcast" : connection}
     </div>
@@ -185,7 +199,7 @@ export function RemoteGuest() {
         <button type="button" className="secondary-button icon-text-button" aria-pressed={!mic} onClick={() => { const value = !mic; setMic(value); micEnabled.current = value; localStream.current?.getAudioTracks().forEach(t => { t.enabled = value; }); }}>{mic ? <Mic size={18} /> : <MicOff size={18} />}{mic ? "Mute microphone" : "Unmute microphone"}</button>
         <button type="button" className="secondary-button icon-text-button" aria-pressed={!camera} onClick={() => { const value = !camera; setCamera(value); cameraEnabled.current = value; localStream.current?.getVideoTracks().forEach(t => { t.enabled = value; }); }}>{camera ? <Camera size={18} /> : <CameraOff size={18} />}{camera ? "Camera off" : "Camera on"}</button>
         <button type="button" className="secondary-button icon-text-button" disabled={joining} onClick={() => void switchCamera()}><RefreshCw size={18} />Switch camera</button>
-        <button type="button" className="secondary-button icon-text-button" onClick={leave}><LogOut size={18} />Leave</button>
+        <button type="button" className="secondary-button icon-text-button" onClick={() => { leave(); onLeave?.(); }}><LogOut size={18} />Leave</button>
       </>}
     </div>
     <section className="remote-guest-return"><h2>Church audio</h2>
@@ -199,7 +213,7 @@ export function RemoteGuest() {
         }, token, false).then(pc => { if (wanted.current) returnPeer.current = pc; else pc.close(); }).catch(e => setReturnError(e.message));
       }}>Retry church audio</button>}
     </section>
-    <RemoteServiceSlide token={token} cue={status?.cue || null} />
-    <p className="muted">Invitation expires {status ? new Date(status.expires_at).toLocaleString() : "…"}. Only the church operator can put you on air.</p>
-  </main>;
+    {!embedded && <RemoteServiceSlide token={token} cue={status?.cue || null} />}
+    {!embedded && <p className="muted">Invitation expires {status ? new Date(status.expires_at).toLocaleString() : "…"}. Only the church operator can put you on air.</p>}
+  </Container>;
 }

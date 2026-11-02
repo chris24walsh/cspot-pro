@@ -29,7 +29,7 @@ from app.modules.broadcast.contribution_state import (
     utc,
 )
 from app.modules.broadcast.models import BroadcastContribution, BroadcastViewerSettings
-from app.modules.identity.auth import require_permission
+from app.modules.identity.auth import require_any_permission, require_permission
 from app.modules.identity.models import User
 
 
@@ -42,6 +42,8 @@ router = APIRouter(dependencies=[Depends(private_response)])
 operator = require_permission("broadcast:use")
 Database = Annotated[Session, Depends(get_session)]
 Operator = Annotated[User, Depends(operator)]
+contributor = require_any_permission("broadcast:contribute", "broadcast:use")
+Contributor = Annotated[User, Depends(contributor)]
 
 
 class Invitation(BaseModel):
@@ -267,6 +269,10 @@ def list_contributions(session: Database, _user: Operator):
 
 @router.post("", status_code=201)
 def create_invitation(payload: Invitation, session: Database, _user: Operator):
+    return new_contribution(payload, session)
+
+
+def new_contribution(payload: Invitation, session: Session, owner_user_id: str | None = None):
     if not config.camera_proxy_upstream:
         raise HTTPException(503, "The camera gateway is not configured")
     if not gateway_available():
@@ -276,6 +282,7 @@ def create_invitation(payload: Invitation, session: Database, _user: Operator):
     token = secrets.token_urlsafe(32)
     guest = BroadcastContribution(
         label=payload.label.strip() or "Remote pastor",
+        owner_user_id=owner_user_id,
         token_hash=hashlib.sha256(token.encode()).hexdigest(),
         expires_at=datetime.now(UTC) + timedelta(hours=payload.hours),
         return_source_id=payload.return_source_id,
@@ -283,6 +290,42 @@ def create_invitation(payload: Invitation, session: Database, _user: Operator):
     session.add(guest)
     session.commit()
     return {**guest_read(session, guest), "token": token}
+
+
+@router.post("/self", status_code=201)
+def start_self_contribution(session: Database, current_user: Contributor):
+    # Teachers can publish their own device, but cannot invite other people or
+    # select another source for return audio. Broadcast approval stays separate.
+    from app.modules.broadcast.settings import audio_sources, selected_independent_audio_sources
+
+    settings = broadcast_settings(session)
+    program = next(
+        (
+            source
+            for source in audio_sources(settings)
+            if source.id == settings.mixer_program_source_id
+        ),
+        None,
+    )
+    sources = selected_independent_audio_sources(settings)
+    return_source_id = program.id if program else (sources[0].id if sources else None)
+    return new_contribution(
+        Invitation(
+            label=(current_user.name.strip() or "Service teacher")[:120],
+            hours=12,
+            return_source_id=return_source_id,
+        ),
+        session,
+        owner_user_id=current_user.id,
+    )
+
+
+@router.delete("/self/{guest_id}")
+def stop_self_contribution(guest_id: str, session: Database, current_user: Contributor):
+    guest = guest_by_id(session, guest_id)
+    if guest.owner_user_id != current_user.id:
+        raise HTTPException(404, "Contribution not found")
+    return revoke(guest_id, session, current_user)
 
 
 @router.get("/guest")

@@ -1707,3 +1707,12 @@ program override; physical desk routing still requires mix-minus. TURN credentia
 are supplied through API environment configuration. See
 [remote contributions](remote-contributions.md) for transport, lifecycle,
 network requirements, and go2rtc WHEP revocation limitations.
+
+Teacher self-publishing uses `broadcast:contribute`, separate from `broadcast:use`.
+The Service toolbar creates an account-owned contribution via authenticated
+`POST /broadcast/contributions/self`. Source labels and church return selection
+are derived on the server; the expiring capability stays in page memory. The
+embedded capture UI shares the guest publisher lifecycle and network-discovery
+helper. Owner-only DELETE ends capture without granting invitation management or
+on-air selection. `BroadcastContribution.owner_user_id` identifies owned sessions;
+operator approval and the temporary broadcast override remain unchanged.

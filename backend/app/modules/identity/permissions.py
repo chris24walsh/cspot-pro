@@ -61,6 +61,8 @@ BROADCAST_CONTROL_PERMISSIONS: set[PermissionName] = {
     "broadcast:use",
 }
 
+REMOTE_CONTRIBUTION_PERMISSIONS: set[PermissionName] = {"broadcast:contribute"}
+
 MIXER_CONTROL_PERMISSIONS: set[PermissionName] = {"mixer:use"}
 
 BROADCAST_VIEW_PERMISSIONS: set[PermissionName] = {
@@ -92,6 +94,7 @@ ALL_PERMISSIONS: set[PermissionName] = (
     | PRESENTATION_CONTROL_PERMISSIONS
     | SCHOOL_PRESENTATION_PERMISSIONS
     | BROADCAST_CONTROL_PERMISSIONS
+    | REMOTE_CONTRIBUTION_PERMISSIONS
     | MIXER_CONTROL_PERMISSIONS
     | WEBSITE_PUBLISH_PERMISSIONS
     | ADMIN_PERMISSIONS
@@ -139,11 +142,12 @@ ROLE_DEFINITIONS: dict[str, RoleDefinition] = {
         "permissions": READ_PERMISSIONS | TEAM_READ_PERMISSIONS | SERVICE_PLANNING_PERMISSIONS | SCHOOL_PRESENTATION_PERMISSIONS,
     },
     "teacher": {
-        "description": "Prepare upcoming services, sermon decks, and service content without managing songs or users.",
+        "description": "Prepare services and sermon content, and contribute camera/microphone from Service.",
         "permissions": READ_PERMISSIONS
         | SERVICE_PLANNING_PERMISSIONS
         | {"library:create"}
-        | PRESENTATION_CONTROL_PERMISSIONS,
+        | PRESENTATION_CONTROL_PERMISSIONS
+        | REMOTE_CONTRIBUTION_PERMISSIONS,
     },
     "presenter": {
         "description": "Operate and edit every part of the live service flow, including songs and sermon decks.",

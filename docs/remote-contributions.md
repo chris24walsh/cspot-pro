@@ -7,6 +7,30 @@ No CSpot account or installed app is required. Test the actual device and networ
 before the service; mobile browsers can suspend capture when locked or backgrounded.
 Keep the page visible, connect power, and use headphones.
 
+## Teachers using the Service workspace
+
+A signed-in Teacher can use **Service → Camera & mic** in the top toolbar.
+One click opens a compact camera panel and requests camera/microphone access;
+the service preview, slide sorter, section rail, and slide controls stay available.
+The preview can be minimized while streaming and reopened from the toolbar.
+No invitation link or Broadcast-admin access is needed. The panel includes local
+preview, mute, camera switching, and church return audio. Use headphones.
+
+The teacher initially connects backstage. A broadcast operator sees their account
+name under Broadcast → Livestream → Remote speaker, previews them, and chooses
+Bring on air. The teacher cannot put themselves on air. **Stop camera & mic**,
+the panel’s close button, or leaving the Service workspace stops capture and ends
+the teacher’s connection. Return audio uses the saved church program input;
+CSpot never returns the teacher’s own program override to them.
+
+The `broadcast:contribute` permission belongs to the Teacher role and administrators.
+Broadcast operators may also publish their own device. Authenticated
+`POST /contributions/self` derives the name and return source server-side and
+returns an expiring, account-owned publishing capability held only in page memory.
+`DELETE /contributions/self/{id}` permits owners to end only their own connection.
+Normal viewer accounts cannot self-publish. Invitations remain available for
+speakers who do not have a Teacher account.
+
 ## Operator workflow
 
 1. Enter the speaker's name, invitation lifetime (2 hours to 7 days), and an
@@ -88,6 +112,13 @@ Supply these variables in the API service environment and recreate that service.
 The UI reports when no TURN relay is configured. A STUN server discovers NAT
 addresses; it does not provide a relay or guarantee connectivity on restrictive
 networks. No relay service is provisioned or paid for automatically.
+
+If a STUN lookup is slow or blocked, discovery may remain pending even after the
+browser has gathered local addresses. CSpot waits up to 15 seconds, then attempts
+the connection using addresses already in the offer. It reports a discovery
+failure only when no addresses were gathered. This avoids aborting a potentially
+working direct connection, but cannot make an unreachable address routable;
+restrictive networks can still require TURN or a different network.
 
 Use a church return input with a hardware mix-minus if the pastor's audio is
 being played into the room. CSpot sends the explicitly chosen original church

@@ -946,3 +946,9 @@ and recording audio. Church settings remain saved and resume after disconnect or
 Take off air. Reliable hotel/mobile connectivity requires a configured TURN
 relay; it is not provisioned automatically. See
 [remote contributions](remote-contributions.md) for deployment and operation.
+
+Teachers can self-publish from **Service → Camera & mic** without invitation links
+or Broadcast administration access. Their account supplies the source name and
+original church program return. A compact camera panel leaves the service UI
+available; leaving Service stops capture and ends that owned connection. Operator
+approval is still required before the teacher’s feed reaches the broadcast.

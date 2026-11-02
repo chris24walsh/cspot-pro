@@ -47,16 +47,41 @@ export function invitationUrl(token: string) {
   return new URL(`${appAssetUrl("?contribute=1")}#${encodeURIComponent(token)}`, window.location.origin).href;
 }
 
+const ICE_GATHERING_TIMEOUT_MS = 15000;
+
 export async function completeOffer(peer: RTCPeerConnection) {
   await peer.setLocalDescription(await peer.createOffer());
   if (peer.iceGatheringState !== "complete") {
     await new Promise<void>((resolve, reject) => {
+      const cleanup = () => {
+        clearTimeout(timer);
+        peer.removeEventListener("icegatheringstatechange", finished);
+        peer.removeEventListener("signalingstatechange", closed);
+      };
+      const closed = () => {
+        if (peer.signalingState === "closed") {
+          cleanup(); reject(new Error("Connection was closed"));
+        }
+      };
       const finished = () => {
         if (peer.iceGatheringState === "complete") { cleanup(); resolve(); }
       };
-      const cleanup = () => { clearTimeout(timer); peer.removeEventListener("icegatheringstatechange", finished); };
-      const timer = setTimeout(() => { cleanup(); reject(new Error("Connection discovery timed out. Check your network and retry.")); }, 15000);
+      const timer = setTimeout(() => {
+        cleanup();
+        if (peer.signalingState === "closed") {
+          reject(new Error("Connection was closed"));
+        } else if (/^a=candidate:/m.test(peer.localDescription?.sdp || "")) {
+          // A blocked STUN lookup can leave discovery running even though
+          // host or server-reflexive addresses are already in the offer.
+          // WHIP/WHEP can try those addresses without waiting for every lookup.
+          resolve();
+        } else {
+          reject(new Error("Connection discovery found no network addresses. Try another network or check that your browser allows camera calls."));
+        }
+      }, ICE_GATHERING_TIMEOUT_MS);
       peer.addEventListener("icegatheringstatechange", finished);
+      peer.addEventListener("signalingstatechange", closed);
+      closed();
       finished();
     });
   }

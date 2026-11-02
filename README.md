@@ -942,3 +942,8 @@ service slide. The temporary remote feed replaces broadcast video/audio and
 sermon-recording audio while selected; saved church sources resume on disconnect
 or Take off air. Travelling connections should use a configured TURN relay. See
 [remote contribution setup and operation](docs/remote-contributions.md).
+
+Signed-in teachers can enable their own camera/microphone directly from
+**Service → Camera & mic**, keeping the service preview and slide controls open.
+No invitation is needed; the broadcast operator still chooses when to bring the
+teacher on air. Stop the camera from the same toolbar button or close its panel.
