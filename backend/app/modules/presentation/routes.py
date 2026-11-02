@@ -1,4 +1,5 @@
 import json
+import logging
 from datetime import UTC, datetime
 from threading import Lock, Timer
 from typing import Annotated
@@ -33,6 +34,7 @@ from app.modules.presentation.timing import (
 )
 
 router = APIRouter()
+logger = logging.getLogger("uvicorn.error." + __name__)
 
 
 def _remember_countdown_start(payload: dict, item: PlanItem | None, now_ms: int, *, entered: bool = False) -> None:
@@ -77,6 +79,7 @@ class PresentationLiveStateWrite(BaseModel):
     plan_item_id: str | None = None
     slide_offset: int = 0
     updated_at: int
+    expected_updated_at: int | None = None
     theme: str = "light"
     blanked: bool = False
     fullscreen: bool = False
@@ -1211,15 +1214,39 @@ def update_presentation_live_state(
         session.add(presentation_session)
         session.flush()
 
+    # Serialize competing device writes before checking the client's base state.
+    session.execute(
+        select(PresentationSession)
+        .where(PresentationSession.id == presentation_session.id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    ).scalar_one()
     position = _latest_position(session, presentation_session.id)
     if position is None:
         position = PresentationPosition(session_id=presentation_session.id)
         session.add(position)
 
     existing_payload = _position_payload(position)
-    if payload.updated_at < int(existing_payload.get("updated_at", 0)):
+    current_updated_at = int(existing_payload.get("updated_at", 0))
+    if (
+        payload.updated_at < current_updated_at
+        or payload.expected_updated_at is not None
+        and payload.expected_updated_at != current_updated_at
+    ):
+        logger.warning(
+            "Ignored stale presentation update plan=%s actor=%s expected=%s current=%s target=%s",
+            plan_id, current_user.id, payload.expected_updated_at,
+            current_updated_at, payload.plan_item_id,
+        )
         return _serialize_live_state(presentation_session, position, plan_id)
 
+    # Output and Worship Live omit service timing fields. They must not reset a
+    # running service to the schema's ready/default stage on ordinary navigation.
+    payload = payload.model_copy(update={
+        key: existing_payload[key]
+        for key in ("service_stage", "pre_service_phase")
+        if key not in payload.model_fields_set and key in existing_payload
+    })
     presentation_session.presenter_id = current_user.id
     if presentation_session.status == "live" or payload.pre_service_phase is not None:
         presentation_session.status = "live"
@@ -1230,7 +1257,7 @@ def update_presentation_live_state(
     previous_slide_offset = existing_payload.get("slide_offset", 0)
     now = int(datetime.now(UTC).timestamp() * 1000)
     output_active = _serialize_output_status(plan_id, position, now).active
-    next_payload = {**existing_payload, **payload.model_dump(exclude={"worship_coupled"})}
+    next_payload = {**existing_payload, **payload.model_dump(exclude={"worship_coupled", "expected_updated_at"})}
     if payload.plan_item_id:
         try:
             selected_item = session.get(PlanItem, payload.plan_item_id)
@@ -1310,6 +1337,12 @@ def update_presentation_live_state(
         from app.modules.mixer.automation import configuration
         cfg = configuration(session.get(MixerConfiguration, "xr18"))
         follow_preview = cfg.enabled and cfg.follow_service
+    if cue_changed:
+        logger.info(
+            "Presentation cue plan=%s actor=%s previous=%s target=%s stage=%s timestamp=%s",
+            plan_id, current_user.id, existing_payload.get("plan_item_id"),
+            payload.plan_item_id, payload.service_stage, payload.updated_at,
+        )
     if (output_active or follow_preview) and cue_changed:
         broadcast_settings = session.scalar(select(BroadcastViewerSettings).limit(1))
         if broadcast_settings and broadcast_settings.audio_scene_automation:

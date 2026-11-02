@@ -1,5 +1,23 @@
 # Development environments
 
+## Live scene stability — 1 November 2026
+
+Presenter loading and remote state application do not publish navigation. Local
+slide timers arm only after local navigation, and remote updates disarm them.
+Presenter, Worship Live and output updates include the timestamp of the state
+being edited; competing presenter writes are serialized and stale edits return
+the current state without changing scenes. Omitted service timing fields preserve
+the current stage. Reload all controller devices after upgrading to use these guards.
+
+XR18 reconnect/resync retains the last applied scene and manual levels. Unrelated
+preset edits and preview-to-live handoff do not recall an unchanged scene; explicit
+scene application still works. Mixer authorization releases its DB connection before
+OSC work, and state/stream configuration reads run off the event loop. Scene/cue
+transitions and rejected stale writes are logged. These are initial mitigations;
+database exhaustion and incident attribution still require observation. See
+[incident notes](mixer-incident-2026-11-01.md).
+
+
 The main mixer dashboard includes a Scene dropdown and an Auto scenes switch.
 Manual selection applies the saved preset immediately. With Auto scenes on,
 the next automatic presentation cue replaces that choice. Switching Auto scenes

@@ -206,7 +206,7 @@ export function PresentationOutput({ mediaOutput = false, networkDisplay = false
         ...liveState,
         ...overrides,
         index: overrides.index ?? resolvedIndex,
-        updatedAt: Date.now(),
+        updatedAt: Math.max(Date.now(), liveState.updatedAt + 1),
         planItemId: overrides.planItemId ?? liveSlide?.planItemId ?? liveState.planItemId ?? null,
         slideOffset:
           overrides.slideOffset ??
@@ -235,14 +235,22 @@ export function PresentationOutput({ mediaOutput = false, networkDisplay = false
           plan_item_id: nextState.planItemId ?? null,
           slide_offset: nextState.slideOffset ?? 0,
           updated_at: nextState.updatedAt,
+          expected_updated_at: liveState.updatedAt,
           theme: nextState.theme ?? "light",
           blanked: Boolean(nextState.blanked),
           fullscreen: Boolean(document.fullscreenElement),
           video_action: nextState.videoAction ?? null,
           video_action_at: nextState.videoActionAt ?? null,
         });
-        if (remoteState.updated_at === nextState.updatedAt && lastLiveStateRef.current === nextState.updatedAt) {
-          applyLiveState({ ...nextState, countdownStartedAt: remoteState.countdown_started_at });
+        if (lastLiveStateRef.current === nextState.updatedAt) {
+          applyLiveState({
+            ...nextState, index: remoteState.index, updatedAt: remoteState.updated_at,
+            planItemId: remoteState.plan_item_id, slideOffset: remoteState.slide_offset,
+            countdownStartedAt: remoteState.countdown_started_at, theme: remoteState.theme,
+            blanked: remoteState.blanked, fullscreen: remoteState.fullscreen,
+            videoAction: remoteState.video_action, videoActionAt: remoteState.video_action_at ?? undefined,
+            serviceStage: remoteState.service_stage, preServicePhase: remoteState.pre_service_phase,
+          });
         }
       } catch {
         // Keep local control responsive even if sync fails briefly.

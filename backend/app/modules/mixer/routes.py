@@ -10,15 +10,28 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
+from starlette.concurrency import run_in_threadpool
 
 from app.core.database import get_session
-from app.modules.identity.auth import require_permission
+from app.modules.identity.auth import CurrentUser, require_permission
 from app.modules.mixer.automation import AutomationConfiguration
 from app.modules.mixer.catalog import PARAMETERS, STRIPS
 from app.modules.mixer.engine import discover, engine, validate_host
 from app.modules.mixer.models import MixerConfiguration
 
-router = APIRouter(dependencies=[Depends(require_permission("mixer:use"))])
+_check_mixer_permission = require_permission("mixer:use")
+
+
+def require_mixer_access(current_user: CurrentUser, session: Session = Depends(get_session)):
+    try:
+        _check_mixer_permission(current_user, session)
+    finally:
+        # OSC operations and long-lived streams need no permission transaction.
+        # Release it in this worker before queuing more work or awaiting the desk.
+        session.close()
+
+
+router = APIRouter(dependencies=[Depends(require_mixer_access)])
 
 
 def config(session):
@@ -33,6 +46,14 @@ def config(session):
             session.rollback()
             item = session.get(MixerConfiguration, "xr18")
     return item
+
+
+def connection_host(session):
+    """Finish synchronous DB work before returning to the mixer event loop."""
+    try:
+        return config(session).host
+    finally:
+        session.close()
 
 
 class Connection(BaseModel):
@@ -64,8 +85,8 @@ def catalog():
 
 @router.get("/state")
 async def state(session: Session = Depends(get_session)):
-    item = config(session)
-    await engine.configure(item.host)
+    host = await run_in_threadpool(connection_host, session)
+    await engine.configure(host)
     return engine.snapshot()
 
 
@@ -151,9 +172,8 @@ async def sync():
 
 @router.get("/events")
 async def events(session: Session = Depends(get_session)):
-    host = config(session).host
-    # Release the authentication/config DB connection before the long-lived stream.
-    session.close()
+    # Pool waits must not block OSC heartbeats, readbacks, or other request cleanup.
+    host = await run_in_threadpool(connection_host, session)
     await engine.configure(host)
 
     async def stream():

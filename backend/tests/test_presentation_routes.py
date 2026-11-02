@@ -289,7 +289,8 @@ def test_selecting_a_slide_on_another_date_does_not_end_the_active_output() -> N
         assert future.status == "ready"
 
 
-def test_stale_live_slide_update_does_not_replace_newer_selection() -> None:
+@pytest.mark.parametrize("timestamp, expected", [(100, None), (500, 100)])
+def test_stale_live_slide_update_does_not_replace_newer_selection(timestamp, expected) -> None:
     engine = create_engine("sqlite://")
     Base.metadata.create_all(
         engine, tables=[MixerConfiguration.__table__,PresentationSession.__table__, PresentationPosition.__table__]
@@ -318,7 +319,8 @@ def test_stale_live_slide_update_does_not_replace_newer_selection() -> None:
                 plan_item_id="old-slide",
                 index=2,
                 slide_offset=0,
-                updated_at=100,
+                updated_at=timestamp,
+                expected_updated_at=expected,
                 worship_coupled=False,
             ),
             SimpleNamespace(id="operator"),  # type: ignore[arg-type]
@@ -1308,3 +1310,40 @@ def test_selected_section_drives_hardware_audio_without_slideshow(monkeypatch, p
             assert desk.startup_scene_hold == persistent_hold
     finally:
         desk.startup_scene_hold = old_hold
+
+
+@pytest.mark.parametrize("stage", ["service", "pre_service"])
+def test_navigation_without_stage_preserves_service_timing_and_audio(stage, monkeypatch):
+    db = create_engine("sqlite://")
+    Base.metadata.create_all(db)
+    monkeypatch.setattr("app.modules.presentation.routes.schedule_sermon_recording", lambda *args: None)
+    monkeypatch.setattr("app.modules.broadcast.audio_scenes.reconfigure_active_recording", lambda s: None)
+    now = int(datetime.now(UTC).timestamp() * 1000)
+    with Session(db) as session:
+        plan_type = PlanType(name="Test", active=True)
+        session.add(plan_type)
+        session.flush()
+        plan = Plan(plan_type_id=plan_type.id, service_date=datetime.now(UTC), title="Test")
+        session.add(plan)
+        session.flush()
+        item = PlanItem(plan_id=plan.id, sequence=1, item_type="welcome_seated", title="Welcome")
+        live = PresentationSession(plan_id=plan.id, status="live")
+        settings = BroadcastViewerSettings(audio_scene_automation=True, active_audio_scene="worship")
+        session.add_all([item, live, settings])
+        session.flush()
+        position = PresentationPosition(session_id=live.id, payload_json=json.dumps({
+            "updated_at": now, "service_stage": stage, "pre_service_phase": "complete",
+            "output_owner_id": "screen", "output_heartbeat_at": now, "output_active": True,
+        }))
+        session.add(position)
+        session.commit()
+        result = update_presentation_live_state(
+            plan.id,
+            PresentationLiveStateWrite(plan_id=plan.id, plan_item_id=item.id,
+                                       updated_at=now + 1, expected_updated_at=now),
+            SimpleNamespace(id="operator"), session,
+        )
+        assert result.service_stage == stage
+        assert result.pre_service_phase == "complete"
+        assert settings.active_audio_scene == ("pastor" if stage == "service" else "pre_service")
+        assert "expected_updated_at" not in json.loads(position.payload_json)

@@ -18,7 +18,7 @@ from app.modules.mixer.engine import engine
 from app.modules.mixer.models import MixerConfiguration
 from app.modules.presentation.models import PresentationSession
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("uvicorn.error." + __name__)
 STRIP_IDS = {strip["id"] for strip in STRIPS if strip["kind"] in {"input", "aux", "return"}}
 SCENES = {
     "pastor": "Pastor",
@@ -317,7 +317,8 @@ class SceneAutomation:
             return
         if not self.mixer.connected or self.mixer.syncing or self.mixer.recalling:
             self.cancel_pending()
-            self.applied_key = None
+            # Reading the desk again is not a new cue. Retain the last applied
+            # scene so recovery cannot erase live manual adjustments.
             self.status.update(
                 state="waiting", detail="Waiting for connected, synchronized mixer readbacks"
             )
@@ -329,11 +330,16 @@ class SceneAutomation:
                 state="waiting", detail="Startup muted: apply a scene or unmute when ready"
             )
             return
+        commands = scene_commands(cfg, scene)
+        service_id = state.service_id
+        if service_id:
+            service_id = service_id.removeprefix("preview:").removeprefix("post:")
         key = (
             state.host,
-            cfg.model_dump_json(),
             scene_id,
-            state.service_id if cfg.follow_service else None,
+            tuple(sorted(commands.items())),
+            cfg.manual_revision,
+            service_id if cfg.follow_service else None,
         )
         if self.applied_key == key:
             if any(origin == "automation" for origin in self.mixer.pending_origins.values()):
@@ -369,9 +375,12 @@ class SceneAutomation:
         except ValueError as error:
             self.status.update(state="waiting", detail=str(error))
             return
-        self.applied_key = key
         self.expected = commands
         self.status.update(state="applying", detail="Applying room and livestream scene levels")
+        logger.info(
+            "Applying hardware scene scene=%s service=%s manual_revision=%s commands=%s",
+            scene_id, state.service_id, cfg.manual_revision, len(commands),
+        )
         for path, value in commands.items():
             if self.wake is not None and self.wake.is_set():
                 self.cancel_pending()
@@ -381,6 +390,7 @@ class SceneAutomation:
                 continue
             await self.mixer.write(path, value, origin="automation")
             await asyncio.sleep(0.01)
+        self.applied_key = key
 
     async def run(self):
         while True:
@@ -391,7 +401,6 @@ class SceneAutomation:
                 raise
             except Exception:
                 self.cancel_pending()
-                self.applied_key = None
                 self.status.update(
                     state="error", detail="Could not load or apply the current hardware scene"
                 )

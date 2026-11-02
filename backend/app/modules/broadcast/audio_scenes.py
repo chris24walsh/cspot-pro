@@ -1,8 +1,13 @@
+import logging
+
 from sqlalchemy.orm import Session
 
 from app.modules.broadcast.models import BroadcastViewerSettings
 from app.modules.broadcast.recording import reconfigure_active_recording
 from app.modules.broadcast.settings import audio_scenes
+
+
+logger = logging.getLogger("uvicorn.error." + __name__)
 
 
 def activate_audio_scene(
@@ -22,10 +27,12 @@ def activate_audio_scene(
         if mixer and cfg.follow_service and cfg.manual_scene_id:
             cfg.manual_scene_id = None
             mixer.automation_json = cfg.model_dump_json()
+    previous_scene = settings.active_audio_scene
     settings.active_audio_scene = scene.id
     session.commit()
     session.refresh(settings)
     from app.modules.mixer.automation import automation
+    logger.info("Audio scene previous=%s target=%s manual=%s", previous_scene, scene.id, manual)
     automation.notify()
     reconfigure_active_recording(session)
     return True

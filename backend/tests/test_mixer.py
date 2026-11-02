@@ -412,3 +412,45 @@ def test_preamp_gain_command_confirms_the_hardware_half_db_step():
         assert mixer.command_value('/ch/01/mix/fader', 0.4) == 0.4
 
     asyncio.run(scenario())
+
+
+def test_mixer_permission_releases_connection_before_osc_work(monkeypatch):
+    from types import SimpleNamespace
+    from fastapi import HTTPException
+    from app.modules.mixer import routes
+
+    calls = []
+    session = SimpleNamespace(close=lambda: calls.append("closed"))
+    def check(user, db):
+        assert db is session
+        calls.append("checked")
+    monkeypatch.setattr(routes, "_check_mixer_permission", check)
+    routes.require_mixer_access(SimpleNamespace(id="operator"), session)
+    assert calls == ["checked", "closed"]
+
+    def denied(user, db):
+        raise HTTPException(403, "Forbidden")
+    monkeypatch.setattr(routes, "_check_mixer_permission", denied)
+    with pytest.raises(HTTPException):
+        routes.require_mixer_access(SimpleNamespace(id="operator"), session)
+    assert calls[-1] == "closed"
+
+
+def test_mixer_connection_lookup_runs_off_event_loop_and_releases_session(monkeypatch):
+    import threading
+    from types import SimpleNamespace
+    from app.modules.mixer import routes
+
+    main_thread = threading.get_ident()
+    calls = []
+    def config(db):
+        assert threading.get_ident() != main_thread
+        calls.append("read")
+        return SimpleNamespace(host="192.168.2.141")
+    async def configure(host):
+        assert calls == ["read", "closed"]
+        assert host == "192.168.2.141"
+    monkeypatch.setattr(routes, "config", config)
+    monkeypatch.setattr(routes, "engine", SimpleNamespace(configure=configure, snapshot=lambda: {}))
+    session = SimpleNamespace(close=lambda: calls.append("closed"))
+    asyncio.run(routes.state(session))

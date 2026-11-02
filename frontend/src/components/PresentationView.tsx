@@ -849,7 +849,6 @@ export function PresentationView({
   const railPlansRef = useRef({ service: plan, worship: worshipSetPlan });
   railPlansRef.current = { service: plan, worship: worshipSetPlan };
   const selectedPlanIdRef = useRef("");
-  const suppressPublishRef = useRef(false);
   const suppressNextOperatorScrollRef = useRef(false);
   const scrollOperatorToSelectedSlideRef = useRef(false);
   const catchUpCheckTokenRef = useRef(0);
@@ -1356,7 +1355,6 @@ export function PresentationView({
   function applyRemoteLiveState(state: PresentationLiveState) {
     currentLiveStateRef.current = state;
     refreshCountdownTiming((revision) => revision + 1);
-    suppressPublishRef.current = true;
     lastLiveStateRef.current = state.updatedAt;
     setSlideTheme(state.theme ?? "light");
     setLiveBlanked(Boolean(state.blanked));
@@ -1364,7 +1362,7 @@ export function PresentationView({
     if (["pause", "stop", "fade-stop"].includes(state.videoAction ?? "")) setPlayingAudioSectionId(null);
     const nextIndex = resolveLiveIndex(slides, state);
     setLiveIndex(nextIndex);
-    setAutoAdvanceArmedSlideId(slides[nextIndex]?.id ?? null);
+    setAutoAdvanceArmedSlideId(null);
     localStorage.setItem(PRESENTATION_STORAGE_KEY, JSON.stringify(state));
     channelRef.current?.postMessage(state);
   }
@@ -1476,7 +1474,6 @@ export function PresentationView({
           : -1;
       if (preservedState) {
         currentLiveStateRef.current = preservedState;
-        suppressPublishRef.current = true;
         lastLiveStateRef.current = preservedState.updatedAt;
         setSlideTheme(preservedState.theme ?? "light");
         setLiveBlanked(Boolean(preservedState.blanked));
@@ -1599,7 +1596,7 @@ export function PresentationView({
 
   useEffect(() => {
     const selectedForAutoAdvance = autoAdvanceArmedSlideId === liveSlide?.id;
-    if (!presentationSessionActive || (!slideshowOpen && !selectedForAutoAdvance) || liveBlanked || !liveSlide?.autoAdvanceSeconds) return undefined;
+    if (!presentationSessionActive || !selectedForAutoAdvance || liveBlanked || !liveSlide?.autoAdvanceSeconds) return undefined;
     const nextSlide = slides[liveIndex + 1];
     const endsHere = liveSlide.endAfterSection && nextSlide?.sectionId !== liveSlide.sectionId;
     if (!endsHere && liveIndex >= slides.length - 1) return undefined;
@@ -1690,7 +1687,6 @@ export function PresentationView({
   }
 
   function setLiveBlankedAndPublish(nextBlanked: boolean) {
-    suppressPublishRef.current = true;
     setLiveBlanked(nextBlanked);
     void publishLiveState(liveIndex, { blanked: nextBlanked });
   }
@@ -1760,6 +1756,9 @@ export function PresentationView({
       return;
     }
 
+    const expectedUpdatedAt = currentLiveStateRef.current?.planId === state.planId
+      ? currentLiveStateRef.current.updatedAt : 0;
+    state.updatedAt = Math.max(state.updatedAt, expectedUpdatedAt + 1);
     currentLiveStateRef.current = state;
     lastLiveStateRef.current = state.updatedAt;
     localStorage.setItem(PRESENTATION_STORAGE_KEY, JSON.stringify(state));
@@ -1772,6 +1771,7 @@ export function PresentationView({
         plan_item_id: state.planItemId ?? null,
         slide_offset: state.slideOffset ?? 0,
         updated_at: state.updatedAt,
+        expected_updated_at: expectedUpdatedAt,
         theme: state.theme ?? "light",
         blanked: Boolean(state.blanked),
         fullscreen: Boolean(state.fullscreen),
@@ -1789,6 +1789,18 @@ export function PresentationView({
         localStorage.setItem(PRESENTATION_STORAGE_KEY, JSON.stringify(confirmed));
         channelRef.current?.postMessage(confirmed);
         refreshCountdownTiming((revision) => revision + 1);
+      }
+      if (synced.updated_at !== state.updatedAt && currentLiveStateRef.current?.updatedAt === state.updatedAt) {
+        applyRemoteLiveState({
+          planId: synced.plan_id, index: synced.index, updatedAt: synced.updated_at,
+          planItemId: synced.plan_item_id, slideOffset: synced.slide_offset,
+          countdownStartedAt: synced.countdown_started_at, theme: synced.theme,
+          blanked: synced.blanked, fullscreen: synced.fullscreen,
+          videoAction: synced.video_action, videoActionAt: synced.video_action_at ?? undefined,
+          serviceStage: synced.service_stage, preServicePhase: synced.pre_service_phase,
+          worshipCoupled: synced.worship_coupled,
+        });
+        setMessage("Live state changed on another device. Controls refreshed; try again.");
       }
       setPresentationSessionActive(synced.status === "live");
       setPresentationSessionEnded(synced.status === "ended");
@@ -4240,14 +4252,6 @@ export function PresentationView({
       window.clearInterval(timer);
     };
   }, [selectedPlanId]);
-
-  useEffect(() => {
-    if (suppressPublishRef.current) {
-      suppressPublishRef.current = false;
-      return;
-    }
-    void publishLiveState(liveIndex);
-  }, [liveBlanked, slideTheme]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     const token = catchUpCheckTokenRef.current + 1;

@@ -938,6 +938,7 @@ export function MusicianLiveView({ keyboardActive = true, singlePage = false, wo
         plan_item_id: slide.planItemId,
         slide_offset: slideOffset,
         updated_at: state.updatedAt,
+        expected_updated_at: liveState?.updatedAt ?? 0,
         theme: state.theme ?? "light",
         blanked: false,
         fullscreen: Boolean(state.fullscreen),
@@ -1001,6 +1002,7 @@ export function MusicianLiveView({ keyboardActive = true, singlePage = false, wo
         plan_item_id: slide.planItemId,
         slide_offset: slideOffset,
         updated_at: state.updatedAt,
+        expected_updated_at: liveState?.updatedAt ?? 0,
         theme: state.theme ?? "light",
         blanked: false,
         fullscreen: Boolean(state.fullscreen),
@@ -1033,6 +1035,7 @@ export function MusicianLiveView({ keyboardActive = true, singlePage = false, wo
         plan_item_id: liveItem.id,
         slide_offset: Math.max(serviceSlides.filter((slide) => slide.planItemId === liveItem.id).findIndex((slide) => slide.id === liveSlide?.id), 0),
         updated_at: now,
+        expected_updated_at: liveState?.updatedAt ?? 0,
         theme: liveState?.theme ?? "light",
         blanked: false,
         fullscreen: Boolean(liveState?.fullscreen),
@@ -1040,7 +1043,7 @@ export function MusicianLiveView({ keyboardActive = true, singlePage = false, wo
         video_action_at: now,
         worship_coupled: worshipCoupled,
       });
-      if (synced.updated_at >= lastLiveStateAtRef.current) {
+      if (lastLiveStateAtRef.current === state.updatedAt || synced.updated_at >= lastLiveStateAtRef.current) {
         lastLiveStateAtRef.current = synced.updated_at;
         setLiveState(syncStateFromApi(synced));
       }
@@ -1057,12 +1060,13 @@ export function MusicianLiveView({ keyboardActive = true, singlePage = false, wo
     lastLiveStateAtRef.current = state.updatedAt;
     localStorage.setItem(PRESENTATION_STORAGE_KEY, JSON.stringify(state));
     channelRef.current?.postMessage(state);
-    await updatePresentationLiveState(liveSyncPlanId, {
+    const synced = await updatePresentationLiveState(liveSyncPlanId, {
       plan_id: liveSyncPlanId,
       index: liveState.index,
       plan_item_id: liveState.planItemId,
       slide_offset: liveState.slideOffset ?? 0,
       updated_at: now,
+      expected_updated_at: liveState?.updatedAt ?? 0,
       theme: liveState.theme ?? "light",
       blanked: Boolean(liveState.blanked),
       fullscreen: Boolean(liveState.fullscreen),
@@ -1070,6 +1074,10 @@ export function MusicianLiveView({ keyboardActive = true, singlePage = false, wo
       video_action_at: now,
       worship_coupled: worshipCoupled,
     });
+    if (lastLiveStateAtRef.current === state.updatedAt) {
+      lastLiveStateAtRef.current = synced.updated_at;
+      setLiveState(syncStateFromApi(synced));
+    }
   }
 
   async function toggleServiceCoupling() {
@@ -1094,6 +1102,7 @@ export function MusicianLiveView({ keyboardActive = true, singlePage = false, wo
             plan_item_id: liveState.planItemId ?? null,
             slide_offset: liveState.slideOffset ?? 0,
             updated_at: updatedAt,
+            expected_updated_at: liveState.updatedAt,
             theme: liveState.theme ?? "light",
             blanked: Boolean(liveState.blanked),
             fullscreen: Boolean(liveState.fullscreen),
@@ -1103,7 +1112,7 @@ export function MusicianLiveView({ keyboardActive = true, singlePage = false, wo
           });
           if (
             navigationGenerationRef.current === navigationGeneration
-            && synced.updated_at >= lastLiveStateAtRef.current
+            && (lastLiveStateAtRef.current === updatedAt || synced.updated_at >= lastLiveStateAtRef.current)
           ) {
             lastLiveStateAtRef.current = synced.updated_at;
             setLiveState(syncStateFromApi(synced));

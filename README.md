@@ -1,5 +1,9 @@
 # cspot-pro
 
+Live scene stability now guards stale device updates, preserves service stage,
+and retains manual mixer levels across reconnects. Reload controller devices after
+upgrading. See [incident and hardening notes](docs/mixer-incident-2026-11-01.md).
+
 ## Audio mixing retirement — 25 October 2026
 
 Software source mixing is retired. The XR18 mixes locally and supplies one stereo

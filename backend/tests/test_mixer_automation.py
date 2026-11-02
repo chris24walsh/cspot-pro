@@ -147,6 +147,48 @@ def test_each_scene_applies_once_and_manual_adjustments_are_preserved():
     asyncio.run(scenario())
 
 
+@pytest.mark.parametrize("interruption", ["connected", "syncing", "recalling"])
+def test_recovery_does_not_recall_unchanged_scene_over_manual_levels(interruption):
+    async def scenario():
+        desk = Desk()
+        controller = SceneAutomation(desk)
+        cfg = config()
+        await controller.tick(cue(cfg))
+        desk.values["/ch/01/mix/fader"] = 0.2
+        count = len(desk.writes)
+        setattr(desk, interruption, interruption != "connected")
+        await controller.tick(cue(cfg))
+        setattr(desk, interruption, interruption == "connected")
+        await controller.tick(cue(cfg))
+        assert len(desk.writes) == count
+        assert desk.values["/ch/01/mix/fader"] == 0.2
+        assert controller.status["state"] == "adjusted"
+        await controller.tick(cue(cfg, "worship"))
+        assert len(desk.writes) > count
+
+    asyncio.run(scenario())
+
+
+def test_unrelated_configuration_and_preview_handoff_do_not_recall_scene():
+    async def scenario():
+        desk = Desk()
+        controller = SceneAutomation(desk)
+        cfg = config()
+        await controller.tick(cue(cfg, service="preview:service-1"))
+        desk.values["/ch/01/mix/fader"] = 0.2
+        count = len(desk.writes)
+        cfg.roles["/ch/01"] = "pastor"
+        cfg.scenes[1].label = "Changed an inactive scene"
+        await controller.tick(cue(cfg, service="service-1"))
+        assert len(desk.writes) == count
+        cfg.manual_revision += 1
+        await controller.tick(cue(cfg))
+        assert desk.values["/ch/01/mix/fader"] == 0.6
+        assert len(desk.writes) > count
+
+    asyncio.run(scenario())
+
+
 def test_offline_recovery_applies_only_the_latest_section():
     async def scenario():
         desk = Desk()

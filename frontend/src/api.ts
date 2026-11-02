@@ -1241,6 +1241,7 @@ export async function updatePresentationLiveState(
     plan_item_id: string | null;
     slide_offset: number;
     updated_at: number;
+    expected_updated_at?: number;
     theme: "dark" | "light";
     blanked: boolean;
     fullscreen: boolean;
