@@ -9,20 +9,22 @@ Keep the page visible, connect power, and use headphones.
 
 ## Teachers using the Service workspace
 
-A signed-in Teacher can use **Service → Camera & mic** in the top toolbar.
+A signed-in Teacher can use **Service → Camera & mic** on the preview beside Pointer.
 One click opens a compact camera panel and requests camera/microphone access;
 the service preview, slide sorter, section rail, and slide controls stay available.
-The preview can be minimized while streaming and reopened from the toolbar.
+The preview can be minimized while streaming and reopened from the preview controls.
 Switch camera replaces only the video track on the existing connection. The
 microphone, church return audio, and publishing lease remain active. If the other
 camera cannot be opened or attached, CSpot attempts to restore the previous
 camera and reports the result without disconnecting the microphone.
-No invitation link or Broadcast-admin access is needed. The panel includes local
+Teacher preview toggles are limited to Pointer and Camera & mic; Audio, Recording,
+and Blank remain production controls. No invitation link or Broadcast-admin access
+is needed. The panel includes local
 preview, mute, camera switching, and church return audio. Use headphones.
 
 The teacher initially connects backstage. A broadcast operator sees their account
 name under Broadcast → Livestream → Remote speaker, previews them, and chooses
-Bring on air. The teacher cannot put themselves on air. **Stop camera & mic**,
+Bring on air. The teacher cannot put themselves on air. **Camera & mic** switched off,
 the panel’s close button, or leaving the Service workspace stops capture and ends
 the teacher’s connection. Return audio uses the saved church program input;
 CSpot never returns the teacher’s own program override to them.

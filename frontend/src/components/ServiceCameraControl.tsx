@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Camera, CameraOff, Minimize2, ScanEye, X } from "lucide-react";
+import { Camera, Minimize2, ScanEye, X } from "lucide-react";
 import { contributionRequest } from "../remoteContribution";
 import { RemoteGuest } from "./RemoteGuest";
 
@@ -41,9 +41,11 @@ export function ServiceCameraControl() {
     finally { if (mounted.current) setBusy(false); }
   }
   return <>
-    <button type="button" className="secondary-button icon-text-button" aria-label={session ? "Stop camera and microphone" : "Enable camera and microphone"} aria-pressed={Boolean(session)} title={session ? "Stop camera and microphone" : "Enable camera and microphone"} disabled={busy} onClick={() => void (session ? stop() : start())}>
-      {session ? <CameraOff size={16} aria-hidden="true" /> : <Camera size={16} aria-hidden="true" />}<span>{session ? "Stop camera & mic" : "Camera & mic"}</span>
-    </button>
+    <label className="stage-camera-switch stage-toggle-switch" title={session ? "Camera & mic on" : "Enable camera and microphone"}>
+      <span className="stage-toggle-label"><Camera size={13} aria-hidden="true" />Camera & mic</span>
+      <input type="checkbox" aria-label="Enable camera and microphone" checked={Boolean(session)} disabled={busy} onChange={event => void (event.target.checked ? start() : stop())} />
+      <span className="stage-theme-slider" aria-hidden="true" />
+    </label>
     {session && !previewOpen && <button type="button" className="secondary-button icon-button" aria-label="Show camera controls" title="Show camera controls" onClick={() => setPreviewOpen(true)}><ScanEye size={16} aria-hidden="true" /></button>}
     {error && <span className="form-message" role="alert">{error}</span>}
     {session && createPortal(<aside hidden={!previewOpen} className="service-camera-panel" aria-label="Your service camera and microphone">

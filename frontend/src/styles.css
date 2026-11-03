@@ -8609,7 +8609,8 @@ button.musician-page {
 
 .stage-audio-switch input:checked + .stage-theme-slider,
 .stage-recording-switch input:checked + .stage-theme-slider,
-.stage-pointer-switch input:checked + .stage-theme-slider {
+.stage-pointer-switch input:checked + .stage-theme-slider,
+.stage-camera-switch input:checked + .stage-theme-slider {
   background: rgba(128, 189, 159, 0.55);
   border-color: rgba(190, 230, 208, 0.85);
 }
@@ -8620,7 +8621,8 @@ button.musician-page {
 
 .stage-audio-switch input:checked + .stage-theme-slider::after,
 .stage-recording-switch input:checked + .stage-theme-slider::after,
-.stage-pointer-switch input:checked + .stage-theme-slider::after {
+.stage-pointer-switch input:checked + .stage-theme-slider::after,
+.stage-camera-switch input:checked + .stage-theme-slider::after {
   transform: translateX(16px);
 }
 
@@ -13586,7 +13588,7 @@ button.musician-page {
 .live-pointer-layer.is-enabled { user-select: none; -webkit-user-select: none; }
 
 
-.stage-pointer-switch:focus-within { outline: 2px solid #ffe000; outline-offset: 2px; }
+.stage-pointer-switch:focus-within, .stage-camera-switch:focus-within { outline: 2px solid #ffe000; outline-offset: 2px; }
 .live-pointer-magnifier { display: block; width: 90px; height: 90px; min-width: 0; max-width: none; aspect-ratio: auto; contain: strict; background: #202322; overflow: hidden; box-sizing: border-box; border: 3px solid #ffe000; box-shadow: 0 2px 16px #0009; }
 
 .live-pointer-magnifier.is-video { background: rgba(255, 220, 0, .1); }

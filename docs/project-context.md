@@ -952,3 +952,7 @@ or Broadcast administration access. Their account supplies the source name and
 original church program return. A compact camera panel leaves the service UI
 available; leaving Service stops capture and ends that owned connection. Operator
 approval is still required before the teacher’s feed reaches the broadcast.
+
+The teacher preview shows only Pointer and Camera & mic toggles. The camera
+control sits beside Pointer; production toggles are hidden for teacher-only
+accounts. Operators retain Audio, Recording, and Blank controls.

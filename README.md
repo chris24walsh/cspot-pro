@@ -944,6 +944,9 @@ or Take off air. Travelling connections should use a configured TURN relay. See
 [remote contribution setup and operation](docs/remote-contributions.md).
 
 Signed-in teachers can enable their own camera/microphone directly from
-**Service → Camera & mic**, keeping the service preview and slide controls open.
+the **Camera & mic** toggle on the **Service preview**, keeping the service preview and slide controls open.
 No invitation is needed; the broadcast operator still chooses when to bring the
-teacher on air. Stop the camera from the same toolbar button or close its panel.
+teacher on air. Stop the camera from the same preview toggle or close its panel.
+
+Teacher preview controls show Pointer and Camera & mic. Audio, Recording, and
+Blank switches remain available to production operators.

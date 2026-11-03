@@ -18,8 +18,10 @@ it("starts the teacher's camera in the Service workspace without changing the pa
   const original = window.location.href;
   await act(async () => root.render(<ServiceCameraControl />));
   expect(request).not.toHaveBeenCalled();
-  await act(async () => host.querySelector("button")!.click());
+  expect(host.querySelector<HTMLInputElement>('input[type="checkbox"]')!.checked).toBe(false);
+  await act(async () => host.querySelector<HTMLInputElement>('input[type="checkbox"]')!.click());
   expect(request).toHaveBeenCalledWith("/self", "POST");
+  expect(host.querySelector<HTMLInputElement>('input[type="checkbox"]')!.checked).toBe(true);
   const panel = document.querySelector(".service-camera-panel")!;
   expect(panel.getAttribute("aria-label")).toBe("Your service camera and microphone");
   expect(panel.querySelector("[data-token]")?.getAttribute("data-token")).toBe("scoped-token");
@@ -28,16 +30,17 @@ it("starts the teacher's camera in the Service workspace without changing the pa
 });
 it("stops the owned camera and removes its panel", async () => {
   await act(async () => root.render(<ServiceCameraControl />));
-  await act(async () => host.querySelector("button")!.click());
-  await act(async () => host.querySelector("button")!.click());
+  await act(async () => host.querySelector<HTMLInputElement>('input[type="checkbox"]')!.click());
+  await act(async () => host.querySelector<HTMLInputElement>('input[type="checkbox"]')!.click());
   expect(request).toHaveBeenCalledWith("/self/owned-camera", "DELETE");
   expect(document.querySelector(".service-camera-panel")).toBeNull();
+  expect(host.querySelector<HTMLInputElement>('input[type="checkbox"]')!.checked).toBe(false);
 });
 it("ends a camera session if its creation finishes after leaving Service", async () => {
   let finish!: (value: { id: string; token: string }) => void;
   request.mockImplementation((path: string) => path === "/self" ? new Promise(resolve => { finish = resolve; }) : Promise.resolve({ ok: true }));
   await act(async () => root.render(<ServiceCameraControl />));
-  await act(async () => host.querySelector("button")!.click());
+  await act(async () => host.querySelector<HTMLInputElement>('input[type="checkbox"]')!.click());
   await act(async () => root.unmount());
   await act(async () => finish({ id: "late-camera", token: "scoped-token" }));
   expect(request).toHaveBeenCalledWith("/self/late-camera", "DELETE");
@@ -46,14 +49,14 @@ it("ends a camera session if its creation finishes after leaving Service", async
 it("shows a connection error without opening a camera panel", async () => {
   request.mockRejectedValue(new Error("Camera gateway unavailable"));
   await act(async () => root.render(<ServiceCameraControl />));
-  await act(async () => host.querySelector("button")!.click());
+  await act(async () => host.querySelector<HTMLInputElement>('input[type="checkbox"]')!.click());
   expect(host.querySelector("[role=alert]")?.textContent).toBe("Camera gateway unavailable");
   expect(document.querySelector(".service-camera-panel")).toBeNull();
 });
 
 it("hides the preview without ending capture and reopens the same session", async () => {
   await act(async () => root.render(<ServiceCameraControl />));
-  await act(async () => host.querySelector("button")!.click());
+  await act(async () => host.querySelector<HTMLInputElement>('input[type="checkbox"]')!.click());
   await act(async () => document.querySelector<HTMLButtonElement>('[aria-label="Hide camera controls"]')!.click());
   expect(document.querySelector<HTMLElement>(".service-camera-panel")?.hidden).toBe(true);
   expect(request).toHaveBeenCalledTimes(1);

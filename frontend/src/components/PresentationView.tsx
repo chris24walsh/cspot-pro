@@ -1,14 +1,14 @@
-import { ServiceCameraControl } from "./ServiceCameraControl";
+import { ServicePreviewToggles } from "./ServicePreviewToggles";
 import { railPlacementAt, useRailPointerDrag } from "./useRailPointerDrag";
 import { optimisticRailMove } from "../optimisticRailMove";
 import { railMovePosition, type RailPlacement } from "../railOrdering";
 import { retryPresentationRefresh } from "../retryPresentationRefresh";
-import { PointerToggle, DEFAULT_MARKER_STYLE } from "./PointerToggle";
+import { DEFAULT_MARKER_STYLE } from "./PointerToggle";
 import { SlideKeyCapture } from "./SlideKeyCapture";
 import { LivePointer } from "./LivePointer";
 import { countdownStartsForSelection, withCountdownTiming } from "../countdown";
 import { shiftClock, templateServiceStart, welcomeLeadSeconds } from "../serviceTiming";
-import { GripVertical, Archive, CircleStop, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Clock, EyeOff, Layers3, Mic, MonitorUp, Pause, Pencil, Play, Plus, RotateCcw, Search, Trash2, Volume2, WandSparkles, X } from "lucide-react";
+import { GripVertical, Archive, CircleStop, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Clock, Layers3, Mic, MonitorUp, Pause, Pencil, Play, Plus, RotateCcw, Search, Trash2, WandSparkles, X } from "lucide-react";
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
@@ -668,6 +668,7 @@ export function PresentationView({
   canManagePreServiceMedia,
   canEditSlideNotes,
   canContributeCamera = false,
+  teacherPreviewControls = false,
   canCreateSong,
   canEditSong,
 }: {
@@ -681,6 +682,7 @@ export function PresentationView({
   canManagePreServiceMedia: boolean;
   canEditSlideNotes: boolean;
   canContributeCamera?: boolean;
+  teacherPreviewControls?: boolean;
   canCreateSong: boolean;
   canEditSong: boolean;
 }) {
@@ -4469,13 +4471,13 @@ export function PresentationView({
         void toggleOutputFullscreen();
         return;
       }
-      if (event.key === "b" || event.key === "B") {
+      if (!teacherPreviewControls && (event.key === "b" || event.key === "B")) {
         event.preventDefault();
         clearHotkeyButtonFocus();
         setLiveBlankedAndPublish(!liveBlanked);
         return;
       }
-      if (event.key === "Escape") {
+      if (!teacherPreviewControls && event.key === "Escape") {
         event.preventDefault();
         clearHotkeyButtonFocus();
         setLiveBlankedAndPublish(false);
@@ -4500,6 +4502,7 @@ export function PresentationView({
     canEditPlan,
     currentPlanItem,
     editingSongId,
+    teacherPreviewControls,
     liveBlanked,
     liveIndex,
     plan,
@@ -4766,7 +4769,6 @@ export function PresentationView({
       {active && topbarSlot
         ? createPortal(
             <div className="presentation-topbar-tools">
-              {canContributeCamera && <ServiceCameraControl />}
               <DateNavigator
                 historyContent={serviceHistoryContent()}
                 historyDisabled={(!plan && !archivedServiceUndo) || serviceHistoryLoading}
@@ -4885,37 +4887,12 @@ export function PresentationView({
                 </span>
               ) : null}
               <div className="stage-meta-actions">
-                <label className="stage-audio-switch stage-toggle-switch" title="Enable YouTube audio buttons">
-                  <span className="stage-toggle-label" data-short="A"><Volume2 size={13} aria-hidden="true" />Audio</span>
-                  <input
-                    aria-label="Enable YouTube audio buttons"
-                    checked={audioControlsEnabled}
-                    onChange={(event) => setAudioControlsEnabled(event.target.checked)}
-                    type="checkbox"
-                  />
-                  <span className="stage-theme-slider" aria-hidden="true" />
-                </label>
-                <label className="stage-recording-switch stage-toggle-switch" title="Show sermon recording controls">
-                  <span className="stage-toggle-label" data-short="R"><Mic size={13} aria-hidden="true" />Recording</span>
-                  <input
-                    aria-label="Show sermon recording controls"
-                    checked={recordingControlsEnabled}
-                    onChange={(event) => setRecordingControlsEnabled(event.target.checked)}
-                    type="checkbox"
-                  />
-                  <span className="stage-theme-slider" aria-hidden="true" />
-                </label>
-                <label className="stage-blank-switch stage-toggle-switch" title="Blank live output">
-                  <span className="stage-toggle-label" data-short="B"><EyeOff size={13} aria-hidden="true" />Blank</span>
-                  <input
-                    aria-label="Blank live output"
-                    checked={liveBlanked}
-                    onChange={(event) => setLiveBlankedAndPublish(event.target.checked)}
-                    type="checkbox"
-                  />
-                  <span aria-hidden="true">B</span>
-                </label>
-                <PointerToggle enabled={pointerEnabled} onChange={setPointerEnabled} markerStyle={pointerMarkerStyle} onStyleChange={setPointerMarkerStyle} zoomEnabled={pointerZoomEnabled} onZoomChange={setPointerZoomEnabled} />
+                <ServicePreviewToggles
+                  teacherOnly={teacherPreviewControls}
+                  canContributeCamera={canContributeCamera && active}
+                  production={{ audioEnabled: audioControlsEnabled, onAudioChange: setAudioControlsEnabled, recordingEnabled: recordingControlsEnabled, onRecordingChange: setRecordingControlsEnabled, blanked: liveBlanked, onBlankChange: setLiveBlankedAndPublish }}
+                  pointer={{ enabled: pointerEnabled, onChange: setPointerEnabled, markerStyle: pointerMarkerStyle, onStyleChange: setPointerMarkerStyle, zoomEnabled: pointerZoomEnabled, onZoomChange: setPointerZoomEnabled }}
+                />
                 <span className="stage-slide-counter">{stageSlideCounter}</span>
               </div>
             </div>
@@ -5090,7 +5067,7 @@ export function PresentationView({
                 <ChevronRight size={16} aria-hidden="true" />
               </button>
             </div>
-            {activeSermonRecording?.pending_stop_at ? (
+            {!teacherPreviewControls && activeSermonRecording?.pending_stop_at ? (
               <div className="recording-grace-countdown" role="status">
                 <Clock size={17} aria-hidden="true" />
                 <span>
@@ -5102,7 +5079,7 @@ export function PresentationView({
                 </button>
               </div>
             ) : null}
-            {recordingControlsEnabled && (currentPlanItem?.item_type === "sermon" || activeSermonRecording) ? (
+            {!teacherPreviewControls && recordingControlsEnabled && (currentPlanItem?.item_type === "sermon" || activeSermonRecording) ? (
               <div className="action-row sermon-recording-controls is-open" aria-label="Sermon recording controls">
                 {!activeSermonRecording ? (
                   <button

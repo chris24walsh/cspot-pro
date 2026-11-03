@@ -1709,10 +1709,14 @@ are supplied through API environment configuration. See
 network requirements, and go2rtc WHEP revocation limitations.
 
 Teacher self-publishing uses `broadcast:contribute`, separate from `broadcast:use`.
-The Service toolbar creates an account-owned contribution via authenticated
+The Service preview toggle creates an account-owned contribution via authenticated
 `POST /broadcast/contributions/self`. Source labels and church return selection
 are derived on the server; the expiring capability stays in page memory. The
 embedded capture UI shares the guest publisher lifecycle and network-discovery
 helper. Owner-only DELETE ends capture without granting invitation management or
 on-air selection. `BroadcastContribution.owner_user_id` identifies owned sessions;
 operator approval and the temporary broadcast override remain unchanged.
+
+Preview toggles are composed by `ServicePreviewToggles`: teacher-only accounts
+see Pointer and Camera & mic; production roles retain Audio, Recording, and
+Blank. Teacher views also suppress manual recording controls and blank hotkeys.
