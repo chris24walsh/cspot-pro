@@ -953,6 +953,6 @@ Camera starts off, publishing a landscape placeholder until you choose **Camera 
 Teacher preview controls show Pointer and Camera & mic. Audio, Recording, and
 Blank switches remain available to production operators.
 
-Service keeps date navigation above the slide sorter, freeing the full-width
-header space for the slideshow preview. Camera controls dock in the notes area
+Service keeps date navigation in the header above the preview. Compact camera
+controls dock in the notes area
 below the preview, with editable notes alongside when space permits.

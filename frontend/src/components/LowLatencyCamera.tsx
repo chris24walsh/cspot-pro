@@ -2,7 +2,7 @@ import { RefreshCw, Volume2, VolumeX } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { go2RtcVideoStreamUrl, go2RtcWebSocketUrl } from "../broadcastCamera";
-import { LIVE_AUDIO_MSE_MIME, liveAudioEdgeCorrection, liveEdgeCorrection } from "../liveAudioMse";
+import { LIVE_AUDIO_MSE_MIME, liveAudioEdgeCorrection, liveVideoEdgeCorrection } from "../liveAudioMse";
 import { HttpLiveAudioMse } from "./HttpLiveAudioMse";
 
 type StreamStatus = "connecting" | "live" | "recovering" | "unavailable";
@@ -124,8 +124,8 @@ function LowLatencyMseVideo({ label, onFallback, url }: { label: string; onFallb
                 if (!sourceBuffer.updating && sourceBuffer.buffered.length) {
                   const end = sourceBuffer.buffered.end(sourceBuffer.buffered.length - 1);
                   const bufferedStart = sourceBuffer.buffered.start(0);
-                  const removeBefore = end - 3;
-                  const correction = liveEdgeCorrection(video.currentTime, bufferedStart, end);
+                  const removeBefore = end - 6;
+                  const correction = liveVideoEdgeCorrection(video.currentTime, bufferedStart, end);
                   if (correction.currentTime !== null) video.currentTime = correction.currentTime;
                   video.playbackRate = correction.playbackRate;
                   if (removeBefore > bufferedStart + 0.25) {

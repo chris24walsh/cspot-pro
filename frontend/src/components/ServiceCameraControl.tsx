@@ -54,7 +54,7 @@ export function ServiceCameraControl({ panelTarget, onPanelVisibleChange }: {
     {session && !previewOpen && <button type="button" className="secondary-button icon-button" aria-label="Show camera controls" title="Show camera controls" onClick={() => setPreviewOpen(true)}><ScanEye size={16} aria-hidden="true" /></button>}
     {error && <span className="form-message" role="alert">{error}</span>}
     {session && destination && createPortal(<aside hidden={!previewOpen} className={`service-camera-panel ${panelTarget ? "service-camera-panel-inline" : ""}`} aria-label="Your service camera and microphone">
-      <header><strong>Camera & mic</strong><small>Use headphones</small><button type="button" className="icon-button" aria-label="Hide camera controls" title="Hide camera controls — keep streaming" onClick={() => setPreviewOpen(false)}><Minimize2 size={17} aria-hidden="true" /></button><button type="button" className="icon-button" aria-label="Stop camera and microphone" title="Stop camera and microphone" onClick={() => void stop()}><X size={17} /></button></header>
+      <header><button type="button" className="icon-button" aria-label="Hide camera controls" title="Hide camera controls — keep streaming" onClick={() => setPreviewOpen(false)}><Minimize2 size={17} aria-hidden="true" /></button><button type="button" className="icon-button" aria-label="Stop camera and microphone" title="Stop camera and microphone" onClick={() => void stop()}><X size={17} /></button></header>
       <RemoteGuest key={session.id} token={session.token} embedded autoJoin onLeave={() => void stop()} />
     </aside>, destination)}
   </>;

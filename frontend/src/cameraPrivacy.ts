@@ -12,8 +12,10 @@ export async function createCameraPlaceholder() {
   await image.decode();
   const draw = () => context.drawImage(image, 0, 0, canvas.width, canvas.height);
   draw();
-  const stream = canvas.captureStream(1);
-  const timer = setInterval(draw, 1000);
+  // Negotiate the same cadence as live capture, so downstream encoders do not
+  // lock onto a 1 fps placeholder when the device camera is turned on later.
+  const stream = canvas.captureStream(24);
+  const timer = setInterval(draw, 1000 / 24);
   return { track: stream.getVideoTracks()[0], stop: () => { clearInterval(timer); stream.getTracks().forEach(track => track.stop()); } };
 }
 

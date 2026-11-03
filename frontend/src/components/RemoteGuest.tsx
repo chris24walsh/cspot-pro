@@ -2,7 +2,7 @@ import { cameraOffImage, createCameraPlaceholder, setNativeBlur, supportsNativeB
 import { remoteCameraConstraints, switchRemoteCamera } from "../switchRemoteCamera";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { RemoteServiceSlide } from "./RemoteServiceSlide";
-import { Camera, CameraOff, LogOut, Mic, MicOff, Radio, RefreshCw } from "lucide-react";
+import { Camera, CameraOff, LogOut, Mic, MicOff, Radio, RefreshCw, Volume2 } from "lucide-react";
 import {
   completeOffer, ContributionError, contributionRequest, receiveContribution, type GuestStatus,
 } from "../remoteContribution";
@@ -306,26 +306,26 @@ export function RemoteGuest({ token: suppliedToken, embedded = false, autoJoin =
     {!embedded && <header><h1>{status?.label || "Join the church service"}</h1>
       <p>Use headphones. Keep this page open and your device powered while contributing.</p></header>}
     <div className={`remote-guest-status ${status?.live ? "is-live" : ""}`} role="status">
-      <Radio size={18} aria-hidden="true" /> {status?.live ? "You are LIVE on the church broadcast" : connection}
+      <Radio size={18} aria-hidden="true" /><span title={status?.live ? "You are LIVE on the church broadcast" : connection}>{embedded ? (status?.live ? "LIVE" : connection.startsWith("Connected") ? "Connected" : joining ? "Connecting…" : connection === "Not connected" ? "Offline" : "Reconnecting…") : status?.live ? "You are LIVE on the church broadcast" : connection}</span>
     </div>
     {error && <p role="alert" className="form-message">{error}</p>}
     <div className="remote-guest-cameras">
-      <div><span className="remote-camera-label">Your camera</span><div className="local-camera-picture"><video ref={localVideo} className="remote-guest-video" autoPlay muted playsInline aria-label="Your camera preview" />{!camera && <img src={cameraOffImage()} alt="Camera off — your camera is private" />}</div></div>
+      <div><span className="remote-camera-label">You</span><div className="local-camera-picture"><video ref={localVideo} className="remote-guest-video" autoPlay muted playsInline aria-label="Your camera preview" />{!camera && <img src={cameraOffImage()} alt="Camera off — your camera is private" />}</div></div>
       {embedded && <ChurchCamera token={token} sourceId={status?.camera_source_id} iceServers={status?.ice_servers} />}
     </div>
     <div className="remote-guest-actions">
       {!joined ? <button type="button" className="primary-button icon-text-button" disabled={joining || !status} onClick={() => { wanted.current = true; void connect(facing); }}><Camera size={18} />{joining ? "Connecting…" : "Join with camera and microphone"}</button> : <>
-        <button type="button" className="secondary-button icon-text-button" aria-pressed={!mic} onClick={() => { const value = !mic; setMic(value); micEnabled.current = value; localStream.current?.getAudioTracks().forEach(t => { t.enabled = value; }); }}>{mic ? <Mic size={18} /> : <MicOff size={18} />}{mic ? "Mute microphone" : "Unmute microphone"}</button>
-        <button type="button" className="secondary-button icon-text-button" aria-pressed={camera} disabled={joining || switching} onClick={() => void toggleCamera()}>{camera ? <Camera size={18} /> : <CameraOff size={18} />}{camera ? "Camera off" : "Camera on"}</button>
-        <button type="button" className="secondary-button icon-text-button" disabled={joining || switching || !camera} onClick={() => void switchCamera()}><RefreshCw size={18} />{switching ? "Switching…" : "Switch camera"}</button>
-        {camera && <label className="native-blur-toggle" title={blurAvailable ? "Blur your background using the device camera" : "Native background blur is not available in this browser. Try your device's video effects."}><input type="checkbox" checked={blurAvailable && blur} disabled={!blurAvailable || switching} onChange={event => void changeBlur(event.target.checked)} />Blur background{!blurAvailable && <small>Device effects</small>}</label>}
+        <button type="button" className="secondary-button icon-text-button" aria-label={mic ? "Mute microphone" : "Unmute microphone"} title={mic ? "Mute microphone — use headphones" : "Unmute microphone — use headphones"} aria-pressed={!mic} onClick={() => { const value = !mic; setMic(value); micEnabled.current = value; localStream.current?.getAudioTracks().forEach(t => { t.enabled = value; }); }}>{mic ? <Mic size={18} /> : <MicOff size={18} />}{embedded ? "Mic" : mic ? "Mute microphone" : "Unmute microphone"}</button>
+        <button type="button" className="secondary-button icon-text-button" aria-label={camera ? "Camera off" : "Camera on"} title={camera ? "Turn camera off" : "Turn camera on"} aria-pressed={camera} disabled={joining || switching} onClick={() => void toggleCamera()}>{camera ? <Camera size={18} /> : <CameraOff size={18} />}{embedded ? "Cam" : camera ? "Camera off" : "Camera on"}</button>
+        {!embedded && <button type="button" className="secondary-button icon-text-button" disabled={joining || switching || !camera} onClick={() => void switchCamera()}><RefreshCw size={18} />{switching ? "Switching…" : "Switch camera"}</button>}
+        {camera && (!embedded || blurAvailable) && <label className="native-blur-toggle" title={blurAvailable ? "Blur your background using the device camera" : "Native background blur is not available in this browser. Try your device's video effects."}><input type="checkbox" checked={blurAvailable && blur} disabled={!blurAvailable || switching} onChange={event => void changeBlur(event.target.checked)} />{embedded ? "Blur" : "Blur background"}{!blurAvailable && <small>Device effects</small>}</label>}
         {!embedded && <button type="button" className="secondary-button icon-text-button" onClick={() => { leave(); onLeave?.(); }}><LogOut size={18} />Leave</button>}
       </>}
     </div>
-    <section className="remote-guest-return"><h2>Church audio</h2>
+    <section className="remote-guest-return">{!embedded && <h2>Church audio</h2>}
       <audio ref={returnAudio} hidden autoPlay aria-label="Church return audio" />
-      {status?.return_available && <label className="church-audio-volume">Volume<input type="range" min="0" max="1" step="0.05" value={volume} aria-label="Church audio volume" onChange={event => changeChurchVolume(Number(event.target.value))} /></label>}
-      {!status?.return_available && <p>The church operator has not assigned a return audio feed.</p>}
+      {status?.return_available && <label className="church-audio-volume" title="Church audio volume">{embedded ? <Volume2 size={13} aria-hidden="true" /> : "Volume"}<input type="range" min="0" max="1" step="0.05" value={volume} aria-label="Church audio volume" onChange={event => changeChurchVolume(Number(event.target.value))} /></label>}
+      {!status?.return_available && !embedded && <p>The church operator has not assigned a return audio feed.</p>}
       {returnError && <p role="status">{returnError}</p>}
       {joined && status?.return_available && returnError && <button type="button" className="secondary-button" onClick={() => {
         returnPeer.current?.close(); setReturnError("");
@@ -356,7 +356,7 @@ function ChurchCamera({ token, sourceId, iceServers }: { token: string; sourceId
     }).catch(reason => { if (active) setError(reason instanceof Error ? reason.message : "Camera unavailable"); });
     return () => { active = false; peer?.close(); if (video.current) video.current.srcObject = null; };
   }, [token, sourceId, retry]);
-  return <div className="church-camera-preview"><span className="remote-camera-label">Livestream camera</span>
+  return <div className="church-camera-preview"><span className="remote-camera-label">Church</span>
     <video ref={video} className="remote-guest-video" autoPlay muted playsInline aria-label="Livestream camera preview" />
     {!sourceId && <p>No church camera configured.</p>}
     {error && <p role="status">{error}<button type="button" className="secondary-button" onClick={() => setRetry(value => value + 1)}>Retry camera</button></p>}

@@ -1,7 +1,7 @@
 export type CameraFacing = "user" | "environment";
 
 export const remoteCameraConstraints = (facingMode: CameraFacing): MediaTrackConstraints => ({
-  facingMode, width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 24, max: 30 },
+  facingMode, width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 24, max: 24 },
 });
 
 /** Keep the microphone, return audio and publishing lease while changing video. */

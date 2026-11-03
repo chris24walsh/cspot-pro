@@ -10,6 +10,7 @@ import { countdownStartsForSelection, withCountdownTiming } from "../countdown";
 import { shiftClock, templateServiceStart, welcomeLeadSeconds } from "../serviceTiming";
 import { GripVertical, Archive, CircleStop, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Clock, Layers3, Mic, MonitorUp, Pause, Pencil, Play, Plus, RotateCcw, Search, Trash2, WandSparkles, X } from "lucide-react";
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 
 import {
   ApiError,
@@ -750,6 +751,8 @@ export function PresentationView({
   const [customProviderLoading, setCustomProviderLoading] = useState(false);
   const [customProviderResult, setCustomProviderResult] = useState<CustomProviderSearchResult | null>(null);
   const [selectedCustomProviderMatchId, setSelectedCustomProviderMatchId] = useState<string | null>(null);
+  const [topbarSlot, setTopbarSlot] = useState<HTMLElement | null>(null);
+  useEffect(() => { setTopbarSlot(document.getElementById("workspace-topbar-slot")); }, []);
   const [cameraPanelSlot, setCameraPanelSlot] = useState<HTMLDivElement | null>(null);
   const [cameraPanelVisible, setCameraPanelVisible] = useState(false);
   const [servicePickerOpen, setServicePickerOpen] = useState(false);
@@ -4762,6 +4765,30 @@ export function PresentationView({
         </div>
       ) : null}
       <SlideKeyCapture ref={keyCaptureRef} active={active && !searchOverlayOpen && !servicePickerOpen && !editingSongId} />
+      {active && topbarSlot
+        ? createPortal(
+            <div className="presentation-topbar-tools">
+              <DateNavigator
+                historyContent={serviceHistoryContent()}
+                historyDisabled={(!plan && !archivedServiceUndo) || serviceHistoryLoading}
+                historyExpanded={serviceHistoryOpen}
+                historyLabel="Service edit history"
+                label={plan ? formatNavigatorDate(plan.service_date) : emptyServiceDate ? formatNavigatorDate(serviceIsoFromDateInput(emptyServiceDate)) : "Choose service"}
+                nextDisabled={loading || !nextPlannedService}
+                nextLabel="Next service"
+                onHistory={() => void openServiceHistory()}
+                onNext={() => void stepService("next")}
+                onOpenPicker={openServicePicker}
+                onPrevious={() => void stepService("previous")}
+                pickerLabel="Choose service"
+                pickerDisabled={loading}
+                previousDisabled={loading || !previousPlannedService}
+                previousLabel="Previous service"
+              />
+            </div>,
+            topbarSlot,
+          )
+        : null}
       <CalendarPopup
         isOpen={servicePickerOpen}
         onClose={() => setServicePickerOpen(false)}
@@ -5143,25 +5170,6 @@ export function PresentationView({
         </div>
 
         <aside className="presenter-sidebar" aria-label="Slide context">
-          <div className="service-sorter-toolbar" aria-label="Service date navigation">
-            <DateNavigator
-              historyContent={serviceHistoryContent()}
-              historyDisabled={(!plan && !archivedServiceUndo) || serviceHistoryLoading}
-              historyExpanded={serviceHistoryOpen}
-              historyLabel="Service edit history"
-              label={plan ? formatNavigatorDate(plan.service_date) : emptyServiceDate ? formatNavigatorDate(serviceIsoFromDateInput(emptyServiceDate)) : "Choose service"}
-              nextDisabled={loading || !nextPlannedService}
-              nextLabel="Next service"
-              onHistory={() => void openServiceHistory()}
-              onNext={() => void stepService("next")}
-              onOpenPicker={openServicePicker}
-              onPrevious={() => void stepService("previous")}
-              pickerLabel="Choose service"
-              pickerDisabled={loading}
-              previousDisabled={loading || !previousPlannedService}
-              previousLabel="Previous service"
-            />
-          </div>
           {sorterCatchUpDirection ? (
             <button
               className={`sorter-catch-up sorter-catch-up-${sorterCatchUpDirection}`}

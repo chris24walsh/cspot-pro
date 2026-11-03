@@ -229,7 +229,11 @@ def prepare_streams(guest):
         # its passive producer. No network camera is contacted or configured.
         register_stream(raw, "rtsp://127.0.0.1:1/awaiting-contributor")
     if stream_name(guest) not in existing:
-        register_stream(stream_name(guest), f"ffmpeg:{raw}#video=h264#audio=aac")
+        register_stream(
+            stream_name(guest),
+            f"ffmpeg:{raw}#video=h264#audio=aac"
+            "#raw=-vf fps=24 -g 24 -keyint_min 24 -sc_threshold 0",
+        )
 
 
 def stop_publisher(guest):

@@ -170,11 +170,12 @@ appropriately limited church return feed; immediate forced revocation of an
 already-connected hostile receiver would require a gateway with managed WHEP
 sessions or an additional media relay.
 
-The Service date navigator is above the slide sorter for every Service role.
-The former full-width date/header row no longer consumes preview height.
+The Service date navigator is in the original header above the preview for every Service role.
 Fullscreen remains available, and the camera dock retains the same media session
 when navigating slides or editing notes.
 
 The Service camera dock shows your local camera and the selected church livestream camera side by side. The church camera uses an invitation-scoped signaling endpoint; private camera URLs stay on the server. Its preview is muted so church sound comes only from the separate return audio feed, controlled by a volume slider. If autoplay is blocked, adjusting that slider enables playback.
 
 Camera contribution starts with camera hardware off and a landscape placeholder published in its place. Camera on opens the camera; Camera off replaces the video track with the placeholder and releases the camera without restarting the microphone or publishing session. Native background blur is offered only when the active camera reports support; other devices can use system video effects.
+
+Remote publishing keeps both the camera-off canvas and real camera at 24 fps. The gateway normalizes viewer output to 24 fps with one-second keyframes, preventing placeholder timing from carrying into live video. The Service dock uses compact overlaid labels and omits camera switching; slide frames never shrink to accommodate the dock, with scrolling available in short viewports.

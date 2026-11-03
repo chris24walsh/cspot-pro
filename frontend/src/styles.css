@@ -14392,19 +14392,6 @@ button.musician-page {
 .remote-guest-embedded h2 { font-size: .95rem; margin: 8px 0; }
 .remote-guest-embedded .remote-guest-return audio { width: 100%; }
 
-/* Service uses its sorter header instead of a full-width date row. */
-.shell .workspace > .topbar.topbar-presentation { display: block; height: 0; min-height: 0; flex: 0 0 0; padding: 0; border: 0; position: relative; overflow: visible; }
-.shell .topbar-presentation > .title-lockup,
-.shell .topbar-presentation > .topbar-context-slot,
-.shell .topbar-presentation > .topbar-actions { display: none; }
-.shell .workspace > .topbar-presentation .app-fullscreen-button { position: absolute; top: 8px; right: 12px; z-index: 12; width: 28px; min-width: 28px; height: 28px; min-height: 28px; padding: 4px; margin: 0; }
-.shell .topbar-presentation .app-fullscreen-button span { display: none; }
-.presentation-workspace { flex: 1 1 auto; }
-.service-sorter-toolbar { flex: 0 0 auto; display: flex; align-items: center; justify-content: center; min-width: 0; padding: 2px 0; }
-.service-sorter-toolbar .date-navigator { width: 100%; grid-template-columns: 28px minmax(0, 1fr) 28px 28px; }
-.service-sorter-toolbar .date-navigator button { min-width: 0; min-height: 30px; padding: 3px; }
-.service-sorter-toolbar .date-navigator-date { font-size: 12px; gap: 4px; }
-.service-sorter-toolbar .date-navigator-history-label { display: none; }
 .service-preview-details { display: grid; gap: 8px; min-width: 0; flex: 0 0 auto; }
 .service-preview-details[hidden], .service-camera-slot[hidden] { display: none; }
 .service-preview-details.has-camera.has-notes { grid-template-columns: minmax(0, 1.5fr) minmax(140px, 1fr); align-items: stretch; }
@@ -14437,16 +14424,8 @@ button.musician-page {
 @media (max-width: 540px) {
   .service-preview-details:not(.has-camera) { display: none; }
   .service-preview-details.has-camera.has-notes { grid-template-columns: minmax(0, 1fr); }
-  .shell .workspace > .topbar-presentation .app-fullscreen-button { top: 5px; right: 7px; }
 }
 
-@media (min-width: 900px) {
-  .service-sorter-toolbar { padding-right: 34px; }
-  .shell .workspace > .topbar-presentation .app-fullscreen-button { right: 150px; }
-}
-@media (min-width: 1280px) {
-  .shell .workspace > .topbar-presentation .app-fullscreen-button { right: 170px; }
-}
 @media (min-width: 900px) and (max-width: 1279px) {
   .presentation-workspace .stage-meta, .presentation-workspace .stage-meta-actions { min-width: 0; }
   .presentation-workspace .stage-toggle-label { font-size: 0; gap: 0; }
@@ -14469,3 +14448,24 @@ button.musician-page {
 .local-camera-picture > img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; border-radius: 6px; background: #b5cec1; }
 .native-blur-toggle { display: flex; align-items: center; flex-wrap: wrap; gap: 4px; font-size: 11px; }
 .native-blur-toggle small { width: 100%; color: #65736b; }
+
+/* Media controls must never shrink the slide frame and clip its contents. */
+.presentation-workspace .presenter-current,
+.presentation-workspace .presenter-controls { flex-shrink: 0; }
+.presentation-workspace .presenter-stage-column { overflow-y: auto; overflow-x: hidden; }
+.service-camera-slot { min-width: 0; }
+.service-camera-panel-inline { position: relative; inset: auto; padding: 4px; }
+.service-camera-panel-inline > header { position: absolute; top: 5px; right: 5px; z-index: 4; }
+.service-camera-panel-inline > header .icon-button { width: 20px; height: 20px; min-width: 20px; min-height: 20px; }
+.service-camera-panel-inline .remote-guest-embedded { gap: 4px 6px; }
+.service-camera-panel-inline .remote-guest-status { position: absolute; top: 7px; left: 7px; z-index: 3; padding: 2px 4px; border: 0; background: #f7faf6e8; color: #234b37; font-size: 10px; pointer-events: none; }
+.service-camera-panel-inline .remote-guest-status.is-live { background: #a92735; color: white; }
+.service-camera-panel-inline .remote-guest-cameras { gap: 6px; }
+.service-camera-panel-inline .remote-guest-cameras > div { position: relative; }
+.service-camera-panel-inline .remote-camera-label { position: absolute; bottom: 3px; left: 4px; z-index: 2; margin: 0; background: #15291fcc; color: white; border-radius: 3px; padding: 1px 4px; font-size: 10px; }
+.service-camera-panel-inline .remote-guest-cameras .remote-guest-video { height: clamp(72px, 8vw, 100px); max-height: 100px; }
+.service-camera-panel-inline .remote-guest-actions { flex-wrap: wrap; align-items: center; gap: 3px; }
+.service-camera-panel-inline .remote-guest-actions button { min-height: 24px; padding: 2px 4px; font-size: 10px; gap: 2px; }
+.service-camera-panel-inline .remote-guest-actions button svg { width: 13px; height: 13px; }
+.service-camera-panel-inline .remote-guest-return { align-self: center; }
+.service-camera-panel-inline .church-audio-volume { gap: 4px; }

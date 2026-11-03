@@ -29,6 +29,15 @@ export function liveEdgeCorrection(
   };
 }
 
+/** Video fragments can arrive a second at a time: do not seek on every burst. */
+export function liveVideoEdgeCorrection(currentTime: number, bufferedStart: number, bufferedEnd: number): LiveEdgeCorrection {
+  const lag = bufferedEnd - currentTime;
+  if (currentTime < bufferedStart - 0.05 || currentTime > bufferedEnd || lag > 3) {
+    return { currentTime: Math.max(bufferedStart, bufferedEnd - 0.5), playbackRate: 1 };
+  }
+  return { currentTime: null, playbackRate: lag > 1.5 ? 1.03 : 1 };
+}
+
 /** Keep live audio at its natural rate; frequent time-stretch changes are audible. */
 export function liveAudioEdgeCorrection(
   currentTime: number,

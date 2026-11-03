@@ -96,6 +96,7 @@ describe("remote tablet capture", () => {
     await act(async () => root.render(<RemoteGuest token="secret" embedded />));
     const videos = host.querySelectorAll("video");
     expect(videos).toHaveLength(2);
+    expect([...host.querySelectorAll("button")].some(button => button.textContent?.includes("Switch camera"))).toBe(false);
     expect(videos[1].muted).toBe(true);
     expect(receive).toHaveBeenCalledWith("/guest/camera", [], expect.any(Function), "secret");
     const audio = host.querySelector("audio")!;

@@ -290,6 +290,7 @@ def test_temporary_stream_registration_never_persists_config(setup, monkeypatch)
     assert [c[0][0] for c in calls] == ["GET", "PATCH", "PATCH"]
     assert calls[1][1]["params"]["name"].startswith("cspot-guest-raw-")
     assert "#video=h264#audio=aac" in calls[2][1]["params"]["src"]
+    assert "fps=24 -g 24 -keyint_min 24" in calls[2][1]["params"]["src"]
 
 
 def test_gateway_session_delete_is_idempotent(setup, monkeypatch):

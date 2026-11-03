@@ -6,6 +6,7 @@ import {
   LIVE_EDGE_CATCH_UP_RATE,
   liveAudioEdgeCorrection,
   liveEdgeCorrection,
+  liveVideoEdgeCorrection,
 } from "./liveAudioMse";
 
 function box(type: string, payload: number[]) {
@@ -83,5 +84,17 @@ describe("shared camera/audio live-edge correction", () => {
       currentTime: 4.75,
       playbackRate: 1,
     });
+  });
+});
+
+
+describe("smooth camera playback", () => {
+  it("does not skip video when a normal one-second fragment arrives", () => {
+    expect(liveVideoEdgeCorrection(10, 8, 11.25)).toEqual({ currentTime: null, playbackRate: 1 });
+    expect(liveVideoEdgeCorrection(10, 8, 12)).toEqual({ currentTime: null, playbackRate: 1.03 });
+  });
+  it("recovers after a real stall or a gap outside the available buffer", () => {
+    expect(liveVideoEdgeCorrection(5, 8, 12)).toEqual({ currentTime: 11.5, playbackRate: 1 });
+    expect(liveVideoEdgeCorrection(8, 6, 12)).toEqual({ currentTime: 11.5, playbackRate: 1 });
   });
 });

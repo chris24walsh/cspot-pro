@@ -957,9 +957,8 @@ The teacher preview shows only Pointer and Camera & mic toggles. The camera
 control sits beside Pointer; production toggles are hidden for teacher-only
 accounts. Operators retain Audio, Recording, and Blank controls.
 
-For every Service role, the date navigator sits above the slide sorter instead
-of occupying a full-width header. The slideshow preview uses the reclaimed top
-space. Camera controls dock below it in the notes area; notes remain editable
+For every Service role, the date navigator remains in the header above the
+preview. Compact camera controls dock below the preview in the notes area; notes remain editable
 alongside the camera on wider layouts. The dock can be minimized without ending
 capture, and its session persists across slide/note changes.
 

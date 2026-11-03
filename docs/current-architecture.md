@@ -1721,13 +1721,15 @@ Preview toggles are composed by `ServicePreviewToggles`: teacher-only accounts
 see Pointer and Camera & mic; production roles retain Audio, Recording, and
 Blank. Teacher views also suppress manual recording controls and blank hotkeys.
 
-Service layout now owns its date navigator inside the sorter header. The global
-Service header has zero layout height; its fullscreen control remains available
-beside the sorter navigation on wide screens and over the preview on narrow
-screens. `ServiceCameraControl` portals into a stable preview-details slot below
+Service date navigation is portaled into the workspace header above the preview.
+The fullscreen control retains its original header position. `ServiceCameraControl` portals into a stable preview-details slot below
 the slideshow. Visibility callbacks collapse the dock's space when inactive or
 minimized, while the mounted media component retains capture across slide and
 notes changes. Notes share that region where available. Layout changes apply to
 all Service roles, with responsive three-column layouts from 900px upward.
 
 Service contributors receive the selected church camera through the scoped `/guest/camera` signaling endpoint, independently of the remote program override. The dock displays this muted camera beside local capture and uses a volume slider for church return audio.
+
+Remote publishing keeps both the camera-off canvas and real camera at 24 fps. The gateway normalizes viewer output to 24 fps with one-second keyframes, preventing placeholder timing from carrying into live video. The Service dock uses compact overlaid labels and omits camera switching; slide frames never shrink to accommodate the dock, with scrolling available in short viewports.
+
+Camera MSE playback tolerates normal one-second fragment bursts without seeking; it uses modest catch-up for drift and seeks only after larger stalls or buffer gaps. Audio timing remains unchanged.
