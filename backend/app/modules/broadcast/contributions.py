@@ -193,6 +193,15 @@ def return_source(session, source_id):
     return next((s for s in sources if s.id == source_id and not s.id.startswith("guest-")), None)
 
 
+def church_camera(session):
+    from app.modules.broadcast.settings import camera_sources
+
+    settings = broadcast_settings(session)
+    sources = [source for source in camera_sources(settings) if not source.id.startswith("guest-")]
+    return next((source for source in sources if source.id == settings.active_camera_id),
+                sources[0] if sources else None)
+
+
 def guest_read(session, guest):
     settings = broadcast_settings(session)
     return {
@@ -336,6 +345,7 @@ def guest_status(guest: InvitedGuest, session: Database):
         "ice_servers": servers,
         "relay_available": relay_available(servers),
         "return_available": bool(return_source(session, guest.return_source_id)),
+        "camera_source_id": camera.id if (camera := church_camera(session)) else None,
         "cue": current_cue(session),
     }
 
@@ -476,6 +486,21 @@ def church_return(offer: Offer, guest: InvitedGuest, session: Database):
         raise HTTPException(409, "No church return audio has been assigned")
     name = f"cspot-guest-return-{guest.id}"
     register_stream(name, f"ffmpeg:{source.url}#audio=opus")
+    return exchange(name, offer)
+
+
+@router.post("/guest/camera")
+def church_camera_preview(offer: Offer, guest: InvitedGuest, session: Database):
+    source = church_camera(session)
+    if not source:
+        raise HTTPException(409, "No church camera is configured")
+    # Keep private camera URLs server-side; never return the guest's own feed.
+    parsed = urlsplit(source.url)
+    stream = (parse_qs(parsed.query).get("src") or [None])[0]
+    if stream and "/camera/" in parsed.path:
+        return exchange(stream, offer)
+    name = f"cspot-guest-camera-{guest.id}"
+    register_stream(name, f"ffmpeg:{source.url}#video=h264")
     return exchange(name, offer)
 
 

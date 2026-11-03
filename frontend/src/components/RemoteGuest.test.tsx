@@ -4,11 +4,11 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { RemoteGuest } from "./RemoteGuest";
 
-const { request } = vi.hoisted(() => ({ request: vi.fn() }));
+const { request, receive } = vi.hoisted(() => ({ request: vi.fn(), receive: vi.fn() }));
 vi.mock("../remoteContribution", () => ({
   contributionRequest: request,
   completeOffer: vi.fn(async () => "offer"),
-  receiveContribution: vi.fn(),
+  receiveContribution: receive,
   ContributionError: class ContributionError extends Error { status = 500; },
 }));
 vi.mock("./RemoteServiceSlide", () => ({ RemoteServiceSlide: () => <div>Church confidence slide</div> }));
@@ -40,7 +40,7 @@ function button(text: string) {
 beforeEach(() => {
   captures = []; peers = [];
   window.location.hash = "invitation-secret";
-  request.mockReset();
+  request.mockReset(); receive.mockReset();
   request.mockImplementation(async (path: string) => path === "/guest/publish" ? { sdp: "answer", publisher_session: "device-session" } : {
     id: "guest", label: "Pastor", expires_at: new Date(Date.now() + 3600000).toISOString(),
     live: false, connected: false, ice_servers: [], return_available: false, cue: null,
@@ -65,6 +65,31 @@ afterEach(async () => {
 });
 
 describe("remote tablet capture", () => {
+  it("shows two cameras with muted church video and a volume-only audio control", async () => {
+    const close = vi.fn();
+    receive.mockImplementation(async (_path, _servers, onStream) => { onStream({ id: "church" }); return { close }; });
+    request.mockResolvedValue({ id: "guest", ice_servers: [], return_available: true, camera_source_id: "lectern" });
+    vi.spyOn(HTMLMediaElement.prototype, "play").mockResolvedValue();
+    await act(async () => root.render(<RemoteGuest token="secret" embedded />));
+    const videos = host.querySelectorAll("video");
+    expect(videos).toHaveLength(2);
+    expect(videos[1].muted).toBe(true);
+    expect(receive).toHaveBeenCalledWith("/guest/camera", [], expect.any(Function), "secret");
+    const audio = host.querySelector("audio")!;
+    expect(audio.controls).toBe(false);
+    expect(audio.hidden).toBe(true);
+    const volume = host.querySelector<HTMLInputElement>('input[aria-label="Church audio volume"]')!;
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(volume, "0.35");
+      volume.dispatchEvent(new Event("input", { bubbles: true }));
+      volume.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+    expect(audio.volume).toBe(0.35);
+    expect(audio.play).toHaveBeenCalled();
+    await act(async () => root.render(<div />));
+    expect(close).toHaveBeenCalledTimes(1);
+  });
+
   it("does not capture devices until the guest explicitly joins, and stops them on Leave", async () => {
     await act(async () => root.render(<RemoteGuest />));
     expect(getUserMedia).not.toHaveBeenCalled();
@@ -76,6 +101,23 @@ describe("remote tablet capture", () => {
     expect(captures[0].video.stop).toHaveBeenCalled();
     expect(peers[0].close).toHaveBeenCalled();
     expect(request).toHaveBeenCalledWith("/guest/leave", "POST", { publisher_session: "device-session" }, "invitation-secret");
+  });
+  it("uses audio gain for tablet volume controls and closes the audio context on exit", async () => {
+    const gain = { gain: { value: 1 }, connect: vi.fn() };
+    const context = { createGain: () => gain, createMediaElementSource: vi.fn(() => ({ connect: () => gain })), destination: {}, resume: vi.fn(async () => {}), close: vi.fn(async () => {}) };
+    vi.stubGlobal("AudioContext", vi.fn(() => context));
+    vi.spyOn(HTMLMediaElement.prototype, "play").mockResolvedValue();
+    request.mockResolvedValue({ id: "guest", ice_servers: [], return_available: true });
+    await act(async () => root.render(<RemoteGuest token="secret" embedded />));
+    const volume = host.querySelector<HTMLInputElement>('input[type="range"]')!;
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(volume, "0.2");
+      volume.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    expect(gain.gain.value).toBe(0.2);
+    expect(context.resume).toHaveBeenCalled();
+    await act(async () => root.render(<div />));
+    expect(context.close).toHaveBeenCalledTimes(1);
   });
   it("starts embedded camera capture once after the Service button is clicked", async () => {
     await act(async () => root.render(<StrictMode><RemoteGuest token="account-camera-token" embedded autoJoin /></StrictMode>));

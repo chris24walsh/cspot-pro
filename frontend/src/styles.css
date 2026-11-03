@@ -14454,3 +14454,14 @@ button.musician-page {
 }
 .service-preview-details:not(.has-camera) .slide-notes-editor { grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: auto; }
 .service-preview-details .slide-notes-editor .compact-button { align-self: end; }
+
+.remote-guest-cameras { min-width: 0; }
+.remote-guest-cameras > div { min-width: 0; }
+.remote-camera-label { display: block; font-size: 11px; margin: 2px 0 4px; color: #65736b; }
+.church-audio-volume { display: flex; align-items: center; gap: 6px; font-size: 11px; }
+.church-audio-volume input { width: 100%; min-width: 0; accent-color: #47795f; }
+.service-camera-panel-inline .remote-guest-cameras { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.service-camera-panel-inline .remote-guest-cameras .remote-guest-video { display: block; width: 100%; grid-column: auto; grid-row: auto; aspect-ratio: 16 / 9; max-height: 160px; }
+.service-camera-panel-inline .remote-guest-actions { grid-column: 1; }
+.service-camera-panel-inline .remote-guest-return { grid-column: 2; }
+.church-camera-preview p { font-size: 11px; margin: 3px 0; }

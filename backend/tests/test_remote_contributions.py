@@ -512,3 +512,26 @@ def test_teacher_return_uses_saved_desk_even_when_broadcast_audio_is_muted(setup
     result = client.post("/remote/self")
     assert result.status_code == 201
     assert result.json()["return_source_id"] == "desk"
+
+
+def test_guest_camera_is_scoped_and_does_not_follow_remote_override(setup, monkeypatch):
+    session, settings, client = setup
+    invitation, guest = connected_guest(session, client)
+    settings.remote_contribution_id = guest.id
+    session.commit()
+    calls = []
+    monkeypatch.setattr(remote, "exchange", lambda *args: calls.append(args) or {"sdp": "answer"})
+    path = "/remote/guest/camera"
+    offer = {"sdp": "v=0\r\ncamera-offer"}
+    assert client.post(path, json=offer).status_code == 401
+    status = client.get("/remote/guest", headers=authorization(invitation)).json()
+    assert status["camera_source_id"] == "lectern"
+    assert "church" not in json.dumps(status)
+    assert client.post(path, json=offer, headers=authorization(invitation)).status_code == 200
+    assert calls[0][0] == "church"
+    settings.camera_url = None
+    session.commit()
+    assert client.post(path, json=offer, headers=authorization(invitation)).status_code == 409
+    guest.revoked_at = datetime.now(UTC)
+    session.commit()
+    assert client.post(path, json=offer, headers=authorization(invitation)).status_code == 401

@@ -174,3 +174,5 @@ The Service date navigator is above the slide sorter for every Service role.
 The former full-width date/header row no longer consumes preview height.
 Fullscreen remains available, and the camera dock retains the same media session
 when navigating slides or editing notes.
+
+The Service camera dock shows your local camera and the selected church livestream camera side by side. The church camera uses an invitation-scoped signaling endpoint; private camera URLs stay on the server. Its preview is muted so church sound comes only from the separate return audio feed, controlled by a volume slider. If autoplay is blocked, adjusting that slider enables playback.

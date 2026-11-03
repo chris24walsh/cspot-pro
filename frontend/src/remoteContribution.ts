@@ -14,6 +14,7 @@ export interface GuestStatus extends RemoteGuest {
   ice_servers: RTCIceServer[];
   relay_available: boolean;
   return_available: boolean;
+  camera_source_id?: string | null;
   cue: { title: string; slide: number; blanked: boolean; item_id: string | null; revision: number } | null;
 }
 export interface ContributionList {

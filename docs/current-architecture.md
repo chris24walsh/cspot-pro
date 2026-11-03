@@ -1729,3 +1729,5 @@ the slideshow. Visibility callbacks collapse the dock's space when inactive or
 minimized, while the mounted media component retains capture across slide and
 notes changes. Notes share that region where available. Layout changes apply to
 all Service roles, with responsive three-column layouts from 900px upward.
+
+Service contributors receive the selected church camera through the scoped `/guest/camera` signaling endpoint, independently of the remote program override. The dock displays this muted camera beside local capture and uses a volume slider for church return audio.

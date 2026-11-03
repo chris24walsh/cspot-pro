@@ -22,9 +22,34 @@ export function RemoteGuest({ token: suppliedToken, embedded = false, autoJoin =
   const [mic, setMic] = useState(true);
   const [camera, setCamera] = useState(true);
   const [facing, setFacing] = useState<"user" | "environment">("user");
+  const [volume, setVolume] = useState(1);
   const [returnError, setReturnError] = useState("");
   const localVideo = useRef<HTMLVideoElement>(null);
   const returnAudio = useRef<HTMLAudioElement>(null);
+  const audioGain = useRef<{ context: AudioContext; gain: GainNode } | null>(null);
+  useEffect(() => () => { void audioGain.current?.context.close(); audioGain.current = null; }, []);
+
+  function changeChurchVolume(value: number) {
+    setVolume(value);
+    const audio = returnAudio.current;
+    if (!audio) return;
+    // iPad Safari fixes element volume at hardware level. A gain node makes
+    // this slider work there as well as on desktop browsers.
+    if (!audioGain.current && typeof AudioContext !== "undefined") {
+      const context = new AudioContext();
+      try {
+        const gain = context.createGain();
+        context.createMediaElementSource(audio).connect(gain).connect(context.destination);
+        audioGain.current = { context, gain };
+      } catch { void context.close(); }
+    }
+    if (audioGain.current) {
+      audioGain.current.gain.gain.value = value;
+      void audioGain.current.context.resume().catch(() => {});
+      audio.volume = 1;
+    } else audio.volume = value;
+    void audio.play().then(() => setReturnError("")).catch(() => setReturnError("Could not play church audio. Try the volume control again."));
+  }
   const localStream = useRef<MediaStream | null>(null);
   const peer = useRef<RTCPeerConnection | null>(null);
   const returnPeer = useRef<RTCPeerConnection | null>(null);
@@ -123,7 +148,7 @@ export function RemoteGuest({ token: suppliedToken, embedded = false, autoJoin =
           const returned = await receiveContribution("/guest/return", current.ice_servers, stream => {
             if (returnAudio.current && wanted.current && run === generation.current) {
               returnAudio.current.srcObject = stream;
-              void returnAudio.current.play().catch(() => setReturnError("Tap Play church audio below to hear the church."));
+              void returnAudio.current.play().catch(() => setReturnError("Adjust Church audio volume below to enable sound."));
             }
           }, token, false);
           if (!wanted.current || run !== generation.current) returned.close();
@@ -209,7 +234,10 @@ export function RemoteGuest({ token: suppliedToken, embedded = false, autoJoin =
       <Radio size={18} aria-hidden="true" /> {status?.live ? "You are LIVE on the church broadcast" : connection}
     </div>
     {error && <p role="alert" className="form-message">{error}</p>}
-    <video ref={localVideo} className="remote-guest-video" autoPlay muted playsInline aria-label="Your camera preview" />
+    <div className="remote-guest-cameras">
+      <div><span className="remote-camera-label">Your camera</span><video ref={localVideo} className="remote-guest-video" autoPlay muted playsInline aria-label="Your camera preview" /></div>
+      {embedded && <ChurchCamera token={token} sourceId={status?.camera_source_id} iceServers={status?.ice_servers} />}
+    </div>
     <div className="remote-guest-actions">
       {!joined ? <button type="button" className="primary-button icon-text-button" disabled={joining || !status} onClick={() => { wanted.current = true; void connect(facing); }}><Camera size={18} />{joining ? "Connecting…" : "Join with camera and microphone"}</button> : <>
         <button type="button" className="secondary-button icon-text-button" aria-pressed={!mic} onClick={() => { const value = !mic; setMic(value); micEnabled.current = value; localStream.current?.getAudioTracks().forEach(t => { t.enabled = value; }); }}>{mic ? <Mic size={18} /> : <MicOff size={18} />}{mic ? "Mute microphone" : "Unmute microphone"}</button>
@@ -219,17 +247,42 @@ export function RemoteGuest({ token: suppliedToken, embedded = false, autoJoin =
       </>}
     </div>
     <section className="remote-guest-return"><h2>Church audio</h2>
-      <audio ref={returnAudio} hidden={embedded && !status?.return_available} controls autoPlay aria-label="Church return audio" />
+      <audio ref={returnAudio} hidden autoPlay aria-label="Church return audio" />
+      {status?.return_available && <label className="church-audio-volume">Volume<input type="range" min="0" max="1" step="0.05" value={volume} aria-label="Church audio volume" onChange={event => changeChurchVolume(Number(event.target.value))} /></label>}
       {!status?.return_available && <p>The church operator has not assigned a return audio feed.</p>}
       {returnError && <p role="status">{returnError}</p>}
-      {joined && status?.return_available && <button type="button" className="secondary-button" onClick={() => {
+      {joined && status?.return_available && returnError && <button type="button" className="secondary-button" onClick={() => {
         returnPeer.current?.close(); setReturnError("");
         void receiveContribution("/guest/return", status.ice_servers, stream => {
-          if (returnAudio.current) { returnAudio.current.srcObject = stream; void returnAudio.current.play().catch(() => setReturnError("Tap Play on church audio.")); }
+          if (returnAudio.current) { returnAudio.current.srcObject = stream; void returnAudio.current.play().catch(() => setReturnError("Adjust Church audio volume to enable sound.")); }
         }, token, false).then(pc => { if (wanted.current) returnPeer.current = pc; else pc.close(); }).catch(e => setReturnError(e.message));
       }}>Retry church audio</button>}
     </section>
     {!embedded && <RemoteServiceSlide token={token} cue={status?.cue || null} />}
     {!embedded && <p className="muted">Invitation expires {status ? new Date(status.expires_at).toLocaleString() : "…"}. Only the church operator can put you on air.</p>}
   </Container>;
+}
+
+function ChurchCamera({ token, sourceId, iceServers }: { token: string; sourceId?: string | null; iceServers?: RTCIceServer[] }) {
+  const video = useRef<HTMLVideoElement>(null);
+  const [error, setError] = useState("");
+  const [retry, setRetry] = useState(0);
+  const servers = useRef(iceServers); servers.current = iceServers;
+  useEffect(() => {
+    if (!sourceId) return;
+    let active = true;
+    let peer: RTCPeerConnection | undefined;
+    setError("");
+    void receiveContribution("/guest/camera", servers.current || [], stream => {
+      if (active && video.current) video.current.srcObject = stream;
+    }, token).then(connection => {
+      if (active) peer = connection; else connection.close();
+    }).catch(reason => { if (active) setError(reason instanceof Error ? reason.message : "Camera unavailable"); });
+    return () => { active = false; peer?.close(); if (video.current) video.current.srcObject = null; };
+  }, [token, sourceId, retry]);
+  return <div className="church-camera-preview"><span className="remote-camera-label">Livestream camera</span>
+    <video ref={video} className="remote-guest-video" autoPlay muted playsInline aria-label="Livestream camera preview" />
+    {!sourceId && <p>No church camera configured.</p>}
+    {error && <p role="status">{error}<button type="button" className="secondary-button" onClick={() => setRetry(value => value + 1)}>Retry camera</button></p>}
+  </div>;
 }
