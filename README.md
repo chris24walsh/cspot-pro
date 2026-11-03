@@ -948,6 +948,8 @@ the **Camera & mic** toggle on the **Service preview**, keeping the service prev
 No invitation is needed; the broadcast operator still chooses when to bring the
 teacher on air. Stop the camera from the same preview toggle or close its panel.
 
+Camera starts off, publishing a landscape placeholder until you choose **Camera on**. The dock shows your camera beside the church camera, with a volume-only church audio control. Native background blur is available when supported by the active camera.
+
 Teacher preview controls show Pointer and Camera & mic. Audio, Recording, and
 Blank switches remain available to production operators.
 

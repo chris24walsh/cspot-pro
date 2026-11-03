@@ -1,3 +1,4 @@
+import { cameraOffImage, createCameraPlaceholder, setNativeBlur, supportsNativeBlur } from "../cameraPrivacy";
 import { remoteCameraConstraints, switchRemoteCamera } from "../switchRemoteCamera";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { RemoteServiceSlide } from "./RemoteServiceSlide";
@@ -20,7 +21,9 @@ export function RemoteGuest({ token: suppliedToken, embedded = false, autoJoin =
   const [switching, setSwitching] = useState(false);
   const [joined, setJoined] = useState(false);
   const [mic, setMic] = useState(true);
-  const [camera, setCamera] = useState(true);
+  const [camera, setCamera] = useState(false);
+  const [blur, setBlur] = useState(false);
+  const [blurAvailable, setBlurAvailable] = useState(false);
   const [facing, setFacing] = useState<"user" | "environment">("user");
   const [volume, setVolume] = useState(1);
   const [returnError, setReturnError] = useState("");
@@ -60,7 +63,9 @@ export function RemoteGuest({ token: suppliedToken, embedded = false, autoJoin =
   const alive = useRef(true);
   const reconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const micEnabled = useRef(true);
-  const cameraEnabled = useRef(true);
+  const cameraEnabled = useRef(false);
+  const blurEnabled = useRef(false);
+  const placeholder = useRef<Awaited<ReturnType<typeof createCameraPlaceholder>> | null>(null);
 
   const closePeers = useCallback(() => {
     peer.current?.close(); peer.current = null;
@@ -73,9 +78,11 @@ export function RemoteGuest({ token: suppliedToken, embedded = false, autoJoin =
     if (reconnectTimer.current) clearTimeout(reconnectTimer.current);
     const session = publisher.current; publisher.current = null;
     closePeers();
+    placeholder.current?.stop(); placeholder.current = null;
     localStream.current?.getTracks().forEach(track => track.stop()); localStream.current = null;
     if (localVideo.current) localVideo.current.srcObject = null;
     if (session) void contributionRequest("/guest/leave", "POST", { publisher_session: session }, token).catch(() => {});
+    cameraEnabled.current = false; setCamera(false); setBlurAvailable(false);
     setJoined(false); setConnection("Not connected");
   }, [closePeers, token]);
 
@@ -94,13 +101,23 @@ export function RemoteGuest({ token: suppliedToken, embedded = false, autoJoin =
       if (!localStream.current) {
         const capture = await navigator.mediaDevices.getUserMedia({
           audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
-          video: remoteCameraConstraints(direction),
+          video: cameraEnabled.current ? remoteCameraConstraints(direction) : false,
         });
         if (!wanted.current || run !== generation.current) { capture.getTracks().forEach(t => t.stop()); return; }
         localStream.current = capture;
       }
+      if (!cameraEnabled.current && !placeholder.current) {
+        const picture = await createCameraPlaceholder();
+        if (!wanted.current || run !== generation.current) { picture.stop(); return; }
+        placeholder.current = picture;
+        localStream.current.addTrack(picture.track);
+      }
       localStream.current.getAudioTracks().forEach(track => { track.enabled = micEnabled.current; });
-      localStream.current.getVideoTracks().forEach(track => { track.enabled = cameraEnabled.current; });
+      if (cameraEnabled.current) {
+        const track = localStream.current.getVideoTracks()[0];
+        setBlurAvailable(supportsNativeBlur(track));
+        if (blurEnabled.current && supportsNativeBlur(track)) await setNativeBlur(track, true);
+      }
       if (localVideo.current) localVideo.current.srcObject = localStream.current;
       connectionPeer = new RTCPeerConnection({ iceServers: current.ice_servers });
       peer.current = connectionPeer;
@@ -201,7 +218,7 @@ export function RemoteGuest({ token: suppliedToken, embedded = false, autoJoin =
   }, [autoJoin, connect]);
 
   async function switchCamera() {
-    if (busy.current || !wanted.current || !localStream.current || !peer.current) return;
+    if (busy.current || !cameraEnabled.current || !wanted.current || !localStream.current || !peer.current) return;
     const pc = peer.current;
     const stream = localStream.current;
     const run = generation.current;
@@ -211,9 +228,16 @@ export function RemoteGuest({ token: suppliedToken, embedded = false, autoJoin =
       const selected = await switchRemoteCamera({
         peer: pc, stream, from: facing, to: facing === "user" ? "environment" : "user",
         enabled: () => cameraEnabled.current, isCurrent,
+        prepareTrack: async track => {
+          if (!blurEnabled.current) return;
+          if (!supportsNativeBlur(track)) throw new Error("This camera cannot blur the background.");
+          await setNativeBlur(track, true);
+        },
       });
       if (selected && isCurrent()) {
         setFacing(selected);
+        const track = stream.getVideoTracks()[0];
+        setBlurAvailable(supportsNativeBlur(track));
       }
     } catch (e) {
       if (isCurrent()) setError(e instanceof Error ? e.message : "Could not switch camera");
@@ -226,6 +250,57 @@ export function RemoteGuest({ token: suppliedToken, embedded = false, autoJoin =
     }
   }
 
+  async function toggleCamera() {
+    if (busy.current || !wanted.current || !localStream.current || !peer.current) return;
+    const pc = peer.current; const stream = localStream.current; const run = generation.current;
+    const sender = pc.getSenders().find(item => item.track?.kind === "video");
+    if (!sender) return;
+    const enabling = !cameraEnabled.current;
+    busy.current = true; setSwitching(true); setError("");
+    let replacement: MediaStreamTrack | undefined;
+    let picture: Awaited<ReturnType<typeof createCameraPlaceholder>> | undefined;
+    let attached = false;
+    try {
+      if (enabling) {
+        const capture = await navigator.mediaDevices.getUserMedia({ audio: false, video: remoteCameraConstraints(facing) });
+        replacement = capture.getVideoTracks()[0];
+        capture.getTracks().filter(track => track !== replacement).forEach(track => track.stop());
+        if (!replacement) throw new Error("No camera video was available");
+        if (blurEnabled.current) {
+          if (!supportsNativeBlur(replacement)) throw new Error("This camera cannot blur the background. Turn blur off before enabling it.");
+          await setNativeBlur(replacement, true);
+        }
+      } else { picture = await createCameraPlaceholder(); replacement = picture.track; }
+      if (!wanted.current || generation.current !== run || peer.current !== pc) return;
+      await sender.replaceTrack(replacement);
+      if (!wanted.current || generation.current !== run || peer.current !== pc) return;
+      stream.getVideoTracks().forEach(track => { stream.removeTrack(track); track.stop(); });
+      placeholder.current?.stop(); placeholder.current = picture || null;
+      stream.addTrack(replacement); attached = true;
+      cameraEnabled.current = enabling; setCamera(enabling);
+      setBlurAvailable(enabling && supportsNativeBlur(replacement));
+      if (localVideo.current) { localVideo.current.srcObject = null; localVideo.current.srcObject = stream; }
+    } catch (reason) {
+      if (wanted.current && generation.current === run) setError(reason instanceof Error ? reason.message : "Could not change camera");
+    } finally {
+      if (!attached) { picture?.stop(); replacement?.stop(); }
+      busy.current = false; if (alive.current) setSwitching(false);
+    }
+  }
+
+  async function changeBlur(enabled: boolean) {
+    const track = localStream.current?.getVideoTracks()[0];
+    if (busy.current || !cameraEnabled.current || !track) return;
+    busy.current = true; setSwitching(true); setError("");
+    try {
+      await setNativeBlur(track, enabled);
+      if (wanted.current && localStream.current?.getVideoTracks()[0] === track) {
+        blurEnabled.current = enabled; setBlur(enabled);
+      }
+    } catch { if (wanted.current) setError("Background blur could not be changed on this camera."); }
+    finally { busy.current = false; if (alive.current) setSwitching(false); }
+  }
+
   const Container = embedded ? "section" : "main";
   return <Container className={embedded ? "remote-guest-embedded" : "remote-guest-page"}>
     {!embedded && <header><h1>{status?.label || "Join the church service"}</h1>
@@ -235,14 +310,15 @@ export function RemoteGuest({ token: suppliedToken, embedded = false, autoJoin =
     </div>
     {error && <p role="alert" className="form-message">{error}</p>}
     <div className="remote-guest-cameras">
-      <div><span className="remote-camera-label">Your camera</span><video ref={localVideo} className="remote-guest-video" autoPlay muted playsInline aria-label="Your camera preview" /></div>
+      <div><span className="remote-camera-label">Your camera</span><div className="local-camera-picture"><video ref={localVideo} className="remote-guest-video" autoPlay muted playsInline aria-label="Your camera preview" />{!camera && <img src={cameraOffImage()} alt="Camera off — your camera is private" />}</div></div>
       {embedded && <ChurchCamera token={token} sourceId={status?.camera_source_id} iceServers={status?.ice_servers} />}
     </div>
     <div className="remote-guest-actions">
       {!joined ? <button type="button" className="primary-button icon-text-button" disabled={joining || !status} onClick={() => { wanted.current = true; void connect(facing); }}><Camera size={18} />{joining ? "Connecting…" : "Join with camera and microphone"}</button> : <>
         <button type="button" className="secondary-button icon-text-button" aria-pressed={!mic} onClick={() => { const value = !mic; setMic(value); micEnabled.current = value; localStream.current?.getAudioTracks().forEach(t => { t.enabled = value; }); }}>{mic ? <Mic size={18} /> : <MicOff size={18} />}{mic ? "Mute microphone" : "Unmute microphone"}</button>
-        <button type="button" className="secondary-button icon-text-button" aria-pressed={!camera} onClick={() => { const value = !camera; setCamera(value); cameraEnabled.current = value; localStream.current?.getVideoTracks().forEach(t => { t.enabled = value; }); }}>{camera ? <Camera size={18} /> : <CameraOff size={18} />}{camera ? "Camera off" : "Camera on"}</button>
-        <button type="button" className="secondary-button icon-text-button" disabled={joining || switching} onClick={() => void switchCamera()}><RefreshCw size={18} />{switching ? "Switching…" : "Switch camera"}</button>
+        <button type="button" className="secondary-button icon-text-button" aria-pressed={camera} disabled={joining || switching} onClick={() => void toggleCamera()}>{camera ? <Camera size={18} /> : <CameraOff size={18} />}{camera ? "Camera off" : "Camera on"}</button>
+        <button type="button" className="secondary-button icon-text-button" disabled={joining || switching || !camera} onClick={() => void switchCamera()}><RefreshCw size={18} />{switching ? "Switching…" : "Switch camera"}</button>
+        {camera && <label className="native-blur-toggle" title={blurAvailable ? "Blur your background using the device camera" : "Native background blur is not available in this browser. Try your device's video effects."}><input type="checkbox" checked={blurAvailable && blur} disabled={!blurAvailable || switching} onChange={event => void changeBlur(event.target.checked)} />Blur background{!blurAvailable && <small>Device effects</small>}</label>}
         {!embedded && <button type="button" className="secondary-button icon-text-button" onClick={() => { leave(); onLeave?.(); }}><LogOut size={18} />Leave</button>}
       </>}
     </div>

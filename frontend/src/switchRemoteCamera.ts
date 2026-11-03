@@ -6,10 +6,10 @@ export const remoteCameraConstraints = (facingMode: CameraFacing): MediaTrackCon
 
 /** Keep the microphone, return audio and publishing lease while changing video. */
 export async function switchRemoteCamera({
-  peer, stream, from, to, enabled, isCurrent,
+  peer, stream, from, to, enabled, isCurrent, prepareTrack,
 }: {
   peer: RTCPeerConnection; stream: MediaStream; from: CameraFacing; to: CameraFacing;
-  enabled: () => boolean; isCurrent: () => boolean;
+  enabled: () => boolean; isCurrent: () => boolean; prepareTrack?: (track: MediaStreamTrack) => Promise<void>;
 }): Promise<CameraFacing | null> {
   if (!isCurrent()) return null;
   const sender = peer.getSenders().find(item => item.track?.kind === "video");
@@ -28,6 +28,8 @@ export async function switchRemoteCamera({
       if (!isCurrent()) return false;
       const track = capture.getVideoTracks()[0];
       if (!track || track.readyState === "ended") throw new Error("No camera video was available");
+      if (prepareTrack) await prepareTrack(track);
+      if (!isCurrent()) return false;
       track.enabled = enabled();
       await sender!.replaceTrack(track);
       if (!isCurrent()) return false;

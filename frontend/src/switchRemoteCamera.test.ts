@@ -71,3 +71,14 @@ it("releases a replacement if the page closes while replaceTrack is pending", as
   expect(replacement.video.stop).toHaveBeenCalled();
   expect(current.stream.getVideoTracks()).toEqual([current.video]);
 });
+it("prepares camera privacy effects before transmission and restores the old camera if preparation fails", async () => {
+  const current = connection(), rejected = capture(), restored = capture();
+  vi.stubGlobal("navigator", { mediaDevices: { getUserMedia: vi.fn().mockResolvedValueOnce(rejected.stream).mockResolvedValueOnce(restored.stream) } });
+  const prepareTrack = vi.fn().mockRejectedValueOnce(new Error("Blur unsupported")).mockResolvedValueOnce(undefined);
+  await expect(switchFrom(current, { prepareTrack })).rejects.toThrow("previous camera has been restored");
+  expect(rejected.video.stop).toHaveBeenCalled();
+  expect(current.sender.replaceTrack).toHaveBeenCalledTimes(1);
+  expect(current.sender.replaceTrack).toHaveBeenCalledWith(restored.video);
+  expect(prepareTrack).toHaveBeenCalledWith(restored.video);
+  expect(current.audio.stop).not.toHaveBeenCalled();
+});

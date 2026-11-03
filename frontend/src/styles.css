@@ -14465,3 +14465,7 @@ button.musician-page {
 .service-camera-panel-inline .remote-guest-actions { grid-column: 1; }
 .service-camera-panel-inline .remote-guest-return { grid-column: 2; }
 .church-camera-preview p { font-size: 11px; margin: 3px 0; }
+.local-camera-picture { position: relative; }
+.local-camera-picture > img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; border-radius: 6px; background: #b5cec1; }
+.native-blur-toggle { display: flex; align-items: center; flex-wrap: wrap; gap: 4px; font-size: 11px; }
+.native-blur-toggle small { width: 100%; color: #65736b; }

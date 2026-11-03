@@ -962,3 +962,5 @@ of occupying a full-width header. The slideshow preview uses the reclaimed top
 space. Camera controls dock below it in the notes area; notes remain editable
 alongside the camera on wider layouts. The dock can be minimized without ending
 capture, and its session persists across slide/note changes.
+
+Camera contribution starts with camera hardware off and a landscape placeholder published in its place. Camera on opens the camera; Camera off replaces the video track with the placeholder and releases the camera without restarting the microphone or publishing session. Native background blur is offered only when the active camera reports support; other devices can use system video effects.

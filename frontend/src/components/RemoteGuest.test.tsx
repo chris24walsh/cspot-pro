@@ -4,13 +4,14 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { RemoteGuest } from "./RemoteGuest";
 
-const { request, receive } = vi.hoisted(() => ({ request: vi.fn(), receive: vi.fn() }));
+const { request, receive, placeholder, nativeBlur, supportsBlur } = vi.hoisted(() => ({ request: vi.fn(), receive: vi.fn(), placeholder: vi.fn(), nativeBlur: vi.fn(), supportsBlur: vi.fn(() => false) }));
 vi.mock("../remoteContribution", () => ({
   contributionRequest: request,
   completeOffer: vi.fn(async () => "offer"),
   receiveContribution: receive,
   ContributionError: class ContributionError extends Error { status = 500; },
 }));
+vi.mock("../cameraPrivacy", () => ({ cameraOffImage: () => "/images/camera-off.svg", createCameraPlaceholder: placeholder, setNativeBlur: nativeBlur, supportsNativeBlur: supportsBlur }));
 vi.mock("./RemoteServiceSlide", () => ({ RemoteServiceSlide: () => <div>Church confidence slide</div> }));
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 let root: Root;
@@ -40,12 +41,13 @@ function button(text: string) {
 beforeEach(() => {
   captures = []; peers = [];
   window.location.hash = "invitation-secret";
-  request.mockReset(); receive.mockReset();
+  request.mockReset(); receive.mockReset(); placeholder.mockReset(); nativeBlur.mockReset(); nativeBlur.mockResolvedValue(undefined); supportsBlur.mockReturnValue(false);
+  placeholder.mockImplementation(async () => { const track = { kind: "video", enabled: true, stop: vi.fn() }; return { track, stop: () => track.stop() }; });
   request.mockImplementation(async (path: string) => path === "/guest/publish" ? { sdp: "answer", publisher_session: "device-session" } : {
     id: "guest", label: "Pastor", expires_at: new Date(Date.now() + 3600000).toISOString(),
     live: false, connected: false, ice_servers: [], return_available: false, cue: null,
   });
-  getUserMedia = vi.fn<[MediaStreamConstraints], Promise<ReturnType<typeof stream>>>(async () => stream());
+  getUserMedia = vi.fn<[MediaStreamConstraints], Promise<ReturnType<typeof stream>>>(async constraints => { const captured = stream(); if (constraints.video === false) captured.removeTrack(captured.getVideoTracks()[0]); if (constraints.audio === false) captured.removeTrack(captured.getAudioTracks()[0]); return captured; });
   vi.stubGlobal("navigator", { mediaDevices: { getUserMedia } });
   vi.stubGlobal("RTCRtpSender", { getCapabilities: () => ({ codecs: [] }) });
   vi.stubGlobal("RTCPeerConnection", vi.fn(() => {
@@ -65,6 +67,27 @@ afterEach(async () => {
 });
 
 describe("remote tablet capture", () => {
+  it("starts with no camera access, sends a picture, and releases camera hardware when turned off", async () => {
+    await act(async () => root.render(<RemoteGuest />));
+    await act(async () => button("Join with").click());
+    expect(getUserMedia.mock.calls[0][0].video).toBe(false);
+    expect(host.querySelector('img[alt*="Camera off"]')).not.toBeNull();
+    expect(button("Switch camera").disabled).toBe(true);
+    supportsBlur.mockReturnValue(true);
+    await act(async () => button("Camera on").click());
+    expect(host.querySelector('img[alt*="Camera off"]')).toBeNull();
+    expect(getUserMedia.mock.calls[1][0]).toMatchObject({ audio: false, video: { facingMode: "user" } });
+    const blur = host.querySelector<HTMLInputElement>('.native-blur-toggle input')!;
+    await act(async () => blur.click());
+    expect(nativeBlur).toHaveBeenCalledWith(captures[1].video, true);
+    await act(async () => button("Camera off").click());
+    expect(captures[1].video.stop).toHaveBeenCalled();
+    expect(captures[0].audio.stop).not.toHaveBeenCalled();
+    expect(peers[0].close).not.toHaveBeenCalled();
+    expect(request.mock.calls.filter(call => call[0] === "/guest/publish")).toHaveLength(1);
+    expect(host.querySelector('img[alt*="Camera off"]')).not.toBeNull();
+  });
+
   it("shows two cameras with muted church video and a volume-only audio control", async () => {
     const close = vi.fn();
     receive.mockImplementation(async (_path, _servers, onStream) => { onStream({ id: "church" }); return { close }; });
@@ -98,7 +121,7 @@ describe("remote tablet capture", () => {
     expect(host.textContent).toContain("Connected — waiting for the church operator");
     await act(async () => button("Leave").click());
     expect(captures[0].audio.stop).toHaveBeenCalled();
-    expect(captures[0].video.stop).toHaveBeenCalled();
+    expect(getUserMedia.mock.calls[0][0].video).toBe(false);
     expect(peers[0].close).toHaveBeenCalled();
     expect(request).toHaveBeenCalledWith("/guest/leave", "POST", { publisher_session: "device-session" }, "invitation-secret");
   });
@@ -132,41 +155,44 @@ describe("remote tablet capture", () => {
   it("preserves microphone mute when switching cameras", async () => {
     await act(async () => root.render(<RemoteGuest />));
     await act(async () => button("Join with").click());
+    await act(async () => button("Camera on").click());
     await act(async () => button("Mute microphone").click());
     expect(captures[0].audio.enabled).toBe(false);
     await act(async () => button("Switch camera").click());
-    expect(getUserMedia).toHaveBeenCalledTimes(2);
-    expect(captures[0].video.stop).toHaveBeenCalled();
+    expect(getUserMedia).toHaveBeenCalledTimes(3);
+    expect(captures[1].video.stop).toHaveBeenCalled();
     expect(captures[0].audio.enabled).toBe(false);
-    expect(getUserMedia.mock.calls[1][0]).toMatchObject({ audio: false, video: { facingMode: "environment" } });
+    expect(getUserMedia.mock.calls[2][0]).toMatchObject({ audio: false, video: { facingMode: "environment" } });
     expect(captures[0].audio.stop).not.toHaveBeenCalled();
     expect(peers).toHaveLength(1);
     expect(peers[0].close).not.toHaveBeenCalled();
-    expect(peers[0].getSenders().find(sender => sender.track.kind === "video")!.replaceTrack).toHaveBeenCalledWith(captures[1].video);
+    expect(peers[0].getSenders().find(sender => sender.track.kind === "video")!.replaceTrack).toHaveBeenCalledWith(captures[2].video);
     expect(request.mock.calls.filter(call => call[0] === "/guest/publish")).toHaveLength(1);
   });
   it("restores the original camera if opening the other camera fails", async () => {
     await act(async () => root.render(<RemoteGuest />));
     await act(async () => button("Join with").click());
+    await act(async () => button("Camera on").click());
     getUserMedia.mockRejectedValueOnce(new DOMException("Rear camera unavailable", "NotReadableError"));
     await act(async () => button("Switch camera").click());
     expect(captures[0].audio.stop).not.toHaveBeenCalled();
     expect(peers[0].close).not.toHaveBeenCalled();
-    expect(getUserMedia.mock.calls[2][0]).toMatchObject({ audio: false, video: { facingMode: "user" } });
+    expect(getUserMedia.mock.calls[3][0]).toMatchObject({ audio: false, video: { facingMode: "user" } });
     expect(host.textContent).toContain("previous camera has been restored");
     expect(button("Switch camera").disabled).toBe(false);
   });
   it("stops a late camera-switch result when the guest leaves", async () => {
     await act(async () => root.render(<RemoteGuest />));
     await act(async () => button("Join with").click());
+    await act(async () => button("Camera on").click());
     let finish!: (value: ReturnType<typeof stream>) => void;
     getUserMedia.mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
     await act(async () => button("Switch camera").click());
     await act(async () => button("Leave").click());
     const late = stream();
     await act(async () => finish(late));
-    expect(captures[1].video.stop).toHaveBeenCalled();
-    expect(peers[0].getSenders().find(sender => sender.track.kind === "video")!.replaceTrack).not.toHaveBeenCalled();
+    expect(captures[2].video.stop).toHaveBeenCalled();
+    expect(peers[0].getSenders().find(sender => sender.track.kind === "video")!.replaceTrack).toHaveBeenCalledTimes(1);
   });
   it("stops late camera permission results after the page has closed", async () => {
     let finish!: (value: ReturnType<typeof stream>) => void;

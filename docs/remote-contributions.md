@@ -176,3 +176,5 @@ Fullscreen remains available, and the camera dock retains the same media session
 when navigating slides or editing notes.
 
 The Service camera dock shows your local camera and the selected church livestream camera side by side. The church camera uses an invitation-scoped signaling endpoint; private camera URLs stay on the server. Its preview is muted so church sound comes only from the separate return audio feed, controlled by a volume slider. If autoplay is blocked, adjusting that slider enables playback.
+
+Camera contribution starts with camera hardware off and a landscape placeholder published in its place. Camera on opens the camera; Camera off replaces the video track with the placeholder and releases the camera without restarting the microphone or publishing session. Native background blur is offered only when the active camera reports support; other devices can use system video effects.
