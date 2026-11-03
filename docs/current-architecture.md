@@ -1720,3 +1720,12 @@ operator approval and the temporary broadcast override remain unchanged.
 Preview toggles are composed by `ServicePreviewToggles`: teacher-only accounts
 see Pointer and Camera & mic; production roles retain Audio, Recording, and
 Blank. Teacher views also suppress manual recording controls and blank hotkeys.
+
+Service layout now owns its date navigator inside the sorter header. The global
+Service header has zero layout height; its fullscreen control remains available
+beside the sorter navigation on wide screens and over the preview on narrow
+screens. `ServiceCameraControl` portals into a stable preview-details slot below
+the slideshow. Visibility callbacks collapse the dock's space when inactive or
+minimized, while the mounted media component retains capture across slide and
+notes changes. Notes share that region where available. Layout changes apply to
+all Service roles, with responsive three-column layouts from 900px upward.

@@ -215,11 +215,11 @@ export function RemoteGuest({ token: suppliedToken, embedded = false, autoJoin =
         <button type="button" className="secondary-button icon-text-button" aria-pressed={!mic} onClick={() => { const value = !mic; setMic(value); micEnabled.current = value; localStream.current?.getAudioTracks().forEach(t => { t.enabled = value; }); }}>{mic ? <Mic size={18} /> : <MicOff size={18} />}{mic ? "Mute microphone" : "Unmute microphone"}</button>
         <button type="button" className="secondary-button icon-text-button" aria-pressed={!camera} onClick={() => { const value = !camera; setCamera(value); cameraEnabled.current = value; localStream.current?.getVideoTracks().forEach(t => { t.enabled = value; }); }}>{camera ? <Camera size={18} /> : <CameraOff size={18} />}{camera ? "Camera off" : "Camera on"}</button>
         <button type="button" className="secondary-button icon-text-button" disabled={joining || switching} onClick={() => void switchCamera()}><RefreshCw size={18} />{switching ? "Switching…" : "Switch camera"}</button>
-        <button type="button" className="secondary-button icon-text-button" onClick={() => { leave(); onLeave?.(); }}><LogOut size={18} />Leave</button>
+        {!embedded && <button type="button" className="secondary-button icon-text-button" onClick={() => { leave(); onLeave?.(); }}><LogOut size={18} />Leave</button>}
       </>}
     </div>
     <section className="remote-guest-return"><h2>Church audio</h2>
-      <audio ref={returnAudio} controls autoPlay aria-label="Church return audio" />
+      <audio ref={returnAudio} hidden={embedded && !status?.return_available} controls autoPlay aria-label="Church return audio" />
       {!status?.return_available && <p>The church operator has not assigned a return audio feed.</p>}
       {returnError && <p role="status">{returnError}</p>}
       {joined && status?.return_available && <button type="button" className="secondary-button" onClick={() => {

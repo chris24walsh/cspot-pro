@@ -6,7 +6,9 @@ import { RemoteGuest } from "./RemoteGuest";
 
 type DeviceSession = { id: string; token: string };
 
-export function ServiceCameraControl() {
+export function ServiceCameraControl({ panelTarget, onPanelVisibleChange }: {
+  panelTarget?: HTMLElement | null; onPanelVisibleChange?: (visible: boolean) => void;
+} = {}) {
   const [session, setSession] = useState<DeviceSession | null>(null);
   const [previewOpen, setPreviewOpen] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -21,6 +23,9 @@ export function ServiceCameraControl() {
       if (previous) void contributionRequest(`/self/${previous.id}`, "DELETE").catch(() => {});
     };
   }, []);
+  useEffect(() => { onPanelVisibleChange?.(Boolean(session) && previewOpen); }, [session, previewOpen, onPanelVisibleChange]);
+  useEffect(() => () => onPanelVisibleChange?.(false), [onPanelVisibleChange]);
+  const destination = panelTarget === undefined ? (typeof document === "undefined" ? null : document.body) : panelTarget;
   async function stop() {
     const previous = current.current;
     current.current = null; setSession(null);
@@ -48,10 +53,9 @@ export function ServiceCameraControl() {
     </label>
     {session && !previewOpen && <button type="button" className="secondary-button icon-button" aria-label="Show camera controls" title="Show camera controls" onClick={() => setPreviewOpen(true)}><ScanEye size={16} aria-hidden="true" /></button>}
     {error && <span className="form-message" role="alert">{error}</span>}
-    {session && createPortal(<aside hidden={!previewOpen} className="service-camera-panel" aria-label="Your service camera and microphone">
-      <header><strong>Your camera & mic</strong><button type="button" className="icon-button" aria-label="Hide camera controls" title="Hide camera controls — keep streaming" onClick={() => setPreviewOpen(false)}><Minimize2 size={17} aria-hidden="true" /></button><button type="button" className="icon-button" aria-label="Stop camera and microphone" title="Stop camera and microphone" onClick={() => void stop()}><X size={17} /></button></header>
-      <p>Use headphones. The broadcast operator chooses when to put you on air.</p>
+    {session && destination && createPortal(<aside hidden={!previewOpen} className={`service-camera-panel ${panelTarget ? "service-camera-panel-inline" : ""}`} aria-label="Your service camera and microphone">
+      <header><strong>Camera & mic</strong><small>Use headphones</small><button type="button" className="icon-button" aria-label="Hide camera controls" title="Hide camera controls — keep streaming" onClick={() => setPreviewOpen(false)}><Minimize2 size={17} aria-hidden="true" /></button><button type="button" className="icon-button" aria-label="Stop camera and microphone" title="Stop camera and microphone" onClick={() => void stop()}><X size={17} /></button></header>
       <RemoteGuest key={session.id} token={session.token} embedded autoJoin onLeave={() => void stop()} />
-    </aside>, document.body)}
+    </aside>, destination)}
   </>;
 }

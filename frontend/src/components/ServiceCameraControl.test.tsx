@@ -64,3 +64,23 @@ it("hides the preview without ending capture and reopens the same session", asyn
   expect(document.querySelector<HTMLElement>(".service-camera-panel")?.hidden).toBe(false);
   expect(request).toHaveBeenCalledTimes(1);
 });
+
+it("docks beneath the preview and retains its session while notes change", async () => {
+  const slot = document.createElement("div"); document.body.append(slot);
+  const visible = vi.fn();
+  const view = (notes: string) => <div><ServiceCameraControl panelTarget={slot} onPanelVisibleChange={visible} /><textarea readOnly value={notes} /></div>;
+  try {
+    await act(async () => root.render(view("First slide notes")));
+    await act(async () => host.querySelector<HTMLInputElement>('input[type="checkbox"]')!.click());
+    const panel = slot.querySelector(".service-camera-panel-inline");
+    expect(panel).not.toBeNull();
+    expect(document.body.querySelector(":scope > .service-camera-panel")).toBeNull();
+    expect(visible).toHaveBeenLastCalledWith(true);
+    await act(async () => root.render(view("Next slide notes")));
+    expect(slot.querySelector(".service-camera-panel-inline")).toBe(panel);
+    expect(request.mock.calls.filter(call => call[0] === "/self")).toHaveLength(1);
+    await act(async () => slot.querySelector<HTMLButtonElement>('[aria-label="Hide camera controls"]')!.click());
+    expect(visible).toHaveBeenLastCalledWith(false);
+    expect(request.mock.calls.filter(call => call[0] === "/self")).toHaveLength(1);
+  } finally { await act(async () => root.unmount()); slot.remove(); }
+});

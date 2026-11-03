@@ -3,9 +3,11 @@ import { EyeOff, Mic, Volume2 } from "lucide-react";
 import { PointerToggle } from "./PointerToggle";
 import { ServiceCameraControl } from "./ServiceCameraControl";
 
-export function ServicePreviewToggles({ teacherOnly, canContributeCamera, production, pointer }: {
+export function ServicePreviewToggles({ teacherOnly, canContributeCamera, production, pointer, cameraPanelTarget, onCameraPanelVisibleChange }: {
   teacherOnly: boolean;
   canContributeCamera: boolean;
+  cameraPanelTarget?: HTMLElement | null;
+  onCameraPanelVisibleChange?: (visible: boolean) => void;
   production: {
     audioEnabled: boolean; onAudioChange: (enabled: boolean) => void;
     recordingEnabled: boolean; onRecordingChange: (enabled: boolean) => void;
@@ -47,6 +49,6 @@ export function ServicePreviewToggles({ teacherOnly, canContributeCamera, produc
       </label>
     </>}
     <PointerToggle {...pointer} />
-    {canContributeCamera && <ServiceCameraControl />}
+    {canContributeCamera && <ServiceCameraControl panelTarget={cameraPanelTarget} onPanelVisibleChange={onCameraPanelVisibleChange} />}
   </>;
 }

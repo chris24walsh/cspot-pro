@@ -10,9 +10,11 @@ Keep the page visible, connect power, and use headphones.
 ## Teachers using the Service workspace
 
 A signed-in Teacher can use **Service → Camera & mic** on the preview beside Pointer.
-One click opens a compact camera panel and requests camera/microphone access;
+One click docks a compact camera panel in the notes area below the preview and
+requests camera/microphone access;
 the service preview, slide sorter, section rail, and slide controls stay available.
-The preview can be minimized while streaming and reopened from the preview controls.
+The dock shares space with editable notes on wider screens. It can be minimized
+while streaming and reopened from the preview controls.
 Switch camera replaces only the video track on the existing connection. The
 microphone, church return audio, and publishing lease remain active. If the other
 camera cannot be opened or attached, CSpot attempts to restore the previous
@@ -167,3 +169,8 @@ The supplied guest page closes peers when it detects expiry/revocation. Use an
 appropriately limited church return feed; immediate forced revocation of an
 already-connected hostile receiver would require a gateway with managed WHEP
 sessions or an additional media relay.
+
+The Service date navigator is above the slide sorter for every Service role.
+The former full-width date/header row no longer consumes preview height.
+Fullscreen remains available, and the camera dock retains the same media session
+when navigating slides or editing notes.
