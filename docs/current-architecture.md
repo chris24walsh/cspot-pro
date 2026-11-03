@@ -1730,6 +1730,6 @@ all Service roles, with responsive three-column layouts from 900px upward.
 
 Service contributors receive the selected church camera through the scoped `/guest/camera` signaling endpoint, independently of the remote program override. The dock displays this muted camera beside local capture and uses a volume slider for church return audio.
 
-Remote publishing keeps both the camera-off canvas and real camera at 24 fps. The gateway normalizes viewer output to 24 fps with one-second keyframes, preventing placeholder timing from carrying into live video. The Service dock uses compact overlaid labels and omits camera switching; slide frames never shrink to accommodate the dock, with scrolling available in short viewports.
+Remote publishing keeps both the camera-off canvas and real camera at 24 fps. Gateway registration uses its accepted H.264/AAC presets; arbitrary FFmpeg arguments are rejected by its API. The steady capture cadence prevents placeholder timing from carrying into live video. The Service dock uses compact overlaid labels and omits camera switching; slide frames never shrink to accommodate the dock, with scrolling available in short viewports.
 
 Camera MSE playback tolerates normal one-second fragment bursts without seeking; it uses modest catch-up for drift and seeks only after larger stalls or buffer gaps. Audio timing remains unchanged.
