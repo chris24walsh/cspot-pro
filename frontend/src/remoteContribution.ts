@@ -77,7 +77,7 @@ export async function completeOffer(peer: RTCPeerConnection) {
           // WHIP/WHEP can try those addresses without waiting for every lookup.
           resolve();
         } else {
-          reject(new Error("Connection discovery found no network addresses. Try another network or check that your browser allows camera calls."));
+          reject(new Error("Connection discovery found no network addresses. Allow WebRTC camera calls in your browser or VPN, or try another network."));
         }
       }, ICE_GATHERING_TIMEOUT_MS);
       peer.addEventListener("icegatheringstatechange", finished);

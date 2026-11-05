@@ -1733,3 +1733,5 @@ Service contributors receive the selected church camera through the scoped `/gue
 Remote publishing keeps both the camera-off canvas and real camera at 24 fps. Gateway registration uses its accepted H.264/AAC presets; arbitrary FFmpeg arguments are rejected by its API. The steady capture cadence prevents placeholder timing from carrying into live video. The Service dock uses compact overlaid labels and omits camera switching; slide frames never shrink to accommodate the dock, with scrolling available in short viewports.
 
 Camera MSE playback tolerates normal one-second fragment bursts without seeking; it uses modest catch-up for drift and seeks only after larger stalls or buffer gaps. Audio timing remains unchanged.
+
+Default ICE discovery uses independent Cloudflare (UDP 3478) and Google (UDP 19302) STUN services. Custom ICE lists remain authoritative. This supplies alternative discovery paths; networks or browser policies that block all WebRTC traffic still require a policy/network change or a configured TURN relay. Connection failures retain a compact manual Retry action and do not overlap the dock status badge.

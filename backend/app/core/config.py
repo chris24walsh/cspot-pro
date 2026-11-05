@@ -32,7 +32,10 @@ class Settings(BaseSettings):
     ptz_port: int = Field(default=80, ge=1, le=65535)
     ptz_username: str = "admin"
     ptz_password: str = ""
-    remote_ice_servers_json: str = '[{"urls":"stun:stun.l.google.com:19302"}]'
+    remote_ice_servers_json: str = (
+        '[{"urls":"stun:stun.cloudflare.com:3478"},'
+        '{"urls":"stun:stun.l.google.com:19302"}]'
+    )
     remote_turn_urls: str = ""
     remote_turn_secret: str = ""
     camera_proxy_upstream: str | None = None

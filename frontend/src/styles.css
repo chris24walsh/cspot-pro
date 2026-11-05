@@ -14469,3 +14469,9 @@ button.musician-page {
 .service-camera-panel-inline .remote-guest-actions button svg { width: 13px; height: 13px; }
 .service-camera-panel-inline .remote-guest-return { align-self: center; }
 .service-camera-panel-inline .church-audio-volume { gap: 4px; }
+
+/* Keep connection failures readable beneath the compact status/close controls. */
+.service-camera-panel-inline .remote-guest-embedded.has-connection-error .remote-guest-status { position: static; grid-column: 1 / -1; padding-right: 50px; }
+.service-camera-panel-inline .remote-guest-embedded.has-connection-error > .form-message { overflow-wrap: anywhere; padding: 5px; font-size: 12px; line-height: 1.4; }
+
+.service-camera-panel-inline .remote-guest-actions .primary-button { color: #234b37; }

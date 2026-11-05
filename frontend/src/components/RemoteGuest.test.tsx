@@ -3,6 +3,7 @@ import { act, StrictMode } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { RemoteGuest } from "./RemoteGuest";
+import { completeOffer } from "../remoteContribution";
 
 const { request, receive, placeholder, nativeBlur, supportsBlur } = vi.hoisted(() => ({ request: vi.fn(), receive: vi.fn(), placeholder: vi.fn(), nativeBlur: vi.fn(), supportsBlur: vi.fn(() => false) }));
 vi.mock("../remoteContribution", () => ({
@@ -67,6 +68,17 @@ afterEach(async () => {
 });
 
 describe("remote tablet capture", () => {
+  it("keeps a compact Retry action after discovery fails", async () => {
+    vi.mocked(completeOffer).mockRejectedValueOnce(new Error("Connection discovery found no network addresses"));
+    await act(async () => root.render(<RemoteGuest token="secret" embedded autoJoin />));
+    await act(async () => { await new Promise(resolve => setTimeout(resolve, 10)); });
+    expect(host.querySelector('.has-connection-error')).not.toBeNull();
+    expect(host.querySelector('[role="alert"]')?.textContent).toContain("no network addresses");
+    expect(button("Retry").getAttribute("aria-label")).toBe("Retry camera connection");
+    await act(async () => button("Retry").click());
+    expect(host.querySelector('[role="alert"]')).toBeNull();
+  });
+
   it("starts with no camera access, sends a picture, and releases camera hardware when turned off", async () => {
     await act(async () => root.render(<RemoteGuest />));
     await act(async () => button("Join with").click());

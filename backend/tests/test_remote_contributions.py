@@ -538,3 +538,21 @@ def test_guest_camera_is_scoped_and_does_not_follow_remote_override(setup, monke
     guest.revoked_at = datetime.now(UTC)
     session.commit()
     assert client.post(path, json=offer, headers=authorization(invitation)).status_code == 401
+
+
+def test_default_discovery_has_independent_servers_and_preserves_custom_lists(monkeypatch):
+    from app.core.config import Settings
+
+    monkeypatch.setattr(
+        remote.config,
+        "remote_ice_servers_json",
+        Settings.model_fields["remote_ice_servers_json"].default,
+    )
+    monkeypatch.setattr(remote.config, "remote_turn_urls", "")
+    monkeypatch.setattr(remote.config, "remote_turn_secret", "")
+    assert {server["urls"] for server in remote.ice_servers()} == {
+        "stun:stun.cloudflare.com:3478",
+        "stun:stun.l.google.com:19302",
+    }
+    monkeypatch.setattr(remote.config, "remote_ice_servers_json", "[]")
+    assert remote.ice_servers() == []

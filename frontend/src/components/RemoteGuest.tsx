@@ -89,6 +89,7 @@ export function RemoteGuest({ token: suppliedToken, embedded = false, autoJoin =
   const connect = useCallback(async function connectDevice(direction: "user" | "environment") {
     if (busy.current || !wanted.current) return;
     busy.current = true;
+    if (reconnectTimer.current) { clearTimeout(reconnectTimer.current); reconnectTimer.current = null; }
     const run = generation.current;
     setJoining(true); setError(""); setReturnError(""); setConnection("Connecting…");
     closePeers();
@@ -302,7 +303,7 @@ export function RemoteGuest({ token: suppliedToken, embedded = false, autoJoin =
   }
 
   const Container = embedded ? "section" : "main";
-  return <Container className={embedded ? "remote-guest-embedded" : "remote-guest-page"}>
+  return <Container className={embedded ? `remote-guest-embedded ${error ? "has-connection-error" : ""}` : "remote-guest-page"}>
     {!embedded && <header><h1>{status?.label || "Join the church service"}</h1>
       <p>Use headphones. Keep this page open and your device powered while contributing.</p></header>}
     <div className={`remote-guest-status ${status?.live ? "is-live" : ""}`} role="status">
@@ -310,11 +311,11 @@ export function RemoteGuest({ token: suppliedToken, embedded = false, autoJoin =
     </div>
     {error && <p role="alert" className="form-message">{error}</p>}
     <div className="remote-guest-cameras">
-      <div><span className="remote-camera-label">You</span><div className="local-camera-picture"><video ref={localVideo} className="remote-guest-video" autoPlay muted playsInline aria-label="Your camera preview" />{!camera && <img src={cameraOffImage()} alt="Camera off — your camera is private" />}</div></div>
+      <div><div className="local-camera-picture"><span className="remote-camera-label">You</span><video ref={localVideo} className="remote-guest-video" autoPlay muted playsInline aria-label="Your camera preview" />{!camera && <img src={cameraOffImage()} alt="Camera off — your camera is private" />}</div></div>
       {embedded && <ChurchCamera token={token} sourceId={status?.camera_source_id} iceServers={status?.ice_servers} />}
     </div>
     <div className="remote-guest-actions">
-      {!joined ? <button type="button" className="primary-button icon-text-button" disabled={joining || !status} onClick={() => { wanted.current = true; void connect(facing); }}><Camera size={18} />{joining ? "Connecting…" : "Join with camera and microphone"}</button> : <>
+      {!joined ? <button type="button" className="primary-button icon-text-button" aria-label={embedded ? "Retry camera connection" : undefined} title={embedded ? "Retry camera connection" : undefined} disabled={joining || !status} onClick={() => { wanted.current = true; void connect(facing); }}><Camera size={18} />{joining ? "Connecting…" : embedded ? "Retry" : "Join with camera and microphone"}</button> : <>
         <button type="button" className="secondary-button icon-text-button" aria-label={mic ? "Mute microphone" : "Unmute microphone"} title={mic ? "Mute microphone — use headphones" : "Unmute microphone — use headphones"} aria-pressed={!mic} onClick={() => { const value = !mic; setMic(value); micEnabled.current = value; localStream.current?.getAudioTracks().forEach(t => { t.enabled = value; }); }}>{mic ? <Mic size={18} /> : <MicOff size={18} />}{embedded ? "Mic" : mic ? "Mute microphone" : "Unmute microphone"}</button>
         <button type="button" className="secondary-button icon-text-button" aria-label={camera ? "Camera off" : "Camera on"} title={camera ? "Turn camera off" : "Turn camera on"} aria-pressed={camera} disabled={joining || switching} onClick={() => void toggleCamera()}>{camera ? <Camera size={18} /> : <CameraOff size={18} />}{embedded ? "Cam" : camera ? "Camera off" : "Camera on"}</button>
         {!embedded && <button type="button" className="secondary-button icon-text-button" disabled={joining || switching || !camera} onClick={() => void switchCamera()}><RefreshCw size={18} />{switching ? "Switching…" : "Switch camera"}</button>}
@@ -356,9 +357,9 @@ function ChurchCamera({ token, sourceId, iceServers }: { token: string; sourceId
     }).catch(reason => { if (active) setError(reason instanceof Error ? reason.message : "Camera unavailable"); });
     return () => { active = false; peer?.close(); if (video.current) video.current.srcObject = null; };
   }, [token, sourceId, retry]);
-  return <div className="church-camera-preview"><span className="remote-camera-label">Church</span>
-    <video ref={video} className="remote-guest-video" autoPlay muted playsInline aria-label="Livestream camera preview" />
+  return <div className="church-camera-preview"><div className="local-camera-picture"><span className="remote-camera-label">Church</span>
+    <video ref={video} className="remote-guest-video" autoPlay muted playsInline aria-label="Livestream camera preview" /></div>
     {!sourceId && <p>No church camera configured.</p>}
-    {error && <p role="status">{error}<button type="button" className="secondary-button" onClick={() => setRetry(value => value + 1)}>Retry camera</button></p>}
+    {error && <p role="status"><span title={error}>Church camera unavailable.</span><button type="button" className="secondary-button" onClick={() => setRetry(value => value + 1)}>Retry camera</button></p>}
   </div>;
 }
