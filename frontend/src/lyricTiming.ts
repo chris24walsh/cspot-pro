@@ -42,6 +42,17 @@ export function lyricBarLayout(lyrics: string | null | undefined, rhythm: SongRh
   return bars;
 }
 
+// Bar settings must not be blocked by pre-existing timing errors in other bars.
+export function validateBarMeterChange(lyrics: string | null, before: SongRhythm, after: SongRhythm, annotations: ChordAnnotation[]): void {
+  const previous = lyricBarLayout(lyrics, before, annotations);
+  const resolved = resolveChordAnnotations(annotations, lyrics);
+  for (const bar of lyricBarLayout(lyrics, after, annotations)) {
+    const old = previous.find(candidate => candidate.section === bar.section && compare(candidate.start, bar.start) === 0);
+    if (old?.rhythm?.numerator === bar.rhythm?.numerator) continue;
+    chordBeats(bar.stops.slice(0, -1).map(stop => resolved.find(chord => chord.absoluteLineIndex === stop.lineIndex && chord.anchorIndex === stop.anchorIndex) ?? {}), bar.rhythm?.numerator ?? after.numerator, true);
+  }
+}
+
 function offsets(lyrics: string | null | undefined) {
   let offset = 0;
   return lyricLines(lyrics ?? null).map(line => { const result = offset; offset += line.length + LEADING_CHORD_ANCHORS + TRAILING_CHORD_ANCHORS; return result; });

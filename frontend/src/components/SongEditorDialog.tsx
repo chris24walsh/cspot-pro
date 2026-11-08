@@ -33,7 +33,7 @@ import { buildPracticePerformance, PracticeAudioPlayer, parseBarChart, transpose
 import { canonicalizeWorshipLyrics, normalizeWorshipSequence } from "../worshipText";
 import { useConfirmationDialog } from "./ConfirmationDialog";
 import { chordBeats, placeBarMarker, removeBarMarker, rhythmWithBarMarkers } from "../barMarkers";
-import { timedPracticeBars, lyricBarLayout, lyricColumnWidths, wrapTimedLine, lyricCursorAt, lyricPlaybackBars, musicalSectionKey, type LyricCursor } from "../lyricTiming";
+import { validateBarMeterChange, timedPracticeBars, lyricBarLayout, lyricColumnWidths, wrapTimedLine, lyricCursorAt, lyricPlaybackBars, musicalSectionKey, type LyricCursor } from "../lyricTiming";
 import { LyricMusicControls, TimingDot } from "./LyricMusicControls";
 import { CompactControlMenu } from "./CompactControlMenu";
 import { BarRhythmEditor } from "./BarRhythmEditor";
@@ -530,11 +530,8 @@ export function SongEditorDialog({
   function formWithBarSettings(change: BarRhythmChange | undefined): SongForm {
     if (!canEdit || !form.rhythm) throw new Error("Bar settings cannot be edited.");
     const next = { ...form.rhythm, markers: form.rhythm.markers?.map(marker => marker.id === editingBarId ? { ...marker, rhythm: change } : marker) };
-    const resolved = resolveChordAnnotations(chordChart.annotations, chordLyrics);
     try {
-      for (const bar of lyricBarLayout(chordLyrics, next, chordChart.annotations)) {
-        chordBeats(bar.stops.slice(0, -1).map(stop => resolved.find(chord => chord.absoluteLineIndex === stop.lineIndex && chord.anchorIndex === stop.anchorIndex) ?? {}), bar.rhythm?.numerator ?? next.numerator, true);
-      }
+      validateBarMeterChange(chordLyrics, form.rhythm, next, chordChart.annotations);
     } catch { throw new Error("An assigned chord beat falls outside this meter or overlaps another change. Adjust the chord timing before shortening this bar."); }
     return { ...form, rhythm: next };
   }

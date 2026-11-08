@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest';
-import { liveJumpStart, timelineWithEntry, lyricBarLayout, lyricColumnWidths, lyricCursorAt, lyricPlaybackBars, timedPracticeBars, wrapTimedLine } from './lyricTiming';
+import { validateBarMeterChange, liveJumpStart, timelineWithEntry, lyricBarLayout, lyricColumnWidths, lyricCursorAt, lyricPlaybackBars, timedPracticeBars, wrapTimedLine } from './lyricTiming';
 import type { ChordAnnotation } from './chordSheet';
 import type { SongRhythm } from './songRhythm';
 const lyrics = '[V1]\nSing a song now\nKeep the rhythm\n[C]\nPraise again';
@@ -186,4 +186,20 @@ it('resolves continuing meter changes, temporary exceptions, and resets in sourc
   expect(bars.map(bar => bar.rhythm?.numerator)).toEqual([3, 2, 3, 3, 4]);
   expect(lyricPlaybackBars(text, 'V1 C V1', bars).map(bar => bar.rhythm?.numerator)).toEqual([3, 2, 3, 3, 4, 3, 2, 3]);
   expect(lyricCursorAt(text, lyricPlaybackBars(text, 'V1', bars), 1.5, 4, 4)?.pulse).toBe(0);
+});
+
+
+it('allows a one-bar meter correction despite invalid chord timing in another verse', () => {
+  const text = '[V1]\nSing a song\n[V2]\nSing a song';
+  const annotations: ChordAnnotation[] = ['V1', 'V2'].flatMap(section => [
+    { id: `${section}-c`, section, lineIndex: 0, anchorIndex: 3, chord: 'C' },
+    { id: `${section}-g`, section, lineIndex: 0, anchorIndex: 10, chord: 'G', beat: 4 },
+  ]);
+  const before: SongRhythm = { numerator: 3, denominator: 4, patterns: [], notes: '', markers: [
+    { id: 'v1', section: 'V1', lineIndex: 0, anchorIndex: 3 },
+    { id: 'v2', section: 'V2', lineIndex: 0, anchorIndex: 3 },
+  ] };
+  const after: SongRhythm = { ...before, markers: before.markers!.map(marker => marker.id === 'v2' ? { ...marker, rhythm: { numerator: 4, denominator: 4, scope: 'bar' as const } } : marker) };
+  expect(() => validateBarMeterChange(text, before, after, annotations)).not.toThrow();
+  expect(() => validateBarMeterChange(text, after, before, annotations)).toThrow();
 });
