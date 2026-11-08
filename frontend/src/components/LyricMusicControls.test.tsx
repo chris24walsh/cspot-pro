@@ -19,7 +19,7 @@ async function play(container: HTMLElement, source: string) {
 it('starts with clicks only, adds complete chords, and reports the same timed lyric cursor', async () => {
   const lyrics = '[V1]\nSing now';
   const annotations = [{ id: 'c', section: 'V1', lineIndex: 0, anchorIndex: 3, chord: 'C' }];
-  const rhythm: SongRhythm = { numerator: 4, denominator: 4, patterns: [], notes: '', markers: [{ id: 'one', section: 'V1', lineIndex: 0, anchorIndex: 3 }] };
+  const rhythm: SongRhythm = { numerator: 4, denominator: 4, patterns: [], notes: '', intro_bars: 0, markers: [{ id: 'one', section: 'V1', lineIndex: 0, anchorIndex: 3 }] };
   const onCursor = vi.fn<[LyricCursor | null], void>();
   const container = document.createElement('div'), root = createRoot(container);
   try {
@@ -42,7 +42,7 @@ it('starts with clicks only, adds complete chords, and reports the same timed ly
 it('allows an opening bar of silence and matches whole-song and part playback in the rhythm editor', async () => {
   const lyrics = '[V1]\nInstrumental pickup\nSing now';
   const annotations = [{ id: 'c', section: 'V1', lineIndex: 1, anchorIndex: 3, chord: 'C' }];
-  const rhythm: SongRhythm = { numerator: 4, denominator: 4, patterns: [], notes: '', markers: [
+  const rhythm: SongRhythm = { numerator: 4, denominator: 4, patterns: [], notes: '', intro_bars: 0, markers: [
     { id: 'pickup', section: 'V1', lineIndex: 0, anchorIndex: 3 },
     { id: 'vocal', section: 'V1', lineIndex: 1, anchorIndex: 3 },
   ] };
@@ -54,11 +54,11 @@ it('allows an opening bar of silence and matches whole-song and part playback in
     expect(audio.play).toHaveBeenCalledOnce();
     const inline = audio.play.mock.calls[0][0] as PracticePerformance;
     for (const mode of ['song', 'part'] as const) {
-      const editor = buildPracticePerformance(rhythm, { mode, finish: true, section: 'V1', lyrics, sequence: 'V1', annotations, countIn: true, metronome: true });
+      const editor = buildPracticePerformance(rhythm, { mode, finish: true, section: 'V1', lyrics, sequence: 'V1', annotations, countIn: true, countInBars: 1, metronome: true });
       expect(inline).toEqual(editor);
     }
     expect(inline.bars[0].chords).toEqual([{ beat: 1, chord: '' }]);
-    expect(inline.countInTicks).toBe(0);
+    expect(inline.countInTicks).toBe(inline.barTicks);
     expect(inline.notes.filter(note => note.channel === 0).every(note => note.tick >= inline.barTicks)).toBe(true);
     expect(inline.notes.some(note => note.channel === 0)).toBe(true);
   } finally { act(() => root.unmount()); vi.clearAllMocks(); }
@@ -91,7 +91,7 @@ it.each(['Click only', 'Guitar + click'])('starts %s at the selected sequence oc
     { id: 'c', section: 'V1', lineIndex: 0, anchorIndex: 3, chord: 'C' },
     { id: 'g', section: 'V1', lineIndex: 1, anchorIndex: 3, chord: 'G' },
   ];
-  const rhythm: SongRhythm = { numerator: 4, denominator: 4, patterns: [], notes: '', markers: [
+  const rhythm: SongRhythm = { numerator: 4, denominator: 4, patterns: [], notes: '', intro_bars: 0, markers: [
     { id: 'v1', section: 'V1', lineIndex: 0, anchorIndex: 3 },
     { id: 'v2', section: 'V1', lineIndex: 1, anchorIndex: 3 },
     { id: 'c', section: 'C', lineIndex: 0, anchorIndex: 3 },
@@ -104,7 +104,7 @@ it.each(['Click only', 'Guitar + click'])('starts %s at the selected sequence oc
     await play(container, source);
     const music = audio.play.mock.calls[0][0] as PracticePerformance;
     expect(music.bars.map(bar => bar.chords[0].chord)).toEqual(['', 'C', 'G']);
-    expect(music.countInTicks).toBe(0);
+    expect(music.countInTicks).toBe(music.barTicks);
     expect(music.notes.some(note => note.channel === 0)).toBe(source === 'Guitar + click');
     const position = audio.play.mock.calls[0][4] as (position: number) => void;
     act(() => position(-0.5));
@@ -129,7 +129,7 @@ it.each(['Click only', 'Guitar + click'])('starts %s at the selected sequence oc
 
 it('selects silent guidance from the current slide and emits shareable clock progress without audio', async () => {
   const lyrics = '[V1]\nSing now';
-  const rhythm: SongRhythm = { numerator: 4, denominator: 4, patterns: [], notes: '', markers: [{ id: 'one', section: 'V1', lineIndex: 0, anchorIndex: 3 }] };
+  const rhythm: SongRhythm = { numerator: 4, denominator: 4, patterns: [], notes: '', intro_bars: 0, markers: [{ id: 'one', section: 'V1', lineIndex: 0, anchorIndex: 3 }] };
   const cursor = vi.fn(), timing = vi.fn(), container = document.createElement('div'), root = createRoot(container);
   try {
     await act(async () => root.render(<LyricMusicControls rhythm={rhythm} lyrics={lyrics} sequence="V1" annotations={[]} bars={lyricBarLayout(lyrics, rhythm, [])} onCursor={cursor} onTiming={timing} startAt={{ occurrence: 0, lineStart: 1, lineEnd: 2 }} />));
@@ -158,7 +158,7 @@ it('selects silent guidance from the current slide and emits shareable clock pro
 it.each(['Click only', 'Guitar + click', 'Guitar only', 'Lyrics only'])('queues a manual slide destination without restarting or adding a count-in (%s)', async source => {
   const lyrics = '[V1]\nFirst line\n[C]\nSecond line';
   const annotations = [{ id: 'v', section: 'V1', lineIndex: 0, anchorIndex: 3, chord: 'C' }, { id: 'c', section: 'C', lineIndex: 0, anchorIndex: 3, chord: 'G' }];
-  const rhythm: SongRhythm = { numerator: 4, denominator: 4, patterns: [], notes: '', markers: annotations.map(({ chord: _chord, ...marker }) => marker) };
+  const rhythm: SongRhythm = { numerator: 4, denominator: 4, patterns: [], notes: '', intro_bars: 0, markers: annotations.map(({ chord: _chord, ...marker }) => marker) };
   const bars = lyricBarLayout(lyrics, rhythm, annotations);
   const cursor = vi.fn(), timing = vi.fn(), pending = vi.fn();
   const container = document.createElement('div'), root = createRoot(container);
@@ -188,7 +188,7 @@ it.each(['F', ''])('keeps the player and carries chords through unannotated live
   const render = (revision: number, name: string, chord: string) => {
     const lyrics = `[V1]\n${name}`;
     const annotations = [{ id: 'v', section: 'V1', lineIndex: 0, anchorIndex: 3, chord }];
-    const rhythm: SongRhythm = { numerator: 4, denominator: 4, patterns: [], notes: '', markers: annotations.map(({ chord: _chord, ...marker }) => marker) };
+    const rhythm: SongRhythm = { numerator: 4, denominator: 4, patterns: [], notes: '', intro_bars: 0, markers: annotations.map(({ chord: _chord, ...marker }) => marker) };
     root.render(<LyricMusicControls rhythm={rhythm} lyrics={lyrics} sequence="V1" annotations={annotations} bars={lyricBarLayout(lyrics, rhythm, annotations)} jumpRevision={revision} startAt={{ occurrence: 0, lineStart: 1, lineEnd: 2 }} onCursor={() => {}} />);
   };
   try {
@@ -275,7 +275,7 @@ it('arms pedal playback and distinguishes restart/back taps, holds, repeats and 
   } finally { act(() => root.unmount()); vi.useRealTimers(); vi.clearAllMocks(); }
 });
 
-it.each(['Lyrics only', 'Click only', 'Guitar + click', 'Guitar only'])('plays one count-in bar then a chorded intro before lyric timing (%s)', async source => {
+it.each([false, true].flatMap(pedal => ['Lyrics only', 'Click only', 'Guitar + click', 'Guitar only'].map(source => ({ pedal, source }))))('plays one count-in bar then a chorded intro before lyric timing ($source, pedal: $pedal)', async ({ source, pedal }) => {
   const lyrics = '[V1]\nSing now';
   const rhythm: SongRhythm = { numerator: 4, denominator: 4, patterns: [], notes: '', markers: [{ id: 'one', section: 'V1', lineIndex: 0, anchorIndex: 0 }] };
   const container = document.createElement('div'), root = createRoot(container);
@@ -290,11 +290,13 @@ it.each(['Lyrics only', 'Click only', 'Guitar + click', 'Guitar only'])('plays o
     await act(async () => { select.value = '4'; select.dispatchEvent(new Event('change', { bubbles: true })); });
     expect(save).toHaveBeenCalledWith(4);
     expect(select.value).toBe('4');
-    act(() => document.querySelector<HTMLButtonElement>('[role="menuitemcheckbox"]')!.click());
+    if (pedal) act(() => document.querySelector<HTMLButtonElement>('[role="menuitemcheckbox"]')!.click());
     await act(async () => Array.from(document.querySelectorAll<HTMLButtonElement>('[role="menuitem"]')).find(button => button.textContent!.startsWith(source))!.click());
     const player = source === 'Lyrics only' ? silent : audio;
-    expect(player.play).not.toHaveBeenCalled();
-    await act(async () => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', code: 'ArrowRight' })));
+    if (pedal) {
+      expect(player.play).not.toHaveBeenCalled();
+      await act(async () => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', code: 'ArrowRight' })));
+    }
     const music = player.play.mock.calls[0][0] as PracticePerformance;
     expect(music.countInTicks).toBe(music.barTicks);
     expect(music.bars).toHaveLength(5); // four musical intro bars, then one lyric bar

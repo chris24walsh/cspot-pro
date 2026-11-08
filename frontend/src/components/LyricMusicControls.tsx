@@ -174,16 +174,14 @@ export function LyricMusicControls({ rhythm, lyrics, sequence, annotations, bars
       const missing = worshipSequenceBlocks(lyrics, sequence).find((_block, occurrence) => occurrence >= (destination?.occurrence ?? 0) && !timeline.some(bar => bar.occurrence === occurrence));
       if (missing) throw new Error(`Place bar boundaries for ${missing.label} before following the whole song.`);
       const practiceBars = timedPracticeBars(lyrics, timeline.slice(startIndex), annotations, rhythm.numerator);
-      const introBars = pedalEnabled ? rhythm.intro_bars ?? 2 : 0;
+      const introBars = rhythm.intro_bars ?? 2;
       const openingChord = timedPracticeBars(lyrics, timeline, annotations, rhythm.numerator)
         .flatMap(bar => bar.chords).find(change => change.chord)?.chord || rootChord || '';
       const performanceBars: PracticeBar[] = [
         ...Array.from({ length: introBars }, (_, patternBar) => ({ section: practiceBars[0]?.section ?? 'Default', patternBar, chords: [{ beat: 1, chord: openingChord }] })),
         ...practiceBars,
       ];
-      const builtPerformance = buildPracticePerformance(rhythm, { mode: 'song', countIn: mode !== 'silent', countInBars: pedalEnabled ? 1 : undefined, metronomeLeadIn: mode === 'midi-only', metronome: mode !== "silent" && mode !== "midi-only", chords: (mode === "midi" || mode === "midi-only"), finish: (mode === "midi" || mode === "midi-only"), transpose, bars: performanceBars });
-      // Publish a full silent preparation bar before lyrics begin, regardless of opening rests.
-      const performance = mode === 'silent' && !pedalEnabled ? { ...builtPerformance, countInTicks: builtPerformance.barTicks, totalTicks: builtPerformance.totalTicks + builtPerformance.barTicks } : builtPerformance;
+      const performance = buildPracticePerformance(rhythm, { mode: 'song', countIn: mode !== 'silent', countInBars: 1, metronomeLeadIn: mode === 'midi-only', metronome: mode !== "silent" && mode !== "midi-only", chords: (mode === "midi" || mode === "midi-only"), finish: (mode === "midi" || mode === "midi-only"), transpose, bars: performanceBars });
       player = mode === "silent" ? new PracticeSilentPlayer() : new PracticeAudioPlayer(); const requested = player; playerRef.current = player; modeRef.current = mode; setPlaying(true); onStarted?.();
       currentBar.current = startIndex; currentPosition.current = startIndex - 1;
       activeBars.current = { bars: performanceBars, position: -1, transpose };
@@ -193,7 +191,7 @@ export function LyricMusicControls({ rhythm, lyrics, sequence, annotations, bars
           trackPosition(lyricPosition < 0 ? -1 : lyricPosition + startIndex);
           activeBars.current = { bars: performanceBars, position, transpose };
           callback.current(lyricPosition < 0 ? null : lyricCursorAt(lyrics, timeline, lyricPosition + startIndex, rhythm.numerator, rhythm.denominator));
-          timingCallback.current?.({ startIndex, position: lyricPosition, barDurationMs: (lyricPosition < 0 ? performance.barTicks : performanceBarLength(performance, Math.floor(position))) / MIDI_PPQ * 60_000 / performance.quarterBpm, barDurationsMs: practiceBars.map((_, i) => performanceBarLength(performance, i + introBars) / MIDI_PPQ * 60_000 / performance.quarterBpm), totalBars: practiceBars.length, introBars: pedalEnabled ? introBars : undefined, introChord: openingChord ? transposeChordSymbol(openingChord, transpose) : undefined, introCountIn: pedalEnabled });
+          timingCallback.current?.({ startIndex, position: lyricPosition, barDurationMs: (lyricPosition < 0 ? performance.barTicks : performanceBarLength(performance, Math.floor(position))) / MIDI_PPQ * 60_000 / performance.quarterBpm, barDurationsMs: practiceBars.map((_, i) => performanceBarLength(performance, i + introBars) / MIDI_PPQ * 60_000 / performance.quarterBpm), totalBars: practiceBars.length, introBars, introChord: openingChord ? transposeChordSymbol(openingChord, transpose) : undefined, introCountIn: true });
         }
       });
       await readyRef.current;
@@ -216,7 +214,7 @@ export function LyricMusicControls({ rhythm, lyrics, sequence, annotations, bars
         {canPractice ? <>
           <div className="pedal-playback-options">
             <button role="menuitemcheckbox" aria-checked={pedalEnabled} onClick={() => { stop(); setArmedMode(null); setChooser(null); resumeAt.current = undefined; setPedalEnabled(!pedalEnabled); onRestoreKeyboardCapture?.(); }} type="button"><Footprints size={16} aria-hidden="true" /><span>Pedal mode: {pedalEnabled ? 'On' : 'Off'}</span></button>
-            <label>Intro<select aria-label="Song intro bars" value={rhythm?.intro_bars ?? 2} disabled={!rhythm || !onSaveIntroBars || savingIntro} title={!onSaveIntroBars ? 'Song editing permission required' : 'Saved for this song · used when Pedal mode is on'} onChange={async event => {
+            <label>Intro<select aria-label="Song intro bars" value={rhythm?.intro_bars ?? 2} disabled={!rhythm || !onSaveIntroBars || savingIntro} title={!onSaveIntroBars ? 'Song editing permission required' : 'Saved for this song · used for all playback starts'} onChange={async event => {
               const bars = Number(event.target.value);
               setSavingIntro(true); setError(null);
               try { await onSaveIntroBars?.(bars); }

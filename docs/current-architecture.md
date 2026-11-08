@@ -1434,7 +1434,7 @@ and releasing that starting press does not issue another command. The Play
 menu retains the inline Pedal toggle and per-song **Intro** dropdown (0–16 bars,
 default 2, saved in `rhythm.intro_bars` with song editing permission).
 
-Pedal starts use one full count-in bar, then the configured number of musical
+Both Play menu and pedal starts use one full count-in bar, then the configured number of musical
 intro bars on the song's first chord, falling back to its root key. Lyrics only
 keeps both phases silent; Click only provides clicks; Guitar + click strums the
 intro with clicks; Guitar only clicks the count-in then strums without clicks.

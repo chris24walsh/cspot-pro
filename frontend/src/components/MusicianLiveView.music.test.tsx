@@ -29,7 +29,7 @@ it.each([false, true])('turns playback pages and publishes them only when synced
   vi.stubGlobal('matchMedia', () => ({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() }));
   const song = { id: 'song', title: 'Test song', lyrics: '[V1]\nFirst line\n[C]\nSecond line', sequence: 'V1 C', chords: serializeChordChart({ ...createEmptyChordChart(), absoluteKey: 'C', annotations: [
     { id: 'v', section: 'V1', lineIndex: 0, anchorIndex: 3, chord: 'C' }, { id: 'c', section: 'C', lineIndex: 0, anchorIndex: 3, chord: 'F' },
-  ] }), rhythm: { numerator: 4, denominator: 4, patterns: [], notes: '', markers: [
+  ] }), rhythm: { numerator: 4, denominator: 4, patterns: [], notes: '', intro_bars: 0, markers: [
     { id: 'v', section: 'V1', lineIndex: 0, anchorIndex: 3 }, { id: 'c', section: 'C', lineIndex: 0, anchorIndex: 3 },
   ] } } as unknown as Song;
   const plan = { id: 'plan', items: [{ id: 'item', item_type: 'song', song_id: 'song', sequence: '1', title: song.title }] } as PlanDetail;
@@ -101,7 +101,7 @@ it('keeps different chords and a single active dot on identical lyric pages, inc
   const song = { id: 'song', title: 'Repeated lyrics', lyrics: `[V1]\n${content}\n${content}`, sequence: 'V1 V1', chords: serializeChordChart({ ...createEmptyChordChart(), absoluteKey: 'C', annotations: [
     { id: 'first', section: 'V1', lineIndex: 0, anchorIndex: 3, chord: 'C' },
     { id: 'second', section: 'V1', lineIndex: 3, anchorIndex: 3, chord: 'F' },
-  ] }), rhythm: { numerator: 4, denominator: 4, patterns: [], notes: '', markers: [
+  ] }), rhythm: { numerator: 4, denominator: 4, patterns: [], notes: '', intro_bars: 0, markers: [
     { id: 'first', section: 'V1', lineIndex: 0, anchorIndex: 3 },
     { id: 'second', section: 'V1', lineIndex: 3, anchorIndex: 3 },
   ] } } as unknown as Song;
@@ -157,7 +157,7 @@ it.each([false, true])('follows remote lyrics despite an older service song sele
     owner_id: 'another-device', active: true, song_id: 'song', plan_item_id: 'item', start_index: 0, position: 1.05,
     bar_duration_ms: 2000, total_bars: 2, updated_at: 100000,
   } });
-  const song = { id: 'song', title: 'Shared song', lyrics: '[V1]\nFirst line\n[C]\nSecond line', sequence: 'V1 C', chords: null, rhythm: { numerator: 4, denominator: 4, patterns: [], notes: '', markers: [
+  const song = { id: 'song', title: 'Shared song', lyrics: '[V1]\nFirst line\n[C]\nSecond line', sequence: 'V1 C', chords: null, rhythm: { numerator: 4, denominator: 4, patterns: [], notes: '', intro_bars: 0, markers: [
     { id: 'v', section: 'V1', lineIndex: 0, anchorIndex: 3 }, { id: 'c', section: 'C', lineIndex: 0, anchorIndex: 3 },
   ] } } as unknown as Song;
   const plan = { id: 'plan', items: [{ id: 'other-item', item_type: 'song', song_id: 'other-song', sequence: '0', title: 'Other song' }, { id: 'item', item_type: 'song', song_id: 'song', sequence: '1', title: song.title }] } as PlanDetail;
@@ -195,7 +195,7 @@ it.each([false, true])('follows remote lyrics despite an older service song sele
 it.each(['auto', 'on', 'off'])('keeps %s visibility choices through playback start and stop', async mode => {
   vi.stubGlobal('matchMedia', () => ({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() }));
   vi.mocked(getPresentationLiveState).mockResolvedValue({ plan_id: 'plan', index: 0, updated_at: 1, worship_coupled: false, plan_item_id: 'item', slide_offset: 0 } as Awaited<ReturnType<typeof getPresentationLiveState>>);
-  const song = { id: 'song', title: 'Visibility song', lyrics: '[V1]\nSing now', sequence: 'V1', chords: serializeChordChart({ ...createEmptyChordChart(), absoluteKey: 'C', annotations: [{ id: 'c', section: 'V1', lineIndex: 0, anchorIndex: 3, chord: 'C' }] }), rhythm: { numerator: 4, denominator: 4, patterns: [], notes: '', markers: [{ id: 'v', section: 'V1', lineIndex: 0, anchorIndex: 3 }] } } as unknown as Song;
+  const song = { id: 'song', title: 'Visibility song', lyrics: '[V1]\nSing now', sequence: 'V1', chords: serializeChordChart({ ...createEmptyChordChart(), absoluteKey: 'C', annotations: [{ id: 'c', section: 'V1', lineIndex: 0, anchorIndex: 3, chord: 'C' }] }), rhythm: { numerator: 4, denominator: 4, patterns: [], notes: '', intro_bars: 0, markers: [{ id: 'v', section: 'V1', lineIndex: 0, anchorIndex: 3 }] } } as unknown as Song;
   const plan = { id: 'plan', items: [{ id: 'item', item_type: 'song', song_id: 'song', sequence: '1', title: song.title }] } as PlanDetail;
   const container = document.createElement('div'), mount = document.createElement('div'), toolbar = document.createElement('div'); container.append(mount, toolbar); const root = createRoot(mount);
   const assertVisible = (playing: boolean) => {
@@ -232,7 +232,7 @@ it('keeps sung lyrics in view across early page turns and pauses on manual scrol
   vi.stubGlobal('requestAnimationFrame', vi.fn(() => 1));
   vi.stubGlobal('cancelAnimationFrame', vi.fn());
   vi.mocked(getPresentationLiveState).mockResolvedValue({ plan_id: 'plan', index: 0, updated_at: 1, worship_coupled: false } as Awaited<ReturnType<typeof getPresentationLiveState>>);
-  const song = { id: 'song', title: 'Scrolling', lyrics: '[V1]\nFirst line\n[C]\nSecond line\n[B]\nThird line', sequence: 'V1 C B', chords: null, rhythm: { numerator: 4, denominator: 4, patterns: [], notes: '', markers: ['V1', 'C', 'B'].map(section => ({ id: section, section, lineIndex: 0, anchorIndex: 3 })) } } as unknown as Song;
+  const song = { id: 'song', title: 'Scrolling', lyrics: '[V1]\nFirst line\n[C]\nSecond line\n[B]\nThird line', sequence: 'V1 C B', chords: null, rhythm: { numerator: 4, denominator: 4, patterns: [], notes: '', intro_bars: 0, markers: ['V1', 'C', 'B'].map(section => ({ id: section, section, lineIndex: 0, anchorIndex: 3 })) } } as unknown as Song;
   const plan = { id: 'plan', items: [{ id: 'item', item_type: 'song', song_id: 'song', sequence: '1', title: song.title }] } as PlanDetail;
   const container = document.createElement('div'), mount = document.createElement('div'), toolbar = document.createElement('div'); container.append(mount, toolbar); const root = createRoot(mount);
   try {
@@ -305,7 +305,7 @@ it('queues manual section changes while automatic page turns leave the player ru
   vi.stubGlobal('matchMedia', () => ({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() }));
   vi.mocked(getPresentationLiveState).mockResolvedValue({ plan_id: 'plan', index: 0, updated_at: 1, worship_coupled: false } as Awaited<ReturnType<typeof getPresentationLiveState>>);
   const annotations = ['V1', 'C'].map((section, index) => ({ id: section, section, lineIndex: 0, anchorIndex: 3, chord: index ? 'G' : 'C' }));
-  const song = { id: 'song', title: 'Jump song', lyrics: '[V1]\nFirst line\n[C]\nSecond line', sequence: 'V1 C', chords: serializeChordChart({ ...createEmptyChordChart(), absoluteKey: 'C', annotations }), rhythm: { numerator: 4, denominator: 4, patterns: [], notes: '', markers: annotations.map(({ chord: _chord, ...marker }) => marker) } } as unknown as Song;
+  const song = { id: 'song', title: 'Jump song', lyrics: '[V1]\nFirst line\n[C]\nSecond line', sequence: 'V1 C', chords: serializeChordChart({ ...createEmptyChordChart(), absoluteKey: 'C', annotations }), rhythm: { numerator: 4, denominator: 4, patterns: [], notes: '', intro_bars: 0, markers: annotations.map(({ chord: _chord, ...marker }) => marker) } } as unknown as Song;
   const plan = { id: 'plan', items: [{ id: 'item', item_type: 'song', song_id: 'song', sequence: '1', title: song.title }] } as PlanDetail;
   const container = document.createElement('div'), mount = document.createElement('div'), toolbar = document.createElement('div'); container.append(mount, toolbar); const root = createRoot(mount);
   try {
@@ -390,7 +390,7 @@ it('queues manual section changes while automatic page turns leave the player ru
 it('shows four visual beats over 8/8 and lets the Musician menu hide them', async () => {
   vi.stubGlobal('matchMedia', () => ({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() }));
   vi.mocked(getPresentationLiveState).mockResolvedValue({ plan_id: 'plan', index: 0, updated_at: 1, worship_coupled: false } as Awaited<ReturnType<typeof getPresentationLiveState>>);
-  const song = { id: 'song', title: 'Eight beats', lyrics: '[V1]\nSing now', sequence: 'V1', chords: null, rhythm: { numerator: 8, denominator: 8, visual_beats: 4, patterns: [], notes: '', markers: [{ id: 'bar', section: 'V1', lineIndex: 0, anchorIndex: 3 }] } } as unknown as Song;
+  const song = { id: 'song', title: 'Eight beats', lyrics: '[V1]\nSing now', sequence: 'V1', chords: null, rhythm: { numerator: 8, denominator: 8, visual_beats: 4, patterns: [], notes: '', intro_bars: 0, markers: [{ id: 'bar', section: 'V1', lineIndex: 0, anchorIndex: 3 }] } } as unknown as Song;
   const plan = { id: 'plan', items: [{ id: 'item', item_type: 'song', song_id: 'song', sequence: '1', title: song.title }] } as PlanDetail;
   const container = document.createElement('div'), mount = document.createElement('div'), toolbar = document.createElement('div'); container.append(mount, toolbar); const root = createRoot(mount);
   try {
@@ -451,7 +451,7 @@ it('restores mobile capture after enabling pedal mode and selecting playback', a
   vi.stubGlobal('matchMedia', () => ({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() }));
   vi.mocked(getPresentationLiveState).mockResolvedValue({ plan_id: 'plan', index: 0, updated_at: 1, worship_coupled: false, plan_item_id: 'item', slide_offset: 0 } as Awaited<ReturnType<typeof getPresentationLiveState>>);
   const song = { id: 'song', title: 'Pedal test', lyrics: '[V1]\nFirst line\n[C]\nSecond line', sequence: 'V1 C', chords: null,
-    rhythm: { numerator: 4, denominator: 4, patterns: [], notes: '', markers: [
+    rhythm: { numerator: 4, denominator: 4, patterns: [], notes: '', intro_bars: 0, markers: [
       { id: 'v', section: 'V1', lineIndex: 0, anchorIndex: 3 }, { id: 'c', section: 'C', lineIndex: 0, anchorIndex: 3 },
     ] } } as unknown as Song;
   const plan = { id: 'plan', items: [{ id: 'item', item_type: 'song', song_id: 'song', sequence: '1', title: song.title }] } as PlanDetail;
