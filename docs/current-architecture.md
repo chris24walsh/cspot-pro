@@ -1735,3 +1735,10 @@ Remote publishing keeps both the camera-off canvas and real camera at 24 fps. Ga
 Camera MSE playback tolerates normal one-second fragment bursts without seeking; it uses modest catch-up for drift and seeks only after larger stalls or buffer gaps. Audio timing remains unchanged.
 
 Default ICE discovery uses independent Cloudflare (UDP 3478) and Google (UDP 19302) STUN services. Custom ICE lists remain authoritative. This supplies alternative discovery paths; networks or browser policies that block all WebRTC traffic still require a policy/network change or a configured TURN relay. Connection failures retain a compact manual Retry action and do not overlap the dock status badge.
+
+The main `/app/tv` display (including `?presentation=tv`) opens without login
+and survives expired or missing browser sessions. Its read-only `/api/v1/tv`
+API exposes active service content and matching worship sets, referenced songs
+and attached media, live state and pointer, plus display schedules. Inactive
+plans and unrelated files remain protected; presenter and editing APIs, `/app/media`
+and Sunday School displays continue to require authentication.

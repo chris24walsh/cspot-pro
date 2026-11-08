@@ -963,3 +963,10 @@ alongside the camera on wider layouts. The dock can be minimized without ending
 capture, and its session persists across slide/note changes.
 
 Camera contribution starts with camera hardware off and a landscape placeholder published in its place. Camera on opens the camera; Camera off replaces the video track with the placeholder and releases the camera without restarting the microphone or publishing session. Native background blur is offered only when the active camera reports support; other devices can use system video effects.
+
+The main `/app/tv` display (including `?presentation=tv`) opens without login
+and survives expired or missing browser sessions. Its read-only `/api/v1/tv`
+API exposes active service content and matching worship sets, referenced songs
+and attached media, live state and pointer, plus display schedules. Inactive
+plans and unrelated files remain protected; presenter and editing APIs, `/app/media`
+and Sunday School displays continue to require authentication.

@@ -28,16 +28,10 @@ be connected to the presenter computer as an external monitor.
    ```
 
    The older `?presentation=tv` address remains supported. Public HTTP links
-   are upgraded to HTTPS automatically so the browser can retain its secure
-   sign-in session.
+   are upgraded to HTTPS automatically.
 
-2. Sign in with the dedicated viewer account's username or email address. TV
-   display login defaults to **Keep me signed in on this device** and uses both
-   modern and legacy cookie expiry attributes for older television browsers. A
-   viewer has the read permissions required to render plans without presentation
-   or editing permissions.
-3. Bookmark the `/app/tv` URL.
-4. Select **Fullscreen** on the TV once. Browsers require a local click before a
+2. Bookmark the `/app/tv` URL. No login or saved session is required.
+3. Select **Fullscreen** on the TV once. Browsers require a local click before a
    page can enter fullscreen; CSpot cannot trigger this remotely.
 
 The waiting screen can remain open. It automatically discovers the active TV
@@ -94,3 +88,9 @@ service.
 - Closing every display does not stop the session. Use **Stop** on any
   presenter device to return TV displays and Broadcast to their waiting/offline
   states.
+
+The main TV display reads from `/api/v1/tv`, an anonymous, read-only API limited
+to active service plans, their matching worship sets, referenced songs, attached
+files, live state, pointer and display schedule settings. Stopping TV output
+removes public access to that content. Presenter controls, editing, the church
+PC media receiver and Sunday School display still require login.

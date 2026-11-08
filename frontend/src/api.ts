@@ -1,3 +1,4 @@
+import { isNetworkDisplayLocation } from "./browserRouting";
 import type { RhythmPreset, SongRhythm } from "./songRhythm";
 import { appApiBasePath } from "./paths";
 
@@ -30,6 +31,12 @@ export async function getChangeRevisions(): Promise<ChangeRevisions> {
 }
 
 function buildApiUrl(path: string) {
+  // Only the TV bookmark uses the anonymous display API. Management and media
+  // receiver URLs retain their normal authentication requirements.
+  if (typeof window !== "undefined" && isNetworkDisplayLocation(window.location)
+    && /^\/api\/v1\/(presentation\/(live|pointer)(\/|$)|planning\/plans(\/|$)|music\/songs$|broadcast\/viewer-settings$|library\/files\/)/.test(path)) {
+    path = path.replace("/api/v1/", "/api/v1/tv/");
+  }
   const base = API_BASE_URL.endsWith("/") ? API_BASE_URL.slice(0, -1) : API_BASE_URL;
   if (base.endsWith("/api") && path.startsWith("/api/")) {
     return `${base}${path.slice(4)}`;

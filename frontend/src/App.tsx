@@ -159,6 +159,7 @@ function App() {
   const canAccessProfile = isViewer || isAdmin;
 
   const loadAuth = useCallback(async (silent = false) => {
+    if (isNetworkDisplay) { setAuthLoading(false); return; }
     if (!silent) setAuthLoading(true);
 
     try {
@@ -366,6 +367,8 @@ function App() {
   if (publicRecordingToken) {
     return <PublicRecordingView token={publicRecordingToken} />;
   }
+
+  if (isNetworkDisplay) return <PresentationOutput networkDisplay />;
 
   if (authLoading) {
     return <main className="auth-shell"><section className="auth-card"><p>Loading cspot-pro...</p></section></main>;

@@ -956,3 +956,10 @@ Blank switches remain available to production operators.
 Service keeps date navigation in the header above the preview. Compact camera
 controls dock in the notes area
 below the preview, with editable notes alongside when space permits.
+
+The main `/app/tv` display (including `?presentation=tv`) opens without login
+and survives expired or missing browser sessions. Its read-only `/api/v1/tv`
+API exposes active service content and matching worship sets, referenced songs
+and attached media, live state and pointer, plus display schedules. Inactive
+plans and unrelated files remain protected; presenter and editing APIs, `/app/media`
+and Sunday School displays continue to require authentication.

@@ -1,3 +1,4 @@
+import { isNetworkDisplayLocation } from "./browserRouting";
 import type { PlanItem, RenderedSlide, Song } from "./api";
 import { appApiBasePath, appAssetUrl } from "./paths";
 import { expandWorshipSlides } from "./worshipText";
@@ -331,7 +332,8 @@ export function youtubeEmbedUrl(videoId: string) {
 
 export function storedFileDownloadUrl(fileId: string) {
   const apiBase = appApiBasePath().replace(/\/$/, "");
-  return `${apiBase}/v1/library/files/${fileId}/download`;
+  const displayPrefix = typeof window !== "undefined" && isNetworkDisplayLocation(window.location) ? "/tv" : "";
+  return `${apiBase}/v1${displayPrefix}/library/files/${fileId}/download`;
 }
 
 export function slideTextForItem(item: PlanItem, songs: Song[]) {

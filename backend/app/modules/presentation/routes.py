@@ -1099,7 +1099,7 @@ def list_live_presentation_services(
 
     live_services: list[PresentationLiveServiceRead] = []
     seen_plan_ids: set[str] = set()
-    is_admin = "administrator" in list_role_names(session, current_user.id)
+    is_admin = current_user is not None and "administrator" in list_role_names(session, current_user.id)
     for presentation_session in presentation_sessions:
         if presentation_session.plan_id in seen_plan_ids:
             continue
