@@ -183,3 +183,23 @@ behavior. Startup scene hold is released by an explicit presenter navigation,
 not by simply loading the saved selection. Item and inherited section Audio
 scene overrides take precedence over type inference. Source buttons provide a
 temporary override until the next cue, while Apply & hold remains persistent.
+
+## Operator feedback and pending changes (8 November 2026)
+
+Product requirement: room and livestream mixes should generally match. The
+pre-service exception allows room audio without carrying it into the livestream.
+Separate output controls currently exist; this requirement has not yet been
+implemented as linked controls or applied to production presets.
+
+During a live service, an operator raised and unmuted the pastor microphone in
+the preceding section without hearing it in the room. Entering the sermon then
+opened the microphone in both room and livestream. Current scenes control global
+mute, Main L/R assignment and independent bus sends: unmuting alone does not
+restore routes disabled by the preceding scene. Physical input identification
+and actual desk readbacks were not verified during this report.
+
+Proposed follow-up: provide an explicit channel action to make a microphone live
+in both mixes at a visible level, show when a scene has excluded its routes, and
+make the scope and lifetime of manual overrides clear before the next cue.
+Review and test this outside the live service; do not deploy or change live
+presets during the service to address this feedback.
