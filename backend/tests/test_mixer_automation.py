@@ -15,10 +15,12 @@ from app.modules.mixer.automation import (
     suggested_scenes,
 )
 from app.modules.mixer.engine import validate_value
+from app.modules.mixer.stream_gate import DeskStreamGate
 
 
 class Desk:
     def __init__(self):
+        self.stream_gate = DeskStreamGate()
         self.connected = True
         self.syncing = False
         self.recalling = False
@@ -50,6 +52,8 @@ class Desk:
         return value
 
     async def write(self, path, value, *, origin):
+        self.stream_gate.remember(path, value)
+        value = self.stream_gate.effective(path, value)
         self.writes.append((path, value))
         self.values[path] = value
 
@@ -94,7 +98,7 @@ def test_configuration_is_inert_and_protects_hardware_scope():
     cfg = config()
     commands = scene_commands(cfg, cfg.scenes[0])
     assert commands["/ch/01/mix/fader"] == pytest.approx(0.6)
-    assert commands["/ch/01/mix/05/level"] == pytest.approx(0.475)
+    assert commands["/ch/01/mix/05/level"] == pytest.approx(0.6)
     assert all(path.endswith(("/lr", "/fader", "/level", "/on")) for path in commands)
     assert not any("headamp" in path or "phantom" in path for path in commands)
 
@@ -140,9 +144,9 @@ def test_each_scene_applies_once_and_manual_adjustments_are_preserved():
         assert len(desk.writes) == 3
         assert controller.status["state"] == "adjusted"
         await controller.tick(cue(cfg, "worship"))
-        assert desk.values["/ch/01/mix/lr"] == 0
-        assert desk.values["/ch/01/mix/05/level"] == 0
-        assert desk.values["/ch/01/mix/fader"] == 0.3
+        assert desk.values["/ch/01/mix/lr"] == 1
+        assert desk.values["/ch/01/mix/05/level"] == 0.75
+        assert desk.values["/ch/01/mix/fader"] == 0.75
 
     asyncio.run(scenario())
 
@@ -202,9 +206,9 @@ def test_offline_recovery_applies_only_the_latest_section():
         await controller.tick(cue(cfg, "worship"))
         assert set(desk.writes) == {
             ("/ch/01/mix/on", 0),
-            ("/ch/01/mix/lr", 0),
-            ("/ch/01/mix/05/level", 0),
-            ("/ch/01/mix/06/level", 0),
+            ("/ch/01/mix/fader", 0.75),
+            ("/ch/01/mix/05/level", 0.75),
+            ("/ch/01/mix/06/level", 0.75),
         }
 
     asyncio.run(scenario())
@@ -244,7 +248,7 @@ def test_follow_requires_live_service_but_manual_hold_can_be_used_in_rehearsal()
         assert not desk.writes
         cfg = config(follow_service=False, manual_scene_id="worship")
         await controller.tick(cue(cfg, "pastor", service=None, automation=False))
-        assert desk.values["/ch/01/mix/lr"] == 0
+        assert desk.values["/ch/01/mix/lr"] == 1
 
     asyncio.run(scenario())
 
@@ -284,6 +288,7 @@ def test_scene_opens_needed_inputs_after_levels_and_closes_unused_inputs():
     assert commands["/ch/01/mix/on"] == 1
     assert list(commands)[-1] == "/ch/01/mix/on"
     assert scene_commands(cfg, cfg.scenes[1])["/ch/01/mix/on"] == 0
+    scene = MixerScene(id="pre_service", label="Pre-service", channels=scene.channels)
     scene.channels["/ch/01"].room.enabled = False
     assert scene_commands(cfg, scene)["/ch/01/mix/on"] == 1, "Stream-only input must remain open"
     cfg.livestream_enabled = False
@@ -375,3 +380,89 @@ def test_preservice_band_opens_in_room_with_stream_sends_off():
     assert commands["/ch/07/mix/on"] == 0
     assert commands["/rtn/aux/mix/lr"] == 0
     assert commands["/rtn/aux/mix/05/level"] > 0
+
+
+@pytest.mark.parametrize("bus", [1, 3, 5])
+@pytest.mark.parametrize("enabled", [False, True])
+def test_normal_scene_keeps_both_routes_and_matching_levels_when_muted(bus, enabled):
+    scene = MixerScene(id="custom", label="Custom", channels={
+        "/ch/07": SceneChannel(room=SceneLevel(enabled=enabled, level_db=-9),
+                               livestream=SceneLevel(enabled=not enabled, level_db=-30)),
+    })
+    commands = scene_commands(AutomationConfiguration(livestream_bus=bus), scene)
+    assert commands["/ch/07/mix/on"] == int(enabled)
+    assert commands["/ch/07/mix/lr"] == 1
+    assert commands["/ch/07/mix/fader"] == fader_wire(-9)
+    for send in (bus, bus + 1):
+        assert commands[f"/ch/07/mix/{send:02}/level"] == fader_wire(-9)
+    assert all(path.startswith("/ch/07/") for path in commands)
+    if not enabled:
+        assert next(iter(commands)) == "/ch/07/mix/on", "Mute before restoring routes"
+    else:
+        assert list(commands)[-1] == "/ch/07/mix/on", "Open only after setting levels"
+
+
+def test_old_presets_link_without_changing_saved_json_and_stream_only_presets_work():
+    import json
+    from types import SimpleNamespace
+
+    from app.modules.mixer.automation import configuration
+    raw = json.dumps({"scenes": [{"id": "pastor", "label": "Pastor", "channels": {
+        "/ch/07": {"room": {"enabled": False, "level_db": -9},
+                   "livestream": {"enabled": True, "level_db": -20}},
+    }}]})
+    stored = SimpleNamespace(automation_json=raw)
+    cfg = configuration(stored)
+    channel = cfg.scenes[0].channels["/ch/07"]
+    assert channel.room == channel.livestream == SceneLevel(enabled=False, level_db=-9)
+    assert stored.automation_json == raw
+    scene = MixerScene(id="custom", label="Custom", channels={
+        "/ch/07": SceneChannel(livestream=SceneLevel(enabled=True, level_db=-12)),
+    })
+    assert scene.channels["/ch/07"].room == SceneLevel(enabled=True, level_db=-12)
+
+
+def test_pastor_can_be_unmuted_in_congregation_then_sermon_uses_its_saved_level():
+    async def scenario():
+        desk = Desk()
+        scenes = [MixerScene(id=key, label=key, channels={
+            "/ch/01": SceneChannel(room=SceneLevel(enabled=key == "pastor", level_db=-9)),
+        }) for key in ("congregation", "pastor")]
+        cfg = config(scenes=scenes)
+        worker = SceneAutomation(desk)
+        await worker.tick(cue(cfg, "congregation"))
+        assert desk.values["/ch/01/mix/on"] == 0
+        # The operator's unmute is sufficient: routes and audible levels exist.
+        desk.values["/ch/01/mix/on"] = 1
+        count = len(desk.writes)
+        await worker.tick(cue(cfg, "congregation"))
+        assert len(desk.writes) == count
+        assert worker.status["state"] == "adjusted"
+        assert desk.values["/ch/01/mix/lr"] == 1
+        assert desk.values["/ch/01/mix/fader"] == fader_wire(-9)
+        assert desk.values["/ch/01/mix/05/level"] == fader_wire(-9)
+        await worker.tick(cue(cfg, "pastor"))
+        assert desk.values["/ch/01/mix/on"] == 1
+        assert desk.values["/ch/01/mix/fader"] == fader_wire(-9)
+    asyncio.run(scenario())
+
+
+def test_preservice_to_service_restores_room_only_band_stream_routes():
+    async def scenario():
+        desk = Desk()
+        cfg = config(scenes=suggested_scenes({"/ch/01": "worship"}))
+        worker = SceneAutomation(desk)
+        await worker.tick(cue(cfg, "pre_service"))
+        assert desk.values["/ch/01/mix/on"] == 1
+        assert desk.values["/ch/01/mix/05/level"] == 0
+        await worker.tick(cue(cfg, "pastor"))
+        assert desk.values["/ch/01/mix/on"] == 0
+        assert desk.values["/ch/01/mix/lr"] == 1
+        assert desk.values["/ch/01/mix/05/level"] > 0
+        desk.values["/ch/01/mix/on"] = 1
+        count = len(desk.writes)
+        await worker.tick(cue(cfg, "pastor"))
+        assert len(desk.writes) == count
+        await worker.tick(cue(cfg, "pre_service"))
+        assert desk.values["/ch/01/mix/05/level"] == 0
+    asyncio.run(scenario())

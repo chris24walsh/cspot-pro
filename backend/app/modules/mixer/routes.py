@@ -34,7 +34,7 @@ def require_mixer_access(current_user: CurrentUser, session: Session = Depends(g
 router = APIRouter(dependencies=[Depends(require_mixer_access)])
 
 
-def config(session):
+def config(session, *, lock=False):
     item = session.get(MixerConfiguration, "xr18")
     if item is None:
         item = MixerConfiguration(id="xr18", snapshots_json="[]")
@@ -45,6 +45,11 @@ def config(session):
             # State, stream and snapshot requests can initialize concurrently.
             session.rollback()
             item = session.get(MixerConfiguration, "xr18")
+    if lock:
+        item = session.scalar(
+            select(MixerConfiguration).where(MixerConfiguration.id == "xr18")
+            .with_for_update().execution_options(populate_existing=True)
+        )
     return item
 
 
@@ -98,7 +103,10 @@ async def connect(payload: Connection, session: Session = Depends(get_session)):
         host = validate_host(payload.host) if payload.host else None
     except ValueError as exc:
         raise HTTPException(422, str(exc)) from exc
-    item = config(session)
+    item = config(session, lock=True)
+    from app.modules.mixer.automation import configuration
+    if configuration(item).desk_stream_muted and item.host != host:
+        raise HTTPException(409, "Release desk stream mute before changing the mixer connection")
     item.host = host
     session.commit()
     await engine.configure(host)
@@ -223,7 +231,7 @@ def save_snapshot(payload: SnapshotName, session: Session = Depends(get_session)
         or engine.recalling
     ):
         raise HTTPException(409, "Wait for a connected, synchronized mixer with no pending changes")
-    item = config(session)
+    item = config(session, lock=True)
     entries = json.loads(item.snapshots_json)
     if len(entries) >= 50:
         raise HTTPException(409, "Maximum 50 snapshots; delete an old snapshot first")
@@ -232,7 +240,7 @@ def save_snapshot(payload: SnapshotName, session: Session = Depends(get_session)
         name=payload.name.strip(),
         created_at=datetime.now(UTC).isoformat(),
         identity=engine.identity,
-        values=engine.values.copy(),
+        values={**engine.values, **engine.stream_gate.targets},
     )
     entries.append(entry)
     item.snapshots_json = json.dumps(entries)
@@ -283,7 +291,7 @@ async def recall(snapshot_id: str, session: Session = Depends(get_session)):
 
 @router.delete("/snapshots/{snapshot_id}")
 def delete_snapshot(snapshot_id: str, session: Session = Depends(get_session)):
-    item = config(session)
+    item = config(session, lock=True)
     item.snapshots_json = json.dumps(
         [e for e in json.loads(item.snapshots_json) if e["id"] != snapshot_id]
     )
@@ -298,15 +306,25 @@ def get_automation(session: Session = Depends(get_session)):
     from app.modules.mixer.automation import automation, configuration
     settings = session.scalar(select(BroadcastViewerSettings).limit(1))
     available = [{"id": scene.id, "label": scene.label} for scene in audio_scenes(settings)] if settings else []
-    return {"configuration": configuration(config(session)), "status": automation.status,
-            "available_scenes": available}
+    from app.modules.mixer.stream_gate import desk_stream_control
+    cfg = configuration(config(session))
+    return {"configuration": cfg, "status": automation.status,
+            "available_scenes": available, "desk_stream_control": desk_stream_control(cfg, engine)}
 
 
 @router.put("/automation")
 def save_automation(payload: AutomationConfiguration, session: Session = Depends(get_session)):
     from app.modules.mixer.automation import automation, configuration
-    item = config(session)
+    item = config(session, lock=True)
     previous = configuration(item)
+    if previous.desk_stream_muted and (
+        payload.roles != previous.roles or payload.livestream_bus != previous.livestream_bus
+    ):
+        raise HTTPException(409, "Release desk stream mute before changing input mapping or buses")
+    payload = payload.model_copy(update={
+        "desk_stream_muted": previous.desk_stream_muted,
+        "desk_stream_restore": previous.desk_stream_restore,
+    })
     item.automation_json = payload.model_dump_json()
     session.commit()
     if payload.enabled and (
@@ -315,6 +333,76 @@ def save_automation(payload: AutomationConfiguration, session: Session = Depends
         engine.startup_scene_hold = False
     automation.notify()
     return {"configuration": payload, "status": automation.status}
+
+
+class DeskStreamMute(BaseModel):
+    muted: bool
+
+
+@router.patch("/desk-stream-mute")
+async def set_desk_stream_mute(payload: DeskStreamMute, session: Session = Depends(get_session)):
+    from app.modules.mixer.automation import configuration
+    from app.modules.mixer.stream_gate import desk_send_paths, desk_stream_control
+
+    def prepare():
+        item = config(session, lock=True)
+        cfg = configuration(item)
+        control = desk_stream_control(cfg, engine)
+        if not control["ready"]:
+            raise HTTPException(409, control["reason"])
+        if payload.muted:
+            targets = {
+                path: engine.stream_gate.targets.get(path, engine.values[path])
+                for path in desk_send_paths(cfg)
+            }
+        else:
+            targets = engine.stream_gate.targets.copy() or cfg.desk_stream_restore.copy()
+            if cfg.desk_stream_muted and set(targets) != desk_send_paths(cfg):
+                raise HTTPException(409, "Saved desk stream levels are incomplete")
+        for path, value in targets.items():
+            engine.command_value(path, value)
+        if payload.muted:
+            cfg.desk_stream_muted = True
+            cfg.desk_stream_restore = targets
+            item.automation_json = cfg.model_dump_json()
+            session.commit()
+        session.close()
+        return cfg, targets
+
+    def finish_release():
+        item = config(session, lock=True)
+        cfg = configuration(item)
+        cfg.desk_stream_muted = False
+        cfg.desk_stream_restore = {}
+        item.automation_json = cfg.model_dump_json()
+        session.commit()
+        session.close()
+        return cfg
+
+    async with engine.stream_gate.lock:
+        cfg, targets = await run_in_threadpool(prepare)
+        if payload.muted:
+            # Capture the latest desk/scene values on the event loop after DB
+            # work; a cue may have advanced while the worker thread prepared.
+            targets = {
+                path: engine.stream_gate.targets.get(path, engine.values.get(path, value))
+                for path, value in targets.items()
+            }
+            engine.stream_gate.activate(targets)
+        else:
+            targets = engine.stream_gate.targets.copy() or targets
+            engine.stream_gate.release()
+        try:
+            for path, value in targets.items():
+                await engine.write(path, value, origin="stream_gate")
+        except ValueError as error:
+            # Retain the saved mute/restore state so a failed release can be retried.
+            if not payload.muted and targets:
+                engine.stream_gate.activate(targets)
+            raise HTTPException(409, str(error)) from error
+        if not payload.muted:
+            cfg = await run_in_threadpool(finish_release)
+        return desk_stream_control(cfg, engine)
 
 
 @router.post("/automation/suggestions")
@@ -337,7 +425,7 @@ def control_automation(payload: SceneControl, session: Session = Depends(get_ses
     from app.modules.broadcast.models import BroadcastViewerSettings
     from app.modules.mixer.automation import automation, configuration, hold_manual_scene
 
-    item = config(session)
+    item = config(session, lock=True)
     cfg = configuration(item)
     if not cfg.enabled:
         raise HTTPException(409, "Enable hardware automation before selecting scenes")
@@ -366,7 +454,7 @@ def control_automation(payload: SceneControl, session: Session = Depends(get_ses
 @router.post("/automation/apply/{scene_id}")
 def hold_automation_scene(scene_id: str, session: Session = Depends(get_session)):
     from app.modules.mixer.automation import automation, configuration
-    item = config(session)
+    item = config(session, lock=True)
     cfg = configuration(item)
     if not cfg.enabled:
         raise HTTPException(409, "Enable hardware automation before applying a scene")
@@ -385,8 +473,14 @@ def hold_automation_scene(scene_id: str, session: Session = Depends(get_session)
 
 @router.post("/automation/capture/{scene_id}")
 def capture_automation_scene(scene_id: str, session: Session = Depends(get_session)):
-    from app.modules.mixer.automation import SceneChannel, SceneLevel, automation, configuration
-    item = config(session)
+    from app.modules.mixer.automation import (
+        MixerScene,
+        SceneChannel,
+        SceneLevel,
+        automation,
+        configuration,
+    )
+    item = config(session, lock=True)
     cfg = configuration(item)
     scene = next((scene for scene in cfg.scenes if scene.id == scene_id), None)
     if scene is None:
@@ -398,7 +492,7 @@ def capture_automation_scene(scene_id: str, session: Session = Depends(get_sessi
     def level(path):
         if path not in values:
             raise HTTPException(409, "Wait for all mapped channel levels to be read")
-        wire = values[path]
+        wire = engine.stream_gate.targets.get(path, values[path])
         return wire, (wire * 40 - 30 if wire >= .5 else wire * 80 - 50 if wire >= .25
                       else wire * 160 - 70 if wire >= .0625 else wire * 480 - 90)
 
@@ -406,6 +500,9 @@ def capture_automation_scene(scene_id: str, session: Session = Depends(get_sessi
     for strip_id, role in cfg.roles.items():
         if role == "other":
             continue
+        if strip_id + "/mix/on" not in values:
+            raise HTTPException(409, "Wait for mapped channel mute states to be read")
+        unmuted = values[strip_id + "/mix/on"] == 1
         previous = scene.channels.get(strip_id, SceneChannel())
         channel = previous.model_copy(deep=True)
         if cfg.room_enabled:
@@ -413,15 +510,22 @@ def capture_automation_scene(scene_id: str, session: Session = Depends(get_sessi
                 raise HTTPException(409, "Wait for mapped Main LR assignments to be read")
             _, room_db = level(strip_id + "/mix/fader")
             channel.room = SceneLevel(
-                enabled=values[strip_id + "/mix/lr"] == 1, level_db=round(room_db, 2)
+                enabled=unmuted and values[strip_id + "/mix/lr"] == 1, level_db=round(room_db, 2)
             )
         if cfg.livestream_enabled:
             wire, stream_db = level(f"{strip_id}/mix/{cfg.livestream_bus:02}/level")
-            channel.livestream = SceneLevel(enabled=wire > 0, level_db=round(stream_db, 2))
+            channel.livestream = SceneLevel(
+                enabled=unmuted and wire > 0, level_db=round(stream_db, 2)
+            )
+        if scene.id != "pre_service":
+            captured = channel.room if cfg.room_enabled else channel.livestream
+            if captured is not None:
+                channel.room = captured.model_copy()
+                channel.livestream = captured.model_copy()
         channels[strip_id] = channel
     if not channels:
         raise HTTPException(409, "Map inputs before capturing a hardware scene")
-    scene.channels = channels
+    scene.channels = MixerScene(id=scene.id, label=scene.label, channels=channels).channels
     item.automation_json = cfg.model_dump_json()
     session.commit()
     automation.notify()

@@ -47,6 +47,18 @@ class MixerScene(BaseModel):
     channels: dict[str, SceneChannel] = Field(default_factory=dict, max_length=21)
 
     @model_validator(mode="after")
+    def link_service_mixes(self):
+        # Room is the authority for old split presets. Pre-service deliberately
+        # retains independent routing (room rehearsal versus streamed media).
+        if self.id != "pre_service":
+            for channel in self.channels.values():
+                level = channel.room or channel.livestream
+                if level is not None:
+                    channel.room = level.model_copy()
+                    channel.livestream = level.model_copy()
+        return self
+
+    @model_validator(mode="after")
     def valid_channels(self):
         if not set(self.channels).issubset(STRIP_IDS):
             raise ValueError("Scenes may control only input, aux and FX-return channels")
@@ -61,6 +73,8 @@ class AutomationConfiguration(BaseModel):
     livestream_bus: Literal[1, 3, 5] = 5
     manual_scene_id: str | None = Field(default=None, max_length=80)
     manual_revision: int = Field(default=0, ge=0)
+    desk_stream_muted: bool = False
+    desk_stream_restore: dict[str, float] = Field(default_factory=dict, max_length=42)
     roles: dict[str, Role] = Field(default_factory=dict, max_length=21)
     scenes: list[MixerScene] = Field(
         default_factory=lambda: [MixerScene(id=key, label=label) for key, label in SCENES.items()],
@@ -69,8 +83,20 @@ class AutomationConfiguration(BaseModel):
 
     @model_validator(mode="after")
     def valid_configuration(self):
+        if any(
+            path not in {
+                f"{strip}/mix/{bus:02}/level" for strip in STRIP_IDS for bus in range(1, 7)
+            }
+            or not math.isfinite(value) or not 0 <= value <= 1
+            for path, value in self.desk_stream_restore.items()
+        ):
+            raise ValueError("Invalid saved desk stream sends")
         if not set(self.roles).issubset(STRIP_IDS):
             raise ValueError("Assign roles only to input, aux and FX-return channels")
+        if self.desk_stream_muted:
+            from app.modules.mixer.stream_gate import desk_send_paths
+            if set(self.desk_stream_restore) != desk_send_paths(self):
+                raise ValueError("Saved desk stream sends must match the mapped desk inputs")
         ids = [scene.id for scene in self.scenes]
         if len(ids) != len(set(ids)):
             raise ValueError("Scene IDs must be unique")
@@ -119,7 +145,7 @@ def suggested_scenes(roles: dict[str, Role]) -> list[MixerScene]:
                     enabled=(role == "worship" if scene_id == "pre_service" else bool(on))
                 ),
                 livestream=SceneLevel(
-                    enabled=on or role == "ambience" and ambient_db is not None,
+                    enabled=on,
                     level_db=ambient_db if role == "ambience" and ambient_db is not None else 0,
                 ),
             )
@@ -158,6 +184,7 @@ def fader_wire(db: float) -> float:
 def scene_commands(cfg: AutomationConfiguration, scene: MixerScene) -> dict[str, float | int]:
     commands = {}
     opens = {}
+    separate_routes = scene.id == "pre_service"
     for strip_id, channel in scene.channels.items():
         room = channel.room if cfg.room_enabled else None
         stream = channel.livestream if cfg.livestream_enabled else None
@@ -166,11 +193,14 @@ def scene_commands(cfg: AutomationConfiguration, scene: MixerScene) -> dict[str,
         elif room is not None or stream is not None:
             commands[strip_id + "/mix/on"] = 0
         if cfg.room_enabled and channel.room is not None:
-            commands[strip_id + "/mix/lr"] = int(channel.room.enabled)
-            if channel.room.enabled:
+            commands[strip_id + "/mix/lr"] = int(channel.room.enabled or not separate_routes)
+            if channel.room.enabled or not separate_routes:
                 commands[strip_id + "/mix/fader"] = fader_wire(channel.room.level_db)
         if cfg.livestream_enabled and channel.livestream is not None:
-            level = fader_wire(channel.livestream.level_db) if channel.livestream.enabled else 0.0
+            level = (
+                fader_wire(channel.livestream.level_db)
+                if channel.livestream.enabled or not separate_routes else 0.0
+            )
             for bus in (cfg.livestream_bus, cfg.livestream_bus + 1):
                 commands[f"{strip_id}/mix/{bus:02}/level"] = level
     # Route and set levels before opening microphones.
@@ -247,6 +277,21 @@ def load_state() -> AutomationState:
         )
 
 
+def persist_stream_targets(host, targets):
+    """Keep restore levels durable without letting a stale worker re-arm a gate."""
+    from app.modules.mixer.stream_gate import desk_send_paths
+    with SessionLocal() as session:
+        item = session.scalar(
+            select(MixerConfiguration).where(MixerConfiguration.id == "xr18").with_for_update()
+        )
+        cfg = configuration(item)
+        if (item and item.host == host and cfg.desk_stream_muted
+                and set(targets) == desk_send_paths(cfg) and cfg.desk_stream_restore != targets):
+            cfg.desk_stream_restore = targets
+            item.automation_json = cfg.model_dump_json()
+            session.commit()
+
+
 class SceneAutomation:
     def __init__(self, mixer=engine):
         self.mixer = mixer
@@ -269,6 +314,20 @@ class SceneAutomation:
 
     async def tick(self, state: AutomationState):
         cfg = state.config
+        # Restore once at process startup. A stale state read must never re-arm
+        # the gate after an operator has released it through the API.
+        if not self.mixer.stream_gate.initialized:
+            self.mixer.stream_gate.initialized = True
+            if cfg.desk_stream_muted:
+                self.mixer.stream_gate.activate(cfg.desk_stream_restore)
+        if (self.mixer.stream_gate.paths and self.mixer.connected
+                and not self.mixer.syncing and not self.mixer.recalling
+                and not getattr(self.mixer, "startup_muting", False)):
+            for path in self.mixer.stream_gate.paths:
+                if path in self.mixer.values and self.mixer.values[path] != 0:
+                    await self.mixer.write(
+                        path, self.mixer.stream_gate.targets[path], origin="stream_gate"
+                    )
         scene_id = (
             cfg.manual_scene_id or state.service_scene
             if cfg.follow_service
@@ -349,7 +408,8 @@ class SceneAutomation:
                     state="error", detail="Scene changes were not confirmed; check mixer connection"
                 )
             elif any(
-                not math.isclose(float(self.mixer.values.get(path, -999)), value, abs_tol=0.002)
+                not math.isclose(float(self.mixer.values.get(path, -999)),
+                                 self.mixer.stream_gate.effective(path, value), abs_tol=0.002)
                 for path, value in self.expected.items()
             ):
                 self.status.update(
@@ -386,7 +446,9 @@ class SceneAutomation:
                 self.cancel_pending()
                 self.applied_key = None
                 return
-            if math.isclose(float(self.mixer.values[path]), value, abs_tol=0.002):
+            self.mixer.stream_gate.remember(path, value)
+            effective = self.mixer.stream_gate.effective(path, value)
+            if math.isclose(float(self.mixer.values[path]), effective, abs_tol=0.002):
                 continue
             await self.mixer.write(path, value, origin="automation")
             await asyncio.sleep(0.01)
@@ -396,7 +458,11 @@ class SceneAutomation:
         while True:
             self.wake.clear()
             try:
-                await self.tick(await asyncio.to_thread(load_state))
+                state = await asyncio.to_thread(load_state)
+                await self.tick(state)
+                targets = self.mixer.stream_gate.targets.copy()
+                if targets and targets != state.config.desk_stream_restore:
+                    await asyncio.to_thread(persist_stream_targets, state.host, targets)
             except asyncio.CancelledError:
                 raise
             except Exception:

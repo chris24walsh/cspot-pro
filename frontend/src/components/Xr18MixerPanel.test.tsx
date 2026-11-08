@@ -4,6 +4,8 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { emptyMixer, mixerRequest } from '../xr18';
 import { Xr18MixerPanel } from './Xr18MixerPanel';
+import type { DeskStreamControl } from './MixerSceneControls';
+let deskControl: DeskStreamControl | null = null;
 vi.mock('../xr18', async () => ({
   ...(await vi.importActual('../xr18')),
   mixerRequest: vi.fn()
@@ -35,6 +37,7 @@ let resized: () => void;
 let container: HTMLDivElement;
 let root: Root;
 beforeEach(async () => {
+  deskControl = null;
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
   vi.stubGlobal('EventSource', FakeStream);
   deskWidth = 1280;
@@ -44,7 +47,12 @@ beforeEach(async () => {
     observe(element: HTMLElement) { if (element.classList.contains('xr-dashboard')) resized = this.callback; }
     disconnect() {}
   });
-  vi.mocked(mixerRequest).mockImplementation(async path => {
+  vi.mocked(mixerRequest).mockImplementation(async (path, _method, body) => {
+    if (path === '/automation') return {configuration:{enabled:false,scenes:[],follow_service:false}, status:{scene_id:null,detail:''}, desk_stream_control:deskControl};
+    if (path === '/desk-stream-mute') {
+      deskControl={muted:(body as {muted:boolean}).muted,confirmed:true,ready:true,reason:null};
+      return deskControl;
+    }
     if (path === '/catalog') return {
       strips: [...Array.from({length:16},(_,i)=>({id:`/ch/${String(i+1).padStart(2,'0')}`,kind:'input',name:`Ch ${i+1}`,meter:i})),{id:'/lr',kind:'main',name:'Main LR',meter:36}],
       parameters: {
@@ -442,4 +450,48 @@ it('keeps the embedded desk expanded inside its pane without locking the page', 
   expect(document.body.style.overflow).toBe('');
   act(() => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' })));
   expect(container.querySelector('.xr-dashboard.is-focused')).not.toBeNull();
+});
+
+it('uses one all-channel toggle and follows physical desk mute readbacks',()=>{
+  const values=Object.fromEntries(Array.from({length:16},(_,i)=>[`/ch/${String(i+1).padStart(2,'0')}/mix/on`,0]));
+  emit({...emptyMixer,reset:true,connected:true,values});
+  const group=container.querySelector('[aria-label="Mixer mute controls"]')!;
+  expect(group.querySelectorAll('button')).toHaveLength(2);
+  expect(group.querySelector('button')!.getAttribute('aria-pressed')).toBe('true');
+  expect(group.textContent).toContain('Unmute all');
+  emit({...emptyMixer,reset:false,connected:true,values:{'/ch/01/mix/on':1}});
+  expect(group.querySelector('button')!.getAttribute('aria-pressed')).toBe('false');
+  expect(group.textContent).toContain('Mute all');
+  expect(vi.mocked(mixerRequest).mock.calls.every(([,method])=>method!=='POST')).toBe(true);
+});
+
+it('mutes only the desk contribution through the dedicated endpoint and shows readback confirmation',async()=>{
+  deskControl={muted:false,confirmed:false,ready:true,reason:null};
+  // Refresh the shared scene/control metadata without opening another poller.
+  act(()=>root.unmount());root=createRoot(container);
+  await act(async()=>root.render(<Xr18MixerPanel/>));
+  emit({...emptyMixer,reset:true,connected:true,values:{'/ch/01/mix/on':1,'/rtn/aux/mix/on':1}});
+  const toggle=()=>container.querySelector<HTMLButtonElement>('[aria-label="Mute desk to livestream"], [aria-label="Unmute desk to livestream"]')!;
+  expect(toggle().disabled).toBe(false);
+  await act(async()=>toggle().click());
+  expect(mixerRequest).toHaveBeenCalledWith('/desk-stream-mute','PATCH',{muted:true});
+  expect(toggle().getAttribute('aria-pressed')).toBe('true');
+  expect(toggle().textContent).toContain('muted');
+  expect(vi.mocked(mixerRequest).mock.calls.some(([path])=>path==='/commands')).toBe(false);
+  await act(async()=>toggle().click());
+  expect(mixerRequest).toHaveBeenCalledWith('/desk-stream-mute','PATCH',{muted:false});
+  expect(toggle().getAttribute('aria-pressed')).toBe('false');
+});
+
+it('disables desk-only stream mute when metadata is unavailable or the desk disconnects',async()=>{
+  emit({...emptyMixer,reset:true,connected:true,values:{'/ch/01/mix/on':1}});
+  const toggle=()=>container.querySelector<HTMLButtonElement>('[aria-label="Mute desk to livestream"]')!;
+  expect(toggle().disabled).toBe(true);
+  act(()=>root.unmount());root=createRoot(container);
+  deskControl={muted:false,confirmed:false,ready:true,reason:null};
+  await act(async()=>root.render(<Xr18MixerPanel/>));
+  emit({...emptyMixer,reset:true,connected:true,values:{}});
+  expect(toggle().disabled).toBe(false);
+  emit({...emptyMixer,reset:false,connected:false,values:{}});
+  expect(toggle().disabled).toBe(true);
 });

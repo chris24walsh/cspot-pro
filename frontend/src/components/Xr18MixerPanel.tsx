@@ -3,7 +3,7 @@ import { RefreshCw, Search, SlidersHorizontal, Save, Unplug, Radio, Settings2, C
 import { buildAbsoluteApiUrl } from '../api';
 import { displayValue, emptyMixer, fromWire, mixerCommandValue, mixerRequest, physicalHeadamp, toWire, type MixerParameter, type MixerState, type MixerStrip } from '../xr18';
 import { MixerAutomationPanel } from './MixerAutomationPanel';
-import { MixerSceneControls } from './MixerSceneControls';
+import { MixerSceneControls, type DeskStreamControl } from './MixerSceneControls';
 import { MixerFader } from './MixerFader';
 import { MixerCommandQueue } from '../mixerCommands';
 import { mixerBankSize } from '../mixerLayout';
@@ -38,6 +38,9 @@ export function Xr18MixerPanel({ embeddedExpanded = false, headerControls }: { e
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [streamOnline, setStreamOnline] = useState(false);
+  const [deskStream, setDeskStream] = useState<DeskStreamControl | null>(null);
+  const [deskStreamBusy, setDeskStreamBusy] = useState(false);
+  const [deskStreamRevision, setDeskStreamRevision] = useState(0);
   const [bank, setBank] = useState('inputs');
   const [page, setPage] = useState('desk');
   const [scrollEdges, setScrollEdges] = useState({ start: true, end: false });
@@ -297,6 +300,7 @@ export function Xr18MixerPanel({ embeddedExpanded = false, headerControls }: { e
   }
   const mutePaths = catalog.strips.filter(strip => ['input', 'aux', 'return'].includes(strip.kind)).map(strip => strip.id + '/mix/on');
   const bulkMuteReady = enabled && !state.syncing && !busy && mutePaths.length > 0 && mutePaths.every(path => state.values[path] === 0 || state.values[path] === 1);
+  const allChannelsMuted = mutePaths.length > 0 && mutePaths.every(path => controlValue(path) === 0);
   async function muteAll(value: number) {
     if (!bulkMuteReady) return;
     for (const path of mutePaths) void write(path, value, false, false);
@@ -420,7 +424,7 @@ export function Xr18MixerPanel({ embeddedExpanded = false, headerControls }: { e
       <button type="button" title={showSetup ? 'Hide connection settings' : 'Connection settings'} aria-label="Connection settings" aria-expanded={showSetup} aria-controls="xr-connection-settings" onClick={() => { setSetupOpen(!showSetup); setEditorOpen(false); }}><Settings2 size={18} /><span className="xr-action-label">Setup</span></button>
       {!embeddedExpanded && <button type="button" title={focused ? 'Exit expanded desk' : 'Expand desk to fill screen'} aria-label={focused ? 'Exit expanded desk' : 'Expand desk'} aria-pressed={focused} onClick={() => { setFocused(!focused); setSetupOpen(false); setEditorOpen(false); }}>{focused ? <Minimize2 size={18} /> : <Maximize2 size={18} />}<span className="xr-action-label">{focused ? 'Restore' : 'Expand'}</span></button>}
     </div></header>
-    <MixerSceneControls connected={enabled && !state.syncing} />
+    <MixerSceneControls connected={enabled && !state.syncing} onDeskStreamControl={setDeskStream} deskStreamRevision={deskStreamRevision} />
     {!focused && renderMenus()}
     <div className="xr-connect-bar" id="xr-connection-settings" hidden={!showSetup}><label>Mixer IP<input aria-label="Mixer IP address" value={host} onChange={e => setHost(e.target.value)} placeholder="192.168.2.141" /></label><button type="button" disabled={busy || !host} onClick={() => void run(async () => {
         const s = await mixerRequest<MixerState>('/connection', 'PUT', {
@@ -443,9 +447,21 @@ export function Xr18MixerPanel({ embeddedExpanded = false, headerControls }: { e
     {!state.connected && <p className="xr-notice">{state.host ? `Waiting for ${state.host}:10024. Check power, Ethernet mode and LAN routing.` : 'Connect your XR18 to read the desk. Controls become available as the mixer replies.'} {Object.keys(state.values).length > 0 ? 'Displayed values are cached; controls are disabled.' : ''}</p>}
     {page === 'desk' ? <>{sendBus && <p className="xr-notice">Faders adjust {Number(sendBus) <= 6 ? `Bus ${Number(sendBus)}` : `FX ${Number(sendBus) - 6}`} sends. Mute still mutes the whole channel.</p>}
     <div className="xr-desk-toolbar">
-      <div className="xr-bulk-mute" role="group" aria-label="All input channel mutes">
-        <button type="button" aria-label="Mute all input channels and returns" title="Mute every input and return in both room and livestream, across all banks" disabled={!bulkMuteReady} onClick={() => void muteAll(0)}><VolumeX size={17}/><span className="xr-action-label">Mute all</span></button>
-        <button type="button" aria-label="Unmute all input channels and returns" title="Unmute every input and return; confirm before opening all microphones" disabled={!bulkMuteReady} onClick={() => setDialog({title:'Unmute all channels?',body:'Unmute every input and FX return across all banks, including microphones. This affects both room and livestream; scene routing and levels still apply. Master, bus and DCA mutes remain unchanged.',action:()=>muteAll(1)})}><Volume2 size={17}/><span className="xr-action-label">Unmute all</span></button>
+      <div className="xr-bulk-mute" role="group" aria-label="Mixer mute controls">
+        <button type="button" aria-label={allChannelsMuted ? "Unmute all input channels and returns" : "Mute all input channels and returns"} aria-pressed={allChannelsMuted} title={allChannelsMuted ? "Unmute every input and return; confirm before opening all microphones" : "Mute every input and return on the desk, across all banks"} disabled={!bulkMuteReady} onClick={() => {
+          if (allChannelsMuted) setDialog({title:'Unmute all channels?',body:'Unmute every input and FX return on the physical desk, across all banks. This affects all outputs using those channels. Master, bus and DCA mutes remain unchanged.',action:()=>muteAll(1)});
+          else void muteAll(0);
+        }}>{allChannelsMuted ? <Volume2 size={17}/> : <VolumeX size={17}/>}<span className="xr-action-label">{allChannelsMuted ? 'Unmute all' : 'Mute all'}</span></button>
+        <button type="button" aria-label={deskStream?.muted ? "Unmute desk to livestream" : "Mute desk to livestream"} aria-pressed={deskStream?.muted ?? false} disabled={!enabled || state.syncing || busy || deskStreamBusy || !deskStream?.ready}
+          title={deskStream?.reason ?? "Mute desk microphones and instruments in livestream and recordings; room sound and PC media continue"}
+          onClick={() => {
+            if (!deskStream?.ready || deskStreamBusy) return;
+            setDeskStreamBusy(true);
+            void mixerRequest<DeskStreamControl>('/desk-stream-mute', 'PATCH', {muted:!deskStream.muted})
+              .then(control => { if (alive.current) setDeskStream(control); })
+              .catch(error => { if (alive.current) setError(error instanceof Error ? error.message : 'Could not change desk stream mute'); })
+              .finally(() => { if (alive.current) { setDeskStreamBusy(false); setDeskStreamRevision(value => value + 1); } });
+          }}>{deskStream?.muted ? <VolumeX size={17}/> : <Radio size={17}/>}<span className="xr-action-label">Desk → stream{deskStream?.muted ? deskStream.confirmed ? ' muted' : ' muting…' : ''}</span></button>
       </div>
       <div className="xr-bank-pager" role="group" aria-label="Browse channels">
         <button type="button" title="Previous channel bank" aria-label="Previous channel bank" disabled={scrollEdges.start} onClick={() => browseChannels(-1)}><ChevronLeft size={19} /></button>

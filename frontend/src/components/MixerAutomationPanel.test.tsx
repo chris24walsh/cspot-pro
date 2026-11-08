@@ -77,3 +77,34 @@ it('removes saved scene control from the draft when an input is left untouched',
   expect(save.roles).toEqual({});
   expect(save.scenes[0].channels).toEqual({});
 });
+
+it('edits normal scene on/off and levels together for room and livestream',async()=>{
+  select('Pastor mic audio role','pastor');
+  await click(button('Generate suggested presets'));
+  expect(container.textContent).toContain('On · both mixes');
+  expect(container.querySelector('[aria-label="Pastor mic livestream enabled"]')).toBeNull();
+  await click(container.querySelector<HTMLInputElement>('[aria-label="Pastor mic room enabled"]')!);
+  const input=container.querySelector<HTMLInputElement>('[aria-label="Pastor mic room dB"]')!;
+  act(()=>{
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value')!.set!.call(input,'-9');
+    input.dispatchEvent(new Event('input',{bubbles:true}));
+  });
+  await click(button('Save scenes'));
+  const save=vi.mocked(mixerRequest).mock.calls.find(([,method])=>method==='PUT')?.[2] as MixerAutomationConfiguration;
+  expect(save.scenes[0].channels['/ch/01']).toEqual({room:{enabled:false,level_db:-9},livestream:{enabled:false,level_db:-9}});
+});
+
+it('keeps independent pre-service controls and leaves that draft unchanged when editing another scene',async()=>{
+  act(()=>root.unmount());
+  cfg.roles={'/ch/01':'worship'};
+  cfg.scenes=[{id:'pre_service',label:'Pre-service',channels:{'/ch/01':{room:{enabled:true,level_db:-6},livestream:{enabled:false,level_db:-12}}}}, {id:'pastor',label:'Pastor',channels:{}}];
+  root=createRoot(container);
+  await act(async()=>root.render(<MixerAutomationPanel strips={[{id:'/ch/01',kind:'input',name:'Pastor mic',meter:0}]} state={emptyMixer}/>));
+  select('Hardware scene preset','pre_service');
+  expect(container.querySelector('[aria-label="Pastor mic livestream enabled"]')).not.toBeNull();
+  await click(container.querySelector<HTMLInputElement>('[aria-label="Pastor mic room enabled"]')!);
+  await click(button('Save scenes'));
+  const save=vi.mocked(mixerRequest).mock.calls.find(([,method])=>method==='PUT')?.[2] as MixerAutomationConfiguration;
+  expect(save.scenes[0].channels['/ch/01']).toEqual({room:{enabled:false,level_db:-6},livestream:{enabled:false,level_db:-12}});
+  expect(save.scenes[1]).toEqual(cfg.scenes[1]);
+});

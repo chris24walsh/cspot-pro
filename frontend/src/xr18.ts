@@ -17,6 +17,7 @@ export interface MixerStrip {
   meter: number;
 }
 export interface MixerState {
+  desk_stream_muted?: boolean;
   startup_muting?: boolean;
   startup_scene_hold?: boolean;
   fx_specs: Record<string, MixerParameter>;

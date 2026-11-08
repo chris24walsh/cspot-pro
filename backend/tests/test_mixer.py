@@ -126,6 +126,7 @@ def test_mixer_endpoints_require_authentication():
         client.post("/api/v1/mixer/command", json={"path": "/ch/01/mix/on", "value": 1}).status_code
         == 401
     )
+    assert client.patch("/api/v1/mixer/desk-stream-mute", json={"muted": True}).status_code == 401
 
 
 def test_events_are_uncompressed_and_both_clients_receive_changes(monkeypatch):

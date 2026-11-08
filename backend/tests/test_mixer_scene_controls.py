@@ -17,6 +17,7 @@ from app.modules.mixer.automation import (
 )
 from app.modules.mixer.models import MixerConfiguration
 from app.modules.mixer.routes import SceneControl, control_automation
+from app.modules.mixer.stream_gate import DeskStreamGate
 
 
 @pytest.fixture
@@ -86,3 +87,70 @@ def test_cannot_arm_disabled_hardware_with_quick_controls(setup):
         control_automation(SceneControl(scene_id="pastor"), session)
     assert error.value.status_code == 409
     assert not configuration(mixer).enabled
+
+
+@pytest.mark.parametrize("unmuted", [False, True])
+@pytest.mark.parametrize("scope", ["both", "room", "stream"])
+def test_capture_uses_mute_not_connected_routes_for_normal_scene(
+    setup, monkeypatch, unmuted, scope
+):
+    from app.modules.mixer.automation import fader_wire
+    from app.modules.mixer.routes import capture_automation_scene
+    session, mixer, viewer = setup
+    cfg = configuration(mixer)
+    cfg.roles = {"/ch/01": "pastor"}
+    cfg.room_enabled = scope != "stream"
+    cfg.livestream_enabled = scope != "room"
+    mixer.automation_json = cfg.model_dump_json()
+    session.commit()
+    monkeypatch.setattr("app.modules.mixer.routes.engine", SimpleNamespace(
+        connected=True, syncing=False, recalling=False, stream_gate=DeskStreamGate(), values={
+            "/ch/01/mix/on": int(unmuted), "/ch/01/mix/lr": 1,
+            "/ch/01/mix/fader": fader_wire(-6), "/ch/01/mix/05/level": fader_wire(-12),
+        },
+    ))
+    captured = capture_automation_scene("pastor", session)["configuration"]
+    channel = captured.scenes[0].channels["/ch/01"]
+    assert channel.room == channel.livestream
+    assert channel.room.enabled == unmuted
+    assert channel.room.level_db == (-12 if scope == "stream" else -6)
+    # Round-trip persistence must retain a muted-but-connected channel as off.
+    assert configuration(mixer).scenes[0].channels["/ch/01"] == channel
+
+
+def test_capture_requires_mute_readback_without_saving_partial_preset(setup, monkeypatch):
+    from app.modules.mixer.routes import capture_automation_scene
+    session, mixer, viewer = setup
+    cfg = configuration(mixer)
+    cfg.roles = {"/ch/01": "pastor"}
+    mixer.automation_json = cfg.model_dump_json()
+    session.commit()
+    previous = mixer.automation_json
+    monkeypatch.setattr("app.modules.mixer.routes.engine", SimpleNamespace(
+        connected=True, syncing=False, recalling=False, stream_gate=DeskStreamGate(), values={},
+    ))
+    with pytest.raises(HTTPException) as error:
+        capture_automation_scene("pastor", session)
+    assert error.value.status_code == 409
+    assert "mute states" in error.value.detail
+    assert mixer.automation_json == previous
+
+
+def test_capture_preservice_keeps_room_and_stream_separate(setup, monkeypatch):
+    from app.modules.mixer.automation import fader_wire
+    from app.modules.mixer.routes import capture_automation_scene
+    session, mixer, viewer = setup
+    cfg = configuration(mixer)
+    cfg.roles = {"/ch/01": "worship"}
+    mixer.automation_json = cfg.model_dump_json()
+    session.commit()
+    monkeypatch.setattr("app.modules.mixer.routes.engine", SimpleNamespace(
+        connected=True, syncing=False, recalling=False, stream_gate=DeskStreamGate(), values={
+            "/ch/01/mix/on": 1, "/ch/01/mix/lr": 1,
+            "/ch/01/mix/fader": fader_wire(-6), "/ch/01/mix/05/level": 0,
+        },
+    ))
+    captured = capture_automation_scene("pre_service", session)["configuration"]
+    scene = next(scene for scene in captured.scenes if scene.id == "pre_service")
+    assert scene.channels["/ch/01"].room.enabled
+    assert not scene.channels["/ch/01"].livestream.enabled

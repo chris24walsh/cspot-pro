@@ -2,12 +2,18 @@ import { useEffect, useRef, useState } from 'react';
 import { mixerRequest } from '../xr18';
 import type { MixerAutomationConfiguration } from './MixerAutomationPanel';
 
+export type DeskStreamControl = {muted: boolean; confirmed: boolean; ready: boolean; reason: string | null};
 type SceneState = {
+  desk_stream_control?: DeskStreamControl;
   configuration: MixerAutomationConfiguration;
   status: { scene_id: string | null; detail: string };
 };
 
-export function MixerSceneControls({ connected }: { connected: boolean }) {
+export function MixerSceneControls({ connected, onDeskStreamControl, deskStreamRevision = 0 }: {
+  connected: boolean;
+  deskStreamRevision?: number;
+  onDeskStreamControl?: (control: DeskStreamControl | null) => void;
+}) {
   const [state, setState] = useState<SceneState | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -16,6 +22,7 @@ export function MixerSceneControls({ connected }: { connected: boolean }) {
   const changing = useRef(false);
   useEffect(() => {
     alive.current = true;
+    let disposed = false;
     let polling = false;
     async function refresh() {
       if (polling || changing.current) return;
@@ -23,18 +30,19 @@ export function MixerSceneControls({ connected }: { connected: boolean }) {
       const version = revision.current;
       try {
         const response = await mixerRequest<SceneState>('/automation');
-        if (alive.current && version === revision.current) {
+        if (!disposed && alive.current && version === revision.current) {
           setState(response);
+          onDeskStreamControl?.(response.desk_stream_control ?? null);
           setError('');
         }
       } catch (error) {
-        if (alive.current && version === revision.current) setError(error instanceof Error ? error.message : 'Could not load mixer scenes');
+        if (!disposed && alive.current && version === revision.current) { setError(error instanceof Error ? error.message : 'Could not load mixer scenes'); onDeskStreamControl?.(null); }
       } finally { polling = false; }
     }
     void refresh();
     const timer = setInterval(() => void refresh(), 1500);
-    return () => { alive.current = false; clearInterval(timer); };
-  }, []);
+    return () => { disposed = true; alive.current = false; clearInterval(timer); };
+  }, [onDeskStreamControl, deskStreamRevision]);
   async function change(patch: { scene_id?: string; follow_service?: boolean }) {
     changing.current = true;
     revision.current += 1;

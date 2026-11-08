@@ -30,7 +30,7 @@ desk outputs. Streaming/browser delay remains and requires on-site measurement.
 This supersedes earlier software-mixer descriptions below.
 
 The XR18 **Audio scenes** tab can follow the current service section and apply
-separate channel levels for the room and livestream. It runs on the server;
+linked channel levels for the room and livestream, except during pre-service. It runs on the server;
 leaving the mixer browser closed does not stop it. Hardware automation defaults
 to **off**, and existing installations retain the software audio mixer.
 
@@ -44,9 +44,11 @@ to **off**, and existing installations retain the software audio mixer.
    not calibrated mixes. They include media during Worship for backing tracks,
    exclude ambience from the room, and keep room media off during Pre-service.
    Adjust those choices for your church.
-3. Edit each preset separately for Room and Stream, or use **Capture current
-   mix** when connected. Capture reads mapped channels for the enabled outputs
-   and preserves the other output's existing preset. Save with hardware control
+3. Edit the shared on/off and dB controls in normal presets, or the separate
+   Room and Stream controls in Pre-service. **Capture current mix** reads mute
+   states, routes and levels for mapped channels. Normal capture uses room
+   levels when room control is enabled, otherwise stream levels, and links the
+   saved values for both mixes. Pre-service preserves independent values. Save with hardware control
    disabled until routing and listening checks are complete. Export setup for a
    local copy.
 4. Set a section's **Audio scene** override where automatic type selection is
@@ -159,14 +161,39 @@ hardware presets show an error rather than claiming to apply a desk mix. An expl
 hardware preset dropdown is labelled **Edit preset**; selecting it edits the
 preset, while **Apply & hold** sends it.
 
-Scenes open a mapped channel if either controlled mix needs it, after setting
-routing and levels. They globally mute a mapped channel when none of the enabled, configured
-mixes needs it. Room-only scenes therefore mute unused microphones too.
-Channel mute affects every output, including any monitor sends. This allows scene application to release startup channel mutes while
-keeping room-only and stream-only inputs independent. Startup still waits for
-all mute acknowledgements and explicit operator release before scene audio
-can open. Input mapping and nonempty saved presets remain necessary; the
-application does not infer physical microphone assignments.
+Normal service scenes keep mapped inputs assigned to Main L/R and their
+livestream buses at saved levels, even while muted. Channel mute controls scene
+on/off, so manually unmuting an excluded mic restores audio without hidden route
+changes. Normal presets link room and livestream on/off and dB; old split presets
+use the room setting (or stream setting if room is absent), without a database
+migration. Pre-service retains independent routes for room-only rehearsal and
+streamed media. Output-control switches still limit which hardware routes are
+changed. Muting affects all outputs, including monitors; manual adjustments last
+until the next scene. Capture reads mute state as well as routes and levels.
+Startup mute protection and input mapping requirements remain in effect.
+Bus sends remain pre-fader: manual desk fader and send adjustments are still
+separate hardware controls; linked scene levels are reapplied on the next cue.
+
+The fader toolbar also provides a separate **Desk → stream** mute. It gates only
+stereo livestream sends for mapped pastor, leader, congregation, worship and
+ambience inputs. Channels mapped as PC media, and unmapped inputs/returns, are
+left untouched. The control requires an explicit media mapping, complete desk
+readbacks, linked stream buses and pre-fader sends with subgroup off. Channel
+mute buttons continue to write the physical channel switches directly; the
+all-channel control is one toggle (mixed states choose Mute all, and Unmute all
+requires confirmation).
+
+The desk stream gate affects both livestream and recordings because they share
+the same captured program feed. It never changes channel switches, room faders,
+Main L/R assignments, bus masters or media sends. Desired send levels are retained
+behind the gate, updated by scenes/manual send changes and persisted for restart
+recovery. Scene selection cannot release it. Turning it off restores the retained
+sends, including zero sends required by pre-service. Preset/snapshot capture saves
+the intended send levels rather than baking in the temporary gate. Input mapping,
+stream bus and desk host changes are blocked while the gate is active. This does
+not introduce software mixing or a second playback stream. Confirm the physical
+media mapping and USB capture routing on site after the live service.
+
 
 Input mapping distinguishes a service leader/opening mic (`leader`) from the
 pastor/message mic. Draft generation adds a separate `service_leader` preset
@@ -184,22 +211,22 @@ not by simply loading the saved selection. Item and inherited section Audio
 scene overrides take precedence over type inference. Source buttons provide a
 temporary override until the next cue, while Apply & hold remains persistent.
 
-## Operator feedback and pending changes (8 November 2026)
+## Operator feedback and implementation (8 November 2026)
 
 Product requirement: room and livestream mixes should generally match. The
 pre-service exception allows room audio without carrying it into the livestream.
-Separate output controls currently exist; this requirement has not yet been
-implemented as linked controls or applied to production presets.
+Linked normal preset controls and mute-based normal scene routing are now
+implemented in source. This change has not been deployed during the service.
 
 During a live service, an operator raised and unmuted the pastor microphone in
 the preceding section without hearing it in the room. Entering the sermon then
-opened the microphone in both room and livestream. Current scenes control global
+opened the microphone in both room and livestream. The deployed scenes control global
 mute, Main L/R assignment and independent bus sends: unmuting alone does not
 restore routes disabled by the preceding scene. Physical input identification
 and actual desk readbacks were not verified during this report.
 
-Proposed follow-up: provide an explicit channel action to make a microphone live
-in both mixes at a visible level, show when a scene has excluded its routes, and
-make the scope and lifetime of manual overrides clear before the next cue.
-Review and test this outside the live service; do not deploy or change live
-presets during the service to address this feedback.
+The implemented fix keeps normal scene routes connected while muted, so the
+existing unmute action works without an additional routing action. Pre-service
+remains the explicit exception. Manual adjustments last until the next cue.
+Verify physical routing and listen to both mixes after the service before
+relying on this change in production. Do not deploy during the live service.

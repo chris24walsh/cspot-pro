@@ -860,11 +860,12 @@ manual hold, pause and section following. Hardware control defaults off; the
 legacy software audio path remains the default. See the
 [Sunday setup and audio scene guide](docs/xr18-audio-scenes.md).
 
-The XR18 fader toolbar provides Mute all and confirmed Unmute all for all input,
+The XR18 fader toolbar provides one Mute all / confirmed Unmute all toggle for all input,
 aux and FX-return channels across banks. Masters, buses and DCAs are excluded.
 Both actions require live complete channel mute readbacks and affect room and
-livestream together. Service scenes now set mapped channel mutes as well as Main L/R assignments
-and independent stream sends. Manual mute changes last until the next scene.
+livestream together. Normal scenes retain room and stream routes while using
+channel mute for on/off. Pre-service retains independent routing. Manual mute
+changes last until the next scene.
 
 On every cspot API startup, the saved mixer connection starts without requiring
 an open browser. All 16 inputs, stereo aux and four FX returns are muted as their
@@ -890,14 +891,39 @@ hardware presets show an error rather than claiming to apply a desk mix. An expl
 hardware preset dropdown is labelled **Edit preset**; selecting it edits the
 preset, while **Apply & hold** sends it.
 
-Scenes open a mapped channel if either controlled mix needs it, after setting
-routing and levels. They globally mute a mapped channel when none of the enabled, configured
-mixes needs it. Room-only scenes therefore mute unused microphones too.
-Channel mute affects every output, including any monitor sends. This allows scene application to release startup channel mutes while
-keeping room-only and stream-only inputs independent. Startup still waits for
-all mute acknowledgements and explicit operator release before scene audio
-can open. Input mapping and nonempty saved presets remain necessary; the
-application does not infer physical microphone assignments.
+Normal service scenes keep mapped inputs assigned to Main L/R and their
+livestream buses at saved levels, even while muted. Channel mute controls scene
+on/off, so manually unmuting an excluded mic restores audio without hidden route
+changes. Normal presets link room and livestream on/off and dB; old split presets
+use the room setting (or stream setting if room is absent), without a database
+migration. Pre-service retains independent routes for room-only rehearsal and
+streamed media. Output-control switches still limit which hardware routes are
+changed. Muting affects all outputs, including monitors; manual adjustments last
+until the next scene. Capture reads mute state as well as routes and levels.
+Startup mute protection and input mapping requirements remain in effect.
+Bus sends remain pre-fader: manual desk fader and send adjustments are still
+separate hardware controls; linked scene levels are reapplied on the next cue.
+
+The fader toolbar also provides a separate **Desk → stream** mute. It gates only
+stereo livestream sends for mapped pastor, leader, congregation, worship and
+ambience inputs. Channels mapped as PC media, and unmapped inputs/returns, are
+left untouched. The control requires an explicit media mapping, complete desk
+readbacks, linked stream buses and pre-fader sends with subgroup off. Channel
+mute buttons continue to write the physical channel switches directly; the
+all-channel control is one toggle (mixed states choose Mute all, and Unmute all
+requires confirmation).
+
+The desk stream gate affects both livestream and recordings because they share
+the same captured program feed. It never changes channel switches, room faders,
+Main L/R assignments, bus masters or media sends. Desired send levels are retained
+behind the gate, updated by scenes/manual send changes and persisted for restart
+recovery. Scene selection cannot release it. Turning it off restores the retained
+sends, including zero sends required by pre-service. Preset/snapshot capture saves
+the intended send levels rather than baking in the temporary gate. Input mapping,
+stream bus and desk host changes are blocked while the gate is active. This does
+not introduce software mixing or a second playback stream. Confirm the physical
+media mapping and USB capture routing on site after the live service.
+
 
 Input mapping distinguishes a service leader/opening mic (`leader`) from the
 pastor/message mic. Draft generation adds a separate `service_leader` preset

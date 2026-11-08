@@ -10,6 +10,7 @@ from contextlib import suppress
 from app.modules.mixer.catalog import PARAMETERS, STRIPS
 from app.modules.mixer.effects import parameter_spec
 from app.modules.mixer.osc import decode, encode, meters
+from app.modules.mixer.stream_gate import DeskStreamGate
 
 # Recover dropped UDP reads for the desk surface without repeatedly querying
 # unsupported optional DSP parameters or writing a default to live hardware.
@@ -85,6 +86,7 @@ class MixerEngine(asyncio.DatagramProtocol):
         self.task = None
         self.sync_task = None
         self.readback_task = None
+        self.stream_gate = DeskStreamGate()
         self.values = {}
         self.levels = []
         self.identity = []
@@ -332,6 +334,8 @@ class MixerEngine(asyncio.DatagramProtocol):
 
     async def write(self, path, value, *, origin="manual"):
         value = self.command_value(path, value)
+        self.stream_gate.remember(path, value)
+        value = self.stream_gate.effective(path, value)
         if origin == "manual" and path in STARTUP_MUTE_PATHS and value == 1:
             self.startup_scene_hold = False
         self.pending[path] = (value, time.monotonic(), 0)
@@ -342,6 +346,7 @@ class MixerEngine(asyncio.DatagramProtocol):
 
     def snapshot(self):
         return dict(
+            desk_stream_muted=bool(self.stream_gate.paths),
             startup_muting=self.startup_muting,
             startup_scene_hold=self.startup_scene_hold,
             host=self.host,

@@ -58,17 +58,18 @@ export function MixerAutomationPanel({strips, state}: {strips: MixerStrip[]; sta
   const patch=(changes: Partial<MixerAutomationConfiguration>)=>setForm({...form,...changes});
   async function action(work:()=>Promise<void>){setBusy(true);setMessage('');try{await work();}catch(error){if(alive.current)setMessage(error instanceof Error?error.message:'Scene action failed');}finally{if(alive.current)setBusy(false);}}
   async function save(next=form!){
-    if(next.enabled && !(await confirm({title:'Enable hardware scene control?',confirmLabel:'Enable and save',message:'Saved scene presets can change live room levels and livestream sends. Confirm the bus routing and review each preset first. Scenes open channels needed by either mix and mute mapped channels unused by the enabled mixes. Gain and phantom power remain manual.'})))return;
+    if(next.enabled && !(await confirm({title:'Enable hardware scene control?',confirmLabel:'Enable and save',message:'Saved scene presets can change live room levels and livestream sends. Confirm the bus routing and review each preset first. Normal scenes link room and livestream levels and use channel mute for on/off. Pre-service can route the mixes separately. Gain and phantom power remain manual.'})))return;
     await action(async()=>{const response=await mixerRequest<Response>('/automation','PUT',next);if(alive.current){setForm(response.configuration);setBaseline(JSON.stringify(response.configuration));setStatus(response.status);setMessage(next.enabled?'Saved. Following the selected scene mode.':'Saved for setup. Hardware automation is off.');}});
   }
   function channelLevel(strip: string, output:'room'|'livestream', update:Partial<Level>){
     if(!scene)return;
     const current=scene.channels[strip] || {};
-    const changed={...current,[output]:{enabled:false,level_db:0,...current[output],...update}};
+    const level={enabled:false,level_db:0,...(scene.id === 'pre_service' ? current[output] : current.room ?? current.livestream),...update};
+    const changed=scene.id === 'pre_service' ? {...current,[output]:level} : {room:{...level},livestream:{...level}};
     patch({scenes:form!.scenes.map(candidate=>candidate.id===scene.id?{...candidate,channels:{...candidate.channels,[strip]:changed}}:candidate)});
   }
   return <section className="xr-automation" aria-label="Hardware audio scenes">
-    <header><div><h3>Service audio scenes</h3><p>One service cue, separate room and livestream levels. Hardware control stays off until enabled.</p></div>
+    <header><div><h3>Service audio scenes</h3><p>Room and livestream match; pre-service can use separate mixes. Hardware control stays off until enabled.</p></div>
       <div className="xr-automation-actions">
         <button type="button" disabled={busy} onClick={()=>void save()}><Save size={16}/>Save scenes</button>
         <button type="button" disabled={busy || !form.enabled} onClick={()=>void action(async()=>{
@@ -85,7 +86,7 @@ export function MixerAutomationPanel({strips, state}: {strips: MixerStrip[]; sta
       <label><input type="checkbox" checked={form.livestream_enabled} onChange={event=>patch({livestream_enabled:event.target.checked})}/>Control livestream mix</label>
       <label>Livestream stereo buses<select value={form.livestream_bus} onChange={event=>patch({livestream_bus:Number(event.target.value)})}>{[1,3,5].map(bus=><option key={bus} value={bus}>{bus} / {bus+1}</option>)}</select></label>
     </div>
-    <p className="xr-notice">Sunday setup: choose two free buses, link them, and set mapped sends to Pre fader with subgroup off. Route that bus pair to USB capture. The room uses Main L/R assignment and channel levels; livestream sends remain independent. Scenes open mapped channels needed by either mix; mapped channels unused by the enabled mixes are muted, including in room-only mode. Channel mute affects all outputs. Manual mute changes last until the next scene. Solo stays manual. Unmapped channels stay as they are.</p>
+    <p className="xr-notice">Sunday setup: choose two free buses, link them, and set mapped sends to Pre fader with subgroup off. Route that bus pair to USB capture. Normal scenes keep mapped inputs connected to Main L/R and the livestream buses at their saved levels, including when muted. Unmuting therefore restores audio to both controlled mixes. Pre-service retains separate routes for room-only rehearsal and streamed media. Channel mute affects all outputs. Manual changes last until the next scene. Solo stays manual. Unmapped channels stay as they are.</p>
     <details><summary>Map service inputs ({Object.values(form.roles).filter(role=>role!=='other').length})</summary>
       <div className="xr-role-grid">{inputs.map(strip=><label key={strip.id}>{name(strip)}<select aria-label={`${name(strip)} audio role`} value={form.roles[strip.id] || ''} onChange={event=>{
         const next={...form.roles};if(event.target.value)next[strip.id]=event.target.value;else delete next[strip.id];patch({roles:next,...(!event.target.value || event.target.value==='other'?{scenes:form.scenes.map(scene=>{const channels={...scene.channels};delete channels[strip.id];return {...scene,channels};})}:{})});
@@ -102,7 +103,7 @@ export function MixerAutomationPanel({strips, state}: {strips: MixerStrip[]; sta
         <button type="button" disabled={!newScene} onClick={()=>{const candidate=available.find(scene=>scene.id===newScene);if(candidate){patch({scenes:[...form.scenes,{...candidate,channels:{}}]});setSelected(candidate.id);setNewScene('');}}}><Plus size={16}/>Add preset</button>
       </>}
       <button type="button" disabled={busy || dirty || !state.connected || state.syncing} onClick={()=>void action(async()=>{
-        const response=await mixerRequest<Response>(`/automation/capture/${selected}`,'POST');if(alive.current){setForm(response.configuration);setBaseline(JSON.stringify(response.configuration));setMessage('Current room and bus levels saved to this preset.');}
+        const response=await mixerRequest<Response>(`/automation/capture/${selected}`,'POST');if(alive.current){setForm(response.configuration);setBaseline(JSON.stringify(response.configuration));setMessage('Current mute states and levels saved to this preset.');}
       })}><Camera size={16}/>Capture current mix</button>
       <button type="button" disabled={busy || dirty || !form.enabled} onClick={()=>void action(async()=>{
         if(!(await confirm({title:'Apply and hold this scene?',confirmLabel:'Apply scene',message:'Apply this preset to the enabled room/livestream outputs and pause following service sections until you resume.'})))return;
@@ -113,8 +114,8 @@ export function MixerAutomationPanel({strips, state}: {strips: MixerStrip[]; sta
         const blob=new Blob([JSON.stringify(form,null,2)],{type:'application/json'});const url=URL.createObjectURL(blob);const link=document.createElement('a');link.href=url;link.download='cspot-xr18-scenes.json';link.click();setTimeout(()=>URL.revokeObjectURL(url),0);
       }}><Download size={16}/>Export setup</button>
     </div>
-    {scene && <div className="xr-scene-table-wrap"><table className="xr-scene-table"><thead><tr><th>Input</th><th>Room on</th><th>Room dB</th><th>Stream on</th><th>Stream dB</th></tr></thead><tbody>{mapped.map(strip=>{
-      const row=scene.channels[strip.id];return <tr key={strip.id}><th>{name(strip)}</th>{(['room','livestream'] as const).map(output=><ReactFragment key={output}>
+    {scene && <div className="xr-scene-table-wrap"><table className="xr-scene-table"><thead><tr><th>Input</th>{scene.id === 'pre_service' ? <><th>Room on</th><th>Room dB</th><th>Stream on</th><th>Stream dB</th></> : <><th>On · both mixes</th><th>dB · both mixes</th></>}</tr></thead><tbody>{mapped.map(strip=>{
+      const saved=scene.channels[strip.id]; const row=scene.id === 'pre_service' ? saved : {room:saved?.room ?? saved?.livestream};return <tr key={strip.id}><th>{name(strip)}</th>{(scene.id === 'pre_service' ? ['room','livestream'] as const : ['room'] as const).map(output=><ReactFragment key={output}>
         <td><input type="checkbox" aria-label={`${name(strip)} ${output} enabled`} checked={row?.[output]?.enabled || false} onChange={event=>channelLevel(strip.id,output,{enabled:event.target.checked})}/></td>
         <td><input aria-label={`${name(strip)} ${output} dB`} type="number" min={-90} max={10} step={.5} value={row?.[output]?.level_db ?? 0} onChange={event=>{const value=event.target.valueAsNumber;if(Number.isFinite(value))channelLevel(strip.id,output,{level_db:Math.max(-90,Math.min(10,value))});}}/></td>
       </ReactFragment>)}</tr>;
