@@ -8,7 +8,13 @@ and camera side by side in landscape, including phones and tablets. Sound uses a
 small central target with a status icon and delayed fade. Admins can scroll below
 the panels to category accordions for broadcast status, camera routing/framing,
 service-user cameras, physical pan, program audio, switching/sync and today’s
-watchers. Camera sources persist an `enabled` flag in their existing JSON settings;
+watchers. Opening a control category contracts the others. Camera and audio controls
+come first; each collapsed row shows its current state. Today’s watcher count is
+current / unique today, deduplicated across service sessions. New connected
+service-user cameras (including teachers) move Service cameras to the top with
+an amber request badge and a local two-note sound. Opening the group, acknowledging
+or bringing the camera on air clears the request. Browsers may require the
+Enable alert sound button or another interaction before playing the cue. Camera sources persist an `enabled` flag in their existing JSON settings;
 disabled sources are excluded from manual fallback and automatic cycling. Taking
 all cameras off air shows a holding panel while keeping program audio available.
 The configuration tab groups installation settings into collapsed categories.

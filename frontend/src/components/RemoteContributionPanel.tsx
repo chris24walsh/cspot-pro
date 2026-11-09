@@ -35,7 +35,7 @@ function GuestPreview({ guest, iceServers }: { guest: RemoteGuest; iceServers: R
   </div>;
 }
 
-export function RemoteContributionPanel() {
+export function RemoteContributionPanel({ onStatusChange, onCamerasChange }: { onStatusChange?: (status: string) => void; onCamerasChange?: (cameras: RemoteGuest[]) => void } = {}) {
   const [data, setData] = useState<ContributionList | null>(null);
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
@@ -55,7 +55,10 @@ export function RemoteContributionPanel() {
     } catch (error) { setMessage(error instanceof Error ? error.message : "Could not switch service camera"); }
     finally { setBusy(false); }
   }
+  useEffect(() => { if (data) onCamerasChange?.(data.guests); }, [data, onCamerasChange]);
   const cameras = data?.guests.filter(guest => guest.self_managed) ?? [];
+  const summary = message ? "Connection error" : !data ? "Connecting…" : `${cameras.filter(camera => camera.live).length} on air · ${cameras.filter(camera => camera.connected).length} connected`;
+  useEffect(() => { onStatusChange?.(summary); }, [onStatusChange, summary]);
   return <section className="remote-contribution-panel" aria-label="Service cameras">
     {message && <p role="alert">{message}</p>}
     {!cameras.length && <p>No service cameras connected. Signed-in users can enable Camera &amp; mic in the Service view.</p>}

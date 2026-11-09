@@ -14519,3 +14519,15 @@ button.musician-page {
 @media (max-width: 900px) and (orientation: portrait) {
   .service-broadcast-grid.slides-minimized:not(.has-maximized-panel), .service-broadcast-grid.camera-minimized:not(.has-maximized-panel) { grid-template-columns: minmax(0, 1fr); }
 }
+.broadcast-accordion-heading { display: inline-flex; width: calc(100% - 20px); align-items: center; justify-content: space-between; gap: 12px; vertical-align: middle; }
+.broadcast-accordion-heading > span { min-width: 0; }
+.broadcast-accordion-heading > small { color: #b9cdc1; font-size: 12px; font-weight: 500; overflow: hidden; text-align: right; text-overflow: ellipsis; white-space: nowrap; max-width: 60%; }
+.broadcast-config-accordion .broadcast-accordion-heading > small { color: #586b60; }
+@media (max-width: 600px) {
+  .broadcast-accordion-heading { gap: 6px; }
+  .broadcast-accordion-heading > small { font-size: 11px; max-width: 50%; }
+}
+.broadcast-control-category.has-camera-request { border-color: #f0b840; box-shadow: inset 4px 0 #f0b840; background: #493809; }
+.broadcast-control-category.has-camera-request .broadcast-accordion-heading > small { color: #ffe29a; font-weight: 750; }
+.service-camera-request-alert { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 10px; color: #ffe29a; }
+.camera-request-announcement { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; }

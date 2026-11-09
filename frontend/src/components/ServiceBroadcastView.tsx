@@ -1,9 +1,11 @@
+import { useServiceCameraAlerts } from "./useServiceCameraAlerts";
+import { BroadcastAccordionSummary, contractOtherBroadcastControls } from "./BroadcastAccordion";
 import { withRemoteContribution } from "../remoteContribution";
 import { RemoteContributionPanel } from "./RemoteContributionPanel";
 import { LiveCameraMovement } from "./LiveCameraMovement";
 import { CameraFraming } from "./CameraFraming";
 import { withCountdownTiming } from "../countdown";
-import { Maximize2, Minimize2, Minus, Radio, Settings2 } from "lucide-react";
+import { Maximize2, Minimize2, Minus, Radio, Settings2, Volume2 } from "lucide-react";
 import type { CSSProperties } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
@@ -113,7 +115,10 @@ function HoldingPane({ message, startingSoon }: { message: string; startingSoon:
 }
 
 export function ServiceBroadcastView({ canControl = false, onOpenSettings }: { canControl?: boolean; onOpenSettings?: () => void }) {
+  const cameraAlerts = useServiceCameraAlerts(canControl);
   const [panelModes, setPanelModes] = useState<Record<string, "normal" | "minimized" | "maximized">>({});
+  const [serviceCameraStatus, setServiceCameraStatus] = useState("Connecting…");
+  const [panStatus, setPanStatus] = useState("Connecting…");
   const [viewership, setViewership] = useState<LivestreamEvent[]>([]);
   const shellRef = useRef<HTMLElement | null>(null);
   const pollInFlightRef = useRef(false);
@@ -176,6 +181,15 @@ export function ServiceBroadcastView({ canControl = false, onOpenSettings }: { c
     && (settings.live_audio_source === "mix" || Boolean(selectedIndependentAudio))
   ) ? resolvedLiveAudioUrl?.replace("/live-audio.mp4", "/live-audio") ?? null : resolvedLiveAudioUrl;
   const textFontCap = suggestedSlideFontCap(liveSlide);
+  const todaysEvents = viewership.filter(event => new Date(event.started_at).toLocaleDateString() === new Date().toLocaleDateString() || !event.ended_at);
+  const todaysViewers = new Set(todaysEvents.flatMap(event => event.viewers.map(viewer => viewer.user_id)));
+  const currentViewers = new Set(todaysEvents.flatMap(event => event.viewers.filter(viewer => viewer.watching_now).map(viewer => viewer.user_id)));
+  const cameraStatus = activeCameraId
+    ? `${settings.camera_sources.find(source => source.id === activeCameraId)?.label ?? "Camera"} · ${settings.camera_sources.filter(source => source.enabled !== false).length}/${settings.camera_sources.length} enabled`
+    : "Off air";
+  const audioStatus = settings.live_audio_source === "none" ? "Muted" : selectedIndependentAudio?.label ?? selectedAudioCamera?.label ?? "Program feed";
+  const sceneStatus = settings.audio_scenes.find(scene => scene.id === settings.active_audio_scene)?.label;
+
 
   useEffect(() => {
     if (!canControl) return;
@@ -533,11 +547,11 @@ export function ServiceBroadcastView({ canControl = false, onOpenSettings }: { c
         <div className={`service-broadcast-viewer-controls ${canControl ? "has-admin-controls" : ""}`}>
           {canControl ? (
             <div className="service-broadcast-admin-live-controls" aria-label="Quick livestream controls">
-              <details className="broadcast-control-category"><summary>Stream status · {hasLiveBroadcast ? "Live" : "Offline"}</summary><div className="broadcast-control-fields">
-                <label>Camera &amp; audio feed<select aria-label="Manual broadcast audience" disabled={controlBusy} value={settings.manual_live_audience} onChange={event => void updateLiveControls({manual_live_audience: event.target.value as BroadcastViewerSettings["manual_live_audience"]})}><option value="off">Follow presenter</option><option value="admins">Admin test</option><option value="public">Live for everyone</option></select></label>
-                <span>The presenter also starts the stream automatically.</span>
-              </div></details>
-              <details open className="broadcast-control-category"><summary><Radio size={14}/> Cameras &amp; framing</summary><div className="broadcast-control-fields">
+              {!cameraAlerts.soundReady && <button type="button" className="text-button icon-text-button" title="Enable camera request sounds on this device" onClick={cameraAlerts.enableSound}><Volume2 size={14}/> Enable alert sound</button>}
+              <span className="camera-request-announcement" role="status">{cameraAlerts.requests.length ? `Camera request: ${cameraAlerts.requests.map(camera => camera.label).join(", ")}` : ""}</span>
+
+              {[
+                <details key="cameras" onToggle={contractOtherBroadcastControls} open className="broadcast-control-category"><BroadcastAccordionSummary status={cameraStatus}><Radio size={14}/> Cameras &amp; framing</BroadcastAccordionSummary><div className="broadcast-control-fields">
               <label className="service-broadcast-live-select">
                 <span><Radio size={13} aria-hidden="true" /> Camera</span>
                 <select
@@ -556,10 +570,8 @@ export function ServiceBroadcastView({ canControl = false, onOpenSettings }: { c
                 <label><input type="checkbox" checked={source.digital_pan ?? false} onChange={event => void updateLiveControls({camera_sources: settings.camera_sources.map(camera => camera.id === source.id ? {...camera, digital_pan: event.target.checked} : camera)})}/> Digital pan</label>
                 {([["zoom", "Zoom", 1, 4, 0.1], ["crop_x", "Pan", 0, 100, 1], ["crop_y", "Tilt", 0, 100, 1]] as const).map(([field, label, min, max, step]) => <label key={field}>{label}<input aria-label={`${source.label} ${label}`} type="number" min={min} max={max} step={step} value={source[field] ?? (field === "zoom" ? 1 : 50)} onChange={event => void updateLiveControls({camera_sources: settings.camera_sources.map(camera => camera.id === source.id ? {...camera, [field]: Math.max(min, Math.min(max, Number(event.target.value)))} : camera)})}/></label>)}
               </fieldset>)}
-              </div></details>
-              <details className="broadcast-control-category"><summary>Service cameras</summary><RemoteContributionPanel/></details>
-              <details className="broadcast-control-category"><summary>Physical pan</summary><LiveCameraMovement/></details>
-              <details className="broadcast-control-category"><summary>Program audio</summary><div className="broadcast-control-fields">
+              </div></details>,
+                <details key="audio" onToggle={contractOtherBroadcastControls} className="broadcast-control-category"><BroadcastAccordionSummary status={`${audioStatus}${sceneStatus ? ` · ${sceneStatus}` : ""} · ${settings.audio_scene_automation ? "Auto" : "Manual"}`}>Program audio</BroadcastAccordionSummary><div className="broadcast-control-fields">
               <label className="service-broadcast-live-select">
                 <span>Audio</span>
                 <select
@@ -579,8 +591,18 @@ export function ServiceBroadcastView({ canControl = false, onOpenSettings }: { c
               </label>
               <label>Audio scene<select aria-label="Live audio scene" disabled={controlBusy || settings.audio_scene_automation} value={settings.active_audio_scene} onChange={event => void updateLiveControls({active_audio_scene: event.target.value})}>{settings.audio_scenes.map(scene => <option key={scene.id} value={scene.id}>{scene.label}</option>)}</select></label>
               <label><input type="checkbox" checked={settings.audio_scene_automation} disabled={controlBusy} onChange={event => void updateLiveControls({audio_scene_automation: event.target.checked})}/> Follow presentation audio scenes</label>
-              </div></details>
-              <details className="broadcast-control-category"><summary>Switching &amp; sync</summary><div className="broadcast-control-fields">
+              </div></details>,
+                <details key="service-cameras" onToggle={event => { contractOtherBroadcastControls(event); if (event.target === event.currentTarget && event.currentTarget.open) cameraAlerts.acknowledge(); }} className={`broadcast-control-category ${cameraAlerts.requests.length ? "has-camera-request" : ""}`}>
+                <BroadcastAccordionSummary status={cameraAlerts.requests.length ? `${cameraAlerts.requests.length} camera request${cameraAlerts.requests.length === 1 ? "" : "s"} · ${serviceCameraStatus}` : serviceCameraStatus}>Service cameras</BroadcastAccordionSummary>
+                {cameraAlerts.requests.length > 0 && <div className="service-camera-request-alert" role="status">Camera request: {cameraAlerts.requests.map(camera => camera.label).join(", ")}<button type="button" className="text-button" onClick={cameraAlerts.acknowledge}>Acknowledge</button></div>}
+                <RemoteContributionPanel onStatusChange={setServiceCameraStatus} onCamerasChange={cameraAlerts.reportCameras}/>
+              </details>,
+                <details key="watchers" onToggle={contractOtherBroadcastControls} className="broadcast-control-category"><BroadcastAccordionSummary status={`${currentViewers.size}/${todaysViewers.size} watching`} statusLabel={`${currentViewers.size} watching now / ${todaysViewers.size} unique viewers today`}>Today’s watchers</BroadcastAccordionSummary><div className="broadcast-control-fields">
+                {todaysEvents.map(event => <div key={event.id}><strong>{event.title}</strong>{event.viewers.map(viewer => <p key={viewer.user_id}>{viewer.name} · {viewer.watching_now ? "Watching now" : "Finished"} · {Math.ceil(viewer.duration_seconds / 60)} min</p>)}</div>)}
+                {!todaysEvents.length && <p>No viewers recorded today.</p>}
+              </div></details>,
+                <details key="pan" onToggle={contractOtherBroadcastControls} className="broadcast-control-category"><BroadcastAccordionSummary status={panStatus}>Physical pan</BroadcastAccordionSummary><LiveCameraMovement onStatusChange={setPanStatus}/></details>,
+                <details key="sync" onToggle={contractOtherBroadcastControls} className="broadcast-control-category"><BroadcastAccordionSummary status={`${settings.camera_cycle_seconds > 0 ? "Auto" : "Manual"} · fade ${(settings.camera_fade_ms / 1000).toFixed(1)}s · slides +${(settings.slide_delay_ms / 1000).toFixed(1)}s`}>Switching &amp; sync</BroadcastAccordionSummary><div className="broadcast-control-fields">
               {settings.camera_sources.length > 1 ? (
                 <label className="service-broadcast-live-select">
                   <span>Switching</span>
@@ -604,11 +626,12 @@ export function ServiceBroadcastView({ canControl = false, onOpenSettings }: { c
                 Fade {(settings.camera_fade_ms / 1000).toFixed(1)}s · slides +{(settings.slide_delay_ms / 1000).toFixed(1)}s
               </span>
               {([ ["camera_fade_ms", "Camera fade"], ["slide_delay_ms", "Slide delay"] ] as const).map(([field, label]) => <label key={field}>{label} (seconds)<input type="number" min={0} max={10} step={0.1} disabled={controlBusy} value={settings[field] / 1000} onChange={event => void updateLiveControls({[field]: Math.max(0, Math.min(10000, Number(event.target.value) * 1000))})}/></label>)}
+              </div></details>,
+                <details key="stream" onToggle={contractOtherBroadcastControls} className="broadcast-control-category"><BroadcastAccordionSummary status={adminRehearsal ? "Rehearsal" : hasLiveBroadcast ? "Live" : "Offline"}>Stream status</BroadcastAccordionSummary><div className="broadcast-control-fields">
+                <label>Camera &amp; audio feed<select aria-label="Manual broadcast audience" disabled={controlBusy} value={settings.manual_live_audience} onChange={event => void updateLiveControls({manual_live_audience: event.target.value as BroadcastViewerSettings["manual_live_audience"]})}><option value="off">Follow presenter</option><option value="admins">Admin test</option><option value="public">Live for everyone</option></select></label>
+                <span>The presenter also starts the stream automatically.</span>
               </div></details>
-              <details className="broadcast-control-category"><summary>Today’s watchers · {viewership.filter(event => !event.ended_at).reduce((sum, event) => sum + event.watching_now, 0)} watching now</summary><div className="broadcast-control-fields">
-                {viewership.filter(event => new Date(event.started_at).toLocaleDateString() === new Date().toLocaleDateString() || !event.ended_at).map(event => <div key={event.id}><strong>{event.title}</strong>{event.viewers.map(viewer => <p key={viewer.user_id}>{viewer.name} · {viewer.watching_now ? "Watching now" : "Finished"} · {Math.ceil(viewer.duration_seconds / 60)} min</p>)}</div>)}
-                {!viewership.some(event => new Date(event.started_at).toLocaleDateString() === new Date().toLocaleDateString() || !event.ended_at) && <p>No viewers recorded today.</p>}
-              </div></details>
+              ].sort((a, b) => Number(b.key === "service-cameras" && cameraAlerts.requests.length > 0) - Number(a.key === "service-cameras" && cameraAlerts.requests.length > 0))}
               {onOpenSettings ? (
                 <button className="text-button icon-text-button" onClick={onOpenSettings} type="button">
                   <Settings2 size={14} aria-hidden="true" /> Configure

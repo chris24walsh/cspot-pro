@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { CircleStop, MoveHorizontal } from "lucide-react";
 import { controlPtzCruise, getPtzCruiseStatus } from "../api";
 
-export function LiveCameraMovement() {
+export function LiveCameraMovement({ onStatusChange }: { onStatusChange?: (status: string) => void } = {}) {
   const [devices, setDevices] = useState<{id: string; label: string}[]>([]);
   const [device, setDevice] = useState("default");
   const [speed, setSpeed] = useState(0.13);
@@ -25,6 +25,8 @@ export function LiveCameraMovement() {
     catch (error) { setError(error instanceof Error ? error.message : "Could not control camera movement"); }
     finally { setBusy(false); }
   }
+  const summary = error || status?.error ? "Connection error" : status?.running ? `${devices.find(camera => camera.id === device)?.label ?? "Camera"} moving` : status ? "Stopped" : "Connecting…";
+  useEffect(() => { onStatusChange?.(summary); }, [onStatusChange, summary]);
   return <div className="broadcast-control-fields">
     <label>Camera<select aria-label="Physical pan camera" value={device} disabled={busy} onChange={event => {setDevice(event.target.value); setStatus(null);}}>{!devices.length && <option value="default">Default camera</option>}{devices.map(camera => <option key={camera.id} value={camera.id}>{camera.label}</option>)}</select></label>
     <label>Pan speed<input type="number" min={0.005} max={0.2} step={0.005} value={speed} onChange={event => setSpeed(Number(event.target.value))}/></label>
