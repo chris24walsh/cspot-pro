@@ -1,4 +1,3 @@
-import { RemoteContributionPanel } from "./RemoteContributionPanel";
 import { CameraFraming } from "./CameraFraming";
 import { controlPtzCruise, getPtzCruiseStatus, samplePtzAngle } from "../api";
 import { Archive, CircleStop, ExternalLink, Headphones, Mic, MicOff, MonitorPlay, Play, Plus, Radio, RotateCcw, Save, X } from "lucide-react";
@@ -437,15 +436,14 @@ export function BroadcastManager({
       {message ? <p className="form-message">{message}</p> : null}
 
       {canManage && activeTab === "livestream" ? <>
-      <RemoteContributionPanel sources={form.audio_sources} />
-      <section className="broadcast-source-settings"><h3>Program audio</h3>
+      <details className="broadcast-config-accordion wide-field"><summary>Program audio</summary><section className="broadcast-source-settings">
         <label><input type="checkbox" checked={form.audio_scene_automation} disabled={loading || saving} onChange={event=>void (async()=>{try {const settings=await updateBroadcastViewerSettings({audio_scene_automation:event.target.checked});setForm(current=>({...current,audio_scene_automation:settings.audio_scene_automation}));}catch(error){setMessage(error instanceof Error?error.message:'Could not change audio scene automation');}})()}/>Follow presentation audio scenes</label>
 
-        <label>Stereo program source<select aria-label="Mixer stereo program source" value={form.mixer_program_source_id || ''} onChange={event=>setForm({...form,mixer_program_source_id:event.target.value || null})}><option value="">Choose a verified mixer feed</option>{form.audio_sources.map(source=><option key={source.id} value={source.id}>{source.label}</option>)}</select></label><p>The XR18 mixes audio locally. Scenes change desk sends; cspot captures one stereo feed at unity gain. Use the desk’s direct output for room sound. Streaming and browser playback still add delay.</p>
-      </section>
+        <label>Stereo program source<select aria-label="Mixer stereo program source" value={form.mixer_program_source_id || ''} onChange={event=>setForm({...form,mixer_program_source_id:event.target.value || null})}><option value="">Choose a verified mixer feed</option>{form.audio_sources.map(source=><option key={source.id} value={source.id}>{source.label}</option>)}</select></label>
+      </section></details>
 
       <div className="broadcast-settings-grid" role="tabpanel" aria-label="Livestream settings">
-        <section className={`wide-field broadcast-live-launch ${form.manual_live_audience !== "off" ? "is-live" : ""}`} aria-label="Livestream controls">
+        <details className="broadcast-config-accordion wide-field"><summary>Stream status</summary><section className={`wide-field broadcast-live-launch ${form.manual_live_audience !== "off" ? "is-live" : ""}`} aria-label="Livestream controls">
           <div>
             <strong>{form.manual_live_audience === "public" ? "Live for everyone" : form.manual_live_audience === "admins" ? "Admin test is live" : "Livestream is off"}</strong>
             <small>Start the camera and audio feed without starting the presenter slideshow.</small>
@@ -476,11 +474,11 @@ export function BroadcastManager({
               <CircleStop size={14} aria-hidden="true" /> Stop livestream
             </button>
           </div>
-        </section>
-        <section className="wide-field broadcast-config-section" aria-labelledby="broadcast-details-heading">
+        </section></details>
+        <details className="broadcast-config-accordion wide-field"><summary>Stream details</summary><section className="wide-field broadcast-config-section" aria-labelledby="broadcast-details-heading">
           <div className="broadcast-config-section-heading">
             <strong id="broadcast-details-heading">Stream details</strong>
-            <small>Set the public title, description, and pre-service window.</small>
+
           </div>
           <div className="broadcast-config-fields broadcast-config-fields-two">
         <label>
@@ -506,12 +504,12 @@ export function BroadcastManager({
           <textarea disabled={loading} onChange={(event) => setForm({ ...form, stream_description: event.target.value || null })} value={form.stream_description || ""} />
         </label>
           </div>
-        </section>
-        <section className="wide-field broadcast-camera-settings" aria-label="Camera sources">
+        </section></details>
+        <details className="broadcast-config-accordion wide-field"><summary>Camera sources</summary><section className="wide-field broadcast-camera-settings" aria-label="Camera sources">
           <div className="broadcast-camera-settings-heading">
             <div>
               <strong>Camera sources</strong>
-              <small>Sources stay warm so switching can cross-fade without waiting for a new stream.</small>
+
             </div>
             <button className="text-button icon-text-button" disabled={loading || form.camera_sources.length >= 8} onClick={addCamera} type="button">
               <Plus size={14} aria-hidden="true" /> Add camera
@@ -588,8 +586,8 @@ export function BroadcastManager({
             {!form.camera_sources.length ? <p className="muted-copy">No camera sources configured.</p> : null}
             <p className="muted-copy">B-roll returns to the selected main camera after each insert. Start with an 8-second insert dwell and a 2.5-second fade; cycle time controls the main-view interval. Zoom and centre create a digital crop of the same feed.</p>
           </div>
-        </section>
-        <section className="wide-field broadcast-camera-settings" aria-label="PTZ cruise">
+        </section></details>
+        <details className="broadcast-config-accordion wide-field"><summary>Physical camera movement</summary><section className="wide-field broadcast-camera-settings" aria-label="PTZ cruise">
           <strong>Physical ONVIF cruise</strong>
           <label>PTZ device<select aria-label="PTZ device" value={ptzCameraId} disabled={cruiseBusy} onChange={(event) => { setPtzCameraId(event.target.value); setCruiseStatus(null); }}>
             {ptzDevices.map((device) => <option key={device.id} value={device.id}>{device.label}</option>)}
@@ -611,12 +609,12 @@ export function BroadcastManager({
             catch (error) { setMessage(error instanceof Error ? error.message : "Could not control cruise."); }
             finally { setCruiseBusy(false); }
           }}>{enabled ? "Start physical cruise" : "Stop cruise"}</button>)}
-        </section>
-        <section className="wide-field broadcast-camera-settings broadcast-audio-settings" aria-label="Audio sources">
+        </section></details>
+        <details className="broadcast-config-accordion wide-field"><summary>Audio sources</summary><section className="wide-field broadcast-camera-settings broadcast-audio-settings" aria-label="Audio sources">
           <div className="broadcast-camera-settings-heading">
             <div>
               <strong>Audio sources</strong>
-              <small>Add room, desk, or church-PC playback feeds. Choosing PC media directly keeps desk rehearsals in-room and out of pre-service livestream audio.</small>
+
             </div>
             <button className="text-button icon-text-button" disabled={loading || form.audio_sources.length >= 8} onClick={addAudioSource} type="button">
               <Plus size={14} aria-hidden="true" /> Add audio
@@ -683,11 +681,11 @@ export function BroadcastManager({
             ))}
             {!form.audio_sources.length ? <p className="muted-copy">No independent audio sources configured.</p> : null}
           </div>
-        </section>
-        <section className="wide-field broadcast-config-section" aria-labelledby="broadcast-timing-heading">
+        </section></details>
+        <details className="broadcast-config-accordion wide-field"><summary>Switching & sync</summary><section className="wide-field broadcast-config-section" aria-labelledby="broadcast-timing-heading">
           <div className="broadcast-config-section-heading">
             <strong id="broadcast-timing-heading">Switching &amp; sync</strong>
-            <small>Fine-tune automatic camera changes and align slides with the video feed.</small>
+
           </div>
           <div className="broadcast-config-fields">
         <label>
@@ -715,11 +713,11 @@ export function BroadcastManager({
         </label>
           </div>
           <small className="broadcast-config-note">Automatic timing still varies gently by service phase. Lectern and Pulpit cameras receive more airtime during prayer, sermons, and announcements.</small>
-        </section>
-        <section className="wide-field broadcast-config-section" aria-labelledby="broadcast-viewer-heading">
+        </section></details>
+        <details className="broadcast-config-accordion wide-field"><summary>Viewer experience</summary><section className="wide-field broadcast-config-section" aria-labelledby="broadcast-viewer-heading">
           <div className="broadcast-config-section-heading">
             <strong id="broadcast-viewer-heading">Audio &amp; viewer experience</strong>
-            <small>Choose the live sound, pre-service playback, and messages shown to viewers.</small>
+
           </div>
           <div className="broadcast-config-fields broadcast-config-fields-two">
         <label>
@@ -747,12 +745,9 @@ export function BroadcastManager({
           <input disabled={loading} onChange={(event) => setForm({ ...form, offline_message: event.target.value })} value={form.offline_message} />
         </label>
           </div>
-        </section>
+        </section></details>
       </div>
-      <p className="muted-copy broadcast-settings-note">
-        A presenter slideshow also starts the public stream automatically. The controls above can run camera and audio independently; admin test mode stays hidden from other viewers.
-      </p>
-      <section className="livestream-viewership wide-field" aria-label="Livestream viewership">
+      <details className="broadcast-config-accordion wide-field"><summary>Viewership</summary><section className="livestream-viewership wide-field" aria-label="Livestream viewership">
         <div className="livestream-viewership-heading">
           <div>
             <h3>Viewership</h3>
@@ -786,7 +781,7 @@ export function BroadcastManager({
             </details>
           )) : <p className="muted-copy">No livestream viewing history yet.</p>}
         </div>
-      </section>
+      </section></details>
       </> : null}
 
       {activeTab === "recordings" ? <section className="broadcast-recordings broadcast-tab-panel" aria-label="Sermon recordings" role="tabpanel">

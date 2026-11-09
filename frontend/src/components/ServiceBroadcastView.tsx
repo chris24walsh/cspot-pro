@@ -1,12 +1,16 @@
 import { withRemoteContribution } from "../remoteContribution";
+import { RemoteContributionPanel } from "./RemoteContributionPanel";
+import { LiveCameraMovement } from "./LiveCameraMovement";
 import { CameraFraming } from "./CameraFraming";
 import { withCountdownTiming } from "../countdown";
-import { Maximize2, Radio, Settings2 } from "lucide-react";
+import { Maximize2, Minimize2, Minus, Radio, Settings2 } from "lucide-react";
 import type { CSSProperties } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import {
   getBroadcastViewerSettings,
+  getLivestreamViewership,
+  type LivestreamEvent,
   getFileSlides,
   getLivePresentationServices,
   getPlan,
@@ -109,6 +113,8 @@ function HoldingPane({ message, startingSoon }: { message: string; startingSoon:
 }
 
 export function ServiceBroadcastView({ canControl = false, onOpenSettings }: { canControl?: boolean; onOpenSettings?: () => void }) {
+  const [panelModes, setPanelModes] = useState<Record<string, "normal" | "minimized" | "maximized">>({});
+  const [viewership, setViewership] = useState<LivestreamEvent[]>([]);
   const shellRef = useRef<HTMLElement | null>(null);
   const pollInFlightRef = useRef(false);
   const [baseSettings, setSettings] = useState(DEFAULT_SETTINGS);
@@ -172,6 +178,14 @@ export function ServiceBroadcastView({ canControl = false, onOpenSettings }: { c
   const textFontCap = suggestedSlideFontCap(liveSlide);
 
   useEffect(() => {
+    if (!canControl) return;
+    const refresh = () => void getLivestreamViewership().then(setViewership).catch(() => undefined);
+    refresh();
+    const timer = window.setInterval(refresh, 15000);
+    return () => window.clearInterval(timer);
+  }, [canControl]);
+
+  useEffect(() => {
     if (!hasLiveBroadcast) return undefined;
     if (!viewerSessionIdRef.current) {
       const storageKey = "cspot-livestream-viewer-session";
@@ -229,15 +243,28 @@ export function ServiceBroadcastView({ canControl = false, onOpenSettings }: { c
     }
   }
 
+  function panelButtons(id: string, label: string) {
+    const mode = panelModes[id] ?? "normal";
+    return <div className="broadcast-panel-actions">
+      <span>{label}</span>
+      <button type="button" title={mode === "minimized" ? `Restore ${label}` : `Minimize ${label}`} aria-label={mode === "minimized" ? `Restore ${label}` : `Minimize ${label}`} onClick={() => setPanelModes(current => ({...current, [id]: mode === "minimized" ? "normal" : "minimized"}))}><Minus size={14} /></button>
+      <button type="button" title={mode === "maximized" ? `Restore ${label}` : `Maximize ${label}`} aria-label={mode === "maximized" ? `Restore ${label}` : `Maximize ${label}`} onClick={() => setPanelModes({[id]: mode === "maximized" ? "normal" : "maximized"})}>{mode === "maximized" ? <Minimize2 size={14}/> : <Maximize2 size={14}/>}</button>
+    </div>;
+  }
+
   function putCameraOnAir(cameraId: string) {
     void updateLiveControls({
       active_camera_id: cameraId,
+      camera_sources: settings.camera_sources.map(source => source.id === cameraId ? {...source, enabled: true} : source),
       camera_cycle_started_at: settings.camera_cycle_seconds > 0 ? new Date().toISOString() : settings.camera_cycle_started_at,
     });
   }
 
   function putAudioOnAir(sourceId: string) {
-    void updateLiveControls({ live_audio_source: sourceId });
+    void updateLiveControls({
+      live_audio_source: sourceId,
+      ...(sourceId === "none" ? {} : {mixer_program_source_id: settings.audio_sources.some(source => source.id === sourceId) ? sourceId : null}),
+    });
   }
 
   function setCameraCycleMode(mode: "manual" | "automatic") {
@@ -390,7 +417,7 @@ export function ServiceBroadcastView({ canControl = false, onOpenSettings }: { c
   }, []);
 
   return (
-    <section className={`service-broadcast-view ${fullscreen ? "is-fullscreen" : ""}`} ref={shellRef} aria-label="Service broadcast">
+    <section className={`service-broadcast-view ${canControl ? "has-admin-controls" : ""} ${fullscreen ? "is-fullscreen" : ""}`} ref={shellRef} aria-label="Service broadcast">
       <header className="service-broadcast-toolbar">
         <button
           aria-label={fullscreen ? "Exit fullscreen" : "Enter fullscreen"}
@@ -415,8 +442,9 @@ export function ServiceBroadcastView({ canControl = false, onOpenSettings }: { c
         </div>
       ) : null}
 
-      <div className="service-broadcast-grid">
-        <section className="service-broadcast-slide-pane" aria-label="Live presentation">
+      <div className={`service-broadcast-grid ${panelModes.slides === "minimized" ? "slides-minimized" : ""} ${panelModes.camera === "minimized" ? "camera-minimized" : ""} ${Object.values(panelModes).includes("maximized") ? "has-maximized-panel" : ""}`}>
+        <section className={`service-broadcast-slide-pane panel-${panelModes.slides ?? "normal"}`} aria-label="Live presentation">
+          {panelButtons("slides", "Slides")}
           <div className={`service-broadcast-slide ${presentationTypeClass(liveSlide?.itemType ?? "generic")} stage-theme-${liveState?.theme ?? "dark"}`}>
             <div className="slide-visual-transition" key={!hasVisibleSlideshow ? "offline" : liveState?.blanked ? "blank" : liveSlide?.id ?? "live"}>
             {!hasVisibleSlideshow ? (
@@ -468,9 +496,10 @@ export function ServiceBroadcastView({ canControl = false, onOpenSettings }: { c
           </div>
         </section>
 
-        <section className="service-broadcast-camera-pane" aria-label="Live camera">
+        <section className={`service-broadcast-camera-pane panel-${panelModes.camera ?? "normal"}`} aria-label="Live camera">
+          {panelButtons("camera", "Camera")}
           <div className="service-broadcast-camera-visual">
-            {hasLiveBroadcast && settings.camera_sources.length ? (
+            {hasLiveBroadcast && activeCameraId ? (
               <div
                 className="service-broadcast-camera-switcher"
                 style={{ "--camera-fade-duration": `${settings.camera_fade_ms}ms` } as CSSProperties}
@@ -489,7 +518,7 @@ export function ServiceBroadcastView({ canControl = false, onOpenSettings }: { c
                 ))}
               </div>
             ) : hasLiveBroadcast ? (
-              <HoldingPane message="Camera stream is not configured" startingSoon={false} />
+              <HoldingPane message="Camera off air" startingSoon={false} />
             ) : (
               <HoldingPane message={holdingMessage} startingSoon={startingSoon} />
             )}
@@ -500,11 +529,15 @@ export function ServiceBroadcastView({ canControl = false, onOpenSettings }: { c
         </section>
       </div>
 
-      {hasLiveBroadcast && canControl ? (
+      {canControl ? (
         <div className={`service-broadcast-viewer-controls ${canControl ? "has-admin-controls" : ""}`}>
           {canControl ? (
             <div className="service-broadcast-admin-live-controls" aria-label="Quick livestream controls">
-              {settings.remote_contribution && <button type="button" className="secondary-button" onClick={onOpenSettings}>Remote speaker: {settings.remote_contribution.label} · Manage</button>}
+              <details className="broadcast-control-category"><summary>Stream status · {hasLiveBroadcast ? "Live" : "Offline"}</summary><div className="broadcast-control-fields">
+                <label>Camera &amp; audio feed<select aria-label="Manual broadcast audience" disabled={controlBusy} value={settings.manual_live_audience} onChange={event => void updateLiveControls({manual_live_audience: event.target.value as BroadcastViewerSettings["manual_live_audience"]})}><option value="off">Follow presenter</option><option value="admins">Admin test</option><option value="public">Live for everyone</option></select></label>
+                <span>The presenter also starts the stream automatically.</span>
+              </div></details>
+              <details open className="broadcast-control-category"><summary><Radio size={14}/> Cameras &amp; framing</summary><div className="broadcast-control-fields">
               <label className="service-broadcast-live-select">
                 <span><Radio size={13} aria-hidden="true" /> Camera</span>
                 <select
@@ -513,10 +546,20 @@ export function ServiceBroadcastView({ canControl = false, onOpenSettings }: { c
                   onChange={(event) => putCameraOnAir(event.target.value)}
                   value={activeCameraId ?? ""}
                 >
-                  {!settings.camera_sources.length ? <option value="">No cameras</option> : null}
+                  <option value="" disabled>{activeCameraId ? "Select camera" : "Cameras off air"}</option>
                   {settings.camera_sources.map((source) => <option key={source.id} value={source.id}>{source.label}</option>)}
                 </select>
               </label>
+              <button type="button" className="text-button" disabled={controlBusy || !activeCameraId || Boolean(settings.remote_contribution)} onClick={() => void updateLiveControls({camera_sources: settings.camera_sources.map(source => ({...source, enabled: false}))})}>Cameras off air</button>
+              {settings.camera_sources.map(source => <fieldset key={source.id} disabled={controlBusy || Boolean(settings.remote_contribution)}><legend>{source.label}{source.id === activeCameraId ? " · On air" : ""}</legend>
+                <label><input type="checkbox" checked={source.enabled !== false} onChange={event => void updateLiveControls({camera_sources: settings.camera_sources.map(camera => camera.id === source.id ? {...camera, enabled: event.target.checked} : camera)})}/> Include on air</label>
+                <label><input type="checkbox" checked={source.digital_pan ?? false} onChange={event => void updateLiveControls({camera_sources: settings.camera_sources.map(camera => camera.id === source.id ? {...camera, digital_pan: event.target.checked} : camera)})}/> Digital pan</label>
+                {([["zoom", "Zoom", 1, 4, 0.1], ["crop_x", "Pan", 0, 100, 1], ["crop_y", "Tilt", 0, 100, 1]] as const).map(([field, label, min, max, step]) => <label key={field}>{label}<input aria-label={`${source.label} ${label}`} type="number" min={min} max={max} step={step} value={source[field] ?? (field === "zoom" ? 1 : 50)} onChange={event => void updateLiveControls({camera_sources: settings.camera_sources.map(camera => camera.id === source.id ? {...camera, [field]: Math.max(min, Math.min(max, Number(event.target.value)))} : camera)})}/></label>)}
+              </fieldset>)}
+              </div></details>
+              <details className="broadcast-control-category"><summary>Service cameras</summary><RemoteContributionPanel/></details>
+              <details className="broadcast-control-category"><summary>Physical pan</summary><LiveCameraMovement/></details>
+              <details className="broadcast-control-category"><summary>Program audio</summary><div className="broadcast-control-fields">
               <label className="service-broadcast-live-select">
                 <span>Audio</span>
                 <select
@@ -534,6 +577,10 @@ export function ServiceBroadcastView({ canControl = false, onOpenSettings }: { c
                   </optgroup> : null}
                 </select>
               </label>
+              <label>Audio scene<select aria-label="Live audio scene" disabled={controlBusy || settings.audio_scene_automation} value={settings.active_audio_scene} onChange={event => void updateLiveControls({active_audio_scene: event.target.value})}>{settings.audio_scenes.map(scene => <option key={scene.id} value={scene.id}>{scene.label}</option>)}</select></label>
+              <label><input type="checkbox" checked={settings.audio_scene_automation} disabled={controlBusy} onChange={event => void updateLiveControls({audio_scene_automation: event.target.checked})}/> Follow presentation audio scenes</label>
+              </div></details>
+              <details className="broadcast-control-category"><summary>Switching &amp; sync</summary><div className="broadcast-control-fields">
               {settings.camera_sources.length > 1 ? (
                 <label className="service-broadcast-live-select">
                   <span>Switching</span>
@@ -556,6 +603,12 @@ export function ServiceBroadcastView({ canControl = false, onOpenSettings }: { c
               <span className="service-broadcast-timing-summary">
                 Fade {(settings.camera_fade_ms / 1000).toFixed(1)}s · slides +{(settings.slide_delay_ms / 1000).toFixed(1)}s
               </span>
+              {([ ["camera_fade_ms", "Camera fade"], ["slide_delay_ms", "Slide delay"] ] as const).map(([field, label]) => <label key={field}>{label} (seconds)<input type="number" min={0} max={10} step={0.1} disabled={controlBusy} value={settings[field] / 1000} onChange={event => void updateLiveControls({[field]: Math.max(0, Math.min(10000, Number(event.target.value) * 1000))})}/></label>)}
+              </div></details>
+              <details className="broadcast-control-category"><summary>Today’s watchers · {viewership.filter(event => !event.ended_at).reduce((sum, event) => sum + event.watching_now, 0)} watching now</summary><div className="broadcast-control-fields">
+                {viewership.filter(event => new Date(event.started_at).toLocaleDateString() === new Date().toLocaleDateString() || !event.ended_at).map(event => <div key={event.id}><strong>{event.title}</strong>{event.viewers.map(viewer => <p key={viewer.user_id}>{viewer.name} · {viewer.watching_now ? "Watching now" : "Finished"} · {Math.ceil(viewer.duration_seconds / 60)} min</p>)}</div>)}
+                {!viewership.some(event => new Date(event.started_at).toLocaleDateString() === new Date().toLocaleDateString() || !event.ended_at) && <p>No viewers recorded today.</p>}
+              </div></details>
               {onOpenSettings ? (
                 <button className="text-button icon-text-button" onClick={onOpenSettings} type="button">
                   <Settings2 size={14} aria-hidden="true" /> Configure

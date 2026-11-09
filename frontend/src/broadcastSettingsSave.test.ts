@@ -95,6 +95,12 @@ function mediaSceneSettings() {
 }
 
 describe("buildBroadcastSettingsSavePatch", () => {
+  it("preserves the camera air state when editing source configuration", () => {
+    const baseline = settings();
+    const form = settings({camera_sources: baseline.camera_sources.map(source => ({...source, enabled: false}))});
+    const patch = buildBroadcastSettingsSavePatch(form, baseline, baseline);
+    expect(patch.camera_sources?.[0].enabled).toBe(false);
+  });
   it("does not let a title save revert an automated Media scene", () => {
     const baseline = settings();
     const form = settings({ stream_title: "Updated title" });

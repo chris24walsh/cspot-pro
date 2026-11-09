@@ -10,6 +10,18 @@ import {
 } from "./broadcastCamera";
 
 describe("broadcast camera helpers", () => {
+  it("excludes off-air cameras from manual and automatic selection", () => {
+    const sources = [
+      {id: "front", label: "Front", url: "one", enabled: false},
+      {id: "side", label: "Side", url: "two"},
+    ];
+    const start = "2026-11-09T10:00:00Z";
+    expect(activeCameraIdAt(sources, "front", 0, start, Date.parse(start))).toBe("side");
+    for (let seconds = 0; seconds < 120; seconds++) {
+      expect(activeCameraIdAt(sources, "front", 5, start, Date.parse(start) + seconds * 1000)).toBe("side");
+    }
+    expect(activeCameraIdAt(sources.map(source => ({...source, enabled: false})), "front", 5, start, Date.parse(start))).toBeNull();
+  });
   it("returns to the main view between exact two-second B-roll inserts", () => {
     const sources = [
       { id: "front", label: "Front", url: "one" },

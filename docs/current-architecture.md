@@ -1,5 +1,21 @@
 # Development environments
 
+
+## Livestream operation — 9 November 2026
+
+The viewer provides minimize/maximize controls for each panel and places slides
+and camera side by side in landscape, including phones and tablets. Sound uses a
+small central target with a status icon and delayed fade. Admins can scroll below
+the panels to category accordions for broadcast status, camera routing/framing,
+service-user cameras, physical pan, program audio, switching/sync and today’s
+watchers. Camera sources persist an `enabled` flag in their existing JSON settings;
+disabled sources are excluded from manual fallback and automatic cycling. Taking
+all cameras off air shows a holding panel while keeping program audio available.
+The configuration tab groups installation settings into collapsed categories.
+Camera invitations are removed from the operator UI: signed-in users enable
+Camera & mic in Service, and operators preview and bring those cameras on/off air
+from the viewer. Existing invitation endpoints remain for compatibility.
+
 ## Live scene stability — 1 November 2026
 
 Presenter loading and remote state application do not publish navigation. Local

@@ -212,6 +212,7 @@ def guest_read(session, guest):
         "connected": connected(guest),
         "live": bool(settings.remote_contribution_id == guest.id and connected(guest)),
         "return_source_id": guest.return_source_id,
+        "self_managed": bool(guest.owner_user_id),
     }
 
 

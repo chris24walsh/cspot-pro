@@ -648,6 +648,7 @@ export interface EmailTestResponse {
 }
 
 export interface BroadcastCameraSource {
+  enabled?: boolean;
   id: string;
   label: string;
   url: string;

@@ -7,6 +7,12 @@ from app.modules.broadcast import ptz
 from app.modules.broadcast.schemas import BroadcastCameraSource
 
 
+def test_camera_air_state_survives_serialization():
+    source = BroadcastCameraSource(id="front", label="Front", url="camera", enabled=False)
+    assert BroadcastCameraSource.model_validate(source.model_dump()).enabled is False
+    assert BroadcastCameraSource(id="old", label="Old", url="camera").enabled is True
+
+
 def test_crop_limits():
     source = BroadcastCameraSource(id="close", label="Close", url="one", zoom=2, b_roll=True)
     assert source.model_dump()["b_roll"] is True

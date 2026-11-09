@@ -129,6 +129,7 @@ export function activeCameraIdAt(
   nowMs: number,
   phase: CameraServicePhase = "general",
 ) {
+  sources = sources.filter(source => source.enabled !== false);
   if (!sources.length) return null;
   const configuredIndex = Math.max(0, sources.findIndex((source) => source.id === configuredId));
   if (cycleSeconds <= 0 || sources.length < 2 || !cycleStartedAt) return sources[configuredIndex].id;

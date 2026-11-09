@@ -255,7 +255,7 @@ export function HttpLiveAudioMse({
       <audio autoPlay className="service-broadcast-audio-element" ref={audioRef} />
       <button aria-label={soundEnabled ? "Mute sound" : playbackFailed ? "Retry sound" : "Turn on sound"} aria-pressed={soundEnabled} className={`service-broadcast-sound-button ${soundEnabled ? "is-enabled" : ""}`} onClick={toggleSound} title={soundEnabled ? `Mute ${label}` : playbackFailed ? "Retry sound" : `Turn on ${label}`} type="button">
         <span className="service-broadcast-sound-button-face">
-          {soundEnabled ? <VolumeX size={16} aria-hidden="true" /> : <Volume2 size={16} aria-hidden="true" />}
+          {soundEnabled ? <Volume2 size={16} aria-hidden="true" /> : <VolumeX size={16} aria-hidden="true" />}
           <span className="service-broadcast-sound-button-label">{soundEnabled ? "Mute sound" : playbackFailed ? "Retry sound" : "Turn on sound"}</span>
         </span>
       </button>

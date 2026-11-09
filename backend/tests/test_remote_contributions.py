@@ -469,6 +469,7 @@ def test_teacher_can_enable_own_camera_without_broadcast_admin_access(setup):
     assert result.status_code == 201, result.text
     contribution = result.json()
     guest = session.get(BroadcastContribution, contribution["id"])
+    assert remote.guest_read(session, guest)["self_managed"] is True
     assert guest.owner_user_id == teacher.id
     assert guest.label == teacher.name
     assert guest.return_source_id == "desk"

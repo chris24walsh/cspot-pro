@@ -6,6 +6,7 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 class BroadcastCameraSource(BaseModel):
+    enabled: bool = True
     id: str = Field(min_length=1, max_length=80, pattern=r"^[a-zA-Z0-9_-]+$")
     label: str = Field(min_length=1, max_length=120)
     url: str = Field(min_length=1, max_length=2000)

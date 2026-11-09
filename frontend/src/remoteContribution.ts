@@ -2,6 +2,7 @@ import { buildAbsoluteApiUrl, type BroadcastViewerSettings } from "./api";
 import { appAssetUrl } from "./paths";
 
 export interface RemoteGuest {
+  self_managed?: boolean;
   id: string;
   label: string;
   expires_at: string;
