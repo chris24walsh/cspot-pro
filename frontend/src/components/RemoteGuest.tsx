@@ -2,7 +2,7 @@ import { cameraOffImage, createCameraPlaceholder, setNativeBlur, supportsNativeB
 import { remoteCameraConstraints, switchRemoteCamera } from "../switchRemoteCamera";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { RemoteServiceSlide } from "./RemoteServiceSlide";
-import { Camera, CameraOff, LogOut, Mic, MicOff, Radio, RefreshCw, Volume2 } from "lucide-react";
+import { Camera, CameraOff, LogOut, Mic, MicOff, Radio, RefreshCw, SwitchCamera, Volume2 } from "lucide-react";
 import {
   completeOffer, ContributionError, contributionRequest, receiveContribution, type GuestStatus,
 } from "../remoteContribution";
@@ -219,7 +219,11 @@ export function RemoteGuest({ token: suppliedToken, embedded = false, autoJoin =
   }, [autoJoin, connect]);
 
   async function switchCamera() {
-    if (busy.current || !cameraEnabled.current || !wanted.current || !localStream.current || !peer.current) return;
+    if (busy.current || !wanted.current || !localStream.current || !peer.current) return;
+    if (!cameraEnabled.current) {
+      setFacing(current => current === "user" ? "environment" : "user");
+      return;
+    }
     const pc = peer.current;
     const stream = localStream.current;
     const run = generation.current;
@@ -318,6 +322,7 @@ export function RemoteGuest({ token: suppliedToken, embedded = false, autoJoin =
       {!joined ? <button type="button" className="primary-button icon-text-button" aria-label={embedded ? "Retry camera connection" : undefined} title={embedded ? "Retry camera connection" : undefined} disabled={joining || !status} onClick={() => { wanted.current = true; void connect(facing); }}><Camera size={18} />{joining ? "Connecting…" : embedded ? "Retry" : "Join with camera and microphone"}</button> : <>
         <button type="button" className="secondary-button icon-text-button" aria-label={mic ? "Mute microphone" : "Unmute microphone"} title={mic ? "Mute microphone — use headphones" : "Unmute microphone — use headphones"} aria-pressed={!mic} onClick={() => { const value = !mic; setMic(value); micEnabled.current = value; localStream.current?.getAudioTracks().forEach(t => { t.enabled = value; }); }}>{mic ? <Mic size={18} /> : <MicOff size={18} />}{embedded ? "Mic" : mic ? "Mute microphone" : "Unmute microphone"}</button>
         <button type="button" className="secondary-button icon-text-button" aria-label={camera ? "Camera off" : "Camera on"} title={camera ? "Turn camera off" : "Turn camera on"} aria-pressed={camera} disabled={joining || switching} onClick={() => void toggleCamera()}>{camera ? <Camera size={18} /> : <CameraOff size={18} />}{embedded ? "Cam" : camera ? "Camera off" : "Camera on"}</button>
+        {embedded && <button type="button" className="secondary-button service-camera-facing" aria-label={facing === "user" ? "Use rear camera" : "Use front camera"} title={facing === "user" ? "Use rear camera" : "Use front camera"} disabled={joining || switching} onClick={() => void switchCamera()}><SwitchCamera size={16} aria-hidden="true" /></button>}
         {!embedded && <button type="button" className="secondary-button icon-text-button" disabled={joining || switching || !camera} onClick={() => void switchCamera()}><RefreshCw size={18} />{switching ? "Switching…" : "Switch camera"}</button>}
         {camera && (!embedded || blurAvailable) && <label className="native-blur-toggle" title={blurAvailable ? "Blur your background using the device camera" : "Native background blur is not available in this browser. Try your device's video effects."}><input type="checkbox" checked={blurAvailable && blur} disabled={!blurAvailable || switching} onChange={event => void changeBlur(event.target.checked)} />{embedded ? "Blur" : "Blur background"}{!blurAvailable && <small>Device effects</small>}</label>}
         {!embedded && <button type="button" className="secondary-button icon-text-button" onClick={() => { leave(); onLeave?.(); }}><LogOut size={18} />Leave</button>}

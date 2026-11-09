@@ -989,3 +989,5 @@ API exposes active service content and matching worship sets, referenced songs
 and attached media, live state and pointer, plus display schedules. Inactive
 plans and unrelated files remain protected; presenter and editing APIs, `/app/media`
 and Sunday School displays continue to require authentication.
+
+For phone-only service streaming, enable **Camera & mic** in Service view, use the camera flip icon to select the rear camera, then turn **Cam** on. The broadcast operator selects the phone contribution for the livestream.

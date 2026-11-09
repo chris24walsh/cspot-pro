@@ -68,6 +68,23 @@ afterEach(async () => {
 });
 
 describe("remote tablet capture", () => {
+  it("selects the rear camera while off and switches live video without reconnecting audio", async () => {
+    await act(async () => root.render(<RemoteGuest token="phone" embedded autoJoin />));
+    await act(async () => { await new Promise(resolve => setTimeout(resolve, 10)); });
+    const rear = host.querySelector<HTMLButtonElement>('[aria-label="Use rear camera"]')!;
+    await act(async () => rear.click());
+    expect(getUserMedia).toHaveBeenCalledTimes(1);
+    expect(host.querySelector('[aria-label="Use front camera"]')).not.toBeNull();
+    await act(async () => host.querySelector<HTMLButtonElement>('[aria-label="Camera on"]')!.click());
+    expect(getUserMedia.mock.calls[1][0]).toMatchObject({ audio: false, video: { facingMode: "environment" } });
+    await act(async () => host.querySelector<HTMLButtonElement>('[aria-label="Use front camera"]')!.click());
+    expect(getUserMedia.mock.calls[2][0]).toMatchObject({ audio: false, video: { facingMode: "user" } });
+    expect(captures[0].audio.stop).not.toHaveBeenCalled();
+    expect(peers).toHaveLength(1);
+    expect(peers[0].close).not.toHaveBeenCalled();
+    expect(request.mock.calls.filter(call => call[0] === "/guest/publish")).toHaveLength(1);
+  });
+
   it("keeps a compact Retry action after discovery fails", async () => {
     vi.mocked(completeOffer).mockRejectedValueOnce(new Error("Connection discovery found no network addresses"));
     await act(async () => root.render(<RemoteGuest token="secret" embedded autoJoin />));

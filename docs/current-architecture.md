@@ -1756,7 +1756,7 @@ all Service roles, with responsive three-column layouts from 900px upward.
 
 Service contributors receive the selected church camera through the scoped `/guest/camera` signaling endpoint, independently of the remote program override. The dock displays this muted camera beside local capture and uses a volume slider for church return audio.
 
-Remote publishing keeps both the camera-off canvas and real camera at 24 fps. Gateway registration uses its accepted H.264/AAC presets; arbitrary FFmpeg arguments are rejected by its API. The steady capture cadence prevents placeholder timing from carrying into live video. The Service dock uses compact overlaid labels and omits camera switching; slide frames never shrink to accommodate the dock, with scrolling available in short viewports.
+Remote publishing keeps both the camera-off canvas and real camera at 24 fps. Gateway registration uses its accepted H.264/AAC presets; arbitrary FFmpeg arguments are rejected by its API. The steady capture cadence prevents placeholder timing from carrying into live video. The Service dock uses compact overlaid labels and an icon-only front/rear camera selector; slide frames never shrink to accommodate the dock, with scrolling available in short viewports.
 
 Camera MSE playback tolerates normal one-second fragment bursts without seeking; it uses modest catch-up for drift and seeks only after larger stalls or buffer gaps. Audio timing remains unchanged.
 
@@ -1768,3 +1768,5 @@ API exposes active service content and matching worship sets, referenced songs
 and attached media, live state and pointer, plus display schedules. Inactive
 plans and unrelated files remain protected; presenter and editing APIs, `/app/media`
 and Sunday School displays continue to require authentication.
+
+The Service camera selector can choose the rear camera while capture is off, without opening camera hardware. Camera on uses that choice; switching during capture replaces only video and preserves the microphone and publishing connection.
