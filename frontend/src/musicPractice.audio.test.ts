@@ -129,3 +129,42 @@ it('redirects playback on the next downbeat without closing or restarting its au
   context.currentTime = 4.58; vi.advanceTimersByTime(25);
   expect(position.mock.calls[position.mock.calls.length - 1][0]).toBeCloseTo(0.25);
 });
+
+it('schedules a shared reseat at its server-mapped monotonic time instead of the next local downbeat', async () => {
+  const now = vi.spyOn(performance, "now").mockReturnValue(0);
+  const first = buildPracticePerformance(rhythm, { mode: "song", countIn: true, metronome: true });
+  const next = buildPracticePerformance(rhythm, { mode: "song", countIn: false, metronome: false, chords: false, bars: [{ section: "Default", chords: [{ beat: 1, chord: "" }] }] });
+  const position = vi.fn(), commit = vi.fn();
+  try {
+    await player.play(first, false, vi.fn(), vi.fn());
+    await player.queuePerformance(next, position, commit, 1000);
+    const context = instances[0];
+    expect(next.countInTicks).toBe(0);
+    context.currentTime = 0.975; vi.advanceTimersByTime(25);
+    expect(commit).not.toHaveBeenCalled();
+    context.currentTime = 1; vi.advanceTimersByTime(25);
+    expect(commit).toHaveBeenCalledOnce();
+    expect(position.mock.calls[position.mock.calls.length - 1]?.[0]).toBe(0);
+    expect(context.close).not.toHaveBeenCalled();
+  } finally { now.mockRestore(); }
+});
+
+it('catches up a late shared reseat to its authoritative position instead of replaying bar zero', async () => {
+  const now = vi.spyOn(performance, "now").mockReturnValue(1500);
+  const original = buildPracticePerformance(rhythm, { mode: "song", countIn: false, metronome: false, chords: false, bars: [
+    { section: "Default", chords: [{ beat: 1, chord: "" }] },
+    { section: "Default", chords: [{ beat: 1, chord: "" }] },
+  ] });
+  const position = vi.fn(), commit = vi.fn();
+  try {
+    await player.play(original, false, vi.fn(), vi.fn());
+    const context = instances[0];
+    context.currentTime = 0.5;
+    await player.queuePerformance(original, position, commit, 1000);
+    vi.advanceTimersByTime(25);
+    expect(commit).toHaveBeenCalledOnce();
+    const lastPosition = position.mock.calls[position.mock.calls.length - 1]?.[0];
+    expect(lastPosition).toBeCloseTo(0.25);
+    expect(lastPosition).toBeGreaterThan(0);
+  } finally { now.mockRestore(); }
+});

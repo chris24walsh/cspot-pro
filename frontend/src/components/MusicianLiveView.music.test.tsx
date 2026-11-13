@@ -4,10 +4,10 @@ import { createRoot } from 'react-dom/client';
 import { beforeEach, expect, it, vi } from 'vitest';
 import { MusicianLiveView } from './MusicianLiveView';
 import { createEmptyChordChart, serializeChordChart } from '../chordSheet';
-import { updateBandSelection, getWorshipMusicTiming, updateWorshipMusicTiming, getPresentationLiveState, updatePresentationLiveState, type PlanDetail, type Song } from '../api';
+import { updateBandSelection, getWorshipMusicTiming, commandWorshipMusicTiming, getPresentationLiveState, updatePresentationLiveState, type PlanDetail, type Song, type WorshipMusicTimingRead } from '../api';
 const audio = vi.hoisted(() => ({ play: vi.fn(async (..._args: unknown[]) => {}), queuePerformance: vi.fn(async (..._args: unknown[]) => {}), stop: vi.fn() }));
 vi.mock('../musicPractice', async original => ({ ...await original<typeof import('../musicPractice')>(), PracticeAudioPlayer: vi.fn(function() { return audio; }) }));
-vi.mock('../api', () => ({ getBandSelection: vi.fn(async () => ({ selection: null })), updateBandSelection: vi.fn(async (_id, slide_id) => ({ selection: { slide_id, updated_at: Date.now() } })), getPresentationLiveState: vi.fn(async () => ({ plan_id: 'plan', index: 0, updated_at: '2026-10-13', worship_coupled: true, plan_item_id: 'item', slide_offset: 0 })), updatePresentationLiveState: vi.fn(), getWorshipMusicTiming: vi.fn(async () => ({ timing: null, server_now: 0 })), updateWorshipMusicTiming: vi.fn() }));
+vi.mock('../api', () => ({ getBandSelection: vi.fn(async () => ({ selection: null })), updateBandSelection: vi.fn(async (_id, slide_id) => ({ selection: { slide_id, updated_at: Date.now() } })), getPresentationLiveState: vi.fn(async () => ({ plan_id: 'plan', index: 0, updated_at: '2026-10-13', worship_coupled: true, plan_item_id: 'item', slide_offset: 0 })), updatePresentationLiveState: vi.fn(), getWorshipMusicTiming: vi.fn(async () => ({ plan_id: 'plan', revision: 0, session_id: null, status: 'stopped', timing: null, pending: null, command_id: null, server_now: 0, owner: { owner_id: null, last_seen_at: null, connected: false } })), commandWorshipMusicTiming: vi.fn(), heartbeatWorshipMusicTiming: vi.fn() }));
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
 beforeEach(() => localStorage.clear());
@@ -153,8 +153,9 @@ it.each([false, true])('follows remote lyrics despite an older service song sele
   localStorage.clear();
   vi.stubGlobal('matchMedia', () => ({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() }));
   vi.mocked(getPresentationLiveState).mockResolvedValue({ plan_id: 'plan', index: 0, updated_at: 1, worship_coupled: true, plan_item_id: 'other-item', slide_offset: 0 } as Awaited<ReturnType<typeof getPresentationLiveState>>);
-  vi.mocked(getWorshipMusicTiming).mockResolvedValue({ server_now: 100000, timing: {
-    owner_id: 'another-device', active: true, song_id: 'song', plan_item_id: 'item', start_index: 0, position: 1.05,
+  vi.mocked(getWorshipMusicTiming).mockResolvedValue({ plan_id: 'plan', revision: 1, session_id: 'session', status: 'running', pending: null, command_id: null, owner: { owner_id: 'another-device', last_seen_at: 100000, connected: true }, server_now: 100000, timing: {
+    owner_id: 'another-device', active: true, song_id: 'song', plan_item_id: 'item', start_index: 0, first_bar_stop: 0, position: 1.05,
+    bar_durations_ms: null,
     bar_duration_ms: 2000, total_bars: 2, updated_at: 100000,
   } });
   const song = { id: 'song', title: 'Shared song', lyrics: '[V1]\nFirst line\n[C]\nSecond line', sequence: 'V1 C', chords: null, rhythm: { numerator: 4, denominator: 4, patterns: [], notes: '', intro_bars: 0, markers: [
@@ -164,7 +165,7 @@ it.each([false, true])('follows remote lyrics despite an older service song sele
   const container = document.createElement('div'), mount = document.createElement('div'), toolbar = document.createElement('div'); container.append(mount, toolbar); const root = createRoot(mount);
   try {
     await act(async () => root.render(<MusicianLiveView plan={plan} songs={[{ ...song, id: 'other-song', title: 'Other song' }, song]} topbarSlot={toolbar} onEditSong={() => {}} onExit={() => {}} />));
-    expect(getWorshipMusicTiming).not.toHaveBeenCalled();
+    expect(getWorshipMusicTiming).toHaveBeenCalled();
     musician(container);
     act(() => document.querySelector<HTMLButtonElement>('[aria-label="Lyric highlight: on"]')!.click());
     if (scroll) {
@@ -185,7 +186,6 @@ it.each([false, true])('follows remote lyrics despite an older service song sele
     if (scroll) expect(container.querySelector<HTMLElement>('.musician-full-song')!.scrollTop).toBeGreaterThan(0);
     expect(audio.play).not.toHaveBeenCalled();
     expect(updatePresentationLiveState).not.toHaveBeenCalled();
-    expect(updateWorshipMusicTiming).not.toHaveBeenCalled();
     act(() => document.querySelector<HTMLButtonElement>('[aria-label="Dot: off"]')!.click());
     expect(container.querySelector('.lyric-timing-dot')).toBeNull();
     expect(container.querySelector(scroll ? '.musician-song-part.is-current' : '.musician-page.is-current')?.textContent).toContain('Second');
@@ -549,4 +549,46 @@ it.each([false, true])('returns from end worship to songs without changing servi
   } finally {
     act(() => root.unmount()); container.remove(); toolbar.remove(); vi.unstubAllGlobals(); vi.clearAllMocks();
   }
+});
+
+it('sends a leader reseat before queuing the manual lyric jump at the server effective time', async () => {
+  vi.stubGlobal('matchMedia', () => ({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() }));
+  vi.mocked(getPresentationLiveState).mockResolvedValue({ plan_id: 'plan', index: 0, updated_at: 1, worship_coupled: false, plan_item_id: 'item', slide_offset: 0 } as Awaited<ReturnType<typeof getPresentationLiveState>>);
+  const song = { id: 'song', title: 'Manual reseat', lyrics: '[V1]\nFirst\n[C]\nSecond', sequence: 'V1 C', chords: serializeChordChart({ ...createEmptyChordChart(), absoluteKey: 'C', annotations: [
+    { id: 'v', section: 'V1', lineIndex: 0, anchorIndex: 3, chord: 'C' }, { id: 'c', section: 'C', lineIndex: 0, anchorIndex: 3, chord: 'G' },
+  ] }), rhythm: { numerator: 4, denominator: 4, bpm: 100, patterns: [], notes: '', intro_bars: 0, markers: [
+    { id: 'v', section: 'V1', lineIndex: 0, anchorIndex: 3 }, { id: 'c', section: 'C', lineIndex: 0, anchorIndex: 3 },
+  ] } } as unknown as Song;
+  const plan = { id: 'plan', items: [{ id: 'item', item_type: 'song', song_id: 'song', sequence: '1', title: song.title }] } as PlanDetail;
+  let state: WorshipMusicTimingRead = { plan_id: 'plan', revision: 0, session_id: null, status: 'stopped', timing: null, pending: null, command_id: null, server_now: 1_000_000, owner: { owner_id: null, last_seen_at: null, connected: false } };
+  vi.mocked(getWorshipMusicTiming).mockImplementation(async () => state);
+  vi.mocked(commandWorshipMusicTiming).mockImplementation(async (_planId, command) => {
+    const revision = state.revision + 1, server_now = 1_000_000;
+    if (command.action === 'start') {
+      state = { ...state, revision, session_id: 'session', status: 'running', timing: { ...command.timing!, updated_at: server_now }, pending: null, command_id: command.command_id, server_now, owner: { owner_id: command.timing!.owner_id, last_seen_at: server_now, connected: true } };
+    } else {
+      state = { ...state, revision, pending: { timing: { ...command.timing!, updated_at: server_now + 5000 }, effective_at: server_now + 5000, command_id: command.command_id }, command_id: command.command_id, server_now };
+    }
+    return { ...state, command_id: command.command_id };
+  });
+  const container = document.createElement('div'), mount = document.createElement('div'), toolbar = document.createElement('div');
+  container.append(mount, toolbar);
+  const root = createRoot(mount);
+  try {
+    await act(async () => root.render(<MusicianLiveView canUseMusic canShareTiming plan={plan} songs={[song]} topbarSlot={toolbar} onEditSong={() => {}} onExit={() => {}} />));
+    await play(container);
+    const position = audio.play.mock.calls[0][4] as (position: number) => void;
+    await act(async () => position(0.1));
+    expect(commandWorshipMusicTiming).toHaveBeenCalledWith('plan', expect.objectContaining({ action: 'start' }));
+    await act(async () => container.querySelector<HTMLButtonElement>('[aria-label="Next lyrics"]')!.click());
+    await act(async () => new Promise(resolve => window.setTimeout(resolve, 0)));
+    expect(audio.queuePerformance).toHaveBeenCalledOnce();
+    expect(commandWorshipMusicTiming).toHaveBeenLastCalledWith('plan', expect.objectContaining({
+      action: 'reseat', timing: expect.objectContaining({ song_id: 'song', plan_item_id: 'item', start_index: 1, position: 0 }),
+    }));
+    expect(audio.queuePerformance).toHaveBeenCalledOnce();
+    const [queued, , , effectiveAt] = audio.queuePerformance.mock.calls[0] as [import('../musicPractice').PracticePerformance, (position: number) => void, () => void, number];
+    expect(queued.countInTicks).toBe(0);
+    expect(effectiveAt).toBeGreaterThan(performance.now());
+  } finally { act(() => root.unmount()); vi.unstubAllGlobals(); vi.clearAllMocks(); }
 });

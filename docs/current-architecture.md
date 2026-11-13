@@ -1086,15 +1086,22 @@ Search modes:
   bar) when idle; this display-only cursor never drives auto-advance. Display modes
   are independent from the playback cursor and source timing. The per-device Follow shared timing option
   lets musician readers animate an administrator's shared clock without audio.
-  GET/PATCH /presentation/music-timing/{plan_id} stores a bounded transport snapshot
-  in the existing position payload; it preserves slide state and requires admin
-  permission to write. An owner id prevents overlapping controllers, heartbeats
-  run every two seconds, and disconnected clocks expire after twelve seconds.
+  GET /presentation/music-timing/{plan_id} reads a revisioned server timeline.
+  POST /presentation/music-timing/{plan_id}/commands accepts explicit start,
+  reseat and stop actions with command IDs and expected revisions.
+  PATCH /presentation/music-timing/{plan_id}/heartbeat reports owner health only;
+  it cannot overwrite timing or restart a stopped session. Legacy timestamp-only
+  publishers are rejected and pre-upgrade clocks must be deliberately restarted.
+  Administrators and approved worship leaders can start/reseat. An owner can stop
+  its own session; only administrators can stop another owner's session.
+  Owner health becomes disconnected after twelve seconds, independently of the
+  accepted timeline, which can finish normally without its owner.
   Receivers poll once per second and interpolate on a local monotonic clock using
   server elapsed time and a round-trip estimate, avoiding device wall-clock skew.
   Followers move their own pages and never publish service slide updates; only
-  the local playback host does that when synced. Sharing is opt-in and released
-  on stop/unmount. Dot visibility and following persist as device preferences.
+  the local playback host does that when synced. Eligible synced playback shares
+  automatically; musicians' practice and independent playback remain private.
+  Dot visibility and following persist as device preferences.
   This transport is scoped to Worship Live; no congregation overlay is introduced
   and no database migration is needed.
   Pages without a bar boundary report that a boundary is needed rather than jumping
@@ -1299,8 +1306,9 @@ Silent guide also supports manual slide changes during playback: it switches to
 the selected slide on the next bar boundary, keeping the timing overlays and
 automatic advance aligned without creating an audio session.
 
-The Musician menu remembers Share timing per browser, defaulting to off.
-Restoring this preference only shares timing once local playback starts.
+The Share timing toggle is removed. Eligible synced playback automatically starts
+a shared session; Follow shared timing and Auto-scroll remain local preferences.
+Band sync off keeps uncoupled navigation and playback independent.
 
 The song chord editor keeps chord/bar editing, Play, and Rhythm beside its tabs.
 A compact Chord tools menu groups key, capo, transposition, copy-verse and clear
@@ -1322,7 +1330,7 @@ with a vertical guide through both rows. The preview uses the same source anchor
 as the drop handler, including wrapped lines and leading/trailing positions.
 
 Musician settings use consistent compact segmented controls. Chords, Dot, Beat
-keeper, Band sync, Follow shared timing, Share timing and Auto-scroll use On/Off;
+keeper, Band sync, Follow shared timing and Auto-scroll use On/Off;
 Bars retains Auto/On/Off. Enabled chords stay visible; the dot and beat keeper
 appear only during playback. Existing saved Auto/On values remain enabled.
 
@@ -1444,12 +1452,27 @@ do not shorten this preparation bar. Manual segues still have no new count-in.
 
 ### Worship Live sync responsiveness
 
+Manual reseats from Worship Live and Service use shared musical-destination
+helpers and explicit server commands, not inferred automatic page changes.
+Selecting the same section again is a new command. The server schedules the
+destination at the next bar; followers adopt it without owner acknowledgement.
+Connected owners receive the same scheduled transition. An administrator stop
+invalidates pending timing and falls back to manual navigation without changing
+the selected slide or service coupling. Offline audio devices cannot be silenced
+until they reconnect.
+
+The existing position JSON stores `music_timing_state`, including current/pending
+timelines, session/revision, owner health and the latest 128 command results for
+idempotent retries. Timing and band writes use the service-session lock and
+payload compare-and-swap. Linked worship-set membership uses matching date,
+opposite plan types and a worship-set section because no explicit link ID exists.
+See [requirements and acceptance criteria](worship-timing-requirements.md).
+
 Band page writes collapse queued navigation to the latest selection while a
 request is in flight. Service-state reads discard responses from an old plan
-or from before local navigation. Shared music timing immediately follows a
-successful in-flight update with any intervening start/stop or seek change,
-rather than waiting for the next two-second heartbeat. Polling intervals and
-local clock animation rates remain unchanged; no LAN transport is introduced.
+or from before local navigation. Shared timing uses revisioned server commands;
+heartbeats report owner health rather than replace the timeline. Local clock
+interpolation keeps animation independent of network polling.
 
 
 Worship Live playback offers **Lyrics only**, **Click only**, **Guitar + click**,

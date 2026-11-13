@@ -426,6 +426,7 @@ it.each([0, 2])('uses the opening song chord before a later selected slide (%i i
       window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', code: 'ArrowRight' }));
       window.dispatchEvent(new KeyboardEvent('keyup', { key: 'ArrowRight', code: 'ArrowRight' }));
     });
+
     expect(container.querySelector('[role="alert"]')?.textContent).toBeUndefined();
     const music = audio.play.mock.calls[0][0] as PracticePerformance;
     expect(music.countInTicks).toBe(music.barTicks);
@@ -436,5 +437,36 @@ it.each([0, 2])('uses the opening song chord before a later selected slide (%i i
     act(() => position(intro_bars));
     expect(cursor).toHaveBeenLastCalledWith(expect.objectContaining({ occurrence: 1, lineIndex: 3 }));
     expect(timing).toHaveBeenLastCalledWith(expect.objectContaining({ startIndex: 1, position: 0 }));
+  } finally { act(() => root.unmount()); vi.clearAllMocks(); }
+});
+
+it('queues an owner reseat at the authoritative monotonic effective time without count-in and cancels it on stop', async () => {
+  const lyrics = '[V1]\nFirst line\n[C]\nSecond line';
+  const annotations = [{ id: 'v', section: 'V1', lineIndex: 0, anchorIndex: 3, chord: 'C' }, { id: 'c', section: 'C', lineIndex: 0, anchorIndex: 3, chord: 'G' }];
+  const rhythm: SongRhythm = { numerator: 4, denominator: 4, bpm: 100, patterns: [], notes: '', intro_bars: 0, markers: annotations.map(({ chord: _chord, ...marker }) => marker) };
+  const timing = vi.fn(), container = document.createElement('div'), root = createRoot(container);
+  const effectiveAt = performance.now() + 5000;
+  const reseat = { commandId: 'cmd-9', revision: 9, effectiveAt, timing: {
+    owner_id: 'owner', active: true, song_id: 'song', plan_item_id: 'item', start_index: 1, first_bar_stop: 0,
+    position: 0, bar_duration_ms: 1200, bar_durations_ms: [1200], total_bars: 1, updated_at: 20_000,
+  } };
+  const render = (stopRevision: number, jumpRevision: number, sharedReseat: typeof reseat | null = reseat) => root.render(
+    <LyricMusicControls rhythm={rhythm} lyrics={lyrics} sequence="V1 C" annotations={annotations} bars={lyricBarLayout(lyrics, rhythm, annotations)}
+      startAt={{ occurrence: 1, lineStart: 3, lineEnd: 4 }} jumpRevision={jumpRevision} sharedReseat={sharedReseat}
+      stopRevision={stopRevision} onCursor={() => {}} onTiming={timing} />,
+  );
+  try {
+    await act(async () => render(0, 0, null));
+    await play(container, 'Click only');
+    await act(async () => render(0, 1));
+    expect(audio.queuePerformance).toHaveBeenCalledOnce();
+    const [music, progress, , atPerformanceTime] = audio.queuePerformance.mock.calls[0] as [PracticePerformance, (position: number) => void, () => void, number];
+    expect(music.countInTicks).toBe(0);
+    expect(music.bars).toHaveLength(1);
+    expect(atPerformanceTime).toBe(effectiveAt);
+    await act(async () => render(1, 1, null));
+    expect(audio.stop).toHaveBeenCalled();
+    act(() => progress(0));
+    expect(timing).toHaveBeenLastCalledWith(null);
   } finally { act(() => root.unmount()); vi.clearAllMocks(); }
 });

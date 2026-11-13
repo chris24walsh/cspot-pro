@@ -1995,14 +1995,28 @@ export function setRecordingVisibility(recordingId: string, visible: boolean) {
 
 export interface WorshipMusicTiming {
   owner_id: string; active: boolean; song_id: string; plan_item_id: string;
-  start_index: number; first_bar_stop?: number; position: number; bar_duration_ms: number; bar_durations_ms?: number[]; total_bars: number; updated_at: number;
+  start_index: number; first_bar_stop: number; position: number; bar_duration_ms: number; bar_durations_ms: number[] | null; total_bars: number; updated_at: number;
 }
-export interface WorshipMusicTimingRead { timing: WorshipMusicTiming | null; server_now: number }
+export interface WorshipMusicTimingRead {
+  plan_id: string | null; revision: number; session_id: string | null; status: "stopped" | "running";
+  timing: WorshipMusicTiming | null;
+  pending: { timing: WorshipMusicTiming; effective_at: number; command_id: string } | null;
+  command_id: string | null;
+  server_now: number;
+  owner: { owner_id: string | null; last_seen_at: number | null; connected: boolean };
+}
+export type WorshipMusicTimingCommand = {
+  command_id: string; expected_revision: number; action: "start" | "reseat" | "stop";
+  timing?: WorshipMusicTiming; owner_id?: string;
+};
 export function getWorshipMusicTiming(planId: string): Promise<WorshipMusicTimingRead> {
   return getJson<WorshipMusicTimingRead>(`/api/v1/presentation/music-timing/${planId}`);
 }
-export function updateWorshipMusicTiming(planId: string, timing: WorshipMusicTiming): Promise<WorshipMusicTimingRead> {
-  return sendJson<WorshipMusicTimingRead>(`/api/v1/presentation/music-timing/${planId}`, "PATCH", timing);
+export function commandWorshipMusicTiming(planId: string, command: WorshipMusicTimingCommand): Promise<WorshipMusicTimingRead & { command_id: string }> {
+  return sendJson<WorshipMusicTimingRead & { command_id: string }>(`/api/v1/presentation/music-timing/${planId}/commands`, "POST", command);
+}
+export function heartbeatWorshipMusicTiming(planId: string, heartbeat: { session_id: string; revision: number; owner_id: string }): Promise<WorshipMusicTimingRead> {
+  return sendJson<WorshipMusicTimingRead>(`/api/v1/presentation/music-timing/${planId}/heartbeat`, "PATCH", heartbeat);
 }
 
 export interface BandSelection { slide_id: string; updated_at: number }

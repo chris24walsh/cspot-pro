@@ -46,6 +46,7 @@ import type { MusicTimingProgress } from "./LyricMusicControls";
 import { BeatKeeper } from "./BeatKeeper";
 import { useBandSync } from "./useBandSync";
 import { useSharedMusicTiming } from "./useSharedMusicTiming";
+import { resolveMusicTimingDestination } from "../musicTimingDestination";
 import { MusicianDisplayChoice, musicianDisplayVisible, readMusicianDisplayMode, type MusicianDisplayMode } from "./MusicianDisplayChoice";
 import { CompactControlMenu } from "./CompactControlMenu";
 import { SlideKeyCapture, SlideKeyboardCaptureContext, shouldRestoreSlideKeyCapture } from "./SlideKeyCapture";
@@ -56,6 +57,7 @@ interface MusicianLiveViewProps {
   singlePage?: boolean;
   workspaceMenu?: (close: () => void) => import("react").ReactNode;
   canControlAudio?: boolean;
+  canAdminStopMusicTiming?: boolean;
   canUseMusic?: boolean;
   canShareTiming?: boolean;
   controlPlanId?: string | null;
@@ -433,7 +435,7 @@ function chordAnnotationsBySlideLine(
   return grouped;
 }
 
-export function MusicianLiveView({ keyboardActive = true, singlePage = false, workspaceMenu, canUseMusic = false, canShareTiming = canUseMusic, canControlAudio = false, controlPlanId, onEditSong, onSaveRhythm, onExit, plan, servicePlan, songs, topbarSlot }: MusicianLiveViewProps) {
+export function MusicianLiveView({ keyboardActive = true, singlePage = false, workspaceMenu, canUseMusic = false, canShareTiming = canUseMusic, canControlAudio = false, canAdminStopMusicTiming = false, controlPlanId, onEditSong, onSaveRhythm, onExit, plan, servicePlan, songs, topbarSlot }: MusicianLiveViewProps) {
   const [liveState, setLiveState] = useState<PresentationLiveState | null>(null);
   const [chordDisplay, setChordDisplay] = useState(() => readMusicianDisplayMode("worship-chords-display"));
   const [capo, setCapo] = useState(0);
@@ -454,6 +456,7 @@ export function MusicianLiveView({ keyboardActive = true, singlePage = false, wo
   const channelRef = useRef<BroadcastChannel | null>(null);
   const lastLiveStateAtRef = useRef(0);
   const navigationGenerationRef = useRef(0);
+  const manualReseatRequestedRef = useRef(false);
   const handledKeyboardEventsRef = useRef<WeakSet<KeyboardEvent>>(new WeakSet());
   const lastKeyboardNavigationRef = useRef<{ direction: SlideKeyboardDirection; key: string; time: number } | null>(null);
   const liveSyncPlanId = controlPlanId ?? plan?.id ?? null;
@@ -521,6 +524,7 @@ export function MusicianLiveView({ keyboardActive = true, singlePage = false, wo
   const [playbackContext, setPlaybackContext] = useState<{ songId: string; itemId: string } | null>(null);
   const [jumpPending, setJumpPending] = useState(false);
   const [playFrom, setPlayFrom] = useState<{ revision: number; slideId: string } | null>(null);
+  const [ownerReseatSelection, setOwnerReseatSelection] = useState<{ commandId: string; slideId: string; index: number; event: NonNullable<ReturnType<typeof useSharedMusicTiming>["ownerReseat"]> } | null>(null);
   const playFromCounter = useRef(0);
   const jumpHoldRef = useRef(false);
   const automaticSlideRef = useRef<string | null>(null);
@@ -529,7 +533,6 @@ export function MusicianLiveView({ keyboardActive = true, singlePage = false, wo
   const [lyricHighlight, setLyricHighlight] = useState(() => { try { return localStorage.getItem("worship-lyric-highlight") === "on"; } catch { return false; } });
   const [dotDisplay, setDotDisplay] = useState(() => readMusicianDisplayMode("worship-dot-display", "worship-timing-dot"));
   const [followSharedTiming, setFollowSharedTiming] = useState(() => { try { return localStorage.getItem('worship-follow-timing') === 'on'; } catch { return false; } });
-  const [shareTiming, setShareTiming] = useState(() => { try { return localStorage.getItem("worship-share-timing") === "on"; } catch { return false; } });
   const remoteWorshipIndex = useMemo(() => {
     if (!liveState?.planItemId || !worshipItems.some((item) => item.id === liveState.planItemId)) {
       return -1;
@@ -569,7 +572,34 @@ export function MusicianLiveView({ keyboardActive = true, singlePage = false, wo
   function liveSlideIdForBand() { return slides[boundedIndex(localIndex, slides.length)]?.id; }
   const worshipSyncOverridden = isWorshipSyncOverridden(worshipCoupled, Boolean(liveState), remoteWorshipIndex);
   const syncedIndex = worshipCoupled && remoteWorshipIndex >= 0 ? remoteWorshipIndex : boundedIndex(localIndex, slides.length);
-  const sharedTiming = useSharedMusicTiming({ planId: liveSyncPlanId, songId: playbackContext?.songId ?? null, itemId: playbackContext?.itemId ?? null, share: canShareTiming && shareTiming, follow: followSharedTiming });
+  const sharedTiming = useSharedMusicTiming({
+    planId: liveSyncPlanId, songId: playbackContext?.songId ?? null, itemId: playbackContext?.itemId ?? null,
+    enabled: canShareTiming && (bandSyncEnabled || worshipCoupled) && localPlaybackActive,
+    canReseat: canShareTiming, canAdminStop: canAdminStopMusicTiming, follow: followSharedTiming,
+    onOwnerStop: () => { setLocalPlaybackActive(false); setLocalTiming(null); setOwnerReseatSelection(null); manualReseatRequestedRef.current = false; },
+  });
+  useEffect(() => {
+    const event = sharedTiming.ownerReseat;
+    if (!event || ownerReseatSelection?.commandId === event.commandId) return;
+    const song = songs.find(candidate => candidate.id === event.timing.song_id);
+    if (!song?.rhythm) return;
+    const itemSlides = slides.filter(slide => slide.planItemId === event.timing.plan_item_id && slide.slideKind === "content");
+    if (!itemSlides.length) return;
+    const annotations = parseChordChart(song.chords, song.lyrics).document.annotations;
+    const timeline = lyricPlaybackBars(song.lyrics, song.sequence, lyricBarLayout(song.lyrics, song.rhythm, annotations));
+    const cursor = lyricCursorAt(song.lyrics, timelineWithEntry(timeline, event.timing.start_index, event.timing.first_bar_stop), event.timing.start_index, song.rhythm.numerator, song.rhythm.denominator);
+    const blocks = songLyricPageBlocks(song.lyrics, song.sequence);
+    const block = cursor ? blocks[cursor.occurrence] : blocks[0];
+    const part = block ? block.partLineOffsets.findIndex((lineStart, i) => lineStart >= 0 && cursor
+      ? cursor.lineIndex >= lineStart && cursor.lineIndex < lineStart + lyricLines(block.parts[i]).length
+      : i === 0) : 0;
+    const slideId = itemSlides[Math.max(0, (block?.slideIndex ?? 0) + Math.max(0, part))]?.id;
+    const index = slides.findIndex(slide => slide.id === slideId);
+    if (index < 0) return;
+    setOwnerReseatSelection({ commandId: event.commandId, slideId, index, event });
+    setLocalIndex(index);
+    setPlayFrom({ revision: ++playFromCounter.current, slideId });
+  }, [sharedTiming.ownerReseat, ownerReseatSelection?.commandId, songs, slides]);
   const sharedSlideIndex = useMemo(() => {
     const remote = !localPlaybackActive && followSharedTiming ? sharedTiming.remote : null;
     if (!remote) return -1;
@@ -585,7 +615,7 @@ export function MusicianLiveView({ keyboardActive = true, singlePage = false, wo
     const part = block.parts.findIndex((text, index) => cursor.lineIndex >= block.partLineOffsets[index] && cursor.lineIndex < block.partLineOffsets[index] + lyricLines(text).length);
     return first + block.slideIndex + Math.max(0, part);
   }, [localPlaybackActive, followSharedTiming, sharedTiming.remote, songs, slides]);
-  const liveIndex = sharedSlideIndex >= 0 ? sharedSlideIndex : syncedIndex;
+  const liveIndex = ownerReseatSelection?.index ?? (sharedSlideIndex >= 0 ? sharedSlideIndex : syncedIndex);
   const liveSlide = slides[liveIndex] ?? null;
 
   useEffect(() => {
@@ -874,6 +904,7 @@ export function MusicianLiveView({ keyboardActive = true, singlePage = false, wo
   async function publishWorshipSlide(nextIndex: number, navigationGeneration = navigationGenerationRef.current, automatic = false) {
     if (!automatic) manualScrollPaused.current = false;
     if (!automatic && localPlaybackActive && slides[nextIndex]?.itemType === "song") {
+      manualReseatRequestedRef.current = true;
       jumpHoldRef.current = true;
       setJumpPending(true);
       setPlayFrom({ revision: ++playFromCounter.current, slideId: slides[nextIndex].id });
@@ -1470,7 +1501,10 @@ export function MusicianLiveView({ keyboardActive = true, singlePage = false, wo
             <MusicianDisplayChoice label="Band sync" binary description={worshipCoupled ? "Service Sync takes priority" : "Share pages with musicians"} icon={<Link2 size={16} aria-hidden="true" />} value={bandSyncEnabled ? "on" : "off"} onChange={mode => { setBandSyncEnabled(mode === "on"); try { localStorage.setItem("worship-band-sync", mode); } catch {} }} />
             {bandSync.error ? <small role="status">{bandSync.error}</small> : null}
             <MusicianDisplayChoice label="Follow shared timing" binary description="Follow lyric timing and page turns · no audio" icon={<Link2 size={16} aria-hidden="true" />} value={followSharedTiming ? "on" : "off"} onChange={mode => { setFollowSharedTiming(mode === "on"); try { localStorage.setItem("worship-follow-timing", mode); } catch {} }} />
-            {canShareTiming ? <MusicianDisplayChoice label="Share timing" binary description="Let other devices follow" icon={<Music2 size={16} aria-hidden="true" />} value={shareTiming ? "on" : "off"} onChange={mode => { setShareTiming(mode === "on"); try { localStorage.setItem("worship-share-timing", mode); } catch {} }} /> : null}
+            {sharedTiming.clockStatus === 'running' ? <small role="status">Shared timing running{sharedTiming.reseatScheduled ? ' · reseat scheduled' : ''}</small> : null}
+            {sharedTiming.clockStatus === 'running' && !sharedTiming.ownerConnected ? <small role="status">Playback owner disconnected; shared clock continues</small> : null}
+            {sharedTiming.message ? <small role="status">{sharedTiming.message}</small> : null}
+            {canAdminStopMusicTiming ? <button type="button" onClick={sharedTiming.stopShared}>Stop shared timing</button> : null}
             {sharedTiming.error ? <small role="alert">{sharedTiming.error}</small> : null}
             <MusicianDisplayChoice label="Dynamics" binary disabled description="Not available yet" icon={<AudioLines size={16} aria-hidden="true" />} value="off" onChange={() => {}} />
 
@@ -1479,7 +1513,49 @@ export function MusicianLiveView({ keyboardActive = true, singlePage = false, wo
             <button role="menuitem" aria-label={`Switch to ${readerMode === 'pages' ? 'Scroll' : 'Pages'} view`} onClick={() => { setReaderMode(value => value === 'pages' ? 'scroll' : 'pages'); close(); }} type="button">{readerMode === 'pages' ? <ScrollText size={16} /> : <BookOpen size={16} />}<span>{readerMode === 'pages' ? 'Scroll view' : 'Page view'}</span></button>
           </>}
         </CompactControlMenu>
-        {canUseMusic || canControlAudio ? <LyricMusicControls rootChord={baseAbsoluteKey} onRestoreKeyboardCapture={restoreKeyboardCapture} onSaveIntroBars={onSaveRhythm && liveSong?.rhythm ? bars => onSaveRhythm(liveSong, { ...liveSong.rhythm!, intro_bars: bars }) : undefined} onPedalNavigate={direction => { if (direction) moveLive(direction); else { navigationGenerationRef.current += 1; void publishWorshipSlide(liveIndex, navigationGenerationRef.current); } }} startAt={leadPageContext.occurrence >= 0 ? { occurrence: leadPageContext.occurrence, lineStart: leadPageContext.sourceOffset, lineEnd: leadPageContext.sourceOffset + lyricLines(pageLeadSlide?.text ?? "").length } : undefined} jumpRevision={playFrom?.revision ?? 0} onJumpPending={pending => { jumpHoldRef.current = pending; setJumpPending(pending); if (!pending) { lastMusicPageRef.current = null; manualScrollDestination.current = null; manualScrollPaused.current = false; } }} rhythm={liveSong?.rhythm} lyrics={liveSong?.lyrics} sequence={liveSong?.sequence} annotations={chordChart.annotations} bars={timingBars} transpose={currentAbsoluteKey ? semitoneDistance(baseAbsoluteKey, currentAbsoluteKey) : 0} canPractice={canUseMusic} onStarted={() => { setLocalPlaybackActive(true); if (liveSong && liveItem) setPlaybackContext({ songId: liveSong.id, itemId: liveItem.id }); }} onJumpCommitted={() => { if (liveSong && liveItem) { sharedTiming.setLocalSource(liveSong.id, liveItem.id); setPlaybackContext({ songId: liveSong.id, itemId: liveItem.id }); } }} onTiming={timing => { setLocalPlaybackActive(Boolean(timing)); setLocalTiming(timing); sharedTiming.setLocalTiming(timing); }} onCursor={setMusicCursor} backing={canControlAudio ? { playing: backingAudioPlaying, disabledReason: !worshipCoupled ? 'Sync with the service first' : !backingAudioAvailable ? 'No backing track for this song' : undefined, toggle: toggleBackingAudio } : undefined} /> : null}
+        {canUseMusic || canControlAudio ? <LyricMusicControls
+          rootChord={baseAbsoluteKey}
+          onRestoreKeyboardCapture={restoreKeyboardCapture}
+          onSaveIntroBars={onSaveRhythm && liveSong?.rhythm ? bars => onSaveRhythm(liveSong, { ...liveSong.rhythm!, intro_bars: bars }) : undefined}
+          onPedalNavigate={direction => { if (direction) moveLive(direction); else { navigationGenerationRef.current += 1; void publishWorshipSlide(liveIndex, navigationGenerationRef.current); } }}
+          startAt={leadPageContext.occurrence >= 0 ? { occurrence: leadPageContext.occurrence, lineStart: leadPageContext.sourceOffset, lineEnd: leadPageContext.sourceOffset + lyricLines(pageLeadSlide?.text ?? "").length } : undefined}
+          jumpRevision={playFrom?.revision ?? 0}
+          sharedReseat={ownerReseatSelection?.event ?? null}
+          stopRevision={sharedTiming.ownerStopRevision}
+          onJumpPending={pending => { jumpHoldRef.current = pending; setJumpPending(pending); if (!pending) { lastMusicPageRef.current = null; manualScrollDestination.current = null; manualScrollPaused.current = false; } }}
+          rhythm={liveSong?.rhythm} lyrics={liveSong?.lyrics} sequence={liveSong?.sequence}
+          annotations={chordChart.annotations} bars={timingBars}
+          transpose={currentAbsoluteKey ? semitoneDistance(baseAbsoluteKey, currentAbsoluteKey) : 0}
+          canPractice={canUseMusic}
+          onManualReseat={async () => {
+            if (!manualReseatRequestedRef.current) return null;
+            manualReseatRequestedRef.current = false;
+            if (!liveSong || !liveItem || !localPlaybackActive || !canShareTiming || !(bandSyncEnabled || worshipCoupled)) return null;
+            const destination = resolveMusicTimingDestination(liveSong, liveItem.id, leadPageContext.occurrence >= 0 ? {
+              occurrence: leadPageContext.occurrence, lineStart: leadPageContext.sourceOffset,
+              lineEnd: leadPageContext.sourceOffset + lyricLines(pageLeadSlide?.text ?? "").length,
+            } : undefined);
+            return destination ? (await sharedTiming.requestReseat(destination))?.effectiveAt ?? null : null;
+          }}
+          onStarted={() => { sharedTiming.authorizeExplicitStart(); setLocalPlaybackActive(true); if (liveSong && liveItem) setPlaybackContext({ songId: liveSong.id, itemId: liveItem.id }); }}
+          onJumpCommitted={() => {
+            if (liveSong && liveItem) {
+              if (manualReseatRequestedRef.current) {
+                const destination = resolveMusicTimingDestination(liveSong, liveItem.id, leadPageContext.occurrence >= 0 ? {
+                  occurrence: leadPageContext.occurrence, lineStart: leadPageContext.sourceOffset,
+                  lineEnd: leadPageContext.sourceOffset + lyricLines(pageLeadSlide?.text ?? "").length,
+                } : undefined);
+                if (destination) sharedTiming.requestReseat(destination);
+              }
+              manualReseatRequestedRef.current = false;
+              setPlaybackContext({ songId: liveSong.id, itemId: liveItem.id });
+            }
+            if (ownerReseatSelection) setOwnerReseatSelection(null);
+          }}
+          onTiming={timing => { setLocalPlaybackActive(Boolean(timing)); setLocalTiming(timing); sharedTiming.setLocalTiming(timing); }}
+          onCursor={setMusicCursor}
+          backing={canControlAudio ? { playing: backingAudioPlaying, disabledReason: !worshipCoupled ? 'Sync with the service first' : !backingAudioAvailable ? 'No backing track for this song' : undefined, toggle: toggleBackingAudio } : undefined}
+        /> : null}
         {servicePlan ? <button aria-label={worshipSyncOverridden ? "Worship sync is enabled but the service view has moved outside worship" : worshipCoupled ? "Stop syncing Worship Live with service and move after worship" : "Sync Worship Live with service"} aria-pressed={worshipCoupled} className={`musician-service-couple-button ${worshipCoupled ? "is-active" : ""} ${worshipSyncOverridden ? "is-overridden" : ""}`} onClick={() => void toggleServiceCoupling()} title={worshipSyncOverridden ? "Service view moved outside worship. Change a worship slide to resync." : worshipCoupled ? "Stop syncing and go after worship" : "Sync with service"} type="button">{worshipCoupled ? <Unlink2 size={16} aria-hidden="true" /> : <Link2 size={16} aria-hidden="true" />}<span className="musician-control-text">Sync</span></button> : null}
         <button aria-label="Edit song" className="musician-edit-button" disabled={!liveSong} onClick={() => { if (liveSong) onEditSong(liveSong); }} title="Edit song" type="button"><Pencil size={16} aria-hidden="true" /><span className="musician-control-text">Edit</span></button>
         <button className="musician-fullscreen-button" onClick={onExit} type="button" aria-label="Exit live worship">

@@ -192,6 +192,12 @@ def update_band_selection(
         live = PresentationSession(plan_id=plan_id, presenter_id=current_user.id, status="ready")
         session.add(live)
         session.flush()
+    session.execute(
+        select(PresentationSession)
+        .where(PresentationSession.id == live.id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    ).scalar_one()
     position = _latest_position(session, live.id)
     if position is None:
         position = PresentationPosition(session_id=live.id, payload_json="{}")
@@ -235,9 +241,71 @@ class WorshipMusicTiming(BaseModel):
     updated_at: int = 0
 
 
+class WorshipMusicTimingPending(BaseModel):
+    timing: WorshipMusicTiming
+    effective_at: int
+    command_id: str
+
+
+class WorshipMusicTimingOwner(BaseModel):
+    owner_id: str | None = None
+    last_seen_at: int | None = None
+    connected: bool = False
+
+
 class WorshipMusicTimingRead(BaseModel):
+    plan_id: str | None = None
+    revision: int = 0
+    session_id: str | None = None
+    status: str = "stopped"
     timing: WorshipMusicTiming | None = None
+    pending: WorshipMusicTimingPending | None = None
+    owner: WorshipMusicTimingOwner = Field(default_factory=WorshipMusicTimingOwner)
+    command_id: str | None = None
     server_now: int
+
+
+class WorshipMusicTimingCommand(BaseModel):
+    command_id: str = Field(min_length=1, max_length=100)
+    expected_revision: int = Field(ge=0)
+    action: str = Field(pattern=r"^(start|reseat|stop)$")
+    timing: WorshipMusicTiming | None = None
+    owner_id: str | None = Field(default=None, max_length=100)
+
+
+class WorshipMusicTimingHeartbeat(BaseModel):
+    session_id: str
+    revision: int = Field(ge=0)
+    owner_id: str = Field(min_length=1, max_length=100)
+
+
+def _effective_timing_state(state: dict, now: int) -> dict:
+    effective = dict(state)
+    pending = effective.get("pending")
+    if pending and now >= pending.get("effective_at", 0):
+        effective["timing"] = pending["timing"]
+        effective["pending"] = None
+    return effective
+
+
+def _timing_finished(timing: dict, now: int) -> bool:
+    position = float(timing["position"])
+    elapsed = max(0, now - int(timing.get("updated_at", now)))
+    durations = timing.get("bar_durations_ms") or []
+    while position < timing["total_bars"]:
+        bar_index = int(position) if position >= 0 else -1
+        duration = (
+            durations[bar_index]
+            if 0 <= bar_index < len(durations)
+            else timing["bar_duration_ms"]
+        )
+        fraction = position - bar_index
+        bar_remaining = duration * (1 - fraction)
+        if elapsed < bar_remaining:
+            return False
+        elapsed -= bar_remaining
+        position = float(bar_index + 1)
+    return True
 
 
 @router.get("/music-timing/{plan_id}", response_model=WorshipMusicTimingRead)
@@ -247,15 +315,30 @@ def get_worship_music_timing(
     session: Session = Depends(get_session),
 ) -> WorshipMusicTimingRead:
     now = int(datetime.now(UTC).timestamp() * 1000)
+    plan = session.get(Plan, plan_id)
+    if plan is None:
+        raise HTTPException(status_code=404, detail="Plan not found")
     live = _latest_session(session, plan_id)
     position = _latest_position(session, live.id) if live else None
-    data = _position_payload(position).get("music_timing")
-    timing = (
-        WorshipMusicTiming(**data)
-        if data and data.get("active") and now - data.get("updated_at", 0) < 12000
-        else None
+    state = _effective_timing_state(
+        _position_payload(position).get("music_timing_state") or {}, now
     )
-    return WorshipMusicTimingRead(timing=timing, server_now=now)
+    timing = state.get("timing") if state.get("status") == "running" else None
+    owner = state.get("owner") or {}
+    return WorshipMusicTimingRead(
+        plan_id=plan_id,
+        revision=state.get("revision", 0),
+        session_id=state.get("session_id"),
+        status=state.get("status", "stopped"),
+        timing=WorshipMusicTiming(**timing) if timing else None,
+        pending=state.get("pending"),
+        owner={
+            "owner_id": owner.get("owner_id"),
+            "last_seen_at": owner.get("last_seen_at"),
+            "connected": bool(owner.get("last_seen_at") and now - owner["last_seen_at"] < 12000),
+        },
+        server_now=now,
+    )
 
 
 @router.patch("/music-timing/{plan_id}", response_model=WorshipMusicTimingRead)
@@ -268,38 +351,86 @@ def update_worship_music_timing(
     if not {"administrator", "worship_leader"}.intersection(
         list_authorization_role_names(session, current_user.id)
     ):
-        raise HTTPException(status_code=403, detail="Only administrators and worship leaders can share music timing")
-    if session.get(Plan, plan_id) is None:
-        raise HTTPException(status_code=404, detail="Plan not found")
-    item = session.get(PlanItem, payload.plan_item_id)
-    if item is None or item.song_id != payload.song_id:
-        raise HTTPException(
-            status_code=422, detail="Timing must refer to a song in the worship plan"
-        )
-    now = int(datetime.now(UTC).timestamp() * 1000)
-    live = _latest_session(session, plan_id)
-    if live is None:
-        live = PresentationSession(plan_id=plan_id, presenter_id=current_user.id, status="ready")
-        session.add(live)
-        session.flush()
-    position = _latest_position(session, live.id)
-    if position is None:
-        position = PresentationPosition(session_id=live.id, payload_json="{}")
-        session.add(position)
-        session.flush()
-    data = _position_payload(position)
-    current = data.get("music_timing")
+        raise HTTPException(status_code=403, detail="Shared timing permission required")
+    raise HTTPException(
+        status_code=409,
+        detail={"code": "revision_required", "message": "Use revisioned timing commands"},
+    )
+
+
+def _validate_worship_timing(session: Session, plan_id: str, timing: WorshipMusicTiming) -> None:
     if (
-        current
-        and current.get("active")
-        and now - current.get("updated_at", 0) < 12000
-        and current.get("owner_id") != payload.owner_id
+        not timing.active
+        or timing.start_index >= timing.total_bars
+        or timing.first_bar_stop > timing.total_bars
     ):
-        raise HTTPException(
-            status_code=409, detail="Another device is sharing timing; stop it before sharing here"
+        raise HTTPException(status_code=422, detail={"code": "invalid_timeline"})
+    item = session.get(PlanItem, timing.plan_item_id)
+    if item is None or item.deleted_at is not None or item.song_id != timing.song_id:
+        raise HTTPException(status_code=422, detail={"code": "invalid_target"})
+    target_plan = session.get(Plan, item.plan_id)
+    if item.plan_id != plan_id:
+        root = session.get(Plan, plan_id)
+        if target_plan is None or root is None:
+            raise HTTPException(status_code=422, detail={"code": "invalid_target"})
+        root_type = session.get(PlanType, root.plan_type_id)
+        target_type = session.get(PlanType, target_plan.plan_type_id)
+        linked = root_type and target_type and (
+            root_type.name == "Worship Set" and target_type.name != "Worship Set"
+            or target_type.name == "Worship Set" and root_type.name != "Worship Set"
         )
-    payload.updated_at = now
-    data["music_timing"] = payload.model_dump()
+        linked = bool(
+            linked
+            and root.service_date.date() == target_plan.service_date.date()
+        )
+        if not linked:
+            raise HTTPException(status_code=422, detail={"code": "invalid_target"})
+        linked_item = session.scalar(
+            select(PlanItem.id).where(
+                PlanItem.plan_id == plan_id,
+                PlanItem.item_type == "worship_set",
+                PlanItem.deleted_at.is_(None),
+            )
+        )
+        if linked_item is None:
+            raise HTTPException(status_code=422, detail={"code": "invalid_target"})
+
+
+def _timing_snapshot(
+    plan_id: str,
+    position: PresentationPosition | None,
+    now: int,
+    state_override: dict | None = None,
+    command_id: str | None = None,
+) -> WorshipMusicTimingRead:
+    state = (
+        state_override
+        if state_override is not None
+        else (_position_payload(position).get("music_timing_state") or {})
+    )
+    state = _effective_timing_state(state, now)
+    owner = state.get("owner") or {}
+    timing = state.get("timing") if state.get("status") == "running" else None
+    return WorshipMusicTimingRead(
+        plan_id=plan_id,
+        revision=state.get("revision", 0),
+        session_id=state.get("session_id"),
+        status=state.get("status", "stopped"),
+        timing=WorshipMusicTiming(**timing) if timing else None,
+        pending=state.get("pending"),
+        owner={
+            "owner_id": owner.get("owner_id"),
+            "last_seen_at": owner.get("last_seen_at"),
+            "connected": bool(
+                owner.get("last_seen_at") and now - owner["last_seen_at"] < 12000
+            ),
+        },
+        command_id=command_id,
+        server_now=now,
+    )
+
+
+def _persist_timing_state(session: Session, position: PresentationPosition, data: dict) -> None:
     result = session.execute(
         update(PresentationPosition)
         .where(
@@ -310,9 +441,214 @@ def update_worship_music_timing(
     )
     if result.rowcount != 1:
         session.rollback()
-        raise HTTPException(status_code=409, detail="Live state changed; retry music timing update")
+        raise HTTPException(status_code=409, detail={"code": "concurrent_update"})
     session.commit()
-    return WorshipMusicTimingRead(timing=payload if payload.active else None, server_now=now)
+
+
+@router.post("/music-timing/{plan_id}/commands", response_model=WorshipMusicTimingRead)
+def command_worship_music_timing(
+    plan_id: str,
+    payload: WorshipMusicTimingCommand,
+    current_user: User = Depends(require_permission("presentation:use")),
+    session: Session = Depends(get_session),
+) -> WorshipMusicTimingRead:
+    roles = set(list_authorization_role_names(session, current_user.id))
+    admin = "administrator" in roles
+    leader = admin or "worship_leader" in roles
+    if not leader:
+        raise HTTPException(
+            status_code=403,
+            detail="Only administrators and worship leaders may change shared timing",
+        )
+    if session.get(Plan, plan_id) is None:
+        raise HTTPException(status_code=404, detail="Plan not found")
+    now = int(datetime.now(UTC).timestamp() * 1000)
+    live = _latest_session(session, plan_id)
+    if live is None:
+        live = PresentationSession(plan_id=plan_id, presenter_id=current_user.id, status="ready")
+        session.add(live)
+        session.flush()
+    session.execute(
+        select(PresentationSession)
+        .where(PresentationSession.id == live.id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    ).scalar_one()
+    position = _latest_position(session, live.id)
+    if position is None:
+        position = PresentationPosition(session_id=live.id, payload_json="{}")
+        session.add(position)
+        session.flush()
+    data = _position_payload(position)
+    state = data.get("music_timing_state") or {
+        "revision": 0,
+        "status": "stopped",
+        "history": [],
+    }
+    state = _effective_timing_state(state, now)
+    fingerprint = payload.model_dump(exclude={"timing"})
+    fingerprint["timing"] = payload.timing.model_dump() if payload.timing else None
+    for saved in state.get("history", []):
+        if saved["command_id"] == payload.command_id:
+            if saved["fingerprint"] != fingerprint:
+                raise HTTPException(status_code=409, detail={"code": "command_id_reused"})
+            return WorshipMusicTimingRead.model_validate(saved["response"])
+    if payload.expected_revision != state.get("revision", 0):
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "code": "revision_conflict",
+                "snapshot": _timing_snapshot(plan_id, position, now).model_dump(),
+            },
+        )
+    current_owner = state.get("owner") or {}
+    if payload.action == "stop":
+        if (
+            not admin
+            and (
+                current_owner.get("user_id") != current_user.id
+                or current_owner.get("owner_id") != payload.owner_id
+            )
+        ):
+            raise HTTPException(
+                status_code=403,
+                detail="Only the playback owner or an administrator can stop timing",
+            )
+        state.update(
+            status="stopped",
+            timing=None,
+            pending=None,
+            session_id=state.get("session_id"),
+        )
+        state["owner"] = {}
+    else:
+        if payload.timing is None:
+            raise HTTPException(status_code=422, detail={"code": "timing_required"})
+        _validate_worship_timing(session, plan_id, payload.timing)
+        accepted_timing = payload.timing.model_copy(update={"updated_at": now})
+        if payload.action == "start":
+            current_timing = state.get("timing")
+            if (
+                state.get("status") == "running"
+                and current_timing
+                and not _timing_finished(current_timing, now)
+            ):
+                raise HTTPException(status_code=409, detail={"code": "already_running"})
+            playback_owner_id = payload.owner_id or payload.timing.owner_id
+            accepted_timing = accepted_timing.model_copy(
+                update={"owner_id": playback_owner_id}
+            )
+            state["session_id"] = payload.command_id
+            state["status"] = "running"
+            state["timing"] = accepted_timing.model_dump()
+            state["pending"] = None
+            state["owner"] = {
+                "owner_id": playback_owner_id,
+                "user_id": current_user.id,
+                "last_seen_at": now,
+            }
+        else:
+            if state.get("status") != "running" or not state.get("timing"):
+                raise HTTPException(status_code=409, detail={"code": "not_running"})
+            old = state["timing"]
+            accepted_timing = accepted_timing.model_copy(
+                update={"owner_id": current_owner.get("owner_id", old["owner_id"])}
+            )
+            elapsed = max(0, now - old.get("updated_at", now))
+            position_value = float(old["position"])
+            durations = old.get("bar_durations_ms") or []
+            while elapsed > 0 and position_value < old["total_bars"]:
+                whole = int(position_value) if position_value >= 0 else -1
+                duration = (
+                    durations[whole]
+                    if 0 <= whole < len(durations)
+                    else old["bar_duration_ms"]
+                )
+                fraction = position_value - whole
+                available = duration * (1 - fraction)
+                if elapsed < available:
+                    position_value += elapsed / duration
+                    elapsed = 0
+                else:
+                    elapsed -= available
+                    position_value = float(whole + 1)
+            boundary = 0 if position_value < 0 else int(position_value) + (
+                1 if position_value % 1 else 0
+            )
+            if boundary <= position_value and position_value >= 0:
+                boundary = int(position_value) + 1
+            if position_value < 0:
+                wait_ms = int(-position_value * old["bar_duration_ms"])
+            elif boundary > position_value:
+                whole = int(position_value)
+                duration = (
+                    durations[whole]
+                    if whole < len(durations)
+                    else old["bar_duration_ms"]
+                )
+                wait_ms = int((boundary - position_value) * duration)
+            else:
+                wait_ms = 0
+            destination = accepted_timing.model_dump()
+            destination["updated_at"] = now + wait_ms
+            state["pending"] = {
+                "timing": destination,
+                "effective_at": now + wait_ms,
+                "command_id": payload.command_id,
+            }
+    state["revision"] = state.get("revision", 0) + 1
+    if payload.action == "stop":
+        state["status"] = "stopped"
+    state.setdefault("history", [])
+    data["music_timing_state"] = state
+    response = _timing_snapshot(
+        plan_id, position, now, state, command_id=payload.command_id
+    )
+    state["history"].append(
+        {
+            "command_id": payload.command_id,
+            "fingerprint": fingerprint,
+            "response": response.model_dump(),
+        }
+    )
+    state["history"] = state["history"][-128:]
+    _persist_timing_state(session, position, data)
+    return response
+
+
+@router.patch("/music-timing/{plan_id}/heartbeat", response_model=WorshipMusicTimingRead)
+def heartbeat_worship_music_timing(
+    plan_id: str,
+    payload: WorshipMusicTimingHeartbeat,
+    current_user: User = Depends(require_permission("presentation:use")),
+    session: Session = Depends(get_session),
+) -> WorshipMusicTimingRead:
+    now = int(datetime.now(UTC).timestamp() * 1000)
+    live = _latest_session(session, plan_id)
+    position = _latest_position(session, live.id) if live else None
+    if live is not None:
+        session.execute(
+            select(PresentationSession)
+            .where(PresentationSession.id == live.id)
+            .with_for_update()
+            .execution_options(populate_existing=True)
+        ).scalar_one()
+        position = _latest_position(session, live.id)
+    state = _position_payload(position).get("music_timing_state") or {}
+    owner = state.get("owner") or {}
+    if (
+        state.get("status") != "running"
+        or state.get("session_id") != payload.session_id
+        or state.get("revision") != payload.revision
+        or owner.get("owner_id") != payload.owner_id
+        or owner.get("user_id") != current_user.id
+    ):
+        return _timing_snapshot(plan_id, position, now)
+    data = _position_payload(position)
+    state["owner"]["last_seen_at"] = now
+    data["music_timing_state"] = state
+    _persist_timing_state(session, position, data)
+    return _timing_snapshot(plan_id, position, now)
 
 
 class PresentationOutputStatusRead(BaseModel):
@@ -449,6 +785,12 @@ def cleanup_live_sessions(
         )
     ).all()
     for presentation_session in live_sessions:
+        session.execute(
+            select(PresentationSession)
+            .where(PresentationSession.id == presentation_session.id)
+            .with_for_update()
+            .execution_options(populate_existing=True)
+        ).scalar_one()
         if active_plan_id is not None:
             if presentation_session.plan_id == active_plan_id:
                 continue
@@ -685,6 +1027,13 @@ def ensure_scheduled_pre_service(session: Session) -> None:
         PlanItem.plan_id == plan.id, PlanItem.deleted_at.is_(None)
     )).all()
     latest = _latest_session(session, plan.id)
+    if latest is not None:
+        session.execute(
+            select(PresentationSession)
+            .where(PresentationSession.id == latest.id)
+            .with_for_update()
+            .execution_options(populate_existing=True)
+        ).scalar_one()
     latest_position = _latest_position(session, latest.id) if latest else None
     latest_payload = _position_payload(latest_position)
     actual_start_ms = latest_payload.get("scheduled_actual_started_at")
@@ -943,6 +1292,13 @@ def advance_expired_auto_slide(
     """Advance an expired item timer without requiring a presenter browser."""
     if presentation_session is None or position is None:
         return position
+    session.execute(
+        select(PresentationSession)
+        .where(PresentationSession.id == presentation_session.id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    ).scalar_one()
+    session.refresh(position)
     payload = _position_payload(position)
     now_ms = now_ms if now_ms is not None else int(datetime.now(UTC).timestamp() * 1000)
     output_active = _serialize_output_status(plan_id, position, now_ms).active
@@ -1386,6 +1742,13 @@ def update_presentation_output_status(
     session: Session = Depends(get_session),
 ) -> PresentationOutputStatusRead:
     presentation_session = _latest_session(session, plan_id)
+    if presentation_session is not None:
+        session.execute(
+            select(PresentationSession)
+            .where(PresentationSession.id == presentation_session.id)
+            .with_for_update()
+            .execution_options(populate_existing=True)
+        ).scalar_one()
     position = _latest_position(session, presentation_session.id) if presentation_session else None
     if (
         not payload.release

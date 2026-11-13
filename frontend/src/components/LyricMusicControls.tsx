@@ -7,19 +7,23 @@ import { worshipSequenceBlocks } from '../worshipText';
 import { usePedalKeyboard } from '../usePedalKeyboard';
 import { CompactControlMenu } from './CompactControlMenu';
 import type { SongRhythm } from '../songRhythm';
+import type { ScheduledOwnerReseat } from './useSharedMusicTiming';
 
 type PlayMode = "metronome" | "midi" | "midi-only" | "silent";
 type StartPosition = { occurrence: number; lineStart: number; lineEnd: number };
 
 export interface MusicTimingProgress { barDurationsMs?: number[]; startIndex: number; position: number; barDurationMs: number; totalBars: number; introBars?: number; introChord?: string; introCountIn?: boolean; firstBarStop?: number }
 
-export function LyricMusicControls({ rhythm, lyrics, sequence, annotations, bars, transpose = 0, onCursor, onStarted, canPractice = true, backing, startAt, onTiming, jumpRevision = 0, onJumpPending, onJumpCommitted, onPedalNavigate, onSaveIntroBars, onRestoreKeyboardCapture, rootChord }: {
+export function LyricMusicControls({ rhythm, lyrics, sequence, annotations, bars, transpose = 0, onCursor, onStarted, canPractice = true, backing, startAt, onTiming, jumpRevision = 0, onJumpPending, onJumpCommitted, onManualReseat, onPedalNavigate, onSaveIntroBars, onRestoreKeyboardCapture, rootChord, sharedReseat, stopRevision = 0 }: {
   rootChord?: string;
   onRestoreKeyboardCapture?: () => void;
+  sharedReseat?: ScheduledOwnerReseat | null;
+  stopRevision?: number;
   onSaveIntroBars?: (bars: number) => Promise<void>;
   onPedalNavigate?: (direction: -1 | 0 | 1) => void;
   rhythm: SongRhythm | null | undefined; lyrics: string | null | undefined; sequence: string | null | undefined;
   onJumpCommitted?: () => void; jumpRevision?: number; onJumpPending?: (pending: boolean) => void;
+  onManualReseat?: () => Promise<number | null | undefined>;
   onTiming?: (timing: MusicTimingProgress | null) => void;
   startAt?: { occurrence: number; lineStart: number; lineEnd: number };
   canPractice?: boolean; onStarted?: () => void;
@@ -98,6 +102,7 @@ export function LyricMusicControls({ rhythm, lyrics, sequence, annotations, bars
   const handledJump = useRef(jumpRevision);
   const [jumpPending, setJumpPending] = useState(false);
   const commitCallback = useRef(onJumpCommitted); commitCallback.current = onJumpCommitted;
+  const manualReseatCallback = useRef(onManualReseat); manualReseatCallback.current = onManualReseat;
   const pendingCallback = useRef(onJumpPending); pendingCallback.current = onJumpPending;
   const playerRef = useRef<PracticeAudioPlayer | PracticeSilentPlayer | null>(null);
   const timingCallback = useRef(onTiming); timingCallback.current = onTiming;
@@ -114,6 +119,12 @@ export function LyricMusicControls({ rhythm, lyrics, sequence, annotations, bars
     if (modeRef.current && jumpRevision !== handledJump.current) return;
     stop(); setError(null); setChooser(null); resumeAt.current = undefined; currentPosition.current = -1; currentBar.current = 0;
   }, [signature]);
+  useEffect(() => {
+    if (!stopRevision) return;
+    stop();
+    handledJump.current = jumpRevision;
+    handledToken.current = `${jumpRevision}:${pedalJump?.revision ?? 0}`;
+  }, [stopRevision]);
   const jumpToken = `${jumpRevision}:${pedalJump?.revision ?? 0}`;
   const handledToken = useRef(jumpToken);
   useEffect(() => {
@@ -131,7 +142,9 @@ export function LyricMusicControls({ rhythm, lyrics, sequence, annotations, bars
     void (async () => {
       try {
         if (!rhythm) throw new Error("Add rhythm and bar boundaries to this song before playing from here.");
-        const { index, stop: firstBarStop } = liveJumpStart(lyrics, timeline, annotations, destination);
+        const { index, stop: firstBarStop } = sharedReseat
+          ? { index: sharedReseat.timing.start_index, stop: sharedReseat.timing.first_bar_stop }
+          : liveJumpStart(lyrics, timeline, annotations, destination);
         const jumpTimeline = timelineWithEntry(timeline, index, firstBarStop);
         if (index < 0 || !timeline.length) throw new Error("Place a bar boundary on this slide to play from here.");
         const missing = worshipSequenceBlocks(lyrics, sequence).find((_block, occurrence) => occurrence >= (destination?.occurrence ?? 0) && !timeline.some(bar => bar.occurrence === occurrence));
@@ -145,17 +158,21 @@ export function LyricMusicControls({ rhythm, lyrics, sequence, annotations, bars
         const music = buildPracticePerformance(rhythm, { mode: "song", countIn: false, metronome: mode !== "silent" && mode !== "midi-only", metronomeDuringRests: true, chords: (mode === "midi" || mode === "midi-only"), finish: (mode === "midi" || mode === "midi-only"), transpose, bars: practiceBars });
         await readyRef.current;
         if (playerRef.current !== requested || handledToken.current !== revision) return;
+        const effectiveAt = sharedReseat?.effectiveAt ?? (await manualReseatCallback.current?.()) ?? undefined;
+        if (playerRef.current !== requested || handledToken.current !== revision) return;
         await requested.queuePerformance(music, position => {
           if (playerRef.current !== requested) return;
           trackPosition(index + position);
           activeBars.current = { bars: practiceBars, position, transpose };
           callback.current(lyricCursorAt(lyrics, jumpTimeline, index + position, rhythm.numerator, rhythm.denominator));
           timingCallback.current?.({ startIndex: index, position, barDurationMs: performanceBarLength(music, Math.max(0, Math.floor(position))) / MIDI_PPQ * 60_000 / music.quarterBpm, barDurationsMs: practiceBars.map((_, i) => performanceBarLength(music, i) / MIDI_PPQ * 60_000 / music.quarterBpm), totalBars: practiceBars.length, firstBarStop });
-        }, () => { if (playerRef.current === requested && handledToken.current === revision) { committed?.(); setJumpPending(false); pendingCallback.current?.(false); } });
+        }, () => { if (playerRef.current === requested && handledToken.current === revision) { committed?.(); setJumpPending(false); pendingCallback.current?.(false); } }, effectiveAt);
       } catch (cause) {
         if (playerRef.current !== requested || handledToken.current !== revision) return;
         setJumpPending(false); pendingCallback.current?.(false);
-        setError(cause instanceof Error ? cause.message : "Could not play from here.");
+        const message = cause instanceof Error ? cause.message : "Could not play from here.";
+        if (message === "The shared reseat arrived after its musical destination had finished.") stop();
+        setError(message);
       }
     })();
   }, [jumpToken]);

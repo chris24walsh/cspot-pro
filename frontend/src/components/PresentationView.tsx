@@ -5,6 +5,8 @@ import { railMovePosition, type RailPlacement } from "../railOrdering";
 import { retryPresentationRefresh } from "../retryPresentationRefresh";
 import { DEFAULT_MARKER_STYLE } from "./PointerToggle";
 import { SlideKeyCapture } from "./SlideKeyCapture";
+import { useSharedMusicTiming } from "./useSharedMusicTiming";
+import { reseatForManualServiceNavigation } from "../serviceMusicNavigation";
 import { LivePointer } from "./LivePointer";
 import { countdownStartsForSelection, withCountdownTiming } from "../countdown";
 import { shiftClock, templateServiceStart, welcomeLeadSeconds } from "../serviceTiming";
@@ -671,6 +673,8 @@ export function PresentationView({
   teacherPreviewControls = false,
   canCreateSong,
   canEditSong,
+  canReseatMusicTiming = false,
+  canAdminStopMusicTiming = false,
 }: {
   active?: boolean;
   canAttachDeck: boolean;
@@ -685,6 +689,8 @@ export function PresentationView({
   teacherPreviewControls?: boolean;
   canCreateSong: boolean;
   canEditSong: boolean;
+  canReseatMusicTiming?: boolean;
+  canAdminStopMusicTiming?: boolean;
 }) {
   const { confirm, confirmationDialog } = useConfirmationDialog();
   const [plans, setPlans] = useState<PlanSummary[]>([]);
@@ -692,6 +698,10 @@ export function PresentationView({
   const [songs, setSongs] = useState<Song[]>([]);
   const [selectedPlanId, setSelectedPlanId] = useState("");
   const [plan, setPlan] = useState<PlanDetail | null>(null);
+  const serviceMusicTiming = useSharedMusicTiming({
+    planId: selectedPlanId || null, songId: null, itemId: null, enabled: false,
+    canReseat: canReseatMusicTiming, canAdminStop: canAdminStopMusicTiming, follow: false,
+  });
   const [worshipSetPlan, setWorshipSetPlan] = useState<PlanDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [fillerMediaPlanItemId, setFillerMediaPlanItemId] = useState<string | null>(null);
@@ -1577,6 +1587,7 @@ export function PresentationView({
   }
 
   function setLiveSlide(nextIndex: number) {
+    reseatForManualServiceNavigation(true, slides[nextIndex], slides, effectivePlanItems, songs, serviceMusicTiming.requestReseat);
     void guardedLiveNavigation(nextIndex, (boundedIndex) => {
       setLiveBlanked(false);
       setLiveIndex(boundedIndex);
@@ -1585,7 +1596,7 @@ export function PresentationView({
     });
   }
 
-  function moveLive(delta: number) {
+  function moveLive(delta: number, manual = true) {
     const slideCount = slides.length;
     if (!slideCount) {
       setLiveBlanked(false);
@@ -1594,6 +1605,7 @@ export function PresentationView({
       return;
     }
     const nextIndex = Math.min(Math.max(liveIndex + delta, 0), slideCount - 1);
+    reseatForManualServiceNavigation(manual, slides[nextIndex], slides, effectivePlanItems, songs, serviceMusicTiming.requestReseat);
     void guardedLiveNavigation(nextIndex, (boundedIndex) => {
       setLiveBlanked(false);
       setLiveIndex(boundedIndex);
@@ -1612,7 +1624,7 @@ export function PresentationView({
       if (endsHere) {
         void closeActiveSlideshow().then(() => setMessage(`Service ended after ${liveSlide.sectionTitle}.`));
       } else {
-        moveLive(1);
+        moveLive(1, false);
       }
     }, liveSlide.autoAdvanceDeadline !== undefined ? Math.max(0, liveSlide.autoAdvanceDeadline - Date.now()) : Math.max(liveSlide.autoAdvanceSeconds, 1) * 1000);
     return () => window.clearTimeout(timer);
@@ -1649,6 +1661,7 @@ export function PresentationView({
     sorterFollowingRef.current = true;
     railFollowingRef.current = true;
     if (targetSlide) {
+      reseatForManualServiceNavigation(true, targetSlide, slides, effectivePlanItems, songs, serviceMusicTiming.requestReseat);
       sorterProgrammaticScrollUntilRef.current = Date.now() + 900;
       railProgrammaticScrollUntilRef.current = Date.now() + 900;
       window.requestAnimationFrame(() => {
@@ -4768,6 +4781,11 @@ export function PresentationView({
       {active && topbarSlot
         ? createPortal(
             <div className="presentation-topbar-tools">
+              {canAdminStopMusicTiming && serviceMusicTiming.clockStatus === "running" ? (
+                <button className="text-button" onClick={serviceMusicTiming.stopShared} type="button">Stop shared timing</button>
+              ) : null}
+              {serviceMusicTiming.reseatScheduled ? <small role="status">Shared reseat scheduled</small> : null}
+              {serviceMusicTiming.error ? <small role="alert">{serviceMusicTiming.error}</small> : null}
               <DateNavigator
                 historyContent={serviceHistoryContent()}
                 historyDisabled={(!plan && !archivedServiceUndo) || serviceHistoryLoading}

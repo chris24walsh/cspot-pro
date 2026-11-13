@@ -1978,6 +1978,7 @@ export function WorshipBuilderView({ active = true, canUseMixer = false, isAdmin
             workspaceMenu={workspaceMenu}
             keyboardActive={active && worshipVisible}
             canControlAudio={canAccessAdminTools}
+            canAdminStopMusicTiming={isAdmin}
             canUseMusic
             canShareTiming={canShareMusicTiming}
             controlPlanId={liveControlPlanId}

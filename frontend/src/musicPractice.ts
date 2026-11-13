@@ -316,10 +316,10 @@ async function audioStartup<T>(operation: Promise<T>): Promise<T> {
 
 export class PracticeAudioPlayer {
   private queuedVersion = 0;
-  private queue: ((music: PracticePerformance, position: (position: number) => void, commit: () => void) => Promise<void>) | null = null;
-  async queuePerformance(music: PracticePerformance, position: (position: number) => void, commit: () => void) {
+  private queue: ((music: PracticePerformance, position: (position: number) => void, commit: () => void, atPerformanceTime?: number) => Promise<void>) | null = null;
+  async queuePerformance(music: PracticePerformance, position: (position: number) => void, commit: () => void, atPerformanceTime?: number) {
     if (!this.queue || this.cancelled) throw new Error("Playback is not ready yet. Try the slide again.");
-    await this.queue(music, position, commit);
+    await this.queue(music, position, commit, atPerformanceTime);
   }
   private context: AudioContext | null = null;
   private timer: ReturnType<typeof setInterval> | null = null;
@@ -383,7 +383,7 @@ export class PracticeAudioPlayer {
       source.onended = () => { voices.delete(voice); source.disconnect(); gain.disconnect(); };
       return voice;
     };
-    let pending: { music: PracticePerformance; guitar: Map<string, AudioBuffer>; at: number; index: number; position: (position: number) => void; commit: () => void } | null = null;
+    let pending: { music: PracticePerformance; guitar: Map<string, AudioBuffer>; at: number; offsetTicks: number; index: number; position: (position: number) => void; commit: () => void } | null = null;
     const cut = (voice: Voice, at: number) => {
       if (voice.at >= at) { voice.source.stop(at); return; }
       if (voice.end <= at) return;
@@ -395,31 +395,40 @@ export class PracticeAudioPlayer {
       voice.source.stop(at + 0.005);
     };
     let preparing = false;
-    this.queue = async (music, position, commit) => {
+    this.queue = async (music, position, commit, atPerformanceTime) => {
       const version = ++this.queuedVersion;
       preparing = true;
       let samples: Map<string, AudioBuffer>;
       try { samples = await loadGuitarSamples(context, music.notes); }
       finally { if (version === this.queuedVersion) preparing = false; }
       if (this.cancelled || version !== this.queuedVersion) return;
-      // Keep the existing audio clock and choose the next downbeat after loading.
-      const at = started + nextPerformanceBoundary(performance, (context.currentTime - started) / secondsPerTick) * secondsPerTick;
+      const now = window.performance.now();
+      const nextSecondsPerTick = 60 / music.quarterBpm / MIDI_PPQ;
+      const offsetTicks = atPerformanceTime === undefined ? 0 : Math.max(0, (now - atPerformanceTime) / 1000 / nextSecondsPerTick);
+      if (offsetTicks >= music.totalTicks) throw new Error("The shared reseat arrived after its musical destination had finished.");
+      const at = atPerformanceTime === undefined
+        ? started + nextPerformanceBoundary(performance, (context.currentTime - started) / secondsPerTick) * secondsPerTick
+        : context.currentTime + Math.max(0, (atPerformanceTime - now) / 1000);
       for (const voice of voices) {
         if (voice.queued) voice.source.stop(context.currentTime);
         else cut(voice, at);
       }
-      pending = { music, guitar: samples, at, index: 0, position, commit };
+      pending = { music, guitar: samples, at, offsetTicks, index: 0, position, commit };
     };
     const schedule = () => {
       const now = context.currentTime;
       if (pending) {
         const nextSecondsPerTick = 60 / pending.music.quarterBpm / MIDI_PPQ;
-        while (pending.index < pending.music.notes.length && pending.at + pending.music.notes[pending.index].tick * nextSecondsPerTick < now + 0.16) {
-          const note = pending.music.notes[pending.index++];
-          scheduleNote(note, Math.max(now, pending.at + note.tick * nextSecondsPerTick), nextSecondsPerTick, pending.guitar, true);
+        while (pending.index < pending.music.notes.length) {
+          const note = pending.music.notes[pending.index];
+          if (note.tick < pending.offsetTicks) { pending.index++; continue; }
+          const noteAt = pending.at + (note.tick - pending.offsetTicks) * nextSecondsPerTick;
+          if (noteAt >= now + 0.16) break;
+          pending.index++;
+          scheduleNote(note, Math.max(now, noteAt), nextSecondsPerTick, pending.guitar, true);
         }
         if (now >= pending.at) {
-          performance = pending.music; guitar = pending.guitar; started = pending.at;
+          performance = pending.music; guitar = pending.guitar; started = pending.at - pending.offsetTicks * nextSecondsPerTick;
           secondsPerTick = nextSecondsPerTick; duration = performance.totalTicks * secondsPerTick;
           nextNote = pending.index; onPosition = pending.position;
           const commit = pending.commit; pending = null;
@@ -468,10 +477,10 @@ export class PracticeAudioPlayer {
 // Silent guidance uses a monotonic clock and never creates an AudioContext.
 export class PracticeSilentPlayer {
   private timer: ReturnType<typeof setInterval> | null = null;
-  private queue: ((music: PracticePerformance, position: (position: number) => void, commit: () => void) => void) | null = null;
-  async queuePerformance(music: PracticePerformance, position: (position: number) => void, commit: () => void) {
+  private queue: ((music: PracticePerformance, position: (position: number) => void, commit: () => void, atPerformanceTime?: number) => void) | null = null;
+  async queuePerformance(music: PracticePerformance, position: (position: number) => void, commit: () => void, atPerformanceTime?: number) {
     if (!this.queue) throw new Error("Playback is not ready yet. Try the slide again.");
-    this.queue(music, position, commit);
+    this.queue(music, position, commit, atPerformanceTime);
   }
   private onEnd: (() => void) | null = null;
   async play(music: PracticePerformance, loop: boolean, onProgress: (bar: number) => void, onEnd: () => void, onPosition?: (position: number) => void) {
@@ -480,9 +489,9 @@ export class PracticeSilentPlayer {
     let duration = music.totalTicks * msPerTick;
     let started = performance.now() + 80;
     let pending: { music: PracticePerformance; position: (position: number) => void; commit: () => void; at: number } | null = null;
-    this.queue = (next, position, commit) => {
+    this.queue = (next, position, commit, atPerformanceTime) => {
       const elapsedTicks = (performance.now() - started) / msPerTick;
-      pending = { music: next, position, commit, at: started + nextPerformanceBoundary(music, elapsedTicks) * msPerTick };
+      pending = { music, position, commit, at: atPerformanceTime ?? started + nextPerformanceBoundary(music, elapsedTicks) * msPerTick };
     };
     const tick = () => {
       if (pending && performance.now() >= pending.at) {

@@ -610,6 +610,8 @@ function App() {
             canCreateSong={canCreateSongs}
             canEditSong={canEditSongs}
             canEditSlideNotes={canEditSlideNotes}
+            canReseatMusicTiming={isAdmin || isWorshipLeader}
+            canAdminStopMusicTiming={isAdmin}
             canContributeCamera={permissions.has("broadcast:contribute") || canUseBroadcast}
             teacherPreviewControls={isTeacher && !isAdmin && !isPresenter && !canUseBroadcast}
           />

@@ -466,12 +466,15 @@ and Off choices. Auto keeps chords visible and shows bars/dot while playing
 (including shared timing). On stays visible while idle, playing and stopped;
 Off stays hidden through playback changes. An always-on dot parks at its last
 position on the current page, or at that page's first bar before playback.
-For other Worship Live devices, enable **Share timing** on the admin playback
-host and **Follow shared timing** on each receiving device. Followers get the dot
-and local page turns without audio or duplicate service commands. Display modes
-and following are remembered per device; sharing is opt-in for the current session.
-Sharing works with silent, metronome and MIDI guidance. Only the playback host
-advances the synced service display. Shared timing expires when the host disconnects;
+Administrators and worship leaders automatically share timing when starting
+synced playback; independent playback and musicians' practice remain private.
+Enable **Follow shared timing** on receiving devices for local timing and page
+turns without audio or duplicate service commands. Authorized controllers can
+reseat from either Worship Live or Service, including the current lyric section.
+The server schedules the next-bar transition without waiting for the playback
+owner. Administrators can stop shared timing from either view and return to
+manual navigation; delayed updates cannot restart a stopped clock. Owner health
+is separate from the shared timeline, which continues if the owner disconnects;
 congregation/display screens do not receive the dot. A bouncing dot follows the lyrics using the audio clock.
 Pages turn at their first bar. When synced, the service display advances too;
 with Sync off, page turns stay local.
@@ -599,8 +602,10 @@ Silent guide also supports manual slide changes during playback: it switches to
 the selected slide on the next bar boundary, keeping the timing overlays and
 automatic advance aligned without creating an audio session.
 
-The Musician menu remembers Share timing per browser, defaulting to off.
-Restoring this preference only shares timing once local playback starts.
+There is no Share timing preference. Follow shared timing and Auto-scroll are
+device preferences; Band sync off keeps uncoupled browsing and playback private.
+See [shared timing requirements](docs/worship-timing-requirements.md) for the
+permission boundaries, recovery behavior and acceptance criteria.
 
 The song chord editor keeps chord/bar editing, Play, and Rhythm beside its tabs.
 A compact Chord tools menu groups key, capo, transposition, copy-verse and clear
@@ -617,7 +622,7 @@ with a vertical guide through both rows. The preview uses the same source anchor
 as the drop handler, including wrapped lines and leading/trailing positions.
 
 Musician settings use consistent compact segmented controls. Chords, Dot, Beat
-keeper, Band sync, Follow shared timing, Share timing and Auto-scroll use On/Off;
+keeper, Band sync, Follow shared timing and Auto-scroll use On/Off;
 Bars retains Auto/On/Off. Enabled chords stay visible; the dot and beat keeper
 appear only during playback. Existing saved Auto/On values remain enabled.
 
@@ -741,10 +746,9 @@ do not shorten this preparation bar. Manual segues still have no new count-in.
 
 Band page writes collapse queued navigation to the latest selection while a
 request is in flight. Service-state reads discard responses from an old plan
-or from before local navigation. Shared music timing immediately follows a
-successful in-flight update with any intervening start/stop or seek change,
-rather than waiting for the next two-second heartbeat. Polling intervals and
-local clock animation rates remain unchanged; no LAN transport is introduced.
+or from before local navigation. Shared timing uses revisioned server commands;
+heartbeats report owner health rather than replace the timeline. Local clock
+interpolation keeps animation independent of network polling.
 
 
 Worship Live playback offers **Lyrics only**, **Click only**, **Guitar + click**,
