@@ -1307,6 +1307,11 @@ A compact Chord tools menu groups key, capo, transposition, copy-verse and clear
 actions. On mobile, the controls sit just below the tabs to preserve chord-panel
 space. Clear retains its confirmation dialog.
 
+The chord grid extends to include saved chord and bar anchors beyond the lyric
+line, including on wrapped lines, so these remain visible and editable after
+lyrics are shortened. Right-click deletes a chord in Chords mode or a bar in Bars
+mode; clicking an existing bar opens its settings.
+
 Right-click or hold the chord/bar mode toggle to enter Both mode, moving chords
 and bar boundaries at the same position together. Click returns to Chords.
 Chord tools → Bars at chords adds missing boundaries at existing chord positions

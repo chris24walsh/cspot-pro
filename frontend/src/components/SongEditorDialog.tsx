@@ -951,10 +951,15 @@ export function SongEditorDialog({
                         return <div className="musician-section-marker" key={`${lineIndex}-${line}`}>{line}</div>;
                       }
                       const annotations = lineAnnotations.filter((annotation) => annotation.absoluteLineIndex === lineIndex);
-                      const totalSlots = line.length + LEADING_CHORD_ANCHORS + TRAILING_CHORD_ANCHORS;
+                      const bars = lineBars.filter((marker) => marker.absoluteLineIndex === lineIndex);
+                      const totalSlots = Math.max(
+                        line.length + LEADING_CHORD_ANCHORS + TRAILING_CHORD_ANCHORS,
+                        ...annotations.map(annotation => annotation.anchorIndex + 1),
+                        ...bars.map(marker => marker.anchorIndex + 1),
+                      );
                       const renderSlot = (slotIndex: number, gridColumn: number) => {
                         const annotation = annotations.find((candidate) => candidate.anchorIndex === slotIndex);
-                        const bar = lineBars.find((marker) => marker.absoluteLineIndex === lineIndex && marker.anchorIndex === slotIndex);
+                        const bar = bars.find((marker) => marker.anchorIndex === slotIndex);
                         const isEditing =
                           !barEditing && inlineChordEditorOpen &&
                           selectedLineIndex === lineIndex &&

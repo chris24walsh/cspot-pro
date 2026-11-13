@@ -154,6 +154,50 @@ it("right-clicks to delete bars in bar mode and chords in chord mode", async () 
   } finally { act(() => root.unmount()); vi.resetAllMocks(); }
 });
 
+it.each([false, true])("shows and deletes saved chords and bars beyond the lyric line (timed: %s)", async (timed) => {
+  const chart = { ...createEmptyChordChart(), absoluteKey: "G", annotations: [
+    { id: "keep", section: "V1", lineIndex: 0, anchorIndex: 3, chord: "C" },
+    { id: "stray", section: "V1", lineIndex: 0, anchorIndex: 33, chord: "Em" },
+  ] };
+  const song = {
+    id: "overflow-song",
+    title: "Overflow",
+    lyrics: "[V1]\nLet all the Earth rejoice",
+    sequence: "V1",
+    chords: serializeChordChart(chart),
+    rhythm: timed ? { numerator: 4, denominator: 4, patterns: [], notes: "", markers: [
+      { id: "bar", section: "V1", lineIndex: 0, anchorIndex: 35 },
+    ] } : null,
+  } as unknown as Song;
+  vi.mocked(updateSong).mockImplementation(async (_id, payload) => ({ ...song, ...payload }));
+  const container = document.createElement("div"); const root = createRoot(container);
+  const openChords = () => Array.from(container.querySelectorAll("button")).find(button => button.textContent === "Chords")!.click();
+  try {
+    await act(async () => root.render(<SongEditorDialog song={song} canEdit onClose={() => {}} onSaved={() => {}} />));
+    act(openChords);
+    const stray = Array.from(container.querySelectorAll<HTMLButtonElement>(".musician-slot.has-chord")).find(button => button.textContent === "Em")!;
+    expect(stray).toBeDefined();
+    expect(stray.closest(".musician-line-grid")?.classList.contains("is-continuation")).toBe(true);
+    act(() => stray.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true })));
+    expect(container.querySelectorAll(".musician-slot.has-chord")).toHaveLength(1);
+    if (timed) {
+      act(() => container.querySelector<HTMLButtonElement>('[aria-label="Switch between chord and bar editing"]')!.click());
+      const bar = container.querySelector<HTMLButtonElement>('[aria-label="Settings for bar at line 2, position 35"]')!;
+      expect(bar).not.toBeNull();
+      act(() => bar.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true })));
+      expect(container.querySelector(".musician-slot.has-bar")).toBeNull();
+    }
+    await act(async () => container.querySelector<HTMLButtonElement>('[aria-label="Save song"]')!.click());
+    const payload = vi.mocked(updateSong).mock.calls[0][1];
+    expect(parseChordChart(payload.chords ?? null).document.annotations).toEqual([chart.annotations[0]]);
+    if (timed) expect(payload.rhythm?.markers).toEqual([]);
+    await act(async () => root.render(<SongEditorDialog song={{ ...song, ...payload }} canEdit onClose={() => {}} onSaved={() => {}} />));
+    act(openChords);
+    expect(container.querySelectorAll(".musician-slot.has-chord")).toHaveLength(1);
+    expect(container.querySelector(".musician-slot.has-chord")?.textContent).toBe("C");
+  } finally { act(() => root.unmount()); vi.resetAllMocks(); }
+});
+
 it("adds missing bars at chords and moves a paired chord/bar together", async () => {
   const chart = { ...createEmptyChordChart(), absoluteKey: "C", annotations: [{ id: "one", section: "V1", lineIndex: 0, anchorIndex: 3, chord: "C" }, { id: "two", section: "V1", lineIndex: 0, anchorIndex: 8, chord: "G" }] };
   const song = { id: "paired", title: "Paired", lyrics: "[V1]\nTest lyrics", sequence: "V1", chords: serializeChordChart(chart), rhythm: { numerator: 4, denominator: 4, patterns: [], notes: "", markers: [{ id: "existing", section: "V1", lineIndex: 0, anchorIndex: 3 }] } } as unknown as Song;
