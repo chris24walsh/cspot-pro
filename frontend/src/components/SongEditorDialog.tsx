@@ -943,7 +943,7 @@ export function SongEditorDialog({
             <section className="musician-tools" aria-label="Chord editor">
               <div className="musician-chart-panel" ref={chordChartPanelRef}>
                 {combinedEditing ? <small className="field-help">Drag a chord or bar to move both at that position together. Click the mode toggle to return to chord editing.</small> : null}
-                {barEditing ? <small className="field-help">Click a lyric or chord position to add a bar boundary; drag a bar to move it, or click it again to remove it. Chords within each bar divide its time evenly.</small> : null}
+                {barEditing ? <small className="field-help">Click a lyric or chord position to add a bar boundary; right-click a bar to remove it, or click it to edit its settings. Drag a bar to move it. Chords within each bar divide its time evenly.</small> : null}
                 {lines.length ? (
                   <div className="musician-preview">
                     {lines.map((line, lineIndex) => {
@@ -1007,11 +1007,27 @@ export function SongEditorDialog({
                           <button
                             className={`musician-slot ${annotation ? "has-chord" : ""} ${bar ? "has-bar" : ""} ${bar?.rhythm ? "has-rhythm-change" : ""} ${barEditing ? "is-bar-editing" : ""} ${dropTarget?.lineIndex === lineIndex && dropTarget.slotIndex === slotIndex ? "is-drop-target" : ""}`}
                             aria-label={barEditing ? `${bar ? "Settings for" : "Add"} bar at line ${lineIndex + 1}, position ${slotIndex}` : undefined}
-                            title={bar ? `Bar settings${bar.rhythm ? ` · ${bar.rhythm.numerator}/${bar.rhythm.denominator} · ${bar.rhythm.scope === "bar" ? "this bar" : "continues"}` : ""}. Right-click to edit; drag to move.` : barEditing ? "Click to add bar" : undefined}
+                            title={bar ? `Bar settings${bar.rhythm ? ` · ${bar.rhythm.numerator}/${bar.rhythm.denominator} · ${bar.rhythm.scope === "bar" ? "this bar" : "continues"}` : ""}. ${barEditing ? "Right-click to delete; drag to move." : annotation && !combinedEditing ? "Right-click to delete chord; drag to move." : "Right-click to edit; drag to move."}` : barEditing ? "Click to add bar" : annotation && !combinedEditing ? "Right-click to delete chord" : undefined}
                             disabled={!canEdit}
                             draggable={Boolean(combinedEditing ? bar || annotation : barEditing ? bar : annotation) && canEdit}
                             key={`slot-${lineIndex}-${slotIndex}`}
-                            onContextMenu={event => { if (bar) { event.preventDefault(); openBarSettings(bar); } }}
+                            onContextMenu={event => {
+                              if (combinedEditing && bar) {
+                                event.preventDefault();
+                                openBarSettings(bar);
+                              } else if (barEditing && bar) {
+                                event.preventDefault();
+                                setForm(current => ({ ...current, rhythm: removeBarMarker(current.rhythm!, chordChart.annotations, bar.id) }));
+                              } else if (!barEditing && annotation) {
+                                event.preventDefault();
+                                setChordChart(current => removeChordAnnotation(current, annotation.id));
+                                setLegacyChords(null);
+                                if (editingAnnotationId === annotation.id) cancelInlineChordEdit();
+                              } else if (bar) {
+                                event.preventDefault();
+                                openBarSettings(bar);
+                              }
+                            }}
                             onClick={() => barEditing ? editBarAt(lineIndex, slotIndex) : startInlineChordEdit(lineIndex, slotIndex, annotation)}
                             onDragEnd={() => { setDraggedAnnotationId(null); setDraggedBarId(null); setDropTarget(null); }}
                             onDragOver={(event) => { if (combinedEditing ? draggedBarId || draggedAnnotationId : barEditing ? draggedBarId : draggedAnnotationId) { event.preventDefault(); event.dataTransfer.dropEffect = "move"; setDropTarget({ lineIndex, slotIndex }); } }}
