@@ -1384,10 +1384,17 @@ export function MusicianLiveView({ keyboardActive = true, singlePage = false, wo
     const group = groupsByOccurrence.get(musicCursor.occurrence);
     const section = active.closest<HTMLElement>("[data-playback-group]");
     const bounds = group && group.occurrences.length > 1 ? section?.getBoundingClientRect() : undefined;
+    const finalOccurrence = group?.occurrences[group.occurrences.length - 1];
+    const finalStart = finalOccurrence === musicCursor.occurrence ? remoteTimeline.findIndex(bar => bar.occurrence === finalOccurrence) : -1;
+    const followingStart = finalStart < 0 ? -1 : remoteTimeline.findIndex((bar, index) => index > finalStart && bar.occurrence !== finalOccurrence);
+    // Keep the section framed if there is no following timed section to approach.
+    const releaseProgress = followingStart > finalStart && playbackPosition !== null
+      ? Math.max(0, Math.min(1, (playbackPosition - finalStart) / (followingStart - finalStart))) : 0;
     const repeatedRegion = bounds ? {
       top: container.scrollTop + bounds.top - containerTop,
       bottom: container.scrollTop + bounds.bottom - containerTop,
       activeBottom: container.scrollTop + active.getBoundingClientRect().bottom - containerTop,
+      releaseProgress,
     } : undefined;
     const target = playbackScrollTarget(points, playbackPosition ?? 0, lineY(active), container.clientHeight, repeatedRegion);
     playbackScrollTargetRef.current = Math.max(0, Math.min(target, Math.max(0, container.scrollHeight - container.clientHeight)));

@@ -1,5 +1,5 @@
 export interface ScrollPoint { bar: number; y: number }
-export interface RepeatedScrollRegion { top: number; bottom: number; activeBottom?: number }
+export interface RepeatedScrollRegion { top: number; bottom: number; activeBottom?: number; releaseProgress?: number }
 
 function interpolate(points: ScrollPoint[], position: number) {
   if (position <= points[0].bar) return points[0].y;
@@ -15,20 +15,25 @@ function interpolate(points: ScrollPoint[], position: number) {
 // Average across four bars, gently favouring the song-wide pace. Visibility
 // takes priority when the written density differs too much from that pace.
 export function playbackScrollTarget(points: ScrollPoint[], position: number, activeY: number, viewport: number, repeatedRegion?: RepeatedScrollRegion) {
-  // Repeated occurrences share one visible block. Keep the whole block framed
-  // instead of advancing with the bar clock and rewinding on each repetition.
+  // Repeated occurrences share one visible block. Hold that frame until the
+  // final repeat, then blend back to the normal scrolling trajectory.
+  let repeatedTarget: number | null = null;
   if (repeatedRegion) {
     const height = repeatedRegion.bottom - repeatedRegion.top;
     if (height > 0 && height <= viewport * 0.9) {
-      return Math.max(0, (repeatedRegion.top + repeatedRegion.bottom - viewport) / 2);
-    }
-    if (height > 0) {
+      repeatedTarget = Math.max(0, (repeatedRegion.top + repeatedRegion.bottom - viewport) / 2);
+    } else if (height > 0) {
       // Keep the section's start in view as long as possible. Once the active
       // line needs scrolling, leave its bottom near the bottom of the viewport.
-      return Math.max(0, repeatedRegion.top - viewport * 0.1, (repeatedRegion.activeBottom ?? activeY) - viewport * 0.9);
+      repeatedTarget = Math.max(0, repeatedRegion.top - viewport * 0.1, (repeatedRegion.activeBottom ?? activeY) - viewport * 0.9);
     }
   }
-  if (!points.length) return Math.max(0, activeY - viewport / 2);
+  const release = Math.max(0, Math.min(1, repeatedRegion?.releaseProgress ?? 0));
+  if (repeatedTarget !== null && !release) return repeatedTarget;
+  if (!points.length) {
+    const normal = Math.max(0, activeY - viewport / 2);
+    return repeatedTarget === null ? normal : repeatedTarget + (normal - repeatedTarget) * release;
+  }
   let average = 0;
   for (let sample = -8; sample <= 8; sample++) average += interpolate(points, position + sample / 4);
   average /= 17;
@@ -36,5 +41,6 @@ export function playbackScrollTarget(points: ScrollPoint[], position: number, ac
   const fraction = Math.max(0, Math.min(1, (position - first.bar) / Math.max(1, last.bar - first.bar)));
   const uniform = first.y + (last.y - first.y) * fraction;
   const target = average * 0.8 + uniform * 0.2 - viewport / 2;
-  return Math.max(0, Math.min(activeY - viewport * 0.32, Math.max(activeY - viewport * 0.65, target)));
+  const normal = Math.max(0, Math.min(activeY - viewport * 0.32, Math.max(activeY - viewport * 0.65, target)));
+  return repeatedTarget === null ? normal : repeatedTarget + (normal - repeatedTarget) * release;
 }

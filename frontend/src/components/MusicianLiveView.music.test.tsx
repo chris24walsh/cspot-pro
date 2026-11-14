@@ -631,7 +631,7 @@ it('compacts repeated sections and lets the musician select a repeat or skip to 
   } finally { act(() => root.unmount()); vi.unstubAllGlobals(); vi.clearAllMocks(); }
 });
 
-it('keeps a compact chorus stationary through all three repeats then follows the next section', async () => {
+it('holds earlier repeats and starts following the next section during the final repeat', async () => {
   vi.stubGlobal('matchMedia', () => ({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() }));
   vi.mocked(getPresentationLiveState).mockResolvedValue({ plan_id: 'plan', index: 0, updated_at: 1, worship_coupled: false, plan_item_id: 'item', slide_offset: 0 } as Awaited<ReturnType<typeof getPresentationLiveState>>);
   const markers = [
@@ -666,12 +666,18 @@ it('keeps a compact chorus stationary through all three repeats then follows the
     await play(container);
     const position = audio.play.mock.calls[0][4] as (position: number) => void;
     scroller.scrollTop = 250;
-    for (const bar of [1.1, 2.1, 3.99, 4, 5.5, 6.99, 7, 8.5, 9.99]) {
+    for (const bar of [1.1, 2.1, 3.99, 4, 5.5, 6.99, 7]) {
       await act(async () => position(bar));
       expect(scroller.scrollTop).toBe(250);
     }
-    await act(async () => position(10.1));
-    expect(scroller.scrollTop).toBeGreaterThan(250);
+    for (let tick = 0; tick < 30; tick++) await act(async () => position(9.05 + tick * 0.01));
+    const beforeNext = scroller.scrollTop;
+    expect(beforeNext).toBeGreaterThan(250);
+    await act(async () => position(9.99));
+    const endOfRepeat = scroller.scrollTop;
+    await act(async () => position(10.01));
+    expect(scroller.scrollTop).toBeGreaterThan(endOfRepeat);
+    expect(scroller.scrollTop - endOfRepeat).toBeLessThan(150);
   } finally { geometry.mockRestore(); act(() => root.unmount()); vi.unstubAllGlobals(); vi.clearAllMocks(); }
 });
 

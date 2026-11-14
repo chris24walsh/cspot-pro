@@ -39,3 +39,16 @@ it('holds the top of an oversized repeat and keeps the active line low before re
   expect(playbackScrollTarget(points, 4, 400, 600, start)).toBe(first);
   expect(playbackScrollTarget(points, 0, 100, 600, { top: 0, bottom: 200 })).toBe(0);
 });
+
+
+it('gradually returns to normal scrolling across the final repetition', () => {
+  const points = [{ bar: 0, y: 400 }, { bar: 3, y: 600 }, { bar: 6, y: 1000 }];
+  const region = { top: 350, bottom: 700 };
+  const normal = playbackScrollTarget(points, 5.8, 600, 600);
+  const held = playbackScrollTarget(points, 5.8, 600, 600, region);
+  const halfway = playbackScrollTarget(points, 5.8, 600, 600, { ...region, releaseProgress: 0.5 });
+  expect(held).toBe(225);
+  expect(normal).toBeGreaterThan(held);
+  expect(halfway).toBeCloseTo((held + normal) / 2);
+  expect(playbackScrollTarget(points, 5.8, 600, 600, { ...region, releaseProgress: 1 })).toBe(normal);
+});

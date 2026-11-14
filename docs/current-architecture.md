@@ -1852,6 +1852,8 @@ group fits within 90% of the viewport. Oversized groups retain the section's
 start where possible and keep the active line's bottom near 90% of the viewport,
 reducing the return movement while keeping the active lyrics visible. The fixed target is derived from musical
 cursor occurrence, preserving it through early page turns and repeat boundaries.
+When a timed section follows, the final repetition blends gradually from the
+repeat framing to the normal scroll trajectory, preparing the next section.
 
 
 Repeat selectors are opened from compact badges in the sequence strip and
