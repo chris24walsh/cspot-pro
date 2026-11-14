@@ -111,3 +111,19 @@ describe("worship text normalization", () => {
     expect(normalizeWorshipSequence("V1 C V3 V4 C V3")).toBe("V1 C V2 V3 C V2");
   });
 });
+
+it("preserves compact section multipliers and expands complete section occurrences", () => {
+  const lyrics = '[V1]\nFirst\n[C]\nChorus line one\nChorus line two\n[V2]\nSecond\n[C2]\nOther chorus';
+  const sequence = normalizeWorshipSequence('V1 C x2 V2 C2X3', lyrics);
+  expect(sequence).toBe('V1 Cx2 V2 C2x3');
+  expect(normalizeWorshipSequence(sequence, lyrics)).toBe(sequence);
+  expect(worshipSequenceBlocks(lyrics, sequence).map(block => block.label)).toEqual(['V1', 'C', 'C', 'V2', 'C2', 'C2', 'C2']);
+  expect(worshipSequenceBlocks(lyrics, sequence).filter(block => block.label === 'C').map(block => block.content)).toEqual(['Chorus line one\nChorus line two', 'Chorus line one\nChorus line two']);
+});
+
+it("supports long labels and multiplication signs while keeping missing sections", () => {
+  const lyrics = '[V1]\nFirst\n[C]\nChorus\n[V2]\nSecond';
+  expect(normalizeWorshipSequence('Verse 1 x2 Chorus ×3 Verse 2', lyrics)).toBe('V1x2 Cx3 V2');
+  expect(normalizeWorshipSequence('Cx2', lyrics)).toBe('V1 Cx2 V2');
+  expect(canonicalizeWorshipLyrics(lyrics, 'V1 Cx3 V2')).toBe(canonicalizeWorshipLyrics(lyrics));
+});

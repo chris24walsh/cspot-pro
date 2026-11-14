@@ -1,10 +1,9 @@
 import re
 
-
 _SEQUENCE_TOKEN = re.compile(
     r"(?<![A-Za-z])"
     r"(pre[-\s]?chorus|verse|chorus|bridge|tag|ending|outro|intro|pc|v|c|b|p|t|e|o|i)"
-    r"\s*(\d+)?(?![A-Za-z])",
+    r"\s*(\d+)?(?:\s*[x×]\s*(\d+))?(?![A-Za-z])",
     re.IGNORECASE,
 )
 
@@ -35,32 +34,63 @@ _SEQUENCE_PREFIX = {
 }
 
 
+def validate_sequence_repeats(sequence: str | None) -> str | None:
+    for match in re.finditer(r"[x×]\s*([+-]?\d+(?:\.\d+)?)?", sequence or "", re.IGNORECASE):
+        count = float(match[1]) if match[1] else 0
+        if not re.fullmatch(r"\d+", match[1] or "") or not 1 <= count <= 99:
+            raise ValueError("Section repeats must be whole numbers from 1 to 99.")
+    return sequence
+
+
+def _compact_repeats(labels: list[str]) -> str:
+    runs: list[tuple[str, int]] = []
+    for label in labels:
+        if runs and runs[-1][0] == label and runs[-1][1] < 99:
+            runs[-1] = (label, runs[-1][1] + 1)
+        else:
+            runs.append((label, 1))
+    return " ".join(f"{label}x{count}" if count > 1 else label for label, count in runs)
+
+
+def _expanded_labels(sequence: str | None) -> list[str]:
+    labels = []
+    for token in (sequence or "").split():
+        label, _, count = token.partition("x")
+        labels.extend([label] * (int(count) if count else 1))
+    return labels
+
+
 def normalize_song_sequence(
     sequence: str | None, verse_number_map: dict[int, int] | None = None
 ) -> str | None:
     if not sequence or not sequence.strip():
         return None
 
+    validate_sequence_repeats(sequence)
+    multiplied = bool(re.search(r"[x×]\s*\d+", sequence, re.IGNORECASE))
     tokens: list[tuple[str, int | None]] = []
     for match in _SEQUENCE_TOKEN.finditer(sequence):
         name = match.group(1).lower().replace("-", "").replace(" ", "")
         number = int(match.group(2)) if match.group(2) else None
-        tokens.append((_SEQUENCE_PREFIX[name], number))
+        tokens.extend([(_SEQUENCE_PREFIX[name], number)] * int(match.group(3) or 1))
 
     if not tokens:
         return None
 
-    verse_numbers = sorted({number for prefix, number in tokens if prefix == "V" and number is not None})
+    verse_numbers = sorted(
+        {number for prefix, number in tokens if prefix == "V" and number is not None}
+    )
     compact_verse_number = dict(verse_number_map or {})
     next_verse_number = max(compact_verse_number.values(), default=0) + 1
     for number in verse_numbers:
         if number not in compact_verse_number:
             compact_verse_number[number] = next_verse_number
             next_verse_number += 1
-    return " ".join(
-        f"{prefix}{compact_verse_number[number] if prefix == 'V' and number is not None else number or ''}"
-        for prefix, number in tokens
-    )
+    labels = []
+    for prefix, number in tokens:
+        mapped = compact_verse_number[number] if prefix == "V" and number is not None else number
+        labels.append(f"{prefix}{mapped or ''}")
+    return _compact_repeats(labels) if multiplied else " ".join(labels)
 
 
 def normalize_song_lyrics(lyrics: str | None) -> tuple[str | None, dict[int, int]]:
@@ -120,12 +150,22 @@ def _insert_missing_lyric_labels(sequence_labels: list[str], lyric_labels: list[
         if label in result:
             continue
 
-        next_label = next((candidate for candidate in lyric_labels[lyric_index + 1 :] if candidate in result), None)
+        next_label = next(
+            (candidate for candidate in lyric_labels[lyric_index + 1 :] if candidate in result),
+            None,
+        )
         if next_label is not None:
             result.insert(result.index(next_label), label)
             continue
 
-        previous_label = next((candidate for candidate in reversed(lyric_labels[:lyric_index]) if candidate in result), None)
+        previous_label = next(
+            (
+                candidate
+                for candidate in reversed(lyric_labels[:lyric_index])
+                if candidate in result
+            ),
+            None,
+        )
         if previous_label is not None:
             insert_at = len(result) - result[::-1].index(previous_label)
             result.insert(insert_at, label)
@@ -138,17 +178,24 @@ def reconcile_song_sequence(sequence: str | None, lyric_labels: list[str]) -> st
     if not lyric_labels:
         return sequence
 
-    sequence_labels = sequence.split() if sequence else []
-    if len(sequence_labels) <= len(lyric_labels):
+    multiplied = "x" in (sequence or "")
+    sequence_labels = _expanded_labels(sequence)
+    if not multiplied and len(sequence_labels) <= len(lyric_labels):
         return " ".join(lyric_labels)
 
     known_labels = set(lyric_labels)
     preserved = [label for label in sequence_labels if label in known_labels]
     reconciled = _insert_missing_lyric_labels(preserved, lyric_labels)
-    return " ".join(reconciled or lyric_labels)
+    return (
+        _compact_repeats(reconciled or lyric_labels)
+        if multiplied
+        else " ".join(reconciled or lyric_labels)
+    )
 
 
 def normalize_song_text(lyrics: str | None, sequence: str | None) -> tuple[str | None, str | None]:
     normalized_lyrics, verse_number_map = normalize_song_lyrics(lyrics)
     normalized_sequence = normalize_song_sequence(sequence, verse_number_map)
-    return normalized_lyrics, reconcile_song_sequence(normalized_sequence, _lyric_labels(normalized_lyrics))
+    return normalized_lyrics, reconcile_song_sequence(
+        normalized_sequence, _lyric_labels(normalized_lyrics)
+    )

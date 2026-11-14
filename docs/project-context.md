@@ -1030,3 +1030,18 @@ be resolved by restoring the text or removing the listed anchor before saving.
 Removing a stale bar also regenerates its marked section chart. The song API
 validates musical positions on creation and on lyric, chord, or rhythm updates;
 valid leading/trailing padding remains available for musical holds.
+
+
+Song sequences support section multipliers: `V1 Cx2 V2 Cx3` repeats the complete
+chorus twice after verse 1 and three times after verse 2. Numbered sections such
+as `C2x3`, spaced forms such as `C x2`, uppercase `X`, and `×` are accepted.
+Saving keeps compact `xN` notation; slides and guided musical playback expand
+it into separate section occurrences. Counts must be whole numbers from 1 to
+99. A multiplier repeats one section; grouped repeats are not supported.
+
+
+Consecutive identical song sections are shown once with an `×N` label in Worship
+Live, the Present slide sorter, and worship planning previews. Multi-page sections
+keep each distinct lyric page. Worship Live and Present provide numbered repeat
+buttons, preserving direct access to every playback occurrence and the next
+unique section. Choruses separated by verses remain separate sequence entries.

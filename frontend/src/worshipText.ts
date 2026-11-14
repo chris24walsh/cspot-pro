@@ -118,11 +118,11 @@ function normalizeSectionToken(token: string): string | null {
 function sequenceLabels(sequence: string | null | undefined) {
   const labels: string[] = [];
   const normalized = (sequence ?? "")
-    .replace(/([A-Za-z]+)(\d+)?x(\d+)/gi, (_match, part: string, number: string = "", count: string) =>
-      Array.from({ length: Number(count) || 1 }, () => `${part}${number}`).join(" "),
-    )
     .replace(/\bpre[-\s]?chorus(?:\s*(\d+))?\b/gi, (_match, number: string = "") => `PreChorus${number}`)
     .replace(/\b(verse|chorus|bridge|tag|ending|outro|intro)\s+(\d+)\b/gi, "$1$2")
+    .replace(/([A-Za-z]+)(\d*)\s*[x×]\s*(\d+)\b/gi, (_match, part: string, number: string, count: string) =>
+      Array.from({ length: Math.max(1, Math.min(99, Number(count))) }, () => `${part}${number}`).join(" "),
+    )
     .replace(/\bC(?=V\d)/gi, "C ");
 
   for (const token of normalized.split(/[\s,>/|-]+/)) {
@@ -133,6 +133,24 @@ function sequenceLabels(sequence: string | null | undefined) {
   }
 
   return labels;
+}
+
+export function worshipSequenceRepeatError(sequence: string | null | undefined): string | null {
+  for (const match of (sequence ?? "").matchAll(/[x×]\s*([+-]?\d+(?:\.\d+)?)?/gi)) {
+    const count = Number(match[1]);
+    if (!/^\d+$/.test(match[1] ?? "") || !Number.isInteger(count) || count < 1 || count > 99) return "Section repeats must be whole numbers from 1 to 99.";
+  }
+  return null;
+}
+
+function compactSequenceRepeats(labels: string[]): string {
+  const runs: Array<{ label: string; count: number }> = [];
+  for (const label of labels) {
+    const previous = runs[runs.length - 1];
+    if (previous?.label === label && previous.count < 99) previous.count++;
+    else runs.push({ label, count: 1 });
+  }
+  return runs.map(({ label, count }) => count > 1 ? `${label}x${count}` : label).join(" ");
 }
 
 function canonicalVerseLabelMap(value: string | null | undefined) {
@@ -175,6 +193,8 @@ function insertMissingLyricLabels(sequence: string[], lyricLabels: string[]) {
 }
 
 export function normalizeWorshipSequence(sequence: string | null | undefined, lyrics?: string | null) {
+  const multiplied = /[x×]\s*\d+/i.test(sequence ?? "");
+  const format = (labels: string[]) => multiplied ? compactSequenceRepeats(labels) : labels.join(" ");
   const verseLabels = canonicalVerseLabelMap(lyrics);
   const resolvedLabels = sequenceLabels(sequence).map((label) => verseLabels.get(label) ?? label);
   const verseNumbers = Array.from(
@@ -197,15 +217,15 @@ export function normalizeWorshipSequence(sequence: string | null | undefined, ly
     .map(compactSectionLabel);
 
   if (!lyricLabels.length) {
-    return labels.length ? labels.join(" ") : null;
+    return labels.length ? format(labels) : null;
   }
-  if (labels.length <= lyricLabels.length) {
+  if (!multiplied && labels.length <= lyricLabels.length) {
     return lyricLabels.join(" ");
   }
 
   const knownLabels = new Set(lyricLabels);
   const preservedLabels = labels.filter((label) => knownLabels.has(label));
-  return insertMissingLyricLabels(preservedLabels, lyricLabels).join(" ");
+  return format(insertMissingLyricLabels(preservedLabels, lyricLabels));
 }
 
 export function isWorshipSectionHeading(line: string): boolean {

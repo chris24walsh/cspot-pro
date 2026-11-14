@@ -36,6 +36,7 @@ import { isEditableKeyboardTarget, slideKeyboardDirection, type SlideKeyboardDir
 import { isMobileOrTabletDevice } from "../presentationDevice";
 import { PROGRAM_AUDIO_FADE_DURATION_MS } from "../audioTransitions";
 import { songLyricPageBlocks } from "../lyricPages";
+import { repeatedSectionGroups } from "../repeatedSections";
 import { mergeWorshipSetIntoService } from "../worshipSets";
 
 import { lyricHighlightPulse, lyricHighlightDistance, lyricHighlightTrail, lyricBarHighlightFill, timelineWithEntry, lyricBarLayout, lyricColumnWidths, wrapTimedLine, lyricCursorAt, lyricPlaybackBars, musicalSectionKey, type LyricBar, type LyricCursor } from "../lyricTiming";
@@ -1277,6 +1278,11 @@ export function MusicianLiveView({ keyboardActive = true, singlePage = false, wo
   const currentSequenceBlockIndex = sequenceBlocks.findIndex(
     (block) => currentSongContentSlideIndex >= block.slideIndex && currentSongContentSlideIndex < block.endSlideIndex,
   );
+  const sequenceGroups = repeatedSectionGroups(sequenceBlocks);
+  const displayedSequenceGroups = sequenceGroups.map(group => {
+    const blockIndex = group.occurrences.includes(currentSequenceBlockIndex) ? currentSequenceBlockIndex : group.occurrences[0];
+    return { ...group, blockIndex, block: sequenceBlocks[blockIndex] };
+  });
   const currentSequencePartIndex = currentSequenceBlockIndex >= 0
     ? currentSongContentSlideIndex - sequenceBlocks[currentSequenceBlockIndex].slideIndex
     : -1;
@@ -1599,11 +1605,11 @@ export function MusicianLiveView({ keyboardActive = true, singlePage = false, wo
           >
             <Music2 size={13} aria-hidden="true" />
           </button> : null}
-          {sequenceBlocks.map((block, blockIndex) => (
+          {displayedSequenceGroups.map(({ block, blockIndex, occurrences }) => (
             <button
               aria-current={blockIndex === currentSequenceBlockIndex ? "step" : undefined}
               className={blockIndex === currentSequenceBlockIndex ? "is-active" : ""}
-              key={`${block.label}-${blockIndex}`}
+              key={`${block.label}-${occurrences[0]}`}
               onClick={() => {
                 const nextPartIndex = blockIndex === currentSequenceBlockIndex
                   ? (currentSequencePartIndex + 1) % block.parts.length
@@ -1616,7 +1622,8 @@ export function MusicianLiveView({ keyboardActive = true, singlePage = false, wo
               } as CSSProperties : undefined}
               type="button"
             >
-              {block.label}
+              {block.label}{occurrences.length > 1 ? ` ×${occurrences.length}` : ""}
+              {occurrences.length > 1 && blockIndex === currentSequenceBlockIndex ? ` · ${occurrences.indexOf(blockIndex) + 1}/${occurrences.length}` : ""}
             </button>
           ))}
         </nav>
@@ -1626,6 +1633,13 @@ export function MusicianLiveView({ keyboardActive = true, singlePage = false, wo
         </button>
       </div>
 
+      {readerMode !== "scroll" ? displayedSequenceGroups.filter(group => group.occurrences.length > 1 && group.occurrences.includes(currentSequenceBlockIndex)).map(({ block, occurrences }) => <div className="song-repeat-picker" key={occurrences[0]} role="group" aria-label={`${block.label} repetitions`}>
+        <span>{block.label} repetitions</span>
+        {occurrences.map((occurrence, repeat) => <button key={occurrence} type="button"
+          aria-label={`Go to ${block.label}, repeat ${repeat + 1} of ${occurrences.length}`}
+          aria-current={occurrence === currentSequenceBlockIndex ? "step" : undefined}
+          onClick={() => navigateToSequenceBlock(occurrence)}>{repeat + 1}</button>)}
+      </div>) : null}
       {message ? <p className="form-message">{message}</p> : null}
 
       <div
@@ -1701,10 +1715,10 @@ export function MusicianLiveView({ keyboardActive = true, singlePage = false, wo
               <Music2 size={20} aria-hidden="true" />
               <span>{liveSong?.title ?? liveSlide.sectionTitle}</span>
             </button>
-            {sequenceBlocks.map((block, blockIndex) => (
+            {displayedSequenceGroups.map(({ block, blockIndex, occurrences }) => (
               <section
                 aria-current={blockIndex === currentSequenceBlockIndex ? "step" : undefined}
-                key={`${block.label}-${blockIndex}`}
+                key={`${block.label}-${occurrences[0]}`}
               >
                 <button
                   aria-label={`Go to ${block.label}`}
@@ -1712,8 +1726,15 @@ export function MusicianLiveView({ keyboardActive = true, singlePage = false, wo
                   onClick={() => navigateToSequenceBlock(blockIndex)}
                   type="button"
                 >
-                  <strong>{block.label}</strong>
+                  <strong>{block.label}{occurrences.length > 1 ? ` ×${occurrences.length}` : ""}</strong>
                 </button>
+                {occurrences.length > 1 ? <div className="song-repeat-picker" role="group" aria-label={`${block.label} repetitions`}>
+                  {occurrences.map((occurrence, repeat) => <button
+                    key={occurrence} type="button" aria-label={`Go to ${block.label}, repeat ${repeat + 1} of ${occurrences.length}`}
+                    aria-current={occurrence === currentSequenceBlockIndex ? "step" : undefined}
+                    onClick={() => navigateToSequenceBlock(occurrence)}
+                  >{repeat + 1}</button>)}
+                </div> : null}
                 {block.parts.map((part, partIndex) => {
                   const isCurrent = blockIndex === currentSequenceBlockIndex && partIndex === currentSequencePartIndex;
                   const partLines = lyricLines(part);

@@ -31,7 +31,7 @@ import {
 } from "../chordSheet";
 import { normalizeSongRhythm, type BarMarker, type BarRhythmChange } from "../songRhythm";
 import { buildPracticePerformance, PracticeAudioPlayer, parseBarChart, transposeBarCharts } from "../musicPractice";
-import { canonicalizeWorshipLyrics, normalizeWorshipSequence } from "../worshipText";
+import { canonicalizeWorshipLyrics, normalizeWorshipSequence, worshipSequenceRepeatError } from "../worshipText";
 import { useConfirmationDialog } from "./ConfirmationDialog";
 import { chordBeats, placeBarMarker, removeBarMarker, rhythmWithBarMarkers } from "../barMarkers";
 import { validateBarMeterChange, timedPracticeBars, lyricBarLayout, lyricColumnWidths, wrapTimedLine, lyricCursorAt, lyricPlaybackBars, musicalSectionKey, type LyricCursor } from "../lyricTiming";
@@ -698,6 +698,8 @@ export function SongEditorDialog({
       setTab("chords");
       throw new Error("Set the song key before saving chord annotations.");
     }
+    const repeatError = worshipSequenceRepeatError(nextForm.sequence);
+    if (repeatError) throw new Error(repeatError);
     const lyrics = nextForm.lyrics ? canonicalizeWorshipLyrics(nextForm.lyrics, nextForm.sequence) : null;
     if (invalidLyricAnchors(chordChart.annotations, lyrics).length || invalidLyricAnchors(nextForm.rhythm?.markers ?? [], lyrics).length) {
       throw new Error("Resolve the hidden chord and bar positions below before saving. Restore the lyrics or remove the listed positions.");
@@ -749,7 +751,8 @@ export function SongEditorDialog({
   }
 
   const currentSignature = JSON.stringify(normalizeForm(form, serializeChordChart(chordChart, legacyChords)));
-  const isDirty = currentSignature !== savedSignature;
+  const sequenceRepeatError = worshipSequenceRepeatError(form.sequence);
+  const isDirty = Boolean(sequenceRepeatError) || currentSignature !== savedSignature;
 
   async function archiveSong() {
     if (!onArchive) return;
@@ -957,7 +960,7 @@ export function SongEditorDialog({
           {tab === "lyrics" ? (
             <div className="form-grid single-column">
               <div className="field-block wide-field">
-                <label htmlFor="song-dialog-sequence">Sequence<input disabled={!canEdit} id="song-dialog-sequence" onChange={(event) => setForm({ ...form, sequence: event.target.value })} placeholder="V1 C V2 C B C" value={form.sequence ?? ""} /></label>
+                <label htmlFor="song-dialog-sequence">Sequence<input disabled={!canEdit} id="song-dialog-sequence" aria-invalid={Boolean(sequenceRepeatError)} onChange={(event) => setForm({ ...form, sequence: event.target.value })} aria-describedby="song-sequence-help" placeholder="V1 Cx2 V2 Cx3" value={form.sequence ?? ""} /><small id="song-sequence-help">Repeat a section with x2, x3, etc. Example: V1 Cx2 V2 Cx3. Up to 99 repeats.</small>{sequenceRepeatError ? <span role="alert">{sequenceRepeatError}</span> : null}</label>
                 <textarea id="song-dialog-lyrics" disabled={!canEdit} onChange={(event) => setForm({ ...form, lyrics: event.target.value })} rows={18} value={form.lyrics ?? ""} />
               </div>
             </div>

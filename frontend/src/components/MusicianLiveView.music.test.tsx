@@ -130,7 +130,8 @@ it('keeps different chords and a single active dot on identical lyric pages, inc
     expect(container.querySelectorAll('.lyric-timing-dot')).toHaveLength(1);
     musician(container);
     act(() => document.querySelector<HTMLButtonElement>('[aria-label="Switch to Scroll view"]')!.click());
-    expect(labels('.musician-song-part')).toEqual(['C', 'F', 'C', 'F']);
+    expect(labels('.musician-song-part')).toEqual(['C', 'F']);
+    expect(container.querySelector('[aria-label="Go to V1, repeat 2 of 2"]')?.getAttribute('aria-current')).toBe('step');
     expect(container.querySelectorAll('.lyric-timing-dot')).toHaveLength(1);
     musician(container);
     act(() => document.querySelector<HTMLButtonElement>('[aria-label="Switch to Pages view"]')!.click());
@@ -590,5 +591,32 @@ it('sends a leader reseat before queuing the manual lyric jump at the server eff
     const [queued, , , effectiveAt] = audio.queuePerformance.mock.calls[0] as [import('../musicPractice').PracticePerformance, (position: number) => void, () => void, number];
     expect(queued.countInTicks).toBe(0);
     expect(effectiveAt).toBeGreaterThan(performance.now());
+  } finally { act(() => root.unmount()); vi.unstubAllGlobals(); vi.clearAllMocks(); }
+});
+
+it('compacts repeated sections and lets the musician select a repeat or skip to the next unique section', async () => {
+  vi.stubGlobal('matchMedia', () => ({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() }));
+  vi.mocked(getPresentationLiveState).mockResolvedValue({ plan_id: 'plan', index: 0, updated_at: 1, worship_coupled: false, plan_item_id: 'item', slide_offset: 0 } as Awaited<ReturnType<typeof getPresentationLiveState>>);
+  const song = { id: 'song', title: 'Repeated chorus', lyrics: '[V1]\nFirst verse\n[C]\nSing together\n[V2]\nSecond verse', sequence: 'V1 Cx3 V2', chords: null } as Song;
+  const plan = { id: 'plan', items: [{ id: 'item', item_type: 'song', song_id: 'song', sequence: '1', title: song.title }] } as PlanDetail;
+  const container = document.createElement('div'), toolbar = document.createElement('div');
+  const mount = document.createElement('div');
+  container.append(mount, toolbar);
+  const root = createRoot(mount);
+  try {
+    await act(async () => root.render(<MusicianLiveView plan={plan} songs={[song]} topbarSlot={toolbar} onEditSong={() => {}} onExit={() => {}} />));
+    const nav = container.querySelector('[aria-label="Song sequence"]')!;
+    const chorus = Array.from(nav.querySelectorAll('button')).find(button => button.textContent?.startsWith('C ×3'))!;
+    expect(Array.from(nav.querySelectorAll('button')).filter(button => button.textContent?.startsWith('C ×3'))).toHaveLength(1);
+    await act(async () => chorus.click());
+    await act(async () => container.querySelector<HTMLButtonElement>('[aria-label="Go to C, repeat 2 of 3"]')!.click());
+    expect(container.querySelector('[aria-label="Go to C, repeat 2 of 3"]')?.getAttribute('aria-current')).toBe('step');
+    expect(nav.textContent).toContain('2/3');
+    musician(container);
+    act(() => document.querySelector<HTMLButtonElement>('[aria-label="Switch to Scroll view"]')!.click());
+    expect(container.querySelectorAll('.musician-song-part')).toHaveLength(3);
+    expect(container.querySelector('[aria-label="Go to C, repeat 2 of 3"]')?.getAttribute('aria-current')).toBe('step');
+    await act(async () => Array.from(nav.querySelectorAll('button')).find(button => button.textContent === 'V2')!.click());
+    expect(nav.querySelector('[aria-current="step"]')?.textContent).toBe('V2');
   } finally { act(() => root.unmount()); vi.unstubAllGlobals(); vi.clearAllMocks(); }
 });

@@ -225,3 +225,10 @@ it('moves forward across shortened lines with stale bar and chord anchors', () =
   }
   expect(lyricCursorAt(text, timeline, 2, 4, 4)).toMatchObject({ lineIndex: 2, anchorIndex: 3 });
 });
+
+it('repeats the full guided lyric timeline for multiplied sequence sections', () => {
+  const repeated = lyricPlaybackBars(lyrics, 'V1 Cx3 V1', lyricBarLayout(lyrics, rhythm, chords));
+  const explicit = lyricPlaybackBars(lyrics, 'V1 C C C V1', lyricBarLayout(lyrics, rhythm, chords));
+  expect(repeated).toEqual(explicit);
+  expect(repeated.map(bar => bar.occurrence)).toEqual([0, 0, 1, 2, 3, 4, 4]);
+});

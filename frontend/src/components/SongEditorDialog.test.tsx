@@ -394,3 +394,27 @@ it("flags positions immediately when a lyric edit shortens their source line", a
     vi.resetAllMocks();
   }
 });
+
+it("saves compact section repeats and rejects invalid repeat counts", async () => {
+  const song = { id: "repeat", title: "Repeat chorus", lyrics: "[V1]\nFirst\n[C]\nSing chorus\n[V2]\nSecond", sequence: "V1 C V2", chords: null } as Song;
+  vi.mocked(updateSong).mockImplementation(async (_id, payload) => ({ ...song, ...payload }));
+  const container = document.createElement("div");
+  const root = createRoot(container);
+  try {
+    await act(async () => root.render(<SongEditorDialog song={song} canEdit onClose={() => {}} onSaved={() => {}} />));
+    const input = container.querySelector<HTMLInputElement>('#song-dialog-sequence')!;
+    const setValue = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!;
+    act(() => { setValue.call(input, "V1 Cx0 V2"); input.dispatchEvent(new Event("input", { bubbles: true })); });
+    await act(async () => container.querySelector<HTMLButtonElement>('[aria-label="Save song"]')!.click());
+    expect(updateSong).not.toHaveBeenCalled();
+    expect(container.textContent).toContain("whole numbers from 1 to 99");
+    act(() => { setValue.call(input, "V1 C x2 V2 Cx3"); input.dispatchEvent(new Event("input", { bubbles: true })); });
+    await act(async () => container.querySelector<HTMLButtonElement>('[aria-label="Save song"]')!.click());
+    expect(updateSong).toHaveBeenCalledOnce();
+    expect(vi.mocked(updateSong).mock.calls[0][1].sequence).toBe("V1 Cx2 V2 Cx3");
+    expect(vi.mocked(updateSong).mock.calls[0][1].lyrics).toBe("[V1]\nFirst\n\n[C]\nSing chorus\n\n[V2]\nSecond");
+  } finally {
+    act(() => root.unmount());
+    vi.resetAllMocks();
+  }
+});

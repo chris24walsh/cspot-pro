@@ -2,6 +2,8 @@ from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
+from app.modules.music.text import validate_sequence_repeats
+
 
 class StrumPattern(BaseModel):
     name: str = Field(default="", max_length=80)
@@ -123,7 +125,7 @@ class SongBase(BaseModel):
 
 
 class SongCreate(SongBase):
-    pass
+    _validate_repeats = field_validator("sequence")(validate_sequence_repeats)
 
 
 class SongUpdate(BaseModel):
@@ -143,6 +145,8 @@ class SongUpdate(BaseModel):
     energy: int | None = None
     tempo: str | None = None
     theme_tags: str | None = None
+
+    _validate_repeats = field_validator("sequence")(validate_sequence_repeats)
 
 
 class SongRead(SongBase):

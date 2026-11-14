@@ -1,3 +1,4 @@
+import { compactSongSlides } from "../compactSongSlides";
 import { matchesSongLibraryFilters, songLibraryMetadata } from "../songLibraryFilters";
 import { Archive, ChevronDown, ChevronUp, MonitorUp, Music2, Pencil, RefreshCw, RotateCcw, Trash2, WandSparkles, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -2445,14 +2446,14 @@ export function WorshipBuilderView({ active = true, canUseMixer = false, isAdmin
                     ) : null}
                   </div>
                   <div className="section-slide-list worship-slide-list">
-                    {section.slides.map((slide, index) => (
+                    {compactSongSlides(section.slides, sectionSong).map(({ slide, key, label, repeatSlides }) => (
                       <button
                         className="slide-tile preview-tile type-song readonly"
-                        key={slide.id}
+                        key={key}
                         onClick={() => setSelectedItemId(section.id)}
                         type="button"
                       >
-                        <span>{String(index + 1).padStart(2, "0")}</span>
+                        <span>{String(section.slides.findIndex(candidate => candidate.id === slide.id) + 1).padStart(2, "0")}{repeatSlides.length > 1 ? ` · ${label} ×${repeatSlides.length}` : ""}</span>
                         <div className="mini-slide-surface stage-theme-light">
                           <pre className="worship-preview-lyrics">{slide.text || "No lyrics"}</pre>
                           <div className="worship-preview-mobile">

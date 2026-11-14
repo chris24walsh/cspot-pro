@@ -1827,3 +1827,20 @@ independently checks version 3 chord anchors and rhythm markers against normaliz
 lyrics on create and relevant updates (`music/anchors.py`). Both use nonempty
 source lines, section-relative indexes, and three leading/five trailing slots.
 Legacy chord formats remain readable and are converted by the editor.
+
+
+Sequence multipliers are normalized in both `worshipText.ts` and `music/text.py`.
+Sequences retain compact `xN` runs when multiplier notation is supplied, while
+slide generation and lyric playback expand them into ordinary section
+occurrences. Reconciliation expands counts before checking section coverage,
+so a short multiplied sequence keeps its repeats when missing lyric sections
+are inserted. Song payload validators and editor save validation restrict
+repeat counts to 1–99; legacy explicit sequences retain their existing format.
+
+
+`repeatedSections.ts` groups adjacent occurrences by section identity and content.
+`compactSongSlides.ts` maps grouped preview pages back to their original slide
+IDs, preserving an alias for each repetition and selecting the active occurrence.
+Worship Live uses the same grouping for its sequence strip and full-song reader.
+Playback timelines, shared navigation indexes, and projection slides stay fully
+expanded; only operator and musician navigation render compact groups.
