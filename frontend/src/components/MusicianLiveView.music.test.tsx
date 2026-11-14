@@ -131,7 +131,9 @@ it('keeps different chords and a single active dot on identical lyric pages, inc
     musician(container);
     act(() => document.querySelector<HTMLButtonElement>('[aria-label="Switch to Scroll view"]')!.click());
     expect(labels('.musician-song-part')).toEqual(['C', 'F']);
-    expect(container.querySelector('[aria-label="Go to V1, repeat 2 of 2"]')?.getAttribute('aria-current')).toBe('step');
+    const repeatBadge = container.querySelector<HTMLButtonElement>('[aria-label^="Choose V1 repetition"]')!;
+    expect(repeatBadge.getAttribute('aria-label')).toContain('repeat 2 of 2');
+    expect(container.querySelector('.song-repeat-picker')).toBeNull();
     expect(container.querySelectorAll('.lyric-timing-dot')).toHaveLength(1);
     musician(container);
     act(() => document.querySelector<HTMLButtonElement>('[aria-label="Switch to Pages view"]')!.click());
@@ -606,16 +608,24 @@ it('compacts repeated sections and lets the musician select a repeat or skip to 
   try {
     await act(async () => root.render(<MusicianLiveView plan={plan} songs={[song]} topbarSlot={toolbar} onEditSong={() => {}} onExit={() => {}} />));
     const nav = container.querySelector('[aria-label="Song sequence"]')!;
-    const chorus = Array.from(nav.querySelectorAll('button')).find(button => button.textContent?.startsWith('C ×3'))!;
-    expect(Array.from(nav.querySelectorAll('button')).filter(button => button.textContent?.startsWith('C ×3'))).toHaveLength(1);
+    const chorus = Array.from(nav.querySelectorAll('button')).find(button => button.textContent === 'C')!;
+    expect(Array.from(nav.querySelectorAll('button')).filter(button => button.textContent === 'C')).toHaveLength(1);
     await act(async () => chorus.click());
-    await act(async () => container.querySelector<HTMLButtonElement>('[aria-label="Go to C, repeat 2 of 3"]')!.click());
-    expect(container.querySelector('[aria-label="Go to C, repeat 2 of 3"]')?.getAttribute('aria-current')).toBe('step');
+    const badge = nav.querySelector<HTMLButtonElement>('[aria-label^="Choose C repetition"]')!;
+    const openKey = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true });
+    act(() => badge.dispatchEvent(openKey));
+    expect(openKey.defaultPrevented).toBe(false); // sequence hotkeys must not steal the badge's Enter key
+    expect(document.querySelector('[aria-label="C repetitions"]')).toBeNull();
+    act(() => badge.click());
+    await act(async () => document.querySelector<HTMLButtonElement>('[aria-label="Go to C, repeat 2 of 3"]')!.click());
+    expect(badge.getAttribute('aria-label')).toContain('repeat 2 of 3');
+    expect(document.querySelector('[aria-label="C repetitions"]')).toBeNull();
     expect(nav.textContent).toContain('2/3');
     musician(container);
     act(() => document.querySelector<HTMLButtonElement>('[aria-label="Switch to Scroll view"]')!.click());
     expect(container.querySelectorAll('.musician-song-part')).toHaveLength(3);
-    expect(container.querySelector('[aria-label="Go to C, repeat 2 of 3"]')?.getAttribute('aria-current')).toBe('step');
+    expect(nav.querySelector('[aria-label^="Choose C repetition"]')?.getAttribute('aria-label')).toContain('repeat 2 of 3');
+    expect(container.querySelector('.song-repeat-picker')).toBeNull();
     await act(async () => Array.from(nav.querySelectorAll('button')).find(button => button.textContent === 'V2')!.click());
     expect(nav.querySelector('[aria-current="step"]')?.textContent).toBe('V2');
   } finally { act(() => root.unmount()); vi.unstubAllGlobals(); vi.clearAllMocks(); }

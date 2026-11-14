@@ -1851,3 +1851,8 @@ A repeated group's bounds provide a constant centered scroll target while the
 group fits within 90% of the viewport. Oversized groups use the existing
 visibility-constrained lyric following. The fixed target is derived from musical
 cursor occurrence, preserving it through early page turns and repeat boundaries.
+
+
+Repeat selectors are opened from compact badges in the sequence strip and
+Present thumbnail header. Their portalled menu keeps controls out of the lyric
+and sorter layouts while preserving direct selection and keyboard access.

@@ -50,6 +50,7 @@ import { useSharedMusicTiming } from "./useSharedMusicTiming";
 import { resolveMusicTimingDestination } from "../musicTimingDestination";
 import { MusicianDisplayChoice, musicianDisplayVisible, readMusicianDisplayMode, type MusicianDisplayMode } from "./MusicianDisplayChoice";
 import { CompactControlMenu } from "./CompactControlMenu";
+import { RepeatMenu } from "./RepeatMenu";
 import { SlideKeyCapture, SlideKeyboardCaptureContext, shouldRestoreSlideKeyCapture } from "./SlideKeyCapture";
 import { SongRhythmDisplay } from "./SongRhythmDisplay";
 
@@ -1174,7 +1175,7 @@ export function MusicianLiveView({ keyboardActive = true, singlePage = false, wo
         return;
       }
 
-      if (isEditableKeyboardTarget(event.target) || event.target instanceof Element && Boolean(event.target.closest('[role="menu"]'))) {
+      if (isEditableKeyboardTarget(event.target) || event.target instanceof Element && Boolean(event.target.closest('[role="menu"], .repeat-menu-trigger'))) {
         return;
       }
 
@@ -1621,25 +1622,26 @@ export function MusicianLiveView({ keyboardActive = true, singlePage = false, wo
             <Music2 size={13} aria-hidden="true" />
           </button> : null}
           {displayedSequenceGroups.map(({ block, blockIndex, occurrences }) => (
-            <button
-              aria-current={blockIndex === currentSequenceBlockIndex ? "step" : undefined}
-              className={blockIndex === currentSequenceBlockIndex ? "is-active" : ""}
-              key={`${block.label}-${occurrences[0]}`}
-              onClick={() => {
-                const nextPartIndex = blockIndex === currentSequenceBlockIndex
-                  ? (currentSequencePartIndex + 1) % block.parts.length
-                  : 0;
-                navigateToSequenceBlock(blockIndex, nextPartIndex);
-              }}
-              style={blockIndex === currentSequenceBlockIndex ? {
-                "--sequence-active-end": `${((currentSequencePartIndex + 1) / block.parts.length) * 100}%`,
-                "--sequence-active-start": `${(currentSequencePartIndex / block.parts.length) * 100}%`,
-              } as CSSProperties : undefined}
-              type="button"
-            >
-              {block.label}{occurrences.length > 1 ? ` ×${occurrences.length}` : ""}
-              {occurrences.length > 1 && blockIndex === currentSequenceBlockIndex ? ` · ${occurrences.indexOf(blockIndex) + 1}/${occurrences.length}` : ""}
-            </button>
+            <div className="musician-sequence-group" key={`${block.label}-${occurrences[0]}`}>
+              <button
+                aria-current={blockIndex === currentSequenceBlockIndex ? "step" : undefined}
+                className={blockIndex === currentSequenceBlockIndex ? "is-active" : ""}
+                onClick={() => {
+                  const nextPartIndex = blockIndex === currentSequenceBlockIndex
+                    ? (currentSequencePartIndex + 1) % block.parts.length
+                    : 0;
+                  navigateToSequenceBlock(blockIndex, nextPartIndex);
+                }}
+                style={blockIndex === currentSequenceBlockIndex ? {
+                  "--sequence-active-end": `${((currentSequencePartIndex + 1) / block.parts.length) * 100}%`,
+                  "--sequence-active-start": `${(currentSequencePartIndex / block.parts.length) * 100}%`,
+                } as CSSProperties : undefined}
+                type="button"
+              >{block.label}</button>
+              {occurrences.length > 1 ? <RepeatMenu label={block.label} count={occurrences.length}
+                activeRepeat={occurrences.includes(currentSequenceBlockIndex) ? occurrences.indexOf(currentSequenceBlockIndex) : null}
+                onSelect={repeat => navigateToSequenceBlock(occurrences[repeat])} /> : null}
+            </div>
           ))}
         </nav>
         <button aria-label="Next song" className="musician-song-step-button" disabled={currentSongIndex < 0 || currentSongIndex >= worshipItems.length - 1} onClick={() => moveSong(1)} title="Next song" type="button">
@@ -1648,13 +1650,6 @@ export function MusicianLiveView({ keyboardActive = true, singlePage = false, wo
         </button>
       </div>
 
-      {readerMode !== "scroll" ? displayedSequenceGroups.filter(group => group.occurrences.length > 1 && group.occurrences.includes(currentSequenceBlockIndex)).map(({ block, occurrences }) => <div className="song-repeat-picker" key={occurrences[0]} role="group" aria-label={`${block.label} repetitions`}>
-        <span>{block.label} repetitions</span>
-        {occurrences.map((occurrence, repeat) => <button key={occurrence} type="button"
-          aria-label={`Go to ${block.label}, repeat ${repeat + 1} of ${occurrences.length}`}
-          aria-current={occurrence === currentSequenceBlockIndex ? "step" : undefined}
-          onClick={() => navigateToSequenceBlock(occurrence)}>{repeat + 1}</button>)}
-      </div>) : null}
       {message ? <p className="form-message">{message}</p> : null}
 
       <div
@@ -1744,13 +1739,6 @@ export function MusicianLiveView({ keyboardActive = true, singlePage = false, wo
                 >
                   <strong>{block.label}{occurrences.length > 1 ? ` ×${occurrences.length}` : ""}</strong>
                 </button>
-                {occurrences.length > 1 ? <div className="song-repeat-picker" role="group" aria-label={`${block.label} repetitions`}>
-                  {occurrences.map((occurrence, repeat) => <button
-                    key={occurrence} type="button" aria-label={`Go to ${block.label}, repeat ${repeat + 1} of ${occurrences.length}`}
-                    aria-current={occurrence === currentSequenceBlockIndex ? "step" : undefined}
-                    onClick={() => navigateToSequenceBlock(occurrence)}
-                  >{repeat + 1}</button>)}
-                </div> : null}
                 {block.parts.map((part, partIndex) => {
                   const isCurrent = blockIndex === currentSequenceBlockIndex && partIndex === currentSequencePartIndex;
                   const partLines = lyricLines(part);

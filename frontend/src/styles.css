@@ -14532,19 +14532,23 @@ button.musician-page {
 .service-camera-request-alert { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 10px; color: #ffe29a; }
 .camera-request-announcement { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; }
 
-.song-repeat-picker {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 0.25rem;
-  padding: 0.2rem 0.4rem;
-  font-size: 0.8rem;
-}
-.song-repeat-picker button {
-  min-width: 1.8rem;
-  padding: 0.2rem 0.4rem;
-}
-.song-repeat-picker button[aria-current="step"] {
-  background: var(--accent, #28694f);
-  color: #fff;
+
+.musician-sequence-group { display: inline-flex; align-items: stretch; flex: 0 0 auto; }
+.musician-sequence-group > button:first-child:not(:last-child) { border-radius: 4px 0 0 4px; }
+.musician-sequence-strip .repeat-menu-trigger { min-width: 0; border-left: 0; border-radius: 0 4px 4px 0; font-size: 9px; padding: 2px 4px; }
+.sorter-slide-wrap { display: contents; }
+.sorter-slide-wrap.has-repeat { display: block; min-width: 0; position: relative; }
+.sorter-slide-wrap.has-repeat > .slide-tile { width: 100%; height: 100%; }
+.repeat-menu-trigger.sorter-repeat-badge { position: absolute; top: 4px; right: 4px; z-index: 1; padding: 1px 5px; border: 1px solid #c7d7c9; border-radius: 5px; background: #f4faf5; color: #315f51; font-size: 10px; font-weight: 800; cursor: pointer; }
+.repeat-menu-current { font-weight: 600; }
+.repeat-menu { position: fixed; z-index: 180; width: 188px; max-width: calc(100vw - 16px); overflow-y: auto; padding: 7px; border: 1px solid #cfc7b4; border-radius: 8px; background: #fffefa; color: #234a40; box-shadow: 0 8px 24px #0003; }
+.repeat-menu strong { display: block; margin-bottom: 5px; font-size: 12px; }
+.repeat-menu-options { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; }
+.repeat-menu-options button { min-height: 32px; border: 1px solid #d9d0bb; border-radius: 5px; background: #f7f3e8; color: #173d32; cursor: pointer; }
+.repeat-menu-options button[aria-checked="true"] { background: #245d4d; border-color: #245d4d; color: #fff; }
+
+@media (max-width: 600px) {
+  .shell.is-mobile-device .musician-reader-mode-pages .musician-sequence-strip .musician-sequence-group { width: 100%; }
+  .shell.is-mobile-device .musician-reader-mode-pages .musician-sequence-strip .musician-sequence-group > button:first-child { flex: 1 1 auto; min-width: 0; width: auto; }
+  .shell.is-mobile-device .musician-reader-mode-pages .musician-sequence-strip .repeat-menu-trigger { flex: 0 0 auto; min-width: 0; width: auto; padding: 4px 3px; }
 }

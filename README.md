@@ -1035,8 +1035,8 @@ it into separate section occurrences. Counts must be whole numbers from 1 to
 
 Consecutive identical song sections are shown once with an `×N` label in Worship
 Live, the Present slide sorter, and worship planning previews. Multi-page sections
-keep each distinct lyric page. Worship Live and Present provide numbered repeat
-buttons, preserving direct access to every playback occurrence and the next
+keep each distinct lyric page. In Worship Live and Present, the compact repeat
+badge opens a menu for direct access to each playback occurrence and the next
 unique section. Choruses separated by verses remain separate sequence entries.
 
 

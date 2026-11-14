@@ -1,3 +1,4 @@
+import { RepeatMenu } from "./RepeatMenu";
 import { compactSongSlides } from "../compactSongSlides";
 import { ServicePreviewToggles } from "./ServicePreviewToggles";
 import { railPlacementAt, useRailPointerDrag } from "./useRailPointerDrag";
@@ -4399,6 +4400,7 @@ export function PresentationView({
       if (event.repeat) {
         return;
       }
+      if (event.target instanceof Element && event.target.closest(".repeat-menu, .repeat-menu-trigger")) return;
       if (handledKeyboardEventsRef.current.has(event)) {
         return;
       }
@@ -4766,7 +4768,7 @@ export function PresentationView({
       className="presentation-workspace"
       aria-label="Presentation preview"
       onPointerDownCapture={(event) => {
-        if (!isEditableKeyboardTarget(event.target)) {
+        if (!isEditableKeyboardTarget(event.target) && !(event.target instanceof Element && event.target.closest(".repeat-menu, .repeat-menu-trigger"))) {
           keyCaptureRef.current?.focus({ preventScroll: true });
         }
       }}
@@ -5380,14 +5382,8 @@ export function PresentationView({
                         }
                         return (
                           <div className="sorter-item-tile" key={key}>
-                          {firstPart && repeatStarts.length > 1 ? <div className="song-repeat-picker" role="group" aria-label={`${label} repetitions`}>
-                            <strong>{label} ×{repeatStarts.length}</strong>
-                            {repeatStarts.map((start, repeat) => <button key={start.id} type="button"
-                              aria-label={`Go to ${label}, repeat ${repeat + 1} of ${repeatStarts.length}`}
-                              aria-current={repeat === activeRepeat ? "step" : undefined}
-                              onClick={() => selectSlideFromOperator(slides.findIndex(candidate => candidate.id === start.id))}>{repeat + 1}</button>)}
-                          </div> : null}
                           {firstItemSlide && hasNestedItems ? <div className={`sorter-item-heading-row ${itemTitleSlide?.id === liveSlide?.id ? "active" : ""}`}><button className="sorter-item-heading" onClick={() => itemTitleIndex >= 0 ? selectSlideFromOperator(itemTitleIndex) : selectSlideFromOperator(slideIndex)} ref={(element) => { if (itemTitleSlide) thumbnailRefs.current[itemTitleSlide.id] = element; }} type="button"><strong>{item?.title ?? slide.sectionTitle}</strong></button>{autoCollapseSectionItems || itemCanCollapse ? <button aria-label={`${itemRetainedExpanded ? "Return" : "Keep"} ${item?.title ?? slide.sectionTitle} ${itemRetainedExpanded ? "to automatic collapsing" : "expanded"}`} aria-pressed={itemRetainedExpanded} className={`section-icon-button sorter-item-collapse-button sorter-retained-expansion-button ${itemRetainedExpanded ? "is-active" : ""}`} onClick={() => toggleSorterSection(slide.planItemId)} title={itemRetainedExpanded ? "Expanded by default — click to return to automatic collapsing" : "Automatic — click to keep expanded"} type="button">{itemRetainedExpanded ? <ChevronUp size={13} aria-hidden="true" /> : <ChevronDown size={13} aria-hidden="true" />}</button> : null}{item && (item.song_id ? canEditSong : canEditPlan && INLINE_EDIT_ITEM_TYPES.has(item.item_type)) ? <button aria-label={`Edit ${item.title}`} className="section-icon-button sorter-item-inline-edit" disabled={fillerMediaBusy} onClick={() => openPlanItemEditor(item)} title={`Edit ${item.title}`} type="button"><Pencil size={12} aria-hidden="true" /></button> : null}</div> : null}
+                          <div className={`sorter-slide-wrap${firstPart && repeatStarts.length > 1 ? " has-repeat" : ""}`}>
                           <button
                             className={`slide-tile preview-tile ${presentationTypeClass(slide.itemType)} ${
                               slideIndex === liveIndex || matchesLiveBuild ? "active" : ""
@@ -5413,6 +5409,11 @@ export function PresentationView({
                               <span>Go</span>
                             </div>
                           </button>
+                          {firstPart && repeatStarts.length > 1 ? <RepeatMenu label={label} count={repeatStarts.length}
+                            className="sorter-repeat-badge" activeRepeat={activeRepeat}
+                            restoreFocus={() => keyCaptureRef.current?.focus({ preventScroll: true })}
+                            onSelect={repeat => selectSlideFromOperator(slides.findIndex(candidate => candidate.id === repeatStarts[repeat].id))} /> : null}
+                          </div>
                           </div>
                         );
                       })}
