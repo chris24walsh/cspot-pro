@@ -1,4 +1,5 @@
 export interface ScrollPoint { bar: number; y: number }
+export interface RepeatedScrollRegion { top: number; bottom: number }
 
 function interpolate(points: ScrollPoint[], position: number) {
   if (position <= points[0].bar) return points[0].y;
@@ -13,7 +14,15 @@ function interpolate(points: ScrollPoint[], position: number) {
 
 // Average across four bars, gently favouring the song-wide pace. Visibility
 // takes priority when the written density differs too much from that pace.
-export function playbackScrollTarget(points: ScrollPoint[], position: number, activeY: number, viewport: number) {
+export function playbackScrollTarget(points: ScrollPoint[], position: number, activeY: number, viewport: number, repeatedRegion?: RepeatedScrollRegion) {
+  // Repeated occurrences share one visible block. Keep the whole block framed
+  // instead of advancing with the bar clock and rewinding on each repetition.
+  if (repeatedRegion) {
+    const height = repeatedRegion.bottom - repeatedRegion.top;
+    if (height > 0 && height <= viewport * 0.9) {
+      return Math.max(0, (repeatedRegion.top + repeatedRegion.bottom - viewport) / 2);
+    }
+  }
   if (!points.length) return Math.max(0, activeY - viewport / 2);
   let average = 0;
   for (let sample = -8; sample <= 8; sample++) average += interpolate(points, position + sample / 4);

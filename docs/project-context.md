@@ -1045,3 +1045,11 @@ Live, the Present slide sorter, and worship planning previews. Multi-page sectio
 keep each distinct lyric page. Worship Live and Present provide numbered repeat
 buttons, preserving direct access to every playback occurrence and the next
 unique section. Choruses separated by verses remain separate sequence entries.
+
+
+Worship Live auto-scroll holds a compact repeated section in a fixed frame when
+it fits on screen, then resumes following on the next unique section. Repetitions
+share the same visual line positions, so the scroll target does not advance down
+the song and rewind at each repeat. Sections taller than the viewport retain
+normal lyric following to keep the active words readable. Manual scroll pause
+and Catch up still work during repeats.

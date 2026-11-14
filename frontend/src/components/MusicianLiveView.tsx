@@ -1353,7 +1353,15 @@ export function MusicianLiveView({ keyboardActive = true, singlePage = false, wo
       manualScrollDestination.current = null;
     }
     const lines = Array.from(container.querySelectorAll<HTMLElement>("[data-playback-line]"));
-    const index = lines.findIndex(line => Number(line.dataset.playbackOccurrence) === musicCursor.occurrence && Number(line.dataset.playbackLine) === musicCursor.lineIndex);
+    const groupsByOccurrence = new Map(sequenceGroups.flatMap(group => group.occurrences.map(occurrence => [occurrence, group] as const)));
+    const lineIndexes = new Map<string, number>();
+    lines.forEach((line, index) => {
+      const group = line.closest<HTMLElement>("[data-playback-group]")?.dataset.playbackGroup;
+      const key = `${group}:${line.dataset.playbackLine}`;
+      if (!lineIndexes.has(key)) lineIndexes.set(key, index);
+    });
+    const lineFor = (occurrence: number, sourceLine: number) => lineIndexes.get(`${groupsByOccurrence.get(occurrence)?.occurrences[0]}:${sourceLine}`) ?? -1;
+    const index = lineFor(musicCursor.occurrence, musicCursor.lineIndex);
     const active = lines[index];
     if (!active) return;
     const containerTop = container.getBoundingClientRect().top;
@@ -1363,7 +1371,7 @@ export function MusicianLiveView({ keyboardActive = true, singlePage = false, wo
     };
     const points = remoteTimeline.flatMap((bar, barIndex) => {
       if (barIndex < (startedAt ?? 0)) return [];
-      const index = lines.findIndex(line => Number(line.dataset.playbackOccurrence) === bar.occurrence && Number(line.dataset.playbackLine) === bar.start.lineIndex);
+      const index = lineFor(bar.occurrence, bar.start.lineIndex);
       if (index < 0) return [];
       const y = lineY(lines[index]);
       const nextY = lines[index + 1] ? lineY(lines[index + 1]) : y;
@@ -1372,7 +1380,14 @@ export function MusicianLiveView({ keyboardActive = true, singlePage = false, wo
       return [{ bar: barIndex, y: y + (nextY - y) * fraction }];
     });
     if (points.length) points.push({ bar: remoteTimeline.length, y: lineY(lines[lines.length - 1]) });
-    const target = playbackScrollTarget(points, playbackPosition ?? 0, lineY(active), container.clientHeight);
+    const group = groupsByOccurrence.get(musicCursor.occurrence);
+    const section = active.closest<HTMLElement>("[data-playback-group]");
+    const bounds = group && group.occurrences.length > 1 ? section?.getBoundingClientRect() : undefined;
+    const repeatedRegion = bounds ? {
+      top: container.scrollTop + bounds.top - containerTop,
+      bottom: container.scrollTop + bounds.bottom - containerTop,
+    } : undefined;
+    const target = playbackScrollTarget(points, playbackPosition ?? 0, lineY(active), container.clientHeight, repeatedRegion);
     playbackScrollTargetRef.current = Math.max(0, Math.min(target, Math.max(0, container.scrollHeight - container.clientHeight)));
     if (manualScrollPaused.current) {
       const closeEnough = Math.abs(playbackScrollTargetRef.current - container.scrollTop) <= Math.min(64, Math.max(12, container.clientHeight * 0.12));
@@ -1381,7 +1396,7 @@ export function MusicianLiveView({ keyboardActive = true, singlePage = false, wo
     }
     setScrollCatchUp(null);
     container.scrollTop += (target - container.scrollTop) * 0.2;
-  }, [readerMode, autoScroll, playbackPosition, playbackMotion?.slideIndex, liveSlide?.id, showChords, musicCursor?.lineIndex, musicCursor?.anchorIndex, jumpPending]);
+  }, [readerMode, autoScroll, playbackPosition, playbackMotion?.slideIndex, liveSlide?.id, showChords, musicCursor?.lineIndex, musicCursor?.anchorIndex, musicCursor?.occurrence, jumpPending]);
 
   function timingFor(offset: number, lineIndex: number, segmentStart: number, occurrence: number, lastSegment: boolean) {
     const barIndex = playbackPosition === null ? -1 : Math.floor(playbackPosition);
@@ -1717,6 +1732,7 @@ export function MusicianLiveView({ keyboardActive = true, singlePage = false, wo
             </button>
             {displayedSequenceGroups.map(({ block, blockIndex, occurrences }) => (
               <section
+                data-playback-group={occurrences[0]}
                 aria-current={blockIndex === currentSequenceBlockIndex ? "step" : undefined}
                 key={`${block.label}-${occurrences[0]}`}
               >

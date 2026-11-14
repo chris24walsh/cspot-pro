@@ -620,3 +620,47 @@ it('compacts repeated sections and lets the musician select a repeat or skip to 
     expect(nav.querySelector('[aria-current="step"]')?.textContent).toBe('V2');
   } finally { act(() => root.unmount()); vi.unstubAllGlobals(); vi.clearAllMocks(); }
 });
+
+it('keeps a compact chorus stationary through all three repeats then follows the next section', async () => {
+  vi.stubGlobal('matchMedia', () => ({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() }));
+  vi.mocked(getPresentationLiveState).mockResolvedValue({ plan_id: 'plan', index: 0, updated_at: 1, worship_coupled: false, plan_item_id: 'item', slide_offset: 0 } as Awaited<ReturnType<typeof getPresentationLiveState>>);
+  const markers = [
+    { id: 'verse', section: 'V1', lineIndex: 0, anchorIndex: 3 },
+    ...[0, 1, 2].map(lineIndex => ({ id: `chorus-${lineIndex}`, section: 'C', lineIndex, anchorIndex: 3 })),
+    { id: 'next', section: 'V2', lineIndex: 0, anchorIndex: 3 },
+  ];
+  const song = { id: 'song', title: 'Repeated chorus', lyrics: '[V1]\nFirst verse\n[C]\nSing together\nLift your voice\nPraise the Lord\n[V2]\nSecond verse', sequence: 'V1 Cx3 V2', chords: null, rhythm: { numerator: 4, denominator: 4, patterns: [], notes: '', intro_bars: 0, markers } } as unknown as Song;
+  const plan = { id: 'plan', items: [{ id: 'item', item_type: 'song', song_id: 'song', sequence: '1', title: song.title }] } as PlanDetail;
+  const container = document.createElement('div'), mount = document.createElement('div'), toolbar = document.createElement('div');
+  container.append(mount, toolbar); const root = createRoot(mount);
+  let scroller: HTMLElement;
+  const geometry = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function(this: HTMLElement) {
+    const group = this.closest<HTMLElement>('[data-playback-group]')?.dataset.playbackGroup;
+    const base = group === '1' ? 400 : group === '4' ? 1000 : 100;
+    const top = base - (scroller?.scrollTop ?? 0);
+    if (this.matches('[data-playback-group]')) return { top, bottom: top + 300, height: 300 } as DOMRect;
+    if (this.matches('[data-playback-line]')) {
+      const line = Number(this.dataset.playbackLine);
+      const lineTop = top + (group === '1' ? line - 3 : 0) * 60;
+      return { top: lineTop, bottom: lineTop + 30, height: 30 } as DOMRect;
+    }
+    return { top: 0, bottom: 600, left: 0, right: 1000, height: 600, width: 1000 } as DOMRect;
+  });
+  try {
+    await act(async () => root.render(<MusicianLiveView canUseMusic plan={plan} songs={[song]} topbarSlot={toolbar} onEditSong={() => {}} onExit={() => {}} />));
+    musician(container);
+    act(() => document.querySelector<HTMLButtonElement>('[aria-label="Switch to Scroll view"]')!.click());
+    scroller = container.querySelector<HTMLElement>('.musician-full-song')!;
+    Object.defineProperty(scroller, 'clientHeight', { value: 600 });
+    Object.defineProperty(scroller, 'scrollHeight', { value: 1800 });
+    await play(container);
+    const position = audio.play.mock.calls[0][4] as (position: number) => void;
+    scroller.scrollTop = 250;
+    for (const bar of [1.1, 2.1, 3.99, 4, 5.5, 6.99, 7, 8.5, 9.99]) {
+      await act(async () => position(bar));
+      expect(scroller.scrollTop).toBe(250);
+    }
+    await act(async () => position(10.1));
+    expect(scroller.scrollTop).toBeGreaterThan(250);
+  } finally { geometry.mockRestore(); act(() => root.unmount()); vi.unstubAllGlobals(); vi.clearAllMocks(); }
+});

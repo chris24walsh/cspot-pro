@@ -1844,3 +1844,10 @@ IDs, preserving an alias for each repetition and selecting the active occurrence
 Worship Live uses the same grouping for its sequence strip and full-song reader.
 Playback timelines, shared navigation indexes, and projection slides stay fully
 expanded; only operator and musician navigation render compact groups.
+
+
+Auto-scroll resolves playback occurrences to compact sequence-group DOM anchors.
+A repeated group's bounds provide a constant centered scroll target while the
+group fits within 90% of the viewport. Oversized groups use the existing
+visibility-constrained lyric following. The fixed target is derived from musical
+cursor occurrence, preserving it through early page turns and repeat boundaries.
