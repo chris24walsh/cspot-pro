@@ -1818,3 +1818,12 @@ plans and unrelated files remain protected; presenter and editing APIs, `/app/me
 and Sunday School displays continue to require authentication.
 
 The Service camera selector can choose the rear camera while capture is off, without opening camera hardware. Camera on uses that choice; switching during capture replaces only video and preserves the microphone and publishing connection.
+
+
+Song anchor validation is shared within the frontend through
+`invalidLyricAnchors` in `chordSheet.ts`. The editor exposes unresolved chord and
+bar positions and blocks persistence until they are resolved. The music API
+independently checks version 3 chord anchors and rhythm markers against normalized
+lyrics on create and relevant updates (`music/anchors.py`). Both use nonempty
+source lines, section-relative indexes, and three leading/five trailing slots.
+Legacy chord formats remain readable and are converted by the editor.

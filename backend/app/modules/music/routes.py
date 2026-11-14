@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 from app.core.database import get_session
 from app.modules.identity.auth import require_any_permission, require_permission
 from app.modules.identity.models import User
+from app.modules.music.anchors import validate_song_anchors
 from app.modules.music.models import (
     RhythmPreset,
     Song,
@@ -532,6 +533,10 @@ def create_song(
     values["lyrics"], values["sequence"] = normalize_song_text(
         values.get("lyrics"), values.get("sequence")
     )
+    try:
+        validate_song_anchors(values.get("lyrics"), values.get("chords"), values.get("rhythm"))
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
     song = Song(**values)
     session.add(song)
     session.flush()
@@ -608,6 +613,15 @@ def update_song(
     values["lyrics"], values["sequence"] = normalize_song_text(
         values.get("lyrics", song.lyrics), values.get("sequence", song.sequence)
     )
+    if {"lyrics", "chords", "rhythm"} & payload.model_fields_set:
+        try:
+            validate_song_anchors(
+                values["lyrics"],
+                values.get("chords", song.chords),
+                values.get("rhythm", song.rhythm),
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
     for field, value in values.items():
         before = getattr(song, field)
         if before != value:

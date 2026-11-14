@@ -327,3 +327,70 @@ it('saves bar changes directly, retains edits after a save failure, and disables
     expect(container.querySelector('.song-editor-save-status')?.textContent).toBe('Saved');
   } finally { act(() => root.unmount()); vi.resetAllMocks(); }
 });
+
+it("exposes hidden positions, blocks saving and removes them from saved musical timing", async () => {
+  const chart = { ...createEmptyChordChart(), absoluteKey: "C", annotations: [
+    { id: "good", section: "V1", lineIndex: 0, anchorIndex: 3, chord: "C" },
+    { id: "stale", section: "V1", lineIndex: 0, anchorIndex: 36, chord: "Em" },
+    { id: "missing", section: "C", lineIndex: 0, anchorIndex: 3, chord: "G" },
+  ] };
+  const song: Song = { alternate_title: null, author: null, ccli_number: null, book_reference: null,
+    license: null, youtube_id: null, external_link: null, worship_role: null, energy: null,
+    tempo: null, theme_tags: null, lyrics_status: "ready", id: "hidden", title: "Hidden anchors", lyrics: "[V1]\nShort line", sequence: "V1", chords: serializeChordChart(chart), rhythm: {
+    numerator: 4, denominator: 4, patterns: [], notes: "", markers: [
+      { id: "good-bar", section: "V1", lineIndex: 0, anchorIndex: 3 },
+      { id: "bad-bar", section: "V1", lineIndex: 0, anchorIndex: 36 },
+    ],
+  } };
+  vi.mocked(updateSong).mockImplementation(async (_id, payload) => ({ ...song, ...payload }));
+  const container = document.createElement("div");
+  const root = createRoot(container);
+  try {
+    await act(async () => root.render(<SongEditorDialog song={song} canEdit onClose={() => {}} onSaved={() => {}} />));
+    expect(container.textContent).toContain("Hidden chord or bar positions need attention");
+    // Make a normal edit so Save is enabled even for an already-invalid saved song.
+    act(() => Array.from(container.querySelectorAll("button")).find(button => button.textContent === "Chords")!.click());
+    act(() => container.querySelector<HTMLButtonElement>('[aria-label="Remove hidden chord missing"]')!.click());
+    await act(async () => container.querySelector<HTMLButtonElement>('[aria-label="Save song"]')!.click());
+    expect(updateSong).not.toHaveBeenCalled();
+    expect(container.textContent).toContain("before saving");
+    act(() => container.querySelector<HTMLButtonElement>('[aria-label="Remove hidden chord stale"]')!.click());
+    act(() => container.querySelector<HTMLButtonElement>('[aria-label="Remove hidden bar bad-bar"]')!.click());
+    await act(async () => container.querySelector<HTMLButtonElement>('[aria-label="Save song"]')!.click());
+    expect(updateSong).toHaveBeenCalledOnce();
+    const payload = vi.mocked(updateSong).mock.calls[0][1];
+    expect(parseChordChart(payload.chords ?? null).document.annotations).toEqual([chart.annotations[0]]);
+    expect(payload.rhythm?.markers).toHaveLength(1);
+    expect(payload.rhythm?.arrangements).toEqual([{ section: "V1", chart: "C" }]);
+    expect(container.textContent).not.toContain("Hidden chord or bar positions need attention");
+  } finally {
+    act(() => root.unmount());
+    vi.resetAllMocks();
+  }
+});
+
+
+it("flags positions immediately when a lyric edit shortens their source line", async () => {
+  const chart = { ...createEmptyChordChart(), absoluteKey: "C", annotations: [
+    { id: "later", section: "V1", lineIndex: 0, anchorIndex: 25, chord: "C" },
+  ] };
+  const song = { id: "shorten", title: "Shorten lyrics", lyrics: "[V1]\nA long enough lyric line", sequence: "V1", chords: serializeChordChart(chart) } as Song;
+  const container = document.createElement("div");
+  const root = createRoot(container);
+  try {
+    await act(async () => root.render(<SongEditorDialog song={song} canEdit onClose={() => {}} onSaved={() => {}} />));
+    expect(container.textContent).not.toContain("Hidden chord or bar positions need attention");
+    const input = container.querySelector<HTMLTextAreaElement>('#song-dialog-lyrics')!;
+    const setValue = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")!.set!;
+    act(() => { setValue.call(input, "[V1]\nShort"); input.dispatchEvent(new Event("input", { bubbles: true })); });
+    expect(container.querySelector('[aria-label="Remove hidden chord later"]')).not.toBeNull();
+    await act(async () => container.querySelector<HTMLButtonElement>('[aria-label="Save song"]')!.click());
+    expect(updateSong).not.toHaveBeenCalled();
+    // Restoring the lyrics resolves the issue without discarding the saved chord.
+    act(() => { setValue.call(input, song.lyrics); input.dispatchEvent(new Event("input", { bubbles: true })); });
+    expect(container.querySelector('[aria-label="Remove hidden chord later"]')).toBeNull();
+  } finally {
+    act(() => root.unmount());
+    vi.resetAllMocks();
+  }
+});

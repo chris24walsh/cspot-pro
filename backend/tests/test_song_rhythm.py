@@ -58,7 +58,10 @@ def test_song_rhythm_round_trips_and_can_be_cleared_without_changing_chords() ->
         session.add(actor)
         session.commit()
         created = create_song(
-            SongCreate(title="Rhythm song", chords="Legacy chords", rhythm=rhythm_value()),
+            SongCreate(
+                title="Rhythm song", lyrics="[V1]\nSing together",
+                chords="Legacy chords", rhythm=rhythm_value(),
+            ),
             actor,
             session,
         )

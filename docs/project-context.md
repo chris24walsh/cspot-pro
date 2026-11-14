@@ -1022,3 +1022,11 @@ API exposes active service content and matching worship sets, referenced songs
 and attached media, live state and pointer, plus display schedules. Inactive
 plans and unrelated files remain protected; presenter and editing APIs, `/app/media`
 and Sunday School displays continue to require authentication.
+
+
+The song editor lists chord and bar positions that fall outside the current
+lyrics, including positions in removed sections or lines. These positions must
+be resolved by restoring the text or removing the listed anchor before saving.
+Removing a stale bar also regenerates its marked section chart. The song API
+validates musical positions on creation and on lyric, chord, or rhythm updates;
+valid leading/trailing padding remains available for musical holds.

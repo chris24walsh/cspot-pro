@@ -304,6 +304,18 @@ export function resolveChordAnnotations<T extends { section: string | null; line
   });
 }
 
+// Report positions the editor cannot display instead of silently losing musical stops.
+export function invalidLyricAnchors<T extends { section: string | null; lineIndex: number; anchorIndex: number }>(anchors: T[], lyrics: string | null): T[] {
+  const lines = lyricLines(lyrics);
+  const sections = chordLyricSections(lyrics);
+  return anchors.filter(anchor => {
+    const lineIndex = sections.find(section => section.key === anchor.section)?.lineIndexes[anchor.lineIndex];
+    return lineIndex === undefined || !Number.isInteger(anchor.lineIndex) || anchor.lineIndex < 0
+      || !Number.isInteger(anchor.anchorIndex) || anchor.anchorIndex < 0
+      || anchor.anchorIndex >= lines[lineIndex].length + LEADING_CHORD_ANCHORS + TRAILING_CHORD_ANCHORS;
+  });
+}
+
 function relativePositionForLegacyLine(lyrics: string | null, absoluteLineIndex: number) {
   return chordPositionForLine(lyrics, absoluteLineIndex) ?? { section: null, lineIndex: absoluteLineIndex };
 }

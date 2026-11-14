@@ -10,6 +10,7 @@ import {
   displayChord,
   LEADING_CHORD_ANCHORS,
   lyricLines,
+  invalidLyricAnchors,
   MUSICAL_KEYS,
   normalizeChordSymbolInput,
   parseChordChart,
@@ -338,6 +339,17 @@ export function SongEditorDialog({
     [form.lyrics, form.sequence],
   );
   const lines = useMemo(() => lyricLines(chordLyrics), [chordLyrics]);
+  const invalidChords = invalidLyricAnchors(chordChart.annotations, chordLyrics);
+  const invalidBars = invalidLyricAnchors(form.rhythm?.markers ?? [], chordLyrics);
+  const anchorIssues = [
+    ...invalidChords.map(anchor => ({ anchor, kind: "Chord" as const })),
+    ...invalidBars.map(anchor => ({ anchor, kind: "Bar" as const })),
+  ];
+  function removeInvalidAnchor(id: string, kind: "Chord" | "Bar") {
+    if (kind === "Chord") setChordChart(current => removeChordAnnotation(current, id));
+    else setForm(current => ({ ...current, rhythm: current.rhythm ? removeBarMarker(current.rhythm, chordChart.annotations, id) : null }));
+  }
+
   const lineAnnotations = resolveChordAnnotations(chordChart.annotations, chordLyrics)
     .slice()
     .sort((left, right) => left.absoluteLineIndex - right.absoluteLineIndex || left.anchorIndex - right.anchorIndex);
@@ -686,6 +698,10 @@ export function SongEditorDialog({
       setTab("chords");
       throw new Error("Set the song key before saving chord annotations.");
     }
+    const lyrics = nextForm.lyrics ? canonicalizeWorshipLyrics(nextForm.lyrics, nextForm.sequence) : null;
+    if (invalidLyricAnchors(chordChart.annotations, lyrics).length || invalidLyricAnchors(nextForm.rhythm?.markers ?? [], lyrics).length) {
+      throw new Error("Resolve the hidden chord and bar positions below before saving. Restore the lyrics or remove the listed positions.");
+    }
     setSaving(true);
     setMessage(null);
     try {
@@ -876,6 +892,14 @@ export function SongEditorDialog({
         </div>
 
         <div className={`song-editor-scroll is-${tab}-tab`}>
+          {anchorIssues.length > 0 ? <div className="form-message" role="alert">
+            <strong>Hidden chord or bar positions need attention</strong>
+            <p>These positions fall outside the current lyrics. Restore the missing text or remove each position before saving.</p>
+            <ul>{anchorIssues.map(({ anchor, kind }) => <li key={`${kind}-${anchor.id}`}>
+              {kind}{"chord" in anchor ? ` ${anchor.chord}` : ""} · {anchor.section ?? "Unlabelled"}, line {anchor.lineIndex + 1}, position {anchor.anchorIndex + 1}{" "}
+              <button type="button" disabled={!canEdit} aria-label={`Remove hidden ${kind.toLowerCase()} ${anchor.id}`} onClick={() => removeInvalidAnchor(anchor.id, kind)}><Trash2 size={14} aria-hidden="true" /><span>Remove</span></button>
+            </li>)}</ul>
+          </div> : null}
           {tab === "details" ? (
             <div className="form-grid">
               <label>Title<input disabled={!canEdit} onChange={(event) => setForm({ ...form, title: event.target.value })} required value={form.title} /></label>

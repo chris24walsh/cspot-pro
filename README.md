@@ -1015,3 +1015,11 @@ plans and unrelated files remain protected; presenter and editing APIs, `/app/me
 and Sunday School displays continue to require authentication.
 
 For phone-only service streaming, enable **Camera & mic** in Service view, use the camera flip icon to select the rear camera, then turn **Cam** on. The broadcast operator selects the phone contribution for the livestream.
+
+
+The song editor lists chord and bar positions that fall outside the current
+lyrics, including positions in removed sections or lines. These positions must
+be resolved by restoring the text or removing the listed anchor before saving.
+Removing a stale bar also regenerates its marked section chart. The song API
+validates musical positions on creation and on lyric, chord, or rhythm updates;
+valid leading/trailing padding remains available for musical holds.
