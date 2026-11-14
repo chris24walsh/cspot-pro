@@ -203,3 +203,25 @@ it('allows a one-bar meter correction despite invalid chord timing in another ve
   expect(() => validateBarMeterChange(text, before, after, annotations)).not.toThrow();
   expect(() => validateBarMeterChange(text, after, before, annotations)).toThrow();
 });
+
+
+it('moves forward across shortened lines with stale bar and chord anchors', () => {
+  const text = '[V2]\nSearch me, try me\nConsume all my darkness\nShine on me, shine on me';
+  const markers = [
+    { id: 'start', section: 'V2', lineIndex: 0, anchorIndex: 3 },
+    { id: 'stale', section: 'V2', lineIndex: 0, anchorIndex: 36 },
+    { id: 'next', section: 'V2', lineIndex: 1, anchorIndex: 3 },
+  ];
+  const annotations = markers.map(marker => ({ ...marker, chord: 'Em' }));
+  const timeline = lyricPlaybackBars(text, 'V2', lyricBarLayout(text, { ...rhythm, markers }, annotations));
+  expect(timeline[1].start.anchorIndex).toBe(36);
+  let previous = { lineIndex: 1, anchorIndex: 0 };
+  for (let step = 0; step <= 200; step++) {
+    const cursor = lyricCursorAt(text, timeline, step / 100, 4, 4)!;
+    expect(cursor.anchorIndex).toBeGreaterThanOrEqual(0);
+    expect(cursor.anchorIndex).toBeLessThan(text.split('\n')[cursor.lineIndex].length + 8);
+    expect(cursor.lineIndex > previous.lineIndex || cursor.lineIndex === previous.lineIndex && cursor.anchorIndex >= previous.anchorIndex).toBe(true);
+    previous = cursor;
+  }
+  expect(lyricCursorAt(text, timeline, 2, 4, 4)).toMatchObject({ lineIndex: 2, anchorIndex: 3 });
+});

@@ -86,7 +86,10 @@ export function lyricCursorAt(lyrics: string | null | undefined, bars: Array<Lyr
   const interval = slot + (beat - counts[slot]) / (counts[slot + 1] - counts[slot]);
   const index = Math.min(Math.floor(interval), bar.stops.length - 2);
   const from = bar.stops[index], to = bar.stops[index + 1];
-  const scalar = starts[from.lineIndex] + from.anchorIndex + (starts[to.lineIndex] + to.anchorIndex - starts[from.lineIndex] - from.anchorIndex) * (interval - index);
+  // Shortened lyrics can leave saved stops beyond the end of their source line.
+  // Keep each visual stop on its own line without changing musical timing.
+  const scalarAt = (position: LyricPosition) => starts[position.lineIndex] + Math.max(0, Math.min(position.anchorIndex, lines[position.lineIndex].length + LEADING_CHORD_ANCHORS + TRAILING_CHORD_ANCHORS - 1));
+  const scalar = scalarAt(from) + (scalarAt(to) - scalarAt(from)) * (interval - index);
   let lineIndex = from.lineIndex;
   while (lineIndex < to.lineIndex && scalar >= starts[lineIndex] + lines[lineIndex].length + LEADING_CHORD_ANCHORS + TRAILING_CHORD_ANCHORS) lineIndex++;
   const pulses = denominator === 8 && numerator % 3 === 0 ? numerator / 3 : numerator;
