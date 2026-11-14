@@ -26,9 +26,16 @@ it('holds a repeated section in one frame through every bar and repetition', () 
   expect(playbackScrollTarget(points, 12, 1000, 600)).toBeGreaterThan(225);
 });
 
-it('keeps following active lyrics when the repeated section cannot fit on screen', () => {
-  const points = [{ bar: 0, y: 400 }, { bar: 4, y: 1400 }];
-  const region = { top: 350, bottom: 1500 };
-  expect(playbackScrollTarget(points, 3, 1200, 600, region)).toBe(playbackScrollTarget(points, 3, 1200, 600));
+it('holds the top of an oversized repeat and keeps the active line low before returning', () => {
+  const points = [{ bar: 0, y: 400 }, { bar: 4, y: 1300 }];
+  const start = { top: 350, bottom: 1500, activeBottom: 420 };
+  const end = { ...start, activeBottom: 1300 };
+  const first = playbackScrollTarget(points, 0, 400, 600, start);
+  const last = playbackScrollTarget(points, 3, 1280, 600, end);
+  expect(first).toBe(290);
+  expect(last).toBe(760);
+  expect(end.activeBottom - last).toBe(540); // bottom of the active line stays at 90% of the viewport
+  expect(last).toBeLessThan(playbackScrollTarget(points, 3, 1280, 600));
+  expect(playbackScrollTarget(points, 4, 400, 600, start)).toBe(first);
   expect(playbackScrollTarget(points, 0, 100, 600, { top: 0, bottom: 200 })).toBe(0);
 });

@@ -1043,6 +1043,7 @@ unique section. Choruses separated by verses remain separate sequence entries.
 Worship Live auto-scroll holds a compact repeated section in a fixed frame when
 it fits on screen, then resumes following on the next unique section. Repetitions
 share the same visual line positions, so the scroll target does not advance down
-the song and rewind at each repeat. Sections taller than the viewport retain
-normal lyric following to keep the active words readable. Manual scroll pause
-and Catch up still work during repeats.
+the song and rewind at each repeat. For sections taller than the viewport,
+auto-scroll keeps the section start visible as long as possible, then keeps the
+active line near the bottom to reduce the return movement between repeats.
+Manual scroll pause and Catch up still work during repeats.

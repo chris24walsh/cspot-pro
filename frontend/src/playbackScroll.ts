@@ -1,5 +1,5 @@
 export interface ScrollPoint { bar: number; y: number }
-export interface RepeatedScrollRegion { top: number; bottom: number }
+export interface RepeatedScrollRegion { top: number; bottom: number; activeBottom?: number }
 
 function interpolate(points: ScrollPoint[], position: number) {
   if (position <= points[0].bar) return points[0].y;
@@ -21,6 +21,11 @@ export function playbackScrollTarget(points: ScrollPoint[], position: number, ac
     const height = repeatedRegion.bottom - repeatedRegion.top;
     if (height > 0 && height <= viewport * 0.9) {
       return Math.max(0, (repeatedRegion.top + repeatedRegion.bottom - viewport) / 2);
+    }
+    if (height > 0) {
+      // Keep the section's start in view as long as possible. Once the active
+      // line needs scrolling, leave its bottom near the bottom of the viewport.
+      return Math.max(0, repeatedRegion.top - viewport * 0.1, (repeatedRegion.activeBottom ?? activeY) - viewport * 0.9);
     }
   }
   if (!points.length) return Math.max(0, activeY - viewport / 2);

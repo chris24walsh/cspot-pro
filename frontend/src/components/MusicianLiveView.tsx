@@ -1387,6 +1387,7 @@ export function MusicianLiveView({ keyboardActive = true, singlePage = false, wo
     const repeatedRegion = bounds ? {
       top: container.scrollTop + bounds.top - containerTop,
       bottom: container.scrollTop + bounds.bottom - containerTop,
+      activeBottom: container.scrollTop + active.getBoundingClientRect().bottom - containerTop,
     } : undefined;
     const target = playbackScrollTarget(points, playbackPosition ?? 0, lineY(active), container.clientHeight, repeatedRegion);
     playbackScrollTargetRef.current = Math.max(0, Math.min(target, Math.max(0, container.scrollHeight - container.clientHeight)));

@@ -1848,8 +1848,9 @@ expanded; only operator and musician navigation render compact groups.
 
 Auto-scroll resolves playback occurrences to compact sequence-group DOM anchors.
 A repeated group's bounds provide a constant centered scroll target while the
-group fits within 90% of the viewport. Oversized groups use the existing
-visibility-constrained lyric following. The fixed target is derived from musical
+group fits within 90% of the viewport. Oversized groups retain the section's
+start where possible and keep the active line's bottom near 90% of the viewport,
+reducing the return movement while keeping the active lyrics visible. The fixed target is derived from musical
 cursor occurrence, preserving it through early page turns and repeat boundaries.
 
 
