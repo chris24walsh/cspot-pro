@@ -41,6 +41,10 @@ export function Xr18MixerPanel({ embeddedExpanded = false, headerControls }: { e
   const [deskStream, setDeskStream] = useState<DeskStreamControl | null>(null);
   const [deskStreamBusy, setDeskStreamBusy] = useState(false);
   const [deskStreamRevision, setDeskStreamRevision] = useState(0);
+  const [mixOutput, setMixOutput] = useState<'room' | 'stream'>('room');
+  const [offsetOpen, setOffsetOpen] = useState(false);
+  const [offsetDraft, setOffsetDraft] = useState<number | null>(null);
+  const [balanceBusy, setBalanceBusy] = useState(false);
   const [bank, setBank] = useState('inputs');
   const [page, setPage] = useState('desk');
   const [scrollEdges, setScrollEdges] = useState({ start: true, end: false });
@@ -154,7 +158,7 @@ export function Xr18MixerPanel({ embeddedExpanded = false, headerControls }: { e
     setDrafts(previous => {
       let next = previous;
       for (const [path, desired] of Object.entries(previous)) {
-        const actual = state.values[path];
+        const actual = state.desk_stream_targets?.[path] ?? state.values[path];
         const matches = actual === desired || typeof actual === 'number' && typeof desired === 'number' && Math.abs(actual - desired) < .002;
         if (!commandQueue.current?.outstanding(path) && (matches || state.failed[path])) {
           if (next === previous) next = {
@@ -282,7 +286,7 @@ export function Xr18MixerPanel({ embeddedExpanded = false, headerControls }: { e
     };
   }, []);
   const enabled = state.connected && streamOnline && !state.recalling && !state.startup_muting;
-  const controlValue = (path: string) => drafts[path] ?? state.values[path];
+  const controlValue = (path: string) => drafts[path] ?? state.desk_stream_targets?.[path] ?? state.values[path];
   async function write(path: string, value: number | string, confirmed = false, immediate?: boolean) {
     value = mixerCommandValue(path, value);
     const next = ++sequence.current;
@@ -295,6 +299,7 @@ export function Xr18MixerPanel({ embeddedExpanded = false, headerControls }: { e
       path,
       value,
       confirm_phantom: confirmed,
+      balance: !sendBus && !!state.level_balance?.enabled && (path.endsWith('/mix/fader') || /\/mix\/\d{2}\/level$/.test(path)),
       sequence: next
     }, immediate ?? (state.fx_specs[path] || catalog.parameters[path])?.kind !== 'float');
   }
@@ -335,10 +340,29 @@ export function Xr18MixerPanel({ embeddedExpanded = false, headerControls }: { e
       {state.failed[spec.path] ? <small className="xr-error">{state.failed[spec.path]}</small> : null}
     </label>;
   }
+  const balance = state.level_balance;
+  const balanceReady = enabled && !state.syncing && !!balance?.enabled && !balanceBusy;
+  async function updateBalance(patch: {offset_db?: number; resync?: string}) {
+    if (!balanceReady) return;
+    setBalanceBusy(true);
+    setError('');
+    try {
+      const result = await mixerRequest<{level_balance: NonNullable<MixerState['level_balance']>}>('/level-balance', 'PATCH', patch);
+      if (alive.current) {
+        setState(previous => ({...previous, level_balance: result.level_balance}));
+        setOffsetDraft(null);
+      }
+    } catch (error) {
+      if (alive.current) { setError(error instanceof Error ? error.message : 'Could not change mix balance'); setOffsetDraft(null); }
+    } finally { if (alive.current) setBalanceBusy(false); }
+  }
   function renderStrip(strip: MixerStrip, master = false) {
-    const mix = strip.kind === 'dca' ? strip.id : strip.id + '/mix';
+    const streamMaster = master && mixOutput === 'stream';
+    const balanceChannel = !!balance?.enabled && (master || balance.channels.includes(strip.id));
+    const streamChannel = mixOutput === 'stream' && ['input', 'aux', 'return'].includes(strip.kind);
+    const mix = streamMaster ? `/bus/${balance?.bus ?? 5}/mix` : strip.kind === 'dca' ? strip.id : strip.id + '/mix';
     const sends = !!sendBus && ['input', 'aux', 'return'].includes(strip.kind);
-    const levelPath = sends ? `${strip.id}/mix/${sendBus}/level` : `${mix}/fader`;
+    const levelPath = sends ? `${strip.id}/mix/${sendBus}/level` : streamChannel ? `${strip.id}/mix/${String(balance?.bus ?? 5).padStart(2, '0')}/level` : `${mix}/fader`;
     const headamp = physicalHeadamp(state.values, strip.id);
     const usb = state.values[strip.id + '/preamp/rtnsw'] === 1;
     const gainPath = usb ? strip.id + '/preamp/rtntrim' : headamp ? headamp + '/gain' : null;
@@ -349,12 +373,12 @@ export function Xr18MixerPanel({ embeddedExpanded = false, headerControls }: { e
     const mode = modes.includes(stripModes[strip.id]) ? stripModes[strip.id] : 'level';
     const path = mode === 'gain' ? gainPath : mode === 'balance' ? panPath : levelPath;
     const spec = path ? catalog.parameters[path] : undefined;
-    const fader = path ? state.values[path] : undefined;
+    const fader = path ? state.desk_stream_targets?.[path] ?? state.values[path] : undefined;
     const value = Number((path ? drafts[path] : undefined) ?? fader ?? 0);
-    const disabled = !enabled || fader === undefined || !spec || !path;
+    const disabled = !enabled || fader === undefined || !spec || !path || streamChannel && !balanceChannel;
     const on = controlValue(mix + '/on');
-    const level = state.meters[strip.meter];
-    const name = String(state.values[strip.id + '/config/name'] || strip.name);
+    const level = streamMaster ? Math.max(state.meters[25 + (balance?.bus ?? 5)] ?? -128, state.meters[26 + (balance?.bus ?? 5)] ?? -128) : state.meters[strip.meter];
+    const name = streamMaster ? 'Livestream' : String(state.values[strip.id + '/config/name'] || strip.name);
     const color = Number(state.values[strip.id + '/config/color'] || 0) % 8;
     const modeLabel = mode === 'gain' ? usb ? 'USB trim' : 'Gain' : mode === 'balance' ? 'Balance' : 'Level';
     const resetValue = spec ? mode === 'balance' ? .5 : toWire(spec, 0) : undefined;
@@ -366,8 +390,8 @@ export function Xr18MixerPanel({ embeddedExpanded = false, headerControls }: { e
       : spec ? (mode === 'gain' ? [spec.max, (spec.max + spec.min) / 2, 0, spec.min] : [10, 0, -10, -30, -90])
         .map(db => [toWire(spec, db), db === -90 ? '−∞' : db > 0 ? `+${db}` : String(db)] as const) : [];
     return <article key={strip.id} className={`xr-strip ${selected === strip.id ? 'is-selected' : ''} ${master ? 'xr-master' : ''}`} style={{ borderTopColor: colors[color] }}>
-      <button type="button" className="xr-strip-name" title={`Select ${name}`} aria-label={`Select ${name}`} aria-pressed={selected === strip.id} onClick={() => { setSelected(strip.id); setPage('desk'); }}><small>{strip.name}</small><strong>{name}</strong></button>
-      <div className="xr-strip-status">{!enabled ? state.recalling ? 'Recalling snapshot…' : state.connected ? 'Reconnecting…' : 'Mixer offline' : mode === 'gain' && !usb && headamp === null && typeof state.values[strip.id + '/config/insrc'] === 'number' ? 'NO ANALOG INPUT' : fader === undefined ? 'Reading level…' : path && (path in drafts || state.pending.includes(path)) ? 'Sending…' : mode === 'gain' ? usb ? 'USB RETURN' : headamp ? `INPUT ${Number(headamp.split('/')[2])} PREAMP` : 'NO ANALOG INPUT' : sends && mode === 'level' ? `→ ${Number(sendBus) <= 6 ? 'Bus ' + Number(sendBus) : 'FX ' + (Number(sendBus) - 6)}` : mode === 'balance' ? 'LEFT / RIGHT' : 'MAIN MIX'}</div>
+      <button type="button" className="xr-strip-name" title={`Select ${name}`} aria-label={`Select ${name}`} aria-pressed={selected === strip.id} onClick={() => { setSelected(strip.id); setPage('desk'); }}><small>{streamMaster ? 'Stream master' : strip.name}</small><strong>{name}</strong></button>
+      <div className="xr-strip-status">{!enabled ? state.recalling ? 'Recalling snapshot…' : state.connected ? 'Reconnecting…' : 'Mixer offline' : mode === 'gain' && !usb && headamp === null && typeof state.values[strip.id + '/config/insrc'] === 'number' ? 'NO ANALOG INPUT' : fader === undefined ? 'Reading level…' : path && (path in drafts || state.pending.includes(path)) ? 'Sending…' : mode === 'gain' ? usb ? 'USB RETURN' : headamp ? `INPUT ${Number(headamp.split('/')[2])} PREAMP` : 'NO ANALOG INPUT' : sends && mode === 'level' ? `→ ${Number(sendBus) <= 6 ? 'Bus ' + Number(sendBus) : 'FX ' + (Number(sendBus) - 6)}` : mode === 'balance' ? 'LEFT / RIGHT' : mixOutput === 'stream' && (streamChannel || master) ? 'LIVESTREAM' : 'ROOM'}</div>
       <div className="xr-strip-accordion">
         {modes.map(section => <div key={section} className={`xr-strip-section ${mode === section ? 'is-open' : ''}`}>
           <button type="button" className="xr-strip-section-toggle" aria-label={`${name} ${section === 'level' ? 'level' : section} controls`} aria-expanded={mode === section}
@@ -386,12 +410,13 @@ export function Xr18MixerPanel({ embeddedExpanded = false, headerControls }: { e
           </div>}
         </div>)}
       </div>
-      <div className="xr-strip-buttons">{strip.kind === 'input' && <button type="button" className={controlValue(`/-stat/solosw/${strip.id.split('/')[2]}`) === 1 ? 'xr-solo is-active' : 'xr-solo'} disabled={!enabled || state.values[`/-stat/solosw/${strip.id.split('/')[2]}`] === undefined} onClick={() => {
-        const p = `/-stat/solosw/${strip.id.split('/')[2]}`;
-        change(p, controlValue(p) === 1 ? 0 : 1);
-      }}>Solo</button>}
-      {strip.kind !== 'input' && <span className="xr-solo-spacer" aria-hidden="true" />}
-      <button type="button" className={`xr-mute ${on === 0 ? 'is-muted' : ''}`} aria-pressed={on === 0} aria-busy={mix + '/on' in drafts || state.pending.includes(mix + '/on')} disabled={!enabled || on === undefined} onClick={() => change(mix + '/on', on === 1 ? 0 : 1)}>{on === 0 ? 'MUTED' : 'Mute'}</button></div>
+      <div className="xr-strip-buttons">
+      {balanceChannel && !sendBus ? <button type="button" className={balance?.independent.includes(strip.id) ? 'xr-resync is-independent' : 'xr-resync'}
+        aria-label={`Resync ${master ? 'master' : name}`} title="Resync livestream to room level, keeping the global stream offset"
+        disabled={!balanceReady} onClick={() => void updateBalance({resync:strip.id})}>
+        <RefreshCw size={12}/>{balance?.independent.includes(strip.id) ? 'Resync' : 'Linked'}
+      </button> : <span className="xr-solo-spacer" aria-hidden="true" />}
+      <button type="button" title={master ? streamMaster ? "Mute livestream output" : "Mute room output" : "Mute this channel in both room and livestream"} className={`xr-mute ${on === 0 ? 'is-muted' : ''}`} aria-pressed={on === 0} aria-busy={mix + '/on' in drafts || state.pending.includes(mix + '/on')} disabled={!enabled || on === undefined} onClick={() => { change(mix + '/on', on === 1 ? 0 : 1); if (streamMaster) change(`/bus/${(balance?.bus ?? 5) + 1}/mix/on`, on === 1 ? 0 : 1); }}>{on === 0 ? 'MUTED' : 'Mute'}</button></div>
     </article>;
   }
   const strip = catalog.strips.find(s => s.id === selected);
@@ -448,6 +473,15 @@ export function Xr18MixerPanel({ embeddedExpanded = false, headerControls }: { e
     {page === 'desk' ? <>{sendBus && <p className="xr-notice">Faders adjust {Number(sendBus) <= 6 ? `Bus ${Number(sendBus)}` : `FX ${Number(sendBus) - 6}`} sends. Mute still mutes the whole channel.</p>}
     <div className="xr-desk-toolbar">
       <div className="xr-bulk-mute" role="group" aria-label="Mixer mute controls">
+        <div className="xr-output-toggle" role="group" aria-label="Fader output">
+          <button type="button" aria-label="Room output" title="Control room output" aria-pressed={mixOutput === 'room'} onClick={() => { setMixOutput('room'); setSendBus(''); setStripModes({}); }}><Volume2 size={16}/><span className="xr-action-label">Room</span></button>
+          <button type="button" aria-label="Livestream output" title="Control livestream output" aria-pressed={mixOutput === 'stream'} disabled={!balance?.enabled} onClick={() => { setMixOutput('stream'); setSendBus(''); setStripModes({}); }}><Radio size={16}/><span className="xr-action-label">Livestream</span></button>
+        </div>
+        <button type="button" aria-label={controlValue('/lr/mix/on') === 0 ? 'Unmute room speakers' : 'Mute room speakers'}
+          aria-pressed={controlValue('/lr/mix/on') === 0} title="Mute room speakers; livestream continues"
+          disabled={!enabled || state.values['/lr/mix/on'] === undefined} onClick={() => change('/lr/mix/on', controlValue('/lr/mix/on') === 0 ? 1 : 0)}>
+          {controlValue('/lr/mix/on') === 0 ? <VolumeX size={17}/> : <Volume2 size={17}/>}<span className="xr-action-label">Room mute</span>
+        </button>
         <button type="button" aria-label={allChannelsMuted ? "Unmute all input channels and returns" : "Mute all input channels and returns"} aria-pressed={allChannelsMuted} title={allChannelsMuted ? "Unmute every input and return; confirm before opening all microphones" : "Mute every input and return on the desk, across all banks"} disabled={!bulkMuteReady} onClick={() => {
           if (allChannelsMuted) setDialog({title:'Unmute all channels?',body:'Unmute every input and FX return on the physical desk, across all banks. This affects all outputs using those channels. Master, bus and DCA mutes remain unchanged.',action:()=>muteAll(1)});
           else void muteAll(0);
@@ -462,6 +496,21 @@ export function Xr18MixerPanel({ embeddedExpanded = false, headerControls }: { e
               .catch(error => { if (alive.current) setError(error instanceof Error ? error.message : 'Could not change desk stream mute'); })
               .finally(() => { if (alive.current) { setDeskStreamBusy(false); setDeskStreamRevision(value => value + 1); } });
           }}>{deskStream?.muted ? <VolumeX size={17}/> : <Radio size={17}/>}<span className="xr-action-label">Desk → stream{deskStream?.muted ? deskStream.confirmed ? ' muted' : ' muting…' : ''}</span></button>
+        <div className="xr-balance-menu">
+          <button type="button" aria-label="Livestream offset" aria-expanded={offsetOpen} aria-controls="xr-stream-offset" disabled={!balance?.enabled}
+            title="Livestream level offset from room levels" onClick={() => setOffsetOpen(open => !open)}><SlidersHorizontal size={17}/><span className="xr-action-label">Offset {balance?.offset_db ?? 0} dB</span><ChevronDown size={12}/></button>
+          {offsetOpen && <div className="xr-offset-popover" id="xr-stream-offset" onKeyDown={event => { if (event.key === 'Escape') { setOffsetOpen(false); event.stopPropagation(); } }}>
+            <label>Livestream offset <output>{offsetDraft ?? balance?.offset_db ?? 0} dB</output>
+              <input type="range" aria-label="Livestream offset in dB" min={-30} max={12} step={.5} value={offsetDraft ?? balance?.offset_db ?? 0} disabled={!balanceReady}
+                onChange={event => setOffsetDraft(Number(event.target.value))}
+                onPointerUp={event => void updateBalance({offset_db:Number(event.currentTarget.value)})}
+                onKeyUp={event => { if (['ArrowLeft','ArrowRight','ArrowUp','ArrowDown','Home','End','PageUp','PageDown'].includes(event.key)) void updateBalance({offset_db:Number(event.currentTarget.value)}); }}
+                onBlur={event => { if (offsetDraft !== null) void updateBalance({offset_db:Number(event.currentTarget.value)}); }} />
+            </label>
+            <button type="button" disabled={!balanceReady} onClick={() => void updateBalance({offset_db:0})}>Zero offset</button>
+            <small>Independent channel levels keep their own setting. Offset applies to every mapped stream channel.</small>
+          </div>}
+        </div>
       </div>
       <div className="xr-bank-pager" role="group" aria-label="Browse channels">
         <button type="button" title="Previous channel bank" aria-label="Previous channel bank" disabled={scrollEdges.start} onClick={() => browseChannels(-1)}><ChevronLeft size={19} /></button>

@@ -171,8 +171,33 @@ streamed media. Output-control switches still limit which hardware routes are
 changed. Muting affects all outputs, including monitors; manual adjustments last
 until the next scene. Capture reads mute state as well as routes and levels.
 Startup mute protection and input mapping requirements remain in effect.
-Bus sends remain pre-fader: manual desk fader and send adjustments are still
-separate hardware controls; linked scene levels are reapplied on the next cue.
+Bus sends remain pre-fader. In the app, **Room / Livestream** selects which
+output the channel faders and pinned main fader control. Room uses Main LR;
+Livestream uses the configured stereo stream buses. Switching views only reads
+levels. Shared preamp and processing controls still affect the input itself.
+
+Room fader moves also move the paired stream sends while a channel is linked.
+Changing a stream fader makes that channel independent; later room moves leave
+its stream level alone. The former Solo position now holds **Linked / Resync**.
+Resync restores following using the current room level. Independent stream levels
+persist across scenes and API restarts until Resync; scene channel mutes still
+apply. The main fader follows the same rule, controlling both linked stream bus
+masters in Livestream view. Physical desk/X AIR changes and raw Routing controls
+remain direct hardware controls; live following applies to app fader commands.
+
+**Offset**, next to the mute controls, opens a −30 to +12 dB slider and **Zero
+offset** button. The global offset is applied once at the stream channel sends,
+not again at the stream master. Independent stream levels retain their own nominal
+setting when the offset changes; individual adjustments and Resync never change
+the global offset. Zero offset does not clear independent channels. Fader limits
+are clamped and minus infinity stays silent. Inputs mapped as Other stay untouched.
+
+The **Room mute** button changes Main LR mute only. Channel mute and Mute all
+still affect both outputs. Desk → stream mute continues to gate only desk-input
+stream sends. Faders display intended send levels while gated; adjustments update
+the restore targets without unmuting the stream. PC media keeps its separate path.
+Missing paired readbacks or invalid pre-fader routing reject the entire linked
+move before changing either output. Opening the page never resyncs or writes levels.
 
 The fader toolbar also provides a separate **Desk → stream** mute. It gates only
 stereo livestream sends for mapped pastor, leader, congregation, worship and

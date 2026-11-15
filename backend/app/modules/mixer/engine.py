@@ -87,6 +87,7 @@ class MixerEngine(asyncio.DatagramProtocol):
         self.sync_task = None
         self.readback_task = None
         self.stream_gate = DeskStreamGate()
+        self.level_balance = None
         self.values = {}
         self.levels = []
         self.identity = []
@@ -347,6 +348,8 @@ class MixerEngine(asyncio.DatagramProtocol):
     def snapshot(self):
         return dict(
             desk_stream_muted=bool(self.stream_gate.paths),
+            level_balance=self.level_balance,
+            desk_stream_targets=self.stream_gate.targets.copy(),
             startup_muting=self.startup_muting,
             startup_scene_hold=self.startup_scene_hold,
             host=self.host,

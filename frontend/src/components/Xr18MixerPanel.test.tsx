@@ -56,6 +56,8 @@ beforeEach(async () => {
     if (path === '/catalog') return {
       strips: [...Array.from({length:16},(_,i)=>({id:`/ch/${String(i+1).padStart(2,'0')}`,kind:'input',name:`Ch ${i+1}`,meter:i})),{id:'/lr',kind:'main',name:'Main LR',meter:36}],
       parameters: {
+        '/ch/01/mix/05/level': { ...parameter('/ch/01/mix/05/level', 'Stream send'), scale: 'fader', min: -90, max: 10 },
+        '/bus/5/mix/fader': { ...parameter('/bus/5/mix/fader', 'Stream master'), scale: 'fader', min: -90, max: 10 },
         '/ch/01/mix/01/level': { ...parameter('/ch/01/mix/01/level', 'Bus 1 send'), scale: 'fader', min: -90, max: 10 },
         '/lr/mix/fader': { ...parameter('/lr/mix/fader', 'Level'), scale: 'fader', min: -90, max: 10 },
         '/lr/mix/pan': parameter('/lr/mix/pan', 'Balance'),
@@ -456,11 +458,11 @@ it('uses one all-channel toggle and follows physical desk mute readbacks',()=>{
   const values=Object.fromEntries(Array.from({length:16},(_,i)=>[`/ch/${String(i+1).padStart(2,'0')}/mix/on`,0]));
   emit({...emptyMixer,reset:true,connected:true,values});
   const group=container.querySelector('[aria-label="Mixer mute controls"]')!;
-  expect(group.querySelectorAll('button')).toHaveLength(2);
-  expect(group.querySelector('button')!.getAttribute('aria-pressed')).toBe('true');
+  expect(group.querySelectorAll('[aria-label="Unmute all input channels and returns"]')).toHaveLength(1);
+  expect(group.querySelector('[aria-label="Unmute all input channels and returns"]')!.getAttribute('aria-pressed')).toBe('true');
   expect(group.textContent).toContain('Unmute all');
   emit({...emptyMixer,reset:false,connected:true,values:{'/ch/01/mix/on':1}});
-  expect(group.querySelector('button')!.getAttribute('aria-pressed')).toBe('false');
+  expect(group.querySelector('[aria-label="Mute all input channels and returns"]')!.getAttribute('aria-pressed')).toBe('false');
   expect(group.textContent).toContain('Mute all');
   expect(vi.mocked(mixerRequest).mock.calls.every(([,method])=>method!=='POST')).toBe(true);
 });
@@ -494,4 +496,58 @@ it('disables desk-only stream mute when metadata is unavailable or the desk disc
   expect(toggle().disabled).toBe(false);
   emit({...emptyMixer,reset:false,connected:false,values:{}});
   expect(toggle().disabled).toBe(true);
+});
+
+
+const linkedBalance = {offset_db:-6,independent:[],bus:5,channels:['/ch/01'],enabled:true};
+function emitBalanced(independent: string[] = []) {
+  emit({...emptyMixer,reset:true,connected:true,level_balance:{...linkedBalance,independent},values:{
+    '/ch/01/mix/fader':.7,'/ch/01/mix/05/level':.55,'/ch/01/mix/on':1,
+    '/lr/mix/fader':.6,'/lr/mix/on':1,'/bus/5/mix/fader':.8,'/bus/5/mix/on':1,
+  }});
+}
+it('switches channel and main faders between room and livestream without sending commands',()=>{
+  emitBalanced();
+  expect(container.querySelector('[aria-label="Ch 1 fader"]')?.getAttribute('aria-valuenow')).toBe('70');
+  expect(container.querySelector('[aria-label="Main LR fader"]')?.getAttribute('aria-valuenow')).toBe('60');
+  act(()=>container.querySelector<HTMLButtonElement>('[aria-label="Livestream output"]')!.click());
+  expect(container.querySelector('[aria-label="Ch 1 fader"]')?.getAttribute('aria-valuenow')).toBe('55');
+  expect(container.querySelector('[aria-label="Livestream fader"]')?.getAttribute('aria-valuenow')).toBe('80');
+  expect(vi.mocked(mixerRequest).mock.calls.some(([,method])=>method==='POST'||method==='PATCH')).toBe(false);
+});
+it('uses the former solo space for per-channel and master resync',async()=>{
+  emitBalanced(['/ch/01','/lr']);
+  expect(container.querySelector('.xr-solo')).toBeNull();
+  const button=container.querySelector<HTMLButtonElement>('[aria-label="Resync Ch 1"]')!;
+  expect(button.textContent).toContain('Resync');
+  await act(async()=>button.click());
+  expect(mixerRequest).toHaveBeenCalledWith('/level-balance','PATCH',{resync:'/ch/01'});
+  emitBalanced(['/lr']);
+  await act(async()=>container.querySelector<HTMLButtonElement>('[aria-label="Resync master"]')!.click());
+  expect(mixerRequest).toHaveBeenCalledWith('/level-balance','PATCH',{resync:'/lr'});
+});
+it('zeros the global offset without resyncing independent channels',async()=>{
+  emitBalanced(['/ch/01']);
+  act(()=>container.querySelector<HTMLButtonElement>('[aria-label="Livestream offset"]')!.click());
+  expect(container.querySelector<HTMLInputElement>('[aria-label="Livestream offset in dB"]')?.value).toBe('-6');
+  await act(async()=>Array.from(container.querySelectorAll('button')).find(b=>b.textContent==='Zero offset')!.click());
+  expect(mixerRequest).toHaveBeenCalledWith('/level-balance','PATCH',{offset_db:0});
+});
+it('marks normal channel and stream-master level gestures for server-side linking',async()=>{
+  emitBalanced();
+  act(()=>container.querySelector('[aria-label="Ch 1 fader"]')!.dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowUp',bubbles:true})));
+  await act(async()=>new Promise(resolve=>setTimeout(resolve,60)));
+  expect(mixerRequest).toHaveBeenCalledWith('/commands','POST',expect.objectContaining({commands:expect.arrayContaining([expect.objectContaining({path:'/ch/01/mix/fader',balance:true})])}));
+  act(()=>container.querySelector<HTMLButtonElement>('[aria-label="Livestream output"]')!.click());
+  act(()=>container.querySelector('[aria-label="Livestream fader"]')!.dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowDown',bubbles:true})));
+  await act(async()=>new Promise(resolve=>setTimeout(resolve,60)));
+  expect(mixerRequest).toHaveBeenCalledWith('/commands','POST',expect.objectContaining({commands:expect.arrayContaining([expect.objectContaining({path:'/bus/5/mix/fader',balance:true})])}));
+});
+it('shows intended stream faders while desk-to-stream mute holds hardware sends silent',()=>{
+  emitBalanced();
+  emit({...emptyMixer,reset:false,connected:true,level_balance:linkedBalance,desk_stream_muted:true,
+    desk_stream_targets:{'/ch/01/mix/05/level':.65},values:{'/ch/01/mix/05/level':0}});
+  act(()=>container.querySelector<HTMLButtonElement>('[aria-label="Livestream output"]')!.click());
+  expect(container.querySelector('[aria-label="Ch 1 fader"]')?.getAttribute('aria-valuenow')).toBe('65');
+  expect(vi.mocked(mixerRequest).mock.calls.some(([,method])=>method==='POST'||method==='PATCH')).toBe(false);
 });

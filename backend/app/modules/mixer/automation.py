@@ -73,6 +73,8 @@ class AutomationConfiguration(BaseModel):
     livestream_bus: Literal[1, 3, 5] = 5
     manual_scene_id: str | None = Field(default=None, max_length=80)
     manual_revision: int = Field(default=0, ge=0)
+    stream_offset_db: float = Field(default=0, ge=-30, le=12, allow_inf_nan=False)
+    independent_stream_levels: dict[str, float] = Field(default_factory=dict, max_length=22)
     desk_stream_muted: bool = False
     desk_stream_restore: dict[str, float] = Field(default_factory=dict, max_length=42)
     roles: dict[str, Role] = Field(default_factory=dict, max_length=21)
@@ -83,6 +85,9 @@ class AutomationConfiguration(BaseModel):
 
     @model_validator(mode="after")
     def valid_configuration(self):
+        if any(strip not in STRIP_IDS | {"/lr"} or not math.isfinite(db) or not -120 <= db <= 40
+               for strip, db in self.independent_stream_levels.items()):
+            raise ValueError("Invalid independent stream levels")
         if any(
             path not in {
                 f"{strip}/mix/{bus:02}/level" for strip in STRIP_IDS for bus in range(1, 7)
@@ -197,8 +202,12 @@ def scene_commands(cfg: AutomationConfiguration, scene: MixerScene) -> dict[str,
             if channel.room.enabled or not separate_routes:
                 commands[strip_id + "/mix/fader"] = fader_wire(channel.room.level_db)
         if cfg.livestream_enabled and channel.livestream is not None:
+            from app.modules.mixer.level_balance import nominal_level
+            nominal = cfg.independent_stream_levels.get(strip_id, channel.livestream.level_db)
+            if strip_id not in cfg.independent_stream_levels and nominal <= -90:
+                nominal = -120
             level = (
-                fader_wire(channel.livestream.level_db)
+                nominal_level(nominal, cfg.stream_offset_db)
                 if channel.livestream.enabled or not separate_routes else 0.0
             )
             for bus in (cfg.livestream_bus, cfg.livestream_bus + 1):
@@ -314,6 +323,8 @@ class SceneAutomation:
 
     async def tick(self, state: AutomationState):
         cfg = state.config
+        from app.modules.mixer.level_balance import balance_state
+        self.mixer.level_balance = balance_state(cfg)
         # Restore once at process startup. A stale state read must never re-arm
         # the gate after an operator has released it through the API.
         if not self.mixer.stream_gate.initialized:
@@ -396,7 +407,9 @@ class SceneAutomation:
         key = (
             state.host,
             scene_id,
-            tuple(sorted(commands.items())),
+            tuple(sorted(scene_commands(cfg.model_copy(update={
+                "stream_offset_db": 0, "independent_stream_levels": {}
+            }), scene).items())),
             cfg.manual_revision,
             service_id if cfg.follow_service else None,
         )
@@ -458,8 +471,9 @@ class SceneAutomation:
         while True:
             self.wake.clear()
             try:
-                state = await asyncio.to_thread(load_state)
-                await self.tick(state)
+                async with self.mixer.stream_gate.lock:
+                    state = await asyncio.to_thread(load_state)
+                    await self.tick(state)
                 targets = self.mixer.stream_gate.targets.copy()
                 if targets and targets != state.config.desk_stream_restore:
                     await asyncio.to_thread(persist_stream_targets, state.host, targets)

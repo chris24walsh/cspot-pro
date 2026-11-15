@@ -16,8 +16,11 @@ export interface MixerStrip {
   kind: string;
   meter: number;
 }
+export type LevelBalance = {offset_db: number; independent: string[]; bus: number; channels: string[]; enabled: boolean};
 export interface MixerState {
+  level_balance?: LevelBalance | null;
   desk_stream_muted?: boolean;
+  desk_stream_targets?: Record<string, number>;
   startup_muting?: boolean;
   startup_scene_hold?: boolean;
   fx_specs: Record<string, MixerParameter>;

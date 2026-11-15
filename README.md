@@ -1048,3 +1048,12 @@ rewinding between earlier repeats. For sections taller than the viewport,
 auto-scroll keeps the section start visible as long as possible, then keeps the
 active line near the bottom to reduce the return movement between repeats.
 Manual scroll pause and Catch up still work during repeats.
+
+
+XR18 live faders now have Room/Livestream output selection, including the pinned
+master, a global stream offset and per-channel Linked/Resync controls replacing
+Solo on strips. Linked app room adjustments follow into pre-fader stream sends;
+independent stream adjustments survive scenes until Resync. The offset is applied
+once at channel sends, remains fixed during individual adjustments and is preserved
+by scene changes. Desk stream mute retains intended levels without releasing its
+gate. See [audio scenes](docs/xr18-audio-scenes.md) for control semantics and hardware limits.

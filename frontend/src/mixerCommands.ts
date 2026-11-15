@@ -2,6 +2,7 @@ export type MixerCommand = {
   path: string;
   value: number | string;
   confirm_phantom: boolean;
+  balance?: boolean;
   sequence: number;
 };
 

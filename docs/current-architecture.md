@@ -1859,3 +1859,12 @@ repeat framing to the normal scroll trajectory, preparing the next section.
 Repeat selectors are opened from compact badges in the sequence strip and
 Present thumbnail header. Their portalled menu keeps controls out of the lyric
 and sorter layouts while preserving direct selection and keyboard access.
+
+
+XR18 live faders now have Room/Livestream output selection, including the pinned
+master, a global stream offset and per-channel Linked/Resync controls replacing
+Solo on strips. Linked app room adjustments follow into pre-fader stream sends;
+independent stream adjustments survive scenes until Resync. The offset is applied
+once at channel sends, remains fixed during individual adjustments and is preserved
+by scene changes. Desk stream mute retains intended levels without releasing its
+gate. See [audio scenes](xr18-audio-scenes.md) for control semantics and hardware limits.

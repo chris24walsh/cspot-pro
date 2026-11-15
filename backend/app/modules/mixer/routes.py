@@ -73,6 +73,7 @@ class Command(BaseModel):
     path: str
     value: str | float | int
     confirm_phantom: bool = False
+    balance: bool = False
 
 
 class Commands(BaseModel):
@@ -133,7 +134,9 @@ async def discovery(payload: Discovery):
 
 
 @router.post("/command")
-async def command(payload: Command):
+async def command(payload: Command, session: Session = Depends(get_session)):
+    if payload.balance:
+        return await write_balanced_commands([payload], session)
     if engine.recalling:
         raise HTTPException(409, "Wait for snapshot recall to finish")
     if payload.path.endswith("/phantom") and payload.value == 1 and not payload.confirm_phantom:
@@ -146,7 +149,9 @@ async def command(payload: Command):
 
 
 @router.post("/commands")
-async def commands(payload: Commands):
+async def commands(payload: Commands, session: Session = Depends(get_session)):
+    if any(command.balance for command in payload.commands):
+        return await write_balanced_commands(payload.commands, session)
     if engine.recalling:
         raise HTTPException(409, "Wait for snapshot recall to finish")
     # Validate the complete batch before applying any of it.
@@ -322,6 +327,8 @@ def save_automation(payload: AutomationConfiguration, session: Session = Depends
     ):
         raise HTTPException(409, "Release desk stream mute before changing input mapping or buses")
     payload = payload.model_copy(update={
+        "stream_offset_db": previous.stream_offset_db,
+        "independent_stream_levels": previous.independent_stream_levels,
         "desk_stream_muted": previous.desk_stream_muted,
         "desk_stream_restore": previous.desk_stream_restore,
     })
@@ -530,3 +537,67 @@ def capture_automation_scene(scene_id: str, session: Session = Depends(get_sessi
     session.commit()
     automation.notify()
     return {"configuration": cfg, "status": automation.status}
+
+
+class LevelBalancePatch(BaseModel):
+    offset_db: float | None = Field(default=None, ge=-30, le=12, allow_inf_nan=False)
+    resync: str | None = None
+
+
+def prepare_balanced_write(session, *, commands=None, patch=None):
+    from app.modules.mixer.automation import configuration
+    from app.modules.mixer.level_balance import balance_commands, manual_levels
+    try:
+        if engine.recalling or engine.syncing or engine.startup_muting:
+            raise ValueError("Wait for a connected, synchronized mixer")
+        item = config(session, lock=True)
+        cfg = configuration(item)
+        if item.host != engine.host:
+            raise ValueError("Mixer connection changed; refresh before adjusting levels")
+        if patch is not None:
+            if patch.offset_db is None and patch.resync is None:
+                raise ValueError("Choose an offset or channel to resync")
+            expanded = balance_commands(cfg, engine.values, offset=patch.offset_db, resync=patch.resync)
+        else:
+            expanded = {}
+            for command in commands:
+                if command.path.endswith('/phantom') and command.value == 1 and not command.confirm_phantom:
+                    raise ValueError("Confirm enabling 48V phantom power")
+                value = engine.command_value(command.path, command.value)
+                expanded.update(manual_levels(cfg, [(command.path, value)]) if command.balance
+                                else {command.path: value})
+        # Pre-fader linkage must be verified before moving either mix.
+        if any('/mix/' in path and path.endswith('/level') for path in expanded):
+            left = cfg.livestream_bus
+            if engine.values.get(f'/config/buslink/{left}-{left + 1}') != 1:
+                raise ValueError('Link the livestream buses before adjusting linked levels')
+            for path in expanded:
+                if path.endswith('/level'):
+                    root = path.removesuffix('/level')
+                    if engine.values.get(root + '/tap') != 3 or engine.values.get(root + '/grpon') != 0:
+                        raise ValueError('Livestream sends must be pre-fader with subgroup off')
+        validated = {path: engine.command_value(path, value) for path, value in expanded.items()}
+        item.automation_json = cfg.model_dump_json()
+        session.commit()
+        return cfg, validated
+    except ValueError as error:
+        session.rollback()
+        raise HTTPException(409, str(error)) from error
+    finally:
+        session.close()
+
+
+async def write_balanced_commands(commands, session, patch=None):
+    from app.modules.mixer.level_balance import balance_state
+    async with engine.stream_gate.lock:
+        cfg, expanded = await run_in_threadpool(prepare_balanced_write, session,
+                                                commands=commands, patch=patch)
+        engine.level_balance = balance_state(cfg)
+        for path, value in expanded.items():
+            await engine.write(path, value)
+        return {"status": "pending", "paths": list(expanded), "level_balance": engine.level_balance}
+
+
+@router.patch('/level-balance')
+async def set_level_balance(payload: LevelBalancePatch, session: Session = Depends(get_session)):
+    return await write_balanced_commands([], session, patch=payload)
