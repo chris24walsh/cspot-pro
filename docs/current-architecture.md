@@ -1186,6 +1186,11 @@ not repeat font measurement on every preview. Recording list and countdown
 updates pause behind the recording player; the inactive Present workspace also
 pauses recording-status polling. Library images load only when an image or montage
 is selected in the editor.
+API responses expose an `app` duration in `Server-Timing`, measured through response
+headers rather than streamed audio or image transfer. Requests taking at least one
+second log their method, route template, status and duration. These diagnostics
+exclude query strings, recording IDs, public tokens and request bodies, and help
+distinguish server work from browser or network delays.
 
 Each recording has one share/download menu for a compatible MP3 audio export, synchronized MP4 export,
 and admin-controlled public access. Public recordings are opt-in and available

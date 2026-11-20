@@ -1,6 +1,7 @@
 import asyncio
 import logging
 from contextlib import asynccontextmanager
+from time import perf_counter
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -14,6 +15,9 @@ from app.modules.broadcast.models import BroadcastViewerSettings
 from app.modules.broadcast.settings import audio_sources
 from app.modules.broadcast.transport import reconcile_audio_sources
 from app.modules.planning.reference_data import ensure_worship_set_plan_type
+
+request_timing_logger = logging.getLogger("uvicorn.error.app.request_timing")
+SLOW_REQUEST_MS = 1000
 
 
 @asynccontextmanager
@@ -85,11 +89,12 @@ def create_app() -> FastAPI:
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
-        expose_headers=["X-Preview-Start", "X-Preview-End"],
+        expose_headers=["X-Preview-Start", "X-Preview-End", "Server-Timing"],
     )
 
     @app.middleware("http")
     async def publish_durable_changes(request: Request, call_next):
+        started_at = perf_counter()
         response = await call_next(request)
         if request.method in {"POST", "PUT", "PATCH", "DELETE"} and response.status_code < 400:
             prefixes: tuple[tuple[str, ChangeDomain], ...] = (
@@ -105,6 +110,19 @@ def create_app() -> FastAPI:
                 if request.url.path.startswith(prefix):
                     change_revision.bump(domain)
                     break
+        duration_ms = (perf_counter() - started_at) * 1000
+        metric = f"app;dur={duration_ms:.1f}"
+        existing_timing = response.headers.get("Server-Timing")
+        response.headers["Server-Timing"] = (
+            f"{existing_timing}, {metric}" if existing_timing else metric
+        )
+        if duration_ms >= SLOW_REQUEST_MS:
+            # Route templates exclude recording IDs, public tokens and queries.
+            route = getattr(request.scope.get("route"), "path", "<unmatched>")
+            request_timing_logger.warning(
+                "Slow API request method=%s route=%s status=%s duration_ms=%.1f",
+                request.method, route, response.status_code, duration_ms,
+            )
         return response
 
     app.include_router(api_router)
