@@ -1,25 +1,9 @@
 import { X } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
-
-import {
-  getFileSlides,
-  getPlan,
-  getSongs,
-  type BroadcastRecording,
-  type PlanDetail,
-  type PlanItem,
-  type RenderedSlide,
-  type Song,
-} from "../api";
-import {
-  buildPresentationSlides,
-  presentationTypeClass,
-  suggestSlideGroupFontCap,
-} from "../presentation";
-import { AutoFitSlideText } from "./AutoFitSlideText";
+import { useState } from "react";
+import { broadcastRecordingSlideUrl, broadcastRecordingAudioUrl, type BroadcastRecording, type PlanDetail, type PlanItem } from "../api";
 import { RecordingTransport } from "./RecordingTransport";
 import { RecordingActions } from "./RecordingActions";
-import { ScaledSlideImage } from "./ScaledSlideImage";
+import { RecordingVisualEditor } from "./RecordingVisualEditor";
 import { useEscapeClose } from "./useEscapeClose";
 
 interface SermonRecordingPlayerProps {
@@ -87,100 +71,37 @@ export function recordedPlanItems(recording: BroadcastRecording, plan: PlanDetai
   }, []);
 }
 
-export function SermonRecordingPlayer({ recording, onClose, canManage, onTrimmed }: SermonRecordingPlayerProps) {
-  useEscapeClose(true, onClose);
-  const [plan, setPlan] = useState<PlanDetail | null>(null);
-  const [songs, setSongs] = useState<Song[]>([]);
-  const [renderedSlidesByFileId, setRenderedSlidesByFileId] = useState<Record<string, RenderedSlide[]>>({});
+export function SermonRecordingPlayer({ recording: initialRecording, onClose, canManage, onTrimmed }: SermonRecordingPlayerProps) {
+  const [recording, setRecording] = useState(initialRecording);
   const [currentTime, setCurrentTime] = useState(0);
-  const [message, setMessage] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!recording.plan_id) {
-      setMessage("The original service plan is no longer available.");
-      return;
-    }
-    let cancelled = false;
-    void Promise.all([getPlan(recording.plan_id), getSongs()])
-      .then(async ([nextPlan, nextSongs]) => {
-        const recordedItemIds = new Set(recording.timeline.map((event) => event.plan_item_id));
-        const liveFiles = nextPlan.items
-          .filter((item) => recordedItemIds.has(item.id) && item.item_type !== "video")
-          .flatMap((item) => (item.files ?? []).filter((file) => !file.content_type?.startsWith("video/")));
-        const snapshotFiles = recording.timeline.flatMap((event) => event.files ?? []);
-        const files = [...liveFiles, ...snapshotFiles].filter(
-          (file, index, all) => all.findIndex((candidate) => candidate.file_id === file.file_id) === index,
-        );
-        const entries = await Promise.all(
-          files.map(async (file) => [file.file_id, await getFileSlides(file.file_id).catch(() => [])] as const),
-        );
-        if (!cancelled) {
-          const recordedItems = recordedPlanItems(recording, nextPlan);
-          setPlan({ ...nextPlan, items: [...nextPlan.items, ...recordedItems] });
-          setSongs(nextSongs);
-          setRenderedSlidesByFileId(Object.fromEntries(entries));
-        }
-      })
-      .catch((error) => {
-        if (!cancelled) setMessage(error instanceof Error ? error.message : "Could not load sermon slides.");
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [recording.plan_id, recording.timeline]);
-
-  const slides = useMemo(
-    () => buildPresentationSlides(plan?.items ?? [], songs, renderedSlidesByFileId),
-    [plan?.items, renderedSlidesByFileId, songs],
-  );
-  const event = useMemo(() => {
-    return recordingTimelineEventAt(recording.timeline, currentTime, 0);
-  }, [currentTime, recording.timeline, recording.source]);
-  const matchingSlides = event ? slides.filter((slide) => slide.planItemId === event.plan_item_id) : [];
-  const slide = matchingSlides[Math.min(Math.max(event?.slide_offset ?? 0, 0), matchingSlides.length - 1)] ?? null;
-  const fontCap = useMemo(
-    () => suggestSlideGroupFontCap(slides.filter((candidate) => candidate.text.trim()).map((candidate) => candidate.text)),
-    [slides],
-  );
-
+  const [editorOpen, setEditorOpen] = useState(false);
+  const [slideRevision, setSlideRevision] = useState(0);
+  const [audioRevision, setAudioRevision] = useState(0);
+  const [failedSlide, setFailedSlide] = useState("");
+  useEscapeClose(!editorOpen, onClose);
+  const event = recordingTimelineEventAt(recording.timeline, currentTime, 0);
+  const eventIndex = event ? recording.timeline.indexOf(event) : -1;
+  const slideKey = `${slideRevision}:${eventIndex}`;
+  function updateRecording(updated: BroadcastRecording, replaced: boolean) {
+    if (replaced) { setRecording(updated); setSlideRevision((value) => value + 1); }
+    onTrimmed?.(updated, replaced);
+  }
   return (
-    <div className="app-dialog-backdrop" onMouseDown={onClose} role="presentation">
-      <section
-        aria-label={`Play ${recordingTimestampTitle(recording)}`}
-        aria-modal="true"
-        className="sermon-recording-player"
-        onMouseDown={(event) => event.stopPropagation()}
-        onKeyDown={(event) => {
+    <div className="app-dialog-backdrop" onMouseDown={() => { if (!editorOpen) onClose(); }} role="presentation">
+      <section aria-label={`Play ${recordingTimestampTitle(recording)}`} aria-modal="true" className={`sermon-recording-player${editorOpen ? " editing-visuals" : ""}`}
+        onMouseDown={(event) => event.stopPropagation()} onKeyDown={(event) => {
           if (event.key === "Enter" && event.target instanceof HTMLInputElement) event.preventDefault();
           event.stopPropagation();
-        }}
-        role="dialog"
-      >
-        <header>
-          <div>
-            <span>Recorded sermon</span>
-            <strong>{recordingTimestampTitle(recording)}</strong>
-            <small>{recordingTimestamp(recording)}</small>
-          </div>
-          <button aria-label="Close recording" className="section-icon-button" onClick={onClose} type="button">
-            <X size={18} aria-hidden="true" />
-          </button>
+        }} role="dialog">
+        <header><div><span>Recorded sermon</span><strong>{recordingTimestampTitle(recording)}</strong><small>{recordingTimestamp(recording)}</small></div>
+          <button aria-label="Close recording" className="section-icon-button" disabled={editorOpen} onClick={onClose} type="button"><X size={18} aria-hidden="true" /></button>
         </header>
-        <div className={`sermon-recording-stage stage-theme-light ${presentationTypeClass(slide?.itemType ?? "sermon")}`}>
-          {message ? <p className="form-message">{message}</p> : !slide ? (
-            <p className="muted-copy">Loading sermon slides…</p>
-          ) : slide.imageUrl ? (
-            <ScaledSlideImage alt={slide.title} src={slide.imageUrl} />
-          ) : (
-            <div className="presentation-stage">
-              <div className="stage-title">{slide.slideKind === "title" ? "" : slide.sectionTitle}</div>
-              <AutoFitSlideText maxFontSize={fontCap} text={slide.text} />
-            </div>
-          )}
+        <div className="sermon-recording-stage">
+          {eventIndex < 0 ? <p className="muted-copy">No recorded slides available.</p> : failedSlide === slideKey ? <p role="alert">Could not load this recorded slide.</p> : <img alt="Recorded sermon slide" src={broadcastRecordingSlideUrl(recording.id, eventIndex, String(slideRevision))} onError={() => setFailedSlide(slideKey)} />}
         </div>
-        <RecordingActions key={recording.id} recording={recording} canManage={canManage} onRecordingChange={onTrimmed ? (updated) => onTrimmed(updated, true) : undefined} />
-        <RecordingTransport key={recording.id} recording={recording} canManage={canManage}
-          onTimeChange={setCurrentTime} onTrimmed={onTrimmed} />
+        <RecordingActions key={recording.id} recording={recording} canManage={canManage} onRecordingChange={(updated) => updateRecording(updated, true)} />
+        <RecordingTransport key={`${recording.id}:${audioRevision}`} recording={recording} canManage={canManage && !editorOpen} onTimeChange={setCurrentTime} audioUrl={`${broadcastRecordingAudioUrl(recording.id)}?v=${audioRevision}`} onTrimmed={(updated, replaced) => { updateRecording(updated, replaced); if (replaced) { setCurrentTime(0); setAudioRevision((value) => value + 1); } }} onEditVisuals={() => setEditorOpen(true)} />
+        {editorOpen ? <RecordingVisualEditor recording={recording} currentTime={currentTime} onCancel={() => setEditorOpen(false)} onSaved={(updated) => { updateRecording(updated, true); setEditorOpen(false); }} /> : null}
       </section>
     </div>
   );

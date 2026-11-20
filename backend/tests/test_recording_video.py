@@ -116,7 +116,7 @@ def test_export_resolves_recorded_decks_and_offsets_without_live_plan(tmp_path, 
     from types import SimpleNamespace
     from unittest.mock import MagicMock
 
-    from app.modules.broadcast import routes
+    from app.modules.broadcast import recording_visuals, routes
     from app.modules.library.models import StoredFile
 
     recording = BroadcastRecording(
@@ -155,7 +155,9 @@ def test_export_resolves_recorded_decks_and_offsets_without_live_plan(tmp_path, 
         routes, "recording_read", lambda session, row: SimpleNamespace(timeline=timeline)
     )
     monkeypatch.setattr(video, "_media_duration", lambda path: 3)
-    monkeypatch.setattr(video, "_render_slides", lambda stored: [tmp_path / f"{stored.id}.png"])
+    monkeypatch.setattr(
+        recording_visuals, "_render_slides", lambda stored: [tmp_path / f"{stored.id}.png"]
+    )
     captured = []
 
     def encode(audio, frames, output, duration):

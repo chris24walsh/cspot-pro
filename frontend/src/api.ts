@@ -724,7 +724,19 @@ export interface BroadcastViewerSettings {
   offline_message: string;
 }
 
+export interface RecordingVisualSegment {
+  id: string;
+  start_seconds: number;
+  end_seconds: number;
+  kind: "bible" | "image" | "montage" | "background";
+  title?: string;
+  text?: string;
+  file_ids?: string[];
+  dwell_seconds?: number;
+}
+
 export interface BroadcastRecording {
+  visual_segments?: RecordingVisualSegment[];
   source?: string;
   visible_at?: string | null;
   public_token: string | null;
@@ -1497,6 +1509,14 @@ export function archiveBroadcastRecording(recordingId: string) {
 
 export function restoreBroadcastRecording(recordingId: string) {
   return sendJson<BroadcastRecording>(`/api/v1/broadcast/recordings/${recordingId}/archive`, "DELETE", {});
+}
+
+export function saveRecordingVisuals(recordingId: string, segments: RecordingVisualSegment[]) {
+  return sendJson<BroadcastRecording>(`/api/v1/broadcast/recordings/${recordingId}/visuals`, "PUT", { segments });
+}
+
+export function broadcastRecordingSlideUrl(recordingId: string, eventIndex: number, cacheKey = "") {
+  return buildApiUrl(`/api/v1/broadcast/recordings/${recordingId}/slides/${eventIndex}.png${cacheKey ? `?v=${encodeURIComponent(cacheKey)}` : ""}`);
 }
 
 export function broadcastRecordingAudioUrl(recordingId: string) {

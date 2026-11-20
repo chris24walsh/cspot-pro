@@ -34,6 +34,7 @@ class BroadcastRecording(IdMixin, TimestampMixin, Base):
     duration_seconds: Mapped[int | None] = mapped_column(Integer)
     audio_file_path: Mapped[str | None] = mapped_column(Text)
     timeline_json: Mapped[str | None] = mapped_column(Text)
+    visual_segments_json: Mapped[str | None] = mapped_column(Text)
     pending_stop_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     pending_stop_reason: Mapped[str | None] = mapped_column(String(240))
     pending_stop_offset_ms: Mapped[int | None] = mapped_column(Integer)

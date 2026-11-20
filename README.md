@@ -399,6 +399,18 @@ uses a temporary backup and restores the original if media or database work fail
 snapshots are retained and timings are rebased; `trimmed-sermon` copies contain
 actual slide display times, so the player does not apply its camera delay again.
 
+Broadcast admins can also edit a recording's visuals while listening to its audio.
+Timed Bible passages, library images, image montages and the default background can
+cover intervals of the captured slides. The captured presentation remains available
+underneath, and playback returns to the current captured slide when an interval ends.
+Signed-in playback, public playback and MP4 exports use the same visual timeline.
+Open a recording and choose **Edit visuals** to pause playback. Seek to the desired
+point, choose **Search** to find a Bible reference or passage, or select a background,
+PNG/JPEG image, or ordered montage. Set its start and end, choose **Add visual**, then
+**Save changes**. Bible passages are saved as text snapshots (up to 1,200 characters
+per visual); split longer readings into shorter passages. The generic **Sermon**
+placeholder now uses the default service background image.
+
 Song library search combines text with immediately applied Key, Theme and Source
 filters, a matching-song count, and Clear all. Options come from saved library
 metadata, including missing-value choices. Themes use comma-separated categories;

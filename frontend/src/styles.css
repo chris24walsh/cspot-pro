@@ -14552,3 +14552,13 @@ button.musician-page {
   .shell.is-mobile-device .musician-reader-mode-pages .musician-sequence-strip .musician-sequence-group > button:first-child { flex: 1 1 auto; min-width: 0; width: auto; }
   .shell.is-mobile-device .musician-reader-mode-pages .musician-sequence-strip .repeat-menu-trigger { flex: 0 0 auto; min-width: 0; width: auto; padding: 4px 3px; }
 }
+
+.sermon-recording-stage > img { width: 100%; height: 100%; object-fit: contain; }
+.sermon-recording-player.editing-visuals { overflow-y: auto; grid-template-rows: auto minmax(180px, 1fr) auto auto auto; }
+.recording-visual-editor { border: 1px solid #496056; border-radius: 6px; padding: 10px; font-size: 13px; }
+.recording-visual-editor > header { display: flex; justify-content: space-between; align-items: center; }
+.recording-visual-editor p { margin: 6px 0; }
+.recording-visual-editor fieldset { border: 1px solid #496056; margin: 8px 0; }
+.recording-visual-editor input:not([type="file"]) { max-width: 160px; }
+.recording-visual-list, .recording-visual-results { max-height: 150px; overflow-y: auto; }
+.recording-visual-results button { display: block; text-align: left; }

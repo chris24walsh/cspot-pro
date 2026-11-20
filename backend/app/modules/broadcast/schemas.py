@@ -203,6 +203,21 @@ class BroadcastRecordingRename(BaseModel):
     title: str | None = Field(default=None, max_length=220)
 
 
+class RecordingVisualSegment(BaseModel):
+    id: str = Field(min_length=1, max_length=80)
+    start_seconds: float = Field(ge=0, allow_inf_nan=False)
+    end_seconds: float = Field(gt=0, allow_inf_nan=False)
+    kind: Literal["bible", "image", "montage", "background"]
+    title: str | None = Field(default=None, max_length=220)
+    text: str | None = Field(default=None, max_length=1200)
+    file_ids: list[str] = Field(default_factory=list, max_length=100)
+    dwell_seconds: float | None = Field(default=None, ge=1, le=3600, allow_inf_nan=False)
+
+
+class RecordingVisualUpdate(BaseModel):
+    segments: list[RecordingVisualSegment] = Field(max_length=500)
+
+
 class BroadcastRecordingRead(BaseModel):
     id: str
     file_name: str = "recording.m4a"
@@ -227,6 +242,7 @@ class BroadcastRecordingRead(BaseModel):
     published_at: datetime | None = None
     archived_at: datetime | None = None
     timeline: list[dict[str, object]] = Field(default_factory=list)
+    visual_segments: list[RecordingVisualSegment] = Field(default_factory=list)
 
 
 class PublicRecordingRead(BaseModel):

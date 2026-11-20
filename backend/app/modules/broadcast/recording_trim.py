@@ -96,12 +96,42 @@ def create_trimmed_recording(
             end,
             0 if timeline_is_display_time or recording.source == "trimmed-sermon" else 1.5,
         )
+        segments = json.loads(recording.visual_segments_json or "[]")
+        rebased_segments = []
+        for segment in segments:
+            a, b = max(start, segment["start_seconds"]), min(end, segment["end_seconds"])
+            if a >= b:
+                continue
+            rebased = {**segment, "start_seconds": a - start, "end_seconds": b - start}
+            if segment["kind"] == "montage" and a > segment["start_seconds"]:
+                dwell = segment.get("dwell_seconds") or 5
+                elapsed = a - segment["start_seconds"]
+                index = math.floor(elapsed / dwell + 1e-9)
+                ids = segment["file_ids"]
+                phase = max(0.0, elapsed - index * dwell)
+                remaining = dwell - phase
+                split = min(b, a + remaining)
+                first = {
+                    **rebased,
+                    "id": uuid4().hex,
+                    "kind": "image",
+                    "file_ids": [ids[index % len(ids)]],
+                    "dwell_seconds": None,
+                    "end_seconds": split - start,
+                }
+                rebased_segments.append(first)
+                if split >= b:
+                    continue
+                rebased["start_seconds"] = split - start
+                index = (index + 1) % len(ids)
+                rebased["file_ids"] = ids[index:] + ids[:index]
+            rebased_segments.append(rebased)
         if replace_original:
             backup = path.with_name(f".{path.name}.{uuid4().hex}.backup")
             path.replace(backup)
             output.replace(path)
             recording.size_bytes = path.stat().st_size
-            recording.duration_seconds = round(actual_duration)
+            recording.duration_seconds = math.ceil(actual_duration)
             recording.started_at = (
                 recording.started_at + timedelta(seconds=start) if recording.started_at else None
             )
@@ -112,6 +142,7 @@ def create_trimmed_recording(
             )
             recording.end_reason = "Trimmed"
             recording.timeline_json = json.dumps(rebased_timeline)
+            recording.visual_segments_json = json.dumps(rebased_segments)
             recording.source = "trimmed-sermon"
             session.commit()
             session.refresh(recording)
@@ -131,7 +162,7 @@ def create_trimmed_recording(
             file_name=output.name,
             content_type="audio/webm; codecs=opus",
             size_bytes=output.stat().st_size,
-            duration_seconds=round(actual_duration),
+            duration_seconds=math.ceil(actual_duration),
             recorded_at=recording.recorded_at,
             started_at=recording.started_at + timedelta(seconds=start)
             if recording.started_at
@@ -141,6 +172,7 @@ def create_trimmed_recording(
             else None,
             end_reason="Trimmed copy",
             timeline_json=json.dumps(rebased_timeline),
+            visual_segments_json=json.dumps(rebased_segments),
         )
         session.add(copy)
         session.commit()

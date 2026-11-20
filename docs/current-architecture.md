@@ -1170,6 +1170,13 @@ legacy capture delay once. Signed-in playback, public playback, trimming and MP4
 export consume these same display timestamps. Trimmed recordings store rebased
 display timestamps so subsequent playback and trims do not add the delay again.
 
+Recording visual segments are stored separately from captured slide events. Admins
+can place Bible text, images, timed image montages and the default background over
+intervals while listening to the recording. The effective timeline restores the
+latest captured slide at each segment end, including transitions captured during
+the segment. Signed-in playback, public playback and MP4 export consume the same
+effective events; recordings without captured slides use the default background.
+
 Each recording has one share/download menu for a compatible MP3 audio export, synchronized MP4 export,
 and admin-controlled public access. Public recordings are opt-in and available
 only through a random individual link; removing public access revokes that link.

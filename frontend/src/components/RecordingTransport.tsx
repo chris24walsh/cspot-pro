@@ -1,4 +1,5 @@
 import { useRef, useState } from "react";
+import { Pencil } from "lucide-react";
 import { broadcastRecordingAudioUrl, trimBroadcastRecording, type BroadcastRecording } from "../api";
 
 export function recordingTime(seconds: number) {
@@ -12,12 +13,13 @@ export function parseRecordingTime(value: string): number {
   return minutes * 60 + seconds;
 }
 
-export function RecordingTransport({ recording, canManage = false, onTimeChange, onTrimmed, audioUrl }: {
+export function RecordingTransport({ recording, canManage = false, onTimeChange, onTrimmed, audioUrl, onEditVisuals }: {
   recording: BroadcastRecording;
   canManage?: boolean;
   onTimeChange: (seconds: number) => void;
   onTrimmed?: (recording: BroadcastRecording, replaced: boolean) => void;
   audioUrl?: string;
+  onEditVisuals?: () => void;
 }) {
   const audioRef = useRef<HTMLAudioElement>(null);
   const previewEnd = useRef<number | null>(null);
@@ -104,6 +106,7 @@ export function RecordingTransport({ recording, canManage = false, onTimeChange,
       }}>{[0.75, 1, 1.25, 1.5, 2].map((speed) => <option key={speed} value={speed}>{speed}×</option>)}</select></label>
       <label>Volume <input aria-label="Recording volume" type="range" min="0" max="1" step="0.05" defaultValue="1"
         onChange={(event) => { if (audioRef.current) audioRef.current.volume = Number(event.target.value); }} /></label>
+      {canManage && onEditVisuals ? <button type="button" className="text-button responsive-action-button" aria-label="Edit visuals" title="Edit visuals" disabled={!duration || saving} onClick={() => { audioRef.current?.pause(); previewEnd.current = null; onEditVisuals(); }}><Pencil size={15} aria-hidden="true" /> <span className="responsive-action-label">Edit visuals</span></button> : null}
       {canManage ? <button type="button" className="text-button" disabled={!duration || saving} onClick={() => {
         previewEnd.current = null;
         if (!trimOpen) { setStart("0:00"); setEnd(recordingTime(duration)); }

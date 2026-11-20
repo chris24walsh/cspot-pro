@@ -12,6 +12,7 @@ dependencies = [
     "pydantic-settings>=2.6.0,<3.0.0",
     "psycopg[binary]>=3.2.0,<4.0.0",
     "pypdf>=5.0.0,<6.0.0",
+    "Pillow>=10.0.0,<13.0.0",
     "qrcode>=8.0.0,<9.0.0",
     "python-multipart>=0.0.20,<1.0.0",
     "requests>=2.32.0,<3.0.0",
@@ -32,6 +33,9 @@ build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
 include = ["app*"]
+
+[tool.setuptools.package-data]
+"app.modules.broadcast" = ["assets/*.jpg"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

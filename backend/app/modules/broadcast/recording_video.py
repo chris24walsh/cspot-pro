@@ -3,7 +3,6 @@
 import logging
 import subprocess
 import tempfile
-import textwrap
 from concurrent.futures import Future, ThreadPoolExecutor
 from pathlib import Path
 from threading import RLock
@@ -11,9 +10,7 @@ from threading import RLock
 from app.core.database import SessionLocal
 from app.modules.broadcast.models import BroadcastRecording
 from app.modules.broadcast.recording import _media_duration
-from app.modules.library.models import StoredFile
-from app.modules.library.routes import _render_slides
-from app.modules.planning.models import PlanItem
+from app.modules.broadcast.recording_visuals import render_recording_slide
 
 logger = logging.getLogger(__name__)
 _pool = ThreadPoolExecutor(max_workers=1, thread_name_prefix="recording-video")
@@ -25,7 +22,7 @@ def video_path(recording: BroadcastRecording) -> Path:
     return (
         Path(recording.audio_file_path or recording.file_path).parent
         / "exports"
-        / f"{recording.id}.mp4"
+        / f"{recording.id}-visuals-v1.mp4"
     )
 
 
@@ -71,6 +68,7 @@ def delete_video(recording: BroadcastRecording) -> None:
         if job and not job.done():
             raise ValueError("Wait for video preparation to finish before deleting this recording")
         video_path(recording).unlink(missing_ok=True)
+        video_path(recording).with_name(f"{recording.id}.mp4").unlink(missing_ok=True)
         _jobs.pop(recording.id, None)
 
 
@@ -172,28 +170,58 @@ def encode_video(
         )
 
 
+def text_slide_layout(text: str):
+    from PIL import Image, ImageDraw, ImageFont
+
+    image = Image.new("RGB", (1280, 720), "white")
+    draw = ImageDraw.Draw(image)
+    for size in range(42, 11, -2):
+        try:
+            font = ImageFont.truetype("DejaVuSans.ttf", size)
+        except OSError:
+            font = ImageFont.load_default(size=size)
+        lines = []
+        for paragraph in text.splitlines():
+            words = paragraph.split()
+            line = ""
+            for word in words:
+                # Break unusually long words too; never draw outside the frame.
+                chunks = []
+                while word and draw.textlength(word, font=font) > 1100:
+                    split = len(word) // 2
+                    while split > 1 and draw.textlength(word[:split], font=font) > 1100:
+                        split //= 2
+                    chunks.append(word[:split])
+                    word = word[split:]
+                chunks.append(word)
+                for chunk in chunks[:-1]:
+                    if line:
+                        lines.append(line)
+                        line = ""
+                    lines.append(chunk)
+                word = chunks[-1]
+                candidate = f"{line} {word}".strip()
+                if line and draw.textlength(candidate, font=font) > 1100:
+                    lines.append(line)
+                    line = word
+                else:
+                    line = candidate
+            lines.append(line)
+        spacing = int(size * 1.4)
+        if len(lines) * spacing <= 620:
+            break
+    if len(lines) * spacing > 620:
+        raise ValueError("Text is too long to fit legibly on one slide")
+    return image, draw, font, lines, spacing
+
+
 def _text_slide(text: str, path: Path) -> None:
-    lines = [
-        line for paragraph in text.splitlines() for line in (textwrap.wrap(paragraph, 55) or [""])
-    ]
-    font_size = min(38, max(12, int(580 / max(1, len(lines)))))
-    text_path = path.with_suffix(".txt")
-    text_path.write_text("\n".join(lines))
-    _run(
-        [
-            "-f",
-            "lavfi",
-            "-i",
-            "color=c=white:s=1280x720",
-            "-vf",
-            f"drawtext=textfile={text_path}:expansion=none:fontcolor=black:fontsize={font_size}:x=(w-tw)/2:y=(h-th)/2",
-            "-frames:v",
-            "1",
-            "-threads",
-            "1",
-            str(path),
-        ]
-    )
+    image, draw, font, lines, spacing = text_slide_layout(text)
+    y = max(20, (720 - len(lines) * spacing) / 2)
+    for line in lines:
+        draw.text((640, y), line, fill="black", font=font, anchor="mt")
+        y += spacing
+    image.save(path, format="PNG")
 
 
 def _export_recording(recording_id: str) -> None:
@@ -206,20 +234,6 @@ def _export_recording(recording_id: str) -> None:
             if recording is None or recording.status != "ready":
                 raise ValueError("Recording is unavailable")
             timeline = recording_read(session, recording).timeline
-            files = {
-                file["file_id"]: session.get(StoredFile, file["file_id"])
-                for event in timeline
-                for file in event.get("files", [])
-            }
-            text_by_item = {}
-            for event in timeline:
-                item = session.get(PlanItem, event.get("plan_item_id"))
-                text_by_item[event.get("plan_item_id")] = (
-                    event.get("item_comment")
-                    or (item.comment if item else None)
-                    or event.get("item_title")
-                    or (item.title if item else None)
-                )
             audio = Path(recording.audio_file_path or recording.file_path)
             destination = video_path(recording)
         duration = _media_duration(audio)
@@ -228,40 +242,10 @@ def _export_recording(recording_id: str) -> None:
         destination.parent.mkdir(parents=True, exist_ok=True)
         with tempfile.TemporaryDirectory(dir=destination.parent, prefix="building-") as folder:
             work = Path(folder)
-            rendered = {}
-            text_images = {}
             frames = []
-            for event, seconds in timed_events(timeline, duration, 0):
-                images = []
-                for file in event.get("files", []):
-                    key = file["file_id"]
-                    if key not in rendered:
-                        stored = files[key]
-                        if stored is None:
-                            raise ValueError("A recorded slide deck is missing")
-                        rendered[key] = _render_slides(stored)
-                    images.extend(rendered[key])
-                if images:
-                    image = images[min(max(int(event.get("slide_offset", 0)), 0), len(images) - 1)]
-                else:
-                    if int(event.get("slide_offset", 0)) > 0:
-                        raise ValueError("Recorded slide images are unavailable")
-                    if event.get("item_type") not in {
-                        None,
-                        "sermon",
-                        "custom",
-                        "prayer",
-                        "reading",
-                    }:
-                        raise ValueError("This section cannot be exported without slide images")
-                    text = text_by_item.get(event.get("plan_item_id"))
-                    if not text:
-                        raise ValueError("Recorded slide content is unavailable")
-                    if text not in text_images:
-                        text_images[text] = work / f"text-{len(text_images)}.png"
-                        _text_slide(text, text_images[text])
-                    image = text_images[text]
-                frames.append((image, seconds))
+            with SessionLocal() as session:
+                for event, seconds in timed_events(timeline, duration, 0):
+                    frames.append((render_recording_slide(session, event, work), seconds))
             output = work / "video.mp4"
             encode_video(audio, frames, output, duration)
             exported_duration = _media_duration(output)

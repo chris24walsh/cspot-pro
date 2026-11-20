@@ -39,14 +39,19 @@ from app.modules.broadcast.recording import (
     stop_recording,
 )
 from app.modules.broadcast.recording_audio import delete_mp3, prepare_mp3
-from app.modules.broadcast.recording_timeline import display_timeline
+from app.modules.broadcast.recording_timeline import display_timeline, effective_timeline
 from app.modules.broadcast.recording_trim import create_trimmed_recording
+from app.modules.broadcast.recording_video import (
+    _lock as video_lock,
+)
 from app.modules.broadcast.recording_video import (
     delete_video,
     start_video,
+    text_slide_layout,
     video_path,
     video_status,
 )
+from app.modules.broadcast.recording_visuals import render_recording_slide
 from app.modules.broadcast.schemas import (
     BroadcastAudioSourceRead,
     BroadcastRecordingRead,
@@ -60,6 +65,7 @@ from app.modules.broadcast.schemas import (
     LivestreamViewerRead,
     ManualLivestreamUpdate,
     PublicRecordingRead,
+    RecordingVisualUpdate,
 )
 from app.modules.broadcast.settings import (
     audio_scenes,
@@ -82,7 +88,6 @@ from app.modules.identity.auth import (
 )
 from app.modules.identity.models import User
 from app.modules.library.models import ItemFile, StoredFile
-from app.modules.library.routes import _render_slides
 from app.modules.planning.models import Plan, PlanItem
 from app.modules.presentation.models import PresentationPosition, PresentationSession
 
@@ -157,7 +162,9 @@ def _apply_legacy_deck_candidates(
             highest_offset = max(highest_offset, offset)
 
 
-def recording_read(session: Session, recording: BroadcastRecording) -> BroadcastRecordingRead:
+def recording_read(
+    session: Session, recording: BroadcastRecording, *, include_visuals: bool = True
+) -> BroadcastRecordingRead:
     try:
         timeline = json.loads(recording.timeline_json or "[]")
     except json.JSONDecodeError:
@@ -170,10 +177,10 @@ def recording_read(session: Session, recording: BroadcastRecording) -> Broadcast
         for event in timeline:
             if not isinstance(event, dict):
                 continue
+            if event.get("visual"):
+                continue
             embedded_files = event.get("files")
-            if isinstance(embedded_files, list) and any(
-                _is_slide_deck_file(file) for file in embedded_files if isinstance(file, dict)
-            ):
+            if isinstance(embedded_files, list) and embedded_files:
                 continue
             item_id = event.get("plan_item_id")
             if not isinstance(item_id, str):
@@ -203,7 +210,9 @@ def recording_read(session: Session, recording: BroadcastRecording) -> Broadcast
                     "item_type": item.item_type if item else "sermon",
                     "files": files,
                 }
-            event.update(snapshots[item_id])
+            for key, value in snapshots[item_id].items():
+                if key not in event or (key == "files" and not event[key]):
+                    event[key] = value
             item_files = snapshots[item_id]["files"]
             item = session.get(PlanItem, item_id)
             if not any(
@@ -254,7 +263,7 @@ def recording_read(session: Session, recording: BroadcastRecording) -> Broadcast
             unresolved_events = [
                 event
                 for event in timeline
-                if isinstance(event, dict) and event.get("plan_item_id") in unresolved_item_ids
+                if isinstance(event, dict) and not event.get("visual") and event.get("plan_item_id") in unresolved_item_ids
             ]
             event_titles = {
                 str(event.get("item_title") or "").strip().casefold()
@@ -267,6 +276,14 @@ def recording_read(session: Session, recording: BroadcastRecording) -> Broadcast
                 if str(candidate.get("item_title") or "").strip().casefold() in event_titles
             ]
             _apply_legacy_deck_candidates(unresolved_events, title_matches or candidates)
+    try:
+        segments = json.loads(recording.visual_segments_json or "[]")
+        if not isinstance(segments, list):
+            segments = []
+    except (ValueError, TypeError):
+        segments = []
+    if not include_visuals:
+        segments = []
     return BroadcastRecordingRead(
         id=recording.id,
         file_name=recording.file_name,
@@ -290,7 +307,10 @@ def recording_read(session: Session, recording: BroadcastRecording) -> Broadcast
         public_token=recording.public_token,
         published_at=recording.published_at,
         archived_at=recording.archived_at,
-        timeline=display_timeline(timeline, recording.source) if isinstance(timeline, list) else [],
+        timeline=effective_timeline(
+            display_timeline(timeline, recording.source) if isinstance(timeline, list) else [], segments
+        ),
+        visual_segments=segments,
     )
 
 
@@ -452,7 +472,7 @@ def trim_recording(
             recording,
             payload.start_seconds,
             payload.end_seconds,
-            recording_read(session, recording).timeline,
+            recording_read(session, recording, include_visuals=False).timeline,
             current_user.id,
             replace_original=payload.replace_original,
             timeline_is_display_time=True,
@@ -597,17 +617,16 @@ def public_recording_slide(
     details = recording_read(session, recording)
     if event_index < 0 or event_index >= len(details.timeline):
         raise HTTPException(status_code=404, detail="Recorded slide not found")
-    event = details.timeline[event_index]
-    images: list[Path] = []
-    for file in event.get("files", []):
-        stored = session.get(StoredFile, file.get("file_id"))
-        if stored is not None:
-            images.extend(_render_slides(stored))
-    offset = int(event.get("slide_offset", 0))
-    if not images or offset < 0 or offset >= len(images):
-        raise HTTPException(status_code=404, detail="Recorded slide image not found")
+    return recording_slide_response(session, details.timeline[event_index])
+
+
+def recording_slide_response(session: Session, event: dict) -> FileResponse:
+    try:
+        path = render_recording_slide(session, event, Path("/tmp/cspot-recording-slides"))
+    except (ValueError, OSError) as error:
+        raise HTTPException(status_code=404, detail="Recorded slide image not found") from error
     session.close()
-    return FileResponse(images[offset], media_type="image/png")
+    return FileResponse(path, headers={"Cache-Control": "no-store"})
 
 
 def ready_recording(session: Session, recording_id: str) -> BroadcastRecording:
@@ -627,6 +646,112 @@ def viewable_recording(session: Session, recording_id: str, user: User) -> Broad
     )):
         raise HTTPException(status_code=404, detail="Recording not found")
     return ready_recording(session, recording_id)
+
+
+@router.put("/recordings/{recording_id}/visuals", response_model=BroadcastRecordingRead)
+def update_recording_visuals(
+    recording_id: str,
+    payload: RecordingVisualUpdate,
+    _current_user: User = Depends(require_permission("broadcast:use")),
+    session: Session = Depends(get_session),
+) -> BroadcastRecordingRead:
+    recording = ready_recording(session, recording_id)
+    segments = sorted(payload.segments, key=lambda segment: segment.start_seconds)
+    ids = set()
+    previous_end = 0.0
+    frame_count = 0
+    for segment in segments:
+        if segment.id in ids or segment.start_seconds < previous_end:
+            raise HTTPException(
+                status_code=422,
+                detail="Visual segments must have unique IDs and not overlap",
+            )
+        ids.add(segment.id)
+        if (
+            segment.end_seconds <= segment.start_seconds
+            or recording.duration_seconds is None
+            or segment.end_seconds > recording.duration_seconds
+        ):
+            raise HTTPException(
+                status_code=422, detail="Visual segment must fit within the recording"
+            )
+        if segment.kind == "bible" and not (segment.text or "").strip():
+            raise HTTPException(status_code=422, detail="Bible visuals require text")
+        if segment.kind == "bible":
+            try:
+                text_slide_layout(
+                    "\n\n".join(filter(None, [segment.title, segment.text]))
+                )
+            except ValueError as error:
+                raise HTTPException(status_code=422, detail=str(error)) from error
+        if segment.kind == "image" and len(segment.file_ids) != 1:
+            raise HTTPException(
+                status_code=422, detail="Image visuals require one image"
+            )
+        if segment.kind == "montage" and segment.dwell_seconds:
+            frame_count += (
+                int(
+                    (segment.end_seconds - segment.start_seconds)
+                    / segment.dwell_seconds
+                )
+                + 1
+            )
+            if frame_count > 5000:
+                raise HTTPException(
+                    status_code=422, detail="Montage produces too many slides"
+                )
+        if segment.kind == "montage" and (
+            not segment.file_ids or segment.dwell_seconds is None
+        ):
+            raise HTTPException(
+                status_code=422, detail="Montages require images and a dwell time"
+            )
+        if segment.kind in {"background", "bible"} and segment.file_ids:
+            raise HTTPException(
+                status_code=422, detail="This visual does not accept images"
+            )
+        for file_id in segment.file_ids:
+            stored = session.get(StoredFile, file_id)
+            if (
+                stored is None
+                or (stored.content_type or "").lower()
+                not in {"image/png", "image/jpeg"}
+                or Path(stored.storage_path).suffix.lower()
+                not in {".png", ".jpg", ".jpeg"}
+                or not Path(stored.storage_path).is_file()
+                or Path(stored.storage_path).stat().st_size > 25 * 1024 * 1024
+            ):
+                raise HTTPException(
+                    status_code=422, detail="Visual image is unavailable"
+                )
+        previous_end = segment.end_seconds
+    with video_lock:
+        try:
+            delete_video(recording)
+        except ValueError as error:
+            raise HTTPException(status_code=409, detail=str(error)) from error
+        recording.visual_segments_json = json.dumps(
+            [segment.model_dump() for segment in segments]
+        )
+        session.commit()
+        session.refresh(recording)
+    return recording_read(session, recording)
+
+
+@router.get("/recordings/{recording_id}/slides/{event_index}.png")
+def recorded_slide(
+    recording_id: str,
+    event_index: int,
+    current_user: User = Depends(
+        require_any_permission("plans:read", "broadcast:use", "presentation:use")
+    ),
+    session: Session = Depends(get_session),
+) -> FileResponse:
+    recording = viewable_recording(session, recording_id, current_user)
+    timeline = recording_read(session, recording).timeline
+    if event_index < 0 or event_index >= len(timeline):
+        raise HTTPException(status_code=404, detail="Recorded slide not found")
+    return recording_slide_response(session, timeline[event_index])
 
 
 @router.get("/recordings/{recording_id}/video-export")
