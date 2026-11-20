@@ -40,6 +40,7 @@ def create_trimmed_recording(
     timeline: list[dict],
     user_id: str,
     replace_original: bool = False,
+    timeline_is_display_time: bool = False,
 ) -> BroadcastRecording:
     if recording.status != "ready":
         raise ValueError("Only finished recordings can be trimmed")
@@ -93,7 +94,7 @@ def create_trimmed_recording(
             timeline,
             start,
             end,
-            0 if recording.source == "trimmed-sermon" else 1.5,
+            0 if timeline_is_display_time or recording.source == "trimmed-sermon" else 1.5,
         )
         if replace_original:
             backup = path.with_name(f".{path.name}.{uuid4().hex}.backup")
@@ -111,6 +112,7 @@ def create_trimmed_recording(
             )
             recording.end_reason = "Trimmed"
             recording.timeline_json = json.dumps(rebased_timeline)
+            recording.source = "trimmed-sermon"
             session.commit()
             session.refresh(recording)
             backup.unlink(missing_ok=True)

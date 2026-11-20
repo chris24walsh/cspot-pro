@@ -1165,6 +1165,11 @@ hides them again and revokes public links. Existing completed recordings remain 
 Publishing for signed-in viewers does not create a public link; making a recording public
 also publishes it for signed-in viewers. Playback and download endpoints enforce visibility.
 
+The recording API returns slide events in chronological playback time, applying the
+legacy capture delay once. Signed-in playback, public playback, trimming and MP4
+export consume these same display timestamps. Trimmed recordings store rebased
+display timestamps so subsequent playback and trims do not add the delay again.
+
 Each recording has one share/download menu for a compatible MP3 audio export, synchronized MP4 export,
 and admin-controlled public access. Public recordings are opt-in and available
 only through a random individual link; removing public access revokes that link.

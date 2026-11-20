@@ -222,7 +222,6 @@ def _export_recording(recording_id: str) -> None:
                 )
             audio = Path(recording.audio_file_path or recording.file_path)
             destination = video_path(recording)
-            delay = 0 if recording.source == "trimmed-sermon" else 1.5
         duration = _media_duration(audio)
         if not duration or not audio.is_file():
             raise ValueError("Recording audio is unavailable")
@@ -232,7 +231,7 @@ def _export_recording(recording_id: str) -> None:
             rendered = {}
             text_images = {}
             frames = []
-            for event, seconds in timed_events(timeline, duration, delay):
+            for event, seconds in timed_events(timeline, duration, 0):
                 images = []
                 for file in event.get("files", []):
                     key = file["file_id"]

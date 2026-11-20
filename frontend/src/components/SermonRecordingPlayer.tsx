@@ -134,7 +134,7 @@ export function SermonRecordingPlayer({ recording, onClose, canManage, onTrimmed
     [plan?.items, renderedSlidesByFileId, songs],
   );
   const event = useMemo(() => {
-    return recordingTimelineEventAt(recording.timeline, currentTime, recording.source === "trimmed-sermon" ? 0 : 1.5);
+    return recordingTimelineEventAt(recording.timeline, currentTime, 0);
   }, [currentTime, recording.timeline, recording.source]);
   const matchingSlides = event ? slides.filter((slide) => slide.planItemId === event.plan_item_id) : [];
   const slide = matchingSlides[Math.min(Math.max(event?.slide_offset ?? 0, 0), matchingSlides.length - 1)] ?? null;

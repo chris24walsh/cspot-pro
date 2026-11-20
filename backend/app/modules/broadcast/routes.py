@@ -39,6 +39,7 @@ from app.modules.broadcast.recording import (
     stop_recording,
 )
 from app.modules.broadcast.recording_audio import delete_mp3, prepare_mp3
+from app.modules.broadcast.recording_timeline import display_timeline
 from app.modules.broadcast.recording_trim import create_trimmed_recording
 from app.modules.broadcast.recording_video import (
     delete_video,
@@ -289,7 +290,7 @@ def recording_read(session: Session, recording: BroadcastRecording) -> Broadcast
         public_token=recording.public_token,
         published_at=recording.published_at,
         archived_at=recording.archived_at,
-        timeline=timeline if isinstance(timeline, list) else [],
+        timeline=display_timeline(timeline, recording.source) if isinstance(timeline, list) else [],
     )
 
 
@@ -454,6 +455,7 @@ def trim_recording(
             recording_read(session, recording).timeline,
             current_user.id,
             replace_original=payload.replace_original,
+            timeline_is_display_time=True,
         )
     except ValueError as error:
         raise HTTPException(status_code=422, detail=str(error)) from error
@@ -561,10 +563,9 @@ def get_public_recording(
 ) -> PublicRecordingRead:
     recording = public_recording(session, token)
     details = recording_read(session, recording)
-    delay = 0 if recording.source == "trimmed-sermon" else 1.5
     slides = [
         {
-            "at": 0 if index == 0 else max(0, float(event.get("at", 0)) + delay),
+            "at": event["at"],
             "image_url": f"/api/v1/broadcast/public-recordings/{token}/slides/{index}.png",
         }
         for index, event in enumerate(details.timeline)
