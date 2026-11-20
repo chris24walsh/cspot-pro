@@ -1239,6 +1239,7 @@ export function PresentationView({
       setBroadcastRecordings([]);
       return;
     }
+    if (!active) return undefined;
     let cancelled = false;
     let inFlight = false;
     const refresh = async () => {
@@ -1261,7 +1262,7 @@ export function PresentationView({
       cancelled = true;
       window.clearInterval(timer);
     };
-  }, [plan?.id]);
+  }, [plan?.id, active]);
 
   useEffect(() => {
     if (!activeSermonRecording?.pending_stop_at) return undefined;

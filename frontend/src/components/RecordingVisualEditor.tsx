@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { getBibleVersions, getFiles, saveRecordingVisuals, searchBible, uploadStoredFile, type BibleSearchHit, type BibleVersion, type BroadcastRecording, type RecordingVisualSegment, type StoredFile } from "../api";
 import { parseRecordingTime, recordingTime } from "./RecordingTransport";
 
@@ -24,6 +24,8 @@ export function RecordingVisualEditor({ recording, currentTime, onCancel, onSave
   const [text, setText] = useState("");
   const [fileIds, setFileIds] = useState<string[]>([]);
   const [files, setFiles] = useState<StoredFile[]>([]);
+  const [libraryState, setLibraryState] = useState<"idle" | "loading" | "loaded" | "error">("idle");
+  const libraryRequest = useRef(false);
   const [versions, setVersions] = useState<BibleVersion[]>([]);
   const [version, setVersion] = useState("");
   const [query, setQuery] = useState("");
@@ -38,9 +40,17 @@ export function RecordingVisualEditor({ recording, currentTime, onCancel, onSave
   useEffect(() => {
     void getBibleVersions().then((nextVersions) => { setVersions(nextVersions); setVersion(nextVersions[0]?.code ?? ""); })
       .catch(() => setMessage("Bible versions could not be loaded. Check library access."));
-    void getFiles().then((nextFiles) => setFiles(nextFiles.filter((file) => ["image/png", "image/jpeg"].includes(file.content_type ?? ""))))
-      .catch(() => setMessage("Library images could not be loaded. Check library access."));
   }, []);
+
+  useEffect(() => {
+    if ((kind !== "image" && kind !== "montage") || libraryState !== "idle" || libraryRequest.current) return;
+    libraryRequest.current = true; setLibraryState("loading");
+    void getFiles().then((nextFiles) => {
+      const images = nextFiles.filter((file) => ["image/png", "image/jpeg"].includes(file.content_type ?? ""));
+      setFiles((current) => [...images, ...current.filter((file) => !images.some((image) => image.id === file.id))]);
+      setLibraryState("loaded");
+    }).catch(() => setLibraryState("error")).finally(() => { libraryRequest.current = false; });
+  }, [kind, libraryState]);
 
   useEffect(() => { onPreviewChange?.(segments); }, [segments, onPreviewChange]);
 
@@ -121,6 +131,8 @@ export function RecordingVisualEditor({ recording, currentTime, onCancel, onSave
         {title ? <p>Selected: {title} — {text} ({text.length}/1,200 characters){text.length > 1200 ? " — choose a shorter passage." : ""}</p> : null}
       </div> : null}
       {kind === "image" || kind === "montage" ? <div>
+        {libraryState === "loading" ? <p>Loading library images…</p> : null}
+        {libraryState === "error" ? <p role="alert">Library images could not be loaded. Check library access. <button type="button" className="text-button" onClick={() => setLibraryState("idle")}>Retry</button></p> : null}
         <label>Library image <select value="" onChange={(event) => { const id = event.target.value; if (id) setFileIds((current) => kind === "image" ? [id] : [...current, id]); }}><option value="">Choose image…</option>{files.map((file) => <option key={file.id} value={file.id}>{file.display_name}</option>)}</select></label>
         <label> Upload image <input type="file" accept="image/png,image/jpeg" onChange={(event) => { const file = event.target.files?.[0]; if (!file) return; if (!["image/png", "image/jpeg"].includes(file.type) || file.size > 25 * 1024 * 1024) { setMessage("Choose a PNG or JPEG image no larger than 25 MB."); return; } setBusy(true); void uploadStoredFile({ file }).then((uploaded) => { setFiles((current) => [...current, uploaded]); setFileIds((current) => kind === "image" ? [uploaded.id] : [...current, uploaded.id]); }).catch((error) => setMessage(error instanceof Error ? error.message : "Upload failed.")).finally(() => setBusy(false)); }} /></label>
         <ol>{fileIds.map((id, index) => <li key={`${id}-${index}`}>{files.find((file) => file.id === id)?.display_name ?? id} <button type="button" className="text-button" disabled={index === 0} onClick={() => setFileIds((current) => { const next = [...current]; [next[index - 1], next[index]] = [next[index], next[index - 1]]; return next; })}>Move up</button> <button type="button" className="text-button" onClick={() => setFileIds((current) => current.filter((_, i) => i !== index))}>Remove</button></li>)}</ol>

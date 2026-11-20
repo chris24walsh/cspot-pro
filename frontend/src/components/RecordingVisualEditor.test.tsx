@@ -85,3 +85,21 @@ it("honors a manually entered start when selecting a passage and caps its end", 
   expect(saveRecordingVisuals).toHaveBeenLastCalledWith("rec", [expect.objectContaining({ kind: "bible", start_seconds: 30, end_seconds: 50 }), expect.objectContaining({ id: "later" })]);
   await act(async () => root.unmount()); vi.unstubAllGlobals();
 });
+
+it("loads library images only on first image or montage selection", async () => {
+  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+  vi.mocked(getFiles).mockReset().mockResolvedValue([]);
+  vi.mocked(getBibleVersions).mockResolvedValue([]);
+  const recording = { id: "rec", duration_seconds: 90, timeline: [], visual_segments: [] } as unknown as BroadcastRecording;
+  const host = document.createElement("div"), root = createRoot(host);
+  await act(async () => root.render(<RecordingVisualEditor recording={recording} currentTime={0} onCancel={() => {}} onSaved={() => {}} />));
+  expect(getFiles).not.toHaveBeenCalled();
+  const type = [...host.querySelectorAll("label")].find((label) => label.textContent?.startsWith("Type"))!.querySelector("select")!;
+  await act(async () => { type.value = "background"; type.dispatchEvent(new Event("change", { bubbles: true })); });
+  expect(getFiles).not.toHaveBeenCalled();
+  await act(async () => { type.value = "image"; type.dispatchEvent(new Event("change", { bubbles: true })); });
+  expect(getFiles).toHaveBeenCalledTimes(1);
+  await act(async () => { type.value = "montage"; type.dispatchEvent(new Event("change", { bubbles: true })); });
+  expect(getFiles).toHaveBeenCalledTimes(1);
+  await act(async () => root.unmount()); vi.unstubAllGlobals();
+});

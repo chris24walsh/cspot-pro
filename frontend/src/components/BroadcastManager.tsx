@@ -130,11 +130,15 @@ export function BroadcastManager({
   const [testingCameraId, setTestingCameraId] = useState<string | null>(null);
   const [testingAudioId, setTestingAudioId] = useState<string | null>(null);
   const [viewership, setViewership] = useState<LivestreamEvent[]>([]);
+  const hasRecordingCountdown = recordings.some((recording) =>
+    recording.status === "recording" && Boolean(recording.pending_stop_at));
 
   useEffect(() => {
+    if (playingRecording || !hasRecordingCountdown) return undefined;
+    setClock(Date.now());
     const timer = window.setInterval(() => setClock(Date.now()), 1000);
     return () => window.clearInterval(timer);
-  }, []);
+  }, [Boolean(playingRecording), hasRecordingCountdown]);
 
   useEffect(() => {
     void getBroadcastViewerSettings()
@@ -165,6 +169,7 @@ export function BroadcastManager({
   }
 
   useEffect(() => {
+    if (playingRecording) return undefined;
     let inFlight = false;
     const refresh = async () => {
       if (inFlight) return;
@@ -175,7 +180,7 @@ export function BroadcastManager({
     void refresh();
     const timer = window.setInterval(() => void refresh(), 5000);
     return () => window.clearInterval(timer);
-  }, [canManage, recordingFilter]);
+  }, [canManage, recordingFilter, Boolean(playingRecording)]);
 
   useEffect(() => {
     if (!canManage || activeTab !== "livestream") return undefined;

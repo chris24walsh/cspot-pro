@@ -1181,6 +1181,11 @@ image without changing the recording or invalidating an MP4 export. Playback-tim
 interval headers let the editor reuse that image until a visual transition or
 edit, while keeping playback controls visible. New consecutive insertions shorten
 the preceding local segment and default to the next segment boundary.
+Successful text-fit checks use a bounded content cache so unchanged passages do
+not repeat font measurement on every preview. Recording list and countdown
+updates pause behind the recording player; the inactive Present workspace also
+pauses recording-status polling. Library images load only when an image or montage
+is selected in the editor.
 
 Each recording has one share/download menu for a compatible MP3 audio export, synchronized MP4 export,
 and admin-controlled public access. Public recordings are opt-in and available

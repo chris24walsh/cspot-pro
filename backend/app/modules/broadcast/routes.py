@@ -4,6 +4,7 @@ import secrets
 import subprocess
 from collections.abc import AsyncIterator
 from datetime import UTC, datetime, timedelta
+from functools import lru_cache
 from pathlib import Path
 from typing import Annotated, Literal
 from urllib.parse import parse_qs, urlsplit
@@ -650,6 +651,12 @@ def viewable_recording(session: Session, recording_id: str, user: User) -> Broad
     return ready_recording(session, recording_id)
 
 
+@lru_cache(maxsize=512)
+def validate_text_slide_fit(text: str) -> None:
+    """Reuse successful layout checks without retaining the rendered image."""
+    text_slide_layout(text)
+
+
 def validate_recording_visuals(
     session: Session, recording: BroadcastRecording, submitted_segments: list[RecordingVisualSegment]
 ) -> list[RecordingVisualSegment]:
@@ -674,13 +681,6 @@ def validate_recording_visuals(
             )
         if segment.kind == "bible" and not (segment.text or "").strip():
             raise HTTPException(status_code=422, detail="Bible visuals require text")
-        if segment.kind == "bible":
-            try:
-                text_slide_layout(
-                    "\n\n".join(filter(None, [segment.title, segment.text]))
-                )
-            except ValueError as error:
-                raise HTTPException(status_code=422, detail=str(error)) from error
         if segment.kind == "image" and len(segment.file_ids) != 1:
             raise HTTPException(
                 status_code=422, detail="Image visuals require one image"
@@ -722,6 +722,12 @@ def validate_recording_visuals(
                     status_code=422, detail="Visual image is unavailable"
                 )
         previous_end = segment.end_seconds
+    for segment in segments:
+        if segment.kind == "bible":
+            try:
+                validate_text_slide_fit("\n\n".join(filter(None, [segment.title, segment.text])))
+            except ValueError as error:
+                raise HTTPException(status_code=422, detail=str(error)) from error
     return segments
 
 
@@ -755,10 +761,10 @@ def preview_recording_visuals(
     session: Session = Depends(get_session),
 ) -> FileResponse:
     recording = ready_recording(session, recording_id)
-    segments = validate_recording_visuals(session, recording, payload.segments)
     duration = recording.duration_seconds
     if duration is not None and payload.at_seconds > duration + 0.5:
         raise HTTPException(status_code=422, detail="Preview time is outside the recording")
+    segments = validate_recording_visuals(session, recording, payload.segments)
     capture = recording_read(session, recording, include_visuals=False).timeline
     timeline = effective_timeline(capture, [segment.model_dump() for segment in segments])
     index = max(
