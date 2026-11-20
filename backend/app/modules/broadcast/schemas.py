@@ -218,6 +218,10 @@ class RecordingVisualUpdate(BaseModel):
     segments: list[RecordingVisualSegment] = Field(max_length=500)
 
 
+class RecordingVisualPreview(RecordingVisualUpdate):
+    at_seconds: float = Field(ge=0, allow_inf_nan=False)
+
+
 class BroadcastRecordingRead(BaseModel):
     id: str
     file_name: str = "recording.m4a"

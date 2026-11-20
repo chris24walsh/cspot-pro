@@ -410,6 +410,10 @@ PNG/JPEG image, or ordered montage. Set its start and end, choose **Add visual**
 **Save changes**. Bible passages are saved as text snapshots (up to 1,200 characters
 per visual); split longer readings into shorter passages. The generic **Sermon**
 placeholder now uses the default service background image.
+Consecutive insertions automatically end the preceding visual at the new start and
+default to the next visual's start or the recording's end. Use **Add & preview from
+start** to test local changes with playback before saving. Preview and playback
+controls remain visible while editing, and saving keeps the editor open.
 
 Song library search combines text with immediately applied Key, Theme and Source
 filters, a matching-song count, and Clear all. Options come from saved library

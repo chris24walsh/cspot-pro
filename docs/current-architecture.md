@@ -1176,6 +1176,11 @@ intervals while listening to the recording. The effective timeline restores the
 latest captured slide at each segment end, including transitions captured during
 the segment. Signed-in playback, public playback and MP4 export consume the same
 effective events; recordings without captured slides use the default background.
+The admin-only visual preview endpoint validates local segments and resolves an
+image without changing the recording or invalidating an MP4 export. Playback-time
+interval headers let the editor reuse that image until a visual transition or
+edit, while keeping playback controls visible. New consecutive insertions shorten
+the preceding local segment and default to the next segment boundary.
 
 Each recording has one share/download menu for a compatible MP3 audio export, synchronized MP4 export,
 and admin-controlled public access. Public recordings are opt-in and available

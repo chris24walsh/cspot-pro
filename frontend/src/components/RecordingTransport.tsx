@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { forwardRef, useImperativeHandle, useRef, useState } from "react";
 import { Pencil } from "lucide-react";
 import { broadcastRecordingAudioUrl, trimBroadcastRecording, type BroadcastRecording } from "../api";
 
@@ -13,14 +13,15 @@ export function parseRecordingTime(value: string): number {
   return minutes * 60 + seconds;
 }
 
-export function RecordingTransport({ recording, canManage = false, onTimeChange, onTrimmed, audioUrl, onEditVisuals }: {
+export interface RecordingTransportHandle { seekAndPlay: (seconds: number) => void; }
+export const RecordingTransport = forwardRef<RecordingTransportHandle, {
   recording: BroadcastRecording;
   canManage?: boolean;
   onTimeChange: (seconds: number) => void;
   onTrimmed?: (recording: BroadcastRecording, replaced: boolean) => void;
   audioUrl?: string;
   onEditVisuals?: () => void;
-}) {
+}>(function RecordingTransport({ recording, canManage = false, onTimeChange, onTrimmed, audioUrl, onEditVisuals }, ref) {
   const audioRef = useRef<HTMLAudioElement>(null);
   const previewEnd = useRef<number | null>(null);
   const [duration, setDuration] = useState(recording.duration_seconds ?? 0);
@@ -50,6 +51,8 @@ export function RecordingTransport({ recording, canManage = false, onTimeChange,
     try { await audioRef.current?.play(); }
     catch { setMessage("Could not play audio. Please try again."); }
   }
+
+  useImperativeHandle(ref, () => ({ seekAndPlay: (seconds) => { seek(seconds); void play(); } }));
 
   async function saveTrim(replaceOriginal = false) {
     if (!validTrim || saving) return;
@@ -135,4 +138,4 @@ export function RecordingTransport({ recording, canManage = false, onTimeChange,
     </fieldset> : null}
     {message ? <p role="status">{message}</p> : null}
   </div>;
-}
+});

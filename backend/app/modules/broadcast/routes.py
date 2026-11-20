@@ -65,6 +65,8 @@ from app.modules.broadcast.schemas import (
     LivestreamViewerRead,
     ManualLivestreamUpdate,
     PublicRecordingRead,
+    RecordingVisualPreview,
+    RecordingVisualSegment,
     RecordingVisualUpdate,
 )
 from app.modules.broadcast.settings import (
@@ -648,15 +650,10 @@ def viewable_recording(session: Session, recording_id: str, user: User) -> Broad
     return ready_recording(session, recording_id)
 
 
-@router.put("/recordings/{recording_id}/visuals", response_model=BroadcastRecordingRead)
-def update_recording_visuals(
-    recording_id: str,
-    payload: RecordingVisualUpdate,
-    _current_user: User = Depends(require_permission("broadcast:use")),
-    session: Session = Depends(get_session),
-) -> BroadcastRecordingRead:
-    recording = ready_recording(session, recording_id)
-    segments = sorted(payload.segments, key=lambda segment: segment.start_seconds)
+def validate_recording_visuals(
+    session: Session, recording: BroadcastRecording, submitted_segments: list[RecordingVisualSegment]
+) -> list[RecordingVisualSegment]:
+    segments = sorted(submitted_segments, key=lambda segment: segment.start_seconds)
     ids = set()
     previous_end = 0.0
     frame_count = 0
@@ -725,6 +722,18 @@ def update_recording_visuals(
                     status_code=422, detail="Visual image is unavailable"
                 )
         previous_end = segment.end_seconds
+    return segments
+
+
+@router.put("/recordings/{recording_id}/visuals", response_model=BroadcastRecordingRead)
+def update_recording_visuals(
+    recording_id: str,
+    payload: RecordingVisualUpdate,
+    _current_user: User = Depends(require_permission("broadcast:use")),
+    session: Session = Depends(get_session),
+) -> BroadcastRecordingRead:
+    recording = ready_recording(session, recording_id)
+    segments = validate_recording_visuals(session, recording, payload.segments)
     with video_lock:
         try:
             delete_video(recording)
@@ -736,6 +745,36 @@ def update_recording_visuals(
         session.commit()
         session.refresh(recording)
     return recording_read(session, recording)
+
+
+@router.post("/recordings/{recording_id}/visuals/preview")
+def preview_recording_visuals(
+    recording_id: str,
+    payload: RecordingVisualPreview,
+    _current_user: User = Depends(require_permission("broadcast:use")),
+    session: Session = Depends(get_session),
+) -> FileResponse:
+    recording = ready_recording(session, recording_id)
+    segments = validate_recording_visuals(session, recording, payload.segments)
+    duration = recording.duration_seconds
+    if duration is not None and payload.at_seconds > duration + 0.5:
+        raise HTTPException(status_code=422, detail="Preview time is outside the recording")
+    capture = recording_read(session, recording, include_visuals=False).timeline
+    timeline = effective_timeline(capture, [segment.model_dump() for segment in segments])
+    index = max(
+        (i for i, event in enumerate(timeline) if event["at"] <= payload.at_seconds),
+        default=0,
+    )
+    event = timeline[index]
+    end = (
+        timeline[index + 1]["at"]
+        if index + 1 < len(timeline)
+        else max(float(duration or 0) + 1, payload.at_seconds + 1)
+    )
+    response = recording_slide_response(session, event)
+    response.headers["X-Preview-Start"] = str(event["at"])
+    response.headers["X-Preview-End"] = str(end)
+    return response
 
 
 @router.get("/recordings/{recording_id}/slides/{event_index}.png")

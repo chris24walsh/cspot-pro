@@ -395,6 +395,9 @@ cover the captured slides without replacing them; the current captured slide res
 at the end. Signed-in and public playback and MP4 exports share the visual timeline.
 Opening **Edit visuals** pauses the recording and reuses the service Bible search.
 The generic **Sermon** placeholder uses the default service background image.
+Consecutive visual insertions shorten the preceding visual instead of overlapping.
+The editor previews unsaved changes with the shared renderer while playback remains
+available; saving does not close the editor.
 
 Song library search combines text with immediately applied Key, Theme and Source
 filters, a matching-song count, and Clear all. Options come from saved library

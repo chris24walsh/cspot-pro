@@ -85,6 +85,7 @@ def create_app() -> FastAPI:
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
+        expose_headers=["X-Preview-Start", "X-Preview-End"],
     )
 
     @app.middleware("http")

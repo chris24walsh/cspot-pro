@@ -14562,3 +14562,20 @@ button.musician-page {
 .recording-visual-editor input:not([type="file"]) { max-width: 160px; }
 .recording-visual-list, .recording-visual-results { max-height: 150px; overflow-y: auto; }
 .recording-visual-results button { display: block; text-align: left; }
+.recording-visual-editor .text-button,
+.sermon-recording-player > .recording-transport .text-button,
+.sermon-recording-player > .action-row > .text-button { color: #e3f2e9; }
+.recording-visual-editor .text-button:disabled,
+.sermon-recording-player > .recording-transport .text-button:disabled { color: #a1b5aa; }
+
+.sermon-recording-player.editing-visuals { overflow: hidden; grid-template-columns: minmax(0, 1fr) minmax(320px, 0.85fr); grid-template-rows: auto minmax(0, 1fr) auto; }
+.sermon-recording-player.editing-visuals > header { grid-column: 1 / -1; }
+.sermon-recording-player.editing-visuals > .sermon-recording-stage { grid-column: 1; grid-row: 2; }
+.sermon-recording-player.editing-visuals > .recording-transport { grid-column: 1; grid-row: 3; }
+.sermon-recording-player.editing-visuals > .recording-visual-editor { grid-column: 2; grid-row: 2 / 4; overflow-y: auto; }
+@media (max-width: 700px) {
+  .sermon-recording-player.editing-visuals { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(100px, 25vh) auto minmax(0, 1fr); }
+  .sermon-recording-player.editing-visuals > .sermon-recording-stage { grid-row: 2; }
+  .sermon-recording-player.editing-visuals > .recording-transport { grid-row: 3; }
+  .sermon-recording-player.editing-visuals > .recording-visual-editor { grid-column: 1; grid-row: 4; }
+}

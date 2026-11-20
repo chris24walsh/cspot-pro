@@ -310,3 +310,59 @@ def test_trim_on_decimal_montage_boundary_keeps_full_first_frame(tmp_path, monke
     assert segments[0]["end_seconds"] == pytest.approx(1.3)
     assert segments[1]["file_ids"] == ["a", "b"]
     assert segments[-1]["end_seconds"] <= copy.duration_seconds
+
+
+def test_unsaved_preview_selects_intervals_without_saving_or_invalidating(monkeypatch):
+    from app.modules.broadcast import routes
+    from app.modules.broadcast.schemas import RecordingVisualPreview
+
+    recording = SimpleNamespace(duration_seconds=10)
+    session = Mock()
+    monkeypatch.setattr(routes, "ready_recording", lambda *_: recording)
+    monkeypatch.setattr(
+        routes,
+        "recording_read",
+        lambda *_args, **_kwargs: SimpleNamespace(
+            timeline=[{"at": 0, "item_type": "sermon", "files": []}]
+        ),
+    )
+    delete = Mock(side_effect=AssertionError("preview invalidated export"))
+    monkeypatch.setattr(routes, "delete_video", delete)
+    payload = RecordingVisualPreview(
+        at_seconds=4,
+        segments=[
+            {"id": "a", "start_seconds": 1, "end_seconds": 4, "kind": "background"},
+            {"id": "b", "start_seconds": 4, "end_seconds": 6, "kind": "background"},
+        ],
+    )
+    response = routes.preview_recording_visuals("recording", payload, None, session)
+    assert float(response.headers["x-preview-start"]) == 4
+    assert float(response.headers["x-preview-end"]) == 6
+    assert response.headers["cache-control"] == "no-store"
+    session.commit.assert_not_called()
+    delete.assert_not_called()
+
+    payload.at_seconds = 10
+    response = routes.preview_recording_visuals("recording", payload, None, session)
+    assert float(response.headers["x-preview-start"]) == 6
+    assert float(response.headers["x-preview-end"]) > 10
+
+
+def test_unsaved_preview_reuses_save_validation(monkeypatch):
+    from app.modules.broadcast import routes
+    from app.modules.broadcast.schemas import RecordingVisualPreview
+
+    recording = SimpleNamespace(duration_seconds=10)
+    monkeypatch.setattr(routes, "ready_recording", lambda *_: recording)
+    session = Mock()
+    payload = RecordingVisualPreview(
+        at_seconds=1,
+        segments=[
+            {"id": "a", "start_seconds": 1, "end_seconds": 4, "kind": "background"},
+            {"id": "b", "start_seconds": 3, "end_seconds": 6, "kind": "background"},
+        ],
+    )
+    with pytest.raises(HTTPException) as error:
+        routes.preview_recording_visuals("recording", payload, None, session)
+    assert error.value.status_code == 422
+    session.commit.assert_not_called()

@@ -1515,6 +1515,18 @@ export function saveRecordingVisuals(recordingId: string, segments: RecordingVis
   return sendJson<BroadcastRecording>(`/api/v1/broadcast/recordings/${recordingId}/visuals`, "PUT", { segments });
 }
 
+export async function previewRecordingVisuals(recordingId: string, segments: RecordingVisualSegment[], atSeconds: number, signal: AbortSignal) {
+  const response = await fetch(buildApiUrl(`/api/v1/broadcast/recordings/${recordingId}/visuals/preview`), {
+    method: "POST", credentials: "include", cache: "no-store", signal,
+    headers: { "Content-Type": "application/json" }, body: JSON.stringify({ segments, at_seconds: atSeconds }),
+  });
+  if (!response.ok) return parseError(response);
+  const start = Number(response.headers.get("X-Preview-Start"));
+  const end = Number(response.headers.get("X-Preview-End"));
+  if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) throw new Error("Invalid preview timing.");
+  return { blob: await response.blob(), start, end };
+}
+
 export function broadcastRecordingSlideUrl(recordingId: string, eventIndex: number, cacheKey = "") {
   return buildApiUrl(`/api/v1/broadcast/recordings/${recordingId}/slides/${eventIndex}.png${cacheKey ? `?v=${encodeURIComponent(cacheKey)}` : ""}`);
 }
