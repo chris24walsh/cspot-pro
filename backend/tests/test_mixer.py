@@ -455,3 +455,29 @@ def test_mixer_connection_lookup_runs_off_event_loop_and_releases_session(monkey
     monkeypatch.setattr(routes, "engine", SimpleNamespace(configure=configure, snapshot=lambda: {}))
     session = SimpleNamespace(close=lambda: calls.append("closed"))
     asyncio.run(routes.state(session))
+
+
+def test_failed_write_rechecks_without_writing_and_retains_mismatch():
+    async def scenario():
+        mixer = MixerEngine()
+        mixer.host = '192.168.4.106'
+        mixer.identity = ['desk']
+        mixer.last_seen = time.monotonic()
+        sent = []
+        class Transport:
+            def sendto(self, data, addr):
+                sent.append(decode(data))
+        mixer.transport = Transport()
+        path = '/ch/07/mix/05/level'
+        mixer.failed[path] = 'No matching readback from mixer'
+        mixer.failed_targets[path] = .5
+        mixer.values.update({p: 0 for p in FADER_READBACK_PATHS})
+        await mixer.refresh_missing_controls()
+        assert (path, []) in sent
+        assert all(not args for _, args in sent)
+        mixer.datagram_received(encode(path, .3), (mixer.host, 10024))
+        assert mixer.failed[path] == 'Mixer value differs from requested value'
+        mixer.datagram_received(encode(path, .5), (mixer.host, 10024))
+        assert path not in mixer.failed and path not in mixer.failed_targets
+    from app.modules.mixer.engine import FADER_READBACK_PATHS
+    asyncio.run(scenario())

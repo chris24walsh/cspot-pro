@@ -96,6 +96,7 @@ class MixerEngine(asyncio.DatagramProtocol):
         self.pending = {}
         self.pending_origins = {}
         self.failed = {}
+        self.failed_targets = {}
         self.fx_specs = {}
         self.revision = 0
         self.syncing = False
@@ -182,7 +183,18 @@ class MixerEngine(asyncio.DatagramProtocol):
                 ):
                     self.pending.pop(path, None)
                     self.pending_origins.pop(path, None)
-                self.failed.pop(path, None)
+                failed_target = self.failed_targets.get(path)
+                if failed_target is not None:
+                    matches = (args[0] == failed_target or isinstance(args[0], float)
+                               and isinstance(failed_target, (float, int))
+                               and abs(args[0] - failed_target) < 0.002)
+                    if matches:
+                        self.failed.pop(path, None)
+                        self.failed_targets.pop(path, None)
+                    else:
+                        self.failed[path] = "Mixer value differs from requested value"
+                elif not pending:
+                    self.failed.pop(path, None)
             else:
                 return
             self.revision += 1
@@ -206,6 +218,7 @@ class MixerEngine(asyncio.DatagramProtocol):
                 self.arm_startup_mute()
             self.values, self.pending, self.failed, self.levels, self.identity = {}, {}, {}, [], []
             self.pending_origins = {}
+            self.failed_targets.clear()
             self.last_seen = self.last_meter = 0
             self.error = None
             self.synchronized = False
@@ -254,6 +267,12 @@ class MixerEngine(asyncio.DatagramProtocol):
 
     async def refresh_missing_controls(self):
         """Retry unanswered strip controls; never change desk settings."""
+        # Failed writes are read again, never re-sent, until the desk confirms them.
+        for path in list(self.failed_targets):
+            if not self.connected or self.recalling:
+                return
+            self.send(path)
+            await asyncio.sleep(0.01)
         for path in FADER_READBACK_PATHS:
             if not self.connected or self.recalling:
                 return
@@ -301,6 +320,7 @@ class MixerEngine(asyncio.DatagramProtocol):
                     if retries >= 2 or not self.connected:
                         self.pending.pop(path, None)
                         self.pending_origins.pop(path, None)
+                        self.failed_targets[path] = value
                         self.failed[path] = "No matching readback from mixer"
                     else:
                         self.send(path, value)
@@ -342,6 +362,7 @@ class MixerEngine(asyncio.DatagramProtocol):
         self.pending[path] = (value, time.monotonic(), 0)
         self.pending_origins[path] = origin
         self.failed.pop(path, None)
+        self.failed_targets.pop(path, None)
         self.send(path, value)
         self.send(path)
 
