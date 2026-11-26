@@ -268,8 +268,8 @@ it('sounds an explicitly timed offbeat change even when the strum grid has no st
   expect(attack.every(note => note.soft && note.velocity === 50)).toBe(true);
 });
 
-it.each(['-', 'X', 'U'] as const)('fills a missing chord attack softly while preserving authored strokes (%s)', stroke => {
-  const music = buildPracticePerformance({ ...rhythm, patterns: [{ section: 'Default', subdivision: 1, strokes: ['D', '-', stroke, '-'] }], arrangements: [{ section: 'Default', chart: 'C@1 G@3' }] }, { mode: 'song', countIn: false });
+it.each(['C@1 G@3', 'C G'].flatMap(chart => (['-', 'X', 'U'] as const).map(stroke => ({ chart, stroke }))))('fills a missing chord attack softly while preserving authored strokes ($chart, $stroke)', ({ chart, stroke }) => {
+  const music = buildPracticePerformance({ ...rhythm, patterns: [{ section: 'Default', subdivision: 1, strokes: ['D', '-', stroke, '-'] }], arrangements: [{ section: 'Default', chart }] }, { mode: 'song', countIn: false });
   const opening = music.notes.filter(note => note.channel === 0 && note.tick < 40);
   expect(opening.every(note => !note.soft)).toBe(true);
   const change = music.notes.filter(note => note.channel === 0 && note.tick >= 2 * MIDI_PPQ && note.tick < 2 * MIDI_PPQ + 40);
@@ -281,6 +281,41 @@ it.each(['-', 'X', 'U'] as const)('fills a missing chord attack softly while pre
     expect(change.map(note => note.pitch)).toEqual(chordMidiNotes('G'));
     expect(change.every(note => note.soft && note.velocity === 50)).toBe(true);
   }
+});
+
+it('inserts a default mid-bar change softly on its count rather than waiting for the next swing stroke', () => {
+  const music = buildPracticePerformance({ ...rhythm, patterns: [{ section: 'Default', subdivision: 4, strokes: ['D', '-', 'X', 'U', 'X', '-', 'D', '-', 'X', 'U', 'X', '-', 'D', '-', 'X', 'U'] }], arrangements: [{ section: 'Default', chart: 'G D' }] }, { mode: 'song', countIn: false });
+  const changeTick = 2 * MIDI_PPQ;
+  const nextTick = changeTick + MIDI_PPQ / 4;
+  const change = music.notes.filter(note => note.channel === 0 && note.tick >= changeTick && note.tick < changeTick + 40);
+  expect(change.map(note => note.pitch)).toEqual(chordMidiNotes('D'));
+  expect(change.every(note => note.soft && note.velocity === 50)).toBe(true);
+  const nextStroke = music.notes.filter(note => note.channel === 0 && note.tick >= nextTick && note.tick < nextTick + 40);
+  expect(nextStroke.map(note => note.pitch)).toEqual(chordMidiNotes('D').reverse());
+  expect(nextStroke.every(note => !note.soft && note.velocity === 60)).toBe(true);
+  const midi = readMidi(practiceMidi(music));
+  expect(midi.events.filter(event => event.status === 0x90 && event.tick >= changeTick && event.tick < changeTick + 40).map(event => event.data))
+    .toEqual(chordMidiNotes('D').map(pitch => [pitch, 50]));
+});
+
+it('inserts All Hail the Lamb’s default A change on beat 3 before the authored soft upstroke on 3.5', () => {
+  const music = buildPracticePerformance({ ...rhythm, bpm: 75, patterns: [{ section: 'Default', subdivision: 2, strokes: ['D', '-', 'D', 's', '-', 's', 'D', 's'] }], markers: [
+    { id: 'start', section: 'C', lineIndex: 0, anchorIndex: 0 },
+    { id: 'next', section: 'C', lineIndex: 0, anchorIndex: 16 },
+  ] }, { mode: 'song', lyrics: '[C]\nSing a stately song', sequence: 'Cx3', annotations: [
+    { id: 'd', section: 'C', lineIndex: 0, anchorIndex: 0, chord: 'D' },
+    { id: 'a', section: 'C', lineIndex: 0, anchorIndex: 7, chord: 'A' },
+    { id: 'next-d', section: 'C', lineIndex: 0, anchorIndex: 16, chord: 'D' },
+  ] });
+  expect(music.bars[0].chords).toEqual([{ chord: 'D', beat: 1 }, { chord: 'A', beat: 3 }]);
+  const changeTick = 2 * MIDI_PPQ;
+  const change = music.notes.filter(note => note.channel === 0 && note.tick >= changeTick && note.tick < changeTick + 40);
+  expect(change.map(note => note.pitch)).toEqual(chordMidiNotes('A'));
+  expect(change.every(note => note.soft && note.velocity === 50)).toBe(true);
+  const upstrokeTick = changeTick + MIDI_PPQ / 2;
+  const next = music.notes.filter(note => note.channel === 0 && note.tick >= upstrokeTick && note.tick < upstrokeTick + 40);
+  expect(next.map(note => note.pitch)).toEqual(chordMidiNotes('A').reverse());
+  expect(next.every(note => note.soft && note.velocity === 50)).toBe(true);
 });
 
 it('uses actual bar lengths for mixed-meter notes, clicks, cursor clocks, live jumps and MIDI signatures', async () => {

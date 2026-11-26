@@ -105,6 +105,8 @@ timing from an automatic slide update.
   counts take precedence; multiple unspecified changes retain interpolation.
   Timed chord changes missing a pitched pattern stroke use a soft downstroke,
   including muted slots, without strengthening authored pitched strokes.
+  This applies to default/interpolated counts as well as explicit counts: a
+  chord change must not wait until the next pattern stroke to sound.
 
 ## Acceptance tests
 

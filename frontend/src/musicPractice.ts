@@ -191,7 +191,7 @@ export function buildPracticePerformance(rhythm: SongRhythm, options: {
     const attacks = strokes.flatMap((stroke, index) => stroke !== "-" ? [{ stroke, beat: 1 + index / pattern.subdivision }] : []);
     // Fill a missing harmonic attack softly without changing authored strokes.
     bar.chords.forEach((change, index) => {
-      if (!bar.exactTiming || index === 0 || !change.chord || bar.chords[index - 1].chord === change.chord) return;
+      if (index === 0 || !change.chord || bar.chords[index - 1].chord === change.chord) return;
       const existing = attacks.find(attack => Math.abs(attack.beat - change.beat) < 0.000001);
       if (existing) { if (existing.stroke === "X") existing.stroke = "S"; }
       else attacks.push({ stroke: "S", beat: change.beat });
