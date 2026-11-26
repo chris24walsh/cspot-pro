@@ -768,7 +768,18 @@ def _schedule_audio_scene_after_program_fade(plan_id: str) -> None:
     timer.start()
 
 
-def cleanup_live_sessions(
+def cleanup_live_sessions(session: Session, *, active_plan_id: str | None = None, now: datetime | None = None):
+    """Finish the row-lock transaction before response validation is queued."""
+    try:
+        result = _cleanup_live_sessions(session, active_plan_id=active_plan_id, now=now)
+        session.commit()
+        return result
+    except Exception:
+        session.rollback()
+        raise
+
+
+def _cleanup_live_sessions(
     session: Session,
     *,
     active_plan_id: str | None = None,
@@ -1281,7 +1292,18 @@ def _auto_advance_options(session: Session, item_id: str | None) -> dict:
         return {}
 
 
-def advance_expired_auto_slide(
+def advance_expired_auto_slide(session: Session, presentation_session: PresentationSession | None, position: PresentationPosition | None, plan_id: str, *, now_ms: int | None = None):
+    """Finish the row-lock transaction before response validation is queued."""
+    try:
+        result = _advance_expired_auto_slide(session, presentation_session, position, plan_id, now_ms=now_ms)
+        session.commit()
+        return result
+    except Exception:
+        session.rollback()
+        raise
+
+
+def _advance_expired_auto_slide(
     session: Session,
     presentation_session: PresentationSession | None,
     position: PresentationPosition | None,
@@ -1594,7 +1616,9 @@ def update_presentation_live_state(
             plan_id, current_user.id, payload.expected_updated_at,
             current_updated_at, payload.plan_item_id,
         )
-        return _serialize_live_state(presentation_session, position, plan_id)
+        result = _serialize_live_state(presentation_session, position, plan_id)
+        session.rollback()
+        return result
 
     # Output and Worship Live omit service timing fields. They must not reset a
     # running service to the schema's ready/default stage on ordinary navigation.
@@ -1757,6 +1781,7 @@ def update_presentation_output_status(
     ):
         # A superseded output may continue heartbeating briefly. Reject it
         # before it can close the service that replaced it.
+        session.rollback()
         return PresentationOutputStatusRead(plan_id=plan_id)
     if not payload.release:
         cleanup_live_sessions(session, active_plan_id=plan_id)
@@ -1796,8 +1821,10 @@ def update_presentation_output_status(
         presentation_session.status = "ended"
         presentation_session.ended_at = datetime.now(UTC)
     elif next_payload.get("output_closed_owner_id") == payload.owner_id:
+        session.rollback()
         return PresentationOutputStatusRead(plan_id=plan_id)
     elif current_owner and current_owner != payload.owner_id:
+        session.rollback()
         return existing
     else:
         starting_run = presentation_session.status != "live"

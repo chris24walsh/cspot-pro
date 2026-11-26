@@ -1074,3 +1074,8 @@ independent stream adjustments survive scenes until Resync. The offset is applie
 once at channel sends, remains fixed during individual adjustments and is preserved
 by scene changes. Desk stream mute retains intended levels without releasing its
 gate. See [audio scenes](xr18-audio-scenes.md) for control semantics and hardware limits.
+
+
+### Presentation lock recovery (2026-11-22)
+
+Presentation polling must finish row-lock transactions before FastAPI response validation. No-op cleanup/auto-advance paths now commit and exception paths roll back; stale live/output updates explicitly release their locks. Otherwise waiting row locks and pool acquisition can fill the request workers while the lock holder waits for response validation. Regression tests cover no-op transaction completion and rollback; 71 presentation/countdown/audio-scene tests passed. A targeted cancellation drained the production incident without API or audio restart. This source fix requires an API deployment. Do not restart the API during a live service without accounting for its deliberate mixer startup-mute behavior.

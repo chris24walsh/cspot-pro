@@ -1347,3 +1347,42 @@ def test_navigation_without_stage_preserves_service_timing_and_audio(stage, monk
         assert result.pre_service_phase == "complete"
         assert settings.active_audio_scene == ("pastor" if stage == "service" else "pre_service")
         assert "expected_updated_at" not in json.loads(position.payload_json)
+
+
+def test_noop_cleanup_finishes_row_lock_transaction():
+    engine = create_engine('sqlite://')
+    Base.metadata.create_all(engine, tables=[MixerConfiguration.__table__, PresentationSession.__table__, PresentationPosition.__table__])
+    with Session(engine) as session:
+        live = PresentationSession(plan_id='still-live', status='live')
+        session.add(live)
+        session.commit()
+        assert cleanup_live_sessions(session, active_plan_id='still-live') == 0
+        assert not session.in_transaction()
+        assert live.status == 'live'
+
+
+def test_noop_auto_advance_finishes_row_lock_transaction():
+    engine = create_engine('sqlite://')
+    Base.metadata.create_all(engine, tables=[MixerConfiguration.__table__, PresentationSession.__table__, PresentationPosition.__table__])
+    with Session(engine) as session:
+        live = PresentationSession(plan_id='still-live', status='live')
+        session.add(live)
+        session.flush()
+        position = PresentationPosition(session_id=live.id, payload_json='{"output_active":false}')
+        session.add(position)
+        session.commit()
+        plan_id = live.plan_id
+        result = advance_expired_auto_slide(session, live, position, plan_id)
+        assert result is position
+        assert not session.in_transaction()
+        assert json.loads(position.payload_json) == {'output_active': False}
+
+
+def test_auto_advance_failure_rolls_back_transaction():
+    from app.modules.presentation import routes
+    engine = create_engine('sqlite://')
+    with Session(engine) as session:
+        with patch.object(routes, '_advance_expired_auto_slide', side_effect=RuntimeError('probe')):
+            with pytest.raises(RuntimeError, match='probe'):
+                routes.advance_expired_auto_slide(session, None, None, 'none')
+        assert not session.in_transaction()
