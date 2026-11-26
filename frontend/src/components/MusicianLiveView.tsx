@@ -39,7 +39,7 @@ import { songLyricPageBlocks } from "../lyricPages";
 import { repeatedSectionGroups } from "../repeatedSections";
 import { mergeWorshipSetIntoService } from "../worshipSets";
 
-import { lyricHighlightPulse, lyricHighlightDistance, lyricHighlightTrail, lyricBarHighlightFill, timelineWithEntry, lyricBarLayout, lyricColumnWidths, wrapTimedLine, lyricCursorAt, lyricPlaybackBars, musicalSectionKey, type LyricBar, type LyricCursor } from "../lyricTiming";
+import { lyricHighlightPulse, lyricHighlightDistance, lyricHighlightTrail, lyricBarHighlightFill, timelineWithEntry, lyricBarLayout, lyricColumnWidths, wrapTimedLine, lyricCursorAt, lyricPlaybackBars, musicalSectionKey, type LyricBar, type LyricCursor, type LyricPosition } from "../lyricTiming";
 import { LyricMusicControls, TimingDot } from "./LyricMusicControls";
 import { playbackScrollTarget } from "../playbackScroll";
 import { playbackPageMotion } from "../playbackPages";
@@ -330,7 +330,7 @@ function MusicianChordLine({
   targetAbsoluteKey,
   timing,
 }: {
-  timing?: { lyrics: string; bars: LyricBar[]; sourceLine: number; segmentStart: number; lastSegment: boolean; showBars: boolean; showDot: boolean; highlight: boolean; downbeat: boolean; pulseStrength: number; barStart: { lineIndex: number; anchorIndex: number } | null; cursor: LyricCursor | null };
+  timing?: { lyrics: string; bars: LyricBar[]; markers: LyricPosition[]; sourceLine: number; segmentStart: number; lastSegment: boolean; showBars: boolean; showDot: boolean; highlight: boolean; downbeat: boolean; pulseStrength: number; barStart: { lineIndex: number; anchorIndex: number } | null; cursor: LyricCursor | null };
   annotations: ChordAnnotation[];
   baseAbsoluteKey: string | null;
   capo: number;
@@ -346,7 +346,7 @@ function MusicianChordLine({
   const widths = useMemo(() => timing && timing.sourceLine >= 0 ? lyricColumnWidths(timing.lyrics, timing.bars, timing.sourceLine, timing.segmentStart, totalSlots) : Array.from({ length: totalSlots }, () => 1), [timing?.lyrics, timing?.bars, timing?.sourceLine, timing?.segmentStart, totalSlots]);
   const rangeStart = timing?.segmentStart ? timing.segmentStart + LEADING_CHORD_ANCHORS : 0;
   const rangeEnd = (timing?.segmentStart ?? 0) + LEADING_CHORD_ANCHORS + line.length + (timing?.lastSegment ? TRAILING_CHORD_ANCHORS : 0);
-  const boundaries = timing?.showBars ? timing.bars.flatMap(bar => [bar.start, bar.end]).filter(position => position.lineIndex === timing.sourceLine && position.anchorIndex >= rangeStart && position.anchorIndex < rangeEnd) : [];
+  const boundaries = timing?.showBars ? timing.markers.filter(position => position.lineIndex === timing.sourceLine && position.anchorIndex >= rangeStart && position.anchorIndex < rangeEnd) : [];
   const cursor = timing && timing.cursor && timing.cursor.lineIndex === timing.sourceLine && timing.cursor.anchorIndex >= rangeStart && timing.cursor.anchorIndex < rangeEnd ? timing.cursor : null;
 
   const trailDistance = timing?.highlight && timing.cursor ? lyricHighlightDistance(timing.lyrics, timing.cursor, timing.sourceLine, timing.segmentStart + LEADING_CHORD_ANCHORS) : 0;
@@ -658,6 +658,7 @@ export function MusicianLiveView({ keyboardActive = true, singlePage = false, wo
   const leadPageContext = pageContext(pageLeadSlide);
   const nextPageContext = pageContext(pageNextSlide);
   const timingBars = useMemo(() => lyricBarLayout(liveSong?.lyrics, liveSong?.rhythm, chordChart.annotations), [liveSong?.lyrics, liveSong?.rhythm, chordChart.annotations]);
+  const displayBarMarkers = useMemo(() => resolveChordAnnotations(liveSong?.rhythm?.markers ?? [], liveSong?.lyrics ?? null).map(marker => ({ lineIndex: marker.absoluteLineIndex, anchorIndex: marker.anchorIndex })), [liveSong?.lyrics, liveSong?.rhythm?.markers]);
   const remoteTimeline = useMemo(() => lyricPlaybackBars(liveSong?.lyrics, liveSong?.sequence, timingBars), [liveSong?.lyrics, liveSong?.sequence, timingBars]);
 
   const remoteSongMatches = sharedTiming.remote?.timing.song_id === liveSong?.id && sharedTiming.remote?.timing.plan_item_id === liveItem?.id;
@@ -1414,7 +1415,7 @@ export function MusicianLiveView({ keyboardActive = true, singlePage = false, wo
     const barStart = bar ? bar.stops[barIndex === startedAt ? entryStop : 0] ?? bar.start : null;
     const meter = bar?.rhythm;
     const currentBeatCount = meter && (meter.numerator !== beatRhythm?.numerator || meter.denominator !== beatRhythm?.denominator) ? meter.denominator === 8 && meter.numerator % 3 === 0 ? meter.numerator / 3 : meter.numerator : beatCount;
-    return { barStart, pulseStrength: lyricHighlightPulse(beatPosition, currentBeatCount), lyrics: liveSong?.lyrics ?? '', bars: timingBars, sourceLine: offset < 0 ? -1 : offset + lineIndex, segmentStart, lastSegment, showBars: musicMode, showDot: showTimingDot, highlight: lyricHighlight, downbeat: beatPosition !== null && ((beatPosition % 1 + 1) % 1) * currentBeatCount < Math.min(currentBeatCount, 1.5), cursor: displayCursor?.occurrence === occurrence ? displayCursor : null };
+    return { barStart, pulseStrength: lyricHighlightPulse(beatPosition, currentBeatCount), lyrics: liveSong?.lyrics ?? '', bars: timingBars, markers: displayBarMarkers, sourceLine: offset < 0 ? -1 : offset + lineIndex, segmentStart, lastSegment, showBars: musicMode, showDot: showTimingDot, highlight: lyricHighlight, downbeat: beatPosition !== null && ((beatPosition % 1 + 1) % 1) * currentBeatCount < Math.min(currentBeatCount, 1.5), cursor: displayCursor?.occurrence === occurrence ? displayCursor : null };
   }
 
   function navigateToSequenceBlock(blockIndex: number, partIndex = 0) {

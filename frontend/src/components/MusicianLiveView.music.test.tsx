@@ -23,6 +23,48 @@ async function play(container: HTMLElement) {
   await act(async () => Array.from(document.querySelectorAll<HTMLButtonElement>('.musician-control-menu [role="menuitem"]')).find(button => button.textContent!.startsWith('Click only'))!.click());
 }
 
+it.each([false, true])('shows only saved bar markers, not implicit playback boundaries (scroll %s)', async scroll => {
+  vi.stubGlobal('matchMedia', () => ({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() }));
+  const bounds = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue(new DOMRect(0, 0, 1710, 768));
+  vi.mocked(getPresentationLiveState).mockResolvedValue({ plan_id: 'plan', index: 0, updated_at: 1, worship_coupled: false, plan_item_id: 'item', slide_offset: 0 } as Awaited<ReturnType<typeof getPresentationLiveState>>);
+  const lyrics = 'Lord reign in me, reign in Your power';
+  const song = { id: 'song', title: 'Over All The Earth', lyrics: `[C]\n${lyrics}`, sequence: 'C C', chords: serializeChordChart({ ...createEmptyChordChart(), absoluteKey: 'G', annotations: [
+    { id: 'd', section: 'C', lineIndex: 0, anchorIndex: 8, chord: 'D' },
+    { id: 'c', section: 'C', lineIndex: 0, anchorIndex: 17, chord: 'C' },
+    { id: 'g', section: 'C', lineIndex: 0, anchorIndex: 34, chord: 'G' },
+  ] }), rhythm: { numerator: 4, denominator: 4, patterns: [], notes: '', intro_bars: 0, markers: [
+    { id: 'c', section: 'C', lineIndex: 0, anchorIndex: 17 },
+    { id: 'g', section: 'C', lineIndex: 0, anchorIndex: 34 },
+    { id: 'end', section: 'C', lineIndex: 0, anchorIndex: lyrics.length + 4 },
+  ] } } as unknown as Song;
+  const plan = { id: 'plan', items: [{ id: 'item', item_type: 'song', song_id: 'song', sequence: '1', title: song.title }] } as PlanDetail;
+  const container = document.createElement('div'), mount = document.createElement('div'), toolbar = document.createElement('div');
+  container.append(mount, toolbar); const root = createRoot(mount);
+  const expectMarkers = () => {
+    const sheets = Array.from(container.querySelectorAll(scroll ? '.musician-song-part' : '.musician-chord-sheet'));
+    const columns = sheets.map(sheet => Array.from(sheet.querySelectorAll<HTMLElement>('.lyric-bar-line')).map(marker => marker.style.gridColumn)).filter(markers => markers.length);
+    expect(columns.length).toBeGreaterThan(0);
+    for (const markers of columns) expect(markers).toEqual(['18', '35', String(lyrics.length + 5)]);
+  };
+  try {
+    await act(async () => root.render(<MusicianLiveView singlePage canUseMusic plan={plan} songs={[song]} topbarSlot={toolbar} onEditSong={() => {}} onExit={() => {}} />));
+    if (scroll) {
+      musician(container);
+      act(() => document.querySelector<HTMLButtonElement>('[aria-label="Switch to Scroll view"]')!.click());
+    }
+    toggleBars(container);
+    expectMarkers();
+    await play(container);
+    const performance = audio.play.mock.calls[0][0] as import('../musicPractice').PracticePerformance;
+    // The implicit opening bar still plays the first D before the saved C marker.
+    expect(performance.bars[0].chords[0].chord).toBe('D');
+    const position = audio.play.mock.calls[0][4] as (position: number) => void;
+    await act(async () => position(0.25));
+    expectMarkers();
+    act(() => container.querySelector<HTMLButtonElement>('[aria-label="Stop playback"]')!.click());
+  } finally { act(() => root.unmount()); bounds.mockRestore(); vi.unstubAllGlobals(); vi.clearAllMocks(); }
+});
+
 it.each([false, true])('turns playback pages and publishes them only when synced (%s)', async (coupled) => {
   vi.mocked(getPresentationLiveState).mockResolvedValue({ plan_id: 'plan', index: 0, updated_at: 1, worship_coupled: coupled, plan_item_id: 'item', slide_offset: 0 } as Awaited<ReturnType<typeof getPresentationLiveState>>);
   vi.mocked(updatePresentationLiveState).mockImplementation(async (_id, state) => state as Awaited<ReturnType<typeof updatePresentationLiveState>>);

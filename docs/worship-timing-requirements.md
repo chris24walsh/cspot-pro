@@ -90,6 +90,9 @@ timing from an automatic slide update.
   browser cannot be physically silenced remotely; communicate that limitation.
 - Guard polling against overlap. Keep smooth animation local and avoid rebuilding
   song charts/timelines on every animation tick.
+- Worship's visible bar lines match the saved lyric markers in the song editor.
+  Implicit opening bars and calculated section ends remain playback boundaries
+  only; they must not add visible markers or duplicate shared bar edges.
 
 ## Acceptance tests
 
