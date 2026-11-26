@@ -39,7 +39,7 @@ import { songLyricPageBlocks } from "../lyricPages";
 import { repeatedSectionGroups } from "../repeatedSections";
 import { mergeWorshipSetIntoService } from "../worshipSets";
 
-import { lyricHighlightPulse, lyricHighlightDistance, lyricHighlightTrail, lyricBarHighlightFill, timelineWithEntry, lyricBarLayout, lyricColumnWidths, wrapTimedLine, lyricCursorAt, lyricPlaybackBars, musicalSectionKey, type LyricBar, type LyricCursor, type LyricPosition } from "../lyricTiming";
+import { lyricHighlightPulse, lyricHighlightDistance, lyricHighlightTrail, lyricBarHighlightFill, timelineWithEntry, lyricBarLayout, lyricColumnWidths, wrapTimedLine, lyricCursorAt, lyricPlaybackBars, lyricPageStart, musicalSectionKey, type LyricBar, type LyricCursor, type LyricPosition } from "../lyricTiming";
 import { LyricMusicControls, TimingDot } from "./LyricMusicControls";
 import { playbackScrollTarget } from "../playbackScroll";
 import { playbackPageMotion } from "../playbackPages";
@@ -1300,10 +1300,12 @@ export function MusicianLiveView({ keyboardActive = true, singlePage = false, wo
     const first = slides.findIndex(slide => slide.planItemId === liveItem?.id && slide.slideKind === "content");
     return sequenceBlocks.flatMap((block, occurrence) => block.parts.flatMap((part, index) => {
       const start = block.partLineOffsets[index];
-      const firstBar = remoteTimeline.findIndex(bar => bar.occurrence === occurrence && bar.start.lineIndex >= start && bar.start.lineIndex < start + lyricLines(part).length);
+      const { index: firstBarIndex, stop: firstStop } = lyricPageStart(remoteTimeline, { occurrence, lineStart: start, lineEnd: start + lyricLines(part).length });
+      const bar = remoteTimeline[firstBarIndex];
+      const firstBar = firstBarIndex < 0 ? -1 : firstBarIndex + ((bar.beats?.[firstStop] ?? 1) - 1) / (bar.rhythm?.numerator ?? liveSong?.rhythm?.numerator ?? 4);
       return first >= 0 && firstBar >= 0 ? [{ slideIndex: first + block.slideIndex + index, firstBar }] : [];
     }));
-  }, [slides, liveItem?.id, sequenceBlocks, remoteTimeline]);
+  }, [slides, liveItem?.id, sequenceBlocks, remoteTimeline, liveSong?.rhythm?.numerator]);
   // Starting on a later page must never lead back into the preceding page.
   const startedAt = localPlaybackActive ? localTiming?.startIndex : sharedTiming.remote?.timing.start_index;
   const startingPage = playbackPages.filter(page => page.firstBar <= (startedAt ?? 0)).slice(-1)[0];

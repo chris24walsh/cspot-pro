@@ -3,6 +3,7 @@ import { buildPresentationSlides } from './presentation';
 import { serviceSlideMusicDestination, reseatForManualServiceNavigation } from './serviceMusicNavigation';
 import { resolveMusicTimingDestination } from './musicTimingDestination';
 import type { PlanItem, Song } from './api';
+import { createEmptyChordChart, serializeChordChart } from './chordSheet';
 
 const song = {
   id: 'song', title: 'Refrain', lyrics: '[V1]\nFirst line\nSecond line\n[C]\nRefrain line',
@@ -35,5 +36,21 @@ it('maps a song title slide to its first valid musical destination', () => {
   const title = slides.find(slide => slide.slideKind === 'title')!;
   expect(serviceSlideMusicDestination(title, slides, [item], [song])).toMatchObject({
     song_id: 'song', plan_item_id: 'item', start_index: 0, position: 0,
+  });
+});
+
+it('reseats a run-on chorus from its incoming G bar without inventing a D downbeat', () => {
+  const runOn: Song = { ...song, lyrics: '[V1]\nReign in me again\n[C]\nLord reign in me', sequence: 'V1 C', chords: serializeChordChart({ ...createEmptyChordChart(), annotations: [
+    { id: 'g', section: 'V1', lineIndex: 0, anchorIndex: 3, chord: 'G' },
+    { id: 'd', section: 'C', lineIndex: 0, anchorIndex: 8, chord: 'D', beat: 3 },
+    { id: 'c', section: 'C', lineIndex: 0, anchorIndex: 14, chord: 'C' },
+  ] }), rhythm: { ...song.rhythm!, markers: [
+    { id: 'g', section: 'V1', lineIndex: 0, anchorIndex: 3 },
+    { id: 'c', section: 'C', lineIndex: 0, anchorIndex: 14 },
+  ] } };
+  const runOnSlides = buildPresentationSlides([item], [runOn]);
+  const chorus = runOnSlides.filter(slide => slide.slideKind === 'content')[1];
+  expect(serviceSlideMusicDestination(chorus, runOnSlides, [item], [runOn])).toMatchObject({
+    start_index: 0, first_bar_stop: 0, total_bars: 2, bar_durations_ms: [2400, 2400],
   });
 });

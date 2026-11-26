@@ -93,6 +93,12 @@ timing from an automatic slide update.
 - Worship's visible bar lines match the saved lyric markers in the song editor.
   Implicit opening bars and calculated section ends remain playback boundaries
   only; they must not add visible markers or duplicate shared bar edges.
+- A section opening before its first saved bar marker continues the preceding
+  bar in the chosen song sequence. Its chords retain their within-bar counts,
+  without adding a bar at the section heading. Repeats and reordered sections
+  join the actual preceding occurrence. Starting or reseating directly at a
+  run-on opening begins at the incoming bar's downbeat, not its pickup chord.
+  Standalone section practice may still begin with its opening fragment.
 
 ## Acceptance tests
 

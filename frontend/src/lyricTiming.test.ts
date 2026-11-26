@@ -22,6 +22,68 @@ it('creates source spans, including the implicit first bar, without crossing sec
   expect(bars[2].start.lineIndex).toBe(4);
 });
 
+it('joins an unmarked chorus opening to the preceding bar and plays its D on beat 3', async () => {
+  const text = '[V1]\nReign in me again\n[C]\nLord reign in me';
+  const annotations: ChordAnnotation[] = [
+    { id: 'v-c', section: 'V1', lineIndex: 0, anchorIndex: 3, chord: 'C' },
+    { id: 'v-g', section: 'V1', lineIndex: 0, anchorIndex: 12, chord: 'G' },
+    { id: 'c-d', section: 'C', lineIndex: 0, anchorIndex: 8, chord: 'D', beat: 3 },
+    { id: 'c-c', section: 'C', lineIndex: 0, anchorIndex: 14, chord: 'C' },
+  ];
+  const marked: SongRhythm = { numerator: 4, denominator: 4, bpm: 100, patterns: [], notes: '', markers: [
+    { id: 'v-c', section: 'V1', lineIndex: 0, anchorIndex: 3 },
+    { id: 'v-g', section: 'V1', lineIndex: 0, anchorIndex: 12 },
+    { id: 'c-c', section: 'C', lineIndex: 0, anchorIndex: 14 },
+  ] };
+  const layout = lyricBarLayout(text, marked, annotations);
+  const timeline = lyricPlaybackBars(text, 'V1 C V1 C', layout);
+  expect(timeline).toHaveLength(6);
+  const practice = timedPracticeBars(text, timeline, annotations, 4);
+  expect(practice.map(bar => bar.chords)).toEqual([
+    [{ beat: 1, chord: 'C' }], [{ beat: 1, chord: 'G' }, { beat: 3, chord: 'D' }], [{ beat: 1, chord: 'C' }],
+    [{ beat: 1, chord: 'C' }], [{ beat: 1, chord: 'G' }, { beat: 3, chord: 'D' }], [{ beat: 1, chord: 'C' }],
+  ]);
+  expect(timeline[2].patternBar).toBe(0);
+  expect(lyricCursorAt(text, timeline, 1.5, 4, 4)).toMatchObject({ occurrence: 1, lineIndex: 3, anchorIndex: 8, pulse: 0 });
+  expect(lyricCursorAt(text, timeline, 4.5, 4, 4)).toMatchObject({ occurrence: 3, lineIndex: 3, anchorIndex: 8 });
+  const { buildPracticePerformance } = await import('./musicPractice');
+  const performance = buildPracticePerformance(marked, { mode: 'song', lyrics: text, sequence: 'V1 C V1 C', annotations, metronome: true });
+  expect(performance.bars).toHaveLength(6);
+  expect(performance.bars[1].chords).toEqual(practice[1].chords);
+  expect(performance.totalTicks).toBe(6 * performance.barTicks);
+  const explicit = { ...marked, markers: [...marked.markers!, { id: 'c-d', section: 'C', lineIndex: 0, anchorIndex: 8 }] };
+  const separate = lyricPlaybackBars(text, 'V1 C', lyricBarLayout(text, explicit, annotations));
+  expect(separate).toHaveLength(4);
+  expect(timedPracticeBars(text, separate, annotations, 4)[2].chords).toEqual([{ beat: 1, chord: 'D' }]);
+});
+
+it('joins pickups in chosen playback order without mutating source bars, and still permits standalone entries', () => {
+  const text = '[V1]\nVerse ending\n[V2]\nAnother ending\n[C]\nLord reign in me';
+  const annotations: ChordAnnotation[] = [
+    { id: 'v1', section: 'V1', lineIndex: 0, anchorIndex: 3, chord: 'G' },
+    { id: 'v2', section: 'V2', lineIndex: 0, anchorIndex: 3, chord: 'Em' },
+    { id: 'd', section: 'C', lineIndex: 0, anchorIndex: 8, chord: 'D' },
+    { id: 'c', section: 'C', lineIndex: 0, anchorIndex: 14, chord: 'C' },
+  ];
+  const marked: SongRhythm = { ...rhythm, markers: annotations.filter(chord => chord.id !== 'd').map(({ chord: _chord, ...position }) => position) };
+  const layout = lyricBarLayout(text, marked, annotations);
+  const original = JSON.stringify(layout);
+  const reordered = lyricPlaybackBars(text, 'V2 C C V1 C', layout);
+  expect(reordered).toHaveLength(5);
+  expect(timedPracticeBars(text, reordered, annotations, 4).map(bar => bar.chords.map(chord => chord.chord))).toEqual([['Em', 'D'], ['C', 'D'], ['C'], ['G', 'D'], ['C']]);
+  expect(lyricCursorAt(text, reordered, 1.5, 4, 4)).toMatchObject({ occurrence: 2, lineIndex: 5, anchorIndex: 8 });
+  expect(lyricCursorAt(text, reordered, 3.5, 4, 4)).toMatchObject({ occurrence: 4, lineIndex: 5, anchorIndex: 8 });
+  expect(JSON.stringify(layout)).toBe(original);
+  const page = { occurrence: 4, lineStart: 5, lineEnd: 6 };
+  const entry = liveJumpStart(text, reordered, annotations, page);
+  expect(entry).toEqual({ index: 3, stop: 0 });
+  const entered = timelineWithEntry(reordered, entry.index, entry.stop);
+  expect(lyricCursorAt(text, entered, 3, 4, 4)).toMatchObject({ occurrence: 3, lineIndex: 1, anchorIndex: 3 });
+  expect(timedPracticeBars(text, entered.slice(3), annotations, 4)[0].chords).toEqual([{ beat: 1, chord: 'G' }, { beat: 3, chord: 'D' }]);
+  const standalone = lyricPlaybackBars(text, 'C', layout);
+  expect(timedPracticeBars(text, standalone, annotations, 4)[0].chords).toEqual([{ beat: 1, chord: 'D' }]);
+});
+
 it('preserves normal character spacing and source anchors when wrapping', () => {
   const bars = lyricBarLayout(lyrics, rhythm, chords);
   const widths = lyricColumnWidths(lyrics, bars, 1, 0, 22);
@@ -34,12 +96,12 @@ it('preserves normal character spacing and source anchors when wrapping', () => 
 
 it('follows repeated occurrences, crosses lines inside a bar, and changes page anchors only at the next bar', () => {
   const timeline = lyricPlaybackBars(lyrics, 'V1 C V1', lyricBarLayout(lyrics, rhythm, chords));
-  expect(timeline.map(bar => bar.occurrence)).toEqual([0, 0, 1, 2, 2]);
+  expect(timeline.map(bar => bar.occurrence)).toEqual([0, 0, 1, 2]);
   expect(lyricCursorAt(lyrics, timeline, -0.1, 4, 4)).toBeNull();
   expect(lyricCursorAt(lyrics, timeline, 0.5, 4, 4)).toMatchObject({ lineIndex: 1, anchorIndex: 10, occurrence: 0, barStartLine: 1 });
   expect(lyricCursorAt(lyrics, timeline, 1, 4, 4)).toMatchObject({ lineIndex: 2, anchorIndex: 3, barStartLine: 2 });
   expect(lyricCursorAt(lyrics, timeline, 3, 4, 4)?.occurrence).toBe(2);
-  expect(lyricCursorAt(lyrics, timeline, 5, 4, 4)).toBeNull();
+  expect(lyricCursorAt(lyrics, timeline, 4, 4, 4)).toBeNull();
 });
 
 it('bounces on the compound-meter pulse and supports unsectioned lyrics', () => {
@@ -54,7 +116,7 @@ it('bounces on the compound-meter pulse and supports unsectioned lyrics', () => 
 it('uses the shared marker timing in editor playback and MIDI instead of an approximate manual chart', async () => {
   const { buildPracticePerformance, practiceMidi } = await import('./musicPractice');
   const performance = buildPracticePerformance({ ...rhythm, arrangements: [{ section: 'Default', chart: 'D *12' }] }, { mode: 'song', lyrics, sequence: 'V1 C V1', annotations: chords, metronome: true });
-  expect(performance.bars).toHaveLength(5);
+  expect(performance.bars).toHaveLength(4);
   expect(performance.bars[0].chords).toEqual([{ beat: 1, chord: 'C' }, { beat: 3, chord: 'G' }]);
   expect(performance.bars[2].chords[0].chord).toBe('F');
   expect(practiceMidi(performance).slice(0, 4)).toEqual(new Uint8Array([77, 84, 104, 100]));
@@ -230,5 +292,5 @@ it('repeats the full guided lyric timeline for multiplied sequence sections', ()
   const repeated = lyricPlaybackBars(lyrics, 'V1 Cx3 V1', lyricBarLayout(lyrics, rhythm, chords));
   const explicit = lyricPlaybackBars(lyrics, 'V1 C C C V1', lyricBarLayout(lyrics, rhythm, chords));
   expect(repeated).toEqual(explicit);
-  expect(repeated.map(bar => bar.occurrence)).toEqual([0, 0, 1, 2, 3, 4, 4]);
+  expect(repeated.map(bar => bar.occurrence)).toEqual([0, 0, 1, 2, 3, 4]);
 });

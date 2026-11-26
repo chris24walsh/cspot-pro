@@ -458,6 +458,12 @@ this same lyric grid does. Chords mode edits and moves chord symbols. Bars mode
 adds a boundary immediately on click, moves it by dragging, and removes it by
 clicking it again. Existing chords remain visible and their positions are kept.
 Markers are saved with rhythm metadata using section-relative lyric anchors.
+An opening chord before a section's first marker runs on from the preceding
+bar in song playback; section headings do not create extra bars. For example,
+an incoming G and the chorus's D share a bar until the next C marker. Directly
+starting or reseating that chorus begins at the incoming G downbeat, preserving
+D's within-bar count. Repeats join the actual preceding sequence occurrence.
+Standalone section practice can still play its opening fragment on its own.
 They generate the marked part's playback chart: chord changes within a bar divide
 its time evenly, and empty later bars hold the previous chord. Unmarked parts keep
 manual charts. Marked lyric parts use the same timing map for playback and MIDI;

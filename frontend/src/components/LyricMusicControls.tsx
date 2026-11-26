@@ -2,7 +2,7 @@ import { Footprints, Guitar, Play, Square, Timer, Volume2, VolumeX } from 'lucid
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { transposeChordSymbol, type ChordAnnotation } from '../chordSheet';
 import { performanceBarLength, buildPracticePerformance, PracticeAudioPlayer, PracticeSilentPlayer, MIDI_PPQ, type PracticeBar } from '../musicPractice';
-import { liveJumpStart, timelineWithEntry, lyricCursorAt, lyricPlaybackBars, timedPracticeBars, type LyricBar, type LyricCursor } from '../lyricTiming';
+import { liveJumpStart, lyricPageStart, timelineWithEntry, lyricCursorAt, lyricPlaybackBars, timedPracticeBars, type LyricBar, type LyricCursor } from '../lyricTiming';
 import { worshipSequenceBlocks } from '../worshipText';
 import { usePedalKeyboard } from '../usePedalKeyboard';
 import { CompactControlMenu } from './CompactControlMenu';
@@ -41,8 +41,9 @@ export function LyricMusicControls({ rhythm, lyrics, sequence, annotations, bars
   const resumeAt = useRef<StartPosition | undefined>();
   const sections = useMemo(() => worshipSequenceBlocks(lyrics, sequence), [lyrics, sequence]);
   function sectionStart(occurrence: number): StartPosition | undefined {
-    const bar = timeline.find(bar => bar.occurrence === occurrence);
-    return bar ? { occurrence, lineStart: bar.start.lineIndex, lineEnd: bar.start.lineIndex + 1 } : undefined;
+    const bar = timeline.find(bar => bar.occurrence === occurrence || bar.stopOccurrences?.includes(occurrence));
+    const start = bar?.stops.find((_stop, index) => (bar.stopOccurrences?.[index] ?? bar.occurrence) === occurrence);
+    return start ? { occurrence, lineStart: start.lineIndex, lineEnd: start.lineIndex + 1 } : undefined;
   }
   function requestJump(target: StartPosition) {
     setPedalJump(previous => ({ revision: (previous?.revision ?? 0) + 1, target }));
@@ -147,7 +148,7 @@ export function LyricMusicControls({ rhythm, lyrics, sequence, annotations, bars
           : liveJumpStart(lyrics, timeline, annotations, destination);
         const jumpTimeline = timelineWithEntry(timeline, index, firstBarStop);
         if (index < 0 || !timeline.length) throw new Error("Place a bar boundary on this slide to play from here.");
-        const missing = worshipSequenceBlocks(lyrics, sequence).find((_block, occurrence) => occurrence >= (destination?.occurrence ?? 0) && !timeline.some(bar => bar.occurrence === occurrence));
+        const missing = worshipSequenceBlocks(lyrics, sequence).find((_block, occurrence) => occurrence >= (destination?.occurrence ?? 0) && !timeline.some(bar => bar.occurrence === occurrence || bar.stopOccurrences?.includes(occurrence)));
         if (missing) throw new Error(`Place bar boundaries for ${missing.label} before playing from here.`);
         // Live navigation keeps the chord sounding at the end of this bar.
         const oldBars = activeBars.current;
@@ -186,9 +187,9 @@ export function LyricMusicControls({ rhythm, lyrics, sequence, annotations, bars
       setError(null);
       if (!timeline.length) throw new Error('Place bar boundaries in the chord editor to follow the lyrics.');
       // Capture the selected page once; automatic page turns must not restart playback.
-      const startIndex = destination ? timeline.findIndex(bar => bar.occurrence === destination.occurrence && bar.start.lineIndex >= destination.lineStart && bar.start.lineIndex < destination.lineEnd) : 0;
+      const startIndex = destination ? lyricPageStart(timeline, destination).index : 0;
       if (startIndex < 0) throw new Error('Place a bar boundary on this slide to start playback here.');
-      const missing = worshipSequenceBlocks(lyrics, sequence).find((_block, occurrence) => occurrence >= (destination?.occurrence ?? 0) && !timeline.some(bar => bar.occurrence === occurrence));
+      const missing = worshipSequenceBlocks(lyrics, sequence).find((_block, occurrence) => occurrence >= (destination?.occurrence ?? 0) && !timeline.some(bar => bar.occurrence === occurrence || bar.stopOccurrences?.includes(occurrence)));
       if (missing) throw new Error(`Place bar boundaries for ${missing.label} before following the whole song.`);
       const practiceBars = timedPracticeBars(lyrics, timeline.slice(startIndex), annotations, rhythm.numerator);
       const introBars = rhythm.intro_bars ?? 2;

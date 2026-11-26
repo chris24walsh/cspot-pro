@@ -65,6 +65,41 @@ it.each([false, true])('shows only saved bar markers, not implicit playback boun
   } finally { act(() => root.unmount()); bounds.mockRestore(); vi.unstubAllGlobals(); vi.clearAllMocks(); }
 });
 
+it.each([false, true])('plays a run-on chorus inside the incoming G bar, including direct chorus starts (%s)', async chorusStart => {
+  vi.stubGlobal('matchMedia', () => ({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() }));
+  const bounds = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue(new DOMRect(0, 0, 1710, 768));
+  vi.mocked(getPresentationLiveState).mockResolvedValue({ plan_id: 'plan', index: 0, updated_at: 1, worship_coupled: false, plan_item_id: 'item', slide_offset: 0 } as Awaited<ReturnType<typeof getPresentationLiveState>>);
+  const song = { id: 'song', title: 'Run-on chorus', lyrics: '[V1]\nReign in me again\n[C]\nLord reign in me', sequence: 'V1 C', chords: serializeChordChart({ ...createEmptyChordChart(), absoluteKey: 'G', annotations: [
+    { id: 'v-c', section: 'V1', lineIndex: 0, anchorIndex: 3, chord: 'C' },
+    { id: 'v-g', section: 'V1', lineIndex: 0, anchorIndex: 12, chord: 'G' },
+    { id: 'c-d', section: 'C', lineIndex: 0, anchorIndex: 8, chord: 'D', beat: 3 },
+    { id: 'c-c', section: 'C', lineIndex: 0, anchorIndex: 14, chord: 'C' },
+  ] }), rhythm: { numerator: 4, denominator: 4, patterns: [], notes: '', intro_bars: 0, markers: [
+    { id: 'v-c', section: 'V1', lineIndex: 0, anchorIndex: 3 },
+    { id: 'v-g', section: 'V1', lineIndex: 0, anchorIndex: 12 },
+    { id: 'c-c', section: 'C', lineIndex: 0, anchorIndex: 14 },
+  ] } } as unknown as Song;
+  const plan = { id: 'plan', items: [{ id: 'item', item_type: 'song', song_id: 'song', sequence: '1', title: song.title }] } as PlanDetail;
+  const container = document.createElement('div'), mount = document.createElement('div'), toolbar = document.createElement('div');
+  container.append(mount, toolbar); const root = createRoot(mount);
+  try {
+    await act(async () => root.render(<MusicianLiveView singlePage canUseMusic plan={plan} songs={[song]} topbarSlot={toolbar} onEditSong={() => {}} onExit={() => {}} />));
+    if (chorusStart) {
+      const chorus = Array.from(container.querySelectorAll<HTMLButtonElement>('.musician-sequence-strip button')).find(button => button.textContent === 'C')!;
+      await act(async () => chorus.click());
+    }
+    await play(container);
+    const performance = audio.play.mock.calls[0][0] as import('../musicPractice').PracticePerformance;
+    expect(performance.bars).toHaveLength(chorusStart ? 2 : 3);
+    expect(performance.bars[chorusStart ? 0 : 1].chords).toEqual([{ beat: 1, chord: 'G' }, { beat: 3, chord: 'D' }]);
+    const position = audio.play.mock.calls[0][4] as (position: number) => void;
+    await act(async () => position(chorusStart ? 0.5 : 1.5));
+    expect(container.querySelector('.musician-page.is-current')?.textContent).toContain('Lord');
+    expect(container.querySelector('.musician-page.is-current .lyric-timing-dot')).not.toBeNull();
+    act(() => container.querySelector<HTMLButtonElement>('[aria-label="Stop playback"]')!.click());
+  } finally { act(() => root.unmount()); bounds.mockRestore(); vi.unstubAllGlobals(); vi.clearAllMocks(); }
+});
+
 it.each([false, true])('turns playback pages and publishes them only when synced (%s)', async (coupled) => {
   vi.mocked(getPresentationLiveState).mockResolvedValue({ plan_id: 'plan', index: 0, updated_at: 1, worship_coupled: coupled, plan_item_id: 'item', slide_offset: 0 } as Awaited<ReturnType<typeof getPresentationLiveState>>);
   vi.mocked(updatePresentationLiveState).mockImplementation(async (_id, state) => state as Awaited<ReturnType<typeof updatePresentationLiveState>>);

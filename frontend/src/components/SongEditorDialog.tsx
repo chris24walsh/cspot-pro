@@ -356,6 +356,7 @@ export function SongEditorDialog({
   const effectiveRhythm = useMemo(() => rhythmWithBarMarkers(form.rhythm, chordChart.annotations), [form.rhythm, chordChart.annotations]);
   const [musicCursor, setMusicCursor] = useState<LyricCursor | null>(null);
   const timingBars = useMemo(() => lyricBarLayout(chordLyrics, effectiveRhythm, chordChart.annotations), [chordLyrics, effectiveRhythm, chordChart.annotations]);
+  const sourcePlaybackBars = useMemo(() => lyricPlaybackBars(chordLyrics, null, timingBars), [chordLyrics, timingBars]);
   const lineBars = resolveChordAnnotations(form.rhythm?.markers ?? [], chordLyrics);
   useEffect(() => {
     const dot = chordChartPanelRef.current?.querySelector('.lyric-timing-dot');
@@ -464,7 +465,7 @@ export function SongEditorDialog({
     if (validation.error) throw new Error(validation.error);
     const chord = transposeChordSymbol(validation.normalized, displayMode === "capo" ? chordChart.capo : 0);
     const draft = upsertChordAnnotation(chordChart, { ...position, anchorIndex: selectedAnchorIndex, id: editingAnnotationId, chord, beat: chordBeat });
-    const bars = lyricBarLayout(chordLyrics, form.rhythm, draft.annotations);
+    const bars = lyricPlaybackBars(chordLyrics, null, lyricBarLayout(chordLyrics, form.rhythm, draft.annotations));
     const bar = bars.find(bar => bar.stops.some(stop => stop.lineIndex === selectedLineIndex && stop.anchorIndex === selectedAnchorIndex));
     if (bar) {
       const resolved = resolveChordAnnotations(draft.annotations, chordLyrics);
@@ -993,7 +994,7 @@ export function SongEditorDialog({
                           selectedAnchorIndex === slotIndex &&
                           (editingAnnotationId === null ? !annotation : annotation != null && editingAnnotationId === annotation.id);
                         if (isEditing) {
-                          const showTimingControls = Boolean(annotation && timingBars.some(timingBar =>
+                          const showTimingControls = Boolean(annotation && sourcePlaybackBars.some(timingBar =>
                             timingBar.stops.slice(1, -1).some(stop => stop.lineIndex === lineIndex && stop.anchorIndex === slotIndex),
                           ));
                           return (
@@ -1025,7 +1026,7 @@ export function SongEditorDialog({
                               <label className="chord-beat-control">Play on
                                 <select aria-label="Chord playback beat" value={chordBeat ?? ""} disabled={!canEdit || !timingBars.length} onChange={event => { setChordBeat(event.target.value ? Number(event.target.value) : undefined); previewPlayer.current?.stop(); setPreviewingBar(false); }}>
                                   <option value="">Auto</option>
-                                  {Array.from({ length: (timingBars.find(bar => bar.stops.some(stop => stop.lineIndex === lineIndex && stop.anchorIndex === slotIndex))?.rhythm?.numerator ?? form.rhythm?.numerator ?? 4) * 2 }, (_, i) => 1 + i / 2).map(beat => <option value={beat} key={beat}>{Number.isInteger(beat) ? beat : `& of ${Math.floor(beat)}`}</option>)}
+                                  {Array.from({ length: (sourcePlaybackBars.find(bar => bar.stops.some(stop => stop.lineIndex === lineIndex && stop.anchorIndex === slotIndex))?.rhythm?.numerator ?? form.rhythm?.numerator ?? 4) * 2 }, (_, i) => 1 + i / 2).map(beat => <option value={beat} key={beat}>{Number.isInteger(beat) ? beat : `& of ${Math.floor(beat)}`}</option>)}
                                 </select>
                               </label>
                               <button type="button" disabled={!timingBars.length || !chordInput.trim()} onClick={() => void previewChordBar()}>{previewingBar ? "Stop" : "Loop bar"}</button>

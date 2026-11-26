@@ -120,7 +120,7 @@ export function buildPracticePerformance(rhythm: SongRhythm, options: {
     const layout = lyricBarLayout(options.lyrics, rhythm, options.annotations);
     const timeline = options.mode === "part" ? layout.filter(bar => musicalSectionKey(bar.section) === musicalSectionKey(section)).map((bar, patternBar) => ({ ...bar, patternBar })) : lyricPlaybackBars(options.lyrics, options.sequence, layout);
     if (options.mode === "song") {
-      const missing = worshipSequenceBlocks(options.lyrics, options.sequence).find((_block, occurrence) => !timeline.some(bar => 'occurrence' in bar && bar.occurrence === occurrence));
+      const missing = worshipSequenceBlocks(options.lyrics, options.sequence).find((_block, occurrence) => !timeline.some(bar => 'occurrence' in bar && (bar.occurrence === occurrence || bar.stopOccurrences?.includes(occurrence))));
       if (missing) throw new Error(`Place bar boundaries for ${missing.label} before following the whole song.`);
     }
     bars = timedPracticeBars(options.lyrics, timeline, options.annotations, rhythm.numerator);

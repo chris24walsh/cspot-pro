@@ -275,6 +275,34 @@ it("saves a chord playback count separately from its lyric position", async () =
   } finally { act(() => root.unmount()); vi.resetAllMocks(); }
 });
 
+it('edits a run-on chorus chord on beat 3 of the preceding bar', async () => {
+  const chart = { ...createEmptyChordChart(), absoluteKey: 'G', annotations: [
+    { id: 'g', section: 'V1', lineIndex: 0, anchorIndex: 3, chord: 'G' },
+    { id: 'd', section: 'C', lineIndex: 0, anchorIndex: 8, chord: 'D' },
+    { id: 'c', section: 'C', lineIndex: 0, anchorIndex: 14, chord: 'C' },
+  ] };
+  const song = { id: 'song', title: 'Run-on timing', lyrics: '[V1]\nReign in me again\n[C]\nLord reign in me', sequence: 'V1 C', chords: serializeChordChart(chart), rhythm: { numerator: 4, denominator: 4, patterns: [], notes: '', markers: [
+    { id: 'g', section: 'V1', lineIndex: 0, anchorIndex: 3 },
+    { id: 'c', section: 'C', lineIndex: 0, anchorIndex: 14 },
+  ] } } as unknown as Song;
+  vi.mocked(updateSong).mockImplementation(async (_id, payload) => ({ ...song, ...payload }));
+  const container = document.createElement('div'); const root = createRoot(container);
+  try {
+    await act(async () => root.render(<SongEditorDialog song={song} canEdit onClose={() => {}} onSaved={() => {}} />));
+    act(() => Array.from(container.querySelectorAll('button')).find(button => button.textContent === 'Chords')!.click());
+    act(() => Array.from(container.querySelectorAll<HTMLButtonElement>('.musician-slot.has-chord')).find(button => button.textContent === 'D')!.click());
+    const beat = container.querySelector<HTMLSelectElement>('[aria-label="Chord playback beat"]')!;
+    expect(beat).not.toBeNull();
+    act(() => { beat.value = '3'; beat.dispatchEvent(new Event('change', { bubbles: true })); });
+    act(() => Array.from(container.querySelectorAll('button')).find(button => button.textContent === 'Done')!.click());
+    expect(container.textContent).not.toContain('The first chord starts on beat 1');
+    await act(async () => container.querySelector<HTMLButtonElement>('[aria-label="Save song"]')!.click());
+    expect(updateSong).toHaveBeenCalledOnce();
+    const payload = vi.mocked(updateSong).mock.calls[0][1];
+    expect(parseChordChart(payload.chords ?? null).document.annotations.find(chord => chord.id === 'd')).toMatchObject({ chord: 'D', beat: 3 });
+  } finally { act(() => root.unmount()); vi.resetAllMocks(); }
+});
+
 it('edits an existing bar meter and pattern, saves its scope, and preserves the change when dragged', async () => {
   const chart = { ...createEmptyChordChart(), absoluteKey: 'C', annotations: [{ id: 'c', section: 'V1', lineIndex: 0, anchorIndex: 3, chord: 'C' }] };
   const song = { id: 'song', title: 'Mixed meter', lyrics: '[V1]\nSing a song', sequence: 'V1', chords: serializeChordChart(chart), rhythm: { numerator: 4, denominator: 4, patterns: [], notes: '', markers: [{ id: 'bar', section: 'V1', lineIndex: 0, anchorIndex: 3 }] } } as unknown as Song;
