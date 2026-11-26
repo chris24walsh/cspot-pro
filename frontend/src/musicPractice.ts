@@ -189,13 +189,12 @@ export function buildPracticePerformance(rhythm: SongRhythm, options: {
     const phase = (bar.patternBar ?? patternBar) % (pattern.bars ?? 1);
     const strokes = pattern.strokes.slice(phase * slots, (phase + 1) * slots);
     const attacks = strokes.flatMap((stroke, index) => stroke !== "-" ? [{ stroke, beat: 1 + index / pattern.subdivision }] : []);
-    // A harmonic change must sound on its count even when the strum pattern rests
-    // there, or its grid does not include that subdivision.
+    // Fill a missing harmonic attack softly without changing authored strokes.
     bar.chords.forEach((change, index) => {
       if (!bar.exactTiming || index === 0 || !change.chord || bar.chords[index - 1].chord === change.chord) return;
       const existing = attacks.find(attack => Math.abs(attack.beat - change.beat) < 0.000001);
-      if (existing) { if (existing.stroke === "X") existing.stroke = "D"; }
-      else attacks.push({ stroke: "D", beat: change.beat });
+      if (existing) { if (existing.stroke === "X") existing.stroke = "S"; }
+      else attacks.push({ stroke: "S", beat: change.beat });
     });
     attacks.sort((a, b) => a.beat - b.beat).forEach(({ stroke, beat }) => {
       const index = (beat - 1) * pattern.subdivision;

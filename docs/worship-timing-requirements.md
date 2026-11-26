@@ -99,6 +99,12 @@ timing from an automatic slide update.
   join the actual preceding occurrence. Starting or reseating directly at a
   run-on opening begins at the incoming bar's downbeat, not its pickup chord.
   Standalone section practice may still begin with its opening fragment.
+- A single unspecified mid-bar change defaults to the bar's midpoint. Anchors
+  strictly before 25% or after 75% use relative position rounded to a half-count,
+  clamped between count 1.5 and the last half-count inside the bar. Explicit
+  counts take precedence; multiple unspecified changes retain interpolation.
+  Timed chord changes missing a pitched pattern stroke use a soft downstroke,
+  including muted slots, without strengthening authored pitched strokes.
 
 ## Acceptance tests
 

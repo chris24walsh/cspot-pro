@@ -33,8 +33,8 @@ import { normalizeSongRhythm, type BarMarker, type BarRhythmChange } from "../so
 import { buildPracticePerformance, PracticeAudioPlayer, parseBarChart, transposeBarCharts } from "../musicPractice";
 import { canonicalizeWorshipLyrics, normalizeWorshipSequence, worshipSequenceRepeatError } from "../worshipText";
 import { useConfirmationDialog } from "./ConfirmationDialog";
-import { chordBeats, placeBarMarker, removeBarMarker, rhythmWithBarMarkers } from "../barMarkers";
-import { validateBarMeterChange, timedPracticeBars, lyricBarLayout, lyricColumnWidths, wrapTimedLine, lyricCursorAt, lyricPlaybackBars, musicalSectionKey, type LyricCursor } from "../lyricTiming";
+import { placeBarMarker, removeBarMarker, rhythmWithBarMarkers } from "../barMarkers";
+import { validateBarMeterChange, lyricBarBeats, timedPracticeBars, lyricBarLayout, lyricColumnWidths, wrapTimedLine, lyricCursorAt, lyricPlaybackBars, musicalSectionKey, type LyricCursor } from "../lyricTiming";
 import { LyricMusicControls, TimingDot } from "./LyricMusicControls";
 import { CompactControlMenu } from "./CompactControlMenu";
 import { BarRhythmEditor } from "./BarRhythmEditor";
@@ -468,8 +468,7 @@ export function SongEditorDialog({
     const bars = lyricPlaybackBars(chordLyrics, null, lyricBarLayout(chordLyrics, form.rhythm, draft.annotations));
     const bar = bars.find(bar => bar.stops.some(stop => stop.lineIndex === selectedLineIndex && stop.anchorIndex === selectedAnchorIndex));
     if (bar) {
-      const resolved = resolveChordAnnotations(draft.annotations, chordLyrics);
-      chordBeats(bar.stops.slice(0, -1).map(stop => resolved.find(chord => chord.absoluteLineIndex === stop.lineIndex && chord.anchorIndex === stop.anchorIndex) ?? {}), bar.rhythm?.numerator ?? form.rhythm?.numerator ?? 4, true);
+      lyricBarBeats(chordLyrics, bar, bar.rhythm?.numerator ?? form.rhythm?.numerator ?? 4, true);
     }
     if (chordBeat !== undefined && bar) {
       const stop = bar.stops.findIndex(stop => stop.lineIndex === selectedLineIndex && stop.anchorIndex === selectedAnchorIndex);

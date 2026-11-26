@@ -57,12 +57,12 @@ it('joins an unmarked chorus opening to the preceding bar and plays its D on bea
   expect(timedPracticeBars(text, separate, annotations, 4)[2].chords).toEqual([{ beat: 1, chord: 'D' }]);
 });
 
-it('joins pickups in chosen playback order without mutating source bars, and still permits standalone entries', () => {
+it('preserves assigned pickup counts in chosen playback order without mutating source bars, and permits standalone entries', () => {
   const text = '[V1]\nVerse ending\n[V2]\nAnother ending\n[C]\nLord reign in me';
   const annotations: ChordAnnotation[] = [
     { id: 'v1', section: 'V1', lineIndex: 0, anchorIndex: 3, chord: 'G' },
     { id: 'v2', section: 'V2', lineIndex: 0, anchorIndex: 3, chord: 'Em' },
-    { id: 'd', section: 'C', lineIndex: 0, anchorIndex: 8, chord: 'D' },
+    { id: 'd', section: 'C', lineIndex: 0, anchorIndex: 8, chord: 'D', beat: 3 },
     { id: 'c', section: 'C', lineIndex: 0, anchorIndex: 14, chord: 'C' },
   ];
   const marked: SongRhythm = { ...rhythm, markers: annotations.filter(chord => chord.id !== 'd').map(({ chord: _chord, ...position }) => position) };
@@ -92,6 +92,59 @@ it('preserves normal character spacing and source anchors when wrapping', () => 
   expect(segments.map(segment => segment.line).join('')).toBe('Sing a song now');
   expect(segments.length).toBeGreaterThan(1);
   expect(segments[1].start).toBe(segments[0].end);
+});
+
+it.each([
+  [4, 1.5], [12, 2], [13, 3], [23, 3], [33, 3], [34, 4], [41, 4.5],
+])('defaults a single mid-bar change to halfway unless heavily skewed (anchor %i, beat %s)', (anchor, beat) => {
+  const text = '[V1]\n' + 'Sing '.repeat(10);
+  const annotations: ChordAnnotation[] = [
+    { id: 'c', section: 'V1', lineIndex: 0, anchorIndex: 3, chord: 'C' },
+    { id: 'g', section: 'V1', lineIndex: 0, anchorIndex: anchor, chord: 'G' },
+  ];
+  const marked: SongRhythm = { ...rhythm, markers: [
+    { id: 'start', section: 'V1', lineIndex: 0, anchorIndex: 3 },
+    { id: 'end', section: 'V1', lineIndex: 0, anchorIndex: 43 },
+  ] };
+  const timeline = lyricPlaybackBars(text, 'V1', lyricBarLayout(text, marked, annotations));
+  expect(timedPracticeBars(text, timeline, annotations, 4)[0].chords).toEqual([{ chord: 'C', beat: 1 }, { chord: 'G', beat }]);
+  expect(lyricCursorAt(text, timeline, (beat - 1) / 4, 4, 4)?.anchorIndex).toBe(anchor);
+  const explicit = annotations.map(chord => chord.id === 'g' ? { ...chord, beat: 3.5 } : chord);
+  expect(lyricBarLayout(text, marked, explicit)[0].beats).toEqual([1, 3.5]);
+});
+
+it('uses the same skewed default for the lyric cursor and a soft off-grid audio attack', async () => {
+  const { buildPracticePerformance, MIDI_PPQ } = await import('./musicPractice');
+  const text = '[V1]\n' + 'Sing '.repeat(10);
+  const annotations: ChordAnnotation[] = [
+    { id: 'c', section: 'V1', lineIndex: 0, anchorIndex: 3, chord: 'C' },
+    { id: 'g', section: 'V1', lineIndex: 0, anchorIndex: 4, chord: 'G' },
+  ];
+  const marked: SongRhythm = { ...rhythm, patterns: [{ section: 'Default', subdivision: 1, strokes: ['D', '-', '-', '-'] }], markers: [
+    { id: 'start', section: 'V1', lineIndex: 0, anchorIndex: 3 },
+    { id: 'end', section: 'V1', lineIndex: 0, anchorIndex: 43 },
+  ] };
+  const music = buildPracticePerformance(marked, { mode: 'song', lyrics: text, sequence: 'V1', annotations });
+  expect(music.bars[0].chords[1].beat).toBe(1.5);
+  const added = music.notes.filter(note => note.channel === 0 && note.tick >= MIDI_PPQ / 2 && note.tick < MIDI_PPQ / 2 + 40);
+  expect(added.length).toBeGreaterThan(0);
+  expect(added.every(note => note.soft && note.velocity === 50)).toBe(true);
+});
+
+it('measures a run-on chord’s relative position across playback lines without counting section headings', () => {
+  const text = '[V1]\nLast\n[C]\n' + 'Sing '.repeat(10);
+  const annotations: ChordAnnotation[] = [
+    { id: 'g', section: 'V1', lineIndex: 0, anchorIndex: 3, chord: 'G' },
+    { id: 'd', section: 'C', lineIndex: 0, anchorIndex: 0, chord: 'D' },
+    { id: 'c', section: 'C', lineIndex: 0, anchorIndex: 43, chord: 'C' },
+  ];
+  const marked: SongRhythm = { ...rhythm, markers: [
+    { id: 'g', section: 'V1', lineIndex: 0, anchorIndex: 3 },
+    { id: 'c', section: 'C', lineIndex: 0, anchorIndex: 43 },
+  ] };
+  const timeline = lyricPlaybackBars(text, 'V1 C', lyricBarLayout(text, marked, annotations));
+  expect(timedPracticeBars(text, timeline, annotations, 4)[0].chords).toEqual([{ chord: 'G', beat: 1 }, { chord: 'D', beat: 1.5 }]);
+  expect(lyricCursorAt(text, timeline, 0.125, 4, 4)).toMatchObject({ occurrence: 1, lineIndex: 3, anchorIndex: 0 });
 });
 
 it('follows repeated occurrences, crosses lines inside a bar, and changes page anchors only at the next bar', () => {

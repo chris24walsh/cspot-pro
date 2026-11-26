@@ -265,6 +265,22 @@ it('sounds an explicitly timed offbeat change even when the strum grid has no st
   const attack = music.notes.filter(note => note.channel === 0 && note.tick >= 2.5 * MIDI_PPQ && note.tick < 2.5 * MIDI_PPQ + 40);
   expect(attack.map(note => note.pitch)).toEqual(chordMidiNotes('G'));
   expect(Math.min(...attack.map(note => note.tick))).toBe(2.5 * MIDI_PPQ);
+  expect(attack.every(note => note.soft && note.velocity === 50)).toBe(true);
+});
+
+it.each(['-', 'X', 'U'] as const)('fills a missing chord attack softly while preserving authored strokes (%s)', stroke => {
+  const music = buildPracticePerformance({ ...rhythm, patterns: [{ section: 'Default', subdivision: 1, strokes: ['D', '-', stroke, '-'] }], arrangements: [{ section: 'Default', chart: 'C@1 G@3' }] }, { mode: 'song', countIn: false });
+  const opening = music.notes.filter(note => note.channel === 0 && note.tick < 40);
+  expect(opening.every(note => !note.soft)).toBe(true);
+  const change = music.notes.filter(note => note.channel === 0 && note.tick >= 2 * MIDI_PPQ && note.tick < 2 * MIDI_PPQ + 40);
+  expect(change.length).toBeGreaterThan(0);
+  if (stroke === 'U') {
+    expect(change.map(note => note.pitch)).toEqual(chordMidiNotes('G').reverse());
+    expect(change.every(note => !note.soft && note.velocity === 72)).toBe(true);
+  } else {
+    expect(change.map(note => note.pitch)).toEqual(chordMidiNotes('G'));
+    expect(change.every(note => note.soft && note.velocity === 50)).toBe(true);
+  }
 });
 
 it('uses actual bar lengths for mixed-meter notes, clicks, cursor clocks, live jumps and MIDI signatures', async () => {
