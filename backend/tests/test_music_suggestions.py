@@ -45,6 +45,22 @@ def test_general_suggestions_exclude_seasonal_songs() -> None:
     assert not _song_matches_categories(ordinary_song, ["christmas"])
 
 
+@pytest.mark.parametrize(
+    "tag",
+    ["advent", "Carol", "theme:christmas", "source:songs-of-fellowship-1 theme:christmas"],
+)
+def test_legacy_and_renamed_seasonal_tags_are_excluded(tag: str) -> None:
+    song = Song(title="Seasonal song", theme_tags=tag)
+
+    assert not _song_matches_categories(song, None)
+    if "christmas" in tag:
+        assert _song_matches_categories(song, ["christmas"])
+    else:
+        assert _song_matches_categories(song, ["carol"])
+        assert _song_matches_categories(song, ["advent"])
+        assert not _song_matches_categories(song, ["christmas"])
+
+
 def test_removed_role_requires_a_later_elapsed_service_to_return() -> None:
     removed_at = datetime(2026, 8, 14, tzinfo=UTC)
 

@@ -27,4 +27,14 @@ describe("song library filtering", () => {
     const capoSong = { ...song, chords: JSON.stringify({ version: 3, capoKey: "C", capo: 2, annotations: [] }) };
     expect(songLibraryMetadata(capoSong).key).toBe("D");
   });
+  it("groups legacy tags for filtering and text search", () => {
+    const legacy = { ...song, theme_tags: "Advent, carol, KIDS, kids, source:songs-of-fellowship-1 theme:christmas" };
+    const metadata = songLibraryMetadata(legacy);
+    expect(metadata.themes).toEqual(["carol", "kids", "source:songs-of-fellowship-1", "christmas"]);
+    for (const tag of metadata.themes) {
+      expect(matchesSongLibraryFilters(legacy, metadata, { ...filters, theme: tag })).toBe(true);
+    }
+    expect(matchesSongLibraryFilters(legacy, metadata, { ...filters, query: "sof 1" })).toBe(true);
+    expect(matchesSongLibraryFilters(legacy, metadata, { ...filters, query: "carol" })).toBe(true);
+  });
 });

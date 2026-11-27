@@ -1,5 +1,6 @@
 import json
 import math
+import re
 import secrets
 from datetime import UTC, datetime, timedelta
 
@@ -118,7 +119,7 @@ def song_to_read(song: Song) -> SongRead:
 
 _suggestion_random = secrets.SystemRandom()
 _SUGGESTION_SLOTS = {"opener", "middle", "closer"}
-_SEASONAL_TAGS = {"advent", "christmas", "easter", "lent"}
+_SEASONAL_TAGS = {"carol", "christmas", "easter", "lent"}
 
 
 def _role_values(value: str | None) -> set[str]:
@@ -130,12 +131,24 @@ def _role_values(value: str | None) -> set[str]:
 
 
 def _tag_values(value: str | None) -> set[str]:
-    return {tag.strip().lower() for tag in (value or "").split(",") if tag.strip()}
+    tags = set()
+    for entry in (value or "").split(","):
+        entry = entry.strip()
+        parts = (
+            re.split(r"\s+(?=theme:)", entry, flags=re.IGNORECASE)
+            if entry.lower().startswith("source:")
+            else [entry]
+        )
+        for part in parts:
+            tag = part.lower().removeprefix("theme:")
+            if tag:
+                tags.add("carol" if tag == "advent" else tag)
+    return tags
 
 
 def _song_matches_categories(song: Song, categories: list[str] | None) -> bool:
     tags = _tag_values(song.theme_tags)
-    requested = {category.strip().lower() for category in categories or [] if category.strip()}
+    requested = _tag_values(",".join(categories or []))
     if requested:
         return bool(tags & requested)
     return not bool(tags & _SEASONAL_TAGS)

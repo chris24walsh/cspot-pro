@@ -73,6 +73,7 @@ import { LeaderAssignmentDialog } from "./LeaderAssignmentDialog";
 import { MusicianLiveView } from "./MusicianLiveView";
 import { WorshipLiveWorkspace } from "./WorshipLiveWorkspace";
 import { SongEditorDialog } from "./SongEditorDialog";
+import { songTagLabel } from "../songTags";
 import { useEscapeClose } from "./useEscapeClose";
 
 const SELECTED_WORSHIP_SET_SESSION_KEY = "cspot.selectedWorshipSetPlanId";
@@ -2205,11 +2206,11 @@ export function WorshipBuilderView({ active = true, canUseMixer = false, isAdmin
                 <option value="none">No key</option>
               </select>
             </label>
-            <label>Theme
-              <select aria-label="Filter songs by theme" value={themeFilter} onChange={(event) => setThemeFilter(event.target.value)}>
-                <option value="all">Any theme</option>
-                {filterOptions.themes.map((theme) => <option key={theme} value={theme}>{theme}</option>)}
-                <option value="none">No theme</option>
+            <label>Tag
+              <select aria-label="Filter songs by tag" value={themeFilter} onChange={(event) => setThemeFilter(event.target.value)}>
+                <option value="all">Any tag</option>
+                {filterOptions.themes.map((theme) => <option key={theme} value={theme}>{songTagLabel(theme)}</option>)}
+                <option value="none">No tags</option>
               </select>
             </label>
             <label>Source
@@ -2398,10 +2399,11 @@ export function WorshipBuilderView({ active = true, canUseMixer = false, isAdmin
                     </span>
                   </button>
                   <label className="worship-suggestion-category">
-                    <span>Suggestion category</span>
+                    <span>Suggestion tag</span>
                     <select onChange={(event) => setSuggestionCategory(event.target.value)} value={suggestionCategory}>
                       <option value="general">General worship</option>
                       <option value="christmas">Christmas</option>
+                      <option value="carol">Carol</option>
                       <option value="easter">Easter</option>
                       <option value="hymn">Hymns</option>
                       <option value="gentle">Gentle</option>

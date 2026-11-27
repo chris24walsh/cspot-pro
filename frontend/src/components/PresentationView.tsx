@@ -1,5 +1,6 @@
 import { RepeatMenu } from "./RepeatMenu";
 import { compactSongSlides } from "../compactSongSlides";
+import { parseSongTags, songTagLabel } from "../songTags";
 import { ServicePreviewToggles } from "./ServicePreviewToggles";
 import { railPlacementAt, useRailPointerDrag } from "./useRailPointerDrag";
 import { optimisticRailMove } from "../optimisticRailMove";
@@ -1084,7 +1085,7 @@ export function PresentationView({
         .filter((song) =>
           !searchQuery.trim()
             ? true
-            : `${song.title} ${song.author ?? ""} ${song.alternate_title ?? ""} ${song.theme_tags ?? ""} ${song.lyrics ?? ""}`
+            : `${song.title} ${song.author ?? ""} ${song.alternate_title ?? ""} ${song.theme_tags ?? ""} ${parseSongTags(song.theme_tags).map(songTagLabel).join(" ")} ${song.lyrics ?? ""}`
                 .toLowerCase()
                 .includes(searchQuery.trim().toLowerCase()),
         ),

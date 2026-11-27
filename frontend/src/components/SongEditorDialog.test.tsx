@@ -27,7 +27,7 @@ it("selects library and custom categories while preserving existing tags on save
     expect(checkbox("Hope").checked).toBe(false);
     expect(container.querySelectorAll(".song-category-field .checkbox-pill")).toHaveLength(10);
     act(() => { checkbox("Christmas").click(); checkbox("Hope").click(); });
-    const input = container.querySelector<HTMLInputElement>('[aria-label="New category"]')!;
+    const input = container.querySelector<HTMLInputElement>('[aria-label="New tag"]')!;
     act(() => {
       Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, "Mercy, grace");
       input.dispatchEvent(new Event("input", { bubbles: true }));
@@ -35,7 +35,34 @@ it("selects library and custom categories while preserving existing tags on save
     act(() => Array.from(container.querySelectorAll("button")).find((button) => button.textContent === "Add")!.click());
     expect(checkbox("Mercy").checked).toBe(true);
     await act(async () => container.querySelector<HTMLButtonElement>('[aria-label="Save song"]')!.click());
-    expect(vi.mocked(updateSong).mock.calls[0][1].theme_tags).toBe("Grace, Hope, Mercy");
+    expect(vi.mocked(updateSong).mock.calls[0][1].theme_tags).toBe("Grace, hope, Mercy");
+  } finally {
+    act(() => root.unmount());
+    vi.resetAllMocks();
+  }
+});
+
+it("consolidates legacy tag labels without changing import provenance", async () => {
+  const marker = "source:songs-of-fellowship-1 batch:sof1-20260704";
+  const song = { id: "legacy-tags", title: "Tags", lyrics: null, chords: null, theme_tags: `${marker}, advent, kids, KIDS` } as Song;
+  const otherSong = { ...song, id: "other", theme_tags: "source:songs-of-fellowship-1 theme:christmas" };
+  vi.mocked(updateSong).mockImplementation(async (_id, payload) => ({ ...song, ...payload }));
+  const container = document.createElement("div");
+  const root = createRoot(container);
+  const label = (name: string) => Array.from(container.querySelectorAll<HTMLLabelElement>(".song-category-field .checkbox-pill"))
+    .find((entry) => entry.textContent === name)!;
+  try {
+    await act(async () => root.render(<SongEditorDialog song={song} songs={[song, otherSong]} canEdit onClose={() => {}} onSaved={() => {}} />));
+    act(() => Array.from(container.querySelectorAll("button")).find((button) => button.textContent === "Details")!.click());
+    expect(container.querySelector('[aria-label="Tags"]')).not.toBeNull();
+    expect(label("SoF 1").querySelector("input")!.checked).toBe(true);
+    expect(label("SoF 1").querySelector("input")!.disabled).toBe(true);
+    expect(label("Carol").querySelector("input")!.checked).toBe(true);
+    expect(label("Christmas").querySelector("input")!.checked).toBe(false);
+    expect(Array.from(container.querySelectorAll(".song-category-field .checkbox-pill")).filter((entry) => entry.textContent === "Kids")).toHaveLength(1);
+    act(() => label("Christmas").querySelector("input")!.click());
+    await act(async () => container.querySelector<HTMLButtonElement>('[aria-label="Save song"]')!.click());
+    expect(vi.mocked(updateSong).mock.calls[0][1].theme_tags).toBe(`${marker}, advent, kids, KIDS, christmas`);
   } finally {
     act(() => root.unmount());
     vi.resetAllMocks();
