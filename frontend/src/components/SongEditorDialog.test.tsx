@@ -11,6 +11,51 @@ vi.mock("../api", () => ({ createSong: vi.fn(), updateSong: vi.fn(), getRhythmPr
 
 beforeEach(() => vi.mocked(getRhythmPresets).mockResolvedValue([]));
 
+it("selects library and custom categories while preserving existing tags on save", async () => {
+  const song = { id: "categories", title: "Categories", lyrics: null, chords: null, theme_tags: "Grace, Christmas" } as Song;
+  const librarySong = { ...song, id: "other", theme_tags: "grace, Hope" };
+  vi.mocked(updateSong).mockImplementation(async (_id, payload) => ({ ...song, ...payload }));
+  const container = document.createElement("div");
+  const root = createRoot(container);
+  const checkbox = (name: string) => Array.from(container.querySelectorAll<HTMLLabelElement>(".song-category-field .checkbox-pill"))
+    .find((label) => label.textContent === name)!.querySelector<HTMLInputElement>("input")!;
+  try {
+    await act(async () => root.render(<SongEditorDialog song={song} songs={[librarySong]} canEdit onClose={() => {}} onSaved={() => {}} />));
+    act(() => Array.from(container.querySelectorAll("button")).find((button) => button.textContent === "Details")!.click());
+    expect(checkbox("Grace").checked).toBe(true);
+    expect(checkbox("Christmas").checked).toBe(true);
+    expect(checkbox("Hope").checked).toBe(false);
+    expect(container.querySelectorAll(".song-category-field .checkbox-pill")).toHaveLength(10);
+    act(() => { checkbox("Christmas").click(); checkbox("Hope").click(); });
+    const input = container.querySelector<HTMLInputElement>('[aria-label="New category"]')!;
+    act(() => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, "Mercy, grace");
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    act(() => Array.from(container.querySelectorAll("button")).find((button) => button.textContent === "Add")!.click());
+    expect(checkbox("Mercy").checked).toBe(true);
+    await act(async () => container.querySelector<HTMLButtonElement>('[aria-label="Save song"]')!.click());
+    expect(vi.mocked(updateSong).mock.calls[0][1].theme_tags).toBe("Grace, Hope, Mercy");
+  } finally {
+    act(() => root.unmount());
+    vi.resetAllMocks();
+  }
+});
+
+it("does not allow category changes in read-only mode", async () => {
+  const song = { id: "readonly", title: "Read only", lyrics: null, chords: null, theme_tags: "custom" } as Song;
+  const container = document.createElement("div");
+  const root = createRoot(container);
+  try {
+    await act(async () => root.render(<SongEditorDialog song={song} canEdit={false} onClose={() => {}} onSaved={() => {}} />));
+    act(() => Array.from(container.querySelectorAll("button")).find((button) => button.textContent === "Details")!.click());
+    expect(Array.from(container.querySelectorAll<HTMLInputElement>(".song-category-field input")).every((input) => input.disabled)).toBe(true);
+    expect(Array.from(container.querySelectorAll<HTMLButtonElement>(".song-category-field button")).every((button) => button.disabled)).toBe(true);
+  } finally {
+    act(() => root.unmount());
+  }
+});
+
 it("lets the user toggle off transposition and save a corrected key with the same chords", async () => {
   const chart = {
     ...createEmptyChordChart(), absoluteKey: "C",

@@ -5289,6 +5289,27 @@ button.musician-page {
   font-weight: 850;
 }
 
+.song-editor-dialog .worship-slot-field .checkbox-pill-grid,
+.song-editor-dialog .song-category-field .checkbox-pill-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+}
+
+.song-editor-dialog .checkbox-pill:focus-within {
+  outline: 2px solid #245d4d;
+  outline-offset: 2px;
+}
+
+.song-category-add {
+  display: flex;
+  gap: 5px;
+}
+
+.song-category-add input {
+  min-width: 0;
+  flex: 1;
+}
+
 .youtube-audio-frame {
   border: 0;
   height: 1px;

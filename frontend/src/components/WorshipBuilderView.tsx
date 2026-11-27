@@ -2015,6 +2015,7 @@ export function WorshipBuilderView({ active = true, canUseMixer = false, isAdmin
               setMessage(`Saved "${updated.title}".`);
             }}
             song={editingSong}
+            songs={songs}
           />
         ) : null}
       </>
@@ -2703,6 +2704,7 @@ export function WorshipBuilderView({ active = true, canUseMixer = false, isAdmin
             setMessage(`Saved "${updated.title}".`);
           }}
           song={editingSong}
+          songs={songs}
         />
       ) : null}
 

@@ -6377,6 +6377,7 @@ export function PresentationView({
             setMessage(`Saved "${updated.title}".`);
           }}
           song={editingSong}
+          songs={songs}
         />
       ) : null}
     </section>

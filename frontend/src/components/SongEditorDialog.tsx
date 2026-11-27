@@ -66,6 +66,12 @@ const WORSHIP_SLOT_OPTIONS = [
   { value: "closer", label: "Closing" },
 ] as const;
 
+const SONG_CATEGORY_OPTIONS = ["hymn", "gentle", "unaccompanied", "big band", "advent", "christmas", "lent", "easter"];
+
+function songCategories(value: string | null | undefined) {
+  return (value ?? "").split(",").map((tag) => tag.trim()).filter(Boolean);
+}
+
 const GUITAR_CHORDS: Record<string, GuitarChordShape> = {
   A: { frets: ["x", 0, 2, 2, 2, 0], fingers: [null, null, 1, 2, 3, null] },
   Am: { frets: ["x", 0, 2, 2, 1, 0], fingers: [null, null, 2, 3, 1, null] },
@@ -285,6 +291,7 @@ export function SongEditorDialog({
   onFindLyrics,
   onSaved,
   song,
+  songs = [],
 }: {
   canEdit: boolean;
   mode?: "create" | "edit";
@@ -293,6 +300,7 @@ export function SongEditorDialog({
   onFindLyrics?: (song: Song) => void;
   onSaved: (song: Song) => void | Promise<void>;
   song: Song;
+  songs?: Song[];
 }) {
   const { confirm, confirmationDialog } = useConfirmationDialog();
   useEscapeClose(true, onClose);
@@ -308,6 +316,7 @@ export function SongEditorDialog({
 
   const [transposeChordsOnKeyChange, setTransposeChordsOnKeyChange] = useState(true);
   const [form, setForm] = useState<SongForm>(() => formFromSong(song));
+  const [newCategory, setNewCategory] = useState("");
   const [chordChart, setChordChart] = useState<ChordChartDocument>(() => parseChordChart(song.chords, song.lyrics).document);
   const [legacyChords, setLegacyChords] = useState<string | null>(() => parseChordChart(song.chords, song.lyrics).legacyText);
   const [selectedLineIndex, setSelectedLineIndex] = useState(0);
@@ -332,6 +341,18 @@ export function SongEditorDialog({
   const [persistedSongId, setPersistedSongId] = useState<string | null>(mode === "edit" ? song.id : null);
   const [lastSavedSong, setLastSavedSong] = useState(song);
   const [savedSignature, setSavedSignature] = useState(() => mode === "create" ? "" : savedSongSignature(song));
+  const selectedCategories = songCategories(form.theme_tags);
+  const categoryOptions = Array.from(new Map(
+    [...SONG_CATEGORY_OPTIONS, ...songs.flatMap((entry) => songCategories(entry.theme_tags)), ...songCategories(song.theme_tags), ...selectedCategories]
+      .map((category) => [category.toLowerCase(), category] as const),
+  ).values());
+  function toggleCategory(category: string, checked: boolean) {
+    setForm((current) => {
+      const categories = songCategories(current.theme_tags).filter((tag) => tag.toLowerCase() !== category.toLowerCase());
+      if (checked) categories.push(category);
+      return { ...current, theme_tags: categories.length ? categories.join(", ") : null };
+    });
+  }
   const displayMode: ChordDisplayMode = "absolute";
   const detailMode: ChordDetailMode = "advanced";
   const chordLyrics = useMemo(
@@ -375,6 +396,7 @@ export function SongEditorDialog({
 
   useEffect(() => {
     setForm(formFromSong(song));
+    setNewCategory("");
     const parsed = parseChordChart(song.chords, song.lyrics);
     setChordChart(parsed.document);
     setLegacyChords(parsed.legacyText);
@@ -926,16 +948,35 @@ export function SongEditorDialog({
                 </div>
                 <small className="field-help">Types are learned after a worship-set date passes. A removed type stays removed until the song is used in that position again.</small>
               </div>
-              <label className="wide-field">
+              <div className="field-block wide-field song-category-field" role="group" aria-label="Categories">
                 <span>Categories</span>
-                <input
-                  disabled={!canEdit}
-                  onChange={(event) => setForm({ ...form, theme_tags: event.target.value })}
-                  placeholder="hymn, gentle, unaccompanied, big band, christmas, easter"
-                  value={form.theme_tags ?? ""}
-                />
-                <small className="field-help">Comma-separated. Christmas, Easter, Advent, and Lent songs stay out of general suggestions.</small>
-              </label>
+                <div className="checkbox-pill-grid">
+                  {categoryOptions.map((category) => {
+                    const selected = selectedCategories.some((tag) => tag.toLowerCase() === category.toLowerCase());
+                    return (
+                      <label className={`checkbox-pill ${selected ? "selected" : ""}`} key={category.toLowerCase()}>
+                        <input checked={selected} disabled={!canEdit} onChange={(event) => toggleCategory(category, event.target.checked)} type="checkbox" />
+                        <span>{category}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+                <div className="song-category-add">
+                  <input aria-label="New category" disabled={!canEdit} onChange={(event) => setNewCategory(event.target.value)} placeholder="New category" value={newCategory} />
+                  <button disabled={!canEdit || !newCategory.trim()} onClick={() => {
+                    const categories = songCategories(newCategory);
+                    setForm((current) => {
+                      const tags = songCategories(current.theme_tags);
+                      categories.forEach((category) => {
+                        if (!tags.some((tag) => tag.toLowerCase() === category.toLowerCase())) tags.push(category);
+                      });
+                      return { ...current, theme_tags: tags.length ? tags.join(", ") : null };
+                    });
+                    setNewCategory("");
+                  }} type="button">Add</button>
+                </div>
+                <small className="field-help">Christmas, Easter, Advent, and Lent songs stay out of general suggestions.</small>
+              </div>
               <label className="wide-field youtube-field">
                 <span>YouTube Link / ID</span>
                 <span className="inline-input-action">
